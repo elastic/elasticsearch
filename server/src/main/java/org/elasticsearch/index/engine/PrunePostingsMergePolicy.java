@@ -21,8 +21,6 @@ package org.elasticsearch.index.engine;
 
 import org.apache.lucene.codecs.FieldsProducer;
 import org.apache.lucene.index.CodecReader;
-import org.apache.lucene.index.DocValuesType;
-import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FilterCodecReader;
 import org.apache.lucene.index.FilterLeafReader;
 import org.apache.lucene.index.FilteredTermsEnum;
@@ -30,27 +28,19 @@ import org.apache.lucene.index.ImpactsEnum;
 import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.OneMergeWrappingMergePolicy;
 import org.apache.lucene.index.PostingsEnum;
-import org.apache.lucene.index.TermState;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.DocIdSetIterator;
-import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.Query;
-import org.apache.lucene.search.ScoreMode;
-import org.apache.lucene.search.Scorer;
-import org.apache.lucene.search.Weight;
-import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.util.Iterator;
-import java.util.function.Supplier;
 
 /**
- * This merge policy drops id field postings for all delete documents as well as all docs within the provided retention policy this can be
- * useful to guarantee consistent search and update performance even if a large number of deleted / updated documents
+ * This merge policy drops id field postings for all delete documents this can be
+ * useful to guarantee consistent update performance even if a large number of deleted / updated documents
  * are retained. Merging postings away is efficient since lucene visits postings term by term and
  * with the original live-docs being available we are adding a negotiable overhead such that we can
  * prune soft-deletes by default. Yet, using this merge policy will cause loosing all search capabilities on top of
@@ -64,12 +54,6 @@ final class PrunePostingsMergePolicy extends OneMergeWrappingMergePolicy {
         super(in, toWrap -> new OneMerge(toWrap.segments) {
             @Override
             public CodecReader wrapForMerge(CodecReader reader) throws IOException {
-                FieldInfo fieldInfo = reader.getFieldInfos().fieldInfo(idField);
-                if (fieldInfo != null
-                    && (fieldInfo.hasNorms() || fieldInfo.hasVectors() || fieldInfo.getDocValuesType() != DocValuesType.NONE)) {
-                    // TODO can we guarantee this?
-                    throw new IllegalStateException(idField + " must not have norms, vectors or doc-values");
-                }
                 CodecReader wrapped = toWrap.wrapForMerge(reader);
                 return wrapReader(wrapped, idField);
             }
@@ -81,6 +65,7 @@ final class PrunePostingsMergePolicy extends OneMergeWrappingMergePolicy {
         if (liveDocs == null) {
             return reader; // no deleted docs - we are good!
         }
+        final boolean fullyDeletedSegment = reader.numDocs() == 0;
         return new FilterCodecReader(reader) {
 
             @Override
@@ -108,85 +93,46 @@ final class PrunePostingsMergePolicy extends OneMergeWrappingMergePolicy {
                     @Override
                     public Terms terms(String field) throws IOException {
                         Terms in = postingsReader.terms(field);
-                        if (in == null || idField.equals(field) == false) {
+                        if (idField.equals(field) && in != null) {
+                            return new FilterLeafReader.FilterTerms(in) {
+                                @Override
+                                public TermsEnum iterator() throws IOException {
+                                    TermsEnum iterator = super.iterator();
+                                    return new FilteredTermsEnum(iterator, false) {
+                                        private PostingsEnum internal;
+
+                                        @Override
+                                        protected AcceptStatus accept(BytesRef term) throws IOException {
+                                            if (fullyDeletedSegment) {
+                                                return AcceptStatus.END; // short-cut this if we don't match anything
+                                            }
+                                            internal = postings(internal, PostingsEnum.NONE);
+                                            if (internal.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
+                                                return AcceptStatus.YES;
+                                            }
+                                            return AcceptStatus.NO;
+                                        }
+
+                                        @Override
+                                        public PostingsEnum postings(PostingsEnum reuse, int flags) throws IOException {
+                                            if (reuse != null && reuse instanceof OnlyLiveDocsPostingsEnum) {
+                                                OnlyLiveDocsPostingsEnum reuseInstance = (OnlyLiveDocsPostingsEnum) reuse;
+                                                reuseInstance.reset(super.postings(reuseInstance.in, flags));
+                                                return reuseInstance;
+                                            }
+                                            return new OnlyLiveDocsPostingsEnum(super.postings(null, flags), liveDocs);
+                                        }
+
+                                        @Override
+                                        public ImpactsEnum impacts(int flags) throws IOException {
+                                            throw new UnsupportedEncodingException();
+                                        }
+                                    };
+                                }
+                            };
+                        } else {
                             return in;
                         }
-                        return new FilterLeafReader.FilterTerms(in) {
-                            @Override
-                            public TermsEnum iterator() throws IOException {
-                                TermsEnum iterator = super.iterator();
-                                return new FilteredTermsEnum(iterator) {
-                                    private PostingsEnum internal;
-                                    @Override
-                                    protected AcceptStatus accept(BytesRef term) {
-                                        return AcceptStatus.YES;
-                                    }
-
-                                    @Override
-                                    public BytesRef next() throws IOException {
-                                        if (liveDocs instanceof Bits.MatchNoBits) {
-                                            return null; // short-cut this if we don't match anything
-                                        }
-                                        BytesRef ref;
-                                        while ((ref = iterator.next()) != null) {
-                                            internal = super.postings(internal, PostingsEnum.NONE);
-                                            if (skipDeletedDocs(internal, liveDocs) != DocIdSetIterator.NO_MORE_DOCS) {
-                                                break;
-                                            }
-                                        }
-                                        return ref;
-                                    }
-
-                                    @Override
-                                    public boolean seekExact(BytesRef text) {
-                                       throw new UnsupportedOperationException("This TermsEnum can not seek");
-                                    }
-
-                                    @Override
-                                    public SeekStatus seekCeil(BytesRef text) {
-                                        throw new UnsupportedOperationException("This TermsEnum can not seek");
-                                    }
-
-                                    @Override
-                                    public void seekExact(long ord) {
-                                        throw new UnsupportedOperationException("This TermsEnum can not seek");
-                                    }
-
-                                    @Override
-                                    public void seekExact(BytesRef term, TermState state) {
-                                        throw new UnsupportedOperationException("This TermsEnum can not seek");
-                                    }
-
-                                    @Override
-                                    public PostingsEnum postings(PostingsEnum reuse, int flags) {
-                                        assert internal != null;
-                                        return new FilterLeafReader.FilterPostingsEnum(internal) {
-
-                                            @Override
-                                            public int nextDoc() throws IOException {
-                                                int currentDocId = in.docID();
-                                                if (currentDocId != NO_MORE_DOCS) {
-                                                    skipDeletedDocs(in, liveDocs);
-                                                }
-                                                return currentDocId;
-                                            }
-
-                                            @Override
-                                            public int advance(int target) throws IOException {
-                                                throw new UnsupportedEncodingException();
-                                            }
-                                        };
-                                    }
-
-                                    @Override
-                                    public ImpactsEnum impacts(int flags) throws IOException {
-                                        throw new UnsupportedEncodingException();
-                                    }
-
-
-                                };
-                            }
-                        };
                     }
 
                     @Override
@@ -213,11 +159,67 @@ final class PrunePostingsMergePolicy extends OneMergeWrappingMergePolicy {
         };
     }
 
-    private static int skipDeletedDocs(DocIdSetIterator iterator, Bits liveDocs) throws IOException {
-        int docId;
-        do {
-            docId = iterator.nextDoc();
-        } while (docId != DocIdSetIterator.NO_MORE_DOCS && liveDocs.get(docId) == false);
-        return docId;
+    private static final class OnlyLiveDocsPostingsEnum extends PostingsEnum {
+
+        private final Bits liveDocs;
+        private PostingsEnum in;
+
+        public OnlyLiveDocsPostingsEnum(PostingsEnum in, Bits liveDocs) {
+            this.liveDocs = liveDocs;
+            reset(in);
+        }
+
+        void reset(PostingsEnum in) {
+            this.in = in;
+        }
+
+        @Override
+        public int docID() {
+            return in.docID();
+        }
+
+        @Override
+        public int nextDoc() throws IOException {
+            int docId;
+            do {
+                docId = in.nextDoc();
+            } while (docId != DocIdSetIterator.NO_MORE_DOCS && liveDocs.get(docId) == false);
+            return docId;
+        }
+
+        @Override
+        public int advance(int target) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public long cost() {
+            return in.cost();
+        }
+
+        @Override
+        public int freq() throws IOException {
+            return in.freq();
+        }
+
+        @Override
+        public int nextPosition() throws IOException {
+            return in.nextPosition();
+        }
+
+        @Override
+        public int startOffset() throws IOException {
+            return in.startOffset();
+        }
+
+        @Override
+        public int endOffset() throws IOException {
+            return in.endOffset();
+        }
+
+        @Override
+        public BytesRef getPayload() throws IOException {
+            return in.getPayload();
+        }
     }
 }

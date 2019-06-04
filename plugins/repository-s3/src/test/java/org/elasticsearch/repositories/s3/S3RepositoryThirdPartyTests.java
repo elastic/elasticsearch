@@ -60,7 +60,7 @@ public class S3RepositoryThirdPartyTests extends AbstractThirdPartyRepositoryTes
     protected void createRepository(String repoName) {
         Settings.Builder settings = Settings.builder()
             .put("bucket", System.getProperty("test.s3.bucket"))
-            .put("base_path", System.getProperty("test.s3.base", "/"));
+            .put("base_path", System.getProperty("test.s3.base", ""));
         final String endpointPath = System.getProperty("test.s3.endpoint");
         if (endpointPath != null) {
             try {

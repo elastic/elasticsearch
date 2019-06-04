@@ -1,0 +1,26 @@
+[role="xpack"]
+[testenv="basic"]
+[[data-frame-transform-pivot]]
+=== Pivot resources
+
+A pivot configuration object has the following properties:
+
+`group_by` (required):: (object) Defines how to group the data. More than one grouping can be defined per pivot. The following groupings are supported:
+* {ref}/search-aggregations-bucket-composite-aggregation.html#_terms[Terms]
+* {ref}/search-aggregations-bucket-composite-aggregation.html#_histogram[Histogram]
+* {ref}/search-aggregations-bucket-composite-aggregation.html#_date_histogram[Date Histogram]
+
+`aggregations` (required):: (object) Defines how to aggregate the grouped data.
+The following aggregations are supported:
+* {ref}/search-aggregations-metrics-avg-aggregation.html[Average]
+* {ref}/search-aggregations-metrics-weight-avg-aggregation.html[Weighted Average]
+* {ref}/search-aggregations-metrics-cardinality-aggregation.html[Cardinality]
+* {ref}/search-aggregations-metrics-geocentroid-aggregation.html[Geo Centroid]
+* {ref}/search-aggregations-metrics-max-aggregation.html[Max]
+* {ref}/search-aggregations-metrics-min-aggregation.html[Min]
+* {ref}/search-aggregations-metrics-scripted-metric-aggregation.html[Scripted Metric]
+* {ref}/search-aggregations-metrics-sum-aggregation.html[Sum]
+* {ref}/search-aggregations-metrics-valuecount-aggregation.html[Value Count]
+* {ref}/search-aggregations-metrics-bucket_script-aggregation.html[Bucket Script]
+
+//For more information, see {stack-ov}/ml-dataframes.html[dataframes-cap}].

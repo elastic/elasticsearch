@@ -8,8 +8,8 @@ esplugin {
 }
 
 dependencies {
-  compileOnly "org.elasticsearch.plugin:x-pack-core:${version}"
-  testCompile "org.elasticsearch.client:elasticsearch-rest-high-level-client:${version}"
+  compileOnly project(':x-pack:plugin:core')
+  testCompile project(':client:rest-high-level')
 }
 
 

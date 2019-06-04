@@ -54,8 +54,8 @@ test {
 }
 
 dependencies {
-  compile "org.elasticsearch.client:elasticsearch-rest-client:${version}"
-  compile "org.elasticsearch:elasticsearch-ssl-config:${version}"
+  compile project(":client:rest")
+  compile project(":libs:elasticsearch-ssl-config")
   // for http - testing reindex from remote
   testCompile project(path: ':modules:transport-netty4', configuration: 'runtime')
   // for parent/child testing

@@ -25,6 +25,7 @@ import org.elasticsearch.action.update.UpdateAction;
 import org.elasticsearch.action.update.UpdateRequestBuilder;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.UUIDs;
@@ -364,7 +365,7 @@ public class AuthenticationServiceTests extends ESTestCase {
 
         // green to yellow or yellow to green
         previousState = dummyState(randomFrom(ClusterHealthStatus.GREEN, ClusterHealthStatus.YELLOW));
-        currentState = dummyState(previousState.indexStatus == ClusterHealthStatus.GREEN ?
+        currentState = dummyState(previousState.indexHealth == ClusterHealthStatus.GREEN ?
             ClusterHealthStatus.YELLOW : ClusterHealthStatus.GREEN);
         service.onSecurityIndexStateChange(previousState, currentState);
         assertEquals(expectedInvalidation, service.getNumInvalidation());
@@ -1249,11 +1250,12 @@ public class AuthenticationServiceTests extends ESTestCase {
                 creatorMap.put("realm", "auth realm");
                 source.put("creator", creatorMap);
                 GetResponse getResponse = new GetResponse(new GetResult(request.index(), request.type(), request.id(), 0, 1, 1L, true,
-                    BytesReference.bytes(JsonXContent.contentBuilder().map(source)), Collections.emptyMap()));
+                    BytesReference.bytes(JsonXContent.contentBuilder().map(source)), Collections.emptyMap(), Collections.emptyMap()));
                 listener.onResponse(getResponse);
             } else {
                 listener.onResponse(new GetResponse(new GetResult(request.index(), request.type(), request.id(),
-                        SequenceNumbers.UNASSIGNED_SEQ_NO, 1, -1L, false, null, Collections.emptyMap())));
+                        SequenceNumbers.UNASSIGNED_SEQ_NO, 1, -1L, false, null,
+                    Collections.emptyMap(), Collections.emptyMap())));
             }
             return Void.TYPE;
         }).when(client).get(any(GetRequest.class), any(ActionListener.class));
@@ -1288,11 +1290,12 @@ public class AuthenticationServiceTests extends ESTestCase {
                 creatorMap.put("realm", "auth realm");
                 source.put("creator", creatorMap);
                 GetResponse getResponse = new GetResponse(new GetResult(request.index(), request.type(), request.id(), 0, 1, 1L, true,
-                        BytesReference.bytes(JsonXContent.contentBuilder().map(source)), Collections.emptyMap()));
+                        BytesReference.bytes(JsonXContent.contentBuilder().map(source)), Collections.emptyMap(), Collections.emptyMap()));
                 listener.onResponse(getResponse);
             } else {
                 listener.onResponse(new GetResponse(new GetResult(request.index(), request.type(), request.id(),
-                        SequenceNumbers.UNASSIGNED_SEQ_NO, 1, -1L, false, null, Collections.emptyMap())));
+                        SequenceNumbers.UNASSIGNED_SEQ_NO, 1, -1L, false, null,
+                    Collections.emptyMap(), Collections.emptyMap())));
             }
             return Void.TYPE;
         }).when(client).get(any(GetRequest.class), any(ActionListener.class));
@@ -1400,6 +1403,7 @@ public class AuthenticationServiceTests extends ESTestCase {
     }
 
     private SecurityIndexManager.State dummyState(ClusterHealthStatus indexStatus) {
-        return new SecurityIndexManager.State(Instant.now(), true, true, true, null, concreteSecurityIndexName, indexStatus);
+        return new SecurityIndexManager.State(
+            Instant.now(), true, true, true, null, concreteSecurityIndexName, indexStatus, IndexMetaData.State.OPEN);
     }
 }

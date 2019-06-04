@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.core.security.action.token;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.Nullable;
@@ -186,38 +185,19 @@ public final class CreateTokenRequest extends ActionRequest {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        if (out.getVersion().before(Version.V_6_5_0) && GrantType.CLIENT_CREDENTIALS.getValue().equals(grantType)) {
-            throw new IllegalArgumentException("a request with the client_credentials grant_type cannot be sent to version [" +
-                out.getVersion() + "]");
-        }
-
         out.writeString(grantType);
-        if (out.getVersion().onOrAfter(Version.V_6_2_0)) {
-            out.writeOptionalString(username);
-            if (password == null) {
-                out.writeOptionalBytesReference(null);
-            } else {
-                final byte[] passwordBytes = CharArrays.toUtf8Bytes(password.getChars());
-                try {
-                    out.writeOptionalBytesReference(new BytesArray(passwordBytes));
-                } finally {
-                    Arrays.fill(passwordBytes, (byte) 0);
-                }
-            }
-            out.writeOptionalString(refreshToken);
+        out.writeOptionalString(username);
+        if (password == null) {
+            out.writeOptionalBytesReference(null);
         } else {
-            if ("refresh_token".equals(grantType)) {
-                throw new IllegalArgumentException("a refresh request cannot be sent to an older version");
-            } else {
-                out.writeString(username);
-                final byte[] passwordBytes = CharArrays.toUtf8Bytes(password.getChars());
-                try {
-                    out.writeByteArray(passwordBytes);
-                } finally {
-                    Arrays.fill(passwordBytes, (byte) 0);
-                }
+            final byte[] passwordBytes = CharArrays.toUtf8Bytes(password.getChars());
+            try {
+                out.writeOptionalBytesReference(new BytesArray(passwordBytes));
+            } finally {
+                Arrays.fill(passwordBytes, (byte) 0);
             }
         }
+        out.writeOptionalString(refreshToken);
         out.writeOptionalString(scope);
     }
 
@@ -225,29 +205,19 @@ public final class CreateTokenRequest extends ActionRequest {
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         grantType = in.readString();
-        if (in.getVersion().onOrAfter(Version.V_6_2_0)) {
-            username = in.readOptionalString();
-            BytesReference bytesRef = in.readOptionalBytesReference();
-            if (bytesRef != null) {
-                byte[] bytes = BytesReference.toBytes(bytesRef);
-                try {
-                    password = new SecureString(CharArrays.utf8BytesToChars(bytes));
-                } finally {
-                    Arrays.fill(bytes, (byte) 0);
-                }
-            } else {
-                password = null;
-            }
-            refreshToken = in.readOptionalString();
-        } else {
-            username = in.readString();
-            final byte[] passwordBytes = in.readByteArray();
+        username = in.readOptionalString();
+        BytesReference bytesRef = in.readOptionalBytesReference();
+        if (bytesRef != null) {
+            byte[] bytes = BytesReference.toBytes(bytesRef);
             try {
-                password = new SecureString(CharArrays.utf8BytesToChars(passwordBytes));
+                password = new SecureString(CharArrays.utf8BytesToChars(bytes));
             } finally {
-                Arrays.fill(passwordBytes, (byte) 0);
+                Arrays.fill(bytes, (byte) 0);
             }
+        } else {
+            password = null;
         }
+        refreshToken = in.readOptionalString();
         scope = in.readOptionalString();
     }
 }

@@ -241,7 +241,7 @@ setup:
 ---
 "Composite aggregation with format":
   - skip:
-      version: " - 7.99.99" #TODO change this after backport
+      version: " - 7.1.99"
       reason:  calendar_interval introduced in 7.2.0
       features: warnings
 
@@ -307,7 +307,7 @@ setup:
 ---
 "Composite aggregation with format and calendar_interval":
   - skip:
-      version: " - 7.99.99" #TODO change this after backport
+      version: " - 7.1.99"
       reason:  calendar_interval introduced in 7.2.0
 
   - do:

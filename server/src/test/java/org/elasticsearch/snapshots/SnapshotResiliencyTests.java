@@ -1243,7 +1243,8 @@ public class SnapshotResiliencyTests extends ESTestCase {
                 allocationService, masterService, () -> persistedState,
                 hostsResolver -> testClusterNodes.nodes.values().stream().filter(n -> n.node.isMasterNode())
                     .map(n -> n.node.getAddress()).collect(Collectors.toList()),
-                clusterService.getClusterApplierService(), Collections.emptyList(), random());
+                clusterService.getClusterApplierService(), Collections.emptyList(), random(),
+                s -> {});
             masterService.setClusterStatePublisher(coordinator);
             coordinator.start();
             masterService.start();

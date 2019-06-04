@@ -36,6 +36,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 
 import static org.elasticsearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK;
 
@@ -44,7 +45,7 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
     private final AllocationService allocationService;
 
     private final Logger logger;
-    private final Runnable rerouteTaskSubmitter;
+    private final Consumer<String> reroute;
 
     public static class Task {
 
@@ -81,10 +82,10 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
         private static final String FINISH_ELECTION_TASK_REASON = "_FINISH_ELECTION_";
     }
 
-    public JoinTaskExecutor(AllocationService allocationService, Logger logger, Runnable rerouteTaskSubmitter) {
+    public JoinTaskExecutor(AllocationService allocationService, Logger logger, Consumer<String> reroute) {
         this.allocationService = allocationService;
         this.logger = logger;
-        this.rerouteTaskSubmitter = rerouteTaskSubmitter;
+        this.reroute = reroute;
     }
 
     @Override
@@ -147,10 +148,9 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
             }
             results.success(joinTask);
         }
-
         if (nodesChanged) {
             newState.nodes(nodesBuilder);
-            rerouteTaskSubmitter.run();
+            reroute.accept("post-join reroute");
         }
 
         // we must return a new cluster state instance to force publishing. This is important
@@ -182,6 +182,7 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
                 }
             }
         }
+
 
         // now trim any left over dead nodes - either left there when the previous master stepped down
         // or removed by us above

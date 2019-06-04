@@ -65,9 +65,9 @@ GET phonetic_sample/_analyze
 
 <1> Returns: `J`, `joe`, `BLKS`, `bloggs`
 
-It is important to note that `"replace": false` can lead to unexpected behaviour since
+It is important to note that `"replace": false` can lead to unexpected behavior since
 the original and the phonetic version are both kept at the same token location. Some
-queries, e.g. the `match` query with applied fuzzyness, ignore one of these two token
+queries, e.g. the `match` query with applied fuzziness, ignore one of these two token
 versions. This can lead to issues that are difficult to diagnose and reason about.
 For this reason, it is often beneficial to use separate fields for analysis with and
 without phonetic filtering. That way searches can be run against both fields with differing

@@ -6,8 +6,15 @@
 package org.elasticsearch.xpack.ml.datafeed.extractor.fields;
 
 import org.elasticsearch.common.document.DocumentField;
+import org.elasticsearch.geo.geometry.Geometry;
+import org.elasticsearch.geo.geometry.Point;
+import org.elasticsearch.geo.geometry.ShapeType;
+import org.elasticsearch.geo.utils.Geohash;
+import org.elasticsearch.geo.utils.WellKnownText;
 import org.elasticsearch.search.SearchHit;
 
+import java.io.IOException;
+import java.text.ParseException;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -61,6 +68,10 @@ public abstract class ExtractedField {
         return new TimeField(name, extractionMethod);
     }
 
+    public static ExtractedField newGeoField(String alias, String name, ExtractionMethod extractionMethod) {
+        return new GeoField(alias, name, extractionMethod);
+    }
+
     public static ExtractedField newField(String name, ExtractionMethod extractionMethod) {
         return newField(name, name, extractionMethod);
     }
@@ -88,9 +99,83 @@ public abstract class ExtractedField {
             DocumentField keyValue = hit.field(name);
             if (keyValue != null) {
                 List<Object> values = keyValue.getValues();
-                return values.toArray(new Object[values.size()]);
+                return values.toArray(new Object[0]);
             }
             return new Object[0];
+        }
+    }
+
+    private static class GeoField extends ExtractedField {
+
+        private final ExtractedField internalExtractor;
+        private final WellKnownText wkt = new WellKnownText();
+
+        GeoField(String alias, String name, ExtractionMethod extractionMethod) {
+            super(alias, name, extractionMethod);
+            internalExtractor = extractionMethod.equals(ExtractionMethod.SOURCE) ?
+                new FromSource(alias, name, extractionMethod) :
+                new FromFields(alias, name, extractionMethod);
+        }
+
+        @Override
+        public Object[] value(SearchHit hit) {
+            Object[] value = internalExtractor.value(hit);
+            if (value.length == 2 && internalExtractor.getExtractionMethod().equals(ExtractionMethod.SOURCE)) { // geo_point as array
+                return new Object[] {value[0] + "," + value[1]};
+            }
+            if (value.length != 1) {
+                throw new IllegalStateException("Unexpected value count for a geo point field: " + value);
+            }
+            if (value[0] instanceof String) {
+                value[0] = handleString((String) value[0]);
+            } else if(value[0] instanceof Map<?, ?>) {
+                @SuppressWarnings("unchecked")
+                Map<String, Object> geoObject = (Map<String, Object>) value[0];
+                value[0] = handleObject(geoObject);
+            } else if(value[0] instanceof List<?>) {
+                @SuppressWarnings("unchecked")
+                List<Double> coordinates = (List<Double>) value[0];
+                assert coordinates.size() == 2;
+                value[0] = coordinates.get(0) + "," + coordinates.get(1);
+            } else {
+                throw new IllegalStateException("Unexpected value type for a geo point field: " + value[0].getClass());
+            }
+            return value;
+        }
+
+        private String handleString(String geoString) {
+            try {
+                if (geoString.startsWith("POINT")) { // Entry is of the form "POINT (-77.03653 38.897676)"
+                    Geometry geometry = wkt.fromWKT(geoString);
+                    if (geometry.type() != ShapeType.POINT) {
+                        throw new IllegalArgumentException("Unexpected non-point geo type: " + geometry.type().name());
+                    }
+                    Point pt = ((Point)geometry);
+                    return pt.getLat() + "," + pt.getLon();
+                } else if (geoString.contains(",")) { // Entry is of the form "38.897676, -77.03653"
+                    return geoString.replace(" ", "");
+                } else { // This may be a geohash, attempt to decode
+                    Point pt = Geohash.toPoint(geoString);
+                    return pt.getLat() + "," + pt.getLon();
+                }
+            } catch (IOException | ParseException ex) {
+                throw new IllegalArgumentException("Unexpected value for a geo field: " + geoString);
+            }
+        }
+
+        private String handleObject(Map<String, Object> geoObject) {
+            if ("point".equals(geoObject.get("type"))) { // geo_shape
+                @SuppressWarnings("unchecked")
+               List<Double> coordinates = (List<Double>)geoObject.get("coordinates");
+               if (coordinates == null || coordinates.size() != 2) {
+                   throw new IllegalArgumentException("Invalid coordinates for geo_shape point: " + geoObject);
+               }
+               return coordinates.get(1) + "," + coordinates.get(0);
+            } else if (geoObject.containsKey("lat") && geoObject.containsKey("lon")) { // geo_point
+                return geoObject.get("lat") + "," + geoObject.get("lon");
+            } else {
+                throw new IllegalArgumentException("Unexpected value for a geo field: " + geoObject);
+            }
         }
     }
 
@@ -145,7 +230,7 @@ public abstract class ExtractedField {
                     if (values instanceof List<?>) {
                         @SuppressWarnings("unchecked")
                         List<Object> asList = (List<Object>) values;
-                        return asList.toArray(new Object[asList.size()]);
+                        return asList.toArray(new Object[0]);
                     } else {
                         return new Object[]{values};
                     }

@@ -87,6 +87,9 @@ public class ExtractedFields {
                             : ExtractedField.ExtractionMethod.SOURCE;
                 }
             }
+            if (isFieldOfType(field, "geo_point") || isFieldOfType(field, "geo_shape")) {
+                return ExtractedField.newGeoField(field, internalField, method);
+            }
             return ExtractedField.newField(field, internalField, method);
         }
 

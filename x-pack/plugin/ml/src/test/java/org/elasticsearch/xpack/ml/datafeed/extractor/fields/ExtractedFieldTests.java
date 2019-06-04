@@ -5,12 +5,14 @@
  */
 package org.elasticsearch.xpack.ml.datafeed.extractor.fields;
 
+import org.elasticsearch.geo.utils.Geohash;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ml.test.SearchHitBuilder;
 
 import java.util.Arrays;
 
+import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.startsWith;
 
@@ -60,6 +62,56 @@ public class ExtractedFieldTests extends ESTestCase {
 
         ExtractedField nested = ExtractedField.newField("alias", "level_1.level_2.foo", ExtractedField.ExtractionMethod.SOURCE);
         assertThat(nested.value(hit), equalTo(new String[] { "bar" }));
+    }
+
+    public void testGeoPoint() {
+        double lat = 38.897676;
+        double lon = -77.03653;
+        String[] expected = new String[] {lat + "," + lon};
+        // object format
+        SearchHit hit = new SearchHitBuilder(42).setSource("{\"geo\":{\"lat\":" + lat + ", \"lon\": " + lon + "}}").build();
+
+        ExtractedField geo = ExtractedField.newGeoField("geo", "geo", ExtractedField.ExtractionMethod.SOURCE);
+        assertThat(geo.value(hit), equalTo(expected));
+
+        // double array
+        hit = new SearchHitBuilder(42).setSource("{\"geo\": [" + lat + ", " + lon + "]}").build();
+        assertThat(geo.value(hit), equalTo(expected));
+
+        // comma delimited string
+        hit = new SearchHitBuilder(42).setSource("{\"geo\": \"" + lat + "," + lon + "\"}").build();
+        assertThat(geo.value(hit), equalTo(expected));
+
+        // geohash
+        hit = new SearchHitBuilder(42).setSource("{\"geo\": \"" + Geohash.stringEncode(lon, lat) + "\"}").build();
+        Object[] returned = geo.value(hit);
+        // Geohash encode/decodes may change the double values slightly
+        assertThat(returned.length, equalTo(1));
+        String[] doubles = ((String)returned[0]).split(",");
+        assertThat(Double.valueOf(doubles[0]), closeTo(lat, 0.0001));
+        assertThat(Double.valueOf(doubles[1]), closeTo(lon, 0.0001));
+
+        // doc_value field
+        geo = ExtractedField.newGeoField("geo", "geo", ExtractedField.ExtractionMethod.DOC_VALUE);
+        hit = new SearchHitBuilder(42).addField("geo", lat + ", " + lon).build();
+        assertThat(geo.value(hit), equalTo(expected));
+    }
+
+    public void testGeoShape() {
+        double lat = 38.897676;
+        double lon = -77.03653;
+        String[] expected = new String[] {lat + "," + lon};
+        // object format
+        SearchHit hit = new SearchHitBuilder(42)
+            .setSource("{\"geo\":{\"type\":\"point\", \"coordinates\": [" + lon + ", " + lat + "]}}")
+            .build();
+        ExtractedField geo = ExtractedField.newGeoField("geo", "geo", ExtractedField.ExtractionMethod.SOURCE);
+        assertThat(geo.value(hit), equalTo(expected));
+
+        // WKT format
+        hit = new SearchHitBuilder(42).setSource("{\"geo\":\"POINT ("+ lon + " " + lat + ")\"}").build();
+        geo = ExtractedField.newGeoField("geo", "geo", ExtractedField.ExtractionMethod.SOURCE);
+        assertThat(geo.value(hit), equalTo(expected));
     }
 
     public void testValueGivenSourceAndHitWithNoSource() {

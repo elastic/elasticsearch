@@ -68,3 +68,8 @@ Elasticsearch to use the mappings to figure out a default format.
 NOTE: The default is currently to return the same output as
 <<search-request-script-fields,script fields>>. However it will change in 7.0
 to behave as if the `use_field_mapping` format was provided.
+
+NOTE: On its own, `docvalue_fields` cannot be used to load fields in nested
+objects -- if a field contains a nested object in its path, then no data will
+be returned for that docvalue field. To access nested fields, `docvalue_fields`
+must be used within an <<search-request-inner-hits, `inner_hits`>> block.

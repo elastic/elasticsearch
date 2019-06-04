@@ -1,6 +1,8 @@
 [role="xpack"]
 [[settings-xpack]]
 == {xpack} Settings in {es}
+
+[subs="attributes"]
 ++++
 <titleabbrev>{xpack} Settings</titleabbrev>
 ++++

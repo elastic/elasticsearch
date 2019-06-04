@@ -389,7 +389,12 @@ the different version types and their semantics.
 
 `internal`:: Only index the document if the given version is identical to the version
 of the stored document.
+ifdef::asciidoctor[]
+deprecated:[6.7.0, "Please use `if_seq_no` & `if_primary_term` instead. See <<optimistic-concurrency-control>> for more details."]
+endif::[]
+ifndef::asciidoctor[]
 deprecated[6.7.0, Please use `if_seq_no` & `if_primary_term` instead. See <<optimistic-concurrency-control>> for more details.]
+endif::[]
 
 
 `external` or `external_gt`:: Only index the document if the given version is strictly higher

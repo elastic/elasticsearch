@@ -21,6 +21,6 @@ The following aggregations are supported:
 * {ref}/search-aggregations-metrics-scripted-metric-aggregation.html[Scripted Metric]
 * {ref}/search-aggregations-metrics-sum-aggregation.html[Sum]
 * {ref}/search-aggregations-metrics-valuecount-aggregation.html[Value Count]
-* {ref}/search-aggregations-metrics-bucket_script-aggregation.html[Bucket Script]
+* {ref}/search-aggregations-pipeline-bucket_script-aggregation.html[Bucket Script]
 
 //For more information, see {stack-ov}/ml-dataframes.html[dataframes-cap}].

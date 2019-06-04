@@ -3,8 +3,8 @@
 "Deprecated parameters should produce warning in Bulk query":
 
    - skip:
-       version: " - 6.6.99"
-       reason:  versioned operations were deprecated in 6.7
+       version: " - 6.8.0"
+       reason:  versioned operations were deprecated in 6.7 but we won't issue deprecation unless all nodes are upgraded
        features: "warnings"
 
    - do:

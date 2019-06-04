@@ -511,6 +511,16 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
                 return false;
             }
 
+            // ignore trigger if indexer is running, prevents log spam in A2P indexer
+            IndexerState indexerState = getState();
+            if (indexerState == IndexerState.INDEXING) {
+                logger.debug("Indexer for transform [{}] is still running, ignoring trigger", getJobId());
+                return false;
+            } else if (indexerState == IndexerState.STOPPING) {
+                logger.debug("Indexer for transform [{}] is stopping, ignoring trigger", getJobId());
+                return false;
+            }
+
             return super.maybeTriggerAsyncJob(now);
         }
 

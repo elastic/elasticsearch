@@ -26,6 +26,7 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.IndexOrdinalsFieldData;
+import org.elasticsearch.index.fielddata.MultiGeoValues;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.QueryShardContext;
@@ -266,7 +267,8 @@ public class ValuesSourceConfig<VS extends ValuesSource> {
             return (VS) MissingValues.replaceMissing((ValuesSource.Numeric) vs, missing);
         } else if (vs instanceof ValuesSource.GeoPoint) {
             // TODO: also support the structured formats of geo points
-            final GeoPoint missing = new GeoPoint(missing().toString());
+            final MultiGeoValues.GeoPointValue missing = new
+                MultiGeoValues.GeoPointValue(new GeoPoint(missing().toString()));
             return (VS) MissingValues.replaceMissing((ValuesSource.GeoPoint) vs, missing);
         } else {
             // Should not happen

@@ -29,7 +29,7 @@ import org.apache.lucene.queries.function.ValueSource;
 import org.apache.lucene.queries.function.docvalues.DoubleDocValues;
 import org.elasticsearch.index.fielddata.AtomicGeoPointFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData;
-import org.elasticsearch.index.fielddata.MultiGeoPointValues;
+import org.elasticsearch.index.fielddata.MultiGeoValues;
 
 /**
  * ValueSource to return non-zero if a field is missing.
@@ -45,7 +45,7 @@ final class GeoEmptyValueSource extends ValueSource {
     @SuppressWarnings("rawtypes") // ValueSource uses a rawtype
     public FunctionValues getValues(Map context, LeafReaderContext leaf) throws IOException {
         AtomicGeoPointFieldData leafData = (AtomicGeoPointFieldData) fieldData.load(leaf);
-        final MultiGeoPointValues values = leafData.getGeoPointValues();
+        final MultiGeoValues values = leafData.getGeoPointValues();
         return new DoubleDocValues(this) {
             @Override
             public double doubleVal(int doc) throws IOException {

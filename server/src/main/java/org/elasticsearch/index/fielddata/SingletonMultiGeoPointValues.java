@@ -19,15 +19,13 @@
 
 package org.elasticsearch.index.fielddata;
 
-import org.elasticsearch.common.geo.GeoPoint;
-
 import java.io.IOException;
 
-final class SingletonMultiGeoPointValues extends MultiGeoPointValues {
+final class SingletonMultiGeoPointValues extends MultiGeoValues {
 
-    private final GeoPointValues in;
+    private final MultiGeoValues in;
 
-    SingletonMultiGeoPointValues(GeoPointValues in) {
+    SingletonMultiGeoPointValues(MultiGeoValues in) {
         this.in = in;
     }
 
@@ -42,11 +40,11 @@ final class SingletonMultiGeoPointValues extends MultiGeoPointValues {
     }
 
     @Override
-    public GeoPoint nextValue() {
-        return in.geoPointValue();
+    public GeoValue nextValue() throws IOException {
+        return in.nextValue();
     }
 
-    GeoPointValues getGeoPointValues() {
+    MultiGeoValues getGeoValues() {
         return in;
     }
 }

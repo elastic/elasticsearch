@@ -21,7 +21,7 @@ package org.elasticsearch.index.fielddata.plain;
 import org.apache.lucene.util.Accountable;
 import org.elasticsearch.index.fielddata.AtomicGeoPointFieldData;
 import org.elasticsearch.index.fielddata.FieldData;
-import org.elasticsearch.index.fielddata.MultiGeoPointValues;
+import org.elasticsearch.index.fielddata.MultiGeoValues;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 
@@ -58,7 +58,7 @@ public abstract class AbstractAtomicGeoPointFieldData implements AtomicGeoPointF
             }
 
             @Override
-            public MultiGeoPointValues getGeoPointValues() {
+            public MultiGeoValues getGeoPointValues() {
                 return FieldData.emptyMultiGeoPoints();
             }
         };

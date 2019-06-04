@@ -37,12 +37,12 @@ import java.io.IOException;
  * The set of values associated with a document might contain duplicates and
  * comes in a non-specified order.
  */
-public abstract class MultiGeoPointValues {
+public abstract class MultiGeoValues {
 
     /**
-     * Creates a new {@link MultiGeoPointValues} instance
+     * Creates a new {@link MultiGeoValues} instance
      */
-    protected MultiGeoPointValues() {
+    protected MultiGeoValues() {
     }
 
     /**
@@ -60,10 +60,65 @@ public abstract class MultiGeoPointValues {
      * Return the next value associated with the current document. This must not be
      * called more than {@link #docValueCount()} times.
      *
-     * Note: the returned {@link GeoPoint} might be shared across invocations.
+     * Note: the returned {@link GeoValue} might be shared across invocations.
      *
      * @return the next value for the current docID set to {@link #advanceExact(int)}.
      */
-    public abstract GeoPoint nextValue() throws IOException;
+    public abstract GeoValue nextValue() throws IOException;
 
+    public static class GeoPointValue implements GeoValue {
+        private final GeoPoint geoPoint;
+
+        public GeoPointValue(GeoPoint geoPoint) {
+            this.geoPoint = geoPoint;
+        }
+
+        public GeoPoint geoPoint() {
+            return geoPoint;
+        }
+
+        @Override
+        public double minLat() {
+            return geoPoint.lat();
+        }
+
+        @Override
+        public double maxLat() {
+            return geoPoint.lat();
+        }
+
+        @Override
+        public double minLon() {
+            return geoPoint.lon();
+        }
+
+        @Override
+        public double maxLon() {
+            return geoPoint.lon();
+        }
+
+        @Override
+        public double lat() {
+            return geoPoint.lat();
+        }
+
+        @Override
+        public double lon() {
+            return geoPoint.lon();
+        }
+
+        @Override
+        public String toString() {
+            return geoPoint.toString();
+        }
+    }
+
+    public interface GeoValue {
+        double minLat();
+        double maxLat();
+        double minLon();
+        double maxLon();
+        double lat();
+        double lon();
+    }
 }

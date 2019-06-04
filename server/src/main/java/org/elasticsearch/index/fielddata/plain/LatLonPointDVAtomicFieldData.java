@@ -24,7 +24,7 @@ import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.util.Accountable;
 import org.elasticsearch.common.geo.GeoPoint;
-import org.elasticsearch.index.fielddata.MultiGeoPointValues;
+import org.elasticsearch.index.fielddata.MultiGeoValues;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -56,12 +56,12 @@ final class LatLonPointDVAtomicFieldData extends AbstractAtomicGeoPointFieldData
     }
 
     @Override
-    public MultiGeoPointValues getGeoPointValues() {
+    public MultiGeoValues getGeoPointValues() {
         try {
             final SortedNumericDocValues numericValues = DocValues.getSortedNumeric(reader, fieldName);
-            return new MultiGeoPointValues() {
+            return new MultiGeoValues() {
 
-                final GeoPoint point = new GeoPoint();
+                final GeoPointValue point = new GeoPointValue(new GeoPoint());
 
                 @Override
                 public boolean advanceExact(int doc) throws IOException {
@@ -74,9 +74,9 @@ final class LatLonPointDVAtomicFieldData extends AbstractAtomicGeoPointFieldData
                 }
 
                 @Override
-                public GeoPoint nextValue() throws IOException {
+                public GeoValue nextValue() throws IOException {
                     final long encoded = numericValues.nextValue();
-                    point.reset(GeoEncodingUtils.decodeLatitude((int) (encoded >>> 32)),
+                    point.geoPoint().reset(GeoEncodingUtils.decodeLatitude((int) (encoded >>> 32)),
                             GeoEncodingUtils.decodeLongitude((int) encoded));
                     return point;
                 }

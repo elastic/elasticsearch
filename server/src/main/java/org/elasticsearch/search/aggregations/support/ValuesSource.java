@@ -37,7 +37,7 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.IndexOrdinalsFieldData;
-import org.elasticsearch.index.fielddata.MultiGeoPointValues;
+import org.elasticsearch.index.fielddata.MultiGeoValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.fielddata.SortingBinaryDocValues;
@@ -475,7 +475,7 @@ public abstract class ValuesSource {
         public static final GeoPoint EMPTY = new GeoPoint() {
 
             @Override
-            public MultiGeoPointValues geoPointValues(LeafReaderContext context) {
+            public MultiGeoValues geoPointValues(LeafReaderContext context) {
                 return org.elasticsearch.index.fielddata.FieldData.emptyMultiGeoPoints();
             }
 
@@ -488,11 +488,11 @@ public abstract class ValuesSource {
 
         @Override
         public DocValueBits docsWithValue(LeafReaderContext context) throws IOException {
-            final MultiGeoPointValues geoPoints = geoPointValues(context);
+            final MultiGeoValues geoPoints = geoPointValues(context);
             return org.elasticsearch.index.fielddata.FieldData.docsWithValue(geoPoints);
         }
 
-        public abstract MultiGeoPointValues geoPointValues(LeafReaderContext context);
+        public abstract MultiGeoValues geoPointValues(LeafReaderContext context);
 
         public static class Fielddata extends GeoPoint {
 
@@ -507,7 +507,7 @@ public abstract class ValuesSource {
                 return indexFieldData.load(context).getBytesValues();
             }
 
-            public org.elasticsearch.index.fielddata.MultiGeoPointValues geoPointValues(LeafReaderContext context) {
+            public MultiGeoValues geoPointValues(LeafReaderContext context) {
                 return indexFieldData.load(context).getGeoPointValues();
             }
         }

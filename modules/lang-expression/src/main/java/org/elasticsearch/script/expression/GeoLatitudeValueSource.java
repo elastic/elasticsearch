@@ -29,7 +29,7 @@ import org.apache.lucene.queries.function.ValueSource;
 import org.apache.lucene.queries.function.docvalues.DoubleDocValues;
 import org.elasticsearch.index.fielddata.AtomicGeoPointFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData;
-import org.elasticsearch.index.fielddata.MultiGeoPointValues;
+import org.elasticsearch.index.fielddata.MultiGeoValues;
 
 /**
  * ValueSource to return latitudes as a double "stream" for geopoint fields
@@ -45,12 +45,12 @@ final class GeoLatitudeValueSource extends ValueSource {
     @SuppressWarnings("rawtypes") // ValueSource uses a rawtype
     public FunctionValues getValues(Map context, LeafReaderContext leaf) throws IOException {
         AtomicGeoPointFieldData leafData = (AtomicGeoPointFieldData) fieldData.load(leaf);
-        final MultiGeoPointValues values = leafData.getGeoPointValues();
+        final MultiGeoValues values = leafData.getGeoPointValues();
         return new DoubleDocValues(this) {
             @Override
             public double doubleVal(int doc) throws IOException {
                 if (values.advanceExact(doc)) {
-                    return values.nextValue().getLat();
+                    return values.nextValue().lat();
                 } else {
                     return 0.0;
                 }

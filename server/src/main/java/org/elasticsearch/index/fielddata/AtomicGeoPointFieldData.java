@@ -27,6 +27,6 @@ public interface AtomicGeoPointFieldData extends AtomicFieldData {
     /**
      * Return geo-point values.
      */
-    MultiGeoPointValues getGeoPointValues();
+    MultiGeoValues getGeoPointValues();
 
 }

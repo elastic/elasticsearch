@@ -280,6 +280,14 @@ public class TransportAnalyzeActionTests extends ESTestCase {
         assertEquals(e.getMessage(), "failed to find global analyzer [custom_analyzer]");
     }
 
+    public void testGetFieldAnalyzerWithoutIndexAnalyzers() {
+        AnalyzeAction.Request req = new AnalyzeAction.Request().field("field").text("text");
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
+            TransportAnalyzeAction.analyze(req, registry, environment, null, maxTokenCount);
+        });
+        assertEquals(e.getMessage(), "analysis based on a specific field requires an index");
+    }
+
     public void testUnknown() {
         boolean notGlobal = randomBoolean();
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,

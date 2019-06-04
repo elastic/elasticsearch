@@ -41,10 +41,12 @@ import org.elasticsearch.xpack.core.security.action.token.CreateTokenAction;
 import org.elasticsearch.xpack.core.security.action.token.CreateTokenRequest;
 import org.elasticsearch.xpack.core.security.action.token.CreateTokenResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authc.TokenService;
+import org.elasticsearch.xpack.security.authc.kerberos.KerberosAuthenticationToken;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.junit.After;
 import org.junit.Before;
@@ -128,15 +130,22 @@ public class TransportCreateTokenActionTests extends ESTestCase {
         }).when(securityIndex).prepareIndexIfNeededThenExecute(any(Consumer.class), any(Runnable.class));
 
         doAnswer(invocationOnMock -> {
-            UsernamePasswordToken token = (UsernamePasswordToken) invocationOnMock.getArguments()[2];
-            User user = new User(token.principal());
+            AuthenticationToken authToken = (AuthenticationToken) invocationOnMock.getArguments()[2];
+            User user = null;
+            if (authToken instanceof UsernamePasswordToken) {
+                UsernamePasswordToken token = (UsernamePasswordToken) invocationOnMock.getArguments()[2];
+                user = new User(token.principal());
+            } else if (authToken instanceof KerberosAuthenticationToken) {
+                KerberosAuthenticationToken token = (KerberosAuthenticationToken) invocationOnMock.getArguments()[2];
+                user = new User(token.principal());
+            }
             Authentication authentication = new Authentication(user, new Authentication.RealmRef("fake", "mock", "n1"), null);
             authentication.writeToContext(threadPool.getThreadContext());
             ActionListener<Authentication> authListener = (ActionListener<Authentication>) invocationOnMock.getArguments()[3];
             authListener.onResponse(authentication);
             return Void.TYPE;
         }).when(authenticationService).authenticate(eq(CreateTokenAction.NAME), any(CreateTokenRequest.class),
-            any(UsernamePasswordToken.class), any(ActionListener.class));
+            any(AuthenticationToken.class), any(ActionListener.class));
 
         this.clusterService = ClusterServiceUtils.createClusterService(threadPool);
 
@@ -189,6 +198,32 @@ public class TransportCreateTokenActionTests extends ESTestCase {
         createTokenRequest.setGrantType("password");
         createTokenRequest.setUsername("user");
         createTokenRequest.setPassword(new SecureString("password".toCharArray()));
+
+        PlainActionFuture<CreateTokenResponse> tokenResponseFuture = new PlainActionFuture<>();
+        action.doExecute(null, createTokenRequest, tokenResponseFuture);
+        CreateTokenResponse createTokenResponse = tokenResponseFuture.get();
+        assertNotNull(createTokenResponse.getRefreshToken());
+        assertNotNull(createTokenResponse.getTokenString());
+
+        assertNotNull(idxReqReference.get());
+        Map<String, Object> sourceMap = idxReqReference.get().sourceAsMap();
+        assertNotNull(sourceMap);
+        assertNotNull(sourceMap.get("access_token"));
+        assertNotNull(sourceMap.get("refresh_token"));
+    }
+
+    public void testKerberosGrantTypeCreatesWithRefreshToken() throws Exception {
+        final TokenService tokenService = new TokenService(SETTINGS, Clock.systemUTC(), client, license,
+                securityIndex, securityIndex, clusterService);
+        Authentication authentication = new Authentication(new User("joe"), new Authentication.RealmRef("realm", "type", "node"), null);
+        authentication.writeToContext(threadPool.getThreadContext());
+
+        final TransportCreateTokenAction action = new TransportCreateTokenAction(threadPool,
+            mock(TransportService.class), new ActionFilters(Collections.emptySet()), tokenService,
+            authenticationService);
+        final CreateTokenRequest createTokenRequest = new CreateTokenRequest();
+        createTokenRequest.setGrantType("kerberos");
+        createTokenRequest.setKerberosTicket(new SecureString(randomAlphaOfLengthBetween(3,  7).toCharArray()));
 
         PlainActionFuture<CreateTokenResponse> tokenResponseFuture = new PlainActionFuture<>();
         action.doExecute(null, createTokenRequest, tokenResponseFuture);

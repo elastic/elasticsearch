@@ -47,9 +47,12 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                 .put("superuser", SUPERUSER_ROLE_DESCRIPTOR)
                 .put("transport_client", new RoleDescriptor("transport_client", new String[] { "transport_client" }, null, null,
                         MetadataUtils.DEFAULT_RESERVED_METADATA))
-                .put("kibana_user", new RoleDescriptor("kibana_user", null, null, new RoleDescriptor.ApplicationResourcePrivileges[] {
-                        RoleDescriptor.ApplicationResourcePrivileges.builder()
-                            .application("kibana-.kibana").resources("*").privileges("all").build() },
+                .put("kibana_user", new RoleDescriptor("kibana_user", new String[] { "cluster:admin/xpack/security/token/create" },
+                        null,
+                        new RoleDescriptor.ApplicationResourcePrivileges[] {
+                            RoleDescriptor.ApplicationResourcePrivileges.builder()
+                                .application("kibana-.kibana").resources("*").privileges("all").build()
+                        },
                         null, null,
                         MetadataUtils.DEFAULT_RESERVED_METADATA, null))
                 .put("monitoring_user", new RoleDescriptor("monitoring_user",

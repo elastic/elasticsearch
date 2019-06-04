@@ -48,13 +48,17 @@ public final class RestGetTokenAction extends TokenBaseRestHandler {
 
     private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(RestGetTokenAction.class));
     static final ConstructingObjectParser<CreateTokenRequest, Void> PARSER = new ConstructingObjectParser<>("token_request",
-            a -> new CreateTokenRequest((String) a[0], (String) a[1], (SecureString) a[2], (String) a[3], (String) a[4]));
+            a -> new CreateTokenRequest((String) a[0], (String) a[1], (SecureString) a[2], (SecureString) a[3], (String) a[4],
+                    (String) a[5]));
     static {
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), new ParseField("grant_type"));
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), new ParseField("username"));
         PARSER.declareField(ConstructingObjectParser.optionalConstructorArg(), parser -> new SecureString(
                 Arrays.copyOfRange(parser.textCharacters(), parser.textOffset(), parser.textOffset() + parser.textLength())),
                 new ParseField("password"), ValueType.STRING);
+        PARSER.declareField(ConstructingObjectParser.optionalConstructorArg(), parser -> new SecureString(
+                Arrays.copyOfRange(parser.textCharacters(), parser.textOffset(), parser.textOffset() + parser.textLength())),
+                new ParseField("kerberos_ticket"), ValueType.STRING);
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), new ParseField("scope"));
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), new ParseField("refresh_token"));
     }

@@ -29,6 +29,7 @@ integTestCluster {
     setting 'xpack.security.authc.realms.file.file1.order', '0'
     setting 'xpack.ml.enabled', 'false'
     setting 'xpack.security.audit.enabled', 'true'
+    setting 'xpack.security.authc.token.enabled', 'true'
     // Kerberos realm
     setting 'xpack.security.authc.realms.kerberos.kerberos.order', '1'
     setting 'xpack.security.authc.realms.kerberos.kerberos.keytab.path', 'es.keytab'
@@ -42,6 +43,8 @@ integTestCluster {
 
     setupCommand 'setupTestAdmin',
             'bin/elasticsearch-users', 'useradd', "test_admin", '-p', 'x-pack-test-password', '-r', "superuser"
+    setupCommand 'setupTestKibanaUser',
+            'bin/elasticsearch-users', 'useradd', "test_kibana_user", '-p', 'x-pack-test-password', '-r', "kibana_user"
 
     waitCondition = { node, ant ->
         File tmpFile = new File(node.cwd, 'wait.success')

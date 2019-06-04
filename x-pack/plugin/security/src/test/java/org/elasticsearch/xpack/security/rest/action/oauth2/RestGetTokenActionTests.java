@@ -43,7 +43,7 @@ public class RestGetTokenActionTests extends ESTestCase {
         };
         CreateTokenResponseActionListener listener = new CreateTokenResponseActionListener(restChannel, restRequest, NoOpLogger.INSTANCE);
 
-        ActionRequestValidationException ve = new CreateTokenRequest(null, null, null, null, null).validate();
+        ActionRequestValidationException ve = new CreateTokenRequest(null, null, null, null, null, null).validate();
         listener.onFailure(ve);
         RestResponse response = responseSetOnce.get();
         assertNotNull(response);

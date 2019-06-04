@@ -226,7 +226,6 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         AtomicBoolean running = new AtomicBoolean(true);
         CountDownLatch startGun = new CountDownLatch(1);
         Semaphore semaphore = new Semaphore(Integer.MAX_VALUE);
-        final int expectedStoreRefCount = indexShard.store().refCount();
 
         final Thread thread = new Thread() {
             @Override
@@ -309,9 +308,6 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         assertEquals(0, totalStats.getQueryCurrent());
         assertEquals(0, totalStats.getScrollCurrent());
         assertEquals(0, totalStats.getFetchCurrent());
-
-        // check searchers are not leaked.
-        assertEquals(expectedStoreRefCount, indexShard.store().refCount());
     }
 
     public void testTimeout() throws IOException {

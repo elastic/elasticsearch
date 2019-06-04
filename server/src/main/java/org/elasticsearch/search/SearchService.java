@@ -552,8 +552,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         boolean success = false;
         try {
             putContext(context);
-            // ensure that if index is deleted concurrently, we free the context immediately, either here or in freeAllContextForIndex
-            indicesService.indexServiceSafe(request.shardId().getIndex());
             success = true;
             return context;
         } finally {

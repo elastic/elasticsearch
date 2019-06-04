@@ -263,7 +263,7 @@ public class ShardChangesAction extends Action<ShardChangesAction.Response> {
             super(in);
             mappingVersion = in.readVLong();
             settingsVersion = in.readVLong();
-            if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+            if (in.getVersion().onOrAfter(Version.V_7_3_0)) {
                 aliasesVersion = in.readVLong();
             } else {
                 aliasesVersion = 0;
@@ -304,7 +304,7 @@ public class ShardChangesAction extends Action<ShardChangesAction.Response> {
             super.writeTo(out);
             out.writeVLong(mappingVersion);
             out.writeVLong(settingsVersion);
-            if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+            if (out.getVersion().onOrAfter(Version.V_7_3_0)) {
                 out.writeVLong(aliasesVersion);
             }
             out.writeZLong(globalCheckpoint);

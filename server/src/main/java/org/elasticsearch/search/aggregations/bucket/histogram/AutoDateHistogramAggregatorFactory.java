@@ -38,13 +38,11 @@ public final class AutoDateHistogramAggregatorFactory
         extends ValuesSourceAggregatorFactory<ValuesSource.Numeric, AutoDateHistogramAggregatorFactory> {
 
     private final int numBuckets;
-    private final String minimumIntervalExpression;
     private RoundingInfo[] roundingInfos;
 
     public AutoDateHistogramAggregatorFactory(String name,
                                               ValuesSourceConfig<Numeric> config,
                                               int numBuckets,
-                                              String minimumIntervalExpression,
                                               RoundingInfo[] roundingInfos,
                                               SearchContext context,
                                               AggregatorFactory<?> parent,
@@ -52,7 +50,6 @@ public final class AutoDateHistogramAggregatorFactory
             Map<String, Object> metaData) throws IOException {
         super(name, config, context, parent, subFactoriesBuilder, metaData);
         this.numBuckets = numBuckets;
-        this.minimumIntervalExpression = minimumIntervalExpression;
         this.roundingInfos = roundingInfos;
     }
 
@@ -67,7 +64,7 @@ public final class AutoDateHistogramAggregatorFactory
 
     private Aggregator createAggregator(ValuesSource.Numeric valuesSource, Aggregator parent, List<PipelineAggregator> pipelineAggregators,
             Map<String, Object> metaData) throws IOException {
-        return new AutoDateHistogramAggregator(factories, numBuckets, name, roundingInfos, valuesSource, config.format(), context, parent,
+        return new AutoDateHistogramAggregator(name, factories, numBuckets, roundingInfos, valuesSource, config.format(), context, parent,
                 pipelineAggregators,
                 metaData);
     }

@@ -186,7 +186,7 @@ public class AutoDateHistogramAggregationBuilder
             throw new IllegalArgumentException(NUM_BUCKETS_FIELD.getPreferredName()+
                 " must be less than " + bucketCeiling);
         }
-        return new AutoDateHistogramAggregatorFactory(name, config, numBuckets, minimumIntervalExpression, roundings, context, parent,
+        return new AutoDateHistogramAggregatorFactory(name, config, numBuckets, roundings, context, parent,
             subFactoriesBuilder,
             metaData);
     }

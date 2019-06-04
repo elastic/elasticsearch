@@ -149,14 +149,14 @@ primary and all replicas of this particular shard will reload.
 Because the watches are executed on the node, where the watch shards are, you can create
 dedicated watcher nodes by using shard allocation filtering.
 
-You could configure nodes with a dedicated `node.attr.watcher: true` property and
+You could configure nodes with a dedicated `node.attr.role: watcher` property and
 then configure the `.watches` index like this:
 
 [source,js]
 ------------------------
 PUT .watches/_settings
 {
-  "index.routing.allocation.include": "watcher"
+  "index.routing.allocation.include.role": "watcher"
 }
 ------------------------
 // CONSOLE

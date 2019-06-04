@@ -24,7 +24,7 @@ import org.elasticsearch.common.io.stream.ByteBufferStreamInput;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 
-import static org.apache.lucene.geo.GeoUtils.lineCrossesLine;
+import static org.apache.lucene.geo.GeoUtils.lineCrossesLineWithBoundary;
 
 public class EdgeTreeReader {
     final BytesRef bytesRef;
@@ -110,7 +110,7 @@ public class EdgeTreeReader {
         if (root.maxY >= minY) {
             // is bbox-query contained within linearRing
             // cast infinite ray to the right from bottom-left of bbox-query to see if it intersects edge
-            if (lineCrossesLine(root.x1, root.y1, root.x2, root.y2,minX, minY, Integer.MAX_VALUE, minY)) {
+            if (lineCrossesLineWithBoundary(root.x1, root.y1, root.x2, root.y2,minX, minY, Integer.MAX_VALUE, minY)) {
                 res = true;
             }
 
@@ -134,10 +134,10 @@ public class EdgeTreeReader {
         if (root.maxY >= minY) {
 
             // does rectangle's edges intersect or reside inside polygon's edge
-            if (lineCrossesLine(root.x1, root.y1, root.x2, root.y2, minX, minY, maxX, minY) ||
-                lineCrossesLine(root.x1, root.y1, root.x2, root.y2, maxX, minY, maxX, maxY) ||
-                lineCrossesLine(root.x1, root.y1, root.x2, root.y2, maxX, maxY, minX, maxY) ||
-                lineCrossesLine(root.x1, root.y1, root.x2, root.y2, minX, maxY, minX, minY)) {
+            if (lineCrossesLineWithBoundary(root.x1, root.y1, root.x2, root.y2, minX, minY, maxX, minY) ||
+                lineCrossesLineWithBoundary(root.x1, root.y1, root.x2, root.y2, maxX, minY, maxX, maxY) ||
+                lineCrossesLineWithBoundary(root.x1, root.y1, root.x2, root.y2, maxX, maxY, minX, maxY) ||
+                lineCrossesLineWithBoundary(root.x1, root.y1, root.x2, root.y2, minX, maxY, minX, minY)) {
                 return true;
             }
 

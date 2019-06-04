@@ -130,13 +130,13 @@ PUT /twitter
     "properties": {
       "text": {
         "type": "text",
-        "term_vector": "with_positions_offsets_payloads",
+        "term_vector": "with_positions_offsets",
         "store" : true,
         "analyzer" : "fulltext_analyzer"
        },
        "fullname": {
         "type": "text",
-        "term_vector": "with_positions_offsets_payloads",
+        "term_vector": "with_positions_offsets",
         "analyzer" : "fulltext_analyzer"
       }
     }

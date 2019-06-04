@@ -164,7 +164,7 @@ final class PrunePostingsMergePolicy extends OneMergeWrappingMergePolicy {
         private final Bits liveDocs;
         private PostingsEnum in;
 
-        public OnlyLiveDocsPostingsEnum(PostingsEnum in, Bits liveDocs) {
+        OnlyLiveDocsPostingsEnum(PostingsEnum in, Bits liveDocs) {
             this.liveDocs = liveDocs;
             reset(in);
         }

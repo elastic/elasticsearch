@@ -147,7 +147,7 @@ public class CreateSnapshotRequestTests extends ESTestCase {
             ActionRequestValidationException validationException = createSnapshotRequestWithMetadata(barelyTooBig).validate();
             assertNotNull(validationException);
             assertThat(validationException.validationErrors(), hasSize(1));
-            assertThat(validationException.validationErrors().get(0), equalTo("metadata must be smaller than 1024 bytes"));
+            assertThat(validationException.validationErrors().get(0), equalTo("metadata must be smaller than 1024 bytes, but was [1025]"));
         }
 
         {
@@ -161,7 +161,7 @@ public class CreateSnapshotRequestTests extends ESTestCase {
                 .validate();
             assertNotNull(validationException);
             assertThat(validationException.validationErrors(), hasSize(1));
-            assertThat(validationException.validationErrors().get(0), equalTo("metadata must be smaller than 1024 bytes"));
+            assertThat(validationException.validationErrors().get(0), equalTo("metadata must be smaller than 1024 bytes, but was [1049]"));
         }
     }
 

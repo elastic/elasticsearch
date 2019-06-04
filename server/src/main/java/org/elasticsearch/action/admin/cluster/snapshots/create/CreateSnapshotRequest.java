@@ -156,20 +156,22 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
         if (settings == null) {
             validationException = addValidationError("settings is null", validationException);
         }
-        if (isMetadataTooBig(userMetadata)) {
-            validationException = addValidationError("metadata must be smaller than 1024 bytes", validationException);
+        final int metadataSize = metadataSize(userMetadata);
+        if (metadataSize > MAXIMUM_METADATA_BYTES) {
+            validationException = addValidationError("metadata must be smaller than 1024 bytes, but was [" + metadataSize + "]",
+                validationException);
         }
         return validationException;
     }
 
-    private static boolean isMetadataTooBig(Map<String, Object> userMetadata) {
+    private static int metadataSize(Map<String, Object> userMetadata) {
         if (userMetadata == null) {
-            return false;
+            return 0;
         }
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
             builder.value(userMetadata);
             int size = BytesReference.bytes(builder).length();
-            return size > MAXIMUM_METADATA_BYTES;
+            return size;
         } catch (IOException e) {
             // This should not be possible as we are just rendering the xcontent in memory
             throw new ElasticsearchException(e);

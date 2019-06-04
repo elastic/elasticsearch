@@ -213,7 +213,8 @@ public class SSLClientAuthTests extends SecurityIntegTestCase {
             return XPackSettings.DEFAULT_SUPPORTED_PROTOCOLS;
         }
         JavaVersion full =
-            AccessController.doPrivileged((PrivilegedAction<JavaVersion>) () -> JavaVersion.parse(System.getProperty("java.version")));
+            AccessController.doPrivileged(
+                    (PrivilegedAction<JavaVersion>) () -> JavaVersion.parse(System.getProperty("java.specification.version")));
         if (full.compareTo(JavaVersion.parse("11.0.3")) < 0) {
             return Collections.singletonList("TLSv1.2");
         }

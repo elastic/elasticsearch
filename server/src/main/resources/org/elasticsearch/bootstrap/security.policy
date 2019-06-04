@@ -47,7 +47,7 @@ grant codeBase "${codebase.lucene-misc}" {
   permission java.nio.file.LinkPermission "hard";
 };
 
-grant codeBase "${codebase.plugin-classloader}" {
+grant codeBase "${codebase.elasticsearch-plugin-classloader}" {
   // needed to create the classloader which allows plugins to extend other plugins
   permission java.lang.RuntimePermission "createClassLoader";
 };

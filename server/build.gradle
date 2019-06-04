@@ -74,13 +74,13 @@ if (!isEclipse && !isIdea) {
 
 dependencies {
 
-  compile "org.elasticsearch:elasticsearch-core:${version}"
-  compile "org.elasticsearch:elasticsearch-secure-sm:${version}"
-  compile "org.elasticsearch:elasticsearch-x-content:${version}"
-  compile "org.elasticsearch:elasticsearch-geo:${version}"
+  compile project(':libs:elasticsearch-core')
+  compile project(':libs:elasticsearch-secure-sm')
+  compile project(':libs:elasticsearch-x-content')
+  compile project(":libs:elasticsearch-geo")
   
-  compileOnly project(':libs:plugin-classloader')
-  testRuntime project(':libs:plugin-classloader')
+  compileOnly project(':libs:elasticsearch-plugin-classloader')
+  testRuntime project(':libs:elasticsearch-plugin-classloader')
 
   // lucene
   compile "org.apache.lucene:lucene-core:${versions.lucene}"
@@ -100,7 +100,7 @@ dependencies {
   compile "org.apache.lucene:lucene-suggest:${versions.lucene}"
 
   // utilities
-  compile "org.elasticsearch:elasticsearch-cli:${version}"
+  compile project(":libs:elasticsearch-cli")
   compile 'com.carrotsearch:hppc:0.7.1'
 
   // time handling, remove with java 8 time
@@ -127,9 +127,9 @@ dependencies {
   }
 
   if (isEclipse == false || project.path == ":server-tests") {
-    testCompile("org.elasticsearch.test:framework:${version}") {
+    testCompile(project(":test:framework")) {
       // tests use the locally compiled version of server
-      exclude group: 'org.elasticsearch', module: 'elasticsearch'
+      exclude group: 'org.elasticsearch', module: 'server'
     }
   }
 }

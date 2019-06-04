@@ -15,6 +15,7 @@ public class ShardChangesResponseTests extends AbstractWireSerializingTestCase<S
     protected ShardChangesAction.Response createTestInstance() {
         final long mappingVersion = randomNonNegativeLong();
         final long settingsVersion = randomNonNegativeLong();
+        final long aliasesVersion = randomNonNegativeLong();
         final long leaderGlobalCheckpoint = randomNonNegativeLong();
         final long leaderMaxSeqNo = randomLongBetween(leaderGlobalCheckpoint, Long.MAX_VALUE);
         final long maxSeqNoOfUpdatesOrDeletes = randomLongBetween(-1, Long.MAX_VALUE);
@@ -26,6 +27,7 @@ public class ShardChangesResponseTests extends AbstractWireSerializingTestCase<S
         return new ShardChangesAction.Response(
             mappingVersion,
             settingsVersion,
+            aliasesVersion,
             leaderGlobalCheckpoint,
             leaderMaxSeqNo,
             maxSeqNoOfUpdatesOrDeletes,

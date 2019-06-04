@@ -35,7 +35,6 @@ import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 
 import java.io.IOException;
-import java.io.UnsupportedEncodingException;
 import java.util.Iterator;
 
 /**
@@ -125,7 +124,7 @@ final class PrunePostingsMergePolicy extends OneMergeWrappingMergePolicy {
 
                                         @Override
                                         public ImpactsEnum impacts(int flags) throws IOException {
-                                            throw new UnsupportedEncodingException();
+                                            throw new UnsupportedOperationException();
                                         }
                                     };
                                 }

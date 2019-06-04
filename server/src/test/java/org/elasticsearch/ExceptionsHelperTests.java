@@ -219,6 +219,15 @@ public class ExceptionsHelperTests extends ESTestCase {
         e1.addSuppressed(e2);
         e2.addSuppressed(e1);
         ExceptionsHelper.unwrapCorruption(e1);
+
+        final CorruptIndexException corruptIndexException = new CorruptIndexException("corrupt", "resource");
+        RuntimeException e3 = new RuntimeException(corruptIndexException);
+        e3.addSuppressed(e1);
+        assertThat(ExceptionsHelper.unwrapCorruption(e3), equalTo(corruptIndexException));
+
+        RuntimeException e4 = new RuntimeException(e1);
+        e4.addSuppressed(corruptIndexException);
+        assertThat(ExceptionsHelper.unwrapCorruption(e4), equalTo(corruptIndexException));
     }
 
     public void testCauseCycle() {

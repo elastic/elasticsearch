@@ -38,6 +38,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.IdentityHashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Objects;
@@ -255,15 +256,17 @@ public final class ExceptionsHelper {
 
         final Queue<Throwable> queue = new LinkedList<>();
         queue.add(cause);
-        int iterations = 0;
+        final Set<Throwable> seen = Collections.newSetFromMap(new IdentityHashMap<>());
         while (queue.isEmpty() == false) {
-            iterations++;
-            // this is a guard against deeply nested or circular chains of exceptions
-            if (iterations > MAX_ITERATIONS) {
+            // this is a guard against deeply nested chains of exceptions
+            if (seen.size() >= MAX_ITERATIONS) {
                 logger.warn("giving up looking for nested cause", cause);
                 break;
             }
             final Throwable current = queue.remove();
+            if (seen.add(current) == false) {
+                continue;
+            }
             if (predicate.test(current)) {
                 return Optional.of((T) current);
             }

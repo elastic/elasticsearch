@@ -408,7 +408,7 @@ public class ShardFollowNodeTaskStatus implements Task.Status {
         this.writeBufferSizeInBytes = in.readVLong();
         this.followerMappingVersion = in.readVLong();
         this.followerSettingsVersion = in.readVLong();
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (in.getVersion().onOrAfter(Version.V_7_3_0)) {
             this.followerAliasesVersion = in.readVLong();
         } else {
             this.followerAliasesVersion = 0L;
@@ -451,7 +451,7 @@ public class ShardFollowNodeTaskStatus implements Task.Status {
         out.writeVLong(writeBufferSizeInBytes);
         out.writeVLong(followerMappingVersion);
         out.writeVLong(followerSettingsVersion);
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_7_3_0)) {
             out.writeVLong(followerAliasesVersion);
         }
         out.writeVLong(totalReadTimeMillis);

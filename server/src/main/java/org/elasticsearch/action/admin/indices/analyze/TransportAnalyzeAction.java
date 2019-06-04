@@ -137,14 +137,16 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeAc
 
         IndexAnalyzers indexAnalyzers = indexService == null ? null : indexService.getIndexAnalyzers();
 
+        // First, we check to see if the request requires a custom analyzer.  If so, then we
+        // need to build it and then close it after use.
         try (Analyzer analyzer = buildCustomAnalyzer(request, analysisRegistry, indexAnalyzers, environment)) {
             if (analyzer != null) {
                 return analyze(request, analyzer, maxTokenCount);
             }
         }
 
-        Analyzer analyzer = getAnalyzer(request, analysisRegistry, indexService);
-        return analyze(request, analyzer, maxTokenCount);
+        // Otherwise we use a built-in analyzer, which should not be closed
+        return analyze(request, getAnalyzer(request, analysisRegistry, indexService), maxTokenCount);
     }
 
     private IndexService getIndexService(ShardId shardId) {
@@ -218,8 +220,7 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeAc
             return new CustomAnalyzer(tokenizerFactory.v1(), tokenizerFactory.v2(),
                 charFilterFactoryList.toArray(new CharFilterFactory[0]),
                 tokenFilterFactoryList.toArray(new TokenFilterFactory[0]));
-        }
-        else if (((request.tokenFilters() != null && request.tokenFilters().size() > 0)
+        } else if (((request.tokenFilters() != null && request.tokenFilters().size() > 0)
             || (request.charFilters() != null && request.charFilters().size() > 0))) {
             final IndexSettings indexSettings = indexAnalyzers == null ? null : indexAnalyzers.getIndexSettings();
             // custom normalizer = if normalizer == null but filter or char_filter is not null and tokenizer/analyzer is null
@@ -253,6 +254,8 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeAc
         List<AnalyzeAction.AnalyzeToken> tokens = new ArrayList<>();
         int lastPosition = -1;
         int lastOffset = 0;
+        // Note that we always pass "" as the field to the various Analyzer methods, because
+        // the analyzers we use here are all field-specific and so ignore this parameter
         for (String text : request.text()) {
             try (TokenStream stream = analyzer.tokenStream("", text)) {
                 stream.reset();

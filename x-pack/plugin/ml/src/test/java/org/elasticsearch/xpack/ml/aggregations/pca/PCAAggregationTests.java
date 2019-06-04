@@ -11,7 +11,7 @@ import org.elasticsearch.search.aggregations.matrix.stats.MatrixStatsResults;
 
 import java.io.IOException;
 
-public class PCAAggregationTestCase extends AbstractMatrixStatsTestCase {
+public class PCAAggregationTests extends AbstractMatrixStatsTestCase {
 
     public void testAggregationAccuracy() throws IOException {
         testCase(new MatchAllDocsQuery(),

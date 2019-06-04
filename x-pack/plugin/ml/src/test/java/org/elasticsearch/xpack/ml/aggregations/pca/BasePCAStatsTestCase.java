@@ -11,8 +11,8 @@ import org.junit.Before;
 
 import java.util.ArrayList;
 
-public class BasePCAStatsTestCase extends ESTestCase {
-    protected final int numObs = 10000; /** = 100000;*/ /** = 500000;*/ /** = 1000000;*/  //atLeast(10000);
+public abstract class BasePCAStatsTestCase extends ESTestCase {
+    protected final int numObs = 10000;
     protected final ArrayList<Double> fieldA = new ArrayList<>(numObs);
     protected final ArrayList<Double> fieldB = new ArrayList<>(numObs);
     protected final MultiPassStats actualStats = new MultiPassStats(fieldAKey, fieldBKey);
@@ -25,10 +25,6 @@ public class BasePCAStatsTestCase extends ESTestCase {
     }
 
     public void createStats() {
-//        for (int n = 1, k = 2; n < 7; n+=2, k +=2) {
-//            fieldA.add((double)n);
-//            fieldB.add((double)k);
-//        }
         for (int n = 0; n < numObs; ++n) {
             fieldA.add(randomDouble());
             fieldB.add(randomDouble());

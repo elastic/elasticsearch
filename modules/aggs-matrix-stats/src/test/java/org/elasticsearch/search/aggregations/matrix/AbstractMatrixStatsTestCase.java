@@ -60,6 +60,7 @@ public abstract class AbstractMatrixStatsTestCase extends AggregatorTestCase {
     protected static RunningStats baseTruthStats = new RunningStats();
     protected static MatrixStatsResults results;
 
+    @SuppressWarnings("unchecked")
     public void initializeData() {
         if (initialized == false) {
             fieldNames = randomNumericFields(randomIntBetween(2, 7));
@@ -109,15 +110,20 @@ public abstract class AbstractMatrixStatsTestCase extends AggregatorTestCase {
 
     public abstract void testAggregationAccuracy() throws IOException;
 
+    @SuppressWarnings({"unchecked", "rawtypes"})
     public abstract <A extends ArrayValuesSourceAggregationBuilder.LeafOnly> A getAggregatorBuilder(String name);
 
+    @SuppressWarnings({"unchecked", "rawtypes"})
     public <A extends MatrixStatsAggregator> A getAggregator(String name,
             IndexSearcher indexSearcher) throws IOException {
         ArrayValuesSourceAggregationBuilder.LeafOnly aggBuilder = getAggregatorBuilder(name);
         return createAggregator(aggBuilder, indexSearcher, fieldTypes.stream().toArray(n -> new NumberFieldMapper.NumberFieldType[n]));
     }
 
+    @SuppressWarnings("unchecked")
     public abstract <R extends MatrixStatsResults> R computeResults();
+
+    @SuppressWarnings("unchecked")
     public <R extends MatrixStatsResults> R getResults() {
         if (results == null) {
             return computeResults();
@@ -131,7 +137,8 @@ public abstract class AbstractMatrixStatsTestCase extends AggregatorTestCase {
         IndexReader indexReader = DirectoryReader.open(directory);
         IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
         AggregationBuilder aggBuilder = getAggregatorBuilder("_name");
-        InternalAggregation agg = searchAndReduce(indexSearcher, query, aggBuilder, fieldTypes.stream().toArray(n -> new NumberFieldMapper.NumberFieldType[n]));
+        InternalAggregation agg = searchAndReduce(indexSearcher, query, aggBuilder,
+            fieldTypes.stream().toArray(n -> new NumberFieldMapper.NumberFieldType[n]));
         verify.accept(agg);
         indexReader.close();
     }
@@ -142,6 +149,7 @@ public abstract class AbstractMatrixStatsTestCase extends AggregatorTestCase {
         directory.close();
     }
 
+    @SuppressWarnings("unchecked")
     private static String randomNumericField() {
         int randomInt = randomInt(2);
         switch (randomInt) {
@@ -153,6 +161,7 @@ public abstract class AbstractMatrixStatsTestCase extends AggregatorTestCase {
         }
     }
 
+    @SuppressWarnings({"unchecked", "rawtypes"})
     public static ArrayList randomNumericFields(int numFields) {
         ArrayList<String> fields = new ArrayList<>(numFields);
         for (int i = 0; i < numFields; ++i) {

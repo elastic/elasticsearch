@@ -44,7 +44,7 @@ public class InternalPCAStats extends BaseInternalMatrixStats implements MatrixS
 
     @Override
     public InternalPCAStats newInternalMatrixStats(String name, long count, RunningStats multiFieldStatsResults,
-                                                   MatrixStatsResults results, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
+            MatrixStatsResults results, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
         return new InternalPCAStats(name, count, multiFieldStatsResults, results, pipelineAggregators, metaData);
     }
 

@@ -281,7 +281,7 @@ public class AnalyzeRequest extends SingleShardRequest<AnalyzeRequest> implement
             builder.field("analyzer", analyzer);
         }
         if (tokenizer != null) {
-            tokenizer.toXContent(builder, params);
+            builder.field("tokenizer", tokenizer);
         }
         if (tokenFilters.size() > 0) {
             builder.field("filter", tokenFilters);

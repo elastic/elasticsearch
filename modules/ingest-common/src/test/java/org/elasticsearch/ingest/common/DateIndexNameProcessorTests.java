@@ -34,6 +34,10 @@ import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
 public class DateIndexNameProcessorTests extends ESTestCase {
+    @Override
+    protected boolean enableJodaDeprecationWarningsCheck() {
+        return true;
+    }
 
     public void testJodaPattern() throws Exception {
         Function<String, DateTime> function = DateFormat.Java.getFunction("yyyy-MM-dd'T'HH:mm:ss.SSSZ", DateTimeZone.UTC, Locale.ROOT);
@@ -43,6 +47,11 @@ public class DateIndexNameProcessorTests extends ESTestCase {
                 Collections.singletonMap("_field", "2016-04-25T12:24:20.101Z"));
         processor.execute(document);
         assertThat(document.getSourceAndMetadata().get("_index"), equalTo("<events-{20160425||/y{yyyyMMdd|UTC}}>"));
+        assertWarnings("'y' year should be replaced with 'u'. Use 'y' for year-of-era.; " +
+            "'Z' time zone offset/id fails when parsing 'Z' for Zulu timezone. Consider using 'X'. " +
+            "Prefix your date format with '8' to use the new specifier.",
+            "'y' year should be replaced with 'u'. Use 'y' for year-of-era. " +
+                "Prefix your date format with '8' to use the new specifier.");
     }
 
     public void testTAI64N()throws Exception {
@@ -53,6 +62,8 @@ public class DateIndexNameProcessorTests extends ESTestCase {
                 Collections.singletonMap("_field", (randomBoolean() ? "@" : "") + "4000000050d506482dbdf024"));
         dateProcessor.execute(document);
         assertThat(document.getSourceAndMetadata().get("_index"), equalTo("<events-{20121222||/m{yyyyMMdd|UTC}}>"));
+        assertWarnings("'y' year should be replaced with 'u'. Use 'y' for year-of-era. " +
+            "Prefix your date format with '8' to use the new specifier.");
     }
 
     public void testUnixMs()throws Exception {
@@ -68,6 +79,8 @@ public class DateIndexNameProcessorTests extends ESTestCase {
                 Collections.singletonMap("_field", 1000500L));
         dateProcessor.execute(document);
         assertThat(document.getSourceAndMetadata().get("_index"), equalTo("<events-{19700101||/m{yyyyMMdd|UTC}}>"));
+        assertWarnings("'y' year should be replaced with 'u'. Use 'y' for year-of-era. " +
+                "Prefix your date format with '8' to use the new specifier.");
     }
 
     public void testUnix()throws Exception {
@@ -78,6 +91,8 @@ public class DateIndexNameProcessorTests extends ESTestCase {
                 Collections.singletonMap("_field", "1000.5"));
         dateProcessor.execute(document);
         assertThat(document.getSourceAndMetadata().get("_index"), equalTo("<events-{19700101||/m{yyyyMMdd|UTC}}>"));
+        assertWarnings("'y' year should be replaced with 'u'. Use 'y' for year-of-era. " +
+            "Prefix your date format with '8' to use the new specifier.");
     }
 
     public void testTemplatedFields() throws Exception {
@@ -98,6 +113,14 @@ public class DateIndexNameProcessorTests extends ESTestCase {
         assertThat(document.getSourceAndMetadata().get("_index"),
             equalTo("<"+indexNamePrefix+"{"+DateTimeFormat.forPattern(indexNameFormat)
                 .print(dateTimeFunction.apply(date))+"||/"+dateRounding+"{"+indexNameFormat+"|UTC}}>"));
+        if (indexNameFormat.equals("yyyy-MM-dd'T'HH:mm:ss.SSSZ")) {
+            assertWarnings("'y' year should be replaced with 'u'. Use 'y' for year-of-era.; " +
+                "'Z' time zone offset/id fails when parsing 'Z' for Zulu timezone. Consider using 'X'. " +
+                "Prefix your date format with '8' to use the new specifier.");
+        } else {
+            assertWarnings("'y' year should be replaced with 'u'. Use 'y' for year-of-era. " +
+                "Prefix your date format with '8' to use the new specifier.");
+        }
     }
 
     public void testJodaTimeDeprecation() throws Exception {
@@ -112,10 +135,11 @@ public class DateIndexNameProcessorTests extends ESTestCase {
             Collections.singletonMap("_field", date));
         dateProcessor.execute(document);
 
-        assertWarnings("Use of 'Y' (year-of-era) will change to 'y' in the next major version of Elasticsearch." +
-            " Prefix your date format with '8' to use the new specifier.");
         assertThat(document.getSourceAndMetadata().get("_index"),
             is("<foo-{2019-01-31T12:34:56.789+0000||/M{" + indexNameFormat + "|UTC}}>"));
+        assertWarnings("'Y' year-of-era should be replaced with 'y'. Use 'Y' for week-based-year.; " +
+                "'Z' time zone offset/id fails when parsing 'Z' for Zulu timezone. Consider using 'X'. " +
+                "Prefix your date format with '8' to use the new specifier.");
     }
 
     private DateIndexNameProcessor createProcessor(String field, List<Function<String, DateTime>> dateFormats,

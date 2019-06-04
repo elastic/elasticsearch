@@ -42,6 +42,10 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class DateFieldMapperTests extends ESSingleNodeTestCase {
+    @Override
+    protected boolean enableJodaDeprecationWarningsCheck() {
+        return true;
+    }
 
     IndexService indexService;
     DocumentMapperParser parser;
@@ -50,6 +54,12 @@ public class DateFieldMapperTests extends ESSingleNodeTestCase {
     public void setup() {
         indexService = createIndex("test");
         parser = indexService.mapperService().documentMapperParser();
+    }
+
+    @Override
+    protected boolean enableWarningsCheck() {
+        // disable warning checks as deprecated time patterns are used. These are covered in JodaWarningTests.
+        return false;
     }
 
     @Override

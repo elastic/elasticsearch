@@ -48,6 +48,10 @@ import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 
 public class RangeFieldMapperTests extends AbstractNumericFieldMapperTestCase {
+    @Override
+    protected boolean enableJodaDeprecationWarningsCheck() {
+        return true;
+    }
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
@@ -62,7 +66,7 @@ public class RangeFieldMapperTests extends AbstractNumericFieldMapperTestCase {
     private static String FROM_STR = FROM + "";
     private static int TO = 10;
     private static String TO_STR = TO + "";
-    private static String DATE_FORMAT = "yyyy-MM-dd HH:mm:ss||yyyy-MM-dd||epoch_millis";
+    private static String DATE_FORMAT = "8yyyy-MM-dd HH:mm:ss||yyyy-MM-dd||epoch_millis";
 
     @Override
     protected void setTypeList() {

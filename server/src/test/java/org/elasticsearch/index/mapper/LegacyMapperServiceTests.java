@@ -34,6 +34,10 @@ import java.util.Collections;
 import java.util.HashSet;
 
 public class LegacyMapperServiceTests extends ESSingleNodeTestCase {
+    @Override
+    protected boolean enableJodaDeprecationWarningsCheck() {
+        return true;
+    }
 
     @Override
     protected boolean forbidPrivateIndexSettings() {

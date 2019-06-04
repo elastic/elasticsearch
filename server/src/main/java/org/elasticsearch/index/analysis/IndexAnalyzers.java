@@ -24,12 +24,10 @@ import org.elasticsearch.index.IndexSettings;
 
 import java.io.Closeable;
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Stream;
 
-import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.index.analysis.AnalysisRegistry.DEFAULT_ANALYZER_NAME;
 import static org.elasticsearch.index.analysis.AnalysisRegistry.DEFAULT_SEARCH_ANALYZER_NAME;
 import static org.elasticsearch.index.analysis.AnalysisRegistry.DEFAULT_SEARCH_QUOTED_ANALYZER_NAME;
@@ -54,16 +52,20 @@ public final class IndexAnalyzers extends AbstractIndexComponent implements Clos
             throw new IllegalStateException(
                     "default analyzer must have the name [default] but was: [" + analyzers.get(DEFAULT_ANALYZER_NAME).name() + "]");
         }
-        this.analyzers =  unmodifiableMap(new HashMap<>(analyzers));
-        this.normalizers = unmodifiableMap(new HashMap<>(normalizers));
-        this.whitespaceNormalizers = unmodifiableMap(new HashMap<>(whitespaceNormalizers));
+        this.analyzers = Map.copyOf(analyzers);
+        this.normalizers = Map.copyOf(normalizers);
+        this.whitespaceNormalizers = Map.copyOf(whitespaceNormalizers);
     }
 
     /**
      * Returns an analyzer mapped to the given name or <code>null</code> if not present
      */
     public NamedAnalyzer get(String name) {
-        return analyzers.get(name);
+        if (name != null) {
+            return analyzers.get(name);
+        } else {
+            return null;
+        }
     }
 
     /**
@@ -77,14 +79,22 @@ public final class IndexAnalyzers extends AbstractIndexComponent implements Clos
      * Returns a normalizer mapped to the given name or <code>null</code> if not present
      */
     public NamedAnalyzer getNormalizer(String name) {
-        return normalizers.get(name);
+        if (name != null) {
+            return normalizers.get(name);
+        } else {
+            return null;
+        }
     }
 
     /**
      * Returns a normalizer that splits on whitespace mapped to the given name or <code>null</code> if not present
      */
     public NamedAnalyzer getWhitespaceNormalizer(String name) {
-        return whitespaceNormalizers.get(name);
+        if (name != null) {
+            return whitespaceNormalizers.get(name);
+        } else {
+            return null;
+        }
     }
 
     /**

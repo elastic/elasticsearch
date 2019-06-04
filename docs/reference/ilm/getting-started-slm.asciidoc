@@ -64,10 +64,9 @@ PUT /_slm/policy/nightly-snapshots
 <4> the configuration to be used for the snapshot requests (see below)
 <5> which indices should be included in the snapshot, in this case, every index
 
-This policy will take a snapshot of every index each day at 1:30AM UTC //TODO is
-it actually UTC?//.  Snapshots are incremental, allowing frequent snapshots
-to be stored efficiently, so don't be afraid to configure a policy to take
-frequent snapshots.
+This policy will take a snapshot of every index each day at 1:30AM UTC.
+Snapshots are incremental, allowing frequent snapshots to be stored efficiently,
+so don't be afraid to configure a policy to take frequent snapshots.
 
 In addition to specifying the indices that should be included in the snapshot,
 the `config` field can be used to customize other aspects of the snapshot. You

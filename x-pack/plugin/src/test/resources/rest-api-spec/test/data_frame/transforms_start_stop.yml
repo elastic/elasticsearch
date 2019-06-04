@@ -90,9 +90,6 @@ teardown:
   - match: { airline-data-by-airline-start-stop.mappings: {} }
 ---
 "Test start/stop/start transform":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/issues/42650"
-      version: "all"
   - do:
       data_frame.start_data_frame_transform:
         transform_id: "airline-transform-start-stop"

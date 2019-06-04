@@ -237,6 +237,10 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
             return;
         }
 
+        if (getIndexer().getState() == IndexerState.STOPPED) {
+            return;
+        }
+
         IndexerState state = getIndexer().stop();
         if (state == IndexerState.STOPPED) {
             getIndexer().doSaveState(state, getIndexer().getPosition(), () -> getIndexer().onStop());

@@ -47,8 +47,8 @@ public class RestReloadAnalyzersAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        ReloadAnalyzersRequest reloadAnalyuersRequest = reloadAnalyzersRequest(Strings.splitStringByCommaToArray(request.param("index")));
-        reloadAnalyuersRequest.indicesOptions(IndicesOptions.fromRequest(request, reloadAnalyuersRequest.indicesOptions()));
-        return channel -> client.admin().indices().reloadAnalyzers(reloadAnalyuersRequest, new RestToXContentListener<>(channel));
+        ReloadAnalyzersRequest reloadAnalyzersRequest = reloadAnalyzersRequest(Strings.splitStringByCommaToArray(request.param("index")));
+        reloadAnalyzersRequest.indicesOptions(IndicesOptions.fromRequest(request, reloadAnalyzersRequest.indicesOptions()));
+        return channel -> client.admin().indices().reloadAnalyzers(reloadAnalyzersRequest, new RestToXContentListener<>(channel));
     }
 }

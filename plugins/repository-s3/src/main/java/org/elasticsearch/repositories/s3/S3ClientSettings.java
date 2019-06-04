@@ -100,7 +100,7 @@ final class S3ClientSettings {
     static final Setting.AffixSetting<S3ClientSettings.PathStyleAccess> USE_PATH_STYLE_ACCESS = Setting.affixKeySetting(
         PREFIX, "path_style_access",
         key -> new Setting<>(key, s -> "default", s -> Boolean.parseBoolean(s) ? PathStyleAccess.ENABLED : PathStyleAccess.DISABLED,
-            Property.NodeScope, Property.Deprecated));
+            Property.NodeScope));
 
     /** Credentials to authenticate with s3. */
     final S3BasicCredentials credentials;

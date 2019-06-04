@@ -33,7 +33,7 @@ For more information on the compress option, see <<modules-snapshots>>
 ==== The S3 repository plugin uses the DNS style access pattern by default
 
 Starting in version 7.3 using the path style access pattern with the S3 repository is deprecated.
-Previously the S3 repository plugin was exclusively using the path style access pattern. This is a breaking
+In versions 7.0, 7.1, and 7.2 the S3 repository plugin was exclusively using the path style access pattern. This is a breaking
 change for deployments that do not also allow for the DNS style access pattern. For short-term compatibility with these deployments users
 must configure the S3 client setting `path_style_access` to `true` to retain the previous behaviour.
 

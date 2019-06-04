@@ -147,8 +147,9 @@ settings belong in the `elasticsearch.yml` file.
 
 `path_style_access`::
 
-   Whether to use the path style access pattern. If `true`, the path style access pattern will be used if false, DNS style access will
-   be used. Defaults to letting the AWS S3 SDK decide the right access pattern dynamically.
+   Whether to use the path style access pattern. If `true`, the path style access pattern will be used. If set to`false`, DNS style access will
+   be used. Defaults to letting the AWS Java SDK decide whether to use the path style access pattern dynamically
+   (See https://docs.aws.amazon.com/AWSJavaSDK/latest/javadoc/com/amazonaws/services/s3/AmazonS3Builder.html#setPathStyleAccessEnabled-java.lang.Boolean-[AWS documentation] for details).
 
 NOTE: This setting is deprecated and only intended as a stop-gap solution to provide
    compatibility with alternative S3 implementations that do not provide compatibility with the domain style access pattern.

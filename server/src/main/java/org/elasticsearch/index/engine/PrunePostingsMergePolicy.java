@@ -60,7 +60,7 @@ import java.util.function.Supplier;
  */
 final class PrunePostingsMergePolicy extends OneMergeWrappingMergePolicy {
 
-    PrunePostingsMergePolicy(MergePolicy in, String idField, Supplier<Query> retentionQuery) {
+    PrunePostingsMergePolicy(MergePolicy in, String idField) {
         super(in, toWrap -> new OneMerge(toWrap.segments) {
             @Override
             public CodecReader wrapForMerge(CodecReader reader) throws IOException {
@@ -71,52 +71,13 @@ final class PrunePostingsMergePolicy extends OneMergeWrappingMergePolicy {
                     throw new IllegalStateException(idField + " must not have norms, vectors or doc-values");
                 }
                 CodecReader wrapped = toWrap.wrapForMerge(reader);
-                return wrapReader(wrapped, idField, retentionQuery);
+                return wrapReader(wrapped, idField);
             }
         });
     }
 
-    private static int skipDeletedDocs(DocIdSetIterator iterator, Bits liveDocs) throws IOException {
-        int docId;
-        do {
-            docId = iterator.nextDoc();
-        } while (docId != DocIdSetIterator.NO_MORE_DOCS && liveDocs.get(docId) == false);
-        return docId;
-    }
-
-    private static Bits processLiveDocs(Bits liveDocs, Supplier<Query> retentionQuery, CodecReader reader) throws IOException {
-        Scorer scorer = getScorer(retentionQuery.get(), reader);
-        if (scorer != null) {
-            BitSet retentionDocs = BitSet.of(scorer.iterator(), reader.maxDoc());
-            if (liveDocs == null) {
-                return retentionDocs;
-            }
-            return new Bits() {
-                @Override
-                public boolean get(int index) {
-                    return liveDocs.get(index) && retentionDocs.get(index);
-                }
-
-                @Override
-                public int length() {
-                    return reader.maxDoc();
-                }
-            };
-        } else {
-            return new Bits.MatchNoBits(reader.maxDoc());
-        }
-    }
-
-    private static Scorer getScorer(Query query, CodecReader reader) throws IOException {
-        IndexSearcher s = new IndexSearcher(reader);
-        s.setQueryCache(null);
-        Weight weight = s.createWeight(s.rewrite(query), ScoreMode.COMPLETE_NO_SCORES, 1.0f);
-        return weight.scorer(reader.getContext());
-    }
-
-
-    private static CodecReader wrapReader(CodecReader reader, String idField, Supplier<Query> retentionQuery) throws IOException {
-        Bits liveDocs = processLiveDocs(reader.getLiveDocs(), retentionQuery, reader);
+    private static CodecReader wrapReader(CodecReader reader, String idField) {
+        Bits liveDocs = reader.getLiveDocs();
         if (liveDocs == null) {
             return reader; // no deleted docs - we are good!
         }
@@ -252,4 +213,11 @@ final class PrunePostingsMergePolicy extends OneMergeWrappingMergePolicy {
         };
     }
 
+    private static int skipDeletedDocs(DocIdSetIterator iterator, Bits liveDocs) throws IOException {
+        int docId;
+        do {
+            docId = iterator.nextDoc();
+        } while (docId != DocIdSetIterator.NO_MORE_DOCS && liveDocs.get(docId) == false);
+        return docId;
+    }
 }

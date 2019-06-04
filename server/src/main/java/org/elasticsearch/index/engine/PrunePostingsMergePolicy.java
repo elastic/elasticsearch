@@ -114,7 +114,7 @@ final class PrunePostingsMergePolicy extends OneMergeWrappingMergePolicy {
 
                                         @Override
                                         public PostingsEnum postings(PostingsEnum reuse, int flags) throws IOException {
-                                            if (reuse != null && reuse instanceof OnlyLiveDocsPostingsEnum) {
+                                            if (reuse instanceof OnlyLiveDocsPostingsEnum) {
                                                 OnlyLiveDocsPostingsEnum reuseInstance = (OnlyLiveDocsPostingsEnum) reuse;
                                                 reuseInstance.reset(super.postings(reuseInstance.in, flags));
                                                 return reuseInstance;

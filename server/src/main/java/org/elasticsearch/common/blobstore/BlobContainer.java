@@ -70,12 +70,10 @@ public interface BlobContainer {
      * @param   blobSize
      *          The size of the blob to be written, in bytes.  It is implementation dependent whether
      *          this value is used in writing the blob to the repository.
-     * @param   failIfAlreadyExists
-     *          whether to throw a FileAlreadyExistsException if the given blob already exists
      * @throws  FileAlreadyExistsException if failIfAlreadyExists is true and a blob by the same name already exists
      * @throws  IOException if the input stream could not be read, or the target blob could not be written to.
      */
-    void writeBlob(String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists) throws IOException;
+    void writeBlob(String blobName, InputStream inputStream, long blobSize) throws IOException;
 
     /**
      * Reads blob content from the input stream and writes it to the container in a new blob with the given name,
@@ -91,12 +89,10 @@ public interface BlobContainer {
      * @param   blobSize
      *          The size of the blob to be written, in bytes.  It is implementation dependent whether
      *          this value is used in writing the blob to the repository.
-     * @param   failIfAlreadyExists
-     *          whether to throw a FileAlreadyExistsException if the given blob already exists
      * @throws  FileAlreadyExistsException if failIfAlreadyExists is true and a blob by the same name already exists
      * @throws  IOException if the input stream could not be read, or the target blob could not be written to.
      */
-    void writeBlobAtomic(String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists) throws IOException;
+    void writeBlobAtomic(String blobName, InputStream inputStream, long blobSize) throws IOException;
 
     /**
      * Deletes the blob with the given name, if the blob exists. If the blob does not exist,

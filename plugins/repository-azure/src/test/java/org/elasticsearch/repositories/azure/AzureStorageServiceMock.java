@@ -33,7 +33,6 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.SocketPermission;
-import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.NoSuchFileException;
 import java.security.AccessController;
 import java.util.HashMap;
@@ -99,11 +98,8 @@ public class AzureStorageServiceMock extends AzureStorageService {
     }
 
     @Override
-    public void writeBlob(String account, String container, String blobName, InputStream inputStream, long blobSize,
-                          boolean failIfAlreadyExists) throws StorageException, FileAlreadyExistsException {
-        if (failIfAlreadyExists && blobs.containsKey(blobName)) {
-            throw new FileAlreadyExistsException(blobName);
-        }
+    public void writeBlob(String account, String container, String blobName, InputStream inputStream, long blobSize)
+            throws StorageException {
         try (ByteArrayOutputStream outputStream = new ByteArrayOutputStream()) {
             blobs.put(blobName, outputStream);
             Streams.copy(inputStream, outputStream);

@@ -345,10 +345,10 @@ public class MockRepository extends FsRepository {
             }
 
             @Override
-            public void writeBlob(String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists)
+            public void writeBlob(String blobName, InputStream inputStream, long blobSize)
                 throws IOException {
                 maybeIOExceptionOrBlock(blobName);
-                super.writeBlob(blobName, inputStream, blobSize, failIfAlreadyExists);
+                super.writeBlob(blobName, inputStream, blobSize);
                 if (RandomizedContext.current().getRandom().nextBoolean()) {
                     // for network based repositories, the blob may have been written but we may still
                     // get an error with the client connection, so an IOException here simulates this
@@ -357,21 +357,20 @@ public class MockRepository extends FsRepository {
             }
 
             @Override
-            public void writeBlobAtomic(final String blobName, final InputStream inputStream, final long blobSize,
-                                        final boolean failIfAlreadyExists) throws IOException {
+            public void writeBlobAtomic(final String blobName, final InputStream inputStream, final long blobSize) throws IOException {
                 final Random random = RandomizedContext.current().getRandom();
                 if ((delegate() instanceof FsBlobContainer) && (random.nextBoolean())) {
                     // Simulate a failure between the write and move operation in FsBlobContainer
                     final String tempBlobName = FsBlobContainer.tempBlobName(blobName);
-                    super.writeBlob(tempBlobName, inputStream, blobSize, failIfAlreadyExists);
+                    super.writeBlob(tempBlobName, inputStream, blobSize);
                     maybeIOExceptionOrBlock(blobName);
                     final FsBlobContainer fsBlobContainer = (FsBlobContainer) delegate();
-                    fsBlobContainer.moveBlobAtomic(tempBlobName, blobName, failIfAlreadyExists);
+                    fsBlobContainer.moveBlobAtomic(tempBlobName, blobName, false);
                 } else {
                     // Atomic write since it is potentially supported
                     // by the delegating blob container
                     maybeIOExceptionOrBlock(blobName);
-                    super.writeBlobAtomic(blobName, inputStream, blobSize, failIfAlreadyExists);
+                    super.writeBlobAtomic(blobName, inputStream, blobSize);
                 }
             }
         }

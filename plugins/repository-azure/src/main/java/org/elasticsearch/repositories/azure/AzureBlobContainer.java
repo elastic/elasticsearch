@@ -86,19 +86,19 @@ public class AzureBlobContainer extends AbstractBlobContainer {
     }
 
     @Override
-    public void writeBlob(String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists) throws IOException {
+    public void writeBlob(String blobName, InputStream inputStream, long blobSize) throws IOException {
         logger.trace("writeBlob({}, stream, {})", buildKey(blobName), blobSize);
 
         try {
-            blobStore.writeBlob(buildKey(blobName), inputStream, blobSize, failIfAlreadyExists);
+            blobStore.writeBlob(buildKey(blobName), inputStream, blobSize);
         } catch (URISyntaxException|StorageException e) {
             throw new IOException("Can not write blob " + blobName, e);
         }
     }
 
     @Override
-    public void writeBlobAtomic(String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists) throws IOException {
-        writeBlob(blobName, inputStream, blobSize, failIfAlreadyExists);
+    public void writeBlobAtomic(String blobName, InputStream inputStream, long blobSize) throws IOException {
+        writeBlob(blobName, inputStream, blobSize);
     }
 
     @Override

@@ -24,7 +24,6 @@ import com.microsoft.azure.storage.CloudStorageAccount;
 import com.microsoft.azure.storage.OperationContext;
 import com.microsoft.azure.storage.RetryExponentialRetry;
 import com.microsoft.azure.storage.RetryPolicy;
-import com.microsoft.azure.storage.StorageErrorCodeStrings;
 import com.microsoft.azure.storage.StorageException;
 import com.microsoft.azure.storage.blob.BlobInputStream;
 import com.microsoft.azure.storage.blob.BlobListingDetails;
@@ -47,10 +46,8 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.net.HttpURLConnection;
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.nio.file.FileAlreadyExistsException;
 import java.security.InvalidKeyException;
 import java.util.EnumSet;
 import java.util.HashMap;
@@ -223,25 +220,15 @@ public class AzureStorageService {
         return Map.copyOf(blobsBuilder);
     }
 
-    public void writeBlob(String account, String container, String blobName, InputStream inputStream, long blobSize,
-                          boolean failIfAlreadyExists)
-        throws URISyntaxException, StorageException, FileAlreadyExistsException {
+    public void writeBlob(String account, String container, String blobName, InputStream inputStream, long blobSize)
+            throws URISyntaxException, StorageException {
         logger.trace(() -> new ParameterizedMessage("writeBlob({}, stream, {})", blobName, blobSize));
         final Tuple<CloudBlobClient, Supplier<OperationContext>> client = client(account);
         final CloudBlobContainer blobContainer = client.v1().getContainerReference(container);
         final CloudBlockBlob blob = blobContainer.getBlockBlobReference(blobName);
-        try {
-            final AccessCondition accessCondition =
-                failIfAlreadyExists ? AccessCondition.generateIfNotExistsCondition() : AccessCondition.generateEmptyCondition();
-            SocketAccess.doPrivilegedVoidException(() ->
-                blob.upload(inputStream, blobSize, accessCondition, null, client.v2().get()));
-        } catch (final StorageException se) {
-            if (failIfAlreadyExists && se.getHttpStatusCode() == HttpURLConnection.HTTP_CONFLICT &&
-                StorageErrorCodeStrings.BLOB_ALREADY_EXISTS.equals(se.getErrorCode())) {
-                throw new FileAlreadyExistsException(blobName, null, se.getMessage());
-            }
-            throw se;
-        }
+        final AccessCondition accessCondition = AccessCondition.generateEmptyCondition();
+        SocketAccess.doPrivilegedVoidException(() ->
+            blob.upload(inputStream, blobSize, accessCondition, null, client.v2().get()));
         logger.trace(() -> new ParameterizedMessage("writeBlob({}, stream, {}) - done", blobName, blobSize));
     }
 

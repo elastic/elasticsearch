@@ -29,7 +29,6 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.NoSuchFileException;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -62,11 +61,11 @@ public abstract class ESBlobStoreContainerTestCase extends ESTestCase {
         try(BlobStore store = newBlobStore()) {
             final BlobContainer container = store.blobContainer(new BlobPath());
             byte[] data = randomBytes(randomIntBetween(10, scaledRandomIntBetween(1024, 1 << 16)));
-            writeBlob(container, "foobar", new BytesArray(data), randomBoolean());
+            writeBlob(container, "foobar", new BytesArray(data));
             if (randomBoolean()) {
                 // override file, to check if we get latest contents
                 data = randomBytes(randomIntBetween(10, scaledRandomIntBetween(1024, 1 << 16)));
-                writeBlob(container, "foobar", new BytesArray(data), false);
+                writeBlob(container, "foobar", new BytesArray(data));
             }
             try (InputStream stream = container.readBlob("foobar")) {
                 BytesRefBuilder target = new BytesRefBuilder();
@@ -129,7 +128,7 @@ public abstract class ESBlobStoreContainerTestCase extends ESTestCase {
 
             byte[] data = randomBytes(randomIntBetween(10, scaledRandomIntBetween(1024, 1 << 16)));
             final BytesArray bytesArray = new BytesArray(data);
-            writeBlob(container, blobName, bytesArray, randomBoolean());
+            writeBlob(container, blobName, bytesArray);
             container.deleteBlob(blobName); // should not raise
 
             // blob deleted, so should raise again
@@ -145,7 +144,7 @@ public abstract class ESBlobStoreContainerTestCase extends ESTestCase {
             byte[] data = randomBytes(randomIntBetween(10, scaledRandomIntBetween(1024, 1 << 16)));
             final BytesArray bytesArray = new BytesArray(data);
             for (String blobName : blobNames) {
-                writeBlob(container, blobName, bytesArray, randomBoolean());
+                writeBlob(container, blobName, bytesArray);
             }
             assertEquals(container.listBlobs().size(), 2);
             container.deleteBlobsIgnoringIfNotExists(blobNames);
@@ -166,27 +165,12 @@ public abstract class ESBlobStoreContainerTestCase extends ESTestCase {
         }
     }
 
-    public void testVerifyOverwriteFails() throws IOException {
-        try (BlobStore store = newBlobStore()) {
-            final String blobName = "foobar";
-            final BlobContainer container = store.blobContainer(new BlobPath());
-            byte[] data = randomBytes(randomIntBetween(10, scaledRandomIntBetween(1024, 1 << 16)));
-            final BytesArray bytesArray = new BytesArray(data);
-            writeBlob(container, blobName, bytesArray, true);
-            // should not be able to overwrite existing blob
-            expectThrows(FileAlreadyExistsException.class, () -> writeBlob(container, blobName, bytesArray, true));
-            container.deleteBlob(blobName);
-            writeBlob(container, blobName, bytesArray, true); // after deleting the previous blob, we should be able to write to it again
-        }
-    }
-
-    protected void writeBlob(final BlobContainer container, final String blobName, final BytesArray bytesArray,
-                             boolean failIfAlreadyExists) throws IOException {
+    protected static void writeBlob(final BlobContainer container, final String blobName, final BytesArray bytesArray) throws IOException {
         try (InputStream stream = bytesArray.streamInput()) {
             if (randomBoolean()) {
-                container.writeBlob(blobName, stream, bytesArray.length(), failIfAlreadyExists);
+                container.writeBlob(blobName, stream, bytesArray.length());
             } else {
-                container.writeBlobAtomic(blobName, stream, bytesArray.length(), failIfAlreadyExists);
+                container.writeBlobAtomic(blobName, stream, bytesArray.length());
             }
         }
     }

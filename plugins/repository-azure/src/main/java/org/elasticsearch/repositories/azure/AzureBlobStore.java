@@ -98,8 +98,8 @@ public class AzureBlobStore implements BlobStore {
         return service.listBlobsByPrefix(clientName, container, keyPath, prefix);
     }
 
-    public void writeBlob(String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists)
+    public void writeBlob(String blobName, InputStream inputStream, long blobSize)
         throws URISyntaxException, StorageException, FileAlreadyExistsException {
-        service.writeBlob(this.clientName, container, blobName, inputStream, blobSize, failIfAlreadyExists);
+        service.writeBlob(this.clientName, container, blobName, inputStream, blobSize);
     }
 }

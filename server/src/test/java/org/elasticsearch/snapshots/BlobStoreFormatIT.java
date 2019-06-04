@@ -224,7 +224,7 @@ public class BlobStoreFormatIT extends AbstractSnapshotIntegTestCase {
             IOException writeBlobException = expectThrows(IOException.class, () -> {
                 BlobContainer wrapper = new BlobContainerWrapper(blobContainer) {
                     @Override
-                    public void writeBlobAtomic(String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists)
+                    public void writeBlobAtomic(String blobName, InputStream inputStream, long blobSize)
                         throws IOException {
                         throw new IOException("Exception thrown in writeBlobAtomic() for " + blobName);
                     }
@@ -253,7 +253,7 @@ public class BlobStoreFormatIT extends AbstractSnapshotIntegTestCase {
         } while (originalChecksum == checksum(buffer));
         BytesArray bytesArray = new BytesArray(buffer);
         try (StreamInput stream = bytesArray.streamInput()) {
-            blobContainer.writeBlob(blobName, stream, bytesArray.length(), false);
+            blobContainer.writeBlob(blobName, stream, bytesArray.length());
         }
     }
 

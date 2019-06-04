@@ -48,7 +48,6 @@ import java.nio.ByteBuffer;
 import java.nio.channels.Channels;
 import java.nio.channels.ReadableByteChannel;
 import java.nio.channels.WritableByteChannel;
-import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.NoSuchFileException;
 import java.util.Map;
 import java.util.ArrayList;
@@ -59,7 +58,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 import static java.net.HttpURLConnection.HTTP_NOT_FOUND;
-import static java.net.HttpURLConnection.HTTP_PRECON_FAILED;
 
 class GoogleCloudStorageBlobStore implements BlobStore {
 
@@ -191,16 +189,15 @@ class GoogleCloudStorageBlobStore implements BlobStore {
 
     /**
      * Writes a blob in the specific bucket
-     *  @param inputStream content of the blob to be written
+     * @param inputStream content of the blob to be written
      * @param blobSize    expected size of the blob to be written
-     * @param failIfAlreadyExists whether to throw a FileAlreadyExistsException if the given blob already exists
      */
-    void writeBlob(String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists) throws IOException {
+    void writeBlob(String blobName, InputStream inputStream, long blobSize) throws IOException {
         final BlobInfo blobInfo = BlobInfo.newBuilder(bucketName, blobName).build();
         if (blobSize > LARGE_BLOB_THRESHOLD_BYTE_SIZE) {
-            writeBlobResumable(blobInfo, inputStream, failIfAlreadyExists);
+            writeBlobResumable(blobInfo, inputStream);
         } else {
-            writeBlobMultipart(blobInfo, inputStream, blobSize, failIfAlreadyExists);
+            writeBlobMultipart(blobInfo, inputStream, blobSize);
         }
     }
 
@@ -210,38 +207,26 @@ class GoogleCloudStorageBlobStore implements BlobStore {
      * https://cloud.google.com/storage/docs/json_api/v1/how-tos/resumable-upload
      * @param blobInfo the info for the blob to be uploaded
      * @param inputStream the stream containing the blob data
-     * @param failIfAlreadyExists whether to throw a FileAlreadyExistsException if the given blob already exists
      */
-    private void writeBlobResumable(BlobInfo blobInfo, InputStream inputStream, boolean failIfAlreadyExists) throws IOException {
-        try {
-            final Storage.BlobWriteOption[] writeOptions = failIfAlreadyExists ?
-                new Storage.BlobWriteOption[] { Storage.BlobWriteOption.doesNotExist() } :
-                new Storage.BlobWriteOption[0];
-            final WriteChannel writeChannel = SocketAccess
-                    .doPrivilegedIOException(() -> client().writer(blobInfo, writeOptions));
-            Streams.copy(inputStream, Channels.newOutputStream(new WritableByteChannel() {
-                @Override
-                public boolean isOpen() {
-                    return writeChannel.isOpen();
-                }
-
-                @Override
-                public void close() throws IOException {
-                    SocketAccess.doPrivilegedVoidIOException(writeChannel::close);
-                }
-
-                @SuppressForbidden(reason = "Channel is based of a socket not a file")
-                @Override
-                public int write(ByteBuffer src) throws IOException {
-                    return SocketAccess.doPrivilegedIOException(() -> writeChannel.write(src));
-                }
-            }));
-        } catch (final StorageException se) {
-            if (failIfAlreadyExists && se.getCode() == HTTP_PRECON_FAILED) {
-                throw new FileAlreadyExistsException(blobInfo.getBlobId().getName(), null, se.getMessage());
+    private void writeBlobResumable(BlobInfo blobInfo, InputStream inputStream) throws IOException {
+        final WriteChannel writeChannel = SocketAccess.doPrivilegedIOException(() -> client().writer(blobInfo));
+        Streams.copy(inputStream, Channels.newOutputStream(new WritableByteChannel() {
+            @Override
+            public boolean isOpen() {
+                return writeChannel.isOpen();
             }
-            throw se;
-        }
+
+            @Override
+            public void close() throws IOException {
+                SocketAccess.doPrivilegedVoidIOException(writeChannel::close);
+            }
+
+            @SuppressForbidden(reason = "Channel is based of a socket not a file")
+            @Override
+            public int write(ByteBuffer src) throws IOException {
+                return SocketAccess.doPrivilegedIOException(() -> writeChannel.write(src));
+            }
+        }));
     }
 
     /**
@@ -252,25 +237,13 @@ class GoogleCloudStorageBlobStore implements BlobStore {
      *  @param blobInfo the info for the blob to be uploaded
      * @param inputStream the stream containing the blob data
      * @param blobSize the size
-     * @param failIfAlreadyExists whether to throw a FileAlreadyExistsException if the given blob already exists
      */
-    private void writeBlobMultipart(BlobInfo blobInfo, InputStream inputStream, long blobSize, boolean failIfAlreadyExists)
+    private void writeBlobMultipart(BlobInfo blobInfo, InputStream inputStream, long blobSize)
         throws IOException {
         assert blobSize <= LARGE_BLOB_THRESHOLD_BYTE_SIZE : "large blob uploads should use the resumable upload method";
         final ByteArrayOutputStream baos = new ByteArrayOutputStream(Math.toIntExact(blobSize));
         Streams.copy(inputStream, baos);
-        try {
-            final Storage.BlobTargetOption[] targetOptions = failIfAlreadyExists ?
-                new Storage.BlobTargetOption[] { Storage.BlobTargetOption.doesNotExist() } :
-                new Storage.BlobTargetOption[0];
-            SocketAccess.doPrivilegedVoidIOException(
-                    () -> client().create(blobInfo, baos.toByteArray(), targetOptions));
-        } catch (final StorageException se) {
-            if (failIfAlreadyExists && se.getCode() == HTTP_PRECON_FAILED) {
-                throw new FileAlreadyExistsException(blobInfo.getBlobId().getName(), null, se.getMessage());
-            }
-            throw se;
-        }
+        SocketAccess.doPrivilegedVoidIOException(() -> client().create(blobInfo, baos.toByteArray()));
     }
 
     /**

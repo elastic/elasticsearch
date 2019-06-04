@@ -7,7 +7,9 @@ setup:
           {
             "is_outlier": false,
             "is_outlier_int": 0,
-            "outlier_score": 0.0
+            "outlier_score": 0.0,
+            "all_true_field": true,
+            "all_false_field": false
           }
 
   - do:
@@ -17,7 +19,9 @@ setup:
           {
             "is_outlier": false,
             "is_outlier_int": 0,
-            "outlier_score": 0.2
+            "outlier_score": 0.2,
+            "all_true_field": true,
+            "all_false_field": false
           }
 
   - do:
@@ -27,7 +31,9 @@ setup:
           {
             "is_outlier": false,
             "is_outlier_int": 0,
-            "outlier_score": 0.3
+            "outlier_score": 0.3,
+            "all_true_field": true,
+            "all_false_field": false
           }
 
   - do:
@@ -37,7 +43,9 @@ setup:
           {
             "is_outlier": true,
             "is_outlier_int": 1,
-            "outlier_score": 0.3
+            "outlier_score": 0.3,
+            "all_true_field": true,
+            "all_false_field": false
           }
 
   - do:
@@ -47,7 +55,9 @@ setup:
           {
             "is_outlier": true,
             "is_outlier_int": 1,
-            "outlier_score": 0.4
+            "outlier_score": 0.4,
+            "all_true_field": true,
+            "all_false_field": false
           }
 
   - do:
@@ -57,7 +67,9 @@ setup:
           {
             "is_outlier": true,
             "is_outlier_int": 1,
-            "outlier_score": 0.5
+            "outlier_score": 0.5,
+            "all_true_field": true,
+            "all_false_field": false
           }
 
   - do:
@@ -67,7 +79,9 @@ setup:
           {
             "is_outlier": true,
             "is_outlier_int": 1,
-            "outlier_score": 0.9
+            "outlier_score": 0.9,
+            "all_true_field": true,
+            "all_false_field": false
           }
 
   - do:
@@ -77,7 +91,9 @@ setup:
           {
             "is_outlier": true,
             "is_outlier_int": 1,
-            "outlier_score": 0.95
+            "outlier_score": 0.95,
+            "all_true_field": true,
+            "all_false_field": false
           }
 
   # This document misses the required fields and should be ignored
@@ -151,6 +167,44 @@ setup:
           }
   - match: { binary_soft_classification.auc_roc.score: 0.9899 }
   - is_true: binary_soft_classification.auc_roc.curve
+
+---
+"Test binary_soft_classifition auc_roc given actual_field is always true":
+  - do:
+      catch: /\[auc_roc\] requires at least one actual_field not to have the value \[true\]/
+      ml.evaluate_data_frame:
+        body:  >
+          {
+            "index": "utopia",
+            "evaluation": {
+              "binary_soft_classification": {
+                "actual_field": "all_true_field",
+                "predicted_probability_field": "outlier_score",
+                "metrics": {
+                  "auc_roc": {}
+                }
+              }
+            }
+          }
+
+---
+"Test binary_soft_classifition auc_roc given actual_field is always false":
+  - do:
+      catch: /\[auc_roc\] requires at least one actual_field to have the value \[true\]/
+      ml.evaluate_data_frame:
+        body:  >
+          {
+            "index": "utopia",
+            "evaluation": {
+              "binary_soft_classification": {
+                "actual_field": "all_false_field",
+                "predicted_probability_field": "outlier_score",
+                "metrics": {
+                  "auc_roc": {}
+                }
+              }
+            }
+          }
 
 ---
 "Test binary_soft_classifition precision":

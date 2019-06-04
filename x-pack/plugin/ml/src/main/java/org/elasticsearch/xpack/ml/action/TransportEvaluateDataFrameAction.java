@@ -48,7 +48,13 @@ public class TransportEvaluateDataFrameAction extends HandledTransportAction<Eva
         );
 
         client.execute(SearchAction.INSTANCE, searchRequest, ActionListener.wrap(
-            searchResponse -> threadPool.generic().execute(() -> evaluation.evaluate(searchResponse, resultsListener)),
+            searchResponse -> threadPool.generic().execute(() -> {
+                try {
+                    evaluation.evaluate(searchResponse, resultsListener);
+                } catch (Exception e) {
+                    listener.onFailure(e);
+                };
+            }),
             listener::onFailure
         ));
     }

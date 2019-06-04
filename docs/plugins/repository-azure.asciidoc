@@ -187,19 +187,6 @@ client.admin().cluster().preparePutRepository("my_backup_java1")
     ).get();
 ----
 
-[[repository-azure-global-settings]]
-==== Global Settings
-
-You can set the number of threads used for repository operations via the following setting:
-
-[source,yaml]
-----
-azure.threadpool.size: 32
-----
-
-In most cases the default value of 32 is a reasonable trade-off between resource use and performance.
-If you experience slow snapshot create or delete operations you can try to increase the value of this setting.
-
 [[repository-azure-validation]]
 ==== Repository validation rules
 

@@ -147,7 +147,7 @@ public class AzureBlobContainer extends AbstractBlobContainer {
         try {
             result.actionGet();
         } catch (Exception e) {
-            throw new IOException("Exception during bulk delete.", e);
+            throw new IOException("Exception during bulk delete", e);
         }
     }
 

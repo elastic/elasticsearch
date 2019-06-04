@@ -43,14 +43,7 @@ import java.util.Map;
  */
 public class AzureRepositoryPlugin extends Plugin implements RepositoryPlugin, ReloadablePlugin {
 
-    public static final String REPOSITORY_THREAD_POOL_NAME = "azure-repository";
-
-    private static final Setting<Integer> THREADPOOL_SIZE_SETTING = Setting.intSetting(
-        "azure.threadpool.size",
-        32,
-        1,
-        Integer.MAX_VALUE,
-        Setting.Property.NodeScope);
+    public static final String REPOSITORY_THREAD_POOL_NAME = "repository_azure";
 
     // protected for testing
     final AzureStorageService azureStoreService;
@@ -77,16 +70,17 @@ public class AzureRepositoryPlugin extends Plugin implements RepositoryPlugin, R
             AzureStorageSettings.MAX_RETRIES_SETTING,
             AzureStorageSettings.PROXY_TYPE_SETTING,
             AzureStorageSettings.PROXY_HOST_SETTING,
-            AzureStorageSettings.PROXY_PORT_SETTING,
-            THREADPOOL_SIZE_SETTING
+            AzureStorageSettings.PROXY_PORT_SETTING
         );
     }
 
     @Override
     public List<ExecutorBuilder<?>> getExecutorBuilders(Settings settings) {
-        return Collections.singletonList(
-            new ScalingExecutorBuilder(REPOSITORY_THREAD_POOL_NAME, 0,
-                THREADPOOL_SIZE_SETTING.get(settings), TimeValue.timeValueSeconds(30L)));
+        return Collections.singletonList(executorBuilder());
+    }
+
+    public static ExecutorBuilder<?> executorBuilder() {
+        return new ScalingExecutorBuilder(REPOSITORY_THREAD_POOL_NAME, 0, 32, TimeValue.timeValueSeconds(30L));
     }
 
     @Override

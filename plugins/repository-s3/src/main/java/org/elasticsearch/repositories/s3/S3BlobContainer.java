@@ -256,8 +256,10 @@ class S3BlobContainer extends AbstractBlobContainer {
                 for (final String summary : list.getCommonPrefixes()) {
                     final String name = summary.substring(keyPath.length());
                     if (name.isEmpty() == false) {
-                        final BlobPath path = path().add(name);
-                        entries.add(entry(name.substring(0, name.length() - 1), blobStore.blobContainer(path)));
+                        // Stripping the trailing slash off of the common prefix
+                        final String last = name.substring(0, name.length() - 1);
+                        final BlobPath path = path().add(last);
+                        entries.add(entry(last, blobStore.blobContainer(path)));
                     }
                 }
                 assert list.getObjectSummaries().stream().noneMatch(s -> {

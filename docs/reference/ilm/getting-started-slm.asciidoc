@@ -71,8 +71,8 @@ so don't be afraid to configure a policy to take frequent snapshots.
 In addition to specifying the indices that should be included in the snapshot,
 the `config` field can be used to customize other aspects of the snapshot. You
 can use any option allowed in <<snapshots-take-snapshot,a regular snapshot 
-request>>, so you can specify whether the snapshot should fail in special cases,
-such as if one of the specified indices cannot be found.
+request>>, so you can specify, for example, whether the snapshot should fail in
+special cases, such as if one of the specified indices cannot be found.
 
 [float]
 === Making sure the policy works
@@ -162,9 +162,6 @@ your first snapshot using SLM!
 While only the most recent sucess and failure are available through the Get Policy 
 API, all policy executions are recorded to a history index, which may be queried
 by searching the index pattern `.slm-history*`.
-
-
-
 
 That's it! We have our first SLM policy set up to periodically take snapshots
 so that our backups are always up to date. You can read more details in the 

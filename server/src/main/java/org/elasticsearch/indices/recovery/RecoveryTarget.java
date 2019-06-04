@@ -389,12 +389,10 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
     @Override
     public void cleanFiles(int totalTranslogOps, long globalCheckpoint, Store.MetadataSnapshot sourceMetaData) throws IOException {
         state().getTranslog().totalOperations(totalTranslogOps);
-        // first, we go and move files that were created with the recovery id suffix to
-        // the actual names, its ok if we have a corrupted index here, since we have replicas
-        // to recover from in case of a full cluster shutdown just when this code executes...
-        multiFileWriter.renameAllTempFiles();
         try {
-            indexShard.finalizeIndexRecovery(globalCheckpoint, sourceMetaData);
+            // rename files under lock to ensure that we do not concurrently try to read same files from store.
+            // rename is not atomic, but in case this fails/stops halfway through, a subsequent future recovery will repair.
+            indexShard.finalizeIndexRecovery(multiFileWriter::renameAllTempFiles, globalCheckpoint, sourceMetaData);
         } catch (Exception ex) {
             RecoveryFailedException rfe = new RecoveryFailedException(state(), "failed to clean after recovery", ex);
             fail(rfe, true);

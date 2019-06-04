@@ -30,6 +30,7 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.IOContext;
+import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.Assertions;
@@ -63,6 +64,7 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
+import org.elasticsearch.common.lucene.store.InputStreamIndexInput;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -107,6 +109,7 @@ import org.elasticsearch.index.seqno.RetentionLeases;
 import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.store.Store;
+import org.elasticsearch.index.store.StoreFileMetaData;
 import org.elasticsearch.index.store.StoreStats;
 import org.elasticsearch.index.store.StoreUtils;
 import org.elasticsearch.index.translog.TestTranslog;
@@ -116,6 +119,7 @@ import org.elasticsearch.index.translog.TranslogTests;
 import org.elasticsearch.indices.IndicesQueryCache;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
+import org.elasticsearch.indices.recovery.MultiFileWriter;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.indices.recovery.RecoveryTarget;
 import org.elasticsearch.repositories.IndexId;
@@ -1351,43 +1355,44 @@ public class IndexShardTests extends IndexShardTestCase {
         final IndexShard shard = newStartedShard(true);
         indexDoc(shard, "_doc", "0");
         flushShard(shard);
-        SeqNoStats seqNoStats = shard.seqNoStats();
 
         final IndexShard newShard = reinitShard(shard);
         DiscoveryNode localNode = new DiscoveryNode("foo", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
 
         Store.MetadataSnapshot snapshot = newShard.snapshotStoreMetadata();
         assertThat(snapshot.getSegmentsFile().name(), equalTo("segments_3"));
-        verifySnapshotRecoveryStoreMetadata(newShard, snapshot, seqNoStats, false);
+        Store.RecoveryMetadataSnapshot cannotProvideRecoveryMetadata = new Store.RecoveryMetadataSnapshot(snapshot, Long.MAX_VALUE, 1, 0);
+        Store.RecoveryMetadataSnapshot canProvideRecoveryMetadata = new Store.RecoveryMetadataSnapshot(snapshot, 1, 1, 0);
+        assertIdenticalRecoveryMetadataSnapshot(cannotProvideRecoveryMetadata, newShard.snapshotStoreRecoveryMetadata());
 
         newShard.markAsRecovering("store", new RecoveryState(newShard.routingEntry(), localNode, null));
 
         snapshot = newShard.snapshotStoreMetadata();
         assertThat(snapshot.getSegmentsFile().name(), equalTo("segments_3"));
-        verifySnapshotRecoveryStoreMetadata(newShard, snapshot, seqNoStats, false);
+        assertIdenticalRecoveryMetadataSnapshot(cannotProvideRecoveryMetadata, newShard.snapshotStoreRecoveryMetadata());
 
         assertTrue(newShard.recoverFromStore());
 
         snapshot = newShard.snapshotStoreMetadata();
         assertThat(snapshot.getSegmentsFile().name(), equalTo("segments_3"));
-        verifySnapshotRecoveryStoreMetadata(newShard, snapshot, seqNoStats, true);
+        assertIdenticalRecoveryMetadataSnapshot(canProvideRecoveryMetadata, newShard.snapshotStoreRecoveryMetadata());
 
         IndexShardTestCase.updateRoutingEntry(newShard, newShard.routingEntry().moveToStarted());
 
         snapshot = newShard.snapshotStoreMetadata();
         assertThat(snapshot.getSegmentsFile().name(), equalTo("segments_3"));
-        verifySnapshotRecoveryStoreMetadata(newShard, snapshot, seqNoStats, true);
+        assertIdenticalRecoveryMetadataSnapshot(canProvideRecoveryMetadata, newShard.snapshotStoreRecoveryMetadata());
 
         newShard.close("test", false);
 
         snapshot = newShard.snapshotStoreMetadata();
         assertThat(snapshot.getSegmentsFile().name(), equalTo("segments_3"));
-        verifySnapshotRecoveryStoreMetadata(newShard, snapshot, seqNoStats, false);
+        assertIdenticalRecoveryMetadataSnapshot(cannotProvideRecoveryMetadata, newShard.snapshotStoreRecoveryMetadata());
 
         Store.RecoveryMetadataSnapshot recoveryMetadataSnapshot = Store.readRecoveryMetadataSnapshot(shard.shardPath(),
             (id, l, d) -> new DummyShardLock(id), logger);
         assertThat(recoveryMetadataSnapshot.lastCommit().getSegmentsFile().name(), equalTo("segments_3"));
-        verifySnapshotRecoveryStoreMetadata(recoveryMetadataSnapshot, snapshot, seqNoStats, false);
+        assertIdenticalRecoveryMetadataSnapshot(cannotProvideRecoveryMetadata, newShard.snapshotStoreRecoveryMetadata());
 
         closeShards(newShard);
     }
@@ -2038,7 +2043,9 @@ public class IndexShardTests extends IndexShardTestCase {
             translogOps = 0;
         }
         String historyUUID = shard.getHistoryUUID();
+        Store.RecoveryMetadataSnapshot beforeSnapshot = shard.snapshotStoreRecoveryMetadata();
         IndexShard newShard = reinitShard(shard);
+        verifySnapshotRecoveryStoreMetadata(beforeSnapshot, false, newShard);
         DiscoveryNode localNode = new DiscoveryNode("foo", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
         newShard.markAsRecovering("store", new RecoveryState(newShard.routingEntry(), localNode, null));
         assertTrue(newShard.recoverFromStore());
@@ -2046,6 +2053,8 @@ public class IndexShardTests extends IndexShardTestCase {
         assertEquals(translogOps, newShard.recoveryState().getTranslog().totalOperations());
         assertEquals(translogOps, newShard.recoveryState().getTranslog().totalOperationsOnStart());
         assertEquals(100.0f, newShard.recoveryState().getTranslog().recoveredPercent(), 0.01f);
+        verifySnapshotRecoveryStoreMetadata(newShard.snapshotStoreMetadata(), beforeSnapshot.maxSeqNo() + 1, beforeSnapshot.maxSeqNo() + 1, beforeSnapshot.maxSeqNo(),
+            newShard.snapshotStoreRecoveryMetadata());
         IndexShardTestCase.updateRoutingEntry(newShard, newShard.routingEntry().moveToStarted());
         // check that local checkpoint of new primary is properly tracked after recovery
         assertThat(newShard.getLocalCheckpoint(), equalTo(totalOps - 1L));
@@ -2160,6 +2169,7 @@ public class IndexShardTests extends IndexShardTestCase {
         IndexShard newShard = reinitShard(shard,
             ShardRoutingHelper.initWithSameId(shardRouting, RecoverySource.EmptyStoreRecoverySource.INSTANCE)
         );
+        assertEquals(Store.RecoveryMetadataSnapshot.EMPTY, newShard.snapshotStoreRecoveryMetadata());
 
         DiscoveryNode localNode = new DiscoveryNode("foo", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
         newShard.markAsRecovering("store", new RecoveryState(newShard.routingEntry(), localNode, null));
@@ -2168,6 +2178,8 @@ public class IndexShardTests extends IndexShardTestCase {
         assertEquals(0, newShard.recoveryState().getTranslog().totalOperations());
         assertEquals(0, newShard.recoveryState().getTranslog().totalOperationsOnStart());
         assertEquals(100.0f, newShard.recoveryState().getTranslog().recoveredPercent(), 0.01f);
+        verifySnapshotRecoveryStoreMetadata(newShard.snapshotStoreMetadata(), 0, 0, -1,
+            newShard.snapshotStoreRecoveryMetadata());
         IndexShardTestCase.updateRoutingEntry(newShard, newShard.routingEntry().moveToStarted());
         assertDocCount(newShard, 0);
         closeShards(newShard);
@@ -2304,6 +2316,7 @@ public class IndexShardTests extends IndexShardTestCase {
         routing = ShardRoutingHelper.newWithRestoreSource(routing,
             new RecoverySource.SnapshotRecoverySource(UUIDs.randomBase64UUID(), snapshot, Version.CURRENT, "test"));
         target = reinitShard(target, routing);
+        assertEquals(Store.RecoveryMetadataSnapshot.EMPTY, target.snapshotStoreRecoveryMetadata());
         Store sourceStore = source.store();
         Store targetStore = target.store();
 
@@ -2329,12 +2342,14 @@ public class IndexShardTests extends IndexShardTestCase {
         assertThat(target.getLocalCheckpoint(), equalTo(2L));
         assertThat(target.seqNoStats().getMaxSeqNo(), equalTo(2L));
         assertThat(target.seqNoStats().getGlobalCheckpoint(), equalTo(0L));
+        verifySnapshotRecoveryStoreMetadata(target.snapshotStoreMetadata(), 1, 1, 2, target.snapshotStoreRecoveryMetadata());
         IndexShardTestCase.updateRoutingEntry(target, routing.moveToStarted());
         assertThat(target.getReplicationTracker().getTrackedLocalCheckpointForShard(
             target.routingEntry().allocationId().getId()).getLocalCheckpoint(), equalTo(2L));
         assertThat(target.seqNoStats().getGlobalCheckpoint(), equalTo(2L));
 
         assertDocs(target, "0", "2");
+        verifySnapshotRecoveryStoreMetadata(target.snapshotStoreMetadata(), 1, 1, 2, target.snapshotStoreRecoveryMetadata());
 
         closeShard(source, false);
         closeShards(target);
@@ -2817,6 +2832,7 @@ public class IndexShardTests extends IndexShardTestCase {
         Map<String, MappingMetaData> requestedMappingUpdates = ConcurrentCollections.newConcurrentMap();
         {
             targetShard = newShard(targetRouting);
+            assertEquals(Store.RecoveryMetadataSnapshot.EMPTY, targetShard.snapshotStoreRecoveryMetadata());
             targetShard.markAsRecovering("store", new RecoveryState(targetShard.routingEntry(), localNode, null));
 
             BiConsumer<String, MappingMetaData> mappingConsumer = (type, mapping) -> {
@@ -2844,6 +2860,11 @@ public class IndexShardTests extends IndexShardTestCase {
             // check that local checkpoint of new primary is properly tracked after recovery
             assertThat(targetShard.getLocalCheckpoint(), equalTo(1L));
             assertThat(targetShard.getReplicationTracker().getGlobalCheckpoint(), equalTo(1L));
+
+            long maxSeqNo = sourceShard.seqNoStats().getMaxSeqNo();
+            verifySnapshotRecoveryStoreMetadata(targetShard.snapshotStoreMetadata(), maxSeqNo + 1, maxSeqNo + 1, maxSeqNo,
+                targetShard.snapshotStoreRecoveryMetadata());
+
             IndexShardTestCase.updateRoutingEntry(targetShard, ShardRoutingHelper.moveToStarted(targetShard.routingEntry()));
             assertThat(targetShard.getReplicationTracker().getTrackedLocalCheckpointForShard(
                 targetShard.routingEntry().allocationId().getId()).getLocalCheckpoint(), equalTo(1L));
@@ -3044,15 +3065,17 @@ public class IndexShardTests extends IndexShardTestCase {
             indexShard.refresh("test");
         }
         indexDoc(indexShard, "_doc", "1", "{}");
+        updateGlobalCheckpointOnReplica(indexShard);
         indexShard.flush(new FlushRequest());
-        SeqNoStats seqNoStats = indexShard.seqNoStats();
-        updateGlobalCheckpointOnReplica(indexShard, seqNoStats.getLocalCheckpoint());
+        Store.RecoveryMetadataSnapshot before = indexShard.snapshotStoreRecoveryMetadata();
         closeShards(indexShard);
 
         final IndexShard newShard = reinitShard(indexShard);
         Store.MetadataSnapshot storeFileMetaDatas = newShard.snapshotStoreMetadata();
         assertTrue("at least 2 files, commit and data: " +storeFileMetaDatas.toString(), storeFileMetaDatas.size() > 1);
-        verifySnapshotRecoveryStoreMetadata(newShard, storeFileMetaDatas, seqNoStats, false);
+        Store.RecoveryMetadataSnapshot expectedRecoveryMetadata =
+            new Store.RecoveryMetadataSnapshot(storeFileMetaDatas, Long.MAX_VALUE, before.requireRecoverySeqNo(), before.maxSeqNo());
+        assertIdenticalRecoveryMetadataSnapshot(expectedRecoveryMetadata, newShard.snapshotStoreRecoveryMetadata());
         AtomicBoolean stop = new AtomicBoolean(false);
         CountDownLatch latch = new CountDownLatch(1);
         expectThrows(AlreadyClosedException.class, () -> newShard.getEngine()); // no engine
@@ -3064,7 +3087,7 @@ public class IndexShardTests extends IndexShardTestCase {
                     assertEquals(0, storeFileMetaDatas.recoveryDiff(readMeta).different.size());
                     assertEquals(0, storeFileMetaDatas.recoveryDiff(readMeta).missing.size());
                     assertEquals(storeFileMetaDatas.size(), storeFileMetaDatas.recoveryDiff(readMeta).identical.size());
-                    verifySnapshotRecoveryStoreMetadata(newShard, storeFileMetaDatas, seqNoStats, false);
+                    assertIdenticalRecoveryMetadataSnapshot(expectedRecoveryMetadata, newShard.snapshotStoreRecoveryMetadata());
                 } catch (IOException e) {
                     throw new AssertionError(e);
                 }
@@ -3215,9 +3238,9 @@ public class IndexShardTests extends IndexShardTestCase {
                 indexShard.refresh("test");
             }
         }
+        updateGlobalCheckpointOnReplica(indexShard);
         indexShard.flush(new FlushRequest());
-        SeqNoStats seqNoStats = indexShard.seqNoStats();
-        updateGlobalCheckpointOnReplica(indexShard, seqNoStats.getLocalCheckpoint());
+        Store.RecoveryMetadataSnapshot before = indexShard.snapshotStoreRecoveryMetadata();
         closeShards(indexShard);
 
         final ShardRouting shardRouting = ShardRoutingHelper.initWithSameId(indexShard.routingEntry(),
@@ -3233,6 +3256,8 @@ public class IndexShardTests extends IndexShardTestCase {
 
         Store.MetadataSnapshot storeFileMetaDatas = newShard.snapshotStoreMetadata();
         assertTrue("at least 2 files, commit and data: " + storeFileMetaDatas.toString(), storeFileMetaDatas.size() > 1);
+        Store.RecoveryMetadataSnapshot expectedRecoveryMetadata =
+            new Store.RecoveryMetadataSnapshot(storeFileMetaDatas, Long.MAX_VALUE, before.requireRecoverySeqNo(), before.maxSeqNo());
         AtomicBoolean stop = new AtomicBoolean(false);
         CountDownLatch latch = new CountDownLatch(1);
         Thread snapshotter = new Thread(() -> {
@@ -3244,7 +3269,7 @@ public class IndexShardTests extends IndexShardTestCase {
                     assertThat(storeFileMetaDatas.recoveryDiff(readMeta).different.size(), equalTo(0));
                     assertThat(storeFileMetaDatas.recoveryDiff(readMeta).missing.size(), equalTo(0));
                     assertThat(storeFileMetaDatas.recoveryDiff(readMeta).identical.size(), equalTo(storeFileMetaDatas.size()));
-                    verifySnapshotRecoveryStoreMetadata(newShard, storeFileMetaDatas, seqNoStats, false);
+                    assertIdenticalRecoveryMetadataSnapshot(expectedRecoveryMetadata, newShard.snapshotStoreRecoveryMetadata());
                 } catch (IOException e) {
                     throw new AssertionError(e);
                 }
@@ -3895,6 +3920,7 @@ public class IndexShardTests extends IndexShardTestCase {
             try {
                 readyToSnapshotLatch.await();
                 shard.snapshotStoreMetadata();
+                shard.snapshotStoreRecoveryMetadata();
                 try (Engine.IndexCommitRef indexCommitRef = shard.acquireLastIndexCommit(randomBoolean())) {
                     shard.store().getMetadata(indexCommitRef.getIndexCommit());
                 }
@@ -3986,6 +4012,100 @@ public class IndexShardTests extends IndexShardTestCase {
         }
 
         closeShard(replica, false);
+    }
+
+    /**
+     * Go through the steps of peer recovery and check that snapshotRecoveryMetadata returns correct answers at each step.
+     */
+    public void testSnapshotRecoveryMetadataDuringFileBasedPeerRecovery() throws IOException {
+        final IndexShard primary = newStartedShard(true);
+        int numDocs = randomInt(10);
+        for (int i = 0; i < numDocs; ++i) {
+            indexDoc(primary, "_doc", "x" + i);
+        }
+
+        if (randomBoolean()) {
+            flushShard(primary);
+        }
+
+        IndexShard replica = newShard(primary.shardId(), false);
+        recoverReplica(replica, primary, true);
+        Store.RecoveryMetadataSnapshot originalReplicaMetadata = replica.snapshotStoreRecoveryMetadata();
+        long maxSeqNo = primary.seqNoStats().getMaxSeqNo();
+        verifySnapshotRecoveryStoreMetadata(replica.snapshotStoreMetadata(), maxSeqNo + 1, maxSeqNo + 1, maxSeqNo, originalReplicaMetadata);
+        replica = reinitShard(replica);
+        verifySnapshotRecoveryStoreMetadata(originalReplicaMetadata, false, replica);
+
+        numDocs = randomInt(10);
+        for (int i = 0; i < numDocs; ++i) {
+            indexDoc(primary, "_doc", "y" + i);
+        }
+        primary.updateShardState(primary.routingEntry(), primary.getPendingPrimaryTerm(), null, 1000L,
+            Collections.singleton(primary.routingEntry().allocationId().getId()),
+            new IndexShardRoutingTable.Builder(primary.shardId()).addShard(primary.routingEntry()).build());
+        flushShard(primary);
+        Store.RecoveryMetadataSnapshot flushedMetadata = primary.snapshotStoreRecoveryMetadata();
+
+        numDocs = randomInt(10);
+        for (int i = 0; i < numDocs; ++i) {
+            indexDoc(primary, "_doc", "z" + i);
+        }
+        DiscoveryNode localNode = new DiscoveryNode("foo", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
+        replica.markAsRecovering("testing", new RecoveryState(replica.routingEntry(), localNode, localNode));
+        verifySnapshotRecoveryStoreMetadata(originalReplicaMetadata, false, replica);
+
+        replica.prepareForIndexRecovery();
+        verifySnapshotRecoveryStoreMetadata(originalReplicaMetadata, false, replica);
+
+        RecoveryState.Index indexRecoveryState = new RecoveryState.Index();
+        MultiFileWriter writer = new MultiFileWriter(replica.store(), indexRecoveryState, "tmp_", logger, () -> {});
+        try (Engine.IndexCommitRef phase1Snapshot = primary.acquireSafeIndexCommit()) {
+            byte[] buffer = new byte[8192];
+            Store.MetadataSnapshot metadata = primary.store().getMetadata(phase1Snapshot.getIndexCommit());
+            for (StoreFileMetaData md : metadata) {
+                indexRecoveryState.addFileDetail(md.name(), md.length(), false);
+                try (IndexInput input = primary.store().directory().openInput(md.name(), IOContext.DEFAULT)) {
+                    InputStreamIndexInput in = new InputStreamIndexInput(input, md.length());
+                    long position = 0;
+                    int bytesRead;
+                    while ((bytesRead = in.read(buffer, 0, buffer.length)) != -1) {
+                        final boolean lastChunk = position + bytesRead == md.length();
+                        writer.writeFileChunk(md, position, new BytesArray(buffer, 0, bytesRead), lastChunk);
+                        position += bytesRead;
+                    }
+                }
+            }
+            verifySnapshotRecoveryStoreMetadata(originalReplicaMetadata, false, replica);
+
+            replica.finalizeIndexRecovery(writer::renameAllTempFiles, primary.getGlobalCheckpoint(), metadata);
+        }
+
+        Store.RecoveryMetadataSnapshot actualAfterCleanFiles = replica.snapshotStoreRecoveryMetadata();
+        Store.RecoveryMetadataSnapshot expectedAfterCleanFiles = new Store.RecoveryMetadataSnapshot(replica.snapshotStoreMetadata(),
+            Long.MAX_VALUE, flushedMetadata.requireRecoverySeqNo(), flushedMetadata.maxSeqNo());
+        assertIdenticalRecoveryMetadataSnapshot(expectedAfterCleanFiles, actualAfterCleanFiles);
+
+        replica.openEngineAndSkipTranslogRecovery();
+        assertIdenticalRecoveryMetadataSnapshot(expectedAfterCleanFiles, replica.snapshotStoreRecoveryMetadata());
+
+        try (final Translog.Snapshot phase2Snapshot = primary.getHistoryOperations("peer-recovery", 0)) {
+            Translog.Operation operation;
+            while ((operation = phase2Snapshot.next()) != null) {
+                replica.applyTranslogOperation(operation, Engine.Operation.Origin.PEER_RECOVERY);
+            }
+        }
+        Store.RecoveryMetadataSnapshot primarySnapshot = primary.snapshotStoreRecoveryMetadata();
+        Store.RecoveryMetadataSnapshot expectedAfterTranslog =
+            new Store.RecoveryMetadataSnapshot(replica.snapshotStoreMetadata(),
+                primarySnapshot.provideRecoverySeqNo(), primarySnapshot.requireRecoverySeqNo(), primarySnapshot.maxSeqNo());
+        verifySnapshotRecoveryStoreMetadata(expectedAfterTranslog, false, replica);
+        replica.finalizeRecovery();
+        verifySnapshotRecoveryStoreMetadata(expectedAfterTranslog, false, replica);
+
+        replica.postRecovery("testing");
+        verifySnapshotRecoveryStoreMetadata(expectedAfterTranslog, true, replica);
+
+        closeShards(replica, primary);
     }
 
     @Override
@@ -4102,24 +4222,32 @@ public class IndexShardTests extends IndexShardTestCase {
         closeShards(readonlyShard);
     }
 
-    private void updateGlobalCheckpointOnReplica(IndexShard indexShard, long localCheckpoint) {
+    private void updateGlobalCheckpointOnReplica(IndexShard indexShard) {
         if (indexShard.routingEntry().primary() == false) {
-            indexShard.updateGlobalCheckpointOnReplica(localCheckpoint, "test");
+            indexShard.updateGlobalCheckpointOnReplica(indexShard.seqNoStats().getLocalCheckpoint(), "test");
         }
     }
 
-    private void verifySnapshotRecoveryStoreMetadata(IndexShard shard, Store.MetadataSnapshot snapshot, SeqNoStats seqNoStats,
-                                                     boolean engineOn) throws IOException {
-        Store.RecoveryMetadataSnapshot recoveryMetadataSnapshot = shard.snapshotStoreRecoveryMetadata();
-        verifySnapshotRecoveryStoreMetadata(recoveryMetadataSnapshot, snapshot, seqNoStats, engineOn);
+    private void verifySnapshotRecoveryStoreMetadata(Store.MetadataSnapshot snapshot, long provide, long require, long maxSeqNo,
+                                                     Store.RecoveryMetadataSnapshot actual) {
+        assertIdenticalRecoveryMetadataSnapshot(new Store.RecoveryMetadataSnapshot(snapshot, provide, require, maxSeqNo),
+            actual);
     }
 
-    private void verifySnapshotRecoveryStoreMetadata(Store.RecoveryMetadataSnapshot recoveryMetadataSnapshot,
-                                                     Store.MetadataSnapshot snapshot, SeqNoStats seqNoStats, boolean engineOn) {
-        assertEquals(snapshot.asMap().keySet(), recoveryMetadataSnapshot.lastCommit().asMap().keySet());
-        assertEquals(snapshot.getCommitUserData(), recoveryMetadataSnapshot.lastCommit().getCommitUserData());
-        assertEquals(seqNoStats.getLocalCheckpoint() + 1, recoveryMetadataSnapshot.requireRecoverySeqNo());
-        assertEquals(seqNoStats.getMaxSeqNo(), recoveryMetadataSnapshot.maxSeqNo());
-        assertEquals(engineOn ? seqNoStats.getLocalCheckpoint() + 1 : Long.MAX_VALUE, recoveryMetadataSnapshot.provideRecoverySeqNo());
+    private void verifySnapshotRecoveryStoreMetadata(Store.RecoveryMetadataSnapshot expected, boolean canProvide,
+                                                     IndexShard verifyShard) throws IOException {
+        if (canProvide == false) {
+            expected = new Store.RecoveryMetadataSnapshot(expected.lastCommit(),
+                Long.MAX_VALUE, expected.requireRecoverySeqNo(), expected.maxSeqNo());
+        }
+        assertIdenticalRecoveryMetadataSnapshot(expected, verifyShard.snapshotStoreRecoveryMetadata());
+    }
+
+    private void assertIdenticalRecoveryMetadataSnapshot(Store.RecoveryMetadataSnapshot expected, Store.RecoveryMetadataSnapshot actual) {
+        assertEquals(expected.lastCommit().asMap().keySet(), actual.lastCommit().asMap().keySet());
+        assertEquals(expected.lastCommit().getCommitUserData(), actual.lastCommit().getCommitUserData());
+        assertEquals(expected.requireRecoverySeqNo(), actual.requireRecoverySeqNo());
+        assertEquals(expected.provideRecoverySeqNo(), actual.provideRecoverySeqNo());
+        assertEquals(expected.maxSeqNo(), actual.maxSeqNo());
     }
 }

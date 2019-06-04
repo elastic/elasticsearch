@@ -136,7 +136,7 @@ abstract class TrustConfig {
         }
 
         @Override
-        List<Path> filesToMonitor(@Nullable Environment environment) {
+        List<Path> filesToMonitor(Environment environment) {
             return trustConfigs.stream().flatMap((tc) -> tc.filesToMonitor(environment).stream()).collect(Collectors.toList());
         }
 

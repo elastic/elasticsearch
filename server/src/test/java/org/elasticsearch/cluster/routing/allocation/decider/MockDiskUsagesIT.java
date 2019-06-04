@@ -53,7 +53,7 @@ public class MockDiskUsagesIT extends ESIntegTestCase {
         return Collections.singletonList(MockInternalClusterInfoService.TestPlugin.class);
     }
 
-    @TestLogging("org.elasticsearch.indices.recovery:TRACE")
+    @TestLogging("org.elasticsearch.indices.recovery:TRACE,org.elasticsearch.cluster.service:TRACE")
     public void testRerouteOccursOnDiskPassingHighWatermark() throws Exception {
         List<String> nodes = internalCluster().startNodes(3);
 

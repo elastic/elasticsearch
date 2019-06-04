@@ -44,7 +44,9 @@ import org.apache.lucene.search.SearcherManager;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.LockObtainFailedException;
+import org.apache.lucene.store.MMapDirectory;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.InfoStream;
 import org.elasticsearch.Assertions;
@@ -2144,15 +2146,21 @@ public class InternalEngine extends Engine {
         }
     }
 
+    static Map<String, String> getReaderAttributes(Directory directory) {
+        Directory unwrap = FilterDirectory.unwrap(directory);
+        boolean defaultOffHeap = FsDirectoryFactory.isHybridFs(unwrap) || unwrap instanceof MMapDirectory;
+        return Map.of(
+            BlockTreeTermsReader.FST_MODE_KEY, // if we are using MMAP for term dics we force all off heap unless it's the ID field
+            defaultOffHeap ? FSTLoadMode.OFF_HEAP.name() : FSTLoadMode.ON_HEAP.name()
+            , BlockTreeTermsReader.FST_MODE_KEY + "." + IdFieldMapper.NAME, // always force ID field on-heap for fast updates
+            FSTLoadMode.ON_HEAP.name());
+    }
+
     private IndexWriterConfig getIndexWriterConfig() {
         final IndexWriterConfig iwc = new IndexWriterConfig(engineConfig.getAnalyzer());
         iwc.setCommitOnClose(false); // we by default don't commit on close
         iwc.setOpenMode(IndexWriterConfig.OpenMode.APPEND);
-        iwc.setReaderAttributes(Map.of(
-            BlockTreeTermsReader.FST_MODE_KEY, // if we are using MMAP for term dics we force all off heap unless it's the ID field
-            FsDirectoryFactory.isTermDictUsingMMapDirectory(store.directory()) ? FSTLoadMode.OFF_HEAP.name() : FSTLoadMode.ON_HEAP.name()
-            , BlockTreeTermsReader.FST_MODE_KEY + "." + IdFieldMapper.NAME, // always force ID field on-heap for fast updates
-            FSTLoadMode.ON_HEAP.name()));
+        iwc.setReaderAttributes(getReaderAttributes(store.directory()));
         iwc.setIndexDeletionPolicy(combinedDeletionPolicy);
         // with tests.verbose, lucene sets this up: plumb to align with filesystem stream
         boolean verbose = false;

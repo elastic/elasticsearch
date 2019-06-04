@@ -123,11 +123,11 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
     }
 
     /**
-     * Returns true iff the directory uses mmaps to load term dictionaries
+     * Returns true iff the directory is a hybrid fs directory
      */
-    public static boolean isTermDictUsingMMapDirectory(Directory directory) {
+    public static boolean isHybridFs(Directory directory) {
         Directory unwrap = FilterDirectory.unwrap(directory);
-        return unwrap instanceof HybridDirectory && unwrap instanceof MMapDirectory;
+        return unwrap instanceof HybridDirectory;
     }
 
     static final class HybridDirectory extends NIOFSDirectory {

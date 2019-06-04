@@ -169,7 +169,7 @@ public class Version implements Comparable<Version>, ToXContentFragment {
             version = version.substring(0, version.length() - 9);
         }
         String[] parts = version.split("[.-]");
-        if (parts.length < 3 || parts.length > 4) {
+        if (parts.length != 3) {
             throw new IllegalArgumentException(
                     "the version needs to contain major, minor, and revision, and optionally the build: " + version);
         }
@@ -182,31 +182,13 @@ public class Version implements Comparable<Version>, ToXContentFragment {
             if (rawMajor >=7 && parts.length == 4) { // we don't support qualifier as part of the version anymore
                 throw new IllegalArgumentException("illegal version format - qualifiers are only supported until version 6.x");
             }
-            final int betaOffset = rawMajor < 5 ? 0 : 25;
             //we reverse the version id calculation based on some assumption as we can't reliably reverse the modulo
             final int major = rawMajor * 1000000;
             final int minor = Integer.parseInt(parts[1]) * 10000;
             final int revision = Integer.parseInt(parts[2]) * 100;
 
-
-            int build = 99;
-            if (parts.length == 4) {
-                String buildStr = parts[3];
-                if (buildStr.startsWith("alpha")) {
-                    assert rawMajor >= 5 : "major must be >= 5 but was " + major;
-                    build = Integer.parseInt(buildStr.substring(5));
-                    assert build < 25 : "expected a alpha build but " + build + " >= 25";
-                } else if (buildStr.startsWith("Beta") || buildStr.startsWith("beta")) {
-                    build = betaOffset + Integer.parseInt(buildStr.substring(4));
-                    assert build < 50 : "expected a beta build but " + build + " >= 50";
-                } else if (buildStr.startsWith("RC") || buildStr.startsWith("rc")) {
-                    build = Integer.parseInt(buildStr.substring(2)) + 50;
-                } else {
-                    throw new IllegalArgumentException("unable to parse version " + version);
-                }
-            }
-
-            return fromId(major + minor + revision + build);
+            // TODO: 99 is leftover from alpha/beta/rc, it should be removed
+            return fromId(major + minor + revision + 99);
 
         } catch (NumberFormatException e) {
             throw new IllegalArgumentException("unable to parse version " + version, e);

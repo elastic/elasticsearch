@@ -127,6 +127,7 @@ public class PrunePostingsMergePolicyTests extends ESTestCase {
                         assertEquals(numDocs, leafReader.maxDoc());
                         Terms id = leafReader.terms("id");
                         TermsEnum iterator = id.iterator();
+                        assertEquals(numUniqueDocs, id.size());
                         for (int i = 0; i < numUniqueDocs; i++) {
                             assertTrue(iterator.seekExact(new BytesRef("" + i)));
                             assertEquals(1, iterator.docFreq());

@@ -240,7 +240,8 @@ final class SystemCallFilter {
     static {
         ARCHITECTURES = Map.of(
                 "amd64", new Arch(0xC000003E, 0x3FFFFFFF, 57, 58, 59, 322, 317),
-                "aarch64", new Arch(0xC00000B7, 0xFFFFFFFF, 1079, 1071, 221, 281, 277));
+                "aarch64", new Arch(0xC00000B7, 0xFFFFFFFF, 1079, 1071, 221, 281, 277),
+ 		"s390x",  new Arch(0x80000016, 0xFFFFFFFF, 2, 190, 6, 354, 348));
     }
 
     /** invokes prctl() from linux libc library */

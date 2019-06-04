@@ -73,15 +73,9 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
     }
 
     private static class Builder extends MetadataFieldMapper.Builder<Builder, FieldNamesFieldMapper> {
-        private boolean enabled = Defaults.ENABLED;
 
         private Builder(MappedFieldType existing) {
             super(Defaults.NAME, existing == null ? Defaults.FIELD_TYPE : existing, Defaults.FIELD_TYPE);
-        }
-
-        private Builder enabled(boolean enabled) {
-            this.enabled = enabled;
-            return this;
         }
 
         @Override
@@ -89,12 +83,16 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
             setupFieldType(context);
             fieldType.setHasDocValues(false);
             FieldNamesFieldType fieldNamesFieldType = (FieldNamesFieldType)fieldType;
-            fieldNamesFieldType.setEnabled(enabled);
+            fieldNamesFieldType.setEnabled(Defaults.ENABLED);
             return new FieldNamesFieldMapper(fieldType, context.indexSettings());
         }
     }
 
     public static class TypeParser implements MetadataFieldMapper.TypeParser {
+        public static final String ENABLED_DEPRECATION_MESSAGE = "Changing the `enabled` setting for `_field_names` fields is no "
+                + "longer necassary. Disabling it has almost no benefits anymore which is why we now ignore this setting and will "
+                + "remove it in a future major version.";
+
         @Override
         public MetadataFieldMapper.Builder<?,?> parse(String name, Map<String, Object> node,
                                                       ParserContext parserContext) throws MapperParsingException {
@@ -105,7 +103,9 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
                 String fieldName = entry.getKey();
                 Object fieldNode = entry.getValue();
                 if (fieldName.equals("enabled")) {
-                    builder.enabled(XContentMapValues.nodeBooleanValue(fieldNode, name + ".enabled"));
+                    deprecationLogger.deprecatedAndMaybeLog("field_names_enabled_parameter", ENABLED_DEPRECATION_MESSAGE);
+                    // just read the value and dump it on the floor
+                    XContentMapValues.nodeBooleanValue(fieldNode, name + ".enabled");
                     iterator.remove();
                 }
             }

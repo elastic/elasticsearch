@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.ccr.action;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
@@ -219,6 +220,12 @@ public class ShardChangesAction extends Action<ShardChangesAction.Response> {
             return settingsVersion;
         }
 
+        private long aliasesVersion;
+
+        public long getAliasesVersion() {
+            return aliasesVersion;
+        }
+
         private long globalCheckpoint;
 
         public long getGlobalCheckpoint() {
@@ -256,6 +263,11 @@ public class ShardChangesAction extends Action<ShardChangesAction.Response> {
             super(in);
             mappingVersion = in.readVLong();
             settingsVersion = in.readVLong();
+            if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+                aliasesVersion = in.readVLong();
+            } else {
+                aliasesVersion = 0;
+            }
             globalCheckpoint = in.readZLong();
             maxSeqNo = in.readZLong();
             maxSeqNoOfUpdatesOrDeletes = in.readZLong();
@@ -264,16 +276,17 @@ public class ShardChangesAction extends Action<ShardChangesAction.Response> {
         }
 
         Response(
-            final long mappingVersion,
-            final long settingsVersion,
-            final long globalCheckpoint,
-            final long maxSeqNo,
-            final long maxSeqNoOfUpdatesOrDeletes,
-            final Translog.Operation[] operations,
-            final long tookInMillis) {
-
+                final long mappingVersion,
+                final long settingsVersion,
+                final long aliasesVersion,
+                final long globalCheckpoint,
+                final long maxSeqNo,
+                final long maxSeqNoOfUpdatesOrDeletes,
+                final Translog.Operation[] operations,
+                final long tookInMillis) {
             this.mappingVersion = mappingVersion;
             this.settingsVersion = settingsVersion;
+            this.aliasesVersion = aliasesVersion;
             this.globalCheckpoint = globalCheckpoint;
             this.maxSeqNo = maxSeqNo;
             this.maxSeqNoOfUpdatesOrDeletes = maxSeqNoOfUpdatesOrDeletes;
@@ -291,6 +304,9 @@ public class ShardChangesAction extends Action<ShardChangesAction.Response> {
             super.writeTo(out);
             out.writeVLong(mappingVersion);
             out.writeVLong(settingsVersion);
+            if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+                out.writeVLong(aliasesVersion);
+            }
             out.writeZLong(globalCheckpoint);
             out.writeZLong(maxSeqNo);
             out.writeZLong(maxSeqNoOfUpdatesOrDeletes);
@@ -305,6 +321,7 @@ public class ShardChangesAction extends Action<ShardChangesAction.Response> {
             final Response that = (Response) o;
             return mappingVersion == that.mappingVersion &&
                     settingsVersion == that.settingsVersion &&
+                    aliasesVersion == that.aliasesVersion &&
                     globalCheckpoint == that.globalCheckpoint &&
                     maxSeqNo == that.maxSeqNo &&
                     maxSeqNoOfUpdatesOrDeletes == that.maxSeqNoOfUpdatesOrDeletes &&
@@ -317,6 +334,7 @@ public class ShardChangesAction extends Action<ShardChangesAction.Response> {
             return Objects.hash(
                     mappingVersion,
                     settingsVersion,
+                    aliasesVersion,
                     globalCheckpoint,
                     maxSeqNo,
                     maxSeqNoOfUpdatesOrDeletes,
@@ -361,9 +379,11 @@ public class ShardChangesAction extends Action<ShardChangesAction.Response> {
             final IndexMetaData indexMetaData = indexService.getMetaData();
             final long mappingVersion = indexMetaData.getMappingVersion();
             final long settingsVersion = indexMetaData.getSettingsVersion();
+            final long aliasesVersion = indexMetaData.getAliasesVersion();
             return getResponse(
                     mappingVersion,
                     settingsVersion,
+                    aliasesVersion,
                     seqNoStats,
                     maxSeqNoOfUpdatesOrDeletes,
                     operations,
@@ -436,12 +456,14 @@ public class ShardChangesAction extends Action<ShardChangesAction.Response> {
 
                     final long mappingVersion = indexMetaData.getMappingVersion();
                     final long settingsVersion = indexMetaData.getSettingsVersion();
+                    final long aliasesVersion = indexMetaData.getAliasesVersion();
                     final SeqNoStats latestSeqNoStats = indexShard.seqNoStats();
                     final long maxSeqNoOfUpdatesOrDeletes = indexShard.getMaxSeqNoOfUpdatesOrDeletes();
                     listener.onResponse(
                             getResponse(
                                     mappingVersion,
                                     settingsVersion,
+                                    aliasesVersion,
                                     latestSeqNoStats,
                                     maxSeqNoOfUpdatesOrDeletes,
                                     EMPTY_OPERATIONS_ARRAY,
@@ -541,6 +563,7 @@ public class ShardChangesAction extends Action<ShardChangesAction.Response> {
     static Response getResponse(
             final long mappingVersion,
             final long settingsVersion,
+            final long aliasesVersion,
             final SeqNoStats seqNoStats,
             final long maxSeqNoOfUpdates,
             final Translog.Operation[] operations,
@@ -550,6 +573,7 @@ public class ShardChangesAction extends Action<ShardChangesAction.Response> {
         return new Response(
                 mappingVersion,
                 settingsVersion,
+                aliasesVersion,
                 seqNoStats.getGlobalCheckpoint(),
                 seqNoStats.getMaxSeqNo(),
                 maxSeqNoOfUpdates,

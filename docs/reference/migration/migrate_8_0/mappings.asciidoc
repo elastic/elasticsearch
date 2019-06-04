@@ -22,6 +22,7 @@ The typed REST endpoints of the Put Mapping, Get Mapping and Get Field mapping
 APIs have been removed in favour of their untyped REST endpoints, since indexes
 no longer contain types, these typed endpoints are obsolete.
 
+[float]
 ==== Defining multi-fields within multi-fields
 
 Previously, it was possible to define a multi-field within a multi-field.

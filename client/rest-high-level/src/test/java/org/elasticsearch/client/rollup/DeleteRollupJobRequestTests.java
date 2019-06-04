@@ -35,7 +35,7 @@ public class DeleteRollupJobRequestTests extends AbstractXContentTestCase<Delete
 
     @Override
     protected DeleteRollupJobRequest createTestInstance() {
-        return new DeleteRollupJobRequest(jobId);
+        return new DeleteRollupJobRequest(jobId, randomBoolean());
     }
 
     @Override

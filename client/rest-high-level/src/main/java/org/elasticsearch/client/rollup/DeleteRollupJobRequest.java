@@ -32,11 +32,17 @@ import java.util.Objects;
 public class DeleteRollupJobRequest implements Validatable, ToXContentObject {
 
     private static final ParseField ID_FIELD = new ParseField("id");
+    private static final ParseField DELETE_DATA_FIELD = new ParseField("delete_data");
     private final String id;
-
+    private final boolean deleteData;
 
     public DeleteRollupJobRequest(String id) {
+        this(id, false);
+    }
+
+    public DeleteRollupJobRequest(String id, boolean deleteData) {
         this.id = Objects.requireNonNull(id, "id parameter must not be null");
+        this.deleteData = deleteData;
     }
 
     public String getId() {
@@ -44,12 +50,11 @@ public class DeleteRollupJobRequest implements Validatable, ToXContentObject {
     }
 
     private static final ConstructingObjectParser<DeleteRollupJobRequest, Void> PARSER =
-        new ConstructingObjectParser<>("request",  a -> {
-            return new DeleteRollupJobRequest((String) a[0]);
-        });
+        new ConstructingObjectParser<>("request",  a -> new DeleteRollupJobRequest((String) a[0], (Boolean) a[1]));
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), ID_FIELD);
+        PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), DELETE_DATA_FIELD);
     }
 
     public static DeleteRollupJobRequest fromXContent(XContentParser parser) {
@@ -60,6 +65,7 @@ public class DeleteRollupJobRequest implements Validatable, ToXContentObject {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(ID_FIELD.getPreferredName(), this.id);
+        builder.field(DELETE_DATA_FIELD.getPreferredName(), this.deleteData);
         builder.endObject();
         return builder;
     }
@@ -69,11 +75,12 @@ public class DeleteRollupJobRequest implements Validatable, ToXContentObject {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         DeleteRollupJobRequest that = (DeleteRollupJobRequest) o;
-        return Objects.equals(id, that.id);
+        return Objects.equals(id, that.id)
+            && Objects.equals(deleteData, that.deleteData);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(id);
+        return Objects.hash(id, deleteData);
     }
 }

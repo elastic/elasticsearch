@@ -27,6 +27,7 @@ import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
@@ -35,6 +36,8 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.test.SecuritySettingsSourceField.basicAuthHeaderValue;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.isOneOf;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 public class RollupIT extends ESRestTestCase {
 
@@ -103,47 +106,7 @@ public class RollupIT extends ESRestTestCase {
         bulkRequest.setJsonEntity(bulk.toString());
         client().performRequest(bulkRequest);
 
-        // create the rollup job
-        final Request createRollupJobRequest = new Request("PUT", "/_rollup/job/rollup-job-test");
-        int pageSize = randomIntBetween(2, 50);
-        createRollupJobRequest.setJsonEntity("{"
-            + "\"index_pattern\":\"rollup-*\","
-            + "\"rollup_index\":\"results-rollup\","
-            + "\"cron\":\"*/1 * * * * ?\","             // fast cron so test runs quickly
-            + "\"page_size\":" + pageSize + ","
-            + "\"groups\":{"
-            + "    \"date_histogram\":{"
-            + "        \"field\":\"timestamp\","
-            + "        \"fixed_interval\":\"5m\""
-            + "      }"
-            + "},"
-            + "\"metrics\":["
-            + "    {\"field\":\"value\",\"metrics\":[\"min\",\"max\",\"sum\"]}"
-            + "]"
-            + "}");
-
-        Map<String, Object> createRollupJobResponse = toMap(client().performRequest(createRollupJobRequest));
-        assertThat(createRollupJobResponse.get("acknowledged"), equalTo(Boolean.TRUE));
-
-        // start the rollup job
-        final Request startRollupJobRequest = new Request("POST", "_rollup/job/rollup-job-test/_start");
-        Map<String, Object> startRollupJobResponse = toMap(client().performRequest(startRollupJobRequest));
-        assertThat(startRollupJobResponse.get("started"), equalTo(Boolean.TRUE));
-
-        assertRollUpJob("rollup-job-test");
-
-        // Wait for the job to finish, by watching how many rollup docs we've indexed
-        assertBusy(() -> {
-            final Request getRollupJobRequest = new Request("GET", "_rollup/job/rollup-job-test");
-            Response getRollupJobResponse = client().performRequest(getRollupJobRequest);
-            assertThat(getRollupJobResponse.getStatusLine().getStatusCode(), equalTo(RestStatus.OK.getStatus()));
-
-            Map<String, Object> job = getJob(getRollupJobResponse, "rollup-job-test");
-            if (job != null) {
-                assertThat(ObjectPath.eval("status.job_state", job), equalTo("started"));
-                assertThat(ObjectPath.eval("stats.rollups_indexed", job), equalTo(41));
-            }
-        }, 30L, TimeUnit.SECONDS);
+        createAndStartJob("rollup-job-test");
 
         // Refresh the rollup index to make sure all newly indexed docs are searchable
         final Request refreshRollupIndex = new Request("POST", "results-rollup/_refresh");
@@ -194,6 +157,215 @@ public class RollupIT extends ESRestTestCase {
         // Does searching the live index via rollup_search work match the live search?
         assertThat(ObjectPath.eval("aggregations.date_histo.buckets", liveBody),
             equalTo(ObjectPath.eval("aggregations.date_histo.buckets", liveRollupBody)));
+
+    }
+
+    public void testDeleteJobWithData() throws Exception {
+        final int numDocs = 200;
+        String dateFormat = "strict_date_optional_time";
+
+        // create the test-index index
+        try (XContentBuilder builder = jsonBuilder()) {
+            builder.startObject();
+            {
+                builder.startObject("mappings")
+                    .startObject("properties")
+                    .startObject("timestamp")
+                    .field("type", "date")
+                    .field("format", dateFormat)
+                    .endObject()
+                    .startObject("value")
+                    .field("type", "integer")
+                    .endObject()
+                    .endObject().endObject();
+            }
+            builder.endObject();
+            final StringEntity entity = new StringEntity(Strings.toString(builder), ContentType.APPLICATION_JSON);
+            Request req = new Request("PUT", "rollup-docs");
+            req.setEntity(entity);
+            client().performRequest(req);
+        }
+
+        // index documents for the rollup job
+        final StringBuilder bulk = new StringBuilder();
+        for (int i = 0; i < numDocs; i++) {
+            bulk.append("{\"index\":{\"_index\":\"rollup-docs\"}}\n");
+            ZonedDateTime zdt = ZonedDateTime.ofInstant(Instant.ofEpochSecond(1531221196 + (60*i)), ZoneId.of("UTC"));
+            String date = zdt.format(DateTimeFormatter.ISO_OFFSET_DATE_TIME);
+            bulk.append("{\"timestamp\":\"").append(date).append("\",\"value\":").append(i).append("}\n");
+        }
+        bulk.append("\r\n");
+
+        final Request bulkRequest = new Request("POST", "/_bulk");
+        bulkRequest.addParameter("refresh", "true");
+        bulkRequest.setJsonEntity(bulk.toString());
+        client().performRequest(bulkRequest);
+
+        createAndStartJob("rollup-job-test");
+
+        // stop the job
+        final Request stopRollupJobRequest = new Request("POST", "_rollup/job/rollup-job-test/_stop?wait_for_completion=true");
+        Map<String, Object> stopRollupJobResponse = toMap(client().performRequest(stopRollupJobRequest));
+        assertThat(stopRollupJobResponse.get("stopped"), equalTo(Boolean.TRUE));
+
+        String[] states = new String[]{"stopped"};
+        waitForRollUpJob("rollup-job-test", states);
+
+        Request refreshRollupIndex = new Request("POST", "results-rollup/_refresh");
+        toMap(client().performRequest(refreshRollupIndex));
+
+        // delete the job and all data
+        final Request deleteRollupJobRequest = new Request("DELETE", "_rollup/job/rollup-job-test?delete_data=true");
+        Map<String, Object> deleteRollupJobResponse = toMap(client().performRequest(deleteRollupJobRequest));
+        assertThat(deleteRollupJobResponse.get("acknowledged"), equalTo(Boolean.TRUE));
+
+        refreshRollupIndex = new Request("POST", "results-rollup/_refresh");
+        client().performRequest(refreshRollupIndex);
+
+        // Check to make sure all the docs have been DBQ
+        Request request = new Request("GET", "results-rollup/_stats/docs");
+        Response indexStatsResponse = client().performRequest(request);
+        Map<String, Object> indexStatsBody = toMap(indexStatsResponse);
+        assertThat(ObjectPath.eval("indices.results-rollup.primaries.docs.count", indexStatsBody), equalTo(0));
+
+        // Check to make sure the _meta was updated
+        request = new Request("GET", "results-rollup/_mapping");
+        Response mappingRequest = client().performRequest(request);
+        //logger.error(EntityUtils.toString(mappingRequest.getEntity()));
+
+        Map<String, Object> mappingResponse = toMap(mappingRequest);
+        assertThat(ObjectPath.eval("results-rollup.mappings._meta._rollup", mappingResponse), equalTo(Collections.emptyMap()));
+    }
+
+    public void testDeleteJobWithDataAndUnrelatedData() throws Exception {
+        final int numDocs = 200;
+        String dateFormat = "strict_date_optional_time";
+
+        // create the test-index index
+        try (XContentBuilder builder = jsonBuilder()) {
+            builder.startObject();
+            {
+                builder.startObject("mappings")
+                    .startObject("properties")
+                    .startObject("timestamp")
+                    .field("type", "date")
+                    .field("format", dateFormat)
+                    .endObject()
+                    .startObject("value")
+                    .field("type", "integer")
+                    .endObject()
+                    .endObject().endObject();
+            }
+            builder.endObject();
+            final StringEntity entity = new StringEntity(Strings.toString(builder), ContentType.APPLICATION_JSON);
+            Request req = new Request("PUT", "rollup-docs");
+            req.setEntity(entity);
+            client().performRequest(req);
+        }
+
+        // index documents for the rollup job
+        final StringBuilder bulk = new StringBuilder();
+        for (int i = 0; i < numDocs; i++) {
+            bulk.append("{\"index\":{\"_index\":\"rollup-docs\"}}\n");
+            ZonedDateTime zdt = ZonedDateTime.ofInstant(Instant.ofEpochSecond(1531221196 + (60*i)), ZoneId.of("UTC"));
+            String date = zdt.format(DateTimeFormatter.ISO_OFFSET_DATE_TIME);
+            bulk.append("{\"timestamp\":\"").append(date).append("\",\"value\":").append(i).append("}\n");
+        }
+        bulk.append("\r\n");
+
+        final Request bulkRequest = new Request("POST", "/_bulk");
+        bulkRequest.addParameter("refresh", "true");
+        bulkRequest.setJsonEntity(bulk.toString());
+        client().performRequest(bulkRequest);
+
+        createAndStartJob("rollup-job-test");
+        createAndStartJob("rollup-job-test-unrelated");
+
+        // stop the job
+        Request stopRollupJobRequest = new Request("POST", "_rollup/job/rollup-job-test/_stop?wait_for_completion=true");
+        Map<String, Object> stopRollupJobResponse = toMap(client().performRequest(stopRollupJobRequest));
+        assertThat(stopRollupJobResponse.get("stopped"), equalTo(Boolean.TRUE));
+
+        String[] states = new String[]{"stopped"};
+        waitForRollUpJob("rollup-job-test", states);
+
+        // stop the unrelated job
+        stopRollupJobRequest = new Request("POST", "_rollup/job/rollup-job-test-unrelated/_stop?wait_for_completion=true");
+        stopRollupJobResponse = toMap(client().performRequest(stopRollupJobRequest));
+        assertThat(stopRollupJobResponse.get("stopped"), equalTo(Boolean.TRUE));
+
+        states = new String[]{"stopped"};
+        waitForRollUpJob("rollup-job-test-unrelated", states);
+
+        Request refreshRollupIndex = new Request("POST", "results-rollup/_refresh");
+        client().performRequest(refreshRollupIndex);
+
+        // delete the job and all data
+        final Request deleteRollupJobRequest = new Request("DELETE", "_rollup/job/rollup-job-test?delete_data=true");
+        Map<String, Object> deleteRollupJobResponse = toMap(client().performRequest(deleteRollupJobRequest));
+        assertThat(deleteRollupJobResponse.get("acknowledged"), equalTo(Boolean.TRUE));
+
+        refreshRollupIndex = new Request("POST", "results-rollup/_refresh");
+        toMap(client().performRequest(refreshRollupIndex));
+
+        // Check to make sure all the docs have been DBQ
+        Request request = new Request("GET", "results-rollup/_stats/docs");
+        Response indexStatsResponse = client().performRequest(request);
+        Map<String, Object> indexStatsBody = toMap(indexStatsResponse);
+        assertThat(ObjectPath.eval("indices.results-rollup.primaries.docs.count", indexStatsBody), equalTo(41)); // 41 from the other job
+
+        // Check to make sure the _meta was updated
+        request = new Request("GET", "results-rollup/_mapping");
+        Response mappingRequest = client().performRequest(request);
+
+        Map<String, Object> mappingResponse = toMap(mappingRequest);
+        assertThat(ObjectPath.eval("results-rollup.mappings._meta._rollup.rollup-job-test", mappingResponse), nullValue());
+        assertThat(ObjectPath.eval("results-rollup.mappings._meta._rollup.rollup-job-test-unrelated", mappingResponse), notNullValue());
+    }
+
+    private void createAndStartJob(String jobId) throws Exception {
+        // create the rollup job
+        final Request createRollupJobRequest = new Request("PUT", "/_rollup/job/" + jobId);
+        int pageSize = randomIntBetween(2, 50);
+        createRollupJobRequest.setJsonEntity("{"
+            + "\"index_pattern\":\"rollup-*\","
+            + "\"rollup_index\":\"results-rollup\","
+            + "\"cron\":\"*/1 * * * * ?\","             // fast cron so test runs quickly
+            + "\"page_size\":" + pageSize + ","
+            + "\"groups\":{"
+            + "    \"date_histogram\":{"
+            + "        \"field\":\"timestamp\","
+            + "        \"fixed_interval\":\"5m\""
+            + "      }"
+            + "},"
+            + "\"metrics\":["
+            + "    {\"field\":\"value\",\"metrics\":[\"min\",\"max\",\"sum\"]}"
+            + "]"
+            + "}");
+
+        Map<String, Object> createRollupJobResponse = toMap(client().performRequest(createRollupJobRequest));
+        assertThat(createRollupJobResponse.get("acknowledged"), equalTo(Boolean.TRUE));
+
+        // start the rollup job
+        final Request startRollupJobRequest = new Request("POST", "_rollup/job/" +  jobId + "/_start");
+        Map<String, Object> startRollupJobResponse = toMap(client().performRequest(startRollupJobRequest));
+        assertThat(startRollupJobResponse.get("started"), equalTo(Boolean.TRUE));
+
+        assertRollUpJob(jobId);
+
+        // Wait for the job to finish, by watching how many rollup docs we've indexed
+        assertBusy(() -> {
+            final Request getRollupJobRequest = new Request("GET", "_rollup/job/" + jobId);
+            Response getRollupJobResponse = client().performRequest(getRollupJobRequest);
+            assertThat(getRollupJobResponse.getStatusLine().getStatusCode(), equalTo(RestStatus.OK.getStatus()));
+
+            Map<String, Object> job = getJob(getRollupJobResponse, jobId);
+            if (job != null) {
+                assertThat(ObjectPath.eval("status.job_state", job), equalTo("started"));
+                assertThat(ObjectPath.eval("stats.rollups_indexed", job), equalTo(41));
+            }
+        }, 30L, TimeUnit.SECONDS);
+
 
     }
 

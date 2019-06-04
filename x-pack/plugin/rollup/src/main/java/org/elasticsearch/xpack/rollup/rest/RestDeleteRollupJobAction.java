@@ -28,6 +28,7 @@ public class RestDeleteRollupJobAction extends BaseRestHandler {
 
     public static final ParseField ID = new ParseField("id");
 
+
     public RestDeleteRollupJobAction(Settings settings, RestController controller) {
         super(settings);
         // TODO: remove deprecated endpoint in 8.0.0
@@ -39,18 +40,19 @@ public class RestDeleteRollupJobAction extends BaseRestHandler {
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
         String id = restRequest.param(ID.getPreferredName());
-        DeleteRollupJobAction.Request request = new DeleteRollupJobAction.Request(id);
+        boolean deleteData = restRequest.paramAsBoolean(DeleteRollupJobAction.DELETE_DATA.getPreferredName(), false);
+        DeleteRollupJobAction.Request request = new DeleteRollupJobAction.Request(id, deleteData);
 
         return channel -> client.execute(DeleteRollupJobAction.INSTANCE, request,
-            new RestToXContentListener<DeleteRollupJobAction.Response>(channel) {
-            @Override
-            protected RestStatus getStatus(DeleteRollupJobAction.Response response) {
-                if (response.getNodeFailures().size() > 0 || response.getTaskFailures().size() > 0) {
-                    return RestStatus.INTERNAL_SERVER_ERROR;
+            new RestToXContentListener<>(channel) {
+                @Override
+                protected RestStatus getStatus(DeleteRollupJobAction.Response response) {
+                    if (response.getNodeFailures().size() > 0 || response.getTaskFailures().size() > 0) {
+                        return RestStatus.INTERNAL_SERVER_ERROR;
+                    }
+                    return RestStatus.OK;
                 }
-                return RestStatus.OK;
-            }
-        });
+            });
     }
 
     @Override

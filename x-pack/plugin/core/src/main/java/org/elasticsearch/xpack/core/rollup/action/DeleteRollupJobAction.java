@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.core.rollup.action;
 
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
@@ -14,6 +15,7 @@ import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.support.tasks.BaseTasksRequest;
 import org.elasticsearch.action.support.tasks.BaseTasksResponse;
 import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -34,6 +36,8 @@ public class DeleteRollupJobAction extends Action<DeleteRollupJobAction.Response
     public static final DeleteRollupJobAction INSTANCE = new DeleteRollupJobAction();
     public static final String NAME = "cluster:admin/xpack/rollup/delete";
 
+    public static final ParseField DELETE_DATA = new ParseField("delete_data");
+
     private DeleteRollupJobAction() {
         super(NAME);
     }
@@ -50,9 +54,15 @@ public class DeleteRollupJobAction extends Action<DeleteRollupJobAction.Response
 
     public static class Request extends BaseTasksRequest<Request> implements ToXContentFragment {
         private String id;
+        private boolean deleteData;
 
         public Request(String id) {
+            this(id, false);
+        }
+
+        public Request(String id, boolean deleteData) {
             this.id = ExceptionsHelper.requireNonNull(id, RollupField.ID.getPreferredName());
+            this.deleteData = deleteData;
         }
 
         public Request() {}
@@ -60,6 +70,11 @@ public class DeleteRollupJobAction extends Action<DeleteRollupJobAction.Response
         public Request(StreamInput in) throws IOException {
             super(in);
             id = in.readString();
+            if (in.getVersion().onOrAfter(Version.V_8_0_0)) { // TODO change after backport
+                deleteData = in.readBoolean();
+            } else {
+                deleteData = false;
+            }
         }
 
         @Override
@@ -71,10 +86,17 @@ public class DeleteRollupJobAction extends Action<DeleteRollupJobAction.Response
             return id;
         }
 
+        public boolean shouldDeleteData() {
+            return deleteData;
+        }
+
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeString(id);
+            if (out.getVersion().onOrAfter(Version.V_8_0_0)) { // TODO change after backport
+                out.writeBoolean(deleteData);
+            }
         }
 
         @Override
@@ -85,12 +107,13 @@ public class DeleteRollupJobAction extends Action<DeleteRollupJobAction.Response
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.field(RollupField.ID.getPreferredName(), id);
+            builder.field(DELETE_DATA.getPreferredName(), deleteData);
             return builder;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(id);
+            return Objects.hash(id, deleteData);
         }
 
         @Override
@@ -102,7 +125,8 @@ public class DeleteRollupJobAction extends Action<DeleteRollupJobAction.Response
                 return false;
             }
             Request other = (Request) obj;
-            return Objects.equals(id, other.id);
+            return Objects.equals(id, other.id)
+                && Objects.equals(deleteData, other.deleteData);
         }
     }
 

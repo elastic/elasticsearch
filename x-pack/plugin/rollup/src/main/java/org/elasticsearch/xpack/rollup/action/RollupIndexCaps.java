@@ -68,7 +68,7 @@ public class RollupIndexCaps implements Writeable, ToXContentFragment {
     /**
      * Parser for `_doc` portion of mapping metadata
      */
-    private static class DocParser {
+    public static class DocParser {
         public List<RollupJobConfig> jobs;
         // Ignore unknown fields because there could be unrelated doc types
         private static final ConstructingObjectParser<DocParser, Void> DOC_PARSER
@@ -132,6 +132,15 @@ public class RollupIndexCaps implements Writeable, ToXContentFragment {
     List<RollupJobCaps> getJobCapsByIndexPattern(String index) {
         return jobCaps.stream().filter(cap -> index.equals(MetaData.ALL) ||
                     cap.getIndexPattern().equals(index)).collect(Collectors.toList());
+    }
+
+    RollupJobCaps getJobByID(String id) {
+        for (RollupJobCaps cap : jobCaps) {
+            if (cap.getJobID().equals(id)) {
+                return cap;
+            }
+        }
+        return null;
     }
 
     void setJobs(List<RollupJobConfig> jobs) {

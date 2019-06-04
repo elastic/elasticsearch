@@ -1408,7 +1408,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
     public void testStopDataFrameAnalyticsConfig() throws Exception {
         String sourceIndex = "stop-test-source-index";
         String destIndex = "stop-test-dest-index";
-        createIndex(sourceIndex);
+        createIndex(sourceIndex, mappingForClassification());
         highLevelClient().index(new IndexRequest(sourceIndex).source(XContentType.JSON, "total", 10000), RequestOptions.DEFAULT);
 
         // Verify that the destination index does not exist. Otherwise, analytics' reindexing step would fail.

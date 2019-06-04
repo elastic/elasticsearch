@@ -40,7 +40,6 @@ import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.http.HttpServerTransport;
@@ -977,34 +976,10 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
     @Override
     public BiConsumer<DiscoveryNode, ClusterState> getJoinValidator() {
         if (enabled) {
-            return new ValidateTLSOnJoin(XPackSettings.TRANSPORT_SSL_ENABLED.get(settings),
-                    DiscoveryModule.DISCOVERY_TYPE_SETTING.get(settings), settings)
-                .andThen(new ValidateUpgradedSecurityIndex())
+            return new ValidateUpgradedSecurityIndex()
                 .andThen(new ValidateLicenseForFIPS(XPackSettings.FIPS_MODE_ENABLED.get(settings)));
         }
         return null;
-    }
-
-    static final class ValidateTLSOnJoin implements BiConsumer<DiscoveryNode, ClusterState> {
-        private final boolean isTLSEnabled;
-        private final String discoveryType;
-        private final Settings settings;
-
-        ValidateTLSOnJoin(boolean isTLSEnabled, String discoveryType, Settings settings) {
-            this.isTLSEnabled = isTLSEnabled;
-            this.discoveryType = discoveryType;
-            this.settings = settings;
-        }
-
-        @Override
-        public void accept(DiscoveryNode node, ClusterState state) {
-            License license = LicenseService.getLicense(state.metaData());
-            if (isTLSEnabled == false && "single-node".equals(discoveryType) == false
-                && XPackLicenseState.isTransportTlsRequired(license, settings)) {
-                throw new IllegalStateException("Transport TLS ([" + XPackSettings.TRANSPORT_SSL_ENABLED.getKey() +
-                    "]) is required for license type [" + license.operationMode().description() + "] when security is enabled");
-            }
-        }
     }
 
     static final class ValidateUpgradedSecurityIndex implements BiConsumer<DiscoveryNode, ClusterState> {

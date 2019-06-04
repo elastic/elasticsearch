@@ -19,7 +19,7 @@ restTestCluster {
     setupCommand 'setupTestAdmin',
             'bin/elasticsearch-users', 'useradd', "test_admin", '-p', 'x-pack-test-password', '-r', "superuser"
     setupCommand 'setupEnrichUser',
-            'bin/elasticsearch-users', 'useradd', "test_enrich", '-p', 'x-pack-test-password', '-r', "enrich"
+            'bin/elasticsearch-users', 'useradd', "test_enrich", '-p', 'x-pack-test-password', '-r', "enrich_user,integ_test_role"
     setupCommand 'setupEnrichUserNoPrivs',
             'bin/elasticsearch-users', 'useradd', "test_enrich_no_privs", '-p', 'x-pack-test-password', '-r', "enrich_no_privs"
     waitCondition = { node, ant ->

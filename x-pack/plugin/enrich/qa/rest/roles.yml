@@ -1,13 +1,8 @@
-enrich:
-  cluster:
-    - manage_enrich
-    - manage_ingest_pipelines
-    - monitor
+integ_test_role:
   indices:
-    - names: [ '.enrich-my_policy*', 'my-index', 'my-source-index' ]
+    - names: [ 'my-index', 'my-source-index' ]
       privileges:
         - manage
-        - monitor
         - read
         - write
         - create_index

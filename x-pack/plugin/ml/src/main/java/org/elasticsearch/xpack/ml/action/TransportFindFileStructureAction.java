@@ -49,7 +49,7 @@ public class TransportFindFileStructureAction
         FileStructureFinderManager structureFinderManager = new FileStructureFinderManager(threadPool.scheduler());
 
         FileStructureFinder fileStructureFinder = structureFinderManager.findFileStructure(request.getLinesToSample(),
-            request.getSample().streamInput(), new FileStructureOverrides(request), request.getTimeout());
+            request.getLineMergeSizeLimit(), request.getSample().streamInput(), new FileStructureOverrides(request), request.getTimeout());
 
         return new FindFileStructureAction.Response(fileStructureFinder.getStructure());
     }

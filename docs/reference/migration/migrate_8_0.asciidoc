@@ -15,6 +15,7 @@ coming[8.0.0]
 * <<breaking_80_discovery_changes>>
 * <<breaking_80_mappings_changes>>
 * <<breaking_80_packaging_changes>>
+* <<breaking_80_rollup_changes>>
 * <<breaking_80_snapshots_changes>>
 * <<breaking_80_security_changes>>
 * <<breaking_80_ilm_changes>>
@@ -52,6 +53,7 @@ include::migrate_8_0/analysis.asciidoc[]
 include::migrate_8_0/discovery.asciidoc[]
 include::migrate_8_0/mappings.asciidoc[]
 include::migrate_8_0/packaging.asciidoc[]
+include::migrate_8_0/rollup.asciidoc[]
 include::migrate_8_0/snapshots.asciidoc[]
 include::migrate_8_0/security.asciidoc[]
 include::migrate_8_0/ilm.asciidoc[]

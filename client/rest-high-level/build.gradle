@@ -46,16 +46,18 @@ idea {
 }
 
 dependencies {
-  /*
-   * Everything in the "shadow" configuration is *not* copied into the
-   * shadowJar.
-   */
   compile "org.elasticsearch:elasticsearch:${version}"
   compile "org.elasticsearch.client:elasticsearch-rest-client:${version}"
-  compile "org.elasticsearch.plugin:parent-join-client:${version}"
-  compile "org.elasticsearch.plugin:aggs-matrix-stats-client:${version}"
-  compile "org.elasticsearch.plugin:rank-eval-client:${version}"
-  compile "org.elasticsearch.plugin:lang-mustache-client:${version}"
+  compile project(':modules:parent-join')
+  compile project(':modules:aggs-matrix-stats')
+  compile project(':modules:rank-eval')
+  compile project(':modules:lang-mustache')
+  shadow "org.elasticsearch:elasticsearch:${version}"
+  shadow "org.elasticsearch.client:elasticsearch-rest-client:${version}"
+  bundle project(':modules:parent-join')
+  bundle project(':modules:aggs-matrix-stats')
+  bundle project(':modules:rank-eval')
+  bundle project(':modules:lang-mustache')
 
   testCompile "org.elasticsearch.client:test:${version}"
   testCompile "org.elasticsearch.test:framework:${version}"

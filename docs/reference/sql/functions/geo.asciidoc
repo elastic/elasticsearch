@@ -3,6 +3,8 @@
 [[sql-functions-geo]]
 === Geo Functions
 
+beta[]
+
 The geo functions work with geometries stored in `geo_point` and `geo_shape` fields, or returned by other geo functions.
 
 ==== Limitations
@@ -25,7 +27,9 @@ interchangeably with the following exceptions:
 .Synopsis:
 [source, sql]
 --------------------------------------------------
-ST_AsWKT(geometry<1>)
+ST_AsWKT(
+    geometry <1>
+)
 --------------------------------------------------
 
 *Input*:
@@ -50,7 +54,9 @@ include-tagged::{sql-specs}/docs/geo.csv-spec[aswkt]
 .Synopsis:
 [source, sql]
 --------------------------------------------------
-ST_WKTToSQL(string<1>)
+ST_WKTToSQL(
+    string <1>
+)
 --------------------------------------------------
 
 *Input*:
@@ -76,7 +82,9 @@ include-tagged::{sql-specs}/docs/geo.csv-spec[aswkt]
 .Synopsis:
 [source, sql]
 --------------------------------------------------
-ST_GeometryType(geometry<1>)
+ST_GeometryType(
+    geometry <1>
+)
 --------------------------------------------------
 
 *Input*:
@@ -100,7 +108,9 @@ include-tagged::{sql-specs}/docs/geo.csv-spec[geometrytype]
 .Synopsis:
 [source, sql]
 --------------------------------------------------
-ST_X(geometry<1>)
+ST_X(
+    geometry <1>
+)
 --------------------------------------------------
 
 *Input*:
@@ -124,7 +134,9 @@ include-tagged::{sql-specs}/docs/geo.csv-spec[x]
 .Synopsis:
 [source, sql]
 --------------------------------------------------
-ST_Y(geometry<1>)
+ST_Y(
+    geometry <1>
+)
 --------------------------------------------------
 
 *Input*:
@@ -148,7 +160,9 @@ include-tagged::{sql-specs}/docs/geo.csv-spec[y]
 .Synopsis:
 [source, sql]
 --------------------------------------------------
-ST_Z(geometry<1>)
+ST_Z(
+    geometry <1>
+)
 --------------------------------------------------
 
 *Input*:
@@ -172,7 +186,10 @@ include-tagged::{sql-specs}/docs/geo.csv-spec[z]
 .Synopsis:
 [source, sql]
 --------------------------------------------------
-ST_Distance(geometry<1>, geometry<2>)
+ST_Distance(
+    geometry, <1>
+    geometry  <2>
+)
 --------------------------------------------------
 
 *Input*:

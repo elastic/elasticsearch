@@ -23,7 +23,6 @@ import org.elasticsearch.xpack.core.security.action.privilege.GetPrivilegesReque
 import org.elasticsearch.xpack.core.security.action.privilege.GetPrivilegesRequestBuilder;
 import org.elasticsearch.xpack.core.security.action.privilege.GetPrivilegesResponse;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
-import org.elasticsearch.xpack.core.security.client.SecurityClient;
 import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;
 
 import java.io.IOException;
@@ -66,7 +65,7 @@ public class RestGetPrivilegesAction extends SecurityBaseRestHandler {
         final String scope = request.param("application");
         final String[] privileges = request.paramAsStringArray("privilege", Strings.EMPTY_ARRAY);
 
-        final GetPrivilegesRequestBuilder requestBuilder = new SecurityClient(client).prepareGetPrivileges();
+        final GetPrivilegesRequestBuilder requestBuilder = new GetPrivilegesRequestBuilder(client);
         // Application names cannot start with `_`, so we use this for built-in names
         if ("_cluster".equals(scope)) {
             requestBuilder.privilegeTypes(GetPrivilegesRequest.PrivilegeType.CLUSTER);

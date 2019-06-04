@@ -15,7 +15,13 @@ Instantiates a {dataframe-transform}.
 
 `PUT _data_frame/transforms/<data_frame_transform_id>`
 
-//===== Description
+===== Description
+
+IMPORTANT:  You must use {kib} or this API to create a {dataframe-transform}.
+            Do not put a {dataframe-transform} directly into any
+            `.data-frame-internal*` indices using the Elasticsearch index API.
+            If {es} {security-features} are enabled, do not give users any
+            privileges on `.data-frame-internal*` indices.
 
 ==== Path Parameters
 
@@ -27,12 +33,12 @@ Instantiates a {dataframe-transform}.
 
 ==== Request Body
 
-`source`:: (object) The source configuration, consisting of `index` and optionally
+`source` (required):: (object) The source configuration, consisting of `index` and optionally
 a `query`.
 
-`dest`:: (object) The destination configuration, consisting of `index`.
+`dest` (required):: (object) The destination configuration, consisting of `index`.
 
-`pivot`:: Defines the pivot function `group by` fields and the aggregation to
+`pivot`:: (object) Defines the pivot function `group by` fields and the aggregation to
 reduce the data.
 
 `description`:: Optional free text description of the data frame transform

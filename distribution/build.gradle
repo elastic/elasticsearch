@@ -241,7 +241,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
         // delay by using closures, since they have not yet been configured, so no jar task exists yet
         from { project(':server').jar }
         from { project(':server').configurations.runtime }
-        from { project(':libs:plugin-classloader').jar }
+        from { project(':libs:elasticsearch-plugin-classloader').jar }
         from { project(':distribution:tools:java-version-checker').jar }
         from { project(':distribution:tools:launchers').jar }
         into('tools/plugin-cli') {

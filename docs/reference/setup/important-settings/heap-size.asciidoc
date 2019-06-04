@@ -10,7 +10,7 @@ Elasticsearch will assign the entire heap specified in
 heap size) settings. You should set these two settings to be equal to each
 other.
 
-The value for these setting depends on the amount of RAM available on your
+The value for these settings depends on the amount of RAM available on your
 server:
 
 * Set `Xmx` and `Xms` to no more than 50% of your physical RAM. {es} requires

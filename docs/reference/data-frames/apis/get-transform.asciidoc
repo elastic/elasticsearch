@@ -75,10 +75,20 @@ The API returns the following results:
   "transforms" : [
     {
       "id" : "ecommerce_transform",
-      "source" : "kibana_sample_data_ecommerce",
-      "dest" : "kibana_sample_data_ecommerce_transform",
-      "query" : {
-        "match_all" : { }
+      "source" : {
+        "index" : [
+          "kibana_sample_data_ecommerce"
+        ],
+        "query" : {
+          "term" : {
+            "geoip.continent_name" : {
+              "value" : "Asia"
+            }
+          }
+        }
+      },
+      "dest" : {
+        "index" : "kibana_sample_data_ecommerce_transform"
       },
       "pivot" : {
         "group_by" : {
@@ -95,7 +105,8 @@ The API returns the following results:
             }
           }
         }
-      }
+      },
+      "description" : "Maximum priced ecommerce data by customer_id in Asia"
     }
   ]
 }

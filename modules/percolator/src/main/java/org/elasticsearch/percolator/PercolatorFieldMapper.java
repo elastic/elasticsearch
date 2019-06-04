@@ -285,7 +285,7 @@ public class PercolatorFieldMapper extends FieldMapper {
             }
 
             BooleanQuery.Builder candidateQuery = new BooleanQuery.Builder();
-            if (canUseMinimumShouldMatchField && indexVersion.onOrAfter(Version.V_6_1_0)) {
+            if (canUseMinimumShouldMatchField) {
                 LongValuesSource valuesSource = LongValuesSource.fromIntField(minimumShouldMatchField.name());
                 for (BytesRef extractedTerm : extractedTerms) {
                     subQueries.add(new TermQuery(new Term(queryTermsField.name(), extractedTerm)));
@@ -471,9 +471,7 @@ public class PercolatorFieldMapper extends FieldMapper {
         for (IndexableField field : fields) {
             context.doc().add(field);
         }
-        if (indexVersionCreated.onOrAfter(Version.V_6_1_0)) {
-            doc.add(new NumericDocValuesField(minimumShouldMatchFieldMapper.name(), result.minimumShouldMatch));
-        }
+        doc.add(new NumericDocValuesField(minimumShouldMatchFieldMapper.name(), result.minimumShouldMatch));
     }
 
     static Query parseQuery(QueryShardContext context, boolean mapUnmappedFieldsAsString, XContentParser parser) throws IOException {

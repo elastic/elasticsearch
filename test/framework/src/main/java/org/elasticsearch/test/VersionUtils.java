@@ -263,6 +263,6 @@ public class VersionUtils {
         // TODO: change this to minimumCompatibilityVersion(), but first need to remove released/unreleased
         // versions so getPreviousVerison returns the *actual* previous version. Otherwise eg 8.0.0 returns say 7.0.2 for previous,
         // but 7.2.0 for minimum compat
-        return randomVersionBetween(random, version.minimumIndexCompatibilityVersion(), version);
+        return randomVersionBetween(random, version.minimumIndexCompatibilityVersion(), getPreviousVersion(version));
     }
 }

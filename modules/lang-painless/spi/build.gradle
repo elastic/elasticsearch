@@ -33,7 +33,7 @@ publishing {
 }
 
 dependencies {
-  compile "org.elasticsearch:elasticsearch:${version}"
+  compile project(":server")
 }
 
 // no tests...yet?

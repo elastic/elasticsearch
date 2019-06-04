@@ -14,7 +14,6 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xpack.core.security.authc.TokenMetaData;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 
@@ -48,9 +47,8 @@ public class XPackPluginTests extends ESTestCase {
         DiscoveryNodes.Builder discoveryNodes = DiscoveryNodes.builder();
 
         for (int i = 0; i < randomInt(3); i++) {
-            final Version version = VersionUtils.randomVersion(random());
             final Map<String, String> attributes;
-            if (randomBoolean() && version.onOrAfter(Version.V_6_3_0)) {
+            if (randomBoolean()) {
                 attributes = Collections.singletonMap(XPackPlugin.XPACK_INSTALLED_NODE_ATTR, "true");
             } else {
                 nodesCompatible = false;

@@ -33,7 +33,7 @@ the API require `cluster:monitor/main`.
 The following example configures a role that can run SQL in JDBC querying the `test` and `bort`
 indices:
 
-["source","yaml",subs="attributes,callouts,macros"]
+[source, yaml]
 --------------------------------------------------
 include-tagged::{sql-tests}/security/roles.yml[cli_drivers]
 --------------------------------------------------

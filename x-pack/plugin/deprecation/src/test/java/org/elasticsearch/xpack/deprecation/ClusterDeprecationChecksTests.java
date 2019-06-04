@@ -25,6 +25,7 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 
+import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.core.indexlifecycle.LifecycleSettings.LIFECYCLE_POLL_INTERVAL_SETTING;
@@ -85,7 +86,30 @@ public class ClusterDeprecationChecksTests extends ESTestCase {
             "Ingest pipelines [ecs_false, ecs_true] uses the [ecs] option which needs to be removed to work in 8.0");
         assertEquals(singletonList(expected), issues);
     }
+    public void testPipelineWithoutDeprecatedFormat() {
+        PutPipelineRequest pipelineRequest = new PutPipelineRequest("testingestpipeline",
+            new BytesArray("{\n" +
+                "  \"description\": \"Pipeline with date and date_index_name processor\",\n" +
+                "  \"processors\": [\n" +
+                "    {\n" +
+                "      \"date\": {\n" +
+                "        \"field\": \"createdTime\",\n" +
+                "        \"formats\": [\n" +
+                "         \"HH:mm:ss\"\n" +
+                "        ]\n" +
+                "      }\n" +
+                "    }\n" +
+                "  ]\n" +
+                "}"), XContentType.JSON);
 
+        ClusterState state = ClusterState.builder(new ClusterName("test")).build();
+        state = IngestService.innerPut(pipelineRequest, state);
+
+        final ClusterState finalState = state;
+        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(CLUSTER_SETTINGS_CHECKS, c -> c.apply(finalState));
+
+        assertEquals(emptyList(), issues);
+    }
 
     public void testPipelinesWithJodaDeprecatedFormats() {
         PutPipelineRequest pipelineRequest = new PutPipelineRequest("testingestpipeline",

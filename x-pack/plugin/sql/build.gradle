@@ -38,7 +38,6 @@ task internalClusterTest(type: Test) {
 check.dependsOn internalClusterTest
 
 dependencies {
-    // "org.elasticsearch.plugin:x-pack-core:${version}" doesn't work with idea because the testArtifacts are also here
     compileOnly project(path: xpackModule('core'), configuration: 'default')
     compileOnly(project(':modules:lang-painless')) {
         // exclude ASM to not affect featureAware task on Java 10+
@@ -47,7 +46,7 @@ dependencies {
     compile project('sql-action')
     compile project(':modules:aggs-matrix-stats')
     compile "org.antlr:antlr4-runtime:4.5.3"
-    testCompile "org.elasticsearch.test:framework:${version}"
+    testCompile project(':test:framework')
     testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
     if (isEclipse) {
       testCompile project(path: xpackModule('core-tests'), configuration: 'testArtifacts')

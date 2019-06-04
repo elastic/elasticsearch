@@ -10,7 +10,6 @@ esplugin {
 archivesBaseName = 'x-pack-monitoring'
 
 dependencies {
-    // "org.elasticsearch.plugin:x-pack-core:${version}" doesn't work with idea because the testArtifacts are also here
     compileOnly project(path: xpackModule('core'), configuration: 'default')
     testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
     if (isEclipse) {
@@ -18,13 +17,13 @@ dependencies {
     }
 
     // monitoring deps
-    compile "org.elasticsearch.client:elasticsearch-rest-client:${version}"
-    compile "org.elasticsearch.client:elasticsearch-rest-client-sniffer:${version}"
+    compile project(':client:rest')
+    compile project(':client:sniffer')
 
     // baz - this goes away after we separate out the actions #27759
-    testCompile "org.elasticsearch.plugin:x-pack-watcher:${version}"
+    testCompile project(xpackModule('watcher'))
 
-    testCompile "org.elasticsearch.plugin:x-pack-ilm:${version}"
+    testCompile project(xpackModule('ilm'))
 }
 
 compileJava.options.compilerArgs << "-Xlint:-rawtypes,-unchecked"

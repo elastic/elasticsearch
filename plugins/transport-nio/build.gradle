@@ -24,7 +24,7 @@ esplugin {
 }
 
 dependencies {
-    compile "org.elasticsearch:elasticsearch-nio:${version}"
+    compile project(':libs:elasticsearch-nio')
 
     // network stack
     compile "io.netty:netty-buffer:${versions.netty}"

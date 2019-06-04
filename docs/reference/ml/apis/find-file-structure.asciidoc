@@ -92,6 +92,13 @@ chosen.
   parameter is not specified, the structure finder guesses based on the similarity of
   the first row of the file to other rows.
 
+`line_merge_size_limit`::
+  (unsigned integer) The maximum number of characters in a message when lines are
+  merged to form messages while analyzing semi-structured files. The default
+  is 10000. If you have extremely long messages you may need to increase this, but
+  be aware that this may lead to very long processing times if the way to group
+  lines into messages is misdetected.
+
 `lines_to_sample`::
   (unsigned integer) The number of lines to include in the structural analysis,
   starting from the beginning of the file. The minimum is 2; the default

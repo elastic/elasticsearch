@@ -26,10 +26,11 @@ import java.util.function.Predicate;
  */
 public final class ManageApiKeyConditionalClusterPrivilege implements PlainConditionalClusterPrivilege {
 
+    private static final String MANAGE_API_KEY_PATTERN = "cluster:admin/xpack/security/api_key/*";
     private static final String CREATE_API_KEY_PATTERN = "cluster:admin/xpack/security/api_key/create";
     private static final String GET_API_KEY_PATTERN = "cluster:admin/xpack/security/api_key/get";
     private static final String INVALIDATE_API_KEY_PATTERN = "cluster:admin/xpack/security/api_key/invalidate";
-    private static final List<String> API_KEY_ACTION_PATTERNS = List.of(CREATE_API_KEY_PATTERN, GET_API_KEY_PATTERN,
+    private static final List<String> API_KEY_ACTION_PATTERNS = List.of(MANAGE_API_KEY_PATTERN, CREATE_API_KEY_PATTERN, GET_API_KEY_PATTERN,
             INVALIDATE_API_KEY_PATTERN);
 
     private final Set<String> realms;
@@ -39,11 +40,22 @@ public final class ManageApiKeyConditionalClusterPrivilege implements PlainCondi
     private final ClusterPrivilege privilege;
     private final BiPredicate<TransportRequest, Authentication> requestPredicate;
 
+    /**
+     * Constructor for {@link ManageApiKeyConditionalClusterPrivilege}
+     *
+     * @param actions set of API key cluster actions
+     * @param realms set of realm names such that the privilege to manage API keys is restricted for given realm names.<br>
+     *        `_self` can be used to restrict access to the authenticated user's realm.<br>
+     *        `*` can be used to allow all realms.
+     * @param users set of user names such that the privilege to manage API keys is restricted for given users.<br>
+     *        `_self` can be used to restrict access to the authenticated user.<br>
+     *        `*` can be used to allow all users.
+     */
     public ManageApiKeyConditionalClusterPrivilege(Set<String> actions, Set<String> realms, Set<String> users) {
         // validate allowed actions
         for (String action : actions) {
             if (ClusterPrivilege.MANAGE_API_KEY.predicate().test(action) == false) {
-                throw new IllegalArgumentException("invalid action [ " + action + " ] specified, expected API key privilege actions [ "
+                throw new IllegalArgumentException("invalid action [ " + action + " ] specified, expected API key privilege actions from [ "
                         + API_KEY_ACTION_PATTERNS + " ]");
             }
         }
@@ -57,12 +69,12 @@ public final class ManageApiKeyConditionalClusterPrivilege implements PlainCondi
         if (this.realms.contains("_self") && this.users.contains("_self") == false
                 || this.users.contains("_self") && this.realms.contains("_self") == false) {
             throw new IllegalArgumentException(
-                    "both realms and users must contain only `_self` when restricting access of API keys to owner");
+                    "both realms and users must contain only `_self` when restricting access of API keys to the owner");
         }
         if (this.realms.contains("_self") && this.users.contains("_self")) {
             if (this.realms.size() > 1 || this.users.size() > 1) {
                 throw new IllegalArgumentException(
-                        "both realms and users must contain only `_self` when restricting access of API keys to owner");
+                        "both realms and users must contain only `_self` when restricting access of API keys to the owner");
             }
         }
 

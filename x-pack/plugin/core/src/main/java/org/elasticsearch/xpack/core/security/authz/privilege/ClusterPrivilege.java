@@ -122,7 +122,7 @@ public final class ClusterPrivilege extends Privilege {
         private final PlainConditionalClusterPrivilege conditionalClusterPrivilege;
         private final String privilegeName;
 
-        DefaultConditionalClusterPrivilege(String privilegeName, PlainConditionalClusterPrivilege conditionalClusterPrivilege) {
+        DefaultConditionalClusterPrivilege(final String privilegeName, final PlainConditionalClusterPrivilege conditionalClusterPrivilege) {
             this.privilegeName = privilegeName;
             this.conditionalClusterPrivilege = conditionalClusterPrivilege;
         }
@@ -140,7 +140,7 @@ public final class ClusterPrivilege extends Privilege {
             return value.get();
         }
 
-        public static String name(PlainConditionalClusterPrivilege ccp) {
+        public static String privilegeName(PlainConditionalClusterPrivilege ccp) {
             Optional<DefaultConditionalClusterPrivilege> value = Arrays.stream(values())
                     .filter(dccp -> dccp.conditionalClusterPrivilege.equals(ccp)).findAny();
             if (value.isEmpty()) {
@@ -194,6 +194,14 @@ public final class ClusterPrivilege extends Privilege {
         super(name, automaton);
     }
 
+    /**
+     * For given set of privilege names returns a tuple of {@link ClusterPrivilege} and set of predefined fixed conditional cluster
+     * privileges {@link PlainConditionalClusterPrivilege}
+     *
+     * @param name set of predefined names in {@link #VALUES} or {@link DefaultConditionalClusterPrivilege} or a valid cluster action
+     * @return a {@link Tuple} of {@link ClusterPrivilege} and set of predefined fixed conditional cluster privileges
+     * {@link PlainConditionalClusterPrivilege}
+     */
     public static Tuple<ClusterPrivilege, Set<PlainConditionalClusterPrivilege>> get(final Set<String> name) {
         if (name == null || name.isEmpty()) {
             return new Tuple<ClusterPrivilege, Set<PlainConditionalClusterPrivilege>>(NONE, Collections.emptySet());
@@ -239,7 +247,7 @@ public final class ClusterPrivilege extends Privilege {
         if (actions.isEmpty() == false) {
             automata.add(patterns(actions));
         }
-        return new Tuple<ClusterPrivilege, Set<PlainConditionalClusterPrivilege>>(
-                new ClusterPrivilege(name, Automatons.unionAndMinimize(automata)), conditionalClusterPrivileges);
+        final ClusterPrivilege clusterPrivilege = new ClusterPrivilege(name, Automatons.unionAndMinimize(automata));
+        return new Tuple<ClusterPrivilege, Set<PlainConditionalClusterPrivilege>>(clusterPrivilege, conditionalClusterPrivileges);
     }
 }

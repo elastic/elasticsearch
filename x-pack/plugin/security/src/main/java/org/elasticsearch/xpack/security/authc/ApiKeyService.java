@@ -923,9 +923,10 @@ public class ApiKeyService {
 
         public InvalidateApiKeysResult(List<String> invalidatedApiKeys, List<String> previouslyInvalidatedApiKeys,
                 List<ElasticsearchException> errors) {
-            this.invalidatedApiKeys = invalidatedApiKeys;
-            this.previouslyInvalidatedApiKeys = previouslyInvalidatedApiKeys;
-            this.errors = errors;
+            this.invalidatedApiKeys = (invalidatedApiKeys == null) ? List.of() : List.copyOf(invalidatedApiKeys);
+            this.previouslyInvalidatedApiKeys = (previouslyInvalidatedApiKeys == null) ? List.of()
+                    : List.copyOf(previouslyInvalidatedApiKeys);
+            this.errors = (errors == null) ? List.of() : List.copyOf(errors);
         }
 
         public List<String> getInvalidatedApiKeys() {

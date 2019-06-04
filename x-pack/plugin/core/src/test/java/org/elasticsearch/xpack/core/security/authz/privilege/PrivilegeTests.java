@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.core.security.authz.privilege;
 
 import org.apache.lucene.util.automaton.Operations;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.security.support.Automatons;
@@ -203,5 +204,26 @@ public class PrivilegeTests extends ESTestCase {
             // check non-ilm action
             assertThat(predicate.test("indices:admin/whatever"), is(false));
         }
+    }
+
+    public void testClusterPrivilegeAndPlainConditionalClusterPrivilege() {
+        Set<String> actionName = Sets.newHashSet("cluster:admin/snapshot/delete", "create_get_own_api_key");
+        Tuple<ClusterPrivilege, Set<PlainConditionalClusterPrivilege>> tuple = ClusterPrivilege.get(actionName);
+        ClusterPrivilege cluster = tuple.v1();
+        Set<PlainConditionalClusterPrivilege> plainConditionalClusterPrivilege = tuple.v2();
+        assertThat(cluster, notNullValue());
+        assertThat(cluster.predicate().test("cluster:admin/snapshot/delete"), is(true));
+        assertThat(cluster.predicate().test("cluster:admin/snapshot/dele"), is(false));
+        assertThat(plainConditionalClusterPrivilege, notNullValue());
+        assertThat(plainConditionalClusterPrivilege.size(), is(1));
+        PlainConditionalClusterPrivilege createGetOwnApiKeyConditionalPrivilege = plainConditionalClusterPrivilege.stream().findFirst()
+                .get();
+        assertThat(createGetOwnApiKeyConditionalPrivilege.getPrivilege().predicate().test("cluster:admin/xpack/security/api_key/create"),
+                is(true));
+        assertThat(createGetOwnApiKeyConditionalPrivilege.getPrivilege().predicate().test("cluster:admin/xpack/security/api_key/get"),
+                is(true));
+        assertThat(
+                createGetOwnApiKeyConditionalPrivilege.getPrivilege().predicate().test("cluster:admin/xpack/security/api_key/invalidate"),
+                is(false));
     }
 }

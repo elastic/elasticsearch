@@ -436,7 +436,8 @@ public class RBACEngine implements AuthorizationEngine {
             } else if (tup.v2() instanceof ConditionalClusterPrivilege) {
                 conditionalCluster.add((ConditionalClusterPrivilege) tup.v2());
             } else {
-                cluster.add(ClusterPrivilege.DefaultConditionalClusterPrivilege.name(tup.v2()));
+                // non renderable predefined conditional cluster privilege names
+                cluster.add(ClusterPrivilege.DefaultConditionalClusterPrivilege.privilegeName(tup.v2()));
             }
         }
 

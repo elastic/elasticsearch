@@ -103,8 +103,10 @@ public class GetUserPrivilegesResponseTests extends ESTestCase {
 
     private GetUserPrivilegesResponse randomResponse() {
         final Set<String> cluster = randomStringSet(5);
-        final Set<ConditionalClusterPrivilege> conditionalCluster = Sets.newHashSet(
-                randomArray(3, ConditionalClusterPrivilege[]::new, () -> new ManageApplicationPrivileges(randomStringSet(3))));
+        final Set<ConditionalClusterPrivilege> conditionalCluster = Sets.newHashSet(randomArray(3, ConditionalClusterPrivilege[]::new,
+                () -> new ManageApplicationPrivileges(
+                        randomStringSet(3)
+                )));
         final Set<GetUserPrivilegesResponse.Indices> index = Sets.newHashSet(randomArray(5, GetUserPrivilegesResponse.Indices[]::new,
             () -> new GetUserPrivilegesResponse.Indices(randomStringSet(6), randomStringSet(8),
                 Sets.newHashSet(randomArray(3, FieldGrantExcludeGroup[]::new, () -> new FieldGrantExcludeGroup(

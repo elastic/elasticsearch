@@ -10,12 +10,12 @@ import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 
 import java.util.function.BiPredicate;
-import java.util.function.Predicate;
 
 /**
- * A ConditionalClusterPrivilege is a composition of a {@link ClusterPrivilege} (that determines which actions may be executed)
- * with a {@link Predicate} for a {@link TransportRequest} (that determines which requests may be executed).
- * The a given execution of an action is considered to be permitted if both the action and the request are permitted.
+ * A PlainConditionalClusterPrivilege is a composition of a {@link ClusterPrivilege} (that determines which actions may be executed) with a
+ * {@link BiPredicate} for a {@link TransportRequest} (that determines which requests may be executed) and a {@link Authentication} (for
+ * current authenticated user). The a given execution of an action is considered to be permitted if both the action and the request are
+ * permitted in the context of given authentication.
  */
 public interface PlainConditionalClusterPrivilege {
 

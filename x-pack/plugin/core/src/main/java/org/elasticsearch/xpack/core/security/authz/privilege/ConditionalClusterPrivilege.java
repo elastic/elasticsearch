@@ -15,7 +15,7 @@ import java.io.IOException;
 import java.util.Collection;
 
 /**
- * Conditional Cluster privileges that can be serialized / rendered as `XContent`
+ * A ConditionalClusterPrivilege is a {@link PlainConditionalClusterPrivilege} that can be serialized / rendered as `XContent`.
  */
 public interface ConditionalClusterPrivilege extends NamedWriteable, ToXContentFragment, PlainConditionalClusterPrivilege {
 

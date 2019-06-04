@@ -241,7 +241,7 @@ public class OpenIdConnectAuthenticator {
                 }
                 claimsListener.onResponse(enrichedVerifiedIdTokenClaims);
             }
-        } catch (BadJWSException e) {
+        } catch (BadJOSEException e) {
             // We only try to update the cached JWK set once if a remote source is used and
             // RSA or ECDSA is used for signatures
             if (shouldRetry
@@ -257,7 +257,7 @@ public class OpenIdConnectAuthenticator {
             } else {
                 claimsListener.onFailure(new ElasticsearchSecurityException("Failed to parse or validate the ID Token", e));
             }
-        } catch (com.nimbusds.oauth2.sdk.ParseException | ParseException | BadJOSEException | JOSEException e) {
+        } catch (com.nimbusds.oauth2.sdk.ParseException | ParseException | JOSEException e) {
             claimsListener.onFailure(new ElasticsearchSecurityException("Failed to parse or validate the ID Token", e));
         }
     }

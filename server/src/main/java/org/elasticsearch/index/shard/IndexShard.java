@@ -1209,7 +1209,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         store.incRef();
         try {
             Engine engine;
-            // We primarily take mutex to avoid seeing the interim ReadOnlyEngine used during resetEngineToGlobalCheckpoint.
             synchronized (mutex) {
                 // if the engine is not running, we can access the store directly, but we need to make sure no one starts
                 // the engine on us. If the engine is running, we can get a snapshot via the deletion policy which is initialized.

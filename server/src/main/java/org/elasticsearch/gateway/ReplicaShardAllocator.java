@@ -381,7 +381,7 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
      */
     private static boolean isNoopRecovery(TransportNodesListShardStoreMetaData.StoreFilesMetaData primaryStore,
                                           TransportNodesListShardStoreMetaData.StoreFilesMetaData candidateStore) {
-        // keeping syncIdMatch for 7.x to remain backwards compatible with pre-7.2 versions, but will remove for 8.0.
+        // keeping syncIdMatch for 7.x to remain backwards compatible with pre-7.3 versions, but will remove for 8.0.
         return syncIdMatch(primaryStore, candidateStore)
             || noopMatch(primaryStore, candidateStore);
     }

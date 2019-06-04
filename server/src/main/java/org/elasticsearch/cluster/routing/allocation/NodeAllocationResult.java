@@ -276,7 +276,7 @@ public class NodeAllocationResult implements ToXContentObject, Writeable, Compar
                     builder.field("allocation_id", allocationId);
                 }
                 if (matchingBytes >= 0) {
-                    // TODO: we should eventually either distinguish between sync-id and non sync-id equivalent closed shard allocation or
+                    // TODO: we should eventually either distinguish between sync-id and non sync-id equivalent shard allocation or
                     // rename this to synced_match
                     // left this for now, since it changes the API and should preferably be handled together with seqno based
                     // replica shard allocation, consisting of whether this will be ops based and how many ops to recover.

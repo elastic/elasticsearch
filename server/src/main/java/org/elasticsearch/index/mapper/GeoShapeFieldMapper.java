@@ -23,7 +23,6 @@ import org.apache.lucene.document.LatLonShape;
 import org.apache.lucene.geo.Line;
 import org.apache.lucene.geo.Polygon;
 import org.apache.lucene.index.IndexableField;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.common.geo.parsers.ShapeParser;
@@ -37,8 +36,6 @@ import org.elasticsearch.geo.geometry.MultiLine;
 import org.elasticsearch.geo.geometry.MultiPoint;
 import org.elasticsearch.geo.geometry.MultiPolygon;
 import org.elasticsearch.geo.geometry.Point;
-import org.elasticsearch.index.fielddata.IndexFieldData;
-import org.elasticsearch.index.fielddata.plain.BinaryDVIndexFieldData;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -77,14 +74,6 @@ public class GeoShapeFieldMapper extends BaseGeoShapeFieldMapper {
             return new GeoShapeFieldMapper(name, fieldType, defaultFieldType, ignoreMalformed(context), coerce(context),
                 ignoreZValue(), context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
         }
-
-        @Override
-        protected boolean defaultDocValues(Version indexCreated) {
-            if (indexCreated.onOrAfter(Version.CURRENT)) {
-                return true;
-            }
-            return false;
-        }
     }
 
     public static final class GeoShapeFieldType extends BaseGeoShapeFieldType {
@@ -94,12 +83,6 @@ public class GeoShapeFieldMapper extends BaseGeoShapeFieldMapper {
 
         protected GeoShapeFieldType(GeoShapeFieldType ref) {
             super(ref);
-        }
-
-        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
-            failIfNoDocValues();
-            return (indexSettings, fieldType, cache, breakerService, mapperService)  ->
-                new BinaryDVIndexFieldData(indexSettings.getIndex(), fieldType.name());
         }
 
         @Override

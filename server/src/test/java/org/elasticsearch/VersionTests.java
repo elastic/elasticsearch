@@ -66,11 +66,6 @@ public class VersionTests extends ESTestCase {
         assertThat(V_7_2_0.onOrAfter(V_7_2_0), is(true));
         assertThat(V_8_0_0.onOrAfter(V_7_2_0), is(true));
 
-        assertTrue(Version.fromString("5.0.0-alpha2").onOrAfter(Version.fromString("5.0.0-alpha1")));
-        assertTrue(Version.fromString("5.0.0").onOrAfter(Version.fromString("5.0.0-beta2")));
-        assertTrue(Version.fromString("5.0.0-rc1").onOrAfter(Version.fromString("5.0.0-beta24")));
-        assertTrue(Version.fromString("5.0.0-alpha24").before(Version.fromString("5.0.0-beta0")));
-
         assertThat(V_7_2_0, is(lessThan(V_8_0_0)));
         assertThat(V_7_2_0.compareTo(V_7_2_0), is(0));
         assertThat(V_8_0_0, is(greaterThan(V_7_2_0)));

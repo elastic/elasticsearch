@@ -190,7 +190,7 @@ public class VersionUtilsTests extends ESTestCase {
         public static final Version V_5_3_1 = Version.fromString("5.3.1");
         public static final Version V_5_3_2 = Version.fromString("5.3.2");
         public static final Version V_5_4_0 = Version.fromString("5.4.0");
-        public static final Version V_6_0_0 = Version.fromString("6.0.0-beta1");
+        public static final Version V_6_0_0 = Version.fromString("6.0.0");
         public static final Version CURRENT = V_6_0_0;
     }
 

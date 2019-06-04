@@ -1549,7 +1549,6 @@ public class DateHistogramIT extends ESIntegTestCase {
         ZonedDateTime[] expectedKeys = Arrays.stream(expectedDays).mapToObj(d -> date(1, d)).toArray(ZonedDateTime[]::new);
         SearchResponse response = client()
             .prepareSearch("sort_idx")
-            .setTypes("type")
             .addAggregation(
                 dateHistogram("histo").field("date").dateHistogramInterval(DateHistogramInterval.DAY).order(BucketOrder.compound(order))
                     .subAggregation(avg("avg_l").field("l")).subAggregation(sum("sum_d").field("d"))).get();

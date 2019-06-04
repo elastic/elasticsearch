@@ -58,7 +58,7 @@ public class SharedSignificantTermsTestMethods {
     }
 
     private static void checkSignificantTermsAggregationCorrect(ESIntegTestCase testCase) {
-        SearchResponse response = client().prepareSearch(INDEX_NAME).setTypes(DOC_TYPE).addAggregation(
+        SearchResponse response = client().prepareSearch(INDEX_NAME).addAggregation(
                 terms("class").field(CLASS_FIELD).subAggregation(significantTerms("sig_terms").field(TEXT_FIELD)))
                 .execute().actionGet();
         assertSearchResponse(response);

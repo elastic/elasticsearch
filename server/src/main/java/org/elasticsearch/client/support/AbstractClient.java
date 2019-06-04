@@ -142,9 +142,7 @@ import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequestBuilder;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesResponse;
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeAction;
-import org.elasticsearch.action.admin.indices.analyze.AnalyzeRequest;
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeRequestBuilder;
-import org.elasticsearch.action.admin.indices.analyze.AnalyzeResponse;
 import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheAction;
 import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheRequest;
 import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheRequestBuilder;
@@ -1596,12 +1594,12 @@ public abstract class AbstractClient implements Client {
         }
 
         @Override
-        public ActionFuture<AnalyzeResponse> analyze(final AnalyzeRequest request) {
+        public ActionFuture<AnalyzeAction.Response> analyze(final AnalyzeAction.Request request) {
             return execute(AnalyzeAction.INSTANCE, request);
         }
 
         @Override
-        public void analyze(final AnalyzeRequest request, final ActionListener<AnalyzeResponse> listener) {
+        public void analyze(final AnalyzeAction.Request request, final ActionListener<AnalyzeAction.Response> listener) {
             execute(AnalyzeAction.INSTANCE, request, listener);
         }
 

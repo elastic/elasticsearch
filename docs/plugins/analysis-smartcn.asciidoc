@@ -77,7 +77,8 @@ PUT smartcn_example
             "type": "smartcn_stop",
             "stopwords": [
               "_smartcn_",
-              "stack"
+              "stack",
+              "的"
             ]
           }
         }
@@ -190,13 +191,6 @@ The above request returns:
             "end_offset": 72,
             "type": "word",
             "position": 17
-        },
-        {
-            "token": "的",
-            "start_offset": 73,
-            "end_offset": 74,
-            "type": "word",
-            "position": 19
         },
         {
             "token": "开发",
@@ -353,13 +347,6 @@ The above request returns:
             "position": 44
         },
         {
-            "token": "的",
-            "start_offset": 136,
-            "end_offset": 137,
-            "type": "word",
-            "position": 45
-        },
-        {
             "token": "强大",
             "start_offset": 137,
             "end_offset": 139,
@@ -400,13 +387,6 @@ The above request returns:
             "end_offset": 151,
             "type": "word",
             "position": 52
-        },
-        {
-            "token": "的",
-            "start_offset": 151,
-            "end_offset": 152,
-            "type": "word",
-            "position": 53
         },
         {
             "token": "方式",

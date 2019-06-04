@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.graph.rest.action;
 import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.DeprecationLogger;
@@ -19,11 +20,10 @@ import org.elasticsearch.protocol.xpack.graph.GraphExploreRequest;
 import org.elasticsearch.protocol.xpack.graph.GraphExploreRequest.TermBoost;
 import org.elasticsearch.protocol.xpack.graph.Hop;
 import org.elasticsearch.protocol.xpack.graph.VertexRequest;
+import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
-import org.elasticsearch.xpack.core.XPackClient;
-import org.elasticsearch.xpack.core.rest.XPackRestHandler;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -38,7 +38,7 @@ import static org.elasticsearch.xpack.core.graph.action.GraphExploreAction.INSTA
 /**
  * @see GraphExploreRequest
  */
-public class RestGraphAction extends XPackRestHandler {
+public class RestGraphAction extends BaseRestHandler {
 
     private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(RestGraphAction.class));
     public static final String TYPES_DEPRECATION_MESSAGE = "[types removal]" +
@@ -68,19 +68,19 @@ public class RestGraphAction extends XPackRestHandler {
         // TODO: remove deprecated endpoint in 8.0.0
         controller.registerWithDeprecatedHandler(
                 GET, "/{index}/_graph/explore", this,
-                GET, "/{index}" + URI_BASE + "/graph/_explore", deprecationLogger);
+                GET, "/{index}/_xpack/graph/_explore", deprecationLogger);
         // TODO: remove deprecated endpoint in 8.0.0
         controller.registerWithDeprecatedHandler(
                 POST, "/{index}/_graph/explore", this,
-                POST, "/{index}" + URI_BASE + "/graph/_explore", deprecationLogger);
+                POST, "/{index}/_xpack/graph/_explore", deprecationLogger);
         // TODO: remove deprecated endpoint in 8.0.0
         controller.registerWithDeprecatedHandler(
                 GET, "/{index}/{type}/_graph/explore", this,
-                GET, "/{index}/{type}" + URI_BASE + "/graph/_explore", deprecationLogger);
+                GET, "/{index}/{type}/_xpack/graph/_explore", deprecationLogger);
         // TODO: remove deprecated endpoint in 8.0.0
         controller.registerWithDeprecatedHandler(
                 POST, "/{index}/{type}/_graph/explore", this,
-                POST, "/{index}/{type}" + URI_BASE + "/graph/_explore", deprecationLogger);
+                POST, "/{index}/{type}/_xpack/graph/_explore", deprecationLogger);
     }
 
     @Override
@@ -89,7 +89,7 @@ public class RestGraphAction extends XPackRestHandler {
     }
 
     @Override
-    public RestChannelConsumer doPrepareRequest(final RestRequest request, final XPackClient client) throws IOException {
+    public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         GraphExploreRequest graphRequest = new GraphExploreRequest(Strings.splitStringByCommaToArray(request.param("index")));
         graphRequest.indicesOptions(IndicesOptions.fromRequest(request, graphRequest.indicesOptions()));
         graphRequest.routing(request.param("routing"));
@@ -117,7 +117,7 @@ public class RestGraphAction extends XPackRestHandler {
             deprecationLogger.deprecatedAndMaybeLog("graph_with_types", TYPES_DEPRECATION_MESSAGE);
             graphRequest.types(Strings.splitStringByCommaToArray(request.param("type")));
         }
-        return channel -> client.es().execute(INSTANCE, graphRequest, new RestToXContentListener<>(channel));
+        return channel -> client.execute(INSTANCE, graphRequest, new RestToXContentListener<>(channel));
     }
 
     private void parseHop(XContentParser parser, Hop currentHop, GraphExploreRequest graphRequest) throws IOException {

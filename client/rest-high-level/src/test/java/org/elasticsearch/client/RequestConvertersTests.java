@@ -1494,6 +1494,17 @@ public class RequestConvertersTests extends ESTestCase {
         assertThat(RequestConverters.analyze(analyzeRequest).getEndpoint(), equalTo("/_analyze"));
     }
 
+    public void testAnalyzeRequestWithCustomAnalyzer() throws IOException {
+        AnalyzeRequest ar = new AnalyzeRequest()
+            .text("Here is some text")
+            .index("test_index")
+            .tokenizer("standard");
+
+        Request request = RequestConverters.analyze(ar);
+        assertThat(request.getEndpoint(), equalTo("/test_index/_analyze"));
+        assertToXContentBody(ar, request.getEntity());
+    }
+
     public void testGetScriptRequest() {
         GetStoredScriptRequest getStoredScriptRequest = new GetStoredScriptRequest("x-script");
         Map<String, String> expectedParams = new HashMap<>();

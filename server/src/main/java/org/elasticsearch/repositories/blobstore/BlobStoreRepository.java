@@ -701,7 +701,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         logger.debug("Repository [{}] updating index.latest with generation [{}]", metadata.name(), newGen);
         writeAtomic(INDEX_LATEST_BLOB, genBytes, false);
         // delete the N-2 index file if it exists, keep the previous one around as a backup
-        if (isReadOnly() == false && newGen - 2 >= 0) {
+        if (newGen - 2 >= 0) {
             final String oldSnapshotIndexFile = INDEX_FILE_PREFIX + Long.toString(newGen - 2);
             try {
                 blobContainer().deleteBlobIgnoringIfNotExists(oldSnapshotIndexFile);

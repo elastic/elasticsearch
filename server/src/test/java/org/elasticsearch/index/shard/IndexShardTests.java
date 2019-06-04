@@ -2053,7 +2053,8 @@ public class IndexShardTests extends IndexShardTestCase {
         assertEquals(translogOps, newShard.recoveryState().getTranslog().totalOperations());
         assertEquals(translogOps, newShard.recoveryState().getTranslog().totalOperationsOnStart());
         assertEquals(100.0f, newShard.recoveryState().getTranslog().recoveredPercent(), 0.01f);
-        verifySnapshotRecoveryStoreMetadata(newShard.snapshotStoreMetadata(), beforeSnapshot.maxSeqNo() + 1, beforeSnapshot.maxSeqNo() + 1, beforeSnapshot.maxSeqNo(),
+        verifySnapshotRecoveryStoreMetadata(newShard.snapshotStoreMetadata(),
+            beforeSnapshot.maxSeqNo() + 1, beforeSnapshot.maxSeqNo() + 1, beforeSnapshot.maxSeqNo(),
             newShard.snapshotStoreRecoveryMetadata());
         IndexShardTestCase.updateRoutingEntry(newShard, newShard.routingEntry().moveToStarted());
         // check that local checkpoint of new primary is properly tracked after recovery
@@ -4088,7 +4089,7 @@ public class IndexShardTests extends IndexShardTestCase {
         replica.openEngineAndSkipTranslogRecovery();
         assertIdenticalRecoveryMetadataSnapshot(expectedAfterCleanFiles, replica.snapshotStoreRecoveryMetadata());
 
-        try (final Translog.Snapshot phase2Snapshot = primary.getHistoryOperations("peer-recovery", 0)) {
+        try (Translog.Snapshot phase2Snapshot = primary.getHistoryOperations("peer-recovery", 0)) {
             Translog.Operation operation;
             while ((operation = phase2Snapshot.next()) != null) {
                 replica.applyTranslogOperation(operation, Engine.Operation.Origin.PEER_RECOVERY);

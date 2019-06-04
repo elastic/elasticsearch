@@ -120,7 +120,6 @@ public class DocumentMapperParser {
                 }
                 Map<String, Object> fieldNodeMap = (Map<String, Object>) fieldNode;
                 docBuilder.put(typeParser.parse(fieldName, fieldNodeMap, parserContext));
-                fieldNodeMap.remove("type");
                 checkNoRemainingFields(fieldName, fieldNodeMap, parserContext.indexVersionCreated());
             }
         }

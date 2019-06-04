@@ -23,6 +23,7 @@ import org.apache.lucene.index.IndexOptions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESSingleNodeTestCase;
@@ -133,6 +134,23 @@ public class FieldNamesFieldMapperTests extends ESSingleNodeTestCase {
             XContentType.JSON));
 
         assertNull(doc.rootDoc().get("_field_names"));
+    }
+
+    public void testRejectTypeField() throws Exception {
+        XContentBuilder builder = XContentFactory.jsonBuilder().startObject()
+            .startObject("type")
+                .startObject("_field_names")
+                    .field("type", "keyword")
+                .endObject()
+            .endObject()
+        .endObject();
+        String mapping = Strings.toString(builder);
+
+        MapperService mapperService = createIndex("test").mapperService();
+        DocumentMapperParser mapperParser = mapperService.documentMapperParser();
+        MapperParsingException e = expectThrows(MapperParsingException.class,
+            () -> mapperParser.parse("type", new CompressedXContent(mapping)));
+        assertEquals("Mapping definition for [_field_names] has unsupported parameters:  [type : keyword]", e.getMessage());
     }
 
     public void testMergingMappings() throws Exception {

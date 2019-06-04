@@ -81,7 +81,8 @@ public class SourceOnlySnapshot {
         List<String> createdFiles = new ArrayList<>();
         String segmentFileName;
         try (Lock writeLock = targetDirectory.obtainLock(IndexWriter.WRITE_LOCK_NAME);
-             StandardDirectoryReader reader = (StandardDirectoryReader) DirectoryReader.open(commit, ReadOnlyEngine.OFF_HEAP_READER_ATTRIBUTES)) {
+             StandardDirectoryReader reader = (StandardDirectoryReader) DirectoryReader.open(commit,
+                 ReadOnlyEngine.OFF_HEAP_READER_ATTRIBUTES)) {
             SegmentInfos segmentInfos = reader.getSegmentInfos().clone();
             DirectoryReader wrappedReader = wrapReader(reader);
             List<SegmentCommitInfo> newInfos = new ArrayList<>();

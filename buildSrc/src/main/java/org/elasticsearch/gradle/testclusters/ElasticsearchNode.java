@@ -23,7 +23,6 @@ import org.elasticsearch.gradle.Distribution;
 import org.elasticsearch.gradle.FileSupplier;
 import org.elasticsearch.gradle.OS;
 import org.elasticsearch.gradle.Version;
-import org.gradle.api.file.DuplicatesStrategy;
 import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.Logging;
 
@@ -404,9 +403,6 @@ public class ElasticsearchNode implements TestClusterConfiguration {
                 // only install modules that are not already bundled with the integ-test distribution
                 if (Files.exists(destination) == false) {
                     services.copy(spec -> {
-                        // ensure we don't override any existing JARs, since these are hardlinks other clusters might be using those files
-                        spec.setDuplicatesStrategy(DuplicatesStrategy.EXCLUDE);
-
                         if (module.getName().toLowerCase().endsWith(".zip")) {
                             spec.from(services.zipTree(module));
                         } else if (module.isDirectory()) {

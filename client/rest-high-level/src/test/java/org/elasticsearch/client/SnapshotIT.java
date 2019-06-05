@@ -47,6 +47,7 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.contains;
@@ -194,12 +195,15 @@ public class SnapshotIT extends ESRestHighLevelClientTestCase {
         assertEquals(2, response.getSnapshots().size());
         assertThat(response.getSnapshots().stream().map((s) -> s.snapshotId().getName()).collect(Collectors.toList()),
             contains("test_snapshot1", "test_snapshot2"));
-        response.getSnapshots().stream()
+        Optional<Map<String, Object>> returnedMetadata = response.getSnapshots().stream()
             .filter(s -> s.snapshotId().getName().equals("test_snapshot2"))
             .findFirst()
-            .map(SnapshotInfo::userMetadata)
-            .ifPresentOrElse(metadata -> assertEquals(originalMetadata, metadata),
-                () -> assertNull("retrieved metadata is null, expected non-null metadata", originalMetadata));
+            .map(SnapshotInfo::userMetadata);
+        if (returnedMetadata.isPresent()) {
+            assertEquals(originalMetadata, returnedMetadata.get());
+        } else {
+            assertNull("retrieved metadata is null, expected non-null metadata", originalMetadata);
+        }
     }
 
     public void testSnapshotsStatus() throws IOException {

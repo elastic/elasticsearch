@@ -791,47 +791,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     }
 
     @Override
-    public void verify(String seed, DiscoveryNode localNode) {
-        assertSnapshotOrGenericThread();
-        if (isReadOnly()) {
-            try {
-                latestIndexBlobId();
-            } catch (IOException e) {
-                throw new RepositoryVerificationException(metadata.name(), "path " + basePath() +
-                    " is not accessible on node " + localNode, e);
-            }
-        } else {
-            BlobContainer testBlobContainer = blobStore().blobContainer(basePath().add(testBlobPrefix(seed)));
-            if (testBlobContainer.blobExists("master.dat")) {
-                try {
-                    BytesArray bytes = new BytesArray(seed);
-                    try (InputStream stream = bytes.streamInput()) {
-                        testBlobContainer.writeBlob("data-" + localNode.getId() + ".dat", stream, bytes.length(), true);
-                    }
-                } catch (IOException exp) {
-                    throw new RepositoryVerificationException(metadata.name(), "store location [" + blobStore() +
-                        "] is not accessible on the node [" + localNode + "]", exp);
-                }
-            } else {
-                throw new RepositoryVerificationException(metadata.name(), "a file written by master to the store [" + blobStore() +
-                    "] cannot be accessed on the node [" + localNode + "]. " +
-                    "This might indicate that the store [" + blobStore() + "] is not shared between this node and the master node or " +
-                    "that permissions on the store don't allow reading files written by the master node");
-            }
-        }
-    }
-
-    @Override
-    public String toString() {
-        return "BlobStoreRepository[" +
-            "[" + metadata.name() +
-            "], [" + blobStore() + ']' +
-            ']';
-    }
-
-    @Override
     public void snapshotShard(Store store, MapperService mapperService, SnapshotId snapshotId, IndexId indexId,
-                              IndexCommit snapshotIndexCommit, IndexShardSnapshotStatus snapshotStatus) {
+        IndexCommit snapshotIndexCommit, IndexShardSnapshotStatus snapshotStatus) {
         final ShardId snapshotShardId = store.shardId();
         final long startTime = threadPool.relativeTimeInMillis();
         try {
@@ -969,7 +930,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     @Override
     public void restoreShard(Store store, SnapshotId snapshotId,
-                             Version version, IndexId indexId, ShardId snapshotShardId, RecoveryState recoveryState) {
+        Version version, IndexId indexId, ShardId snapshotShardId, RecoveryState recoveryState) {
         ShardId shardId = store.shardId();
         try {
             BlobStoreIndexShardSnapshot snapshot = loadShardSnapshot(indexId, snapshotShardId, snapshotId);
@@ -1010,6 +971,45 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         } catch (IOException ex) {
             throw new SnapshotException(metadata.name(), snapshotId, "failed to read shard snapshot file for " + snapshotShardId, ex);
         }
+    }
+
+    @Override
+    public void verify(String seed, DiscoveryNode localNode) {
+        assertSnapshotOrGenericThread();
+        if (isReadOnly()) {
+            try {
+                latestIndexBlobId();
+            } catch (IOException e) {
+                throw new RepositoryVerificationException(metadata.name(), "path " + basePath() +
+                    " is not accessible on node " + localNode, e);
+            }
+        } else {
+            BlobContainer testBlobContainer = blobStore().blobContainer(basePath().add(testBlobPrefix(seed)));
+            if (testBlobContainer.blobExists("master.dat")) {
+                try {
+                    BytesArray bytes = new BytesArray(seed);
+                    try (InputStream stream = bytes.streamInput()) {
+                        testBlobContainer.writeBlob("data-" + localNode.getId() + ".dat", stream, bytes.length(), true);
+                    }
+                } catch (IOException exp) {
+                    throw new RepositoryVerificationException(metadata.name(), "store location [" + blobStore() +
+                        "] is not accessible on the node [" + localNode + "]", exp);
+                }
+            } else {
+                throw new RepositoryVerificationException(metadata.name(), "a file written by master to the store [" + blobStore() +
+                    "] cannot be accessed on the node [" + localNode + "]. " +
+                    "This might indicate that the store [" + blobStore() + "] is not shared between this node and the master node or " +
+                    "that permissions on the store don't allow reading files written by the master node");
+            }
+        }
+    }
+
+    @Override
+    public String toString() {
+        return "BlobStoreRepository[" +
+            "[" + metadata.name() +
+            "], [" + blobStore() + ']' +
+            ']';
     }
 
     /**

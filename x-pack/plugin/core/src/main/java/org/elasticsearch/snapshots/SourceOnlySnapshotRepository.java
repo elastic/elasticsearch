@@ -135,7 +135,7 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
             final long maxDoc = segmentInfos.totalMaxDoc();
             tempStore.bootstrapNewHistory(maxDoc, maxDoc);
             store.incRef();
-            try (DirectoryReader reader = DirectoryReader.open(tempStore.directory())) {
+            try (DirectoryReader reader = DirectoryReader.open(tempStore.directory(), ReadOnlyEngine.OFF_HEAP_READER_ATTRIBUTES)) {
                 IndexCommit indexCommit = reader.getIndexCommit();
                 super.snapshotShard(tempStore, mapperService, snapshotId, indexId, indexCommit, snapshotStatus);
             } finally {

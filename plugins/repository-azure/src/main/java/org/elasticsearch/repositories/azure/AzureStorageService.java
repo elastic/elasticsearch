@@ -28,8 +28,10 @@ import com.microsoft.azure.storage.StorageException;
 import com.microsoft.azure.storage.blob.BlobInputStream;
 import com.microsoft.azure.storage.blob.BlobListingDetails;
 import com.microsoft.azure.storage.blob.BlobProperties;
+import com.microsoft.azure.storage.blob.CloudBlob;
 import com.microsoft.azure.storage.blob.CloudBlobClient;
 import com.microsoft.azure.storage.blob.CloudBlobContainer;
+import com.microsoft.azure.storage.blob.CloudBlobDirectory;
 import com.microsoft.azure.storage.blob.CloudBlockBlob;
 import com.microsoft.azure.storage.blob.DeleteSnapshotsOption;
 import com.microsoft.azure.storage.blob.ListBlobItem;
@@ -37,6 +39,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.common.blobstore.BlobMetaData;
+import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.support.PlainBlobMetaData;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
@@ -51,7 +54,9 @@ import java.net.URISyntaxException;
 import java.security.InvalidKeyException;
 import java.util.EnumSet;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Supplier;
 
 import static java.util.Collections.emptyMap;
@@ -211,17 +216,42 @@ public class AzureStorageService {
                 // uri.getPath is of the form /container/keyPath.* and we want to strip off the /container/
                 // this requires 1 + container.length() + 1, with each 1 corresponding to one of the /
                 final String blobPath = uri.getPath().substring(1 + container.length() + 1);
-                final BlobProperties properties = ((CloudBlockBlob) blobItem).getProperties();
-                final String name = blobPath.substring(keyPath.length());
-                logger.trace(() -> new ParameterizedMessage("blob url [{}], name [{}], size [{}]", uri, name, properties.getLength()));
-                blobsBuilder.put(name, new PlainBlobMetaData(name, properties.getLength()));
+                if (blobItem instanceof CloudBlob) {
+                    final BlobProperties properties = ((CloudBlob) blobItem).getProperties();
+                    final String name = blobPath.substring(keyPath.length());
+                    logger.trace(() -> new ParameterizedMessage("blob url [{}], name [{}], size [{}]", uri, name, properties.getLength()));
+                    blobsBuilder.put(name, new PlainBlobMetaData(name, properties.getLength()));
+                }
             }
         });
         return Map.copyOf(blobsBuilder);
     }
 
+    public Set<String> children(String account, String container, BlobPath path) throws URISyntaxException, StorageException {
+        final var blobsBuilder = new HashSet<String>();
+        final Tuple<CloudBlobClient, Supplier<OperationContext>> client = client(account);
+        final CloudBlobContainer blobContainer = client.v1().getContainerReference(container);
+        final String keyPath = path.buildAsString();
+        final EnumSet<BlobListingDetails> enumBlobListingDetails = EnumSet.of(BlobListingDetails.METADATA);
+
+        SocketAccess.doPrivilegedVoidException(() -> {
+            for (ListBlobItem blobItem : blobContainer.listBlobs(keyPath, false, enumBlobListingDetails, null, client.v2().get())) {
+                if (blobItem instanceof CloudBlobDirectory) {
+                    final URI uri = blobItem.getUri();
+                    logger.trace(() -> new ParameterizedMessage("blob url [{}]", uri));
+                    // uri.getPath is of the form /container/keyPath.* and we want to strip off the /container/
+                    // this requires 1 + container.length() + 1, with each 1 corresponding to one of the /.
+                    // Lastly, we add the length of keyPath to the offset to strip this container's path.
+                    final String uriPath = uri.getPath();
+                    blobsBuilder.add(uriPath.substring(1 + container.length() + 1 + keyPath.length(), uriPath.length() - 1));
+                }
+            }
+        });
+        return Set.copyOf(blobsBuilder);
+    }
+
     public void writeBlob(String account, String container, String blobName, InputStream inputStream, long blobSize)
-            throws URISyntaxException, StorageException {
+        throws URISyntaxException, StorageException {
         logger.trace(() -> new ParameterizedMessage("writeBlob({}, stream, {})", blobName, blobSize));
         final Tuple<CloudBlobClient, Supplier<OperationContext>> client = client(account);
         final CloudBlobContainer blobContainer = client.v1().getContainerReference(container);

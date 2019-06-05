@@ -19,6 +19,7 @@
 
 package org.elasticsearch.repositories.gcs;
 
+import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStoreException;
@@ -53,6 +54,11 @@ class GoogleCloudStorageBlobContainer extends AbstractBlobContainer {
     @Override
     public Map<String, BlobMetaData> listBlobs() throws IOException {
         return blobStore.listBlobs(path);
+    }
+
+    @Override
+    public Map<String, BlobContainer> children() throws IOException {
+        return blobStore.listChildren(path());
     }
 
     @Override

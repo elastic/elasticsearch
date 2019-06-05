@@ -33,7 +33,10 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URISyntaxException;
+import java.util.Collections;
 import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
 
@@ -102,5 +105,10 @@ public class AzureBlobStore implements BlobStore {
 
     public void writeBlob(String blobName, InputStream inputStream, long blobSize) throws URISyntaxException, StorageException {
         service.writeBlob(this.clientName, container, blobName, inputStream, blobSize);
+    }
+
+    public Map<String, BlobContainer> children(BlobPath path) throws URISyntaxException, StorageException {
+        return Collections.unmodifiableMap(service.children(clientName, container, path).stream().collect(
+            Collectors.toMap(Function.identity(), name -> new AzureBlobContainer(path.add(name), this, threadPool))));
     }
 }

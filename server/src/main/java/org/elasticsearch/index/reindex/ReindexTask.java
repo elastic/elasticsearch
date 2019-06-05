@@ -34,16 +34,22 @@ import java.util.Map;
 
 public class ReindexTask extends AllocatedPersistentTask {
 
+    private final ReindexJob reindexJob;
+
     public class ReindexJob implements PersistentTaskParams {
+
+        // TODO: Name
+        public static final String NAME = "reindex";
 
         @Override
         public String getWriteableName() {
-            return null;
+            return NAME;
         }
 
         @Override
         public Version getMinimalSupportedVersion() {
-            return null;
+            // TODO: version
+            return Version.V_8_0_0;
         }
 
         @Override
@@ -65,6 +71,8 @@ public class ReindexTask extends AllocatedPersistentTask {
 
         @Override
         protected void nodeOperation(AllocatedPersistentTask task, ReindexJob reindexJob, PersistentTaskState state) {
+            ReindexTask reindexTask = (ReindexTask) task;
+            // TODO: Run
 
         }
 
@@ -72,12 +80,13 @@ public class ReindexTask extends AllocatedPersistentTask {
         protected AllocatedPersistentTask createTask(long id, String type, String action, TaskId parentTaskId,
                                                      PersistentTasksCustomMetaData.PersistentTask<ReindexJob> taskInProgress,
                                                      Map<String, String> headers) {
-            return new ReindexTask(id, type, action, parentTaskId, headers);
+            return new ReindexTask(id, type, action, parentTaskId, headers, taskInProgress.getParams());
         }
     }
 
-    ReindexTask(long id, String type, String action, TaskId parentTask, Map<String, String> headers) {
+    ReindexTask(long id, String type, String action, TaskId parentTask, Map<String, String> headers, ReindexJob reindexJob) {
         super(id, type, action, "reindex_" + id, parentTask, headers);
+        this.reindexJob = reindexJob;
     }
 
 

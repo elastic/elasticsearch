@@ -171,7 +171,7 @@ setup:
 ---
 "Test binary_soft_classifition auc_roc given actual_field is always true":
   - do:
-      catch: /\[auc_roc\] requires at least one actual_field not to have the value \[true\]/
+      catch: /\[auc_roc\] requires at least one actual_field to have a different value than \[true\]/
       ml.evaluate_data_frame:
         body:  >
           {

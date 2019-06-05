@@ -149,7 +149,7 @@ public class AucRoc implements SoftClassificationMetric {
         double[] tpPercentiles = percentilesArray(classAgg.getAggregations().get(PERCENTILES),
             "[" + getMetricName() + "] requires at least one actual_field to have the value [" + classInfo.getName() + "]");
         double[] fpPercentiles = percentilesArray(restAgg.getAggregations().get(PERCENTILES),
-            "[" + getMetricName() + "] requires at least one actual_field not to have the value [" + classInfo.getName() + "]");
+            "[" + getMetricName() + "] requires at least one actual_field to have a different value than [" + classInfo.getName() + "]");
         List<AucRocPoint> aucRocCurve = buildAucRocCurve(tpPercentiles, fpPercentiles);
         double aucRocScore = calculateAucScore(aucRocCurve);
         return new Result(aucRocScore, includeCurve ? aucRocCurve : Collections.emptyList());

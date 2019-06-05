@@ -494,11 +494,12 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                                          final int totalShards,
                                          final List<SnapshotShardFailure> shardFailures,
                                          final long repositoryStateId,
-                                         final boolean includeGlobalState) {
+                                         final boolean includeGlobalState,
+                                         final Map<String, Object> userMetadata) {
         SnapshotInfo blobStoreSnapshot = new SnapshotInfo(snapshotId,
             indices.stream().map(IndexId::getName).collect(Collectors.toList()),
             startTime, failure, System.currentTimeMillis(), totalShards, shardFailures,
-            includeGlobalState);
+            includeGlobalState, userMetadata);
         try {
             snapshotFormat.write(blobStoreSnapshot, blobContainer(), snapshotId.getUUID());
             final RepositoryData repositoryData = getRepositoryData();

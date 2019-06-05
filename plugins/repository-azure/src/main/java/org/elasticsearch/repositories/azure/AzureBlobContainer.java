@@ -27,6 +27,7 @@ import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.support.AbstractBlobContainer;
@@ -167,6 +168,16 @@ public class AzureBlobContainer extends AbstractBlobContainer {
     public Map<String, BlobMetaData> listBlobs() throws IOException {
         logger.trace("listBlobs()");
         return listBlobsByPrefix(null);
+    }
+
+    @Override
+    public Map<String, BlobContainer> children() throws IOException {
+        final BlobPath path = path();
+        try {
+            return blobStore.children(path);
+        } catch (URISyntaxException | StorageException e) {
+            throw new IOException("Failed to list children in path [" + path.buildAsString() + "].", e);
+        }
     }
 
     protected String buildKey(String blobName) {

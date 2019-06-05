@@ -228,12 +228,6 @@ class S3Repository extends BlobStoreRepository {
 
     // only use for testing
     @Override
-    protected BlobStore blobStore() {
-        return super.blobStore();
-    }
-
-    // only use for testing
-    @Override
     protected BlobStore getBlobStore() {
         return super.getBlobStore();
     }

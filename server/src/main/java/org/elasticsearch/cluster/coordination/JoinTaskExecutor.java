@@ -151,11 +151,11 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
         if (nodesChanged) {
             reroute.accept("post-join reroute");
             return results.build(allocationService.adaptAutoExpandReplicas(newState.nodes(nodesBuilder).build()));
+        } else {
+            // we must return a new cluster state instance to force publishing. This is important
+            // for the joining node to finalize its join and set us as a master
+            return results.build(newState.build());
         }
-
-        // we must return a new cluster state instance to force publishing. This is important
-        // for the joining node to finalize its join and set us as a master
-        return results.build(newState.build());
     }
 
     protected ClusterState.Builder becomeMasterAndTrimConflictingNodes(ClusterState currentState, List<Task> joiningNodes) {

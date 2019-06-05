@@ -149,8 +149,8 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
             results.success(joinTask);
         }
         if (nodesChanged) {
-            newState.nodes(nodesBuilder);
             reroute.accept("post-join reroute");
+            return results.build(allocationService.adaptAutoExpandReplicas(newState.nodes(nodesBuilder).build()));
         }
 
         // we must return a new cluster state instance to force publishing. This is important

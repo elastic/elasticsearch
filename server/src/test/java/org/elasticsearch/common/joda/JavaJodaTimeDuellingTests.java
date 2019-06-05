@@ -26,6 +26,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.joda.time.format.ISODateTimeFormat;
+import org.joda.time.format.DateTimeFormat;
 
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
@@ -34,9 +35,52 @@ import java.time.temporal.TemporalAccessor;
 import java.util.Locale;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
 public class JavaJodaTimeDuellingTests extends ESTestCase {
+
+    public void testIncompatiblePatterns() {
+        // in joda 'y' means year, this is changed to 'u' in java.time. difference is in before era yeaers
+        assertSameMillis("-0001-01-01", "yyyy-MM-dd", "8uuuu-MM-dd");
+        assertSameMillis("-1", "y", "8u");
+
+        // year-of-era in joda becomes 'y' in java.time
+        assertSameMillis("2019-01-01", "YYYY-MM-dd", "8yyyy-MM-dd");
+
+
+        //in joda 'Z' was able to parse 'Z' zulu but in java it fails. You have to use 'X' to do that.
+        assertSameMillis("2019-01-01T01:01:01.001Z", "YYYY-MM-dd'T'HH:mm:ss.SSSZ", "8yyyy-MM-dd'T'HH:mm:ss.SSSX");
+        assertSameMillis("2019-01-01T01:01:01.001+0000", "YYYY-MM-dd'T'HH:mm:ss.SSSZ", "8yyyy-MM-dd'T'HH:mm:ss.SSSZ");
+
+
+        // 'z' zoneId in joda prints UTC whereas joda prints 'Z' for zulu
+        TemporalAccessor parse = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSSz",Locale.getDefault())
+                                                  .parse("2019-01-01T01:01:01.001+00:00");
+        String javaZoneId = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSSz",Locale.getDefault())
+                                             .format(parse);
+
+        DateTime dateTime = DateTimeFormat.forPattern("YYYY-MM-dd'T'HH:mm:ss.SSSZ").withOffsetParsed()
+                                          .parseDateTime("2019-01-01T01:01:01.001+0000");
+        String jodaZoneId = DateTimeFormat.forPattern("YYYY-MM-dd'T'HH:mm:ss.SSSz").print(dateTime);
+        assertThat(javaZoneId, equalTo("2019-01-01T01:01:01.001Z"));
+        assertThat(jodaZoneId, equalTo("2019-01-01T01:01:01.001UTC"));
+    }
+
+    private void assertSameMillis(String input, String jodaFormat, String javaFormat) {
+        DateFormatter jodaFormatter = Joda.forPattern(jodaFormat);
+        DateFormatter javaFormatter = DateFormatter.forPattern(javaFormat);
+
+        DateTime jodaDateTime = jodaFormatter.parseJoda(input);
+
+        TemporalAccessor javaTimeAccessor = javaFormatter.parse(input);
+        ZonedDateTime zonedDateTime = DateFormatters.from(javaTimeAccessor);
+
+        String msg = String.format(Locale.ROOT, "Input [%s] JodaFormat [%s] JavaFormat [%s] Joda [%s], Java [%s]",
+            input, jodaFormat, javaFormat, jodaDateTime, DateTimeFormatter.ISO_INSTANT.format(zonedDateTime.toInstant()));
+
+        assertThat(msg, jodaDateTime.getMillis(), is(zonedDateTime.toInstant().toEpochMilli()));
+    }
 
     public void testTimeZoneFormatting() {
         assertSameDate("2001-01-01T00:00:00Z", "date_time_no_millis");

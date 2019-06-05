@@ -128,7 +128,7 @@ public final class CreateTokenRequest extends ActionRequest {
     }
 
     private static ActionRequestValidationException validateRequiredField(String field, String fieldValue,
-                                                                           ActionRequestValidationException validationException) {
+                                                                          ActionRequestValidationException validationException) {
         if (Strings.isNullOrEmpty(fieldValue)) {
             validationException = addValidationError(String.format(Locale.ROOT, "%s is missing", field), validationException);
         }
@@ -136,7 +136,7 @@ public final class CreateTokenRequest extends ActionRequest {
     }
 
     private static ActionRequestValidationException validateRequiredField(String field, SecureString fieldValue,
-                                               ActionRequestValidationException validationException) {
+                                                                          ActionRequestValidationException validationException) {
         if (fieldValue == null || fieldValue.getChars() == null || fieldValue.getChars().length == 0) {
             validationException = addValidationError(String.format(Locale.ROOT, "%s is missing", field), validationException);
         }
@@ -144,7 +144,7 @@ public final class CreateTokenRequest extends ActionRequest {
     }
 
     private static ActionRequestValidationException unsupportedFieldValidation(GrantType grantType, String field, Object fieldValue,
-                                                   ActionRequestValidationException validationException) {
+                                                                               ActionRequestValidationException validationException) {
         if (fieldValue != null) {
             validationException = addValidationError(
                     String.format(Locale.ROOT, "%s is not supported with the %s grant_type", field, grantType.getValue()),

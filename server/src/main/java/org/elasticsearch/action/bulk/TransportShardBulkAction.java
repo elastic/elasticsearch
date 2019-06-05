@@ -170,11 +170,10 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
 
     /** Executes bulk item requests and handles request execution exceptions */
     static void executeBulkItemRequest(BulkPrimaryExecutionContext context, UpdateHelper updateHelper,
-                                       boolean canUseIfSeqNo, LongSupplier nowInMillisSupplier,
-                                       MappingUpdatePerformer mappingUpdater, CheckedRunnable<Exception> waitForMappingUpdate)
-        throws Exception {
+                                       boolean canUseIfSeqNo, LongSupplier nowInMillisSupplier, MappingUpdatePerformer mappingUpdater,
+                                       CheckedRunnable<Exception> waitForMappingUpdate) throws Exception {
+        validateDocWriteRequest(context.getCurrent(), canUseIfSeqNo);
         final DocWriteRequest.OpType opType = context.getCurrent().opType();
-
         final UpdateHelper.Result updateResult;
         if (opType == DocWriteRequest.OpType.UPDATE) {
             final UpdateRequest updateRequest = (UpdateRequest) context.getCurrent();
@@ -215,7 +214,6 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         }
 
         assert context.getRequestToExecute() != null; // also checks that we're in TRANSLATED state
-        validateDocWriteRequest(context.getRequestToExecute(), canUseIfSeqNo);
         if (context.getRequestToExecute().opType() == DocWriteRequest.OpType.DELETE) {
             executeDeleteRequestOnPrimary(context, mappingUpdater);
         } else {

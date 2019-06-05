@@ -93,20 +93,20 @@ public final class CreateTokenRequest extends ActionRequest {
                 case PASSWORD:
                     validationException = unsupportedFieldValidation(type, "kerberos_ticket", kerberosTicket, validationException);
                     validationException = unsupportedFieldValidation(type, "refresh_token", refreshToken, validationException);
-                    validationException = missingFieldValidation("username", username, validationException);
-                    validationException = missingFieldValidation("password", password, validationException);
+                    validationException = validateRequiredField("username", username, validationException);
+                    validationException = validateRequiredField("password", password, validationException);
                     break;
                 case KERBEROS:
                     validationException = unsupportedFieldValidation(type, "username", username, validationException);
                     validationException = unsupportedFieldValidation(type, "password", password, validationException);
                     validationException = unsupportedFieldValidation(type, "refresh_token", refreshToken, validationException);
-                    validationException = missingFieldValidation("kerberos_ticket", kerberosTicket, validationException);
+                    validationException = validateRequiredField("kerberos_ticket", kerberosTicket, validationException);
                     break;
                 case REFRESH_TOKEN:
                     validationException = unsupportedFieldValidation(type, "username", username, validationException);
                     validationException = unsupportedFieldValidation(type, "password", password, validationException);
                     validationException = unsupportedFieldValidation(type, "kerberos_ticket", kerberosTicket, validationException);
-                    validationException = missingFieldValidation("refresh_token", refreshToken, validationException);
+                    validationException = validateRequiredField("refresh_token", refreshToken, validationException);
                     break;
                 case CLIENT_CREDENTIALS:
                     validationException = unsupportedFieldValidation(type, "username", username, validationException);
@@ -135,7 +135,7 @@ public final class CreateTokenRequest extends ActionRequest {
         return validationException;
     }
 
-    private static ActionRequestValidationException missingFieldValidation(String field, SecureString fieldValue,
+    private static ActionRequestValidationException validateRequiredField(String field, SecureString fieldValue,
                                                ActionRequestValidationException validationException) {
         if (fieldValue == null || fieldValue.getChars() == null || fieldValue.getChars().length == 0) {
             validationException = addValidationError(String.format(Locale.ROOT, "%s is missing", field), validationException);

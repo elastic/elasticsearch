@@ -28,8 +28,6 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.LogEvent;
 import org.apache.logging.log4j.core.appender.AbstractAppender;
 import org.apache.logging.log4j.core.filter.RegexFilter;
-import org.apache.lucene.codecs.lucene50.Lucene50PostingsFormat;
-import org.apache.lucene.codecs.lucene50.Lucene50StoredFieldsFormat;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.NumericDocValuesField;
@@ -63,8 +61,11 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TotalHitCountCollector;
 import org.apache.lucene.store.AlreadyClosedException;
+import org.apache.lucene.store.BaseDirectoryWrapper;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.Lock;
+import org.apache.lucene.store.MMapDirectory;
 import org.apache.lucene.store.MockDirectoryWrapper;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
@@ -83,6 +84,7 @@ import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
@@ -99,6 +101,7 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.codec.CodecService;
@@ -124,7 +127,9 @@ import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexSearcherWrapper;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.index.shard.ShardUtils;
+import org.elasticsearch.index.store.FsDirectoryFactory;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.SnapshotMatchers;
 import org.elasticsearch.index.translog.Translog;
@@ -133,7 +138,6 @@ import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.test.VersionUtils;
 import org.hamcrest.MatcherAssert;
-import org.hamcrest.Matchers;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -157,6 +161,7 @@ import java.util.Set;
 import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -302,14 +307,6 @@ public class InternalEngineTests extends EngineTestCase {
             assertThat(segments.get(0).getDeletedDocs(), equalTo(0));
             assertThat(segments.get(0).isCompound(), equalTo(true));
             assertThat(segments.get(0).ramTree, nullValue());
-            assertThat(segments.get(0).getAttributes().keySet(),
-                Matchers.contains(
-                    // TODO: Lucene50PostingsFormat#MODE_KEY should be public ?
-                    Lucene50PostingsFormat.class.getSimpleName() + ".fstMode",
-                    Lucene50StoredFieldsFormat.MODE_KEY
-                )
-            );
-
             engine.flush();
 
             segments = engine.segments(false);
@@ -5646,5 +5643,100 @@ public class InternalEngineTests extends EngineTestCase {
         indexing.join();
         rollTranslog.join();
         assertMaxSeqNoInCommitUserData(engine);
+    }
+
+    @AwaitsFix(bugUrl = "https://issues.apache.org/jira/browse/LUCENE-8809")
+    public void testRefreshAndFailEngineConcurrently() throws Exception {
+        AtomicBoolean stopped = new AtomicBoolean();
+        Semaphore indexedDocs = new Semaphore(0);
+        Thread indexer = new Thread(() -> {
+            while (stopped.get() == false) {
+                String id = Integer.toString(randomIntBetween(1, 100));
+                try {
+                    engine.index(indexForDoc(createParsedDoc(id, null)));
+                    indexedDocs.release();
+                } catch (IOException e) {
+                    throw new AssertionError(e);
+                } catch (AlreadyClosedException e) {
+                    return;
+                }
+            }
+        });
+
+        Thread refresher = new Thread(() -> {
+            while (stopped.get() == false) {
+                try {
+                    engine.refresh("test", randomFrom(Engine.SearcherScope.values()), randomBoolean());
+                } catch (AlreadyClosedException e) {
+                    return;
+                }
+            }
+        });
+        indexer.start();
+        refresher.start();
+        indexedDocs.acquire(randomIntBetween(1, 100));
+        try {
+            engine.failEngine("test", new IOException("simulated error"));
+        } finally {
+            stopped.set(true);
+            indexer.join();
+            refresher.join();
+        }
+        assertThat(engine.config().getCircuitBreakerService().getBreaker(CircuitBreaker.ACCOUNTING).getUsed(), equalTo(0L));
+    }
+
+    public void testGetReaderAttributes() throws IOException {
+        try(BaseDirectoryWrapper dir = newFSDirectory(createTempDir())) {
+            Directory unwrap = FilterDirectory.unwrap(dir);
+            boolean isMMap = unwrap instanceof MMapDirectory;
+            Map<String, String> readerAttributes = InternalEngine.getReaderAttributes(dir);
+            assertEquals(2, readerAttributes.size());
+            assertEquals("ON_HEAP", readerAttributes.get("blocktree.terms.fst._id"));
+            if (isMMap) {
+                assertEquals("OFF_HEAP", readerAttributes.get("blocktree.terms.fst"));
+            } else {
+                assertEquals("ON_HEAP", readerAttributes.get("blocktree.terms.fst"));
+            }
+        }
+
+        try(MMapDirectory dir = new MMapDirectory(createTempDir())) {
+            Map<String, String> readerAttributes =
+                InternalEngine.getReaderAttributes(randomBoolean() ? dir :
+                    new MockDirectoryWrapper(random(), dir));
+            assertEquals(2, readerAttributes.size());
+            assertEquals("ON_HEAP", readerAttributes.get("blocktree.terms.fst._id"));
+            assertEquals("OFF_HEAP", readerAttributes.get("blocktree.terms.fst"));
+        }
+
+        Settings.Builder settingsBuilder = Settings.builder()
+            .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT);
+        Settings settings = settingsBuilder.build();
+        IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("foo", settings);
+        FsDirectoryFactory service = new FsDirectoryFactory();
+        Path tempDir = createTempDir().resolve(indexSettings.getUUID()).resolve("0");
+        ShardPath path = new ShardPath(false, tempDir, tempDir, new ShardId(indexSettings.getIndex(), 0));
+        try (Directory directory = service.newDirectory(indexSettings, path)) {
+
+            Map<String, String> readerAttributes =
+                InternalEngine.getReaderAttributes(randomBoolean() ? directory :
+                    new MockDirectoryWrapper(random(), directory));
+            assertEquals(2, readerAttributes.size());
+
+            switch (IndexModule.defaultStoreType(true)) {
+                case HYBRIDFS:
+                case MMAPFS:
+                    assertEquals("ON_HEAP", readerAttributes.get("blocktree.terms.fst._id"));
+                    assertEquals("OFF_HEAP", readerAttributes.get("blocktree.terms.fst"));
+                    break;
+                case NIOFS:
+                case SIMPLEFS:
+                case FS:
+                    assertEquals("ON_HEAP", readerAttributes.get("blocktree.terms.fst._id"));
+                    assertEquals("ON_HEAP", readerAttributes.get("blocktree.terms.fst"));
+                    break;
+                    default:
+                        fail("unknownw type");
+            }
+        }
     }
 }

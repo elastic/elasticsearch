@@ -192,7 +192,6 @@ public class NoMasterNodeIT extends ESIntegTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/39688")
     public void testNoMasterActionsWriteMasterBlock() throws Exception {
         Settings settings = Settings.builder()
             .put(AutoCreateIndex.AUTO_CREATE_INDEX_SETTING.getKey(), false)
@@ -264,8 +263,6 @@ public class NoMasterNodeIT extends ESIntegTestCase {
             assertThat(e.status(), equalTo(RestStatus.SERVICE_UNAVAILABLE));
         }
 
-        disruptionScheme.stopDisrupting();
-
-        client().admin().cluster().prepareHealth().setWaitForGreenStatus().setWaitForNodes("3").get();
+        internalCluster().clearDisruptionScheme(true);
     }
 }

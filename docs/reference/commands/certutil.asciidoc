@@ -103,7 +103,7 @@ which prompts you for details about each instance. Alternatively, you can use
 the `--in` parameter to specify a YAML file that contains details about the
 instances.
 
-The `cert` mode produces a single zip file which contains the CSRs and the
+The `csr` mode produces a single zip file which contains the CSRs and the
 private keys for each instance. Each CSR is provided as a standard PEM
 encoding of a PKCS#10 CSR. Each key is provided as a PEM encoding of an RSA
 private key.

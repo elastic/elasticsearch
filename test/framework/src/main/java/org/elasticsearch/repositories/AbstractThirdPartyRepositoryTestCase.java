@@ -143,11 +143,11 @@ public abstract class AbstractThirdPartyRepositoryTestCase extends ESSingleNodeT
             protected void doRun() throws Exception {
                 final BlobStore blobStore = repo.blobStore();
                 blobStore.blobContainer(repo.basePath().add("foo"))
-                    .writeBlob("nested-blob", new ByteArrayInputStream(randomByteArrayOfLength(testBlobLen)), testBlobLen, false);
+                    .writeBlobAtomic("nested-blob", new ByteArrayInputStream(randomByteArrayOfLength(testBlobLen)), testBlobLen);
                 blobStore.blobContainer(repo.basePath().add("foo").add("nested"))
-                    .writeBlob("bar", new ByteArrayInputStream(randomByteArrayOfLength(testBlobLen)), testBlobLen, false);
+                    .writeBlobAtomic("bar", new ByteArrayInputStream(randomByteArrayOfLength(testBlobLen)), testBlobLen);
                 blobStore.blobContainer(repo.basePath().add("foo").add("nested2"))
-                    .writeBlob("blub", new ByteArrayInputStream(randomByteArrayOfLength(testBlobLen)), testBlobLen, false);
+                    .writeBlobAtomic("blub", new ByteArrayInputStream(randomByteArrayOfLength(testBlobLen)), testBlobLen);
                 future.onResponse(null);
             }
         });

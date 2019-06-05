@@ -55,6 +55,8 @@ grant codeBase "${codebase.elasticsearch-plugin-classloader}" {
 //// Everything else:
 
 grant {
+  // needed by vendored Guice
+  permission java.lang.RuntimePermission "accessClassInPackage.jdk.internal.vm.annotation";
 
   // checked by scripting engines, and before hacks and other issues in
   // third party code, to safeguard these against unprivileged code like scripts.

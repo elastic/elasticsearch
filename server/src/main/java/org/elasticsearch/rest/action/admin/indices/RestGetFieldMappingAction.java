@@ -66,7 +66,10 @@ public class RestGetFieldMappingAction extends BaseRestHandler {
         final String[] fields = Strings.splitStringByCommaToArray(request.param("fields"));
 
         if (request.hasParam(INCLUDE_TYPE_NAME_PARAMETER)) {
-            request.paramAsBoolean(INCLUDE_TYPE_NAME_PARAMETER, DEFAULT_INCLUDE_TYPE_NAME_POLICY);
+            boolean includeTypeName = request.paramAsBoolean(INCLUDE_TYPE_NAME_PARAMETER, DEFAULT_INCLUDE_TYPE_NAME_POLICY);
+            if (includeTypeName) {
+                throw new IllegalArgumentException(INCLUDE_TYPE_NAME_PARAMETER + " no longer supports the value [true].");
+            }
             deprecationLogger.deprecatedAndMaybeLog("get_field_mapping_with_types", TYPES_DEPRECATION_MESSAGE);
         }
 

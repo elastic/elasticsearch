@@ -1062,7 +1062,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      */
     private void finalizeShard(List<SnapshotFiles> snapshots, int fileListGeneration, Map<String, BlobMetaData> blobs,
                                String reason, BlobContainer shardContainer, ShardId snapshotShardId, SnapshotId snapshotId) {
-        final String indexGeneration = Integer.toString(fileListGeneration);
+        final String indexGeneration = Integer.toString(fileListGeneration + 1);
         try {
             final List<String> blobsToDelete;
             if (snapshots.isEmpty()) {

@@ -40,7 +40,6 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.protocol.xpack.watcher.DeleteWatchRequest;
 import org.elasticsearch.protocol.xpack.watcher.PutWatchRequest;
 import org.elasticsearch.protocol.xpack.watcher.PutWatchResponse;
-import org.elasticsearch.xpack.core.XPackClient;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.monitoring.MonitoredSystem;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils;
@@ -431,8 +430,7 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
      */
     private void getClusterAlertsInstallationAsyncActions(final boolean indexExists, final List<Runnable> asyncActions,
                                                           final AtomicInteger pendingResponses) {
-        final XPackClient xpackClient = new XPackClient(client);
-        final WatcherClient watcher = xpackClient.watcher();
+        final WatcherClient watcher = new WatcherClient(client);
         final boolean canAddWatches = licenseState.isMonitoringClusterAlertsAllowed();
 
         for (final String watchId : ClusterAlertsUtil.WATCH_IDS) {

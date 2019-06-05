@@ -100,9 +100,6 @@ setup:
   - is_true: jobs.0.open_time
   - match: { jobs.0.timing_stats.job_id: job-stats-test }
   - gte:   { jobs.0.timing_stats.bucket_count: 0 }
-  - gte:   { jobs.0.timing_stats.minimum_bucket_processing_time_ms: 0.0 }
-  - gte:   { jobs.0.timing_stats.maximum_bucket_processing_time_ms: 0.0 }
-  - gte:   { jobs.0.timing_stats.average_bucket_processing_time_ms: 0.0 }
 
 ---
 "Test get job stats for closed job":
@@ -137,9 +134,6 @@ setup:
   - is_false: jobs.0.open_time
   - match: { jobs.0.timing_stats.job_id: job-stats-test }
   - gte:   { jobs.0.timing_stats.bucket_count: 0 }
-  - gte:   { jobs.0.timing_stats.minimum_bucket_processing_time_ms: 0.0 }
-  - gte:   { jobs.0.timing_stats.maximum_bucket_processing_time_ms: 0.0 }
-  - gte:   { jobs.0.timing_stats.average_bucket_processing_time_ms: 0.0 }
 
 ---
 "Test get job stats of datafeed job that has not received any data":
@@ -153,10 +147,7 @@ setup:
   - match: { jobs.0.state: opened }
   - is_true: jobs.0.open_time
   - match: { jobs.0.timing_stats.job_id: jobs-get-stats-datafeed-job }
-  - gte:   { jobs.0.timing_stats.bucket_count: 0 }
-  - gte:   { jobs.0.timing_stats.minimum_bucket_processing_time_ms: 0.0 }
-  - gte:   { jobs.0.timing_stats.maximum_bucket_processing_time_ms: 0.0 }
-  - gte:   { jobs.0.timing_stats.average_bucket_processing_time_ms: 0.0 }
+  - match: { jobs.0.timing_stats.bucket_count: 0 }
 
 ---
 "Test get all job stats with _all":
@@ -337,9 +328,6 @@ setup:
   - is_false: jobs.0.open_time
   - match: { jobs.0.timing_stats.job_id: job-stats-test }
   - gte:   { jobs.0.timing_stats.bucket_count: 0 }
-  - gte:   { jobs.0.timing_stats.minimum_bucket_processing_time_ms: 0.0 }
-  - gte:   { jobs.0.timing_stats.maximum_bucket_processing_time_ms: 0.0 }
-  - gte:   { jobs.0.timing_stats.average_bucket_processing_time_ms: 0.0 }
   - match: { jobs.1.job_id : jobs-get-stats-datafeed-job }
   - match: { jobs.1.data_counts.processed_record_count: 0 }
   - match: { jobs.1.data_counts.processed_field_count: 0 }
@@ -350,6 +338,3 @@ setup:
   - is_false: jobs.1.open_time
   - match: { jobs.1.timing_stats.job_id: jobs-get-stats-datafeed-job }
   - gte:   { jobs.1.timing_stats.bucket_count: 0 }
-  - gte:   { jobs.1.timing_stats.minimum_bucket_processing_time_ms: 0.0 }
-  - gte:   { jobs.1.timing_stats.maximum_bucket_processing_time_ms: 0.0 }
-  - gte:   { jobs.1.timing_stats.average_bucket_processing_time_ms: 0.0 }

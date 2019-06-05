@@ -83,8 +83,8 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
                 // Use Lucene defaults
                 final FSDirectory primaryDirectory = FSDirectory.open(location, lockFactory);
                 if (primaryDirectory instanceof MMapDirectory) {
-                    return new HybridDirectory(location, lockFactory, setPreload((MMapDirectory) primaryDirectory,
-                        lockFactory, preLoadExtensions));
+                    MMapDirectory mMapDirectory = (MMapDirectory) primaryDirectory;
+                    return new HybridDirectory(setPreload(mMapDirectory, lockFactory, preLoadExtensions), lockFactory);
                 } else {
                     return primaryDirectory;
                 }
@@ -99,7 +99,7 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
         }
     }
 
-    private static MMapDirectory setPreload(MMapDirectory mMapDirectory, LockFactory lockFactory,
+    private static FSDirectory setPreload(MMapDirectory mMapDirectory, LockFactory lockFactory,
             Set<String> preLoadExtensions) throws IOException {
         if (preLoadExtensions.isEmpty() == false
                 && mMapDirectory.getPreload() == false) {
@@ -120,17 +120,58 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
         return unwrap instanceof HybridDirectory;
     }
 
-    static final class HybridDirectory extends NIOFSDirectory {
-        private final FSDirectory randomAccessDirectory;
+    static abstract class ReadOnlyFileSwitchMMapDirectory<D extends FSDirectory> extends FSDirectory {
+        protected final FSDirectory delegate;
+        protected final D primary;
 
-        HybridDirectory(Path location, LockFactory lockFactory, FSDirectory randomAccessDirectory) throws IOException {
-            super(location, lockFactory);
-            this.randomAccessDirectory = randomAccessDirectory;
+        ReadOnlyFileSwitchMMapDirectory(D primary, FSDirectory delegate, LockFactory lockFactory) throws IOException {
+            super(primary.getDirectory(), lockFactory);
+            this.primary = primary;
+            this.delegate = delegate;
+            assert delegate.getDirectory().equals(primary.getDirectory());
         }
 
         @Override
-        public IndexInput openInput(String name, IOContext context) throws IOException {
+        public final IndexInput openInput(String name, IOContext context) throws IOException {
             String extension = FileSwitchDirectory.getExtension(name);
+            // we need to do these checks on the outer directory since the inner doesn't know about pending deletes
+            ensureOpen();
+            ensureCanRead(name);
+            if (useDelegate(extension)) {
+                // we only use the delegate to open inputs. Everything else is managed by this directory otherwise
+                // we might run into trouble with files that are pendingDelete in one directory but still
+                // listed in listAll() from the other. We on the other hand don't want to list files from both dirs
+                // and intersect for perf reasons.
+                return delegate.openInput(name, context);
+            } else {
+                return primary.openInput(name, context);
+            }
+        }
+
+        protected abstract boolean useDelegate(String extension);
+
+        @Override
+        public synchronized void close() throws IOException {
+            IOUtils.close(super::close, primary, delegate);
+        }
+
+        FSDirectory getDelegate() {
+            return delegate;
+        }
+
+        D getPrimary() {
+            return primary;
+        }
+    }
+
+    static final class HybridDirectory extends ReadOnlyFileSwitchMMapDirectory<NIOFSDirectory> {
+
+        HybridDirectory(FSDirectory delegate, LockFactory lockFactory) throws IOException {
+            super(new NIOFSDirectory(delegate.getDirectory(), lockFactory), delegate, lockFactory);
+        }
+
+        @Override
+        protected boolean useDelegate(String extension) {
             switch(extension) {
                 // We are mmapping norms, docvalues as well as term dictionaries, all other files are served through NIOFS
                 // this provides good random access performance and does not lead to page cache thrashing.
@@ -138,70 +179,31 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
                 case "dvd":
                 case "tim":
                 case "cfs":
-                    // we need to do these checks on the outer directory since the inner doesn't know about pending deletes
-                    ensureOpen();
-                    ensureCanRead(name);
-                    // we only use the mmap to open inputs. Everything else is managed by the NIOFSDirectory otherwise
-                    // we might run into trouble with files that are pendingDelete in one directory but still
-                    // listed in listAll() from the other. We on the other hand don't want to list files from both dirs
-                    // and intersect for perf reasons.
-                    return randomAccessDirectory.openInput(name, context);
+                   return true;
                 default:
-                    return super.openInput(name, context);
+                    return false;
             }
-        }
-
-        @Override
-        public void close() throws IOException {
-            IOUtils.close(super::close, randomAccessDirectory);
-        }
-
-        Directory getRandomAccessDirectory() {
-            return randomAccessDirectory;
         }
     }
 
-    static final class PreLoadMMapDirectory extends MMapDirectory {
-        private final MMapDirectory delegate;
+    static final class PreLoadMMapDirectory extends ReadOnlyFileSwitchMMapDirectory<MMapDirectory> {
         private final Set<String> preloadExtensions;
 
-        public PreLoadMMapDirectory(MMapDirectory delegate, LockFactory lockFactory, Set<String> preload) throws IOException {
-            super(delegate.getDirectory(), lockFactory);
-            this.delegate = delegate;
-            this.delegate.setPreload(true);
+        public PreLoadMMapDirectory(MMapDirectory primary, LockFactory lockFactory, Set<String> preload) throws IOException {
+            super(primary, buildDelegate(primary, lockFactory), lockFactory);
+            primary.setPreload(false);
             this.preloadExtensions = preload;
-            assert getPreload() == false;
+        }
+
+        private static MMapDirectory buildDelegate(MMapDirectory primary, LockFactory lockFactory) throws IOException {
+            MMapDirectory mMapDirectory = new MMapDirectory(primary.getDirectory(), lockFactory);
+            mMapDirectory.setPreload(true);
+            return mMapDirectory;
         }
 
         @Override
-        public void setPreload(boolean preload) {
-            throw new IllegalArgumentException("can't set preload on a preload-wrapper");
-        }
-
-        @Override
-        public IndexInput openInput(String name, IOContext context) throws IOException {
-            final String extension = FileSwitchDirectory.getExtension(name);
-            if (preloadExtensions.contains(extension)) {
-                return delegate.openInput(name, context);
-            }
-            return super.openInput(name, context);
-        }
-
-        @Override
-        public synchronized void close() throws IOException {
-            try {
-                super.close();
-            } finally {
-                delegate.close();
-            }
-        }
-
-        MMapDirectory getDirectoryForFile(String name) {
-            final String extension = FileSwitchDirectory.getExtension(name);
-            if (preloadExtensions.contains(extension)) {
-                return delegate;
-            }
-            return this;
+        protected boolean useDelegate(String extension) {
+            return preloadExtensions.contains(extension);
         }
     }
 }

@@ -416,7 +416,7 @@ public class SetupPasswordToolTests extends CommandTestCase {
             while (failCount-- > 0) {
                 String password1 = randomAlphaOfLength(randomIntBetween(3, 10));
                 terminal.addSecretInput(password1);
-                Validation.Error err = Validation.Users.validatePassword(password1.toCharArray());
+                Validation.Error err = Validation.Users.validatePassword(new SecureString(password1.toCharArray()));
                 if (err == null) {
                     // passes strength validation, fail by mismatch
                     terminal.addSecretInput(password1 + "typo");

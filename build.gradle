@@ -209,68 +209,7 @@ allprojects {
     javadoc.options.addStringOption('Xdoclint:all,-missing', '-quiet')
   }
 
-  /* Sets up the dependencies that we build as part of this project but
-    register as though they were external to resolve internally. We register
-    them as external dependencies so the build plugin that we use can be used
-    to build elasticsearch plugins outside of the elasticsearch source tree. */
-  ext.projectSubstitutions = [
-    "org.elasticsearch.gradle:build-tools:${version}": ':build-tools',
-    "org.elasticsearch:rest-api-spec:${version}": ':rest-api-spec',
-    "org.elasticsearch:elasticsearch:${version}": ':server',
-    "org.elasticsearch:elasticsearch-cli:${version}": ':libs:elasticsearch-cli',
-    "org.elasticsearch:elasticsearch-core:${version}": ':libs:core',
-    "org.elasticsearch:elasticsearch-nio:${version}": ':libs:nio',
-    "org.elasticsearch:elasticsearch-x-content:${version}": ':libs:x-content',
-    "org.elasticsearch:elasticsearch-geo:${version}": ':libs:elasticsearch-geo',
-    "org.elasticsearch:elasticsearch-secure-sm:${version}": ':libs:secure-sm',
-    "org.elasticsearch:elasticsearch-ssl-config:${version}": ':libs:elasticsearch-ssl-config',
-    "org.elasticsearch.client:elasticsearch-rest-client:${version}": ':client:rest',
-    "org.elasticsearch.client:elasticsearch-rest-client-sniffer:${version}": ':client:sniffer',
-    "org.elasticsearch.client:elasticsearch-rest-high-level-client:${version}": ':client:rest-high-level',
-    "org.elasticsearch.client:test:${version}": ':client:test',
-    "org.elasticsearch.client:transport:${version}": ':client:transport',
-    "org.elasticsearch.plugin:elasticsearch-scripting-painless-spi:${version}": ':modules:lang-painless:spi',
-    "org.elasticsearch.test:framework:${version}": ':test:framework',
-    "org.elasticsearch.test:logger-usage:${version}": ':test:logger-usage',
-    "org.elasticsearch.xpack.test:feature-aware:${version}": ':x-pack:test:feature-aware',
-    // for transport client
-    "org.elasticsearch.plugin:transport-netty4-client:${version}": ':modules:transport-netty4',
-    "org.elasticsearch.plugin:reindex-client:${version}": ':modules:reindex',
-    "org.elasticsearch.plugin:lang-mustache-client:${version}": ':modules:lang-mustache',
-    "org.elasticsearch.plugin:parent-join-client:${version}": ':modules:parent-join',
-    "org.elasticsearch.plugin:aggs-matrix-stats-client:${version}": ':modules:aggs-matrix-stats',
-    "org.elasticsearch.plugin:percolator-client:${version}": ':modules:percolator',
-    "org.elasticsearch.plugin:rank-eval-client:${version}": ':modules:rank-eval',
-    // for security example plugins
-    "org.elasticsearch.plugin:x-pack-core:${version}": ':x-pack:plugin:core'
-  ]
-
-  /*
-   * Gradle only resolve project substitutions during dependency resolution but
-   * we sometimes want to do the resolution at other times. This creates a
-   * convenient method we can call to do it.
-   */
-  ext.dependencyToProject = { Dependency dep ->
-    if (dep instanceof ProjectDependency) {
-      return dep.dependencyProject
-    } else {
-      String substitution = projectSubstitutions.get("${dep.group}:${dep.name}:${dep.version}")
-      if (substitution != null) {
-        return findProject(substitution)
-      }
-      return null
-    }
-  }
-
   project.afterEvaluate {
-    configurations.matching { it.canBeResolved }.all {
-      resolutionStrategy.dependencySubstitution { DependencySubstitutions subs ->
-        projectSubstitutions.each { k,v ->
-          subs.substitute(subs.module(k)).with(subs.project(v))
-        }
-      }
-    }
-
     // Handle javadoc dependencies across projects. Order matters: the linksOffline for
     // org.elasticsearch:elasticsearch must be the last one or all the links for the
     // other packages (e.g org.elasticsearch.client) will point to server rather than
@@ -279,10 +218,10 @@ allprojects {
       String artifactsHost = VersionProperties.elasticsearch.endsWith("-SNAPSHOT") ? "https://snapshots.elastic.co" : "https://artifacts.elastic.co"
       Closure sortClosure = { a, b -> b.group <=> a.group }
       Closure depJavadocClosure = { shadowed, dep ->
-        if (dep.group == null || false == dep.group.startsWith('org.elasticsearch')) {
+        if ((dep instanceof ProjectDependency) == false) {
           return
         }
-        Project upstreamProject = project.ext.dependencyToProject(dep)
+        Project upstreamProject = dep.dependencyProject
         if (upstreamProject == null) {
           return
         }
@@ -338,8 +277,8 @@ gradle.projectsEvaluated {
       integTest.mustRunAfter test
     }
     configurations.matching { it.canBeResolved }.all { Configuration configuration ->
-      dependencies.all { Dependency dep ->
-        Project upstreamProject = dependencyToProject(dep)
+      dependencies.matching { it instanceof ProjectDependency }.all { ProjectDependency dep ->
+        Project upstreamProject = dep.dependencyProject
         if (upstreamProject != null) {
           if (project.path == upstreamProject.path) {
             // TODO: distribution integ tests depend on themselves (!), fix that

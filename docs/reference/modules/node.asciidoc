@@ -111,12 +111,14 @@ node.data: false <2>
 node.ingest: false <3>
 node.ml: false <4>
 xpack.ml.enabled: true <5>
+cluster.remote.connect: false <6>
 -------------------
 <1> The `node.master` role is enabled by default.
 <2> Disable the `node.data` role (enabled by default).
 <3> Disable the `node.ingest` role (enabled by default).
 <4> Disable the `node.ml` role (enabled by default).
 <5> The `xpack.ml.enabled` setting is enabled by default.
+<6> Disable {ccs} (enabled by default).
 
 To create a dedicated master-eligible node in the {oss-dist}, set:
 
@@ -151,11 +153,13 @@ node.master: false <1>
 node.data: true <2>
 node.ingest: false <3>
 node.ml: false <4>
+cluster.remote.connect: false <5>
 -------------------
 <1> Disable the `node.master` role (enabled by default).
 <2> The `node.data` role is enabled by default.
 <3> Disable the `node.ingest` role (enabled by default).
 <4> Disable the `node.ml` role (enabled by default).
+<5> Disable {ccs} (enabled by default).
 
 To create a dedicated data node in the {oss-dist}, set:
 [source,yaml]

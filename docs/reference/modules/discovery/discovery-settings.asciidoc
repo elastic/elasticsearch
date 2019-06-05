@@ -30,7 +30,13 @@ Discovery and cluster formation are affected by the following settings:
     If set to `single-node`, the node elects itself master and does not join a
     cluster with any other node. For more information about when you might use
     this setting, see <<single-node-discovery>>.
-
+ 
+    Specifies whether {es} should form a multiple-node cluster or not. By
+    default {es} will discover other nodes when forming a cluster and will allow
+    other nodes to join the cluster later.  If `discovery.type` is set to
+    `single-node` then {es} will form a single-node cluster. For more
+    information about when you might use this setting, see
+    <<single-node-discovery>>.
 [float]
 ==== Expert settings
 

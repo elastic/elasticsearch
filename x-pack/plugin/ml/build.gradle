@@ -49,9 +49,8 @@ compileJava.options.compilerArgs << "-Xlint:-deprecation,-rawtypes,-serial,-try,
 compileTestJava.options.compilerArgs << "-Xlint:-deprecation,-rawtypes,-serial,-try,-unchecked"
 
 dependencies {
-    // "org.elasticsearch.plugin:x-pack-core:${version}" doesn't work with idea because the testArtifacts are also here
+    compileOnly project(':modules:lang-painless:spi')
     compileOnly project(path: xpackModule('core'), configuration: 'default')
-    compileOnly "org.elasticsearch.plugin:elasticsearch-scripting-painless-spi:${versions.elasticsearch}"
     testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
     if (isEclipse) {
       testCompile project(path: xpackModule('core-tests'), configuration: 'testArtifacts')
@@ -60,7 +59,7 @@ dependencies {
     testCompile project(path: xpackModule('security'), configuration: 'testArtifacts')
 
     // ml deps
-    compile project(':libs:grok')
+    compile project(':libs:elasticsearch-grok')
     compile "com.ibm.icu:icu4j:${versions.icu4j}"
     compile "net.sf.supercsv:super-csv:${versions.supercsv}"
     nativeBundle "org.elasticsearch.ml:ml-cpp:${project.version}@zip"

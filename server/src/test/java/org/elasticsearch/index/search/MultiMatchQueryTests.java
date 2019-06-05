@@ -111,8 +111,8 @@ public class MultiMatchQueryTests extends ESSingleNodeTestCase {
                 .toQuery(queryShardContext);
             try (Engine.Searcher searcher = indexService.getShard(0).acquireSearcher("test")) {
                 Query rewrittenQuery = searcher.searcher().rewrite(parsedQuery);
-                Query tq1 = new BoostQuery(new TermQuery(new Term("name.first", "banon")), 2);
-                Query tq2 = new BoostQuery(new TermQuery(new Term("name.last", "banon")), 3);
+                Query tq1 = new BoostQuery(new TermQuery(new Term("name.last", "banon")), 3);
+                Query tq2 = new BoostQuery(new TermQuery(new Term("name.first", "banon")), 2);
                 Query expected = new DisjunctionMaxQuery(Arrays.asList(tq2, tq1), tieBreaker);
                 assertEquals(expected, rewrittenQuery);
             }

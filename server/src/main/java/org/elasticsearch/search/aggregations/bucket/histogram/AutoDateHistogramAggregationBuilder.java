@@ -46,9 +46,10 @@ import org.elasticsearch.search.internal.SearchContext;
 import java.io.IOException;
 import java.time.ZoneId;
 import java.util.Arrays;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+
+import static java.util.Map.entry;
 
 public class AutoDateHistogramAggregationBuilder
         extends ValuesSourceAggregationBuilder<ValuesSource.Numeric, AutoDateHistogramAggregationBuilder> {
@@ -66,7 +67,14 @@ public class AutoDateHistogramAggregationBuilder
         PARSER.declareStringOrNull(AutoDateHistogramAggregationBuilder::setMinimumIntervalExpression, MINIMUM_INTERVAL_FIELD);
     }
 
-    private static List<String> allowedIntervals = Arrays.asList("second", "minute", "hour", "day", "month", "year");
+    public static final Map<String, Rounding.DateTimeUnit> allowedIntervals = Map.ofEntries(
+        entry("year", Rounding.DateTimeUnit.YEAR_OF_CENTURY),
+        entry("month", Rounding.DateTimeUnit.MONTH_OF_YEAR),
+        entry("day", Rounding.DateTimeUnit.DAY_OF_MONTH),
+        entry("hour", Rounding.DateTimeUnit.HOUR_OF_DAY),
+        entry("minute", Rounding.DateTimeUnit.MINUTES_OF_HOUR),
+        entry("second", Rounding.DateTimeUnit.SECOND_OF_MINUTE)
+    );
 
     /**
      *
@@ -77,23 +85,33 @@ public class AutoDateHistogramAggregationBuilder
     static RoundingInfo[] buildRoundings(ZoneId timeZone, String minimumInterval) {
 
         int indexToSliceFrom = 0;
+        /*
         if (minimumInterval!= null && allowedIntervals.contains(minimumInterval)) {
             indexToSliceFrom = allowedIntervals.indexOf(minimumInterval);
         }
+         */
 
         RoundingInfo[] roundings = new RoundingInfo[6];
         roundings[0] = new RoundingInfo(createRounding(Rounding.DateTimeUnit.SECOND_OF_MINUTE, timeZone),
-            1000L, "s", 1, 5, 10, 30);
+            1000L, "s", "second" , 1, 5, 10, 30);
         roundings[1] = new RoundingInfo(createRounding(Rounding.DateTimeUnit.MINUTES_OF_HOUR, timeZone),
-            60 * 1000L, "m", 1, 5, 10, 30);
+            60 * 1000L, "m",  "minute", 1, 5, 10, 30);
         roundings[2] = new RoundingInfo(createRounding(Rounding.DateTimeUnit.HOUR_OF_DAY, timeZone),
-            60 * 60 * 1000L, "h",1, 3, 12);
+            60 * 60 * 1000L, "h", "hour", 1, 3, 12);
         roundings[3] = new RoundingInfo(createRounding(Rounding.DateTimeUnit.DAY_OF_MONTH, timeZone),
-            24 * 60 * 60 * 1000L, "d", 1, 7);
+            24 * 60 * 60 * 1000L, "d", "day", 1, 7);
         roundings[4] = new RoundingInfo(createRounding(Rounding.DateTimeUnit.MONTH_OF_YEAR, timeZone),
-            30 * 24 * 60 * 60 * 1000L, "M", 1, 3);
+            30 * 24 * 60 * 60 * 1000L, "M", "month", 1, 3);
         roundings[5] = new RoundingInfo(createRounding(Rounding.DateTimeUnit.YEAR_OF_CENTURY, timeZone),
-            365 * 24 * 60 * 60 * 1000L, "y", 1, 5, 10, 20, 50, 100);
+            365 * 24 * 60 * 60 * 1000L, "y", "year", 1, 5, 10, 20, 50, 100);
+
+        for (int i = 0; i < roundings.length; i++) {
+            RoundingInfo roundingInfo = roundings[i];
+            if (roundingInfo.getDateTimeUnit().equals(minimumInterval)) {
+                indexToSliceFrom = i;
+                break;
+            }
+        }
         return Arrays.copyOfRange(roundings, indexToSliceFrom, roundings.length);
     }
 
@@ -110,9 +128,9 @@ public class AutoDateHistogramAggregationBuilder
     }
 
     public AutoDateHistogramAggregationBuilder setMinimumIntervalExpression(String minimumIntervalExpression) {
-        if (minimumIntervalExpression != null && !allowedIntervals.contains(minimumIntervalExpression)) {
+        if (minimumIntervalExpression != null && !allowedIntervals.containsKey(minimumIntervalExpression)) {
             throw new IllegalArgumentException(MINIMUM_INTERVAL_FIELD.getPreferredName() +
-                " must be one of [" + allowedIntervals.toString() + "]");
+                " must be one of [" + allowedIntervals.keySet().toString() + "]");
         }
         this.minimumIntervalExpression = minimumIntervalExpression;
         return this;
@@ -223,12 +241,18 @@ public class AutoDateHistogramAggregationBuilder
         final int[] innerIntervals;
         final long roughEstimateDurationMillis;
         final String unitAbbreviation;
+        final String dateTimeUnit;
 
-        public RoundingInfo(Rounding rounding, long roughEstimateDurationMillis, String unitAbbreviation, int... innerIntervals) {
+        public RoundingInfo(Rounding rounding,
+                            long roughEstimateDurationMillis,
+                            String unitAbbreviation,
+                            String dateTimeUnit,
+                            int... innerIntervals) {
             this.rounding = rounding;
             this.roughEstimateDurationMillis = roughEstimateDurationMillis;
             this.unitAbbreviation = unitAbbreviation;
             this.innerIntervals = innerIntervals;
+            this.dateTimeUnit = dateTimeUnit;
         }
 
         public RoundingInfo(StreamInput in) throws IOException {
@@ -236,6 +260,7 @@ public class AutoDateHistogramAggregationBuilder
             roughEstimateDurationMillis = in.readVLong();
             innerIntervals = in.readIntArray();
             unitAbbreviation = in.readString();
+            dateTimeUnit = in.readString();
         }
 
         @Override
@@ -244,11 +269,14 @@ public class AutoDateHistogramAggregationBuilder
             out.writeVLong(roughEstimateDurationMillis);
             out.writeIntArray(innerIntervals);
             out.writeString(unitAbbreviation);
+            out.writeString(dateTimeUnit);
         }
 
         public int getMaximumInnerInterval() {
             return innerIntervals[innerIntervals.length - 1];
         }
+
+        public String getDateTimeUnit() { return this.dateTimeUnit; }
 
         public long getRoughEstimateDurationMillis() {
             return roughEstimateDurationMillis;
@@ -256,7 +284,7 @@ public class AutoDateHistogramAggregationBuilder
 
         @Override
         public int hashCode() {
-            return Objects.hash(rounding, Arrays.hashCode(innerIntervals));
+            return Objects.hash(rounding, Arrays.hashCode(innerIntervals), dateTimeUnit);
         }
 
         @Override
@@ -268,8 +296,10 @@ public class AutoDateHistogramAggregationBuilder
                 return false;
             }
             RoundingInfo other = (RoundingInfo) obj;
-            return Objects.equals(rounding, other.rounding) &&
-                    Objects.deepEquals(innerIntervals, other.innerIntervals);
+            return Objects.equals(rounding, other.rounding)
+                && Objects.deepEquals(innerIntervals, other.innerIntervals)
+                && Objects.equals(dateTimeUnit, other.dateTimeUnit)
+                ;
         }
     }
 }

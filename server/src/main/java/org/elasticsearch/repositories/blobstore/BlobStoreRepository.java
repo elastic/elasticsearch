@@ -490,7 +490,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                                          final Map<String, Object> userMetadata) {
         SnapshotInfo blobStoreSnapshot = new SnapshotInfo(snapshotId,
             indices.stream().map(IndexId::getName).collect(Collectors.toList()),
-            startTime, failure, threadPool.absoluteTimeInMillis(), totalShards, shardFailures,
+            startTime, failure, System.currentTimeMillis(), totalShards, shardFailures,
             includeGlobalState, userMetadata);
         try {
             snapshotFormat.write(blobStoreSnapshot, blobContainer(), snapshotId.getUUID());

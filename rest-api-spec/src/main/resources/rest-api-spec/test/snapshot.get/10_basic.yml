@@ -87,6 +87,7 @@ setup:
   - is_false: snapshots.0.failures
   - is_false: snapshots.0.shards
   - is_false: snapshots.0.version
+  - is_false: snapshots.0._meta
 
   - do:
       snapshot.delete:
@@ -149,3 +150,41 @@ setup:
       snapshot.delete:
         repository: test_repo_get_1
         snapshot: test_snapshot_without_include_global_state
+
+---
+"Get snapshot info with metadata":
+  - skip:
+      version: " - 7.9.99"
+      reason: "https://github.com/elastic/elasticsearch/pull/41281 not yet backported to 7.x"
+
+  - do:
+      indices.create:
+        index: test_index
+        body:
+          settings:
+            number_of_shards:   1
+            number_of_replicas: 0
+
+  - do:
+      snapshot.create:
+        repository: test_repo_get_1
+        snapshot: test_snapshot_with_metadata
+        wait_for_completion: true
+        body: |
+          { "metadata": {"taken_by": "test", "foo": {"bar": "baz"}} }
+
+  - do:
+      snapshot.get:
+        repository: test_repo_get_1
+        snapshot: test_snapshot_with_metadata
+
+  - is_true: snapshots
+  - match: { snapshots.0.snapshot: test_snapshot_with_metadata }
+  - match: { snapshots.0.state: SUCCESS }
+  - match: { snapshots.0.metadata.taken_by: test }
+  - match: { snapshots.0.metadata.foo.bar: baz }
+
+  - do:
+      snapshot.delete:
+        repository: test_repo_get_1
+        snapshot: test_snapshot_with_metadata

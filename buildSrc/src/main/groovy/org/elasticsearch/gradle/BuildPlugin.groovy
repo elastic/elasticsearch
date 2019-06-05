@@ -695,8 +695,11 @@ class BuildPlugin implements Plugin<Project> {
             // we put all our distributable files under distributions
             jarTask.destinationDir = new File(project.buildDir, 'distributions')
             project.plugins.withType(ShadowPlugin).whenPluginAdded {
-                // ensure the original jar task places its output in 'libs' so we don't overwrite it with the shadowjar
-                if (jarTask instanceof ShadowJar == false) {
+                /*
+                 * Ensure the original jar task places its output in 'libs' so that we don't overwrite it with the shadow jar. We only do
+                 * this for tasks named jar to exclude javadoc and sources jars.
+                 */
+                if (jarTask instanceof ShadowJar == false && jarTask.name == "jar") {
                     jarTask.destinationDir = new File(project.buildDir, 'libs')
                 }
             }

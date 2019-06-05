@@ -106,7 +106,7 @@ public class AzureBlobStore implements BlobStore {
 
     public Map<String, BlobContainer> children(BlobPath path) throws URISyntaxException, StorageException {
         return Collections.unmodifiableMap(service.children(clientName, container, path).stream().collect(
-            Collectors.toMap(Function.identity(), name -> new AzureBlobContainer(path.add(name), this))));
+            Collectors.toMap(Function.identity(), name -> new AzureBlobContainer(path.add(name), this, threadPool))));
     }
 
     public void writeBlob(String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists)

@@ -127,7 +127,7 @@ public final class CreateTokenRequest extends ActionRequest {
         return validationException;
     }
 
-    private static ActionRequestValidationException missingFieldValidation(String field, String fieldValue,
+    private static ActionRequestValidationException validateRequiredField(String field, String fieldValue,
                                                                            ActionRequestValidationException validationException) {
         if (Strings.isNullOrEmpty(fieldValue)) {
             validationException = addValidationError(String.format(Locale.ROOT, "%s is missing", field), validationException);

@@ -187,7 +187,7 @@ public final class ExceptionsHelper {
      * @return Corruption indicating exception if one is found, otherwise {@code null}
      */
     public static IOException unwrapCorruption(Throwable t) {
-        return t == null ? null : ExceptionsHelper.<IOException>unwrap(t, cause -> {
+        return t == null ? null : ExceptionsHelper.<IOException>unwrapCausesAndSuppressed(t, cause -> {
             for (Class<?> clazz : CORRUPTION_EXCEPTIONS) {
                 if (clazz.isInstance(cause)) {
                     return true;
@@ -245,7 +245,7 @@ public final class ExceptionsHelper {
     }
 
     @SuppressWarnings("unchecked")
-    private static <T extends Throwable> Optional<T> unwrap(Throwable cause, Predicate<Throwable> predicate) {
+    private static <T extends Throwable> Optional<T> unwrapCausesAndSuppressed(Throwable cause, Predicate<Throwable> predicate) {
         if (predicate.test(cause)) {
             return Optional.of((T) cause);
         }
@@ -276,7 +276,7 @@ public final class ExceptionsHelper {
      * @return an optional error if one is found suppressed or a root cause in the tree rooted at the specified throwable
      */
     public static Optional<Error> maybeError(final Throwable cause) {
-        return unwrap(cause, t -> t instanceof Error);
+        return unwrapCausesAndSuppressed(cause, t -> t instanceof Error);
     }
 
     /**

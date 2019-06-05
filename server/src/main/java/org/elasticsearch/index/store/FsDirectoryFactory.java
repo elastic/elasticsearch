@@ -83,8 +83,8 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
                 // Use Lucene defaults
                 final FSDirectory primaryDirectory = FSDirectory.open(location, lockFactory);
                 if (primaryDirectory instanceof MMapDirectory) {
-                    return new HybridDirectory(location, lockFactory, setPreload((MMapDirectory) primaryDirectory,
-                        lockFactory, preLoadExtensions));
+                    MMapDirectory mMapDirectory = (MMapDirectory)primaryDirectory;
+                    return new HybridDirectory(lockFactory, setPreload(mMapDirectory, lockFactory, preLoadExtensions));
                 } else {
                     return primaryDirectory;
                 }
@@ -121,15 +121,30 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
     }
 
     static final class HybridDirectory extends NIOFSDirectory {
-        private final FSDirectory randomAccessDirectory;
+        private final MMapDirectory delegate;
 
-        HybridDirectory(Path location, LockFactory lockFactory, FSDirectory randomAccessDirectory) throws IOException {
-            super(location, lockFactory);
-            this.randomAccessDirectory = randomAccessDirectory;
+        HybridDirectory(LockFactory lockFactory, MMapDirectory delegate) throws IOException {
+            super(delegate.getDirectory(), lockFactory);
+            this.delegate = delegate;
         }
 
         @Override
         public IndexInput openInput(String name, IOContext context) throws IOException {
+            if (useDelegate(name)) {
+                // we need to do these checks on the outer directory since the inner doesn't know about pending deletes
+                ensureOpen();
+                ensureCanRead(name);
+                // we only use the mmap to open inputs. Everything else is managed by the NIOFSDirectory otherwise
+                // we might run into trouble with files that are pendingDelete in one directory but still
+                // listed in listAll() from the other. We on the other hand don't want to list files from both dirs
+                // and intersect for perf reasons.
+                return delegate.openInput(name, context);
+            } else {
+                return super.openInput(name, context);
+            }
+        }
+
+        boolean useDelegate(String name) {
             String extension = FileSwitchDirectory.getExtension(name);
             switch(extension) {
                 // We are mmapping norms, docvalues as well as term dictionaries, all other files are served through NIOFS
@@ -138,35 +153,30 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
                 case "dvd":
                 case "tim":
                 case "cfs":
-                    // we need to do these checks on the outer directory since the inner doesn't know about pending deletes
-                    ensureOpen();
-                    ensureCanRead(name);
-                    // we only use the mmap to open inputs. Everything else is managed by the NIOFSDirectory otherwise
-                    // we might run into trouble with files that are pendingDelete in one directory but still
-                    // listed in listAll() from the other. We on the other hand don't want to list files from both dirs
-                    // and intersect for perf reasons.
-                    return randomAccessDirectory.openInput(name, context);
+                   return true;
                 default:
-                    return super.openInput(name, context);
+                    return false;
             }
         }
 
         @Override
         public void close() throws IOException {
-            IOUtils.close(super::close, randomAccessDirectory);
+            IOUtils.close(super::close, delegate);
         }
 
-        Directory getRandomAccessDirectory() {
-            return randomAccessDirectory;
+        MMapDirectory getDelegate() {
+            return delegate;
         }
     }
-
+    // TODO it would be nice to share code between PreLoadMMapDirectory and HybridDirectory but due to the nesting aspect of
+    // directories here makes it tricky. It would be nice to allow MMAPDirectory to pre-load on a per IndexInput basis.
     static final class PreLoadMMapDirectory extends MMapDirectory {
         private final MMapDirectory delegate;
         private final Set<String> preloadExtensions;
 
         public PreLoadMMapDirectory(MMapDirectory delegate, LockFactory lockFactory, Set<String> preload) throws IOException {
             super(delegate.getDirectory(), lockFactory);
+            super.setPreload(false);
             this.delegate = delegate;
             this.delegate.setPreload(true);
             this.preloadExtensions = preload;
@@ -180,8 +190,10 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
 
         @Override
         public IndexInput openInput(String name, IOContext context) throws IOException {
-            final String extension = FileSwitchDirectory.getExtension(name);
-            if (preloadExtensions.contains(extension)) {
+            if (useDelegate(name)) {
+                // we need to do these checks on the outer directory since the inner doesn't know about pending deletes
+                ensureOpen();
+                ensureCanRead(name);
                 return delegate.openInput(name, context);
             }
             return super.openInput(name, context);
@@ -189,19 +201,16 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
 
         @Override
         public synchronized void close() throws IOException {
-            try {
-                super.close();
-            } finally {
-                delegate.close();
-            }
+            IOUtils.close(super::close, delegate);
         }
 
-        MMapDirectory getDirectoryForFile(String name) {
+        boolean useDelegate(String name) {
             final String extension = FileSwitchDirectory.getExtension(name);
-            if (preloadExtensions.contains(extension)) {
-                return delegate;
-            }
-            return this;
+            return preloadExtensions.contains(extension);
+        }
+
+        MMapDirectory getDelegate() {
+            return delegate;
         }
     }
 }

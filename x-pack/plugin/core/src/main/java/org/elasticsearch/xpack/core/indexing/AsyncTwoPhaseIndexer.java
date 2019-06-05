@@ -284,6 +284,8 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
         AtomicBoolean callOnStop = new AtomicBoolean(false);
         AtomicBoolean callOnAbort = new AtomicBoolean(false);
         IndexerState updatedState = state.updateAndGet(prev -> {
+            callOnAbort.set(false);
+            callOnStop.set(false);
             switch (prev) {
             case INDEXING:
                 // ready for another job

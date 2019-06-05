@@ -44,7 +44,12 @@ project.ext {
       }
 
       into('config') {
+        /*
+         * Oss and default distribution can have different configuration, therefore we want to allow overriding the default configuration
+         * by creating config files in oss or default build-context sub-modules. 
+         */
         from project.projectDir.toPath().resolve("src/docker/config")
+        from project.projectDir.toPath().resolve(oss ? "oss-docker-build-context" : "docker-build-context").resolve("src/docker/config")
       }
 
       from(project.projectDir.toPath().resolve("src/docker/Dockerfile")) {

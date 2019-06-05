@@ -93,6 +93,8 @@ public class FollowStatsResponseTests extends AbstractResponseTestCase<FollowSta
                     equalTo(expectedShardFollowStats.followerMappingVersion()));
                 assertThat(actualShardFollowStats.getFollowerSettingsVersion(),
                     equalTo(expectedShardFollowStats.followerSettingsVersion()));
+                assertThat(actualShardFollowStats.getFollowerAliasesVersion(),
+                        equalTo(expectedShardFollowStats.followerAliasesVersion()));
                 assertThat(actualShardFollowStats.getTotalReadTimeMillis(),
                     equalTo(expectedShardFollowStats.totalReadTimeMillis()));
                 assertThat(actualShardFollowStats.getSuccessfulReadRequests(),

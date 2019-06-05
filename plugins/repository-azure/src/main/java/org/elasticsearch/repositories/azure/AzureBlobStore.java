@@ -32,7 +32,6 @@ import org.elasticsearch.repositories.azure.AzureRepository.Repository;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URISyntaxException;
-import java.nio.file.FileAlreadyExistsException;
 import java.util.Map;
 
 import static java.util.Collections.emptyMap;
@@ -98,8 +97,7 @@ public class AzureBlobStore implements BlobStore {
         return service.listBlobsByPrefix(clientName, container, keyPath, prefix);
     }
 
-    public void writeBlob(String blobName, InputStream inputStream, long blobSize)
-        throws URISyntaxException, StorageException, FileAlreadyExistsException {
+    public void writeBlob(String blobName, InputStream inputStream, long blobSize) throws URISyntaxException, StorageException {
         service.writeBlob(this.clientName, container, blobName, inputStream, blobSize);
     }
 }

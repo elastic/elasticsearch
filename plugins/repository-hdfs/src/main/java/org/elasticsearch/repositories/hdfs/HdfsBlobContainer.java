@@ -36,7 +36,6 @@ import java.io.FileNotFoundException;
 import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.NoSuchFileException;
 import java.util.Collections;
 import java.util.EnumSet;
@@ -106,11 +105,7 @@ final class HdfsBlobContainer extends AbstractBlobContainer {
                 }
             }
             final Path blob = new Path(path, blobName);
-            try {
-                fileContext.rename(tempBlobPath, blob, Options.Rename.OVERWRITE);
-            } catch (org.apache.hadoop.fs.FileAlreadyExistsException faee) {
-                throw new FileAlreadyExistsException(blob.toString(), null, faee.getMessage());
-            }
+            fileContext.rename(tempBlobPath, blob, Options.Rename.OVERWRITE);
             return null;
         });
     }

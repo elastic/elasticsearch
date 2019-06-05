@@ -353,7 +353,7 @@ public class MockRepository extends FsRepository {
                     super.writeBlobAtomic(tempBlobName, inputStream, blobSize);
                     maybeIOExceptionOrBlock(blobName);
                     final FsBlobContainer fsBlobContainer = (FsBlobContainer) delegate();
-                    fsBlobContainer.moveBlobAtomic(tempBlobName, blobName, false);
+                    fsBlobContainer.moveBlobAtomic(tempBlobName, blobName);
                 } else {
                     // Atomic write since it is potentially supported
                     // by the delegating blob container

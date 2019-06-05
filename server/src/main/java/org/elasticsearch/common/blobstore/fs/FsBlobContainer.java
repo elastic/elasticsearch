@@ -33,7 +33,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.file.DirectoryStream;
-import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
@@ -133,7 +132,7 @@ public class FsBlobContainer extends AbstractBlobContainer {
                 Streams.copy(inputStream, outputStream);
             }
             IOUtils.fsync(tempBlobPath, false);
-            moveBlobAtomic(tempBlob, blobName, false);
+            moveBlobAtomic(tempBlob, blobName);
         } catch (IOException ex) {
             try {
                 deleteBlobIgnoringIfNotExists(tempBlob);
@@ -146,18 +145,14 @@ public class FsBlobContainer extends AbstractBlobContainer {
         }
     }
 
-    public void moveBlobAtomic(final String sourceBlobName, final String targetBlobName, final boolean failIfAlreadyExists)
+    public void moveBlobAtomic(final String sourceBlobName, final String targetBlobName)
         throws IOException {
         final Path sourceBlobPath = path.resolve(sourceBlobName);
         final Path targetBlobPath = path.resolve(targetBlobName);
         // If the target file exists then Files.move() behaviour is implementation specific
         // the existing file might be replaced or this method fails by throwing an IOException.
         if (Files.exists(targetBlobPath)) {
-            if (failIfAlreadyExists) {
-                throw new FileAlreadyExistsException("blob [" + targetBlobPath + "] already exists, cannot overwrite");
-            } else {
-                deleteBlobIgnoringIfNotExists(targetBlobName);
-            }
+            deleteBlobIgnoringIfNotExists(targetBlobName);
         }
         Files.move(sourceBlobPath, targetBlobPath, StandardCopyOption.ATOMIC_MOVE);
     }

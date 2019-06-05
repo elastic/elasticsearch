@@ -21,6 +21,7 @@ import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.bucket.filter.Filter;
 import org.elasticsearch.search.aggregations.metrics.Percentiles;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationMetricResult;
+import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -145,16 +146,23 @@ public class AucRoc implements SoftClassificationMetric {
     public EvaluationMetricResult evaluate(ClassInfo classInfo, Aggregations aggs) {
         Filter classAgg = aggs.get(evaluatedLabelAggName(classInfo));
         Filter restAgg = aggs.get(restLabelsAggName(classInfo));
-        double[] tpPercentiles = percentilesArray(classAgg.getAggregations().get(PERCENTILES));
-        double[] fpPercentiles = percentilesArray(restAgg.getAggregations().get(PERCENTILES));
+        double[] tpPercentiles = percentilesArray(classAgg.getAggregations().get(PERCENTILES),
+            "[" + getMetricName() + "] requires at least one actual_field to have the value [" + classInfo.getName() + "]");
+        double[] fpPercentiles = percentilesArray(restAgg.getAggregations().get(PERCENTILES),
+            "[" + getMetricName() + "] requires at least one actual_field to have a different value than [" + classInfo.getName() + "]");
         List<AucRocPoint> aucRocCurve = buildAucRocCurve(tpPercentiles, fpPercentiles);
         double aucRocScore = calculateAucScore(aucRocCurve);
         return new Result(aucRocScore, includeCurve ? aucRocCurve : Collections.emptyList());
     }
 
-    private static double[] percentilesArray(Percentiles percentiles) {
+    private static double[] percentilesArray(Percentiles percentiles, String errorIfUndefined) {
         double[] result = new double[99];
-        percentiles.forEach(percentile -> result[((int) percentile.getPercent()) - 1] = percentile.getValue());
+        percentiles.forEach(percentile -> {
+            if (Double.isNaN(percentile.getValue())) {
+                throw ExceptionsHelper.badRequestException(errorIfUndefined);
+            }
+            result[((int) percentile.getPercent()) - 1] = percentile.getValue();
+        });
         return result;
     }
 

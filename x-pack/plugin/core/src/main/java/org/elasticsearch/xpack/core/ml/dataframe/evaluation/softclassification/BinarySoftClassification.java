@@ -192,7 +192,7 @@ public class BinarySoftClassification implements Evaluation {
 
     private class BinaryClassInfo implements SoftClassificationMetric.ClassInfo {
 
-        private QueryBuilder matchingQuery = QueryBuilders.queryStringQuery(actualField + ": 1 OR true");
+        private QueryBuilder matchingQuery = QueryBuilders.queryStringQuery(actualField + ": (1 OR true)");
 
         @Override
         public String getName() {

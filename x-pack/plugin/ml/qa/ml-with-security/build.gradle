@@ -61,6 +61,8 @@ integTestRunner {
     'ml/evaluate_data_frame/Test given missing index',
     'ml/evaluate_data_frame/Test given index does not exist',
     'ml/evaluate_data_frame/Test given missing evaluation',
+    'ml/evaluate_data_frame/Test binary_soft_classifition auc_roc given actual_field is always true',
+    'ml/evaluate_data_frame/Test binary_soft_classifition auc_roc given actual_field is always false',
     'ml/evaluate_data_frame/Test binary_soft_classification given evaluation with emtpy metrics',
     'ml/evaluate_data_frame/Test binary_soft_classification given missing actual_field',
     'ml/evaluate_data_frame/Test binary_soft_classification given missing predicted_probability_field',

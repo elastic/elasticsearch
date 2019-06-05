@@ -220,5 +220,6 @@ PUT /test_index
 
 Using the <<analyzer reload API,indices-reload-analyzers>>, you can trigger reloading of the
 synonym definition. The contents of the configured synonyms file will be reloaded and the
-synonyms definition the filter uses will be updated. Note that if you trying to use the above
-analyzer as an index analyzer will result in an error.
+synonyms definition the filter uses will be updated. 
+
+Note: Trying to use the above analyzer as an index analyzer will result in an error.

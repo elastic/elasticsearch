@@ -1,6 +1,8 @@
 [[indices-reload-analyzers]]
 == Reload Search Analyzers
 
+experimental[]
+
 Reloads search analyzers and its resources.
 
 The `_reload_search_analyzers` API can be run on one more indices and will
@@ -48,6 +50,11 @@ PUT /test_index
 
 Calling the `_reload_search_analyzers` endpoint will now trigger reloading the
 synonyms from the configured "synonym.txt" file.
+
+NOTE: Reloading will happen on every node the index has shards, so its important
+to update the synonym file contents on every data node (even the ones that don't currently
+hold shard copies; shards might be relocated there in the future) before calling
+reload to ensure the new state of the file is reflected everywhere in the cluster.
 
 [source,js]
 --------------------------------------------------

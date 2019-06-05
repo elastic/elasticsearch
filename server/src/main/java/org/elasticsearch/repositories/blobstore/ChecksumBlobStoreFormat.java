@@ -190,24 +190,6 @@ public final class ChecksumBlobStoreFormat<T extends ToXContent> {
         });
     }
 
-    /**
-     * Writes blob with resolving the blob name using {@link #blobName} method.
-     * <p>
-     * The blob will be compressed and checksum will be written if required.
-     *
-     * @param obj           object to be serialized
-     * @param blobContainer blob container
-     * @param name          blob name
-     */
-    public void write(T obj, BlobContainer blobContainer, String name) throws IOException {
-        final String blobName = blobName(name);
-        writeTo(obj, blobName, bytesArray -> {
-            try (InputStream stream = bytesArray.streamInput()) {
-                blobContainer.writeBlob(blobName, stream, bytesArray.length());
-            }
-        });
-    }
-
     private void writeTo(final T obj, final String blobName, final CheckedConsumer<BytesArray, IOException> consumer) throws IOException {
         final BytesReference bytes;
         try (BytesStreamOutput bytesStreamOutput = new BytesStreamOutput()) {

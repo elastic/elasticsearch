@@ -118,9 +118,9 @@ public class BlobStoreFormatIT extends AbstractSnapshotIntegTestCase {
             xContentRegistry(), true, XContentType.SMILE);
 
         // Write blobs in different formats
-        checksumJSON.write(new BlobObj("checksum json"), blobContainer, "check-json");
-        checksumSMILE.write(new BlobObj("checksum smile"), blobContainer, "check-smile");
-        checksumSMILECompressed.write(new BlobObj("checksum smile compressed"), blobContainer, "check-smile-comp");
+        checksumJSON.writeAtomic(new BlobObj("checksum json"), blobContainer, "check-json");
+        checksumSMILE.writeAtomic(new BlobObj("checksum smile"), blobContainer, "check-smile");
+        checksumSMILECompressed.writeAtomic(new BlobObj("checksum smile compressed"), blobContainer, "check-smile-comp");
 
         // Assert that all checksum blobs can be read by all formats
         assertEquals(checksumJSON.read(blobContainer, "check-json").getText(), "checksum json");
@@ -143,8 +143,8 @@ public class BlobStoreFormatIT extends AbstractSnapshotIntegTestCase {
         ChecksumBlobStoreFormat<BlobObj> checksumFormatComp = new ChecksumBlobStoreFormat<>(BLOB_CODEC, "%s", BlobObj::fromXContent,
             xContentRegistry(), true, randomBoolean() ? XContentType.SMILE : XContentType.JSON);
         BlobObj blobObj = new BlobObj(veryRedundantText.toString());
-        checksumFormatComp.write(blobObj, blobContainer, "blob-comp");
-        checksumFormat.write(blobObj, blobContainer, "blob-not-comp");
+        checksumFormatComp.writeAtomic(blobObj, blobContainer, "blob-comp");
+        checksumFormat.writeAtomic(blobObj, blobContainer, "blob-not-comp");
         Map<String, BlobMetaData> blobs = blobContainer.listBlobsByPrefix("blob-");
         assertEquals(blobs.size(), 2);
         assertThat(blobs.get("blob-not-comp").length(), greaterThan(blobs.get("blob-comp").length()));
@@ -157,7 +157,7 @@ public class BlobStoreFormatIT extends AbstractSnapshotIntegTestCase {
         BlobObj blobObj = new BlobObj(testString);
         ChecksumBlobStoreFormat<BlobObj> checksumFormat = new ChecksumBlobStoreFormat<>(BLOB_CODEC, "%s", BlobObj::fromXContent,
             xContentRegistry(), randomBoolean(), randomBoolean() ? XContentType.SMILE : XContentType.JSON);
-        checksumFormat.write(blobObj, blobContainer, "test-path");
+        checksumFormat.writeAtomic(blobObj, blobContainer, "test-path");
         assertEquals(checksumFormat.read(blobContainer, "test-path").getText(), testString);
         randomCorruption(blobContainer, "test-path");
         try {

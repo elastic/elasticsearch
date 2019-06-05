@@ -59,22 +59,6 @@ public interface BlobContainer {
     InputStream readBlob(String blobName) throws IOException;
 
     /**
-     * Reads blob content from the input stream and writes it to the container in a new blob with the given name.
-     * If a blob by the same name already exists it will be overwritten.
-     *
-     * @param   blobName
-     *          The name of the blob to write the contents of the input stream to.
-     * @param   inputStream
-     *          The input stream from which to retrieve the bytes to write to the blob.
-     * @param   blobSize
-     *          The size of the blob to be written, in bytes.  It is implementation dependent whether
-     *          this value is used in writing the blob to the repository.
-     * @throws  FileAlreadyExistsException if failIfAlreadyExists is true and a blob by the same name already exists
-     * @throws  IOException if the input stream could not be read, or the target blob could not be written to.
-     */
-    void writeBlob(String blobName, InputStream inputStream, long blobSize) throws IOException;
-
-    /**
      * Reads blob content from the input stream and writes it to the container in a new blob with the given name,
      * using an atomic write operation if the implementation supports it.
      * If a blob by the same name already exists it will be overwritten.

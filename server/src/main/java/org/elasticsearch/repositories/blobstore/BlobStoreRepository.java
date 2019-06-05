@@ -365,14 +365,14 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             }
 
             // Write Global MetaData
-            globalMetaDataFormat.write(clusterMetaData, blobContainer(), snapshotId.getUUID());
+            globalMetaDataFormat.writeAtomic(clusterMetaData, blobContainer(), snapshotId.getUUID());
 
             // write the index metadata for each index in the snapshot
             for (IndexId index : indices) {
                 final IndexMetaData indexMetaData = clusterMetaData.index(index.getName());
                 final BlobPath indexPath = basePath().add("indices").add(index.getId());
                 final BlobContainer indexMetaDataBlobContainer = blobStore().blobContainer(indexPath);
-                indexMetaDataFormat.write(indexMetaData, indexMetaDataBlobContainer, snapshotId.getUUID());
+                indexMetaDataFormat.writeAtomic(indexMetaData, indexMetaDataBlobContainer, snapshotId.getUUID());
             }
         } catch (IOException ex) {
             throw new SnapshotCreationException(metadata.name(), snapshotId, ex);
@@ -495,7 +495,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             startTime, failure, System.currentTimeMillis(), totalShards, shardFailures,
             includeGlobalState);
         try {
-            snapshotFormat.write(blobStoreSnapshot, blobContainer(), snapshotId.getUUID());
+            snapshotFormat.writeAtomic(blobStoreSnapshot, blobContainer(), snapshotId.getUUID());
             final RepositoryData repositoryData = getRepositoryData();
             writeIndexGen(repositoryData.addSnapshot(snapshotId, blobStoreSnapshot.state(), indices), repositoryStateId);
         } catch (FileAlreadyExistsException ex) {
@@ -854,7 +854,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 try {
                     BytesArray bytes = new BytesArray(seed);
                     try (InputStream stream = bytes.streamInput()) {
-                        testBlobContainer.writeBlob("data-" + localNode.getId() + ".dat", stream, bytes.length());
+                        testBlobContainer.writeBlobAtomic("data-" + localNode.getId() + ".dat", stream, bytes.length());
                     }
                 } catch (IOException exp) {
                     throw new RepositoryVerificationException(metadata.name(), "store location [" + blobStore() +
@@ -1194,7 +1194,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             //TODO: The time stored in snapshot doesn't include cleanup time.
             logger.trace("[{}] [{}] writing shard snapshot file", shardId, snapshotId);
             try {
-                indexShardSnapshotFormat.write(snapshot, blobContainer, snapshotId.getUUID());
+                indexShardSnapshotFormat.writeAtomic(snapshot, blobContainer, snapshotId.getUUID());
             } catch (IOException e) {
                 throw new IndexShardSnapshotFailedException(shardId, "Failed to write commit point", e);
             }
@@ -1229,7 +1229,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                                                                   snapshotRateLimitingTimeInNanos::inc);
                     }
                     inputStream = new AbortableInputStream(inputStream, fileInfo.physicalName());
-                    blobContainer.writeBlob(fileInfo.partName(i), inputStream, partBytes);
+                    blobContainer.writeBlobAtomic(fileInfo.partName(i), inputStream, partBytes);
                 }
                 Store.verify(indexInput);
                 snapshotStatus.addProcessedFile(fileInfo.length());

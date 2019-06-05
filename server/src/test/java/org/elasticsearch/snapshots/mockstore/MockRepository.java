@@ -345,24 +345,12 @@ public class MockRepository extends FsRepository {
             }
 
             @Override
-            public void writeBlob(String blobName, InputStream inputStream, long blobSize)
-                throws IOException {
-                maybeIOExceptionOrBlock(blobName);
-                super.writeBlob(blobName, inputStream, blobSize);
-                if (RandomizedContext.current().getRandom().nextBoolean()) {
-                    // for network based repositories, the blob may have been written but we may still
-                    // get an error with the client connection, so an IOException here simulates this
-                    maybeIOExceptionOrBlock(blobName);
-                }
-            }
-
-            @Override
             public void writeBlobAtomic(final String blobName, final InputStream inputStream, final long blobSize) throws IOException {
                 final Random random = RandomizedContext.current().getRandom();
                 if ((delegate() instanceof FsBlobContainer) && (random.nextBoolean())) {
                     // Simulate a failure between the write and move operation in FsBlobContainer
                     final String tempBlobName = FsBlobContainer.tempBlobName(blobName);
-                    super.writeBlob(tempBlobName, inputStream, blobSize);
+                    super.writeBlobAtomic(tempBlobName, inputStream, blobSize);
                     maybeIOExceptionOrBlock(blobName);
                     final FsBlobContainer fsBlobContainer = (FsBlobContainer) delegate();
                     fsBlobContainer.moveBlobAtomic(tempBlobName, blobName, false);

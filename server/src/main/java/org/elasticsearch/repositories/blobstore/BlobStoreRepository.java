@@ -127,7 +127,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     protected final RepositoryMetaData metadata;
 
-    private final ThreadPool threadPool;
+    protected final ThreadPool threadPool;
 
     private static final int BUFFER_SIZE = 4096;
 

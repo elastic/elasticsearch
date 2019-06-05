@@ -21,6 +21,7 @@ package org.elasticsearch.discovery;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -89,6 +90,13 @@ public class HandshakingTransportAddressConnector implements TransportAddressCon
                     remoteNode = transportService.handshake(connection, probeHandshakeTimeout.millis());
                     // success means (amongst other things) that the cluster names match
                     logger.trace("[{}] handshake successful: {}", this, remoteNode);
+                } catch (Exception e) {
+                    // we opened a connection and successfully performed a low-level handshake, so we were definitely talking to an
+                    // Elasticsearch node, but the high-level handshake failed indicating some kind of mismatched configurations
+                    // (e.g. cluster name) that the user should address
+                    logger.warn(new ParameterizedMessage("handshake failed for [{}]", this), e);
+                    listener.onFailure(e);
+                    return;
                 } finally {
                     IOUtils.closeWhileHandlingException(connection);
                 }

@@ -26,19 +26,19 @@ subprojects {
 
     /*
      * Subprojects may depend on the "core" lib but may not depend on any
-     * other libs. This keeps are dependencies simpler.
+     * other libs. This keeps our dependencies simpler.
      */
     project.afterEvaluate {
         configurations.all { Configuration conf ->
-            dependencies.all { Dependency dep ->
-                Project depProject = dependencyToProject(dep)
+            dependencies.matching { it instanceof ProjectDependency }.all { ProjectDependency dep ->
+                Project depProject = dep.dependencyProject
                 if (depProject != null
-                        && false == depProject.path.equals(':libs:core')
+                        && false == depProject.path.equals(':libs:elasticsearch-core')
                         && false == isEclipse 
                         && depProject.path.startsWith(':libs')) {
                     throw new InvalidUserDataException("projects in :libs "
                             + "may not depend on other projects libs except "
-                            + ":libs:core but "
+                            + ":libs:elasticsearch-core but "
                             + "${project.path} depends on ${depProject.path}")
                 }
             }

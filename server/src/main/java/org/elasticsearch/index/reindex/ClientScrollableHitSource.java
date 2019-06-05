@@ -70,9 +70,8 @@ public class ClientScrollableHitSource extends ScrollableHitSource {
     @Override
     public void doStart(Consumer<? super Response> onResponse) {
         if (logger.isDebugEnabled()) {
-            logger.debug("executing initial scroll against {}{}",
-                    isEmpty(firstSearchRequest.indices()) ? "all indices" : firstSearchRequest.indices(),
-                    isEmpty(firstSearchRequest.types()) ? "" : firstSearchRequest.types());
+            logger.debug("executing initial scroll against {}",
+                    isEmpty(firstSearchRequest.indices()) ? "all indices" : firstSearchRequest.indices());
         }
         searchWithRetry(listener -> client.search(firstSearchRequest, listener), r -> consume(r, onResponse));
     }

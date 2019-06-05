@@ -205,12 +205,15 @@ class S3BlobContainer extends AbstractBlobContainer {
                     final ObjectListing finalPrevListing = prevListing;
                     list = SocketAccess.doPrivileged(() -> clientReference.client().listNextBatchOfObjects(finalPrevListing));
                 } else {
+                    final ListObjectsRequest listObjectsRequest = new ListObjectsRequest();
+                    listObjectsRequest.setBucketName(blobStore.bucket());
+                    listObjectsRequest.setDelimiter("/");
                     if (blobNamePrefix != null) {
-                        list = SocketAccess.doPrivileged(() -> clientReference.client().listObjects(blobStore.bucket(),
-                                buildKey(blobNamePrefix)));
+                        listObjectsRequest.setPrefix(buildKey(blobNamePrefix));
                     } else {
-                        list = SocketAccess.doPrivileged(() -> clientReference.client().listObjects(blobStore.bucket(), keyPath));
+                        listObjectsRequest.setPrefix(keyPath);
                     }
+                    list = SocketAccess.doPrivileged(() -> clientReference.client().listObjects(listObjectsRequest));
                 }
                 for (final S3ObjectSummary summary : list.getObjectSummaries()) {
                     final String name = summary.getKey().substring(keyPath.length());
@@ -253,8 +256,10 @@ class S3BlobContainer extends AbstractBlobContainer {
                 for (final String summary : list.getCommonPrefixes()) {
                     final String name = summary.substring(keyPath.length());
                     if (name.isEmpty() == false) {
-                        final BlobPath path = path().add(name);
-                        entries.add(entry(name.substring(0, name.length() - 1), blobStore.blobContainer(path)));
+                        // Stripping the trailing slash off of the common prefix
+                        final String last = name.substring(0, name.length() - 1);
+                        final BlobPath path = path().add(last);
+                        entries.add(entry(last, blobStore.blobContainer(path)));
                     }
                 }
                 assert list.getObjectSummaries().stream().noneMatch(s -> {
@@ -273,7 +278,7 @@ class S3BlobContainer extends AbstractBlobContainer {
             }
             return Maps.ofEntries(entries);
         } catch (final AmazonClientException e) {
-            throw new IOException("Exception when listing children", e);
+            throw new IOException("Exception when listing children of [" +  path().buildAsString() + ']', e);
         }
     }
 

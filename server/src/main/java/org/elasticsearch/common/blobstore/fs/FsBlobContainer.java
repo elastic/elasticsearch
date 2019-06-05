@@ -76,12 +76,10 @@ public class FsBlobContainer extends AbstractBlobContainer {
 
     @Override
     public Map<String, BlobContainer> children() throws IOException {
-        // If we get duplicate files we should just take the last entry
         Map<String, BlobContainer> builder = new HashMap<>();
         try (DirectoryStream<Path> stream = Files.newDirectoryStream(path)) {
             for (Path file : stream) {
-                final BasicFileAttributes attrs = Files.readAttributes(file, BasicFileAttributes.class);
-                if (attrs.isDirectory()) {
+                if (Files.isDirectory(file)) {
                     final String name = file.getFileName().toString();
                     builder.put(name, new FsBlobContainer(blobStore, path().add(name), file));
                 }
@@ -92,7 +90,6 @@ public class FsBlobContainer extends AbstractBlobContainer {
 
     @Override
     public Map<String, BlobMetaData> listBlobsByPrefix(String blobNamePrefix) throws IOException {
-        // If we get duplicate files we should just take the last entry
         Map<String, BlobMetaData> builder = new HashMap<>();
 
         blobNamePrefix = blobNamePrefix == null ? "" : blobNamePrefix;

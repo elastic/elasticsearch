@@ -29,6 +29,7 @@ import com.microsoft.azure.storage.StorageException;
 import com.microsoft.azure.storage.blob.BlobInputStream;
 import com.microsoft.azure.storage.blob.BlobListingDetails;
 import com.microsoft.azure.storage.blob.BlobProperties;
+import com.microsoft.azure.storage.blob.CloudBlob;
 import com.microsoft.azure.storage.blob.CloudBlobClient;
 import com.microsoft.azure.storage.blob.CloudBlobContainer;
 import com.microsoft.azure.storage.blob.CloudBlobDirectory;
@@ -218,8 +219,8 @@ public class AzureStorageService {
                 // uri.getPath is of the form /container/keyPath.* and we want to strip off the /container/
                 // this requires 1 + container.length() + 1, with each 1 corresponding to one of the /
                 final String blobPath = uri.getPath().substring(1 + container.length() + 1);
-                if (blobItem instanceof CloudBlockBlob) {
-                    final BlobProperties properties = ((CloudBlockBlob) blobItem).getProperties();
+                if (blobItem instanceof CloudBlob) {
+                    final BlobProperties properties = ((CloudBlob) blobItem).getProperties();
                     final String name = blobPath.substring(keyPath.length());
                     logger.trace(() -> new ParameterizedMessage("blob url [{}], name [{}], size [{}]", uri, name, properties.getLength()));
                     blobsBuilder.put(name, new PlainBlobMetaData(name, properties.getLength()));
@@ -242,7 +243,8 @@ public class AzureStorageService {
                     final URI uri = blobItem.getUri();
                     logger.trace(() -> new ParameterizedMessage("blob url [{}]", uri));
                     // uri.getPath is of the form /container/keyPath.* and we want to strip off the /container/
-                    // this requires 1 + container.length() + 1, with each 1 corresponding to one of the /
+                    // this requires 1 + container.length() + 1, with each 1 corresponding to one of the /.
+                    // Lastly, we add the length of keyPath to the offset to strip this container's path.
                     final String uriPath = uri.getPath();
                     blobsBuilder.add(uriPath.substring(1 + container.length() + 1 + keyPath.length(), uriPath.length() - 1));
                 }

@@ -79,7 +79,7 @@ class StandaloneRestTestPlugin implements Plugin<Project> {
 
         // create a compileOnly configuration as others might expect it
         project.configurations.create("compileOnly")
-        project.dependencies.add('testCompile', "org.elasticsearch.test:framework:${VersionProperties.elasticsearch}")
+        project.dependencies.add('testCompile', project.project(':test:framework'))
 
         EclipseModel eclipse = project.extensions.getByType(EclipseModel)
         eclipse.classpath.sourceSets = [testSourceSet]

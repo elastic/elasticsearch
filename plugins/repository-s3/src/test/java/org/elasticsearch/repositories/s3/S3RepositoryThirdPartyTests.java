@@ -19,6 +19,8 @@
 package org.elasticsearch.repositories.s3;
 
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.common.blobstore.BlobMetaData;
+import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.SecureSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -30,6 +32,7 @@ import org.elasticsearch.test.StreamsUtils;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.concurrent.Executor;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.blankOrNullString;
@@ -59,7 +62,7 @@ public class S3RepositoryThirdPartyTests extends AbstractThirdPartyRepositoryTes
     protected void createRepository(String repoName) {
         Settings.Builder settings = Settings.builder()
             .put("bucket", System.getProperty("test.s3.bucket"))
-            .put("base_path", System.getProperty("test.s3.base", "/"));
+            .put("base_path", System.getProperty("test.s3.base", "testpath"));
         final String endpointPath = System.getProperty("test.s3.endpoint");
         if (endpointPath != null) {
             try {
@@ -87,5 +90,18 @@ public class S3RepositoryThirdPartyTests extends AbstractThirdPartyRepositoryTes
         // S3 is only eventually consistent for the list operations used by this assertions so we retry for 10 minutes assuming that
         // listing operations will become consistent within these 10 minutes.
         assertBusy(() -> super.assertConsistentRepository(repo, executor), 10L, TimeUnit.MINUTES);
+    }
+
+    protected void assertBlobsByPrefix(BlobPath path, String prefix, Map<String, BlobMetaData> blobs) throws Exception {
+        // AWS S3 is eventually consistent so we retry for 10 minutes assuming a list operation will never take longer than that
+        // to become consistent.
+        assertBusy(() -> super.assertBlobsByPrefix(path, prefix, blobs), 10L, TimeUnit.MINUTES);
+    }
+
+    @Override
+    protected void assertChildren(BlobPath path, Collection<String> children) throws Exception {
+        // AWS S3 is eventually consistent so we retry for 10 minutes assuming a list operation will never take longer than that
+        // to become consistent.
+        assertBusy(() -> super.assertChildren(path, children), 10L, TimeUnit.MINUTES);
     }
 }

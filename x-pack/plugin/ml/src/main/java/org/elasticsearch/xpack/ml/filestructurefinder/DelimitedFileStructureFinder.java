@@ -62,12 +62,12 @@ public class DelimitedFileStructureFinder implements FileStructureFinder {
             }
             columnNames = overriddenColumnNames.toArray(new String[0]);
         } else {
-            // The column names are the header names but with blanks named column1, column2, etc.
+            // The column names are the header names but with dots replaced with underscores and blanks named column1, column2, etc.
             columnNames = new String[header.length];
             for (int i = 0; i < header.length; ++i) {
                 assert header[i] != null;
                 String rawHeader = trimFields ? header[i].trim() : header[i];
-                columnNames[i] = rawHeader.isEmpty() ? "column" + (i + 1) : rawHeader;
+                columnNames[i] = rawHeader.isEmpty() ? "column" + (i + 1) : rawHeader.replace('.', '_');
             }
         }
 

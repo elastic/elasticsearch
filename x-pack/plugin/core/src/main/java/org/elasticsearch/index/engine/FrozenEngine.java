@@ -78,7 +78,7 @@ public final class FrozenEngine extends ReadOnlyEngine {
 
         boolean success = false;
         Directory directory = store.directory();
-        try (DirectoryReader reader = DirectoryReader.open(directory)) {
+        try (DirectoryReader reader = DirectoryReader.open(directory, OFF_HEAP_READER_ATTRIBUTES)) {
             canMatchReader = ElasticsearchDirectoryReader.wrap(new RewriteCachingDirectoryReader(directory, reader.leaves()),
                 config.getShardId());
             // we record the segment stats here - that's what the reader needs when it's open and it give the user
@@ -168,7 +168,7 @@ public final class FrozenEngine extends ReadOnlyEngine {
                 for (ReferenceManager.RefreshListener listeners : config ().getInternalRefreshListener()) {
                     listeners.beforeRefresh();
                 }
-                reader = DirectoryReader.open(engineConfig.getStore().directory());
+                reader = DirectoryReader.open(engineConfig.getStore().directory(), OFF_HEAP_READER_ATTRIBUTES);
                 processReader(reader);
                 reader = lastOpenedReader = wrapReader(reader, Function.identity());
                 reader.getReaderCacheHelper().addClosedListener(this::onReaderClosed);

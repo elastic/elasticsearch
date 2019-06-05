@@ -146,15 +146,16 @@ class GoogleCloudStorageBlobStore implements BlobStore {
         final String pathStr = path.buildAsString();
         final MapBuilder<String, BlobContainer> mapBuilder = MapBuilder.newMapBuilder();
         SocketAccess.doPrivilegedVoidIOException
-            (() -> client().get(bucketName).list(BlobListOption.currentDirectory()).iterateAll().forEach(blob -> {
-                if (blob.isDirectory()) {
-                    assert blob.getName().startsWith(pathStr);
-                    final String suffixName = blob.getName().substring(pathStr.length());
-                    if (suffixName.isEmpty() == false) {
-                        mapBuilder.put(suffixName, new GoogleCloudStorageBlobContainer(path.add(suffixName), this));
+            (() -> client().get(bucketName).list(BlobListOption.currentDirectory(), BlobListOption.prefix(pathStr)).iterateAll().forEach(
+                blob -> {
+                    if (blob.isDirectory()) {
+                        assert blob.getName().startsWith(pathStr);
+                        final String suffixName = blob.getName().substring(pathStr.length());
+                        if (suffixName.isEmpty() == false) {
+                            mapBuilder.put(suffixName, new GoogleCloudStorageBlobContainer(path.add(suffixName), this));
+                        }
                     }
-                }
-            }));
+                }));
         return mapBuilder.immutableMap();
     }
 

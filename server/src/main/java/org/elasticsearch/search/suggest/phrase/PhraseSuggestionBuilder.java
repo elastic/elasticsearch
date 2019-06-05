@@ -31,9 +31,9 @@ import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
+import org.elasticsearch.index.analysis.AnalyzerComponentsProvider;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.analysis.ShingleTokenFilterFactory;
-import org.elasticsearch.index.analysis.TokenFilterComposite;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.QueryShardContext;
@@ -675,8 +675,8 @@ public class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSuggestionB
         if (analyzer instanceof NamedAnalyzer) {
             analyzer = ((NamedAnalyzer)analyzer).analyzer();
         }
-        if (analyzer instanceof TokenFilterComposite) {
-            final TokenFilterFactory[] tokenFilters = ((TokenFilterComposite) analyzer).tokenFilters();
+        if (analyzer instanceof AnalyzerComponentsProvider) {
+            final TokenFilterFactory[] tokenFilters = ((AnalyzerComponentsProvider) analyzer).getComponents().getTokenFilters();
             for (TokenFilterFactory tokenFilterFactory : tokenFilters) {
                 if (tokenFilterFactory instanceof ShingleTokenFilterFactory) {
                     return ((ShingleTokenFilterFactory)tokenFilterFactory).getInnerFactory();

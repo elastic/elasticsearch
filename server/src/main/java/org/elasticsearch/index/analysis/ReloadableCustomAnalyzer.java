@@ -28,7 +28,7 @@ import org.elasticsearch.common.settings.Settings;
 import java.io.Reader;
 import java.util.Map;
 
-public final class ReloadableCustomAnalyzer extends Analyzer implements TokenFilterComposite {
+public final class ReloadableCustomAnalyzer extends Analyzer implements AnalyzerComponentsProvider {
 
     private volatile AnalyzerComponents components;
 
@@ -69,13 +69,9 @@ public final class ReloadableCustomAnalyzer extends Analyzer implements TokenFil
         this.offsetGap = offsetGap;
     }
 
+    @Override
     public AnalyzerComponents getComponents() {
         return this.components;
-    }
-
-    @Override
-    public TokenFilterFactory[] tokenFilters() {
-        return this.components.getTokenFilters();
     }
 
     @Override

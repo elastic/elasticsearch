@@ -22,7 +22,7 @@ package org.elasticsearch.index.analysis;
 /**
  * Analyzers that provide access to their token filters should implement this
  */
-public interface TokenFilterComposite {
+public interface AnalyzerComponentsProvider {
 
-    TokenFilterFactory[] tokenFilters();
+    AnalyzerComponents getComponents();
 }

@@ -387,8 +387,8 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeAc
                         tokenFilterFactories[tokenFilterIndex].name(), tokenFiltersTokenListCreator[tokenFilterIndex].getArrayTokens());
                 }
             }
-            detailResponse = new AnalyzeAction.DetailAnalyzeResponse(charFilteredLists, new AnalyzeAction.AnalyzeTokenList(
-                    tokenizerName, tokenizerTokenListCreator.getArrayTokens()), tokenFilterLists);
+            detailResponse = new AnalyzeAction.DetailAnalyzeResponse(charFilteredLists,
+                    new AnalyzeAction.AnalyzeTokenList(tokenizerName, tokenizerTokenListCreator.getArrayTokens()), tokenFilterLists);
         } else {
             String name;
             if (analyzer instanceof NamedAnalyzer) {

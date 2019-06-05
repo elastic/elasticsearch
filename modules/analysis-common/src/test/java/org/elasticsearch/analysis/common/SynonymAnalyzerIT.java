@@ -19,8 +19,8 @@
 
 package org.elasticsearch.analysis.common;
 
-import org.elasticsearch.action.admin.indices.analyze.AnalyzeResponse;
-import org.elasticsearch.action.admin.indices.analyze.AnalyzeResponse.AnalyzeToken;
+import org.elasticsearch.action.admin.indices.analyze.AnalyzeAction.AnalyzeToken;
+import org.elasticsearch.action.admin.indices.analyze.AnalyzeAction.Response;
 import org.elasticsearch.action.admin.indices.reloadanalyzer.ReloadAnalyzersResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.Settings;
@@ -90,7 +90,7 @@ public class SynonymAnalyzerIT extends ESIntegTestCase {
         assertHitCount(response, 1L);
         response = client().prepareSearch("test").setQuery(QueryBuilders.matchQuery("field", "buzz")).get();
         assertHitCount(response, 0L);
-        AnalyzeResponse analyzeResponse = client().admin().indices().prepareAnalyze("test", "foo").setAnalyzer("my_synonym_analyzer").get();
+        Response analyzeResponse = client().admin().indices().prepareAnalyze("test", "foo").setAnalyzer("my_synonym_analyzer").get();
         assertEquals(2, analyzeResponse.getTokens().size());
         assertEquals("foo", analyzeResponse.getTokens().get(0).getTerm());
         assertEquals("baz", analyzeResponse.getTokens().get(1).getTerm());

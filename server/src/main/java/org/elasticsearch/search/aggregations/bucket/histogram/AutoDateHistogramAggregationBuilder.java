@@ -86,7 +86,7 @@ public class AutoDateHistogramAggregationBuilder
 
         int indexToSliceFrom = 0;
         /*
-        if (minimumInterval!= null && allowedIntervals.contains(minimumInterval)) {
+        if (minimumInterval != null && allowedIntervals.contains(minimumInterval)) {
             indexToSliceFrom = allowedIntervals.indexOf(minimumInterval);
         }
          */

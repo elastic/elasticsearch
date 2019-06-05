@@ -95,6 +95,7 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -2151,11 +2152,12 @@ public class InternalEngine extends Engine {
     static Map<String, String> getReaderAttributes(Directory directory) {
         Directory unwrap = FilterDirectory.unwrap(directory);
         boolean defaultOffHeap = FsDirectoryFactory.isHybridFs(unwrap) || unwrap instanceof MMapDirectory;
-        return Map.of(
-            BlockTreeTermsReader.FST_MODE_KEY, // if we are using MMAP for term dics we force all off heap unless it's the ID field
-            defaultOffHeap ? FSTLoadMode.OFF_HEAP.name() : FSTLoadMode.ON_HEAP.name()
-            , BlockTreeTermsReader.FST_MODE_KEY + "." + IdFieldMapper.NAME, // always force ID field on-heap for fast updates
+        HashMap<String, String> map = new HashMap(2);
+        map.put(BlockTreeTermsReader.FST_MODE_KEY, // if we are using MMAP for term dics we force all off heap unless it's the ID field
+            defaultOffHeap ? FSTLoadMode.OFF_HEAP.name() : FSTLoadMode.ON_HEAP.name());
+        map.put(BlockTreeTermsReader.FST_MODE_KEY + "." + IdFieldMapper.NAME, // always force ID field on-heap for fast updates
             FSTLoadMode.ON_HEAP.name());
+        return Collections.unmodifiableMap(map);
     }
 
     private IndexWriterConfig getIndexWriterConfig() {

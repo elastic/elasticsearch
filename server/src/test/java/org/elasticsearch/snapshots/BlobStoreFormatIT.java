@@ -253,7 +253,7 @@ public class BlobStoreFormatIT extends AbstractSnapshotIntegTestCase {
         } while (originalChecksum == checksum(buffer));
         BytesArray bytesArray = new BytesArray(buffer);
         try (StreamInput stream = bytesArray.streamInput()) {
-            blobContainer.writeBlob(blobName, stream, bytesArray.length());
+            blobContainer.writeBlobAtomic(blobName, stream, bytesArray.length());
         }
     }
 

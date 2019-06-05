@@ -44,7 +44,7 @@ integTestCluster {
     setupCommand 'setupTestAdmin',
             'bin/elasticsearch-users', 'useradd', "test_admin", '-p', 'x-pack-test-password', '-r', "superuser"
     setupCommand 'setupTestKibanaUser',
-            'bin/elasticsearch-users', 'useradd', "test_kibana_user", '-p', 'x-pack-test-password', '-r', "kibana_user"
+            'bin/elasticsearch-users', 'useradd', "test_kibana_user", '-p', 'x-pack-test-password', '-r', "kibana_system"
 
     waitCondition = { node, ant ->
         File tmpFile = new File(node.cwd, 'wait.success')

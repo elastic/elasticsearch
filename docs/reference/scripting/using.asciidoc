@@ -1,5 +1,5 @@
 [[modules-scripting-using]]
-=== How to use scripts
+== How to use scripts
 
 Wherever scripting is supported in the Elasticsearch API, the syntax follows
 the same pattern:
@@ -136,6 +136,7 @@ The same script in the normal form:
 Scripts may be stored in and retrieved from the cluster state using the
 `_scripts` end-point.
 
+[float]
 ==== Request Examples
 
 The following are examples of using a stored script that lives at

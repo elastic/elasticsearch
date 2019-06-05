@@ -1,5 +1,5 @@
 [[modules-scripting-fields]]
-=== Accessing document fields and special variables
+== Accessing document fields and special variables
 
 Depending on where a script is used, it will have access to certain special
 variables and document fields.

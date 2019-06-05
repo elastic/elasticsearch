@@ -53,7 +53,6 @@ public class FieldStatsCalculator {
     private String earliestTimeString;
     private String latestTimeString;
 
-    @SuppressWarnings("fallthrough")
     public FieldStatsCalculator(Map<String, String> mapping) {
 
         switch (mapping.get(FileStructureUtils.MAPPING_TYPE_SETTING)) {
@@ -70,7 +69,9 @@ public class FieldStatsCalculator {
             case "date_nanos":
                 String format = mapping.get(FileStructureUtils.MAPPING_FORMAT_SETTING);
                 dateFormatter = (format == null) ? DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER : DateFormatter.forPattern(format);
-                // $FALL-THROUGH$
+                // Dates are treated like strings for top hits
+                countsByStringValue = new TreeMap<>();
+                break;
             default:
                 countsByStringValue = new TreeMap<>();
                 break;

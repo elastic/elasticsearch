@@ -5,7 +5,7 @@ Discovery and cluster formation are affected by the following settings:
 
 `cluster.initial_master_nodes`::
 
-    Sets a list of the <<node.name,node names>> or transport addresses of the
+    Sets the
     initial set of master-eligible nodes in a brand-new cluster. By default
     this list is empty, meaning that this node expects to join a cluster that
     has already been bootstrapped. See <<initial_master_nodes>>.

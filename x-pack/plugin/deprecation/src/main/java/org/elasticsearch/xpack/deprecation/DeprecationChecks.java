@@ -35,8 +35,7 @@ public class DeprecationChecks {
         Collections.unmodifiableList(Arrays.asList(
             ClusterDeprecationChecks::checkUserAgentPipelines,
             ClusterDeprecationChecks::checkTemplatesWithTooManyFields,
-            ClusterDeprecationChecks::checkPollIntervalTooLow,
-            ClusterDeprecationChecks::checkFormatOnPipeline
+            ClusterDeprecationChecks::checkPollIntervalTooLow
         ));
 
 

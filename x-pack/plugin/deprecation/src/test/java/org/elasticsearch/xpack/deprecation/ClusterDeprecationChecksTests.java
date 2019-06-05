@@ -25,7 +25,6 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 
-import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.core.indexlifecycle.LifecycleSettings.LIFECYCLE_POLL_INTERVAL_SETTING;
@@ -84,105 +83,6 @@ public class ClusterDeprecationChecksTests extends ESTestCase {
             "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-8.0.html" +
                 "#ingest-user-agent-ecs-always",
             "Ingest pipelines [ecs_false, ecs_true] uses the [ecs] option which needs to be removed to work in 8.0");
-        assertEquals(singletonList(expected), issues);
-    }
-    public void testPipelineWithoutDeprecatedFormat() {
-        PutPipelineRequest pipelineRequest = new PutPipelineRequest("testingestpipeline",
-            new BytesArray("{\n" +
-                "  \"description\": \"Pipeline with date and date_index_name processor\",\n" +
-                "  \"processors\": [\n" +
-                "    {\n" +
-                "      \"date\": {\n" +
-                "        \"field\": \"createdTime\",\n" +
-                "        \"formats\": [\n" +
-                "         \"HH:mm:ss\"\n" +
-                "        ]\n" +
-                "      }\n" +
-                "    }\n" +
-                "  ]\n" +
-                "}"), XContentType.JSON);
-
-        ClusterState state = ClusterState.builder(new ClusterName("test")).build();
-        state = IngestService.innerPut(pipelineRequest, state);
-
-        final ClusterState finalState = state;
-        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(CLUSTER_SETTINGS_CHECKS, c -> c.apply(finalState));
-
-        assertEquals(emptyList(), issues);
-    }
-
-    public void testPipelinesWithJodaDeprecatedFormats() {
-        PutPipelineRequest pipelineRequest = new PutPipelineRequest("testingestpipeline",
-            new BytesArray("{\n" +
-                "  \"description\": \"Pipeline with date and date_index_name processor\",\n" +
-                "  \"processors\": [\n" +
-                "    {\n" +
-                "      \"date\": {\n" +
-                "        \"field\": \"createdTime\",\n" +
-                "        \"formats\": [\n" +
-                "         \"yyyy-w\", \"date_time\",\"date_time_no_millis\", \"date_hour_minute_second_fraction\"\n" +
-                "        ]\n" +
-                "      },\n" +
-                "      \"date_index_name\": {\n" +
-                "        \"field\": \"@timestamp\",\n" +
-                "        \"date_rounding\": \"d\",\n" +
-                "        \"index_name_prefix\": \"x-\",\n" +
-                "        \"index_name_format\": \"yyyy-w\"\n" +
-                "      }\n" +
-                "    }\n" +
-                "  ]\n" +
-                "}"), XContentType.JSON);
-
-        ClusterState state = ClusterState.builder(new ClusterName("test")).build();
-        state = IngestService.innerPut(pipelineRequest, state);
-
-        final ClusterState finalState = state;
-        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(CLUSTER_SETTINGS_CHECKS, c -> c.apply(finalState));
-
-        DeprecationIssue expected = new DeprecationIssue(DeprecationIssue.Level.WARNING,
-            "Pipelines contain date fields with deprecated format",
-            "https://www.elastic.co/guide/en/elasticsearch/reference/7.0/breaking-changes-7.0.html#breaking_70_java_time_changes",
-            "Ingest pipelines which contain deprecated date formats: pipelineId: testingestpipeline, fields: " +
-                "[" +
-                "[field: date, format: yyyy-w, suggestion: 'y' year should be replaced with 'u'. Use 'y' for year-of-era.], " +
-                "[field: index_name_format, format: yyyy-w, suggestion: 'y' year should be replaced with 'u'. Use 'y' for year-of-era.]" +
-                "].");
-        assertEquals(singletonList(expected), issues);
-    }
-
-    public void testMultiplePipelinesWithDeprecatedDateFormat() {
-        BytesArray body = new BytesArray("{\n" +
-            "  \"description\": \"Pipeline with date and date_index_name processor\",\n" +
-            "  \"processors\": [\n" +
-            "    {\n" +
-            "      \"date\": {\n" +
-            "        \"field\": \"createdTime\",\n" +
-            "        \"formats\": [\n" +
-            "         \"yyyy-w\"\n" +
-            "        ]\n" +
-            "      }" +
-            "    }\n" +
-            "  ]\n" +
-            "}");
-
-        ClusterState state = ClusterState.builder(new ClusterName("test")).build();
-        state = IngestService.innerPut(new PutPipelineRequest("test1", body, XContentType.JSON), state);
-        state = IngestService.innerPut(new PutPipelineRequest("test2", body, XContentType.JSON), state);
-
-        final ClusterState finalState = state;
-        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(CLUSTER_SETTINGS_CHECKS, c -> c.apply(finalState));
-
-        DeprecationIssue expected = new DeprecationIssue(DeprecationIssue.Level.WARNING,
-            "Pipelines contain date fields with deprecated format",
-            "https://www.elastic.co/guide/en/elasticsearch/reference/7.0/breaking-changes-7.0.html#breaking_70_java_time_changes",
-            "Ingest pipelines which contain deprecated date formats: pipelineId: test1, fields: " +
-                "[" +
-                "[field: date, format: yyyy-w, suggestion: 'y' year should be replaced with 'u'. Use 'y' for year-of-era.]" +
-                "].\n" +
-                "pipelineId: test2, fields: " +
-                "[" +
-                "[field: date, format: yyyy-w, suggestion: 'y' year should be replaced with 'u'. Use 'y' for year-of-era.]" +
-                "].");
         assertEquals(singletonList(expected), issues);
     }
 

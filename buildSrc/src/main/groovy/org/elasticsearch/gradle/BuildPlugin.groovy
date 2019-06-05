@@ -699,7 +699,7 @@ class BuildPlugin implements Plugin<Project> {
                  * Ensure the original jar task places its output in 'libs' so that we don't overwrite it with the shadow jar. We only do
                  * this for tasks named jar to exclude javadoc and sources jars.
                  */
-                if (jarTask instanceof ShadowJar == false && jarTask.name == "jar") {
+                if (jarTask instanceof ShadowJar == false && jarTask.name == JavaPlugin.JAR_TASK_NAME) {
                     jarTask.destinationDir = new File(project.buildDir, 'libs')
                 }
             }

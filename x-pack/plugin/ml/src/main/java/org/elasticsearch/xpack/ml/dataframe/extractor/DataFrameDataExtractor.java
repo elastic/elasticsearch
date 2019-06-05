@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.ml.dataframe.extractor;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.search.ClearScrollAction;
 import org.elasticsearch.action.search.ClearScrollRequest;
 import org.elasticsearch.action.search.SearchAction;
@@ -20,7 +21,6 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xpack.core.ClientHelper;
-import org.elasticsearch.xpack.core.ml.datafeed.extractor.ExtractorUtils;
 import org.elasticsearch.xpack.ml.datafeed.extractor.fields.ExtractedField;
 import org.elasticsearch.xpack.ml.dataframe.DataFrameAnalyticsFields;
 
@@ -34,6 +34,7 @@ import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 /**
@@ -91,9 +92,28 @@ public class DataFrameDataExtractor {
 
     protected List<Row> initScroll() throws IOException {
         LOGGER.debug("[{}] Initializing scroll", context.jobId);
-        SearchResponse searchResponse = executeSearchRequest(buildSearchRequest());
-        LOGGER.debug("[{}] Search response was obtained", context.jobId);
-        return processSearchResponse(searchResponse);
+        return tryRequestWithSearchResponse(() -> executeSearchRequest(buildSearchRequest()));
+    }
+
+    private List<Row> tryRequestWithSearchResponse(Supplier<SearchResponse> request) throws IOException {
+        try {
+            // We've set allow_partial_search_results to false which means if something
+            // goes wrong the request will throw.
+            SearchResponse searchResponse = request.get();
+            LOGGER.debug("[{}] Search response was obtained", context.jobId);
+
+            // Request was successful so we can restore the flag to retry if a future failure occurs
+            searchHasShardFailure = false;
+
+            return processSearchResponse(searchResponse);
+        } catch (Exception e) {
+            if (searchHasShardFailure) {
+                throw e;
+            }
+            LOGGER.warn(new ParameterizedMessage("[{}] Search resulted to failure; retrying once", context.jobId), e);
+            markScrollAsErrored();
+            return initScroll();
+        }
     }
 
     protected SearchResponse executeSearchRequest(SearchRequestBuilder searchRequestBuilder) {
@@ -103,6 +123,8 @@ public class DataFrameDataExtractor {
     private SearchRequestBuilder buildSearchRequest() {
         SearchRequestBuilder searchRequestBuilder = new SearchRequestBuilder(client, SearchAction.INSTANCE)
                 .setScroll(SCROLL_TIMEOUT)
+                // This ensures the search throws if there are failures and the scroll context gets cleared automatically
+                .setAllowPartialSearchResults(false)
                 .addSort(DataFrameAnalyticsFields.ID, SortOrder.ASC)
                 .setIndices(context.indices)
                 .setSize(context.scrollSize)
@@ -117,14 +139,6 @@ public class DataFrameDataExtractor {
     }
 
     private List<Row> processSearchResponse(SearchResponse searchResponse) throws IOException {
-
-        if (searchResponse.getFailedShards() > 0 && searchHasShardFailure == false) {
-            LOGGER.debug("[{}] Resetting scroll search after shard failure", context.jobId);
-            markScrollAsErrored();
-            return initScroll();
-        }
-
-        ExtractorUtils.checkSearchWasSuccessful(context.jobId, searchResponse);
         scrollId = searchResponse.getScrollId();
         if (searchResponse.getHits().getHits().length == 0) {
             hasNext = false;
@@ -143,7 +157,6 @@ public class DataFrameDataExtractor {
             rows.add(createRow(hit));
         }
         return rows;
-
     }
 
     private Row createRow(SearchHit hit) {
@@ -163,15 +176,13 @@ public class DataFrameDataExtractor {
 
     private List<Row> continueScroll() throws IOException {
         LOGGER.debug("[{}] Continuing scroll with id [{}]", context.jobId, scrollId);
-        SearchResponse searchResponse = executeSearchScrollRequest(scrollId);
-        LOGGER.debug("[{}] Search response was obtained", context.jobId);
-        return processSearchResponse(searchResponse);
+        return tryRequestWithSearchResponse(() -> executeSearchScrollRequest(scrollId));
     }
 
     private void markScrollAsErrored() {
         // This could be a transient error with the scroll Id.
         // Reinitialise the scroll and try again but only once.
-        resetScroll();
+        scrollId = null;
         searchHasShardFailure = true;
     }
 
@@ -181,11 +192,6 @@ public class DataFrameDataExtractor {
                 .setScroll(SCROLL_TIMEOUT)
                 .setScrollId(scrollId)
                 .get());
-    }
-
-    private void resetScroll() {
-        clearScroll(scrollId);
-        scrollId = null;
     }
 
     private void clearScroll(String scrollId) {

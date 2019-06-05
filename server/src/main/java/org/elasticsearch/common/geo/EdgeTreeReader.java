@@ -20,6 +20,7 @@ package org.elasticsearch.common.geo;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.ByteBufferStreamInput;
+import org.elasticsearch.common.io.stream.StreamInput;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -29,8 +30,9 @@ import static org.apache.lucene.geo.GeoUtils.lineCrossesLineWithBoundary;
 public class EdgeTreeReader {
     final BytesRef bytesRef;
 
-    public EdgeTreeReader(BytesRef bytesRef) {
-        this.bytesRef = bytesRef;
+    public EdgeTreeReader(StreamInput input) throws IOException {
+        int treeBytesSize = input.readVInt();
+        this.bytesRef = input.readBytesRef(treeBytesSize);
     }
 
     /**

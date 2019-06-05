@@ -55,6 +55,8 @@ separate APIs for managing snapshot lifecycles. Please see the
 <<snapshot-lifecycle-management-api,Snapshot Lifecycle Management>>
 documentation for information about configuring snapshots.
 
+See <<getting-started-snapshot-lifecycle-management,getting started with SLM>>.
+
 [IMPORTANT]
 ===========================
 {ilm} does not support mixed-version cluster usage. Although it
@@ -81,3 +83,5 @@ include::error-handling.asciidoc[]
 include::ilm-and-snapshots.asciidoc[]
 
 include::start-stop-ilm.asciidoc[]
+
+include::getting-started-slm.asciidoc[]

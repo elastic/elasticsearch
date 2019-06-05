@@ -16,6 +16,7 @@ well as a separate API for immediately invoking a snapshot based on a policy.
 Since SLM falls under the same category as ILM, it is stopped and started by
 using the <<start-stop-ilm,start and stop>> ILM APIs.
 
+[[slm-api-put]]
 === Put Snapshot Lifecycle Policy API
 
 Creates or updates a snapshot policy. If the policy already exists, the version
@@ -95,6 +96,7 @@ The top-level keys that the policy supports are described below:
 To update an existing policy, simply use the put snapshot lifecycle policy API
 with the same policy id as an existing policy.
 
+[[slm-api-get]]
 === Get Snapshot Lifecycle Policy API
 
 Once a policy is in place, you can retrieve one or more of the policies using
@@ -155,6 +157,7 @@ GET /_slm/policy
 // CONSOLE
 // TEST[continued]
 
+[[slm-api-execute]]
 === Execute Snapshot Lifecycle Policy API
 
 Sometimes it can be useful to immediately execute a snapshot based on policy,
@@ -325,6 +328,7 @@ Which now includes the successful snapshot information:
 
 It is a good idea to test policies using the execute API to ensure they work.
 
+[[slm-api-delete]]
 === Delete Snapshot Lifecycle Policy API
 
 A policy can be deleted by issuing a delete request with the policy id. Note

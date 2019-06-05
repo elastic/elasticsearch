@@ -135,7 +135,7 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
                     numRefreshes += 3;
                     break;
                 case 2:
-                    client().prepareTermVectors("index", "_doc", "" + randomIntBetween(0, 9)).execute(listener);
+                   client().prepareTermVectors("index", "" + randomIntBetween(0, 9)).execute(listener);
                     break;
                 case 3:
                     client().prepareExplain("index", "_doc", "" + randomIntBetween(0, 9)).setQuery(new MatchAllQueryBuilder())

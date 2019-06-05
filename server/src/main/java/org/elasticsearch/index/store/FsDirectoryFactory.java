@@ -64,11 +64,7 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
         final Path location = path.resolveIndex();
         final LockFactory lockFactory = indexSettings.getValue(INDEX_LOCK_FACTOR_SETTING);
         Files.createDirectories(location);
-        Directory wrapped = newFSDirectory(location, lockFactory, indexSettings);
-        Set<String> preLoadExtensions = new HashSet<>(
-                indexSettings.getValue(IndexModule.INDEX_STORE_PRE_LOAD_SETTING));
-        wrapped = setPreload(wrapped, location, lockFactory, preLoadExtensions);
-        return wrapped;
+        return newFSDirectory(location, lockFactory, indexSettings);
     }
 
     protected Directory newFSDirectory(Path location, LockFactory lockFactory, IndexSettings indexSettings) throws IOException {
@@ -80,17 +76,20 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
         } else {
             type = IndexModule.Type.fromSettingsKey(storeType);
         }
+        Set<String> preLoadExtensions = new HashSet<>(
+            indexSettings.getValue(IndexModule.INDEX_STORE_PRE_LOAD_SETTING));
         switch (type) {
             case HYBRIDFS:
                 // Use Lucene defaults
                 final FSDirectory primaryDirectory = FSDirectory.open(location, lockFactory);
                 if (primaryDirectory instanceof MMapDirectory) {
-                    return new HybridDirectory(location, lockFactory, primaryDirectory);
+                    return new HybridDirectory(location, lockFactory, setPreload((MMapDirectory) primaryDirectory,
+                        lockFactory, preLoadExtensions));
                 } else {
                     return primaryDirectory;
                 }
             case MMAPFS:
-                return new MMapDirectory(location, lockFactory);
+                return setPreload(new MMapDirectory(location, lockFactory), lockFactory, preLoadExtensions);
             case SIMPLEFS:
                 return new SimpleFSDirectory(location, lockFactory);
             case NIOFS:
@@ -100,26 +99,17 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
         }
     }
 
-    private static Directory setPreload(Directory directory, Path location, LockFactory lockFactory,
+    private static MMapDirectory setPreload(MMapDirectory mMapDirectory, LockFactory lockFactory,
             Set<String> preLoadExtensions) throws IOException {
         if (preLoadExtensions.isEmpty() == false
-                && directory instanceof MMapDirectory
-                && ((MMapDirectory) directory).getPreload() == false) {
+                && mMapDirectory.getPreload() == false) {
             if (preLoadExtensions.contains("*")) {
-                ((MMapDirectory) directory).setPreload(true);
-                return directory;
+                mMapDirectory.setPreload(true);
+                return mMapDirectory;
             }
-            MMapDirectory primary = new MMapDirectory(location, lockFactory);
-            primary.setPreload(true);
-            return new FileSwitchDirectory(preLoadExtensions, primary, directory, true) {
-                @Override
-                public String[] listAll() throws IOException {
-                    // avoid listing twice
-                    return primary.listAll();
-                }
-            };
+            return new PreLoadMMapDirectory(mMapDirectory, lockFactory, preLoadExtensions);
         }
-        return directory;
+        return mMapDirectory;
     }
 
     /**
@@ -168,6 +158,50 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
 
         Directory getRandomAccessDirectory() {
             return randomAccessDirectory;
+        }
+    }
+
+    static final class PreLoadMMapDirectory extends MMapDirectory {
+        private final MMapDirectory delegate;
+        private final Set<String> preloadExtensions;
+
+        public PreLoadMMapDirectory(MMapDirectory delegate, LockFactory lockFactory, Set<String> preload) throws IOException {
+            super(delegate.getDirectory(), lockFactory);
+            this.delegate = delegate;
+            this.delegate.setPreload(true);
+            this.preloadExtensions = preload;
+            assert getPreload() == false;
+        }
+
+        @Override
+        public void setPreload(boolean preload) {
+            throw new IllegalArgumentException("can't set preload on a preload-wrapper");
+        }
+
+        @Override
+        public IndexInput openInput(String name, IOContext context) throws IOException {
+            final String extension = FileSwitchDirectory.getExtension(name);
+            if (preloadExtensions.contains(extension)) {
+                return delegate.openInput(name, context);
+            }
+            return super.openInput(name, context);
+        }
+
+        @Override
+        public synchronized void close() throws IOException {
+            try {
+                super.close();
+            } finally {
+                delegate.close();
+            }
+        }
+
+        MMapDirectory getDirectoryForFile(String name) {
+            final String extension = FileSwitchDirectory.getExtension(name);
+            if (preloadExtensions.contains(extension)) {
+                return delegate;
+            }
+            return this;
         }
     }
 }

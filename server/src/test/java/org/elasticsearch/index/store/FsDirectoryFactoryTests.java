@@ -70,12 +70,12 @@ public class FsDirectoryFactoryTests extends ESTestCase {
             assertTrue(directory.toString(), directory instanceof MMapDirectory);
             assertTrue(((MMapDirectory) directory).getPreload());
         } else {
-            assertTrue(directory.toString(), directory instanceof FileSwitchDirectory);
-            FileSwitchDirectory fsd = (FileSwitchDirectory) directory;
-            assertTrue(fsd.getPrimaryDir() instanceof MMapDirectory);
-            assertTrue(((MMapDirectory) fsd.getPrimaryDir()).getPreload());
-            assertTrue(fsd.getSecondaryDir() instanceof MMapDirectory);
-            assertFalse(((MMapDirectory) fsd.getSecondaryDir()).getPreload());
+            assertTrue(directory.toString(), directory instanceof FsDirectoryFactory.PreLoadMMapDirectory);
+            FsDirectoryFactory.PreLoadMMapDirectory preLoadMMapDirectory = (FsDirectoryFactory.PreLoadMMapDirectory) directory;
+            for (String ext : preload) {
+                assertTrue(preLoadMMapDirectory.getDirectoryForFile("x." + ext).getPreload());
+            }
+            assertFalse(preLoadMMapDirectory.getDirectoryForFile("X.XXXX").getPreload());
         }
     }
 

@@ -51,6 +51,8 @@ import org.apache.lucene.index.PointValues;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.SoftDeletesRetentionMergePolicy;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.index.Terms;
+import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.index.TieredMergePolicy;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
@@ -115,6 +117,7 @@ import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.RootObjectMapper;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
+import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.VersionFieldMapper;
 import org.elasticsearch.index.seqno.LocalCheckpointTracker;
 import org.elasticsearch.index.seqno.ReplicationTracker;
@@ -5733,5 +5736,57 @@ public class InternalEngineTests extends EngineTestCase {
             refresher.join();
         }
         assertThat(engine.config().getCircuitBreakerService().getBreaker(CircuitBreaker.ACCOUNTING).getUsed(), equalTo(0L));
+    }
+
+    public void testPruneAwayDeletedButRetainedIds() throws Exception {
+        IOUtils.close(engine, store);
+        Settings settings = Settings.builder()
+            .put(defaultSettings.getSettings())
+            .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true).build();
+        IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(
+            IndexMetaData.builder(defaultSettings.getIndexMetaData()).settings(settings).build());
+        store = createStore(indexSettings, newDirectory());
+        LogDocMergePolicy  policy = new LogDocMergePolicy();
+        policy.setMinMergeDocs(10000);
+        try (InternalEngine engine = createEngine(indexSettings, store, createTempDir(), policy)) {
+            int numDocs = between(1, 20);
+            for (int i = 0; i < numDocs; i++) {
+                index(engine, i);
+            }
+            engine.forceMerge(true);
+            engine.delete(new Engine.Delete("_doc", "0", newUid("0"), primaryTerm.get()));
+            engine.refresh("test");
+            // now we have 2 segments since we now added a tombstone plus the old segment with the delete
+            try (Searcher searcher = engine.acquireSearcher("test")) {
+                IndexReader reader = searcher.reader();
+                assertEquals(2, reader.leaves().size());
+                LeafReaderContext leafReaderContext = reader.leaves().get(0);
+                LeafReader leafReader = leafReaderContext.reader();
+                assertEquals("the delete and the tombstone", 1, leafReader.numDeletedDocs());
+                assertEquals(numDocs, leafReader.maxDoc());
+                Terms id = leafReader.terms("_id");
+                assertNotNull(id);
+                assertEquals("deleted IDs are NOT YET pruned away", reader.numDocs()+1, id.size());
+                TermsEnum iterator = id.iterator();
+                assertTrue(iterator.seekExact(Uid.encodeId("0")));
+            }
+
+            // lets force merge the tombstone and the original segment and make sure the doc is still there but the ID term is gone
+            engine.forceMerge(true);
+            engine.refresh("test");
+            try (Searcher searcher = engine.acquireSearcher("test")) {
+                IndexReader reader = searcher.reader();
+                assertEquals(1, reader.leaves().size());
+                LeafReaderContext leafReaderContext = reader.leaves().get(0);
+                LeafReader leafReader = leafReaderContext.reader();
+                assertEquals("the delete and the tombstone", 2, leafReader.numDeletedDocs());
+                assertEquals(numDocs+1, leafReader.maxDoc());
+                Terms id = leafReader.terms("_id");
+                assertNotNull(id);
+                assertEquals("deleted IDs are pruned away", reader.numDocs(), id.size());
+                TermsEnum iterator = id.iterator();
+                assertFalse(iterator.seekExact(Uid.encodeId("0")));
+            }
+        }
     }
 }

@@ -44,6 +44,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.elasticsearch.snapshots.SnapshotInfo.METADATA_FIELD_INTRODUCED;
+
 /**
  * Meta data about snapshots that are currently executing
  */
@@ -84,11 +86,12 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
         private final ImmutableOpenMap<String, List<ShardId>> waitingIndices;
         private final long startTime;
         private final long repositoryStateId;
+        @Nullable private final Map<String, Object> userMetadata;
         @Nullable private final String failure;
 
         public Entry(Snapshot snapshot, boolean includeGlobalState, boolean partial, State state, List<IndexId> indices,
                      long startTime, long repositoryStateId, ImmutableOpenMap<ShardId, ShardSnapshotStatus> shards,
-                     String failure) {
+                     String failure, Map<String, Object> userMetadata) {
             this.state = state;
             this.snapshot = snapshot;
             this.includeGlobalState = includeGlobalState;
@@ -104,21 +107,23 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             }
             this.repositoryStateId = repositoryStateId;
             this.failure = failure;
+            this.userMetadata = userMetadata;
         }
 
         public Entry(Snapshot snapshot, boolean includeGlobalState, boolean partial, State state, List<IndexId> indices,
-            long startTime, long repositoryStateId, ImmutableOpenMap<ShardId, ShardSnapshotStatus> shards) {
-            this(snapshot, includeGlobalState, partial, state, indices, startTime, repositoryStateId, shards, null);
+                     long startTime, long repositoryStateId, ImmutableOpenMap<ShardId, ShardSnapshotStatus> shards,
+                     Map<String, Object> userMetadata) {
+            this(snapshot, includeGlobalState, partial, state, indices, startTime, repositoryStateId, shards, null, userMetadata);
         }
 
         public Entry(Entry entry, State state, ImmutableOpenMap<ShardId, ShardSnapshotStatus> shards) {
             this(entry.snapshot, entry.includeGlobalState, entry.partial, state, entry.indices, entry.startTime,
-                entry.repositoryStateId, shards, entry.failure);
+                entry.repositoryStateId, shards, entry.failure, entry.userMetadata);
         }
 
         public Entry(Entry entry, State state, ImmutableOpenMap<ShardId, ShardSnapshotStatus> shards, String failure) {
             this(entry.snapshot, entry.includeGlobalState, entry.partial, state, entry.indices, entry.startTime,
-                 entry.repositoryStateId, shards, failure);
+                 entry.repositoryStateId, shards, failure, entry.userMetadata);
         }
 
         public Entry(Entry entry, ImmutableOpenMap<ShardId, ShardSnapshotStatus> shards) {
@@ -147,6 +152,10 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
 
         public boolean includeGlobalState() {
             return includeGlobalState;
+        }
+
+        public Map<String, Object> userMetadata() {
+            return userMetadata;
         }
 
         public boolean partial() {
@@ -419,6 +428,10 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             }
             long repositoryStateId = in.readLong();
             final String failure = in.readOptionalString();
+            Map<String, Object> userMetadata = null;
+            if (in.getVersion().onOrAfter(METADATA_FIELD_INTRODUCED)) {
+                userMetadata = in.readMap();
+            }
             entries[i] = new Entry(snapshot,
                                    includeGlobalState,
                                    partial,
@@ -427,7 +440,9 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
                                    startTime,
                                    repositoryStateId,
                                    builder.build(),
-                                   failure);
+                                   failure,
+                                   userMetadata
+                );
         }
         this.entries = Arrays.asList(entries);
     }
@@ -452,6 +467,9 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             }
             out.writeLong(entry.repositoryStateId);
             out.writeOptionalString(entry.failure);
+            if (out.getVersion().onOrAfter(METADATA_FIELD_INTRODUCED)) {
+                out.writeMap(entry.userMetadata);
+            }
         }
     }
 

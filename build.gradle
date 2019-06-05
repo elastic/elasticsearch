@@ -104,10 +104,7 @@ subprojects {
 
 /* Introspect all versions of ES that may be tested against for backwards
  * compatibility. It is *super* important that this logic is the same as the
- * logic in VersionUtils.java, throwing out alphas because they don't have any
- * backwards compatibility guarantees and only keeping the latest beta or rc
- * in a branch if there are only betas and rcs in the branch so we have
- * *something* to test against. */
+ * logic in VersionUtils.java. */
 BwcVersions versions = new BwcVersions(file('server/src/main/java/org/elasticsearch/Version.java').readLines('UTF-8'))
 
 // build metadata from previous build, contains eg hashes for bwc builds

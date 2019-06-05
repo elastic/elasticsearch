@@ -79,6 +79,7 @@ import static org.elasticsearch.index.query.QueryBuilders.queryStringQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertBooleanSubQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertDisjunctionSubQuery;
 import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.CoreMatchers.hasItems;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -517,13 +518,11 @@ public class QueryStringQueryBuilderTests extends FullTextQueryTestCase<QueryStr
         Query query = queryStringQuery("test").field("mapped_str*").toQuery(createShardContext());
         assertThat(query, instanceOf(DisjunctionMaxQuery.class));
         DisjunctionMaxQuery dQuery = (DisjunctionMaxQuery) query;
-        assertThat(dQuery.getDisjuncts().size(), equalTo(3));
+        assertThat(dQuery.getDisjuncts().size(), equalTo(2));
         assertThat(assertDisjunctionSubQuery(query, TermQuery.class, 0).getTerm(),
             equalTo(new Term(STRING_FIELD_NAME, "test")));
         assertThat(assertDisjunctionSubQuery(query, TermQuery.class, 1).getTerm(),
             equalTo(new Term(STRING_FIELD_NAME_2, "test")));
-        assertThat(assertDisjunctionSubQuery(query, TermQuery.class, 2).getTerm(),
-            equalTo(new Term(STRING_FIELD_NAME, "test")));
     }
 
     public void testToQueryDisMaxQuery() throws Exception {
@@ -1255,12 +1254,27 @@ public class QueryStringQueryBuilderTests extends FullTextQueryTestCase<QueryStr
 
     public void testDefaultField() throws Exception {
         QueryShardContext context = createShardContext();
-        context.getIndexSettings().updateIndexMetaData(
-            newIndexMeta("index", context.getIndexSettings().getSettings(), Settings.builder().putList("index.query.default_field",
-                STRING_FIELD_NAME, STRING_FIELD_NAME_2 + "^5").build())
-        );
+        // default value `*` sets leniency to true
+        Query query = new QueryStringQueryBuilder("hello")
+            .toQuery(context);
+        assertQueryWithAllFieldsWildcard(query);
+
         try {
-            Query query = new QueryStringQueryBuilder("hello")
+            // `*` is in the list of the default_field => leniency set to true
+            context.getIndexSettings().updateIndexMetaData(
+                newIndexMeta("index", context.getIndexSettings().getSettings(), Settings.builder().putList("index.query.default_field",
+                    STRING_FIELD_NAME, "*", STRING_FIELD_NAME_2).build())
+            );
+            query = new QueryStringQueryBuilder("hello")
+                .toQuery(context);
+            assertQueryWithAllFieldsWildcard(query);
+
+
+            context.getIndexSettings().updateIndexMetaData(
+                newIndexMeta("index", context.getIndexSettings().getSettings(), Settings.builder().putList("index.query.default_field",
+                    STRING_FIELD_NAME, STRING_FIELD_NAME_2 + "^5").build())
+            );
+            query = new QueryStringQueryBuilder("hello")
                 .toQuery(context);
             Query expected = new DisjunctionMaxQuery(
                 Arrays.asList(
@@ -1276,6 +1290,21 @@ public class QueryStringQueryBuilderTests extends FullTextQueryTestCase<QueryStr
                     context.getIndexSettings().getSettings(), Settings.builder().putList("index.query.default_field", "*").build())
             );
         }
+    }
+
+    public void testAllFieldsWildcard() throws Exception {
+        QueryShardContext context = createShardContext();
+        Query query = new QueryStringQueryBuilder("hello")
+            .field("*")
+            .toQuery(context);
+        assertQueryWithAllFieldsWildcard(query);
+
+        query = new QueryStringQueryBuilder("hello")
+            .field(STRING_FIELD_NAME)
+            .field("*")
+            .field(STRING_FIELD_NAME_2)
+            .toQuery(context);
+        assertQueryWithAllFieldsWildcard(query);
     }
 
     /**
@@ -1507,10 +1536,37 @@ public class QueryStringQueryBuilderTests extends FullTextQueryTestCase<QueryStr
         assertThat(exc.getMessage(), CoreMatchers.containsString("negative [boost]"));
     }
 
+    public void testMergeBoosts() throws IOException {
+        Query query = new QueryStringQueryBuilder("first")
+            .type(MultiMatchQueryBuilder.Type.MOST_FIELDS)
+            .field(STRING_FIELD_NAME, 0.3f)
+            .field(STRING_FIELD_NAME.substring(0, STRING_FIELD_NAME.length()-2) + "*", 0.5f)
+            .toQuery(createShardContext());
+        List<Query> terms = new ArrayList<>();
+        terms.add(new BoostQuery(new TermQuery(new Term(STRING_FIELD_NAME, "first")), 0.075f));
+        terms.add(new BoostQuery(new TermQuery(new Term(STRING_FIELD_NAME_2, "first")), 0.5f));
+        Query expected = new DisjunctionMaxQuery(terms, 1.0f);
+        assertEquals(expected, query);
+    }
+
     private static IndexMetaData newIndexMeta(String name, Settings oldIndexSettings, Settings indexSettings) {
         Settings build = Settings.builder().put(oldIndexSettings)
             .put(indexSettings)
             .build();
         return IndexMetaData.builder(name).settings(build).build();
+    }
+
+    private void assertQueryWithAllFieldsWildcard(Query query) {
+        assertEquals(DisjunctionMaxQuery.class, query.getClass());
+        DisjunctionMaxQuery disjunctionMaxQuery = (DisjunctionMaxQuery) query;
+        int noMatchNoDocsQueries = 0;
+        for (Query q : disjunctionMaxQuery.getDisjuncts()) {
+            if (q.getClass() == MatchNoDocsQuery.class) {
+                noMatchNoDocsQueries++;
+            }
+        }
+        assertEquals(9, noMatchNoDocsQueries);
+        assertThat(disjunctionMaxQuery.getDisjuncts(), hasItems(new TermQuery(new Term(STRING_FIELD_NAME, "hello")),
+            new TermQuery(new Term(STRING_FIELD_NAME_2, "hello"))));
     }
 }

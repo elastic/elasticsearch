@@ -43,10 +43,6 @@
           "default" : "index",
           "description" : "Explicit operation type"
         },
-        "parent": {
-          "type" : "string",
-          "description" : "ID of the parent document"
-        },
         "refresh": {
           "type" : "enum",
           "options": ["true", "false", "wait_for"],

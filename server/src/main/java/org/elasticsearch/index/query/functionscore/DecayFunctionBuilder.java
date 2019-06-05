@@ -354,7 +354,7 @@ public abstract class DecayFunctionBuilder<DFB extends DecayFunctionBuilder<DFB>
 
         @Override
         protected NumericDoubleValues distance(LeafReaderContext context) {
-            final MultiGeoValues geoPointValues = fieldData.load(context).getGeoPointValues();
+            final MultiGeoValues geoPointValues = fieldData.load(context).getGeoValues();
             return FieldData.replaceMissing(mode.select(new SortingNumericDoubleValues() {
                 @Override
                 public boolean advanceExact(int docId) throws IOException {
@@ -380,7 +380,7 @@ public abstract class DecayFunctionBuilder<DFB extends DecayFunctionBuilder<DFB>
         protected String getDistanceString(LeafReaderContext ctx, int docId) throws IOException {
             StringBuilder values = new StringBuilder(mode.name());
             values.append(" of: [");
-            final MultiGeoValues geoPointValues = fieldData.load(ctx).getGeoPointValues();
+            final MultiGeoValues geoPointValues = fieldData.load(ctx).getGeoValues();
             if (geoPointValues.advanceExact(docId)) {
                 final int num = geoPointValues.docValueCount();
                 for (int i = 0; i < num; i++) {

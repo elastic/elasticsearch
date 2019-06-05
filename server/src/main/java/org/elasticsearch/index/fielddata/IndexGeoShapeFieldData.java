@@ -23,5 +23,5 @@ package org.elasticsearch.index.fielddata;
 /**
  * Specialization of {@link IndexFieldData} for geo points.
  */
-public interface IndexGeoPointFieldData extends IndexFieldData<AtomicGeoFieldData> {
+public interface IndexGeoShapeFieldData extends IndexFieldData<AtomicGeoFieldData> {
 }

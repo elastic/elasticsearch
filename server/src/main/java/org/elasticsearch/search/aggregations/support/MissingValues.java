@@ -365,14 +365,14 @@ public enum MissingValues {
             }
 
             @Override
-            public MultiGeoValues geoPointValues(LeafReaderContext context) {
-                final MultiGeoValues values = valuesSource.geoPointValues(context);
+            public MultiGeoValues geoValues(LeafReaderContext context) {
+                final MultiGeoValues values = valuesSource.geoValues(context);
                 return replaceMissing(values, missing);
             }
         };
     }
 
-    static MultiGeoValues replaceMissing(final MultiGeoValues values, final MultiGeoValues.GeoPointValue missing) {
+    static MultiGeoValues replaceMissing(final MultiGeoValues values, final MultiGeoValues.GeoValue missing) {
         return new MultiGeoValues() {
 
             private int count;
@@ -401,6 +401,23 @@ public enum MissingValues {
                 } else {
                     return missing;
                 }
+            }
+        };
+    }
+
+    public static ValuesSource.GeoShape replaceMissing(final ValuesSource.GeoShape valuesSource,
+                                                       final MultiGeoValues.GeoShapeValue missing) {
+        return new ValuesSource.GeoShape() {
+
+            @Override
+            public SortedBinaryDocValues bytesValues(LeafReaderContext context) throws IOException {
+                return replaceMissing(valuesSource.bytesValues(context), new BytesRef(missing.toString()));
+            }
+
+            @Override
+            public MultiGeoValues geoValues(LeafReaderContext context) {
+                final MultiGeoValues values = valuesSource.geoValues(context);
+                return replaceMissing(values, missing);
             }
         };
     }

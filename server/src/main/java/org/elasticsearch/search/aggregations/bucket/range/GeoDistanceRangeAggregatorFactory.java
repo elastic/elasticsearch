@@ -108,7 +108,7 @@ public class GeoDistanceRangeAggregatorFactory
 
         @Override
         public SortedNumericDoubleValues doubleValues(LeafReaderContext ctx) {
-            final MultiGeoValues geoValues = source.geoPointValues(ctx);
+            final MultiGeoValues geoValues = source.geoValues(ctx);
             return GeoUtils.distanceValues(distanceType, units, geoValues, origin);
         }
 

@@ -19,6 +19,7 @@
 package org.elasticsearch.index.fielddata;
 
 import org.elasticsearch.common.geo.GeoPoint;
+import org.elasticsearch.common.geo.GeometryTreeReader;
 
 import java.io.IOException;
 
@@ -110,6 +111,49 @@ public abstract class MultiGeoValues {
         @Override
         public String toString() {
             return geoPoint.toString();
+        }
+    }
+
+    public static class GeoShapeValue implements GeoValue {
+        private final GeometryTreeReader reader;
+
+        public GeoShapeValue(GeometryTreeReader reader) {
+            this.reader = reader;
+        }
+
+        @Override
+        public double minLat() {
+            return 0;
+        }
+
+        @Override
+        public double maxLat() {
+            return 0;
+        }
+
+        @Override
+        public double minLon() {
+            return 0;
+        }
+
+        @Override
+        public double maxLon() {
+            return 0;
+        }
+
+        @Override
+        public double lat() {
+            return 0;
+        }
+
+        @Override
+        public double lon() {
+            return 0;
+        }
+
+        @Override
+        public String toString() {
+            return "";
         }
     }
 

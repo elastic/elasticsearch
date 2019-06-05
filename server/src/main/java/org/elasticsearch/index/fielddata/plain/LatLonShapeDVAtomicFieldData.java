@@ -18,23 +18,23 @@
  */
 package org.elasticsearch.index.fielddata.plain;
 
-import org.apache.lucene.geo.GeoEncodingUtils;
+import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReader;
-import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.util.Accountable;
-import org.elasticsearch.common.geo.GeoPoint;
+import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.geo.GeometryTreeReader;
 import org.elasticsearch.index.fielddata.MultiGeoValues;
 
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
 
-final class LatLonPointDVAtomicFieldData extends AbstractAtomicGeoPointFieldData {
+final class LatLonShapeDVAtomicFieldData extends AbstractAtomicGeoShapeFieldData {
     private final LeafReader reader;
     private final String fieldName;
 
-    LatLonPointDVAtomicFieldData(LeafReader reader, String fieldName) {
+    LatLonShapeDVAtomicFieldData(LeafReader reader, String fieldName) {
         super();
         this.reader = reader;
         this.fieldName = fieldName;
@@ -58,27 +58,23 @@ final class LatLonPointDVAtomicFieldData extends AbstractAtomicGeoPointFieldData
     @Override
     public MultiGeoValues getGeoValues() {
         try {
-            final SortedNumericDocValues numericValues = DocValues.getSortedNumeric(reader, fieldName);
+            final BinaryDocValues binaryValues = DocValues.getBinary(reader, fieldName);
             return new MultiGeoValues() {
-
-                final GeoPointValue point = new GeoPointValue(new GeoPoint());
 
                 @Override
                 public boolean advanceExact(int doc) throws IOException {
-                    return numericValues.advanceExact(doc);
+                    return binaryValues.advanceExact(doc);
                 }
 
                 @Override
                 public int docValueCount() {
-                    return numericValues.docValueCount();
+                    return 1;
                 }
 
                 @Override
                 public GeoValue nextValue() throws IOException {
-                    final long encoded = numericValues.nextValue();
-                    point.geoPoint().reset(GeoEncodingUtils.decodeLatitude((int) (encoded >>> 32)),
-                            GeoEncodingUtils.decodeLongitude((int) encoded));
-                    return point;
+                    final BytesRef encoded = binaryValues.binaryValue();
+                    return new GeoShapeValue(new GeometryTreeReader(encoded));
                 }
             };
         } catch (IOException e) {

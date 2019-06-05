@@ -30,7 +30,8 @@ public enum ValuesSourceType implements Writeable {
     ANY,
     NUMERIC,
     BYTES,
-    GEOPOINT;
+    GEOPOINT,
+    GEOSHAPE;
 
     public static ValuesSourceType fromString(String name) {
         return valueOf(name.trim().toUpperCase(Locale.ROOT));

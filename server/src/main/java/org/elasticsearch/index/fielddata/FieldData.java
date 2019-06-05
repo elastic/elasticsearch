@@ -69,9 +69,9 @@ public enum FieldData {
     }
 
     /**
-     * Return a {@link SortedNumericDoubleValues} that doesn't contain any value.
+     * Return a {@link MultiGeoValues} that doesn't contain any value.
      */
-    public static MultiGeoValues emptyMultiGeoPoints() {
+    public static MultiGeoValues emptyMultiGeoValues() {
         return new MultiGeoValues() {
             @Override
             public boolean advanceExact(int doc) {

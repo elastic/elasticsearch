@@ -28,7 +28,7 @@ import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import java.util.Collection;
 import java.util.Collections;
 
-public abstract class AbstractAtomicGeoPointFieldData implements AtomicGeoFieldData {
+public abstract class AbstractAtomicGeoShapeFieldData implements AtomicGeoFieldData {
 
     @Override
     public final SortedBinaryDocValues getBytesValues() {
@@ -36,12 +36,12 @@ public abstract class AbstractAtomicGeoPointFieldData implements AtomicGeoFieldD
     }
 
     @Override
-    public final ScriptDocValues.GeoPoints getScriptValues() {
-        return new ScriptDocValues.GeoPoints(getGeoValues());
+    public final ScriptDocValues.BytesRefs getScriptValues() {
+        throw new UnsupportedOperationException();
     }
 
     public static AtomicGeoFieldData empty(final int maxDoc) {
-        return new AbstractAtomicGeoPointFieldData() {
+        return new AbstractAtomicGeoShapeFieldData() {
 
             @Override
             public long ramBytesUsed() {

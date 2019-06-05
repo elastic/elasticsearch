@@ -67,7 +67,7 @@ final class GeoCentroidAggregator extends MetricsAggregator {
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }
         final BigArrays bigArrays = context.bigArrays();
-        final MultiGeoValues values = valuesSource.geoPointValues(ctx);
+        final MultiGeoValues values = valuesSource.geoValues(ctx);
         return new LeafBucketCollectorBase(sub, values) {
             @Override
             public void collect(int doc, long bucket) throws IOException {

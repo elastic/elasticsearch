@@ -55,7 +55,7 @@ class CellIdSource extends ValuesSource.Numeric {
 
     @Override
     public SortedNumericDocValues longValues(LeafReaderContext ctx) {
-        return new CellValues(valuesSource.geoPointValues(ctx), precision, encoder);
+        return new CellValues(valuesSource.geoValues(ctx), precision, encoder);
     }
 
     @Override

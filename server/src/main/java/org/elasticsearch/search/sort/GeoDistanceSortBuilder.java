@@ -646,7 +646,7 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
                 return new FieldComparator.DoubleComparator(numHits, null, null) {
                     @Override
                     protected NumericDocValues getNumericDocValues(LeafReaderContext context, String field) throws IOException {
-                        final MultiGeoValues geoPointValues = geoIndexFieldData.load(context).getGeoPointValues();
+                        final MultiGeoValues geoPointValues = geoIndexFieldData.load(context).getGeoValues();
                         final SortedNumericDoubleValues distanceValues = GeoUtils.distanceValues(geoDistance, unit, geoPointValues,
                                 localPoints);
                         final NumericDoubleValues selectedValues;

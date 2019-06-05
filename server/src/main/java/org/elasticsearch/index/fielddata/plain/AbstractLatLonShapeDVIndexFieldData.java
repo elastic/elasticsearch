@@ -30,26 +30,25 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.AtomicGeoFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
-import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
+import org.elasticsearch.index.fielddata.IndexGeoShapeFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.search.MultiValueMode;
 
-public abstract class AbstractLatLonPointDVIndexFieldData extends DocValuesIndexFieldData
-    implements IndexGeoPointFieldData {
-    AbstractLatLonPointDVIndexFieldData(Index index, String fieldName) {
+public abstract class AbstractLatLonShapeDVIndexFieldData extends DocValuesIndexFieldData implements IndexGeoShapeFieldData {
+    AbstractLatLonShapeDVIndexFieldData(Index index, String fieldName) {
         super(index, fieldName);
     }
 
     @Override
     public SortField sortField(@Nullable Object missingValue, MultiValueMode sortMode, XFieldComparatorSource.Nested nested,
             boolean reverse) {
-        throw new IllegalArgumentException("can't sort on geo_point field without using specific sorting feature, like geo_distance");
+        throw new IllegalArgumentException("can't sort on geo_shape field without using specific sorting feature, like geo_distance");
     }
 
-    public static class LatLonPointDVIndexFieldData extends AbstractLatLonPointDVIndexFieldData {
-        public LatLonPointDVIndexFieldData(Index index, String fieldName) {
+    public static class LatLonShapeDVIndexFieldData extends AbstractLatLonShapeDVIndexFieldData {
+        public LatLonShapeDVIndexFieldData(Index index, String fieldName) {
             super(index, fieldName);
         }
 
@@ -85,7 +84,7 @@ public abstract class AbstractLatLonPointDVIndexFieldData extends DocValuesIndex
         public IndexFieldData<?> build(IndexSettings indexSettings, MappedFieldType fieldType, IndexFieldDataCache cache,
                                        CircuitBreakerService breakerService, MapperService mapperService) {
             // ignore breaker
-            return new LatLonPointDVIndexFieldData(indexSettings.getIndex(), fieldType.name());
+            return new LatLonShapeDVIndexFieldData(indexSettings.getIndex(), fieldType.name());
         }
     }
 }

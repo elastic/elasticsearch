@@ -47,7 +47,7 @@ public class GeometryTreeWriter {
 
     private final GeometryTreeBuilder builder;
 
-    GeometryTreeWriter(Geometry geometry) {
+    public GeometryTreeWriter(Geometry geometry) {
         builder = new GeometryTreeBuilder();
         geometry.visit(builder);
     }

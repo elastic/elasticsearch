@@ -248,10 +248,6 @@ public final class IOUtils {
         return unremoved;
     }
 
-    // TODO: replace with constants class if needed (cf. org.apache.lucene.util.Constants)
-    private static final boolean LINUX = System.getProperty("os.name").startsWith("Linux");
-    private static final boolean MAC_OS_X = System.getProperty("os.name").startsWith("Mac OS X");
-
     /**
      * Ensure that any writes to the given file is written to the storage device that contains it. The {@code isDir} parameter specifies
      * whether or not the path to sync is a directory. This is needed because we open for read and ignore an {@link IOException} since not
@@ -267,9 +263,6 @@ public final class IOUtils {
             file.force(true);
         } catch (final IOException ioe) {
             if (isDir) {
-                assert (LINUX || MAC_OS_X) == false :
-                        "on Linux and MacOSX fsyncing a directory should not throw IOException, "+
-                                "we just don't want to rely on that in production (undocumented); got: " + ioe;
                 // ignore exception if it is a directory
                 return;
             }

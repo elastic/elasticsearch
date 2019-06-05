@@ -7,3 +7,4 @@
 
 ES_BUILD_JAVA:
   - openjdk12
+  - openjdk13

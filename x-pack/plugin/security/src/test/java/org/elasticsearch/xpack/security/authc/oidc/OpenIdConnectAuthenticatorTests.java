@@ -88,6 +88,7 @@ public class OpenIdConnectAuthenticatorTests extends OpenIdConnectTestCase {
     private Settings globalSettings;
     private Environment env;
     private ThreadContext threadContext;
+    private int callsToReloadJwk;
 
     @Before
     public void setup() {
@@ -95,6 +96,7 @@ public class OpenIdConnectAuthenticatorTests extends OpenIdConnectTestCase {
             .put("xpack.security.authc.realms.oidc.oidc-realm.ssl.verification_mode", "certificate").build();
         env = TestEnvironment.newEnvironment(globalSettings);
         threadContext = new ThreadContext(globalSettings);
+        callsToReloadJwk = 0;
     }
 
     @After
@@ -278,6 +280,7 @@ public class OpenIdConnectAuthenticatorTests extends OpenIdConnectTestCase {
         authenticator.authenticate(token, future);
         JWTClaimsSet claimsSet = future.actionGet();
         assertThat(claimsSet.getSubject(), equalTo(subject));
+        assertThat(callsToReloadJwk, equalTo(0));
     }
 
     public void testImplicitFlowFailsWithExpiredToken() throws Exception {
@@ -317,6 +320,7 @@ public class OpenIdConnectAuthenticatorTests extends OpenIdConnectTestCase {
         assertThat(e.getMessage(), containsString("Failed to parse or validate the ID Token"));
         assertThat(e.getCause(), instanceOf(BadJWTException.class));
         assertThat(e.getCause().getMessage(), containsString("Expired JWT"));
+        assertThat(callsToReloadJwk, equalTo(0));
     }
 
     public void testImplicitFlowFailsNotYetIssuedToken() throws Exception {
@@ -356,6 +360,7 @@ public class OpenIdConnectAuthenticatorTests extends OpenIdConnectTestCase {
         assertThat(e.getMessage(), containsString("Failed to parse or validate the ID Token"));
         assertThat(e.getCause(), instanceOf(BadJWTException.class));
         assertThat(e.getCause().getMessage(), containsString("JWT issue time ahead of current time"));
+        assertThat(callsToReloadJwk, equalTo(0));
     }
 
     public void testImplicitFlowFailsInvalidIssuer() throws Exception {
@@ -394,6 +399,7 @@ public class OpenIdConnectAuthenticatorTests extends OpenIdConnectTestCase {
         assertThat(e.getMessage(), containsString("Failed to parse or validate the ID Token"));
         assertThat(e.getCause(), instanceOf(BadJWTException.class));
         assertThat(e.getCause().getMessage(), containsString("Unexpected JWT issuer"));
+        assertThat(callsToReloadJwk, equalTo(0));
     }
 
     public void testImplicitFlowFailsInvalidAudience() throws Exception {
@@ -432,6 +438,7 @@ public class OpenIdConnectAuthenticatorTests extends OpenIdConnectTestCase {
         assertThat(e.getMessage(), containsString("Failed to parse or validate the ID Token"));
         assertThat(e.getCause(), instanceOf(BadJWTException.class));
         assertThat(e.getCause().getMessage(), containsString("Unexpected JWT audience"));
+        assertThat(callsToReloadJwk, equalTo(0));
     }
 
     public void testAuthenticateImplicitFlowFailsWithForgedRsaIdToken() throws Exception {
@@ -456,6 +463,7 @@ public class OpenIdConnectAuthenticatorTests extends OpenIdConnectTestCase {
         assertThat(e.getMessage(), containsString("Failed to parse or validate the ID Token"));
         assertThat(e.getCause(), instanceOf(BadJWSException.class));
         assertThat(e.getCause().getMessage(), containsString("Signed JWT rejected: Invalid signature"));
+        assertThat(callsToReloadJwk, equalTo(1));
     }
 
     public void testAuthenticateImplicitFlowFailsWithForgedEcsdsaIdToken() throws Exception {
@@ -480,6 +488,7 @@ public class OpenIdConnectAuthenticatorTests extends OpenIdConnectTestCase {
         assertThat(e.getMessage(), containsString("Failed to parse or validate the ID Token"));
         assertThat(e.getCause(), instanceOf(BadJWSException.class));
         assertThat(e.getCause().getMessage(), containsString("Signed JWT rejected: Invalid signature"));
+        assertThat(callsToReloadJwk, equalTo(1));
     }
 
     public void testAuthenticateImplicitFlowFailsWithForgedHmacIdToken() throws Exception {
@@ -503,6 +512,7 @@ public class OpenIdConnectAuthenticatorTests extends OpenIdConnectTestCase {
         assertThat(e.getMessage(), containsString("Failed to parse or validate the ID Token"));
         assertThat(e.getCause(), instanceOf(BadJWSException.class));
         assertThat(e.getCause().getMessage(), containsString("Signed JWT rejected: Invalid signature"));
+        assertThat(callsToReloadJwk, equalTo(0));
     }
 
     public void testAuthenticateImplicitFlowFailsWithForgedAccessToken() throws Exception {
@@ -532,6 +542,7 @@ public class OpenIdConnectAuthenticatorTests extends OpenIdConnectTestCase {
         assertThat(e.getMessage(), containsString("Failed to verify access token"));
         assertThat(e.getCause(), instanceOf(InvalidHashException.class));
         assertThat(e.getCause().getMessage(), containsString("Access token hash (at_hash) mismatch"));
+        assertThat(callsToReloadJwk, equalTo(0));
     }
 
     public void testImplicitFlowFailsWithNoneAlgorithm() throws Exception {
@@ -569,6 +580,7 @@ public class OpenIdConnectAuthenticatorTests extends OpenIdConnectTestCase {
         assertThat(e.getMessage(), containsString("Failed to parse or validate the ID Token"));
         assertThat(e.getCause(), instanceOf(BadJOSEException.class));
         assertThat(e.getCause().getMessage(), containsString("Another algorithm expected, or no matching key(s) found"));
+        assertThat(callsToReloadJwk, equalTo(0));
     }
 
     /**
@@ -599,6 +611,7 @@ public class OpenIdConnectAuthenticatorTests extends OpenIdConnectTestCase {
         assertThat(e.getMessage(), containsString("Failed to parse or validate the ID Token"));
         assertThat(e.getCause(), instanceOf(BadJOSEException.class));
         assertThat(e.getCause().getMessage(), containsString("Another algorithm expected, or no matching key(s) found"));
+        assertThat(callsToReloadJwk, equalTo(0));
     }
 
     public void testImplicitFlowFailsWithUnsignedJwt() throws Exception {
@@ -635,6 +648,7 @@ public class OpenIdConnectAuthenticatorTests extends OpenIdConnectTestCase {
         assertThat(e.getMessage(), containsString("Failed to parse or validate the ID Token"));
         assertThat(e.getCause(), instanceOf(BadJWTException.class));
         assertThat(e.getCause().getMessage(), containsString("Signed ID token expected"));
+        assertThat(callsToReloadJwk, equalTo(0));
     }
 
     public void testJsonObjectMerging() throws Exception {
@@ -832,6 +846,7 @@ public class OpenIdConnectAuthenticatorTests extends OpenIdConnectTestCase {
         Mockito.doAnswer(invocation -> {
             @SuppressWarnings("unchecked")
             ActionListener<Void> listener = (ActionListener<Void>) invocation.getArguments()[0];
+            callsToReloadJwk += 1;
             listener.onResponse(null);
             return null;
         }).when(jwkSource).triggerReload(any(ActionListener.class));

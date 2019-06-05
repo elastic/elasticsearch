@@ -258,7 +258,7 @@ public class DataFrameTransformIT extends ESRestHighLevelClientTestCase {
         StartDataFrameTransformRequest startRequest = new StartDataFrameTransformRequest(id);
         StartDataFrameTransformResponse startResponse =
                 execute(startRequest, client::startDataFrameTransform, client::startDataFrameTransformAsync);
-        assertTrue(startResponse.isStarted());
+        assertTrue(startResponse.isAcknowledged());
         assertThat(startResponse.getNodeFailures(), empty());
         assertThat(startResponse.getTaskFailures(), empty());
 
@@ -271,7 +271,7 @@ public class DataFrameTransformIT extends ESRestHighLevelClientTestCase {
         StopDataFrameTransformRequest stopRequest = new StopDataFrameTransformRequest(id, Boolean.TRUE, null);
         StopDataFrameTransformResponse stopResponse =
                 execute(stopRequest, client::stopDataFrameTransform, client::stopDataFrameTransformAsync);
-        assertTrue(stopResponse.isStopped());
+        assertTrue(stopResponse.isAcknowledged());
         assertThat(stopResponse.getNodeFailures(), empty());
         assertThat(stopResponse.getTaskFailures(), empty());
     }
@@ -358,7 +358,7 @@ public class DataFrameTransformIT extends ESRestHighLevelClientTestCase {
         StartDataFrameTransformResponse startTransformResponse = execute(new StartDataFrameTransformRequest(id),
             client::startDataFrameTransform,
             client::startDataFrameTransformAsync);
-        assertThat(startTransformResponse.isStarted(), is(true));
+        assertThat(startTransformResponse.isAcknowledged(), is(true));
         assertBusy(() -> {
             GetDataFrameTransformStatsResponse response = execute(new GetDataFrameTransformStatsRequest(id),
                     client::getDataFrameTransformStats, client::getDataFrameTransformStatsAsync);

@@ -60,8 +60,7 @@ public interface BlobContainer {
 
     /**
      * Reads blob content from the input stream and writes it to the container in a new blob with the given name.
-     * This method assumes the container does not already contain a blob of the same blobName.  If a blob by the
-     * same name already exists, the operation will fail and an {@link IOException} will be thrown.
+     * If a blob by the same name already exists it will be overwritten.
      *
      * @param   blobName
      *          The name of the blob to write the contents of the input stream to.
@@ -78,9 +77,7 @@ public interface BlobContainer {
     /**
      * Reads blob content from the input stream and writes it to the container in a new blob with the given name,
      * using an atomic write operation if the implementation supports it.
-     *
-     * This method assumes the container does not already contain a blob of the same blobName.  If a blob by the
-     * same name already exists, the operation will fail and an {@link IOException} will be thrown.
+     * If a blob by the same name already exists it will be overwritten.
      *
      * @param   blobName
      *          The name of the blob to write the contents of the input stream to.

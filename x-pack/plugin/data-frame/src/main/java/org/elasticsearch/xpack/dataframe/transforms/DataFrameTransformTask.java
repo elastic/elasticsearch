@@ -212,7 +212,7 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
         // Even though the indexer information is persisted to an index, we still need DataFrameTransformTaskState in the clusterstate
         // This keeps track of STARTED, FAILED, STOPPED
         // This is because a FAILED state can occur because we cannot read the config from the internal index, which would imply that
-        //   that we could not read the previous state information from said index.
+        //   we could not read the previous state information from said index.
         persistStateToClusterState(state, ActionListener.wrap(
             task -> {
                 auditor.info(transform.getId(),
@@ -300,7 +300,7 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
         // Even though the indexer information is persisted to an index, we still need DataFrameTransformTaskState in the clusterstate
         // This keeps track of STARTED, FAILED, STOPPED
         // This is because a FAILED state can occur because we cannot read the config from the internal index, which would imply that
-        //   that we could not read the previous state information from said index.
+        //   we could not read the previous state information from said index.
         persistStateToClusterState(getState(), ActionListener.wrap(
             r -> listener.onResponse(null),
             listener::onFailure

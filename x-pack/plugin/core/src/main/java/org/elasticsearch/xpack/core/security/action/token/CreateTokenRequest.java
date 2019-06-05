@@ -35,7 +35,7 @@ public final class CreateTokenRequest extends ActionRequest {
 
     public enum GrantType {
         PASSWORD("password"),
-        KERBEROS("kerberos"),
+        KERBEROS("_kerberos"),
         REFRESH_TOKEN("refresh_token"),
         AUTHORIZATION_CODE("authorization_code"),
         CLIENT_CREDENTIALS("client_credentials");

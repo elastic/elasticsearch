@@ -117,7 +117,7 @@ public class KerberosAuthenticationIT extends ESRestTestCase {
 
         final Request request = new Request("POST", "/_security/oauth2/token");
         String json = "{" +
-                      "  \"grant_type\" : \"kerberos\", " +
+                      "  \"grant_type\" : \"_kerberos\", " +
                       "  \"kerberos_ticket\" : \"" + kerberosTicket  + "\"" +
                       "}";
         request.setJsonEntity(json);

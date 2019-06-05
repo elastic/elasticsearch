@@ -222,7 +222,7 @@ public class TransportCreateTokenActionTests extends ESTestCase {
             mock(TransportService.class), new ActionFilters(Collections.emptySet()), tokenService,
             authenticationService);
         final CreateTokenRequest createTokenRequest = new CreateTokenRequest();
-        createTokenRequest.setGrantType("kerberos");
+        createTokenRequest.setGrantType("_kerberos");
         createTokenRequest.setKerberosTicket(new SecureString(randomAlphaOfLengthBetween(3,  7).toCharArray()));
 
         PlainActionFuture<CreateTokenResponse> tokenResponseFuture = new PlainActionFuture<>();

@@ -19,7 +19,7 @@ public class CreateTokenRequestTests extends ESTestCase {
         ActionRequestValidationException ve = request.validate();
         assertNotNull(ve);
         assertEquals(1, ve.validationErrors().size());
-        assertThat(ve.validationErrors().get(0), containsString("[password, kerberos, refresh_token, client_credentials]"));
+        assertThat(ve.validationErrors().get(0), containsString("[password, _kerberos, refresh_token, client_credentials]"));
         assertThat(ve.validationErrors().get(0), containsString("grant_type"));
 
         request.setGrantType("password");
@@ -92,7 +92,7 @@ public class CreateTokenRequestTests extends ESTestCase {
         assertThat(ve.validationErrors(), hasItem(containsString("refresh_token is not supported")));
         assertThat(ve.validationErrors(), hasItem(containsString("kerberos_ticket is not supported")));
 
-        request.setGrantType("kerberos");
+        request.setGrantType("_kerberos");
         ve = request.validate();
         assertNotNull(ve);
         assertEquals(3, ve.validationErrors().size());

@@ -103,6 +103,7 @@ public class KerberosTicketValidatorTests extends KerberosTestCase {
         try (SpnegoClient spnegoClient = new SpnegoClient(principalName(clientUserName), password, servicePrincipalName,
                 randomFrom(KerberosTicketValidator.SUPPORTED_OIDS))) {
             final String base64KerbToken = spnegoClient.getBase64EncodedTokenForSpnegoHeader();
+            System.out.println("aijoajsaojojs : " + base64KerbToken);
             assertThat(base64KerbToken, is(notNullValue()));
 
             final Environment env = TestEnvironment.newEnvironment(globalSettings);

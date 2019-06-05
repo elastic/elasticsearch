@@ -1142,7 +1142,7 @@ public abstract class Engine implements Closeable {
      */
     @SuppressWarnings("finally")
     private void maybeDie(final String maybeMessage, final Throwable maybeFatal) {
-        ExceptionsHelper.maybeError(maybeFatal, logger).ifPresent(error -> {
+        ExceptionsHelper.maybeError(maybeFatal).ifPresent(error -> {
             try {
                 logger.error(maybeMessage, error);
             } finally {

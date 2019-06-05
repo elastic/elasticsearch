@@ -90,7 +90,7 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
 
     public static class TypeParser implements MetadataFieldMapper.TypeParser {
         public static final String ENABLED_DEPRECATION_MESSAGE = "Changing the `enabled` setting for `_field_names` fields is no "
-                + "longer necassary. Disabling it has almost no benefits anymore which is why we now ignore this setting and will "
+                + "longer necessary. Disabling it has almost no benefits anymore which is why we now ignore this setting and will "
                 + "remove it in a future major version.";
 
         @Override

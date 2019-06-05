@@ -605,7 +605,6 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
                         .field("query_field2", queryBuilder)
                         .endObject()),
                         XContentType.JSON));
-        System.out.println(doc.rootDoc().getFields());
         assertThat(doc.rootDoc().getFields().size(), equalTo(16)); // also includes all other meta fields
         BytesRef queryBuilderAsBytes = doc.rootDoc().getField("query_field1.query_builder_field").binaryValue();
         assertQueryBuilder(queryBuilderAsBytes, queryBuilder);

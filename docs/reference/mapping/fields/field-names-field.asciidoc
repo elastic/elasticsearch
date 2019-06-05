@@ -32,3 +32,4 @@ PUT tweets
 }
 --------------------------------------------------
 // CONSOLE
+// TEST[warning:Changing the `enabled` setting for `_field_names` fields is no longer necessary. Disabling it has almost no benefits anymore which is why we now ignore this setting and will remove it in a future major version.]

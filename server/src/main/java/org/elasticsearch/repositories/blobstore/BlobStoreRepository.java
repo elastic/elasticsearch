@@ -166,7 +166,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     protected final NamedXContentRegistry namedXContentRegistry;
 
-    private final ThreadPool threadPool;
+    protected final ThreadPool threadPool;
 
     private static final int BUFFER_SIZE = 4096;
 

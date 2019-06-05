@@ -22,12 +22,15 @@ package org.elasticsearch.repositories.azure;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.ReloadablePlugin;
 import org.elasticsearch.plugins.RepositoryPlugin;
 import org.elasticsearch.repositories.Repository;
+import org.elasticsearch.threadpool.ExecutorBuilder;
+import org.elasticsearch.threadpool.ScalingExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Arrays;
@@ -39,6 +42,8 @@ import java.util.Map;
  * A plugin to add a repository type that writes to and from the Azure cloud storage service.
  */
 public class AzureRepositoryPlugin extends Plugin implements RepositoryPlugin, ReloadablePlugin {
+
+    public static final String REPOSITORY_THREAD_POOL_NAME = "repository_azure";
 
     // protected for testing
     final AzureStorageService azureStoreService;
@@ -67,6 +72,15 @@ public class AzureRepositoryPlugin extends Plugin implements RepositoryPlugin, R
             AzureStorageSettings.PROXY_HOST_SETTING,
             AzureStorageSettings.PROXY_PORT_SETTING
         );
+    }
+
+    @Override
+    public List<ExecutorBuilder<?>> getExecutorBuilders(Settings settings) {
+        return Collections.singletonList(executorBuilder());
+    }
+
+    public static ExecutorBuilder<?> executorBuilder() {
+        return new ScalingExecutorBuilder(REPOSITORY_THREAD_POOL_NAME, 0, 32, TimeValue.timeValueSeconds(30L));
     }
 
     @Override

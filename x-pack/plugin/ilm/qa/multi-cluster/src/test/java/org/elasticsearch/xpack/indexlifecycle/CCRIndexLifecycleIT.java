@@ -66,8 +66,8 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
             putILMPolicy(policyName, "50GB", null, TimeValue.timeValueHours(7*24));
             followIndex(indexName, indexName);
             ensureGreen(indexName);
-            // Aliases are not copied from leader index, so we need to add that for the rollover action in follower cluster:
-            client().performRequest(new Request("PUT", "/" + indexName + "/_alias/logs"));
+
+            assertBusy(() -> assertOK(client().performRequest(new Request("HEAD", "/" + indexName + "/_alias/logs"))));
 
             try (RestClient leaderClient = buildLeaderClient()) {
                 index(leaderClient, indexName, "1");
@@ -226,8 +226,8 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
                 // Check that it got replicated to the follower
                 assertBusy(() -> assertTrue(indexExists(indexName)));
 
-                // Aliases are not copied from leader index, so we need to add that for the rollover action in follower cluster:
-                client().performRequest(new Request("PUT", "/" + indexName + "/_alias/" + alias));
+                // check that the alias was replicated
+                assertBusy(() -> assertOK(client().performRequest(new Request("HEAD", "/" + indexName + "/_alias/" + alias))));
 
                 index(leaderClient, indexName, "1");
                 assertDocumentExists(leaderClient, indexName, "1");
@@ -252,7 +252,6 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
                     // And the old index should have a write block and indexing complete set
                     assertThat(getIndexSetting(leaderClient, indexName, "index.blocks.write"), equalTo("true"));
                     assertThat(getIndexSetting(leaderClient, indexName, "index.lifecycle.indexing_complete"), equalTo("true"));
-
                 });
 
                 assertBusy(() -> {
@@ -266,6 +265,8 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
                     assertThat(getIndexSetting(client(), indexName, "index.xpack.ccr.following_index"), nullValue());
                     // The next index should have been created on the follower as well
                     indexExists(nextIndexName);
+                    // and the alias should be on the next index
+                    assertOK(client().performRequest(new Request("HEAD", "/" + nextIndexName + "/_alias/" + alias)));
                 });
 
                 assertBusy(() -> {
@@ -278,6 +279,74 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
             }
         } else {
             fail("unexpected target cluster [" + targetCluster + "]");
+        }
+    }
+
+    public void testAliasReplicatedOnShrink() throws Exception {
+        final String indexName = "shrink-alias-test";
+        final String shrunkenIndexName = "shrink-" + indexName;
+        final String policyName = "shrink-test-policy";
+
+        final int numberOfAliases = randomIntBetween(0, 4);
+
+        if ("leader".equals(targetCluster)) {
+            Settings indexSettings = Settings.builder()
+                    .put("index.soft_deletes.enabled", true)
+                    .put("index.number_of_shards", 3)
+                    .put("index.number_of_replicas", 0)
+                    .put("index.lifecycle.name", policyName) // this policy won't exist on the leader, that's fine
+                    .build();
+            final StringBuilder aliases = new StringBuilder();
+            boolean first = true;
+            for (int i = 0; i < numberOfAliases; i++) {
+                if (first == false) {
+                    aliases.append(",");
+                }
+                final Boolean isWriteIndex = randomFrom(new Boolean[] { null, false, true });
+                if (isWriteIndex == null) {
+                    aliases.append("\"alias_").append(i).append("\":{}");
+                } else {
+                    aliases.append("\"alias_").append(i).append("\":{\"is_write_index\":").append(isWriteIndex).append("}");
+                }
+                first = false;
+            }
+            createIndex(indexName, indexSettings, "", aliases.toString());
+            ensureGreen(indexName);
+        } else if ("follow".equals(targetCluster)) {
+            // Create a policy with just a Shrink action on the follower
+            putShrinkOnlyPolicy(client(), policyName);
+
+            // Follow the index
+            followIndex(indexName, indexName);
+            // Make sure it actually took
+            assertBusy(() -> assertTrue(indexExists(indexName)));
+            // This should now be in the "warm" phase waiting for the index to be ready to unfollow
+            assertBusy(() -> assertILMPolicy(client(), indexName, policyName, "warm", "unfollow", "wait-for-indexing-complete"));
+
+            // Set the indexing_complete flag on the leader so the index will actually unfollow
+            try (RestClient leaderClient = buildLeaderClient()) {
+                updateIndexSettings(leaderClient, indexName, Settings.builder()
+                        .put("index.lifecycle.indexing_complete", true)
+                        .build()
+                );
+            }
+
+            // Wait for the setting to get replicated
+            assertBusy(() -> assertThat(getIndexSetting(client(), indexName, "index.lifecycle.indexing_complete"), equalTo("true")));
+
+            // Wait for the index to continue with its lifecycle and be shrunk
+            assertBusy(() -> assertTrue(indexExists(shrunkenIndexName)));
+
+            // assert the aliases were replicated
+            assertBusy(() -> {
+                for (int i = 0; i < numberOfAliases; i++) {
+                    assertOK(client().performRequest(new Request("HEAD", "/" + shrunkenIndexName + "/_alias/alias_" + i)));
+                }
+            });
+            assertBusy(() -> assertOK(client().performRequest(new Request("HEAD", "/" + shrunkenIndexName + "/_alias/" + indexName))));
+
+            // Wait for the index to complete its policy
+            assertBusy(() -> assertILMPolicy(client(), shrunkenIndexName, policyName, "completed", "completed", "completed"));
         }
     }
 

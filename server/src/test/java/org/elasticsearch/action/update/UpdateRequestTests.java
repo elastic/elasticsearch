@@ -54,7 +54,6 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 
 import static java.util.Collections.emptyMap;
@@ -77,7 +76,6 @@ import static org.hamcrest.Matchers.notNullValue;
 public class UpdateRequestTests extends ESTestCase {
 
     private UpdateHelper updateHelper;
-    private final AtomicBoolean canUseIfSeqNo = new AtomicBoolean(true);
 
     @Override
     @Before
@@ -143,7 +141,7 @@ public class UpdateRequestTests extends ESTestCase {
         final MockScriptEngine engine = new MockScriptEngine("mock", scripts, Collections.emptyMap());
         Map<String, ScriptEngine> engines = Collections.singletonMap(engine.getType(), engine);
         ScriptService scriptService = new ScriptService(baseSettings, engines, ScriptModule.CORE_CONTEXTS);
-        updateHelper = new UpdateHelper(scriptService, canUseIfSeqNo::get);
+        updateHelper = new UpdateHelper(scriptService);
     }
 
     public void testFromXContent() throws Exception {
@@ -400,7 +398,8 @@ public class UpdateRequestTests extends ESTestCase {
             long nowInMillis = randomNonNegativeLong();
             // We simulate that the document is not existing yet
             GetResult getResult = new GetResult("test", "type1", "2", UNASSIGNED_SEQ_NO, 0, 0, false, null, null);
-            UpdateHelper.Result result = updateHelper.prepare(new ShardId("test", "_na_", 0), updateRequest, getResult, () -> nowInMillis);
+            UpdateHelper.Result result = updateHelper.prepare(
+                new ShardId("test", "_na_", 0), updateRequest, randomBoolean(), getResult, () -> nowInMillis);
             Streamable action = result.action();
             assertThat(action, instanceOf(IndexRequest.class));
             IndexRequest indexAction = (IndexRequest) action;
@@ -413,7 +412,8 @@ public class UpdateRequestTests extends ESTestCase {
                 .scriptedUpsert(true);
             // We simulate that the document is not existing yet
             GetResult getResult = new GetResult("test", "type1", "2", 0, 1, 0, true, new BytesArray("{}"), null);
-            UpdateHelper.Result result = updateHelper.prepare(new ShardId("test", "_na_", 0), updateRequest, getResult, () -> 42L);
+            UpdateHelper.Result result = updateHelper.prepare(
+                new ShardId("test", "_na_", 0), updateRequest, randomBoolean(), getResult, () -> 42L);
             Streamable action = result.action();
             assertThat(action, instanceOf(IndexRequest.class));
         }
@@ -462,6 +462,7 @@ public class UpdateRequestTests extends ESTestCase {
         final UpdateHelper.Result result = updateHelper.prepare(
                 new ShardId("test", "", 0),
                 updateRequest,
+                randomBoolean(),
                 getResult,
                 ESTestCase::randomNonNegativeLong);
         final Streamable action = result.action();
@@ -561,8 +562,6 @@ public class UpdateRequestTests extends ESTestCase {
         updateRequest.doc("{}", XContentType.JSON);
         updateRequest.upsert(new IndexRequest("index","type", "id"));
         assertThat(updateRequest.validate().validationErrors(), contains("can't provide both upsert request and a version"));
-        assertWarnings("Usage of internal versioning for optimistic concurrency control is deprecated and will be removed. " +
-            "Please use the `if_seq_no` and `if_primary_term` parameters instead. (request for index [index], type [type], id [id])");
     }
 
     public void testToValidateUpsertRequestWithVersion() {
@@ -638,13 +637,13 @@ public class UpdateRequestTests extends ESTestCase {
         UpdateRequest request = new UpdateRequest("test", "type1", "1").fromXContent(
                 createParser(JsonXContent.jsonXContent, new BytesArray("{\"doc\": {\"body\": \"foo\"}}")));
 
-        UpdateHelper.Result result = updateHelper.prepareUpdateIndexRequest(shardId, request, getResult, true);
+        UpdateHelper.Result result = updateHelper.prepareUpdateIndexRequest(shardId, request, randomBoolean(), getResult, true);
 
         assertThat(result.action(), instanceOf(UpdateResponse.class));
         assertThat(result.getResponseResult(), equalTo(DocWriteResponse.Result.NOOP));
 
         // Try again, with detectNoop turned off
-        result = updateHelper.prepareUpdateIndexRequest(shardId, request, getResult, false);
+        result = updateHelper.prepareUpdateIndexRequest(shardId, request, randomBoolean(), getResult, false);
         assertThat(result.action(), instanceOf(IndexRequest.class));
         assertThat(result.getResponseResult(), equalTo(DocWriteResponse.Result.UPDATED));
         assertThat(result.updatedSourceAsMap().get("body").toString(), equalTo("foo"));
@@ -652,7 +651,7 @@ public class UpdateRequestTests extends ESTestCase {
         // Change the request to be a different doc
         request = new UpdateRequest("test", "type1", "1").fromXContent(
                 createParser(JsonXContent.jsonXContent, new BytesArray("{\"doc\": {\"body\": \"bar\"}}")));
-        result = updateHelper.prepareUpdateIndexRequest(shardId, request, getResult, true);
+        result = updateHelper.prepareUpdateIndexRequest(shardId, request, randomBoolean(), getResult, true);
 
         assertThat(result.action(), instanceOf(IndexRequest.class));
         assertThat(result.getResponseResult(), equalTo(DocWriteResponse.Result.UPDATED));
@@ -669,8 +668,8 @@ public class UpdateRequestTests extends ESTestCase {
         UpdateRequest request = new UpdateRequest("test", "type1", "1")
                 .script(mockInlineScript("ctx._source.body = \"foo\""));
 
-        UpdateHelper.Result result = updateHelper.prepareUpdateScriptRequest(shardId, request, getResult,
-                ESTestCase::randomNonNegativeLong);
+        UpdateHelper.Result result = updateHelper.prepareUpdateScriptRequest(
+            shardId, request, randomBoolean(), getResult, ESTestCase::randomNonNegativeLong);
 
         assertThat(result.action(), instanceOf(IndexRequest.class));
         assertThat(result.getResponseResult(), equalTo(DocWriteResponse.Result.UPDATED));
@@ -679,7 +678,7 @@ public class UpdateRequestTests extends ESTestCase {
         // Now where the script changes the op to "delete"
         request = new UpdateRequest("test", "type1", "1").script(mockInlineScript("ctx.op = delete"));
 
-        result = updateHelper.prepareUpdateScriptRequest(shardId, request, getResult,
+        result = updateHelper.prepareUpdateScriptRequest(shardId, request, randomBoolean(), getResult,
                 ESTestCase::randomNonNegativeLong);
 
         assertThat(result.action(), instanceOf(DeleteRequest.class));
@@ -693,7 +692,7 @@ public class UpdateRequestTests extends ESTestCase {
             request = new UpdateRequest("test", "type1", "1").script(mockInlineScript("ctx.op = bad"));
         }
 
-        result = updateHelper.prepareUpdateScriptRequest(shardId, request, getResult,
+        result = updateHelper.prepareUpdateScriptRequest(shardId, request, randomBoolean(), getResult,
                 ESTestCase::randomNonNegativeLong);
 
         assertThat(result.action(), instanceOf(UpdateResponse.class));
@@ -710,27 +709,15 @@ public class UpdateRequestTests extends ESTestCase {
         UpdateRequest request = new UpdateRequest("test", "type1", "1").fromXContent(
             createParser(JsonXContent.jsonXContent, new BytesArray("{\"doc\": {\"body\": \"foo\"}}")));
 
-        canUseIfSeqNo.set(false);
-        IndexRequest updateUsingVersion = updateHelper.prepare(shardId, request, getResult, ESTestCase::randomNonNegativeLong).action();
+        IndexRequest updateUsingVersion = updateHelper.prepare(shardId, request, false, getResult, () -> randomNonNegativeLong()).action();
         assertThat(updateUsingVersion.ifSeqNo(), equalTo(UNASSIGNED_SEQ_NO));
         assertThat(updateUsingVersion.ifPrimaryTerm(), equalTo(UNASSIGNED_PRIMARY_TERM));
         assertThat(updateUsingVersion.version(), equalTo(version));
 
-        canUseIfSeqNo.set(true);
-        IndexRequest updateUsingSeqNo = updateHelper.prepare(shardId, request, getResult, ESTestCase::randomNonNegativeLong).action();
+        IndexRequest updateUsingSeqNo = updateHelper.prepare(shardId, request, true, getResult, () -> randomNonNegativeLong()).action();
         assertThat(updateUsingSeqNo.ifSeqNo(), equalTo(seqNo));
         assertThat(updateUsingSeqNo.ifPrimaryTerm(), equalTo(primaryTerm));
         assertThat(updateUsingSeqNo.version(), equalTo(Versions.MATCH_ANY));
-    }
-
-    public void testOldClusterRejectIfSeqNo() {
-        canUseIfSeqNo.set(false);
-        long ifSeqNo = randomNonNegativeLong();
-        long ifPrimaryTerm = randomNonNegativeLong();
-        UpdateRequest request = new UpdateRequest("test", "type1", "1").setIfSeqNo(ifSeqNo).setIfPrimaryTerm(ifPrimaryTerm);
-        AssertionError error = expectThrows(AssertionError.class,
-            () -> updateHelper.prepare(request, null, ESTestCase::randomNonNegativeLong));
-        assertThat(error.getMessage(), equalTo("setIfMatch [" + ifSeqNo + "], currentDocTem [" + ifPrimaryTerm + "]"));
     }
 
     public void testToString() throws IOException {
@@ -743,5 +730,14 @@ public class UpdateRequestTests extends ESTestCase {
             createParser(JsonXContent.jsonXContent, new BytesArray("{\"doc\": {\"body\": \"bar\"}}")));
         assertThat(request.toString(), equalTo("update {[test][type1][1], doc_as_upsert[false], "
             + "doc[index {[null][null][null], source[{\"body\":\"bar\"}]}], scripted_upsert[false], detect_noop[true]}"));
+    }
+
+    public void testOldClusterRejectIfSeqNo() {
+        long ifSeqNo = randomNonNegativeLong();
+        long ifPrimaryTerm = randomNonNegativeLong();
+        UpdateRequest request = new UpdateRequest("test", "type1", "1").setIfSeqNo(ifSeqNo).setIfPrimaryTerm(ifPrimaryTerm);
+        AssertionError error = expectThrows(AssertionError.class,
+            () -> updateHelper.prepare(request, null, false, ESTestCase::randomNonNegativeLong));
+        assertThat(error.getMessage(), equalTo("ifSeqNo [" + ifSeqNo + "], ifPrimaryTerm [" + ifPrimaryTerm + "]"));
     }
 }

@@ -22,6 +22,7 @@ package org.elasticsearch.action.update;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
+import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.RoutingMissingException;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
@@ -174,7 +175,8 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
         final ShardId shardId = request.getShardId();
         final IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
         final IndexShard indexShard = indexService.getShard(shardId.getId());
-        final UpdateHelper.Result result = updateHelper.prepare(request, indexShard, threadPool::absoluteTimeInMillis);
+        final UpdateHelper.Result result = updateHelper.prepare(
+            request, indexShard, DocWriteRequest.canUseIfSeqNo(clusterService.state()), threadPool::absoluteTimeInMillis);
         switch (result.getResponseResult()) {
             case CREATED:
                 IndexRequest upsertRequest = result.action();

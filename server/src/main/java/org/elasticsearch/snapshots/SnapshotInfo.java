@@ -313,7 +313,6 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
         if (in.getVersion().onOrAfter(INCLUDE_GLOBAL_STATE_INTRODUCED)) {
             includeGlobalState = in.readOptionalBoolean();
         }
-        includeGlobalState = in.readOptionalBoolean();
         if (in.getVersion().onOrAfter(METADATA_FIELD_INTRODUCED)) {
             userMetadata = in.readMap();
         } else {
@@ -729,7 +728,6 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
         if (out.getVersion().onOrAfter(INCLUDE_GLOBAL_STATE_INTRODUCED)) {
             out.writeOptionalBoolean(includeGlobalState);
         }
-        out.writeOptionalBoolean(includeGlobalState);
         if (out.getVersion().onOrAfter(METADATA_FIELD_INTRODUCED)) {
             out.writeMap(userMetadata);
         }

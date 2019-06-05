@@ -552,7 +552,7 @@ See <<security-api-has-privileges>>.
 [role="exclude",id="xpack-commands"]
 === X-Pack commands
 
-See <<commands>>. 
+See <<commands>>.
 
 [role="exclude",id="ml-api-definitions"]
 === Machine learning API definitions
@@ -598,7 +598,7 @@ See <<faster-prefix-queries>>.
 === Set up {xpack}
 
 {xpack} is an Elastic Stack extension that provides security, alerting,
-monitoring, reporting, machine learning, and many other capabilities. By default, 
+monitoring, reporting, machine learning, and many other capabilities. By default,
 when you install {es}, {xpack} is installed.
 
 [role="exclude",id="setup-xpack-client"]
@@ -616,3 +616,9 @@ the steps needed to migrate.
 The `common` terms query is deprecated. Use the <<query-dsl-match-query, `match`
 query>> instead. The `match` query skips blocks of documents efficiently,
 without any configuration, if the total number of hits is not tracked.
+
+[role="exclude",id="indices-types-exists"]
+=== Types Exists
+
+The types exists endpoint has been removed. See <<removal-of-types>> for
+more details.

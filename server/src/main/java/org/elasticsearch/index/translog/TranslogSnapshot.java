@@ -76,7 +76,7 @@ final class TranslogSnapshot extends BaseTranslogReader {
         return null;
     }
 
-    protected Translog.Operation readOperation() throws IOException {
+    private Translog.Operation readOperation() throws IOException {
         final int opSize = readSize(reusableBuffer, position);
         reuse = checksummedStream(reusableBuffer, position, opSize, reuse);
         Translog.Operation op = read(reuse);

@@ -92,7 +92,11 @@
         },
         "size": {
           "type" : "number",
-          "description" : "Number of hits to return (default: 10)"
+          "description" : "Deprecated, please use `max_docs` instead"
+        },
+        "max_docs": {
+          "type" : "number",
+          "description" : "Maximum number of documents to process (default: all documents)"
         },
         "sort": {
           "type" : "list",

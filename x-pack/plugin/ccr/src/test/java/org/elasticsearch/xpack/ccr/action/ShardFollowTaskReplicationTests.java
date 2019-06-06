@@ -515,6 +515,12 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
             }
 
             @Override
+            protected void innerUpdateAliases(LongConsumer handler, Consumer<Exception> errorHandler) {
+                // no-op as alias updates are not tested here
+                handler.accept(1L);
+            }
+
+            @Override
             protected void innerSendBulkShardOperationsRequest(
                 final String followerHistoryUUID,
                 final List<Translog.Operation> operations,
@@ -544,14 +550,21 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
                             final SeqNoStats seqNoStats = indexShard.seqNoStats();
                             final long maxSeqNoOfUpdatesOrDeletes = indexShard.getMaxSeqNoOfUpdatesOrDeletes();
                             if (from > seqNoStats.getGlobalCheckpoint()) {
-                                handler.accept(ShardChangesAction.getResponse(1L, 1L, seqNoStats,
-                                    maxSeqNoOfUpdatesOrDeletes, ShardChangesAction.EMPTY_OPERATIONS_ARRAY, 1L));
+                                handler.accept(ShardChangesAction.getResponse(
+                                        1L,
+                                        1L,
+                                        1L,
+                                        seqNoStats,
+                                        maxSeqNoOfUpdatesOrDeletes,
+                                        ShardChangesAction.EMPTY_OPERATIONS_ARRAY,
+                                        1L));
                                 return;
                             }
                             Translog.Operation[] ops = ShardChangesAction.getOperations(indexShard, seqNoStats.getGlobalCheckpoint(), from,
                                 maxOperationCount, recordedLeaderIndexHistoryUUID, params.getMaxReadRequestSize());
                             // hard code mapping version; this is ok, as mapping updates are not tested here
                             final ShardChangesAction.Response response = new ShardChangesAction.Response(
+                                1L,
                                 1L,
                                 1L,
                                 seqNoStats.getGlobalCheckpoint(),

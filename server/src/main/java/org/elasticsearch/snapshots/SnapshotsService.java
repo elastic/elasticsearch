@@ -287,7 +287,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                                                                 snapshotIndices,
                                                                 System.currentTimeMillis(),
                                                                 repositoryData.getGenId(),
-                                                                null);
+                                                                null,
+                                                                request.userMetadata());
                     initializingSnapshots.add(newSnapshot.snapshot());
                     snapshots = new SnapshotsInProgress(newSnapshot);
                 } else {
@@ -557,7 +558,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                                                          0,
                                                          Collections.emptyList(),
                                                          snapshot.getRepositoryStateId(),
-                                                         snapshot.includeGlobalState());
+                                                         snapshot.includeGlobalState(),
+                                                         snapshot.userMetadata());
                 } catch (Exception inner) {
                     inner.addSuppressed(exception);
                     logger.warn(() -> new ParameterizedMessage("[{}] failed to close snapshot in repository",
@@ -572,7 +574,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
     private static SnapshotInfo inProgressSnapshot(SnapshotsInProgress.Entry entry) {
         return new SnapshotInfo(entry.snapshot().getSnapshotId(),
                                    entry.indices().stream().map(IndexId::getName).collect(Collectors.toList()),
-                                   entry.startTime(), entry.includeGlobalState());
+                                   entry.startTime(), entry.includeGlobalState(), entry.userMetadata());
     }
 
     /**
@@ -988,7 +990,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     entry.shards().size(),
                     unmodifiableList(shardFailures),
                     entry.getRepositoryStateId(),
-                    entry.includeGlobalState());
+                    entry.includeGlobalState(),
+                    entry.userMetadata());
                 removeSnapshotFromClusterState(snapshot, snapshotInfo, null);
                 logger.info("snapshot [{}] completed with state [{}]", snapshot, snapshotInfo.state());
             }

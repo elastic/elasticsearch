@@ -614,8 +614,8 @@ public class IndexDeprecationChecksTests extends ESTestCase {
             if (rarely()) {
                 mappingBuilder.startObject("properties");
                 {
-                    int subfields = randomIntBetween(1,10);
-                    while (existingFieldNames.size() < subfields) {
+                    int subfields = randomIntBetween(1, 10);
+                    while (existingFieldNames.size() < subfields && fieldCount.get() <= fieldLimit) {
                         addRandomField(existingFieldNames, fieldLimit, mappingBuilder, fieldCount);
                     }
                 }

@@ -2917,7 +2917,7 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
             // end::put-data-frame-analytics-dest-config
 
             // tag::put-data-frame-analytics-analysis-default
-            DataFrameAnalysis outlierDetection = OutlierDetection.createDefault();
+            DataFrameAnalysis outlierDetection = OutlierDetection.createDefault(); // <1>
             // end::put-data-frame-analytics-analysis-default
 
             // tag::put-data-frame-analytics-analysis-customized
@@ -2941,7 +2941,7 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
                 .setDest(destConfig) // <3>
                 .setAnalysis(outlierDetection) // <4>
                 .setAnalyzedFields(analyzedFields) // <5>
-                .setModelMemoryLimit(new ByteSizeValue(512, ByteSizeUnit.KB)) // <6>
+                .setModelMemoryLimit(new ByteSizeValue(5, ByteSizeUnit.MB)) // <6>
                 .build();
             // end::put-data-frame-analytics-config
 

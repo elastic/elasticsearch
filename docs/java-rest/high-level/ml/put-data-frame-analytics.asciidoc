@@ -82,12 +82,14 @@ Currently, only one analysis is supported: +OutlierDetection+.
 --------------------------------------------------
 include-tagged::{doc-tests-file}[{api}-analysis-default]
 --------------------------------------------------
+<1> Constructing a new OutlierDetection object with default strategy to determine outliers
+
 or
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
 include-tagged::{doc-tests-file}[{api}-analysis-customized]
 --------------------------------------------------
-<1> Constructing a new OutlierDetection
+<1> Constructing a new OutlierDetection object
 <2> The method used to perform the analysis
 <3> Number of neighbors taken into account during analysis
 
@@ -105,5 +107,9 @@ include::../execution.asciidoc[]
 [id="{upid}-{api}-response"]
 ==== Response
 
-The returned +{response}+ acknowledges the successful creation of
-the new {dataframe-analytics} or an error if the configuration is invalid.
+The returned +{response}+ contains the newly created {dataframe-analytics}.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-response]
+--------------------------------------------------

@@ -44,8 +44,8 @@ Additional settings are:
 * `lenient` (defaults to `false`). If `true` ignores exceptions while parsing the synonym configuration. It is important
 to note that only those synonym rules which cannot get parsed are ignored. For instance consider the following request:
 * `updateable` (defaults to false). If `true`, this marks the filter to be updateable using the 
-<<analyzer reload API,indices-reload-analyzers>>, but it will also restrict the filter to only be usable in 
-<<search analyzers,search-analyzer>>. 
+<<indices-reload-analyzers,analyzer reload API>>, but it will also restrict the filter to only be usable in 
+<<search-analyzer,search analyzers>>. 
 
 
 [source,js]
@@ -188,7 +188,7 @@ with the multi-token filters in one branch and the synonym filter in the other.
 
 === Updateability of search time synonyms
 
-Synonym filters that are used in <<search analyzers,search-analyzer>> can be marked
+Synonym filters that are used in <<search-analyzer,search analyzers>> can be marked
 as updateable using the `updateable` flag:
 
 [source,js]
@@ -218,7 +218,7 @@ PUT /test_index
 --------------------------------------------------
 // CONSOLE
 
-Using the <<analyzer reload API,indices-reload-analyzers>>, you can trigger reloading of the
+Using the <<indices-reload-analyzers,analyzer reload API>>, you can trigger reloading of the
 synonym definition. The contents of the configured synonyms file will be reloaded and the
 synonyms definition the filter uses will be updated. 
 

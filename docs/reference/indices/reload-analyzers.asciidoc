@@ -8,7 +8,7 @@ Reloads search analyzers and its resources.
 The `_reload_search_analyzers` API can be run on one more indices and will
 reload all search analyzers that contain components that were marked as
 updateable when they were created, such as 
-<<synonym token filters,analysis-synonym-tokenfilter>>:
+<<analysis-synonym-tokenfilter,synonym token filters>>:
 
 [source,js]
 --------------------------------------------------

@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.security.authc.kerberos.KerberosAuthenticationTok
 
 import java.util.Base64;
 import java.util.Collections;
+import java.util.List;
 
 /**
  * Transport action responsible for creating a token based on a request. Requests provide user
@@ -61,7 +62,7 @@ public final class TransportCreateTokenAction extends HandledTransportAction<Cre
                 break;
             case CLIENT_CREDENTIALS:
                 Authentication authentication = Authentication.getAuthentication(threadPool.getThreadContext());
-                createToken(request, authentication, authentication, false, listener);
+                createToken(type, request, authentication, authentication, false, listener);
                 break;
             default:
                 listener.onFailure(new IllegalStateException("grant_type [" + request.getGrantType() +
@@ -85,7 +86,7 @@ public final class TransportCreateTokenAction extends HandledTransportAction<Cre
                     clearCredentialsFromRequest(grantType, request);
 
                     if (authentication != null) {
-                        createToken(request, authentication, originatingAuthentication, true, listener);
+                        createToken(grantType, request, authentication, originatingAuthentication, true, listener);
                     } else {
                         listener.onFailure(new UnsupportedOperationException("cannot create token if authentication is not allowed"));
                     }
@@ -123,17 +124,25 @@ public final class TransportCreateTokenAction extends HandledTransportAction<Cre
         }
     }
 
-    private void createToken(CreateTokenRequest request, Authentication authentication, Authentication originatingAuth,
+    private void createToken(GrantType grantType, CreateTokenRequest request, Authentication authentication, Authentication originatingAuth,
             boolean includeRefreshToken, ActionListener<CreateTokenResponse> listener) {
         tokenService.createOAuth2Tokens(authentication, originatingAuth, Collections.emptyMap(), includeRefreshToken,
                 ActionListener.wrap(tuple -> {
                     final String scope = getResponseScopeValue(request.getScope());
+                    final String base64AuthenticateResponse = (grantType == GrantType.KERBEROS) ? extractOutToken() : null;
                     final CreateTokenResponse response = new CreateTokenResponse(tuple.v1(), tokenService.getExpirationDelay(), scope,
-                            tuple.v2());
+                            tuple.v2(), base64AuthenticateResponse);
                     listener.onResponse(response);
                 }, listener::onFailure));
     }
 
+    private String extractOutToken() {
+        List<String> values = threadPool.getThreadContext().getResponseHeaders().get(KerberosAuthenticationToken.WWW_AUTHENTICATE);
+        if (values != null && values.size() == 1) {
+            return values.get(0);
+        }
+        return null;
+    }
     static String getResponseScopeValue(String requestScope) {
         final String scope;
         // the OAuth2.0 RFC requires the scope to be provided in the

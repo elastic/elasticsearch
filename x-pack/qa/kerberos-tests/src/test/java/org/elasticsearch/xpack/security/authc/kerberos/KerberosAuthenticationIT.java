@@ -43,6 +43,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 /**
  * Integration test to demonstrate authentication against a real MIT Kerberos
@@ -124,12 +125,17 @@ public class KerberosAuthenticationIT extends ESRestTestCase {
 
         try (RestClient client = buildClientForUser("test_kibana_user")) {
             final Response response = client.performRequest(request);
-            // final Response response = adminClient().performRequest(request);
             assertOK(response);
             final Map<String, Object> map = parseResponseAsMap(response.getEntity());
             assertThat(map.get("access_token"), notNullValue());
             assertThat(map.get("type"), is("Bearer"));
             assertThat(map.get("refresh_token"), notNullValue());
+            final Object base64OutToken = map.get("kerberos_authenticate_response_data");
+            assertThat(base64OutToken, notNullValue());
+            final String base64EncodedToken = ((String) base64OutToken).substring("Negotiate ".length()).trim();
+            final String outToken = callbackHandler.handleResponse(base64EncodedToken);
+            assertThat(outToken, is(nullValue()));
+            assertThat(callbackHandler.isEstablished(), is(true));
         }
     }
 

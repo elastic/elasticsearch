@@ -6,6 +6,7 @@
 
 package org.elasticsearch.xpack.security.action.token;
 
+import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.get.GetAction;
 import org.elasticsearch.action.get.GetRequestBuilder;
@@ -31,6 +32,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.node.Node;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -51,12 +53,15 @@ import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.junit.After;
 import org.junit.Before;
 
+import java.nio.charset.StandardCharsets;
 import java.time.Clock;
+import java.util.Base64;
 import java.util.Collections;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
+import static org.hamcrest.Matchers.is;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyString;
 import static org.mockito.Matchers.eq;
@@ -131,17 +136,26 @@ public class TransportCreateTokenActionTests extends ESTestCase {
 
         doAnswer(invocationOnMock -> {
             AuthenticationToken authToken = (AuthenticationToken) invocationOnMock.getArguments()[2];
+            ActionListener<Authentication> authListener = (ActionListener<Authentication>) invocationOnMock.getArguments()[3];
             User user = null;
             if (authToken instanceof UsernamePasswordToken) {
                 UsernamePasswordToken token = (UsernamePasswordToken) invocationOnMock.getArguments()[2];
                 user = new User(token.principal());
             } else if (authToken instanceof KerberosAuthenticationToken) {
                 KerberosAuthenticationToken token = (KerberosAuthenticationToken) invocationOnMock.getArguments()[2];
+                if (token.credentials() instanceof byte[]
+                        && new String((byte[]) token.credentials(), StandardCharsets.UTF_8).equals("fail")) {
+                    String errorMessage = "failed to authenticate user, gss context negotiation not complete";
+                    ElasticsearchSecurityException ese = new ElasticsearchSecurityException(errorMessage, RestStatus.UNAUTHORIZED);
+                    ese.addHeader(KerberosAuthenticationToken.WWW_AUTHENTICATE, "Negotiate FAIL");
+                    authListener.onFailure(ese);
+                    return Void.TYPE;
+                }
                 user = new User(token.principal());
+                threadPool.getThreadContext().addResponseHeader(KerberosAuthenticationToken.WWW_AUTHENTICATE, "Negotiate SUCCESS");
             }
             Authentication authentication = new Authentication(user, new Authentication.RealmRef("fake", "mock", "n1"), null);
             authentication.writeToContext(threadPool.getThreadContext());
-            ActionListener<Authentication> authListener = (ActionListener<Authentication>) invocationOnMock.getArguments()[3];
             authListener.onResponse(authentication);
             return Void.TYPE;
         }).when(authenticationService).authenticate(eq(CreateTokenAction.NAME), any(CreateTokenRequest.class),
@@ -223,18 +237,29 @@ public class TransportCreateTokenActionTests extends ESTestCase {
             authenticationService);
         final CreateTokenRequest createTokenRequest = new CreateTokenRequest();
         createTokenRequest.setGrantType("_kerberos");
-        createTokenRequest.setKerberosTicket(new SecureString(randomAlphaOfLengthBetween(3,  7).toCharArray()));
+        String failOrSuccess = randomBoolean() ? "fail" : "success";
+        String kerbCredentialsBase64 = Base64.getEncoder().encodeToString(failOrSuccess.getBytes(StandardCharsets.UTF_8));
+        createTokenRequest.setKerberosTicket(new SecureString(kerbCredentialsBase64.toCharArray()));
 
         PlainActionFuture<CreateTokenResponse> tokenResponseFuture = new PlainActionFuture<>();
         action.doExecute(null, createTokenRequest, tokenResponseFuture);
-        CreateTokenResponse createTokenResponse = tokenResponseFuture.get();
-        assertNotNull(createTokenResponse.getRefreshToken());
-        assertNotNull(createTokenResponse.getTokenString());
+        if (failOrSuccess.equals("fail")) {
+            ElasticsearchSecurityException ese = expectThrows(ElasticsearchSecurityException.class, () -> tokenResponseFuture.actionGet());
+            assertNotNull(ese.getHeader(KerberosAuthenticationToken.WWW_AUTHENTICATE));
+            assertThat(ese.getHeader(KerberosAuthenticationToken.WWW_AUTHENTICATE).size(), is(1));
+            assertThat(ese.getHeader(KerberosAuthenticationToken.WWW_AUTHENTICATE).get(0), is("Negotiate FAIL"));
+        } else {
+            CreateTokenResponse createTokenResponse = tokenResponseFuture.get();
+            assertNotNull(createTokenResponse.getRefreshToken());
+            assertNotNull(createTokenResponse.getTokenString());
+            assertNotNull(createTokenResponse.getKerberosAuthenticationResponseData());
+            assertThat(createTokenResponse.getKerberosAuthenticationResponseData(), is("Negotiate SUCCESS"));
 
-        assertNotNull(idxReqReference.get());
-        Map<String, Object> sourceMap = idxReqReference.get().sourceAsMap();
-        assertNotNull(sourceMap);
-        assertNotNull(sourceMap.get("access_token"));
-        assertNotNull(sourceMap.get("refresh_token"));
+            assertNotNull(idxReqReference.get());
+            Map<String, Object> sourceMap = idxReqReference.get().sourceAsMap();
+            assertNotNull(sourceMap);
+            assertNotNull(sourceMap.get("access_token"));
+            assertNotNull(sourceMap.get("refresh_token"));
+        }
     }
 }

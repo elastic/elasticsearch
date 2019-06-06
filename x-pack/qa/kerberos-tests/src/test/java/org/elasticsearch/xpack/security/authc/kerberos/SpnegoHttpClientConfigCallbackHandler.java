@@ -77,6 +77,7 @@ public class SpnegoHttpClientConfigCallbackHandler implements HttpClientConfigCa
     private final String keytabPath;
     private final boolean enableDebugLogs;
     private LoginContext loginContext;
+    private GSSContext gssContext;
 
     /**
      * Constructs {@link SpnegoHttpClientConfigCallbackHandler} with given
@@ -337,7 +338,7 @@ public class SpnegoHttpClientConfigCallbackHandler implements HttpClientConfigCa
                 .doPrivileged((PrivilegedExceptionAction<LoginContext>) () -> loginUsingPassword(userPrincipalName, password));
         final GSSCredential userCreds = doAsWrapper(loginContext.getSubject(), (PrivilegedExceptionAction<GSSCredential>) () -> gssManager
                 .createCredential(gssUserPrincipalName, GSSCredential.DEFAULT_LIFETIME, SPNEGO_OID, GSSCredential.INITIATE_ONLY));
-        GSSContext gssContext = gssManager.createContext(gssServicePrincipalName, SPNEGO_OID, userCreds, GSSCredential.DEFAULT_LIFETIME);
+        gssContext = gssManager.createContext(gssServicePrincipalName, SPNEGO_OID, userCreds, GSSCredential.DEFAULT_LIFETIME);
         gssContext.requestMutualAuth(true);
 
         final byte[] outToken = doAsWrapper(loginContext.getSubject(),
@@ -355,6 +356,35 @@ public class SpnegoHttpClientConfigCallbackHandler implements HttpClientConfigCa
         final LoginContext loginContext = new LoginContext(CRED_CONF_NAME, subject, callback, conf);
         loginContext.login();
         return loginContext;
+    }
+
+    /**
+     * Handles server response and returns new token if any to be sent to server.
+     *
+     * @param base64Token inToken received from server passed to initSecContext for
+     *            gss negotiation
+     * @return Base64 encoded token to be sent to server. May return {@code null} if
+     *         nothing to be sent.
+     * @throws PrivilegedActionException when privileged action threw exception
+     */
+    String handleResponse(final String base64Token) throws PrivilegedActionException {
+        if (gssContext.isEstablished()) {
+            throw new IllegalStateException("GSS Context has already been established");
+        }
+        final byte[] token = Base64.getDecoder().decode(base64Token);
+        final byte[] outToken = doAsWrapper(loginContext.getSubject(),
+                (PrivilegedExceptionAction<byte[]>) () -> gssContext.initSecContext(token, 0, token.length));
+        if (outToken == null || outToken.length == 0) {
+            return null;
+        }
+        return Base64.getEncoder().encodeToString(outToken);
+    }
+
+    /**
+     * @return {@code true} If the gss security context was established
+     */
+    boolean isEstablished() {
+        return gssContext.isEstablished();
     }
 
     static <T> T doAsWrapper(final Subject subject, final PrivilegedExceptionAction<T> action) throws PrivilegedActionException {

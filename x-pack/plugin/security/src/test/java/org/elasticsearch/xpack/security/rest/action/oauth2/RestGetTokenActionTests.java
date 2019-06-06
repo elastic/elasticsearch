@@ -67,7 +67,8 @@ public class RestGetTokenActionTests extends ESTestCase {
         };
         CreateTokenResponseActionListener listener = new CreateTokenResponseActionListener(restChannel, restRequest, NoOpLogger.INSTANCE);
         CreateTokenResponse createTokenResponse =
-                new CreateTokenResponse(randomAlphaOfLengthBetween(1, 256), TimeValue.timeValueHours(1L), null, randomAlphaOfLength(4));
+                new CreateTokenResponse(randomAlphaOfLengthBetween(1, 256), TimeValue.timeValueHours(1L), null, randomAlphaOfLength(4),
+                        randomAlphaOfLength(5));
         listener.onResponse(createTokenResponse);
 
         RestResponse response = responseSetOnce.get();
@@ -80,7 +81,8 @@ public class RestGetTokenActionTests extends ESTestCase {
         assertThat(map, hasEntry("access_token", createTokenResponse.getTokenString()));
         assertThat(map, hasEntry("expires_in", Math.toIntExact(createTokenResponse.getExpiresIn().seconds())));
         assertThat(map, hasEntry("refresh_token", createTokenResponse.getRefreshToken()));
-        assertEquals(4, map.size());
+        assertThat(map, hasEntry("kerberos_authenticate_response_data", createTokenResponse.getKerberosAuthenticationResponseData()));
+        assertEquals(5, map.size());
     }
 
     public void testParser() throws Exception {

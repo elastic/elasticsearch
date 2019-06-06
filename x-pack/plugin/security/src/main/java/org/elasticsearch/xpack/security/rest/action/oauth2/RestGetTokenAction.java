@@ -128,6 +128,10 @@ public final class RestGetTokenAction extends TokenBaseRestHandler {
                     ((ElasticsearchSecurityException) e).getHeader("error_description").size() == 1) {
                 sendTokenErrorResponse(TokenRequestError.INVALID_GRANT,
                         ((ElasticsearchSecurityException) e).getHeader("error_description").get(0), e);
+            } else if (e instanceof ElasticsearchSecurityException && "unauthorized_client".equals(e.getMessage()) &&
+                    ((ElasticsearchSecurityException) e).getHeader("error_description").size() == 1) {
+                sendTokenErrorResponse(TokenRequestError.UNAUTHORIZED_CLIENT,
+                        ((ElasticsearchSecurityException) e).getHeader("error_description").get(0), e);
             } else {
                 sendFailure(e);
             }

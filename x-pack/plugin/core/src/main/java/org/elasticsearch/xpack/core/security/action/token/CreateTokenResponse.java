@@ -26,14 +26,17 @@ public final class CreateTokenResponse extends ActionResponse implements ToXCont
     private TimeValue expiresIn;
     private String scope;
     private String refreshToken;
+    private String kerberosAuthenticateResponseData;
 
     CreateTokenResponse() {}
 
-    public CreateTokenResponse(String tokenString, TimeValue expiresIn, String scope, String refreshToken) {
+    public CreateTokenResponse(String tokenString, TimeValue expiresIn, String scope, String refreshToken,
+                               String kerberosAuthenticateResponseData) {
         this.tokenString = Objects.requireNonNull(tokenString);
         this.expiresIn = Objects.requireNonNull(expiresIn);
         this.scope = scope;
         this.refreshToken = refreshToken;
+        this.kerberosAuthenticateResponseData = kerberosAuthenticateResponseData;
     }
 
     public String getTokenString() {
@@ -52,6 +55,10 @@ public final class CreateTokenResponse extends ActionResponse implements ToXCont
         return refreshToken;
     }
 
+    public String getKerberosAuthenticationResponseData() {
+        return kerberosAuthenticateResponseData;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
@@ -59,6 +66,7 @@ public final class CreateTokenResponse extends ActionResponse implements ToXCont
         out.writeTimeValue(expiresIn);
         out.writeOptionalString(scope);
         out.writeOptionalString(refreshToken);
+        out.writeOptionalString(kerberosAuthenticateResponseData);
     }
 
     @Override
@@ -68,6 +76,7 @@ public final class CreateTokenResponse extends ActionResponse implements ToXCont
         expiresIn = in.readTimeValue();
         scope = in.readOptionalString();
         refreshToken = in.readOptionalString();
+        kerberosAuthenticateResponseData = in.readOptionalString();
     }
 
     @Override
@@ -83,6 +92,9 @@ public final class CreateTokenResponse extends ActionResponse implements ToXCont
         if (scope != null) {
             builder.field("scope", scope);
         }
+        if (kerberosAuthenticateResponseData != null) {
+            builder.field("kerberos_authenticate_response_data", kerberosAuthenticateResponseData);
+        }
         return builder.endObject();
     }
 
@@ -94,11 +106,12 @@ public final class CreateTokenResponse extends ActionResponse implements ToXCont
         return Objects.equals(tokenString, that.tokenString) &&
             Objects.equals(expiresIn, that.expiresIn) &&
             Objects.equals(scope, that.scope) &&
-            Objects.equals(refreshToken, that.refreshToken);
+            Objects.equals(refreshToken, that.refreshToken) &&
+            Objects.equals(kerberosAuthenticateResponseData,  that.kerberosAuthenticateResponseData);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(tokenString, expiresIn, scope, refreshToken);
+        return Objects.hash(tokenString, expiresIn, scope, refreshToken, kerberosAuthenticateResponseData);
     }
 }

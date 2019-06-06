@@ -48,7 +48,7 @@ import java.util.List;
 import java.util.Map;
 
 public class RangeHistogramAggregator extends BucketsAggregator {
-    private final ValuesSource.Bytes.FieldData.RangeFieldData valuesSource;
+    private final ValuesSource.Range valuesSource;
     private final DocValueFormat formatter;
     private final double interval, offset;
     private final BucketOrder order;
@@ -60,7 +60,7 @@ public class RangeHistogramAggregator extends BucketsAggregator {
 
     RangeHistogramAggregator(String name, AggregatorFactories factories, double interval, double offset,
                              BucketOrder order, boolean keyed, long minDocCount, double minBound, double maxBound,
-                             @Nullable ValuesSource.Bytes.FieldData.RangeFieldData valuesSource, DocValueFormat formatter,
+                             @Nullable ValuesSource.Range valuesSource, DocValueFormat formatter,
                              SearchContext context, Aggregator parent,
                              List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
 

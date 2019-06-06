@@ -361,6 +361,6 @@ public class ValuesSourceConfig<VS extends ValuesSource> {
             throw new IllegalStateException("Asked for range ValuesSource, but field is of type " + fieldType.name());
         }
         RangeFieldMapper.RangeFieldType rangeFieldType = (RangeFieldMapper.RangeFieldType)fieldType;
-        return new ValuesSource.Bytes.FieldData.RangeFieldData(fieldContext().indexFieldData(), rangeFieldType.rangeType());
+        return new ValuesSource.Range(fieldContext().indexFieldData(), rangeFieldType.rangeType());
     }
 }

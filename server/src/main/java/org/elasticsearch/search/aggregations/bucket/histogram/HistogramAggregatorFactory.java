@@ -72,18 +72,18 @@ public final class HistogramAggregatorFactory extends ValuesSourceAggregatorFact
         if (valuesSource instanceof ValuesSource.Numeric) {
             return new NumericHistogramAggregator(name, factories, interval, offset, order, keyed, minDocCount, minBound, maxBound,
                 (ValuesSource.Numeric) valuesSource, config.format(), context, parent, pipelineAggregators, metaData);
-        } else if (valuesSource instanceof ValuesSource.Bytes.FieldData.RangeFieldData) {
-            ValuesSource.Bytes.FieldData.RangeFieldData rangeValueSource = (ValuesSource.Bytes.FieldData.RangeFieldData) valuesSource;
+        } else if (valuesSource instanceof ValuesSource.Range) {
+            ValuesSource.Range rangeValueSource = (ValuesSource.Range) valuesSource;
             if (rangeValueSource.rangeType().isNumeric() == false) {
                 throw new IllegalArgumentException("Expected numeric range type but found non-numeric range ["
                     + rangeValueSource.rangeType().name + "]");
             }
             return new RangeHistogramAggregator(name, factories, interval, offset, order, keyed, minDocCount, minBound, maxBound,
-                (ValuesSource.Bytes.FieldData.RangeFieldData) valuesSource, config.format(), context, parent, pipelineAggregators,
+                (ValuesSource.Range) valuesSource, config.format(), context, parent, pipelineAggregators,
                 metaData);
         }
         else {
-            throw new IllegalArgumentException("Expected one of [Numeric, RangeFieldData] values source, found ["
+            throw new IllegalArgumentException("Expected one of [Numeric, Range] values source, found ["
                 + valuesSource.toString() + "]");
         }
     }

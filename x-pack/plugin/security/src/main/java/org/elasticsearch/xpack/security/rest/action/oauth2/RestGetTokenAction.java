@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.core.security.action.token.CreateTokenAction;
 import org.elasticsearch.xpack.core.security.action.token.CreateTokenRequest;
 import org.elasticsearch.xpack.core.security.action.token.CreateTokenResponse;
 import org.elasticsearch.xpack.core.security.action.token.RefreshTokenAction;
+import org.elasticsearch.xpack.security.authc.kerberos.KerberosAuthenticationToken;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -128,10 +129,12 @@ public final class RestGetTokenAction extends TokenBaseRestHandler {
                     ((ElasticsearchSecurityException) e).getHeader("error_description").size() == 1) {
                 sendTokenErrorResponse(TokenRequestError.INVALID_GRANT,
                         ((ElasticsearchSecurityException) e).getHeader("error_description").get(0), e);
-            } else if (e instanceof ElasticsearchSecurityException && "unauthorized_client".equals(e.getMessage()) &&
-                    ((ElasticsearchSecurityException) e).getHeader("error_description").size() == 1) {
+            } else if (e instanceof ElasticsearchSecurityException
+                    && "failed to authenticate user, gss context negotiation not complete".equals(e.getMessage())
+                    && ((ElasticsearchSecurityException) e).getHeader(KerberosAuthenticationToken.WWW_AUTHENTICATE) != null
+                    && ((ElasticsearchSecurityException) e).getHeader(KerberosAuthenticationToken.WWW_AUTHENTICATE).size() == 1) {
                 sendTokenErrorResponse(TokenRequestError.UNAUTHORIZED_CLIENT,
-                        ((ElasticsearchSecurityException) e).getHeader("error_description").get(0), e);
+                        ((ElasticsearchSecurityException) e).getHeader(KerberosAuthenticationToken.WWW_AUTHENTICATE).get(0), e);
             } else {
                 sendFailure(e);
             }

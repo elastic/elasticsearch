@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.security.rest.action.oauth2;
 
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
@@ -23,8 +24,10 @@ import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.xpack.core.security.action.token.CreateTokenRequest;
 import org.elasticsearch.xpack.core.security.action.token.CreateTokenResponse;
 import org.elasticsearch.xpack.core.security.support.NoOpLogger;
+import org.elasticsearch.xpack.security.authc.kerberos.KerberosAuthenticationToken;
 import org.elasticsearch.xpack.security.rest.action.oauth2.RestGetTokenAction.CreateTokenResponseActionListener;
 
+import java.util.Locale;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.hasEntry;
@@ -83,6 +86,32 @@ public class RestGetTokenActionTests extends ESTestCase {
         assertThat(map, hasEntry("refresh_token", createTokenResponse.getRefreshToken()));
         assertThat(map, hasEntry("kerberos_authenticate_response_data", createTokenResponse.getKerberosAuthenticationResponseData()));
         assertEquals(5, map.size());
+    }
+
+    public void testSendResponseKerberosError() {
+        FakeRestRequest restRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).build();
+        final SetOnce<RestResponse> responseSetOnce = new SetOnce<>();
+        RestChannel restChannel = new AbstractRestChannel(restRequest, randomBoolean()) {
+            @Override
+            public void sendResponse(RestResponse restResponse) {
+                responseSetOnce.set(restResponse);
+            }
+        };
+        CreateTokenResponseActionListener listener = new CreateTokenResponseActionListener(restChannel, restRequest, NoOpLogger.INSTANCE);
+        String errorMessage = "failed to authenticate user, gss context negotiation not complete";
+        ElasticsearchSecurityException ese = new ElasticsearchSecurityException(errorMessage, RestStatus.UNAUTHORIZED);
+        ese.addHeader(KerberosAuthenticationToken.WWW_AUTHENTICATE, "Negotiate FAIL");
+        listener.onFailure(ese);
+
+        RestResponse response = responseSetOnce.get();
+        assertNotNull(response);
+
+        Map<String, Object> map = XContentHelper.convertToMap(response.content(), false,
+                XContentType.fromMediaType(response.contentType())).v2();
+        assertThat(map, hasEntry("error", RestGetTokenAction.TokenRequestError.UNAUTHORIZED_CLIENT.name().toLowerCase(Locale.ROOT)));
+        assertThat(map, hasEntry("error_description", "Negotiate FAIL"));
+        assertEquals(2, map.size());
+        assertEquals(RestStatus.BAD_REQUEST, response.status());
     }
 
     public void testParser() throws Exception {

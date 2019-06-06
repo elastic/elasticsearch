@@ -955,6 +955,11 @@ public abstract class ESTestCase extends LuceneTestCase {
         return new NodeEnvironment(build, TestEnvironment.newEnvironment(build));
     }
 
+    public Environment newEnvironment() {
+        Settings build = buildEnvSettings(Settings.EMPTY);
+        return TestEnvironment.newEnvironment(build);
+    }
+
     /** Return consistent index settings for the provided index version. */
     public static Settings.Builder settings(Version version) {
         Settings.Builder builder = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version);

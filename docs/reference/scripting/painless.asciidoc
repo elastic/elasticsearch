@@ -1,7 +1,6 @@
 [[modules-scripting-painless]]
 == Painless scripting language
 
-docs/painless/painless-description.asciidoc
 include::../../painless/painless-description.asciidoc[]
 
 Ready to start scripting with Painless? See {painless}/painless-getting-started.html[Getting Started with Painless] in the guide to the

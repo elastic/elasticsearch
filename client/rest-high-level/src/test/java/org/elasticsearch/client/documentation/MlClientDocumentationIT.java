@@ -113,6 +113,8 @@ import org.elasticsearch.client.ml.SetUpgradeModeRequest;
 import org.elasticsearch.client.ml.StartDataFrameAnalyticsRequest;
 import org.elasticsearch.client.ml.StartDatafeedRequest;
 import org.elasticsearch.client.ml.StartDatafeedResponse;
+import org.elasticsearch.client.ml.StopDataFrameAnalyticsRequest;
+import org.elasticsearch.client.ml.StopDataFrameAnalyticsResponse;
 import org.elasticsearch.client.ml.StopDatafeedRequest;
 import org.elasticsearch.client.ml.StopDatafeedResponse;
 import org.elasticsearch.client.ml.UpdateDatafeedRequest;
@@ -164,6 +166,8 @@ import org.elasticsearch.client.ml.job.results.Influencer;
 import org.elasticsearch.client.ml.job.results.OverallBucket;
 import org.elasticsearch.client.ml.job.stats.JobStats;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -171,6 +175,7 @@ import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.tasks.TaskId;
 import org.hamcrest.CoreMatchers;
 import org.junit.After;
@@ -2911,15 +2916,32 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
                 .build();
             // end::put-data-frame-analytics-dest-config
 
-            // tag::put-data-frame-analytics-analysis
-            DataFrameAnalysis analysis = OutlierDetection.createDefault();
-            // end::put-data-frame-analytics-analysis
+            // tag::put-data-frame-analytics-analysis-default
+            DataFrameAnalysis outlierDetection = OutlierDetection.createDefault();
+            // end::put-data-frame-analytics-analysis-default
+
+            // tag::put-data-frame-analytics-analysis-customized
+            DataFrameAnalysis outlierDetectionCustomized = OutlierDetection.builder() // <1>
+                .setMethod(OutlierDetection.Method.DISTANCE_KNN) // <2>
+                .setNNeighbors(5) // <3>
+                .build();
+            // end::put-data-frame-analytics-analysis-customized
+
+            // tag::put-data-frame-analytics-analyzed-fields
+            FetchSourceContext analyzedFields =
+                new FetchSourceContext(
+                    true,
+                    new String[] { "included_field_1", "included_field_2" },
+                    new String[] { "excluded_field" });
+            // end::put-data-frame-analytics-analyzed-fields
 
             // tag::put-data-frame-analytics-config
             DataFrameAnalyticsConfig config = DataFrameAnalyticsConfig.builder("my-analytics-config") // <1>
                 .setSource(sourceConfig) // <2>
                 .setDest(destConfig) // <3>
-                .setAnalysis(analysis) // <4>
+                .setAnalysis(outlierDetection) // <4>
+                .setAnalyzedFields(analyzedFields) // <5>
+                .setModelMemoryLimit(new ByteSizeValue(512, ByteSizeUnit.KB)) // <6>
                 .build();
             // end::put-data-frame-analytics-config
 
@@ -3069,7 +3091,6 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
             30, TimeUnit.SECONDS);
     }
 
-/*
     public void testStopDataFrameAnalytics() throws Exception {
         createIndex(DF_ANALYTICS_CONFIG.getSource().getIndex());
         highLevelClient().index(
@@ -3082,11 +3103,11 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
             // end::stop-data-frame-analytics-request
 
             // tag::stop-data-frame-analytics-execute
-            AcknowledgedResponse response = client.machineLearning().stopDataFrameAnalytics(request, RequestOptions.DEFAULT);
+            StopDataFrameAnalyticsResponse response = client.machineLearning().stopDataFrameAnalytics(request, RequestOptions.DEFAULT);
             // end::stop-data-frame-analytics-execute
 
             // tag::stop-data-frame-analytics-response
-            boolean acknowledged = response.isAcknowledged();
+            boolean acknowledged = response.isStopped();
             // end::stop-data-frame-analytics-response
 
             assertThat(acknowledged, is(true));
@@ -3098,9 +3119,9 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
             StopDataFrameAnalyticsRequest request = new StopDataFrameAnalyticsRequest("my-analytics-config");
 
             // tag::stop-data-frame-analytics-execute-listener
-            ActionListener<AcknowledgedResponse> listener = new ActionListener<>() {
+            ActionListener<StopDataFrameAnalyticsResponse> listener = new ActionListener<>() {
                 @Override
-                public void onResponse(AcknowledgedResponse response) {
+                public void onResponse(StopDataFrameAnalyticsResponse response) {
                     // <1>
                 }
 
@@ -3125,7 +3146,6 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
             () -> assertThat(getAnalyticsState(DF_ANALYTICS_CONFIG.getId()), equalTo(DataFrameAnalyticsState.STOPPED)),
             30, TimeUnit.SECONDS);
     }
-*/
 
     public void testEvaluateDataFrame() throws Exception {
         String indexName = "evaluate-test-index";

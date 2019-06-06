@@ -21,6 +21,7 @@ package org.elasticsearch.index.analysis;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.core.WhitespaceTokenizer;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.internal.io.IOUtils;
@@ -33,11 +34,15 @@ import org.elasticsearch.indices.analysis.PreBuiltAnalyzers;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -98,6 +103,52 @@ public final class AnalysisRegistry implements Closeable {
             settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, indexSettings.getIndexVersionCreated()).build();
         }
         return settings;
+    }
+
+    private static final IndexSettings NO_INDEX_SETTINGS = new IndexSettings(
+        IndexMetaData.builder(IndexMetaData.INDEX_UUID_NA_VALUE)
+            .settings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT))
+            .numberOfReplicas(0)
+            .numberOfShards(1)
+            .build(),
+        Settings.EMPTY
+    );
+
+    private <T> T getComponentProvider(IndexSettings settings, NameOrDefinition nod,
+                                       String componentType,
+                                       Function<String, AnalysisProvider<T>> globalComponentProvider,
+                                       BiFunction<String, IndexSettings, AnalysisProvider<T>> indexComponentProvider) throws IOException {
+        if (nod.definition != null) {
+            String type = nod.definition.get("type");
+            if (type == null) {
+                throw new IllegalArgumentException("Missing [type] setting for anonymous " + componentType + ": " + nod.definition);
+            }
+            AnalysisProvider<T> factory = globalComponentProvider.apply(type);
+            if (factory == null) {
+                throw new IllegalArgumentException("failed to find global " + componentType + " under [" + type + "]");
+            }
+            if (settings == null) {
+                settings = NO_INDEX_SETTINGS;
+            }
+            return factory.get(settings, environment, "__anonymous__" + type, nod.definition);
+        }
+        if (settings == null) {
+            // no index provided, so we use global analysis components only
+            AnalysisProvider<T> factory = globalComponentProvider.apply(nod.name);
+            if (factory == null) {
+                throw new IllegalArgumentException("failed to find global " + componentType + " under [" + nod.name + "]");
+            }
+            return factory.get(environment, nod.name);
+        }
+        else {
+            // get the component from index settings
+            AnalysisProvider<T> factory = indexComponentProvider.apply(nod.name, settings);
+            if (factory == null) {
+                throw new IllegalArgumentException("failed to find " + componentType + " under [" + nod.name + "]");
+            }
+            Settings s = getSettingsFromIndexSettings(settings, "index.analysis." + componentType + "." + nod.name);
+            return factory.get(settings, environment, nod.name, s);
+        }
     }
 
     /**
@@ -162,6 +213,62 @@ public final class AnalysisRegistry implements Closeable {
         final Map<String, AnalyzerProvider<?>> analyzerFactories = buildAnalyzerFactories(indexSettings);
         final Map<String, AnalyzerProvider<?>> normalizerFactories = buildNormalizerFactories(indexSettings);
         return build(indexSettings, analyzerFactories, normalizerFactories, tokenizerFactories, charFilterFactories, tokenFilterFactories);
+    }
+
+    public NamedAnalyzer buildCustomAnalyzer(IndexSettings indexSettings, boolean normalizer, NameOrDefinition tokenizer,
+                                             List<NameOrDefinition> charFilters, List<NameOrDefinition> tokenFilters) throws IOException {
+        TokenizerFactory tokenizerFactory
+            = getComponentProvider(indexSettings, tokenizer, "tokenizer", this::getTokenizerProvider, this::getTokenizerProvider);
+
+        List<CharFilterFactory> charFilterFactories = new ArrayList<>();
+        for (NameOrDefinition nod : charFilters) {
+            charFilterFactories.add(getComponentProvider(indexSettings, nod, "char_filter",
+                this::getCharFilterProvider, this::getCharFilterProvider));
+        }
+
+        List<TokenFilterFactory> tokenFilterFactories = new ArrayList<>();
+        for (NameOrDefinition nod : tokenFilters) {
+            TokenFilterFactory tff = getComponentProvider(indexSettings, nod, "filter",
+                this::getTokenFilterProvider, this::getTokenFilterProvider);
+            if (normalizer && tff instanceof NormalizingTokenFilterFactory == false) {
+                throw new IllegalArgumentException("Custom normalizer may not use filter [" + tff.name() + "]");
+            }
+            tff = tff.getChainAwareTokenFilterFactory(tokenizerFactory, charFilterFactories, tokenFilterFactories, name -> {
+                try {
+                    return getComponentProvider(indexSettings, new NameOrDefinition(name), "filter",
+                        this::getTokenFilterProvider, this::getTokenFilterProvider);
+                }
+                catch (IOException e) {
+                    throw new UncheckedIOException(e);
+                }
+            });
+            tokenFilterFactories.add(tff);
+        }
+
+        String tokenizerName = tokenizer.name == null ? "_anonymous_tokenizer" : tokenizer.name;
+        if (normalizer) {
+            tokenizerName = "keyword_for_normalizer";
+        }
+        Analyzer analyzer = new CustomAnalyzer(tokenizerName, tokenizerFactory,
+            charFilterFactories.toArray(new CharFilterFactory[]{}),
+            tokenFilterFactories.toArray(new TokenFilterFactory[]{}));
+        return produceAnalyzer("__custom__", new AnalyzerProvider<>() {
+            @Override
+            public String name() {
+                return "__custom__";
+            }
+
+            @Override
+            public AnalyzerScope scope() {
+                return AnalyzerScope.GLOBAL;
+            }
+
+            @Override
+            public Analyzer get() {
+                return analyzer;
+            }
+        }, null, null, null);
+
     }
 
     public Map<String, TokenFilterFactory> buildTokenFilterFactories(IndexSettings indexSettings) throws IOException {

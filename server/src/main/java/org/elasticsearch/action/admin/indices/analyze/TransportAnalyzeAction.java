@@ -50,6 +50,7 @@ import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.analysis.CharFilterFactory;
 import org.elasticsearch.index.analysis.CustomAnalyzer;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
+import org.elasticsearch.index.analysis.NameOrDefinition;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.analysis.NormalizingCharFilterFactory;
 import org.elasticsearch.index.analysis.NormalizingTokenFilterFactory;
@@ -83,17 +84,15 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeAc
 
     private final Settings settings;
     private final IndicesService indicesService;
-    private final Environment environment;
 
     @Inject
     public TransportAnalyzeAction(Settings settings, ThreadPool threadPool, ClusterService clusterService,
                                   TransportService transportService, IndicesService indicesService, ActionFilters actionFilters,
-                                  IndexNameExpressionResolver indexNameExpressionResolver, Environment environment) {
+                                  IndexNameExpressionResolver indexNameExpressionResolver) {
         super(AnalyzeAction.NAME, threadPool, clusterService, transportService, actionFilters, indexNameExpressionResolver,
             AnalyzeAction.Request::new, ThreadPool.Names.ANALYZE);
         this.settings = settings;
         this.indicesService = indicesService;
-        this.environment = environment;
     }
 
     @Override
@@ -129,17 +128,17 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeAc
         final int maxTokenCount = indexService == null ?
             IndexSettings.MAX_TOKEN_COUNT_SETTING.get(settings) : indexService.getIndexSettings().getMaxTokenCount();
 
-        return analyze(request, indicesService.getAnalysis(), environment, indexService, maxTokenCount);
+        return analyze(request, indicesService.getAnalysis(), indexService, maxTokenCount);
     }
 
     public static AnalyzeAction.Response analyze(AnalyzeAction.Request request, AnalysisRegistry analysisRegistry,
-                                          Environment environment, IndexService indexService, int maxTokenCount) throws IOException {
+                                          IndexService indexService, int maxTokenCount) throws IOException {
 
         IndexAnalyzers indexAnalyzers = indexService == null ? null : indexService.getIndexAnalyzers();
 
         // First, we check to see if the request requires a custom analyzer.  If so, then we
         // need to build it and then close it after use.
-        try (Analyzer analyzer = buildCustomAnalyzer(request, analysisRegistry, indexAnalyzers, environment)) {
+        try (Analyzer analyzer = buildCustomAnalyzer(request, analysisRegistry, indexAnalyzers)) {
             if (analyzer != null) {
                 return analyze(request, analyzer, maxTokenCount);
             }
@@ -205,38 +204,15 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeAc
     }
 
     private static Analyzer buildCustomAnalyzer(AnalyzeAction.Request request, AnalysisRegistry analysisRegistry,
-                                                IndexAnalyzers indexAnalyzers, Environment environment) throws IOException {
+                                                IndexAnalyzers indexAnalyzers) throws IOException {
+        final IndexSettings indexSettings = indexAnalyzers == null ? null : indexAnalyzers.getIndexSettings();
         if (request.tokenizer() != null) {
-            final IndexSettings indexSettings = indexAnalyzers == null ? null : indexAnalyzers.getIndexSettings();
-            Tuple<String, TokenizerFactory> tokenizerFactory = parseTokenizerFactory(request, indexAnalyzers,
-                analysisRegistry, environment);
-
-            List<CharFilterFactory> charFilterFactoryList =
-                parseCharFilterFactories(request, indexSettings, analysisRegistry, environment, false);
-
-            List<TokenFilterFactory> tokenFilterFactoryList = parseTokenFilterFactories(request, indexSettings, analysisRegistry,
-                environment, tokenizerFactory, charFilterFactoryList, false);
-
-            return new CustomAnalyzer(tokenizerFactory.v1(), tokenizerFactory.v2(),
-                charFilterFactoryList.toArray(new CharFilterFactory[0]),
-                tokenFilterFactoryList.toArray(new TokenFilterFactory[0]));
+            return analysisRegistry.buildCustomAnalyzer(indexSettings, false,
+                request.tokenizer(), request.charFilters(), request.tokenFilters());
         } else if (((request.tokenFilters() != null && request.tokenFilters().size() > 0)
             || (request.charFilters() != null && request.charFilters().size() > 0))) {
-            final IndexSettings indexSettings = indexAnalyzers == null ? null : indexAnalyzers.getIndexSettings();
-            // custom normalizer = if normalizer == null but filter or char_filter is not null and tokenizer/analyzer is null
-            // get charfilter and filter from request
-            List<CharFilterFactory> charFilterFactoryList =
-                parseCharFilterFactories(request, indexSettings, analysisRegistry, environment, true);
-
-            final String keywordTokenizerName = "keyword";
-            TokenizerFactory keywordTokenizerFactory = getTokenizerFactory(analysisRegistry, environment, keywordTokenizerName);
-
-            List<TokenFilterFactory> tokenFilterFactoryList =
-                parseTokenFilterFactories(request, indexSettings, analysisRegistry, environment,
-                    new Tuple<>(keywordTokenizerName, keywordTokenizerFactory), charFilterFactoryList, true);
-
-            return new CustomAnalyzer("keyword_for_normalizer", keywordTokenizerFactory,
-                charFilterFactoryList.toArray(new CharFilterFactory[0]), tokenFilterFactoryList.toArray(new TokenFilterFactory[0]));
+            return analysisRegistry.buildCustomAnalyzer(indexSettings, true, new NameOrDefinition("keyword"),
+                request.charFilters(), request.tokenFilters());
         }
         return null;
     }
@@ -530,8 +506,8 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeAc
                                                                     boolean normalizer) throws IOException {
         List<CharFilterFactory> charFilterFactoryList = new ArrayList<>();
         if (request.charFilters() != null && request.charFilters().size() > 0) {
-            List<AnalyzeAction.Request.NameOrDefinition> charFilters = request.charFilters();
-            for (AnalyzeAction.Request.NameOrDefinition charFilter : charFilters) {
+            List<NameOrDefinition> charFilters = request.charFilters();
+            for (NameOrDefinition charFilter : charFilters) {
                 CharFilterFactory charFilterFactory;
                 // parse anonymous settings
                 if (charFilter.definition != null) {
@@ -626,8 +602,8 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeAc
         List<TokenFilterFactory> tokenFilterFactoryList = new ArrayList<>();
         DeferredTokenFilterRegistry deferredRegistry = new DeferredTokenFilterRegistry(analysisRegistry, indexSettings);
         if (request.tokenFilters() != null && request.tokenFilters().size() > 0) {
-            List<AnalyzeAction.Request.NameOrDefinition> tokenFilters = request.tokenFilters();
-            for (AnalyzeAction.Request.NameOrDefinition tokenFilter : tokenFilters) {
+            List<NameOrDefinition> tokenFilters = request.tokenFilters();
+            for (NameOrDefinition tokenFilter : tokenFilters) {
                 TokenFilterFactory tokenFilterFactory;
                 // parse anonymous settings
                 if (tokenFilter.definition != null) {
@@ -687,7 +663,7 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeAc
                                                                          Environment environment) throws IOException {
         String name;
         TokenizerFactory tokenizerFactory;
-        final AnalyzeAction.Request.NameOrDefinition tokenizer = request.tokenizer();
+        final NameOrDefinition tokenizer = request.tokenizer();
         // parse anonymous settings
         if (tokenizer.definition != null) {
             Settings settings = getAnonymousSettings(tokenizer.definition);

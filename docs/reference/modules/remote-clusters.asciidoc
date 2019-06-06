@@ -34,20 +34,21 @@ registered to. This is subject to rules that are similar to those for
 <<rolling-upgrades>>. Any node can communicate with any other node on the same
 major version (e.g. 7.0 can talk to any 7.x node). Only nodes on the last minor
 version of a certain major version can communicate with nodes on the following
-major version. Note that in the 6.x series, both 6.7 and 6.8 can communicate
-with any 7.x node, rather than only 6.8, as 6.8 was released after 7.0. Version
-compatibility  is symmetric, meaning that if 6.7 can communicate with 7.0, 7.0
-can also communicate with 6.7. The matrix below summarizes compatibility as
-described above.
+major version. Note that in the 6.x series, 6.8 can communicate with any 7.x
+node, while 6.7 can only communicate with 7.0. Version compatibility  is
+symmetric, meaning that if 6.7 can communicate with 7.0, 7.0 can also
+communicate with 6.7. The matrix below summarizes compatibility as described above.
 
 [cols="^,^,^,^,^,^"]
 |====
-| Compatibility | 5.0->5.5 | 5.6 | 6.0->6.6 | 6.7->6.8 | 7.0->7.x
-| 5.0->5.5      |    Yes   | Yes |    No    |    No    |    No
-| 5.6           |    Yes   | Yes |    Yes   |    Yes   |    No
-| 6.0->6.6      |    No    | Yes |    Yes   |    Yes   |    No
-| 6.7->6.8      |    No    | Yes |    Yes   |    Yes   |    Yes
-| 7.0->7.x      |    No    | No  |    No    |    Yes   |    Yes
+| Compatibility | 5.0->5.5 | 5.6 | 6.0->6.6 | 6.7 | 6.8 | 7.0 | 7.1->7.x
+| 5.0->5.5      |    Yes   | Yes |    No    | No  | No  | No  |    No
+| 5.6           |    Yes   | Yes |    Yes   | Yes | Yes | No  |    No
+| 6.0->6.6      |    No    | Yes |    Yes   | Yes | Yes | No  |    No
+| 6.7           |    No    | Yes |    Yes   | Yes | Yes | Yes |    No
+| 6.8           |    No    | Yes |    Yes   | Yes | Yes | Yes |    Yes
+| 7.0           |    No    | No  |    No    | Yes | Yes | Yes |    Yes
+| 7.1->7.x      |    No    | No  |    No    | No  | Yes | Yes |    Yes
 |====
 
 - *role*: Dedicated master nodes never get selected.

@@ -7,7 +7,6 @@ package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -24,7 +23,7 @@ import java.io.IOException;
 public class PutReindexJobAction extends Action<AcknowledgedResponse> {
 
     public static final PutReindexJobAction INSTANCE = new PutReindexJobAction();
-    public static final String NAME = "cluster:admin/xpack/rollup/put";
+    public static final String NAME = "cluster:admin/reindex/put";
 
     private PutReindexJobAction() {
         super(NAME);
@@ -35,7 +34,7 @@ public class PutReindexJobAction extends Action<AcknowledgedResponse> {
         return new AcknowledgedResponse();
     }
 
-    public static class Request extends AcknowledgedRequest<Request> implements IndicesRequest, ToXContentObject {
+    public static class Request extends AcknowledgedRequest<Request> implements ToXContentObject {
 
         private IndicesOptions indicesOptions = IndicesOptions.fromOptions(false, false, true, false);
 
@@ -67,14 +66,8 @@ public class PutReindexJobAction extends Action<AcknowledgedResponse> {
             return builder;
         }
 
-        @Override
-        public String[] indices() {
-            return new String[]{""};
-        }
-
-        @Override
-        public IndicesOptions indicesOptions() {
-            return indicesOptions;
+        public ReindexJob getReindexJob() {
+            return new ReindexJob("id");
         }
 
 //        @Override

@@ -19,50 +19,18 @@
 
 package org.elasticsearch.index.reindex;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
-import org.elasticsearch.persistent.PersistentTaskParams;
 import org.elasticsearch.persistent.PersistentTaskState;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.persistent.PersistentTasksExecutor;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 
-import java.io.IOException;
 import java.util.Map;
 
 public class ReindexTask extends AllocatedPersistentTask {
 
     private final ReindexJob reindexJob;
-
-    public class ReindexJob implements PersistentTaskParams {
-
-        // TODO: Name
-        public static final String NAME = "reindex";
-
-        @Override
-        public String getWriteableName() {
-            return NAME;
-        }
-
-        @Override
-        public Version getMinimalSupportedVersion() {
-            // TODO: version
-            return Version.V_8_0_0;
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-
-        }
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            return null;
-        }
-    }
 
     public static class ReindexPersistentTasksExecutor extends PersistentTasksExecutor<ReindexJob> {
 

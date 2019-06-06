@@ -18,6 +18,9 @@
  */
 package org.elasticsearch.index.reindex;
 
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -29,12 +32,17 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.persistent.PersistentTasksService;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.Objects;
+
 public class TransportPutReindexJobAction extends TransportMasterNodeAction<PutReindexJobAction.Request, AcknowledgedResponse> {
-    
+
     private final PersistentTasksService persistentTasksService;
     private final Client client;
 
@@ -42,8 +50,8 @@ public class TransportPutReindexJobAction extends TransportMasterNodeAction<PutR
     public TransportPutReindexJobAction(TransportService transportService, ThreadPool threadPool,
                                         ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
                                         ClusterService clusterService, PersistentTasksService persistentTasksService, Client client) {
-        super("", transportService, clusterService, threadPool, actionFilters,
-                indexNameExpressionResolver, PutReindexJobAction.Request::new);
+        super(PutReindexJobAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver,
+            PutReindexJobAction.Request::new);
         this.persistentTasksService = persistentTasksService;
         this.client = client;
     }
@@ -61,26 +69,10 @@ public class TransportPutReindexJobAction extends TransportMasterNodeAction<PutR
     @Override
     protected void masterOperation(PutReindexJobAction.Request request, ClusterState clusterState,
                                    ActionListener<AcknowledgedResponse> listener) {
-//        RollupJob job = createRollupJob(request.getConfig(), threadPool);
+        startPersistentTask(request.getReindexJob(), listener);
 //        createIndex(job, listener, persistentTasksService, client, logger);
     }
 
-//    static void checkForDeprecatedTZ(PutRollupJobAction.Request request) {
-//        String timeZone = request.getConfig().getGroupConfig().getDateHistogram().getTimeZone();
-//        String modernTZ = DateUtils.DEPRECATED_LONG_TIMEZONES.get(timeZone);
-//        if (modernTZ != null) {
-//            deprecationLogger.deprecated("Creating Rollup job [" + request.getConfig().getId() + "] with timezone ["
-//                + timeZone + "], but [" + timeZone + "] has been deprecated by the IANA.  Use [" + modernTZ +"] instead.");
-//        }
-//    }
-//
-//    private static RollupJob createRollupJob(RollupJobConfig config, ThreadPool threadPool) {
-//        // ensure we only filter for the allowed headers
-//        Map<String, String> filteredHeaders = threadPool.getThreadContext().getHeaders().entrySet().stream()
-//                .filter(e -> Rollup.HEADER_FILTERS.contains(e.getKey()))
-//                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
-//        return new RollupJob(config, filteredHeaders);
-//    }
 //
 //    static void createIndex(RollupJob job, ActionListener<AcknowledgedResponse> listener,
 //                            PersistentTasksService persistentTasksService, Client client, Logger logger) {
@@ -171,43 +163,42 @@ public class TransportPutReindexJobAction extends TransportMasterNodeAction<PutR
 //                }));
 //    }
 //
-//    static void startPersistentTask(RollupJob job, ActionListener<AcknowledgedResponse> listener,
-//                                    PersistentTasksService persistentTasksService) {
-//
-//        persistentTasksService.sendStartRequest(job.getConfig().getId(), RollupField.TASK_NAME, job,
-//                ActionListener.wrap(
-//                        rollupConfigPersistentTask -> waitForRollupStarted(job, listener, persistentTasksService),
-//                        e -> {
-//                            if (e instanceof ResourceAlreadyExistsException) {
-//                                e = new ElasticsearchStatusException("Cannot create job [" + job.getConfig().getId() +
-//                                        "] because it has already been created (task exists)", RestStatus.CONFLICT, e);
-//                            }
-//                            listener.onFailure(e);
-//                        }));
-//    }
-//
-//
-//    private static void waitForRollupStarted(RollupJob job, ActionListener<AcknowledgedResponse> listener,
-//                                             PersistentTasksService persistentTasksService) {
-//        persistentTasksService.waitForPersistentTaskCondition(job.getConfig().getId(), Objects::nonNull, job.getConfig().getTimeout(),
-//                new PersistentTasksService.WaitForPersistentTaskListener<RollupJob>() {
-//                    @Override
-//                    public void onResponse(PersistentTasksCustomMetaData.PersistentTask<RollupJob> task) {
-//                        listener.onResponse(new AcknowledgedResponse(true));
-//                    }
-//
-//                    @Override
-//                    public void onFailure(Exception e) {
-//                        listener.onFailure(e);
-//                    }
-//
-//                    @Override
-//                    public void onTimeout(TimeValue timeout) {
-//                        listener.onFailure(new ElasticsearchException("Creation of task for Rollup Job ID ["
-//                                + job.getConfig().getId() + "] timed out after [" + timeout + "]"));
-//                    }
-//                });
-//    }
+    private void startPersistentTask(ReindexJob job, ActionListener<AcknowledgedResponse> listener) {
+
+        // TODO: Task name
+        persistentTasksService.sendStartRequest("", "reindex/job", job,
+                ActionListener.wrap(
+                        rollupConfigPersistentTask -> waitForReindexStarted(job, listener),
+                        e -> {
+                            if (e instanceof ResourceAlreadyExistsException) {
+                                e = new ElasticsearchStatusException("Cannot create job [" + job.getId() +
+                                        "] because it has already been created (task exists)", RestStatus.CONFLICT, e);
+                            }
+                            listener.onFailure(e);
+                        }));
+    }
+
+
+    private void waitForReindexStarted(ReindexJob job, ActionListener<AcknowledgedResponse> listener) {
+        persistentTasksService.waitForPersistentTaskCondition(job.getId(), Objects::nonNull, job.getTimeout(),
+                new PersistentTasksService.WaitForPersistentTaskListener<ReindexJob>() {
+                    @Override
+                    public void onResponse(PersistentTasksCustomMetaData.PersistentTask<ReindexJob> task) {
+                        listener.onResponse(new AcknowledgedResponse(true));
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        listener.onFailure(e);
+                    }
+
+                    @Override
+                    public void onTimeout(TimeValue timeout) {
+                        listener.onFailure(new ElasticsearchException("Creation of task for Reindex Job ID ["
+                                + job.getId() + "] timed out after [" + timeout + "]"));
+                    }
+                });
+    }
 
     @Override
     protected ClusterBlockException checkBlock(PutReindexJobAction.Request request, ClusterState state) {

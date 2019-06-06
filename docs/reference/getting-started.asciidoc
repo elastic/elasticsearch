@@ -118,10 +118,11 @@ NOTE: Elasticsearch includes a bundled version of http://openjdk.java.net[OpenJD
 from the JDK maintainers (GPLv2+CE). To use your own version of Java,
 see the <<jvm-version, JVM version requirements>>
 
-The binaries are available from http://www.elastic.co/downloads[`www.elastic.co/downloads`]
-along with all the releases that have been made in the past. For each release, platform
-dependent archive versions are available for Windows, Linux and MacOS, as well as `DEB` and `RPM`
-packages for Linux, and `MSI` installation packages for Windows.
+The binaries are available from http://www.elastic.co/downloads[`www.elastic.co/downloads`].
+Platform dependent archives are available for Windows, Linux and macOS. In addition,
+`DEB` and `RPM` packages are available for Linux, and an `MSI` installation package
+is available for Windows. You can also use the Elastic Homebrew tap to <<brew,install
+using the brew package manager>> on macOS.
 
 [float]
 === Installation example on Linux

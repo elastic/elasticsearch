@@ -477,7 +477,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         Map<String, Float> concreteIndexBoosts = resolveIndexBoosts(searchRequest, clusterState);
 
         if (searchRequest.scroll() != null || searchRequest.searchType() == DFS_QUERY_THEN_FETCH
-            || searchRequest.indicesOptions().ignoreThrottled()) {
+            || searchRequest.indicesOptions().ignoreThrottled()
+            || (searchRequest.source() != null && searchRequest.source().size() == 0)) {
             String[] concreteIndices = Arrays.stream(indices).map(Index::getName).toArray(String[]::new);
             executeSearch(task, timeProvider, searchRequest, localIndices, concreteIndices, routingMap,
                 aliasFilter, concreteIndexBoosts, remoteShardIterators, remoteConnections, clusterState, listener, clusters);

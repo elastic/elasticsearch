@@ -90,8 +90,8 @@ public class GeoShapeFieldMapper extends BaseGeoShapeFieldMapper {
 
         @Override
         public boolean defaultDocValues(Version indexCreated) {
-            // TODO(talevy): version guard things
-            return true;
+            // TODO(talevy): version guard things and turn this on
+            return false;
         }
     }
 

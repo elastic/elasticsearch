@@ -123,40 +123,39 @@ public abstract class MultiGeoValues {
 
         @Override
         public double minLat() {
-            return 0;
+            throw new UnsupportedOperationException("TODO: depends on #42968");
         }
 
         @Override
         public double maxLat() {
-            return 0;
+            throw new UnsupportedOperationException("TODO: depends on #42968");
         }
 
         @Override
         public double minLon() {
-            return 0;
+            throw new UnsupportedOperationException("TODO: depends on #42968");
         }
 
         @Override
         public double maxLon() {
-            return 0;
+            throw new UnsupportedOperationException("TODO: depends on #42968");
         }
 
         @Override
         public double lat() {
-            return 0;
+            throw new UnsupportedOperationException("TODO: depends on #42968");
         }
 
         @Override
         public double lon() {
-            return 0;
-        }
-
-        @Override
-        public String toString() {
-            return "";
+            throw new UnsupportedOperationException("TODO: depends on #42968");
         }
     }
 
+    /**
+     * interface for geo-shape and geo-point doc-values to
+     * retrieve properties used in aggregations.
+     */
     public interface GeoValue {
         double minLat();
         double maxLat();

@@ -29,7 +29,7 @@ public class AutoDateHistogramAggregationBuilderTests extends ESTestCase {
         AutoDateHistogramAggregationBuilder builder = new AutoDateHistogramAggregationBuilder("name");
         IllegalArgumentException wrongIntervalName = expectThrows(IllegalArgumentException.class,
             () -> builder.setMinimumIntervalExpression("foobar"));
-        assertEquals("minimum_interval must be one of [[second, minute, hour, day, month, year]]", wrongIntervalName.getMessage());
+        assertTrue(wrongIntervalName.getMessage().startsWith("minimum_interval must be one of"));
     }
 
     public void testBuildRoundingsWithNullParameter() {

@@ -20,8 +20,6 @@ import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.util.DateUtils;
 
 import java.io.IOException;
-import java.math.BigDecimal;
-import java.math.BigInteger;
 import java.time.ZoneId;
 import java.util.ArrayDeque;
 import java.util.Deque;

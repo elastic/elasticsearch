@@ -546,9 +546,14 @@ public final class InternalTestCluster extends TestCluster {
         return getRandomNodeAndClient(nc -> true);
     }
 
-    private synchronized NodeAndClient getRandomNodeAndClient(Predicate<NodeAndClient> predicate) {
+    private NodeAndClient getRandomNodeAndClient(Predicate<NodeAndClient> predicate) {
+        return getRandomNodeAndClientIncludingClosed(((Predicate<NodeAndClient>) nc -> nc.isClosed() == false).and(predicate));
+    }
+
+    private synchronized NodeAndClient getRandomNodeAndClientIncludingClosed(Predicate<NodeAndClient> predicate) {
         ensureOpen();
-        List<NodeAndClient> values = nodes.values().stream().filter(predicate).collect(Collectors.toList());
+        List<NodeAndClient> values = nodes.values().stream().filter(predicate)
+            .collect(Collectors.toList());
         if (values.isEmpty() == false) {
             return randomFrom(random, values);
         }
@@ -954,6 +959,10 @@ public final class InternalTestCluster extends TestCluster {
             }
         }
 
+        public boolean isClosed() {
+            return closed.get();
+        }
+
         private void markNodeDataDirsAsPendingForWipe(Node node) {
             assert Thread.holdsLock(InternalTestCluster.this);
             NodeEnvironment nodeEnv = node.getNodeEnvironment();
@@ -1086,16 +1095,18 @@ public final class InternalTestCluster extends TestCluster {
 
     /** ensure a cluster is formed with all published nodes. */
     public synchronized void validateClusterFormed() {
-        String name = randomFrom(random, getNodeNames());
+        String name = randomFrom(random, nodes.values().stream()
+            .filter(nc -> nc.isClosed() == false).map(nc -> nc.name).toArray(String[]::new));
         validateClusterFormed(name);
     }
 
     /** ensure a cluster is formed with all published nodes, but do so by using the client of the specified node */
     private synchronized void validateClusterFormed(String viaNode) {
-        Set<DiscoveryNode> expectedNodes = new HashSet<>();
-        for (NodeAndClient nodeAndClient : nodes.values()) {
-            expectedNodes.add(getInstanceFromNode(ClusterService.class, nodeAndClient.node()).localNode());
-        }
+        Set<DiscoveryNode> expectedNodes =
+            nodes.values().stream()
+                .filter(nc -> nc.isClosed() == false)
+                .map(nc -> getInstanceFromNode(ClusterService.class, nc.node()).localNode())
+                .collect(Collectors.toSet());
         logger.trace("validating cluster formed via [{}], expecting {}", viaNode, expectedNodes);
         final Client client = client(viaNode);
         try {
@@ -1453,7 +1464,7 @@ public final class InternalTestCluster extends TestCluster {
 
     @Override
     public int size() {
-        return nodes.size();
+        return Math.toIntExact(nodes.values().stream().filter(nc -> nc.isClosed() == false).count());
     }
 
     @Override
@@ -1984,7 +1995,10 @@ public final class InternalTestCluster extends TestCluster {
     }
 
     private int getMasterNodesCount() {
-        return (int) nodes.values().stream().filter(n -> Node.NODE_MASTER_SETTING.get(n.node().settings())).count();
+        return (int) nodes.values().stream()
+            .filter(n -> n.isClosed() == false)
+            .filter(n -> Node.NODE_MASTER_SETTING.get(n.node().settings()))
+            .count();
     }
 
     public String startMasterOnlyNode() {

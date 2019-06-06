@@ -130,7 +130,7 @@ public class KerberosAuthenticationIT extends ESRestTestCase {
             assertThat(map.get("access_token"), notNullValue());
             assertThat(map.get("type"), is("Bearer"));
             assertThat(map.get("refresh_token"), notNullValue());
-            final Object base64OutToken = map.get("kerberos_authenticate_response_data");
+            final Object base64OutToken = map.get("kerberos_authentication_response_token");
             assertThat(base64OutToken, notNullValue());
             final String base64EncodedToken = ((String) base64OutToken).substring("Negotiate ".length()).trim();
             final String outToken = callbackHandler.handleResponse(base64EncodedToken);

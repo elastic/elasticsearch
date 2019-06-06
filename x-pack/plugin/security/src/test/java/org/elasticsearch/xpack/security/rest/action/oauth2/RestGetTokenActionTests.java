@@ -84,7 +84,7 @@ public class RestGetTokenActionTests extends ESTestCase {
         assertThat(map, hasEntry("access_token", createTokenResponse.getTokenString()));
         assertThat(map, hasEntry("expires_in", Math.toIntExact(createTokenResponse.getExpiresIn().seconds())));
         assertThat(map, hasEntry("refresh_token", createTokenResponse.getRefreshToken()));
-        assertThat(map, hasEntry("kerberos_authenticate_response_data", createTokenResponse.getKerberosAuthenticationResponseData()));
+        assertThat(map, hasEntry("kerberos_authentication_response_token", createTokenResponse.getKerberosAuthenticationResponseData()));
         assertEquals(5, map.size());
     }
 

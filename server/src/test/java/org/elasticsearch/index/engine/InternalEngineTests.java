@@ -5811,6 +5811,7 @@ public class InternalEngineTests extends EngineTestCase {
         policy.setMinMergeDocs(10000);
         try (InternalEngine engine = createEngine(indexSettings, store, createTempDir(), policy)) {
             int numDocs = between(1, 20);
+            logger.info("" + numDocs);
             for (int i = 0; i < numDocs; i++) {
                 index(engine, i);
             }
@@ -5843,10 +5844,15 @@ public class InternalEngineTests extends EngineTestCase {
                 assertEquals("the delete and the tombstone", 2, leafReader.numDeletedDocs());
                 assertEquals(numDocs + 1, leafReader.maxDoc());
                 Terms id = leafReader.terms("_id");
-                assertNotNull(id);
-                assertEquals("deleted IDs are pruned away", reader.numDocs(), id.size());
-                TermsEnum iterator = id.iterator();
-                assertFalse(iterator.seekExact(Uid.encodeId("0")));
+                if (numDocs == 1) {
+                    assertNull(id); // everything is pruned away
+                    assertEquals(0, leafReader.numDocs());
+                } else {
+                    assertNotNull(id);
+                    assertEquals("deleted IDs are pruned away", reader.numDocs(), id.size());
+                    TermsEnum iterator = id.iterator();
+                    assertFalse(iterator.seekExact(Uid.encodeId("0")));
+                }
             }
         }
     }

@@ -83,7 +83,7 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
                 // Use Lucene defaults
                 final FSDirectory primaryDirectory = FSDirectory.open(location, lockFactory);
                 if (primaryDirectory instanceof MMapDirectory) {
-                    MMapDirectory mMapDirectory = (MMapDirectory)primaryDirectory;
+                    MMapDirectory mMapDirectory = (MMapDirectory) primaryDirectory;
                     return new HybridDirectory(lockFactory, setPreload(mMapDirectory, lockFactory, preLoadExtensions));
                 } else {
                     return primaryDirectory;
@@ -99,7 +99,7 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
         }
     }
 
-    private static MMapDirectory setPreload(MMapDirectory mMapDirectory, LockFactory lockFactory,
+    public static MMapDirectory setPreload(MMapDirectory mMapDirectory, LockFactory lockFactory,
             Set<String> preLoadExtensions) throws IOException {
         assert mMapDirectory.getPreload() == false;
         if (preLoadExtensions.isEmpty() == false) {

@@ -164,7 +164,7 @@ if (useFixture) {
   def minioAddress = {
     int minioPort = postProcessFixture.ext."test.fixtures.minio-fixture.tcp.9000"
     assert minioPort > 0
-    return 'http://127.0.0.1:' + minioPort
+    'http://127.0.0.1:' + minioPort
   }
 
   File minioAddressFile = new File(project.buildDir, 'generated-resources/s3Fixture.address')
@@ -173,7 +173,6 @@ if (useFixture) {
   // and pass its name instead.
   task writeMinioAddress {
     dependsOn tasks.bundlePlugin, tasks.postProcessFixture
-    outputs.file(minioAddressFile)
     doLast {
       file(minioAddressFile).text = "${ -> minioAddress.call() }"
     }
@@ -181,7 +180,6 @@ if (useFixture) {
 
   thirdPartyTest {
     dependsOn writeMinioAddress
-    inputs.file(minioAddressFile)
     systemProperty 'test.s3.endpoint', minioAddressFile.name
   }
 

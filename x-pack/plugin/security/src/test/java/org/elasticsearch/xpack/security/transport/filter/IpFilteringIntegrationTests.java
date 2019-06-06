@@ -24,7 +24,7 @@ import java.nio.charset.StandardCharsets;
 
 import static org.hamcrest.Matchers.is;
 
-// no client nodes, no transport clients, as they all get rejected on network connections
+// no client nodes as they all get rejected on network connections
 @ClusterScope(scope = Scope.SUITE, numDataNodes = 0, numClientNodes = 0)
 public class IpFilteringIntegrationTests extends SecurityIntegTestCase {
     private static int randomClientPort;

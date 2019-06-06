@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.ml.filestructurefinder;
 
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.xpack.core.ml.action.FindFileStructureAction;
 import org.elasticsearch.xpack.core.ml.filestructurefinder.FieldStats;
 import org.elasticsearch.xpack.core.ml.filestructurefinder.FileStructure;
 
@@ -24,8 +25,8 @@ public class TextLogFileStructureFinder implements FileStructureFinder {
     private final FileStructure structure;
 
     static TextLogFileStructureFinder makeTextLogFileStructureFinder(List<String> explanation, String sample, String charsetName,
-                                                                     Boolean hasByteOrderMarker, FileStructureOverrides overrides,
-                                                                     TimeoutChecker timeoutChecker) {
+                                                                     Boolean hasByteOrderMarker, int lineMergeSizeLimit,
+                                                                     FileStructureOverrides overrides, TimeoutChecker timeoutChecker) {
         String[] sampleLines = sample.split("\n");
         TimestampFormatFinder timestampFormatFinder = populateTimestampFormatFinder(explanation, sampleLines, overrides, timeoutChecker);
         switch (timestampFormatFinder.getNumMatchedFormats()) {
@@ -69,6 +70,16 @@ public class TextLogFileStructureFinder implements FileStructureFinder {
                     // for the CSV header or lines before the first XML document starts)
                     ++linesConsumed;
                 } else {
+                    // This check avoids subsequent problems when a massive message is unwieldy and slow to process
+                    long lengthAfterAppend = message.length() + 1L + sampleLine.length();
+                    if (lengthAfterAppend > lineMergeSizeLimit) {
+                        assert linesInMessage > 0;
+                        throw new IllegalArgumentException("Merging lines into messages resulted in an unacceptably long message. "
+                            + "Merged message would have [" + (linesInMessage + 1) + "] lines and [" + lengthAfterAppend + "] "
+                            + "characters (limit [" + lineMergeSizeLimit + "]). If you have messages this big please increase "
+                            + "the value of [" + FindFileStructureAction.Request.LINE_MERGE_SIZE_LIMIT + "]. Otherwise it "
+                            + "probably means the timestamp has been incorrectly detected, so try overriding that.");
+                    }
                     message.append('\n').append(sampleLine);
                     ++linesInMessage;
                 }
@@ -97,12 +108,13 @@ public class TextLogFileStructureFinder implements FileStructureFinder {
             .setNumMessagesAnalyzed(sampleMessages.size())
             .setMultilineStartPattern(multiLineRegex);
 
+        Map<String, String> messageMapping = Collections.singletonMap(FileStructureUtils.MAPPING_TYPE_SETTING, "text");
         SortedMap<String, Object> mappings = new TreeMap<>();
-        mappings.put("message", Collections.singletonMap(FileStructureUtils.MAPPING_TYPE_SETTING, "text"));
-        mappings.put(FileStructureUtils.DEFAULT_TIMESTAMP_FIELD, Collections.singletonMap(FileStructureUtils.MAPPING_TYPE_SETTING, "date"));
+        mappings.put("message", messageMapping);
+        mappings.put(FileStructureUtils.DEFAULT_TIMESTAMP_FIELD, FileStructureUtils.DATE_MAPPING_WITHOUT_FORMAT);
 
         SortedMap<String, FieldStats> fieldStats = new TreeMap<>();
-        fieldStats.put("message", FileStructureUtils.calculateFieldStats(sampleMessages, timeoutChecker));
+        fieldStats.put("message", FileStructureUtils.calculateFieldStats(messageMapping, sampleMessages, timeoutChecker));
 
         Map<String, String> customGrokPatternDefinitions = timestampFormatFinder.getCustomGrokPatternDefinitions();
         GrokPatternCreator grokPatternCreator = new GrokPatternCreator(explanation, sampleMessages, mappings, fieldStats,
@@ -125,8 +137,8 @@ public class TextLogFileStructureFinder implements FileStructureFinder {
                 if (interimTimestampField == null) {
                     interimTimestampField = "timestamp";
                 }
-                grokPattern =
-                    grokPatternCreator.createGrokPatternFromExamples(timestampFormatFinder.getGrokPatternName(), interimTimestampField);
+                grokPattern = grokPatternCreator.createGrokPatternFromExamples(timestampFormatFinder.getGrokPatternName(),
+                    timestampFormatFinder.getEsDateMappingTypeWithFormat(), interimTimestampField);
             }
         }
 

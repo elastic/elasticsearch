@@ -454,12 +454,12 @@ public class XPackLicenseState {
     }
 
     /**
-     * @return whether the Elasticsearch {@code ApiKeyService} is allowed based on the license {@link OperationMode}
+     * @return whether the Elasticsearch {@code ApiKeyService} is allowed based on the current node/cluster state
      */
     public synchronized boolean isApiKeyServiceAllowed() {
         final OperationMode mode = status.mode;
         final boolean isSecurityCurrentlyEnabled = isSecurityEnabled(mode, isSecurityExplicitlyEnabled, isSecurityEnabled);
-        return isSecurityCurrentlyEnabled && (mode == OperationMode.GOLD || mode == OperationMode.PLATINUM || mode == OperationMode.TRIAL);
+        return isSecurityCurrentlyEnabled;
     }
 
     /**

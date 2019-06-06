@@ -792,6 +792,8 @@ public class NestedSortingTests extends AbstractFieldDataTestCase {
             assertThat(searcher.doc(topFields.scoreDocs[0].doc).get("_id"), equalTo("4"));
             assertThat(((FieldDoc) topFields.scoreDocs[0]).fields[0], equalTo(87L));
         }
+
+        searcher.getIndexReader().close();
     }
 
     private static TopFieldDocs search(QueryBuilder queryBuilder, FieldSortBuilder sortBuilder, QueryShardContext queryShardContext,

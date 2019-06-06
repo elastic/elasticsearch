@@ -53,6 +53,8 @@ import java.util.concurrent.atomic.AtomicReference;
 
 public class DataFrameTransformTask extends AllocatedPersistentTask implements SchedulerEngine.Listener {
 
+    // interval the scheduler sends an event
+    private static final int SCHEDULER_NEXT_MILLISECONDS = 10000;
     private static final Logger logger = LogManager.getLogger(DataFrameTransformTask.class);
     // TODO consider moving to dynamic cluster setting
     private static final int MAX_CONTINUOUS_FAILURES = 10;
@@ -87,12 +89,10 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
         String initialReason = null;
         long initialGeneration = 0;
         Map<String, Object> initialPosition = null;
-        logger.trace("[{}] init, got state: [{}]", transform.getId(), state != null);
         if (state != null) {
             initialTaskState = state.getTaskState();
             initialReason = state.getReason();
             final IndexerState existingState = state.getIndexerState();
-            logger.info("[{}] Loading existing state: [{}], position [{}]", transform.getId(), existingState, state.getPosition());
             if (existingState.equals(IndexerState.INDEXING)) {
                 // reset to started as no indexer is running
                 initialState = IndexerState.STARTED;
@@ -211,9 +211,14 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
             getIndexer().getProgress());
 
         logger.info("Updating state for data frame transform [{}] to [{}]", transform.getId(), state.toString());
+        // Even though the indexer information is persisted to an index, we still need DataFrameTransformTaskState in the clusterstate
+        // This keeps track of STARTED, FAILED, STOPPED
+        // This is because a FAILED state can occur because we cannot read the config from the internal index, which would imply that
+        //   we could not read the previous state information from said index.
         persistStateToClusterState(state, ActionListener.wrap(
             task -> {
-                auditor.info(transform.getId(), "Updated state to [" + state.getTaskState() + "]");
+                auditor.info(transform.getId(),
+                    "Updated data frame transform state to [" + state.getTaskState() + "].");
                 long now = System.currentTimeMillis();
                 // kick off the indexer
                 triggered(new Event(schedulerJobName(), now, now));
@@ -233,6 +238,10 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
             // If there is no indexer the task has not been triggered
             // but it still needs to be stopped and removed
             shutdown();
+            return;
+        }
+
+        if (getIndexer().getState() == IndexerState.STOPPED) {
             return;
         }
 
@@ -293,10 +302,13 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
     synchronized void markAsFailed(String reason, ActionListener<Void> listener) {
         taskState.set(DataFrameTransformTaskState.FAILED);
         stateReason.set(reason);
+        auditor.error(transform.getId(), reason);
+        // Even though the indexer information is persisted to an index, we still need DataFrameTransformTaskState in the clusterstate
+        // This keeps track of STARTED, FAILED, STOPPED
+        // This is because a FAILED state can occur because we cannot read the config from the internal index, which would imply that
+        //   we could not read the previous state information from said index.
         persistStateToClusterState(getState(), ActionListener.wrap(
-            r -> {
-                listener.onResponse(null);
-            },
+            r -> listener.onResponse(null),
             listener::onFailure
         ));
     }
@@ -333,7 +345,7 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
 
     private SchedulerEngine.Schedule next() {
         return (startTime, now) -> {
-            return now + 1000; // to be fixed, hardcode something
+            return now + SCHEDULER_NEXT_MILLISECONDS;
         };
     }
 
@@ -511,6 +523,13 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
                 return false;
             }
 
+            // ignore trigger if indexer is running, prevents log spam in A2P indexer
+            IndexerState indexerState = getState();
+            if (IndexerState.INDEXING.equals(indexerState) || IndexerState.STOPPING.equals(indexerState)) {
+                logger.debug("Indexer for transform [{}] has state [{}], ignoring trigger", getJobId(), indexerState);
+                return false;
+            }
+
             return super.maybeTriggerAsyncJob(now);
         }
 
@@ -560,6 +579,8 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
                             },
                             statsExc -> {
                                 logger.error("Updating stats of transform [" + transformConfig.getId() + "] failed", statsExc);
+                                auditor.warning(getJobId(),
+                                    "Failure updating stats of transform: " + statsExc.getMessage());
                                 next.run();
                             }
                     ));
@@ -588,7 +609,7 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
             try {
                 super.onFinish(listener);
                 long checkpoint = transformTask.currentCheckpoint.incrementAndGet();
-                auditor.info(transformTask.getTransformId(), "Finished indexing for data frame transform checkpoint [" + checkpoint + "]");
+                auditor.info(transformTask.getTransformId(), "Finished indexing for data frame transform checkpoint [" + checkpoint + "].");
                 logger.info(
                     "Finished indexing for data frame transform [" + transformTask.getTransformId() + "] checkpoint [" + checkpoint + "]");
                 listener.onResponse(null);
@@ -599,14 +620,14 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
 
         @Override
         protected void onStop() {
-            auditor.info(transformConfig.getId(), "Indexer has stopped");
+            auditor.info(transformConfig.getId(), "Data frame transform has stopped.");
             logger.info("Data frame transform [{}] indexer has stopped", transformConfig.getId());
             transformTask.shutdown();
         }
 
         @Override
         protected void onAbort() {
-            auditor.info(transformConfig.getId(), "Received abort request, stopping indexer");
+            auditor.info(transformConfig.getId(), "Received abort request, stopping data frame transform.");
             logger.info("Data frame transform [" + transformConfig.getId() + "] received abort request, stopping indexer");
             transformTask.shutdown();
         }

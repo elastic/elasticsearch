@@ -53,6 +53,8 @@ import java.util.concurrent.atomic.AtomicReference;
 
 public class DataFrameTransformTask extends AllocatedPersistentTask implements SchedulerEngine.Listener {
 
+    // interval the scheduler sends an event
+    private static final int SCHEDULER_NEXT_MILLISECONDS = 10000;
     private static final Logger logger = LogManager.getLogger(DataFrameTransformTask.class);
     // TODO consider moving to dynamic cluster setting
     private static final int MAX_CONTINUOUS_FAILURES = 10;
@@ -337,7 +339,7 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
 
     private SchedulerEngine.Schedule next() {
         return (startTime, now) -> {
-            return now + 1000; // to be fixed, hardcode something
+            return now + SCHEDULER_NEXT_MILLISECONDS;
         };
     }
 

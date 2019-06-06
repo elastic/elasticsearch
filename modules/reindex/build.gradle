@@ -77,7 +77,7 @@ forbiddenPatterns {
     exclude '**/*.p12'
 }
 
-// Support for testing reindex-from-remote against old Elaticsearch versions
+// Support for testing reindex-from-remote against old Elasticsearch versions
 configurations {
   oldesFixture
   es2

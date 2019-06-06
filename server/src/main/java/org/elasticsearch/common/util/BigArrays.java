@@ -356,18 +356,18 @@ public class BigArrays {
 
     }
 
-    final PageCacheRecycler recycler;
+    final PageAllocator recycler;
     private final CircuitBreakerService breakerService;
     private final boolean checkBreaker;
     private final BigArrays circuitBreakingInstance;
     private final String breakerName;
 
-    public BigArrays(PageCacheRecycler recycler, @Nullable final CircuitBreakerService breakerService, String breakerName) {
+    public BigArrays(PageAllocator allocator, @Nullable final CircuitBreakerService breakerService, String breakerName) {
         // Checking the breaker is disabled if not specified
-        this(recycler, breakerService, breakerName, false);
+        this(allocator, breakerService, breakerName, false);
     }
 
-    protected BigArrays(PageCacheRecycler recycler, @Nullable final CircuitBreakerService breakerService, String breakerName,
+    protected BigArrays(PageAllocator recycler, @Nullable final CircuitBreakerService breakerService, String breakerName,
                         boolean checkBreaker) {
         this.checkBreaker = checkBreaker;
         this.recycler = recycler;

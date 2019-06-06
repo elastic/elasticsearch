@@ -30,7 +30,7 @@ import java.util.Arrays;
 /** Common implementation for array lists that slice data into fixed-size blocks. */
 abstract class AbstractBigArray extends AbstractArray {
 
-    private final PageCacheRecycler recycler;
+    private final PageAllocator recycler;
     private Recycler.V<?>[] cache;
 
     private final int pageShift;

@@ -21,6 +21,7 @@ package org.elasticsearch.transport;
 
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
@@ -42,13 +43,13 @@ public class MemoryUsage implements Writeable, ToXContentFragment {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-
-
+        out.writeMap(poolStats, StreamOutput::writeString, (o, w) -> w.writeTo(o));
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        return null;
+        builder.map(poolStats);
+        return builder;
     }
 
     public static class PoolUsage implements Writeable, ToXContentFragment {
@@ -63,12 +64,22 @@ public class MemoryUsage implements Writeable, ToXContentFragment {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-
+            out.writeLong(poolSizeBytes);
+            out.writeLong(bytesAllocated);
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            return null;
+            builder.humanReadableField(Fields.POOL_SIZE_IN_BYTES, Fields.POOL_SIZE, new ByteSizeValue(poolSizeBytes));
+            builder.humanReadableField(Fields.ALLOCATED_IN_BYTES, Fields.ALLOCATED, new ByteSizeValue(bytesAllocated));
+            return builder;
         }
+    }
+
+    static final class Fields {
+        static final String POOL_SIZE_IN_BYTES = "pool_size";
+        static final String POOL_SIZE = "pool_size_in_bytes";
+        static final String ALLOCATED = "amount_allocated";
+        static final String ALLOCATED_IN_BYTES = "amount_allocated_in_bytes";
     }
 }

@@ -62,6 +62,10 @@ public class InstrumentedBytesAllocator implements PageAllocator {
         return PageCacheRecycler.BYTE_PAGE_SIZE;
     }
 
+    public long allocationAmount() {
+        return bytesActive.longValue();
+    }
+
     @Override
     public Recycler.V<int[]> intPage(boolean clear) {
         return delegate.intPage(clear);

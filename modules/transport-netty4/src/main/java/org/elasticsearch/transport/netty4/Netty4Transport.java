@@ -251,7 +251,10 @@ public class Netty4Transport extends TcpTransport {
         return esChannel;
     }
 
+    @Override
     protected MemoryUsage memoryStats() {
+        MemoryUsage baseMemoryUsage = super.memoryStats();
+
         ByteBufAllocator allocator = ByteBufAllocator.DEFAULT;
         ByteBufAllocatorMetric metric;
 
@@ -273,7 +276,7 @@ public class Netty4Transport extends TcpTransport {
 
         MemoryUsage.PoolUsage heap = new MemoryUsage.PoolUsage(heapBytes, -1L);
         MemoryUsage.PoolUsage direct = new MemoryUsage.PoolUsage(directBytes, -1L);
-        HashMap<String, MemoryUsage.PoolUsage> poolStats = new HashMap<>();
+        HashMap<String, MemoryUsage.PoolUsage> poolStats = new HashMap<>(baseMemoryUsage.getPoolUsage());
         poolStats.put(nettyHeapName, heap);
         poolStats.put(nettyDirectName, direct);
         return new MemoryUsage(poolStats);

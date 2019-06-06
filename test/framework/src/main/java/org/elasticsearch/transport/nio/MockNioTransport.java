@@ -205,7 +205,7 @@ public class MockNioTransport extends TcpTransport {
                 if (length > PageCacheRecycler.BYTE_PAGE_SIZE) {
                     return new Page(ByteBuffer.allocate(length), () -> {});
                 } else {
-                    Recycler.V<byte[]> bytes = pageCacheRecycler.bytePage(false);
+                    Recycler.V<byte[]> bytes = allocator.bytePage(false);
                     return new Page(ByteBuffer.wrap(bytes.v(), 0, length), bytes::close);
                 }
             };

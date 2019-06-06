@@ -37,7 +37,7 @@ import static org.elasticsearch.common.recycler.Recyclers.dequeFactory;
 import static org.elasticsearch.common.recycler.Recyclers.none;
 
 /** A recycler of fixed-size pages. */
-public class PageCacheRecycler {
+public class PageCacheRecycler implements PageAllocator {
 
     public static final Setting<Type> TYPE_SETTING =
         new Setting<>("cache.recycler.page.type", Type.CONCURRENT.name(), Type::parse, Property.NodeScope);
@@ -148,6 +148,7 @@ public class PageCacheRecycler {
         assert PAGE_SIZE_IN_BYTES * (maxBytePageCount + maxIntPageCount + maxLongPageCount + maxObjectPageCount) <= limit;
     }
 
+    @Override
     public Recycler.V<byte[]> bytePage(boolean clear) {
         final Recycler.V<byte[]> v = bytePage.obtain();
         if (v.isRecycled() && clear) {
@@ -156,6 +157,7 @@ public class PageCacheRecycler {
         return v;
     }
 
+    @Override
     public Recycler.V<int[]> intPage(boolean clear) {
         final Recycler.V<int[]> v = intPage.obtain();
         if (v.isRecycled() && clear) {
@@ -164,6 +166,7 @@ public class PageCacheRecycler {
         return v;
     }
 
+    @Override
     public Recycler.V<long[]> longPage(boolean clear) {
         final Recycler.V<long[]> v = longPage.obtain();
         if (v.isRecycled() && clear) {
@@ -172,6 +175,7 @@ public class PageCacheRecycler {
         return v;
     }
 
+    @Override
     public Recycler.V<Object[]> objectPage() {
         // object pages are cleared on release anyway
         return objectPage.obtain();

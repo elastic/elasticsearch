@@ -108,7 +108,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
 
     protected final Settings settings;
     protected final ThreadPool threadPool;
-    protected final PageCacheRecycler pageCacheRecycler;
+    protected final InstrumentedBytesAllocator allocator;
     protected final NetworkService networkService;
     protected final Set<ProfileSettings> profileSettings;
 
@@ -132,7 +132,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         this.settings = settings;
         this.profileSettings = getProfileSettings(settings);
         this.threadPool = threadPool;
-        this.pageCacheRecycler = pageCacheRecycler;
+        this.allocator = new InstrumentedBytesAllocator(pageCacheRecycler);
         this.networkService = networkService;
         TransportLogger transportLogger = new TransportLogger();
         String nodeName = Node.NODE_NAME_SETTING.get(settings);
@@ -149,7 +149,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
             // use a sorted set to present the features in a consistent order
             features = new TreeSet<>(defaultFeatures.names()).toArray(new String[defaultFeatures.names().size()]);
         }
-        BigArrays bigArrays = new BigArrays(pageCacheRecycler, circuitBreakerService, CircuitBreaker.IN_FLIGHT_REQUESTS);
+        BigArrays bigArrays = new BigArrays(allocator, circuitBreakerService, CircuitBreaker.IN_FLIGHT_REQUESTS);
 
         this.outboundHandler = new OutboundHandler(nodeName, version, features, threadPool, bigArrays, transportLogger);
         this.handshaker = new TransportHandshaker(version, threadPool,
@@ -844,6 +844,13 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         return new TransportStats(acceptedChannels.size(), readBytes.count(), readBytes.sum(), transmittedBytes.count(),
             transmittedBytes.sum());
     }
+
+    protected MemoryUsage memoryStats() {
+        Map<String, MemoryUsage.PoolUsage> poolStats = new HashMap<>();
+        poolStats.put("network_page_cache_recycler", new MemoryUsage.PoolUsage(allocator.bytesPoolSize(), allocator.allocationAmount()));
+        return new MemoryUsage(poolStats);
+    }
+
 
     /**
      * Returns all profile settings for the given settings object

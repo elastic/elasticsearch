@@ -30,7 +30,6 @@ import org.elasticsearch.index.store.SmbDirectoryWrapper;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.HashSet;
-import java.util.Set;
 
 public final class SmbMmapFsDirectoryFactory extends FsDirectoryFactory {
 

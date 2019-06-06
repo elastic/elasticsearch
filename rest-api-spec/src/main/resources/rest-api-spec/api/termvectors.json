@@ -62,11 +62,6 @@
           "description" : "Specific routing value.",
           "required" : false
         },
-        "parent": {
-          "type" : "string",
-          "description" : "Parent id of documents.",
-          "required" : false
-        },
         "realtime": {
           "type": "boolean",
           "description": "Specifies if request is real-time as opposed to near-real-time (default: true).",

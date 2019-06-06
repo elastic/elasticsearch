@@ -1,0 +1,13 @@
+[float]
+[[breaking_80_settings_changes]]
+=== Settings changes
+
+[float]
+[[search-remote-settings-removed]]
+==== The `search.remote` settings have been removed
+
+In 6.5 these settings were deprecated in favor of `cluster.remote`. In 7.x we
+provided automatic upgrading of these settings to their `cluster.remote`
+counterparts. In 8.0.0, these settings have been removed. Elasticsearch will
+refuse to start if you have these settings in your configuration or cluster
+state.

@@ -216,7 +216,7 @@ public class DataFramePivotRestIT extends DataFrameRestTestCase {
             + "   \"group_by\": {"
             + "     \"by_hr\": {"
             + "       \"date_histogram\": {"
-            + "         \"interval\": \"1h\",\"field\":\"timestamp\",\"format\":\"yyyy-MM-DD_HH\""
+            + "         \"fixed_interval\": \"1h\",\"field\":\"timestamp\",\"format\":\"yyyy-MM-dd_HH\""
             + " } } },"
             + "   \"aggregations\": {"
             + "     \"avg_rating\": {"
@@ -226,14 +226,11 @@ public class DataFramePivotRestIT extends DataFrameRestTestCase {
             + "}";
 
         createDataframeTransformRequest.setJsonEntity(config);
-        createDataframeTransformRequest.setOptions(expectWarnings("[interval] on [date_histogram] is deprecated, " +
-            "use [fixed_interval] or [calendar_interval] in the future."));
 
         Map<String, Object> createDataframeTransformResponse = entityAsMap(client().performRequest(createDataframeTransformRequest));
         assertThat(createDataframeTransformResponse.get("acknowledged"), equalTo(Boolean.TRUE));
 
-        startAndWaitForTransform(transformId, dataFrameIndex, BASIC_AUTH_VALUE_DATA_FRAME_ADMIN_WITH_SOME_DATA_ACCESS,
-            "[interval] on [date_histogram] is deprecated, use [fixed_interval] or [calendar_interval] in the future.");
+        startAndWaitForTransform(transformId, dataFrameIndex, BASIC_AUTH_VALUE_DATA_FRAME_ADMIN_WITH_SOME_DATA_ACCESS);
         assertTrue(indexExists(dataFrameIndex));
 
         Map<String, Object> indexStats = getAsMap(dataFrameIndex + "/_stats");
@@ -252,26 +249,28 @@ public class DataFramePivotRestIT extends DataFrameRestTestCase {
 
         config += " \"pivot\": {"
             + "   \"group_by\": {"
-            + "     \"reviewer\": {\"terms\": { \"field\": \"user_id\" }},"
-            + "     \"by_day\": {\"date_histogram\": {\"interval\": \"1d\",\"field\":\"timestamp\",\"format\":\"yyyy-MM-DD\"}}},"
+            + "     \"user.id\": {\"terms\": { \"field\": \"user_id\" }},"
+            + "     \"by_day\": {\"date_histogram\": {\"fixed_interval\": \"1d\",\"field\":\"timestamp\",\"format\":\"yyyy-MM-dd\"}}},"
             + "   \"aggregations\": {"
-            + "     \"avg_rating\": {"
+            + "     \"user.avg_rating\": {"
             + "       \"avg\": {"
             + "         \"field\": \"stars\""
             + " } } } }"
             + "}";
         createPreviewRequest.setJsonEntity(config);
-        createPreviewRequest.setOptions(expectWarnings("[interval] on [date_histogram] is deprecated, " +
-            "use [fixed_interval] or [calendar_interval] in the future."));
 
         Map<String, Object> previewDataframeResponse = entityAsMap(client().performRequest(createPreviewRequest));
         List<Map<String, Object>> preview = (List<Map<String, Object>>)previewDataframeResponse.get("preview");
         // preview is limited to 100
         assertThat(preview.size(), equalTo(100));
-        Set<String> expectedFields = new HashSet<>(Arrays.asList("reviewer", "by_day", "avg_rating"));
+        Set<String> expectedTopLevelFields = new HashSet<>(Arrays.asList("user", "by_day"));
+        Set<String> expectedNestedFields = new HashSet<>(Arrays.asList("id", "avg_rating"));
         preview.forEach(p -> {
             Set<String> keys = p.keySet();
-            assertThat(keys, equalTo(expectedFields));
+            assertThat(keys, equalTo(expectedTopLevelFields));
+            Map<String, Object> nestedObj = (Map<String, Object>)p.get("user");
+            keys = nestedObj.keySet();
+            assertThat(keys, equalTo(expectedNestedFields));
         });
     }
 
@@ -290,7 +289,7 @@ public class DataFramePivotRestIT extends DataFrameRestTestCase {
         config +="    \"pivot\": { \n" +
             "        \"group_by\": {\n" +
             "            \"by_day\": {\"date_histogram\": {\n" +
-            "                \"interval\": \"1d\",\"field\":\"timestamp\",\"format\":\"yyyy-MM-DD\"\n" +
+            "                \"fixed_interval\": \"1d\",\"field\":\"timestamp\",\"format\":\"yyyy-MM-dd\"\n" +
             "            }}\n" +
             "        },\n" +
             "    \n" +
@@ -305,13 +304,11 @@ public class DataFramePivotRestIT extends DataFrameRestTestCase {
             + "}";
 
         createDataframeTransformRequest.setJsonEntity(config);
-        createDataframeTransformRequest.setOptions(expectWarnings("[interval] on [date_histogram] is deprecated, " +
-            "use [fixed_interval] or [calendar_interval] in the future."));
+
         Map<String, Object> createDataframeTransformResponse = entityAsMap(client().performRequest(createDataframeTransformRequest));
         assertThat(createDataframeTransformResponse.get("acknowledged"), equalTo(Boolean.TRUE));
 
-        startAndWaitForTransform(transformId, dataFrameIndex, BASIC_AUTH_VALUE_DATA_FRAME_ADMIN_WITH_SOME_DATA_ACCESS,
-            "[interval] on [date_histogram] is deprecated, use [fixed_interval] or [calendar_interval] in the future.");
+        startAndWaitForTransform(transformId, dataFrameIndex, BASIC_AUTH_VALUE_DATA_FRAME_ADMIN_WITH_SOME_DATA_ACCESS);
         assertTrue(indexExists(dataFrameIndex));
 
         // we expect 21 documents as there shall be 21 days worth of docs
@@ -476,6 +473,45 @@ public class DataFramePivotRestIT extends DataFrameRestTestCase {
         String[] latlon = actualString.split(",");
         assertEquals((4 + 10), Double.valueOf(latlon[0]), 0.000001);
         assertEquals((4 + 15), Double.valueOf(latlon[1]), 0.000001);
+    }
+
+    public void testPivotWithWeightedAvgAgg() throws Exception {
+        String transformId = "weightedAvgAggTransform";
+        String dataFrameIndex = "weighted_avg_pivot_reviews";
+        setupDataAccessRole(DATA_ACCESS_ROLE, REVIEWS_INDEX_NAME, dataFrameIndex);
+
+        final Request createDataframeTransformRequest = createRequestWithAuth("PUT", DATAFRAME_ENDPOINT + transformId,
+            BASIC_AUTH_VALUE_DATA_FRAME_ADMIN_WITH_SOME_DATA_ACCESS);
+
+        String config = "{"
+            + " \"source\": {\"index\":\"" + REVIEWS_INDEX_NAME + "\"},"
+            + " \"dest\": {\"index\":\"" + dataFrameIndex + "\"},";
+
+        config += " \"pivot\": {"
+            + "   \"group_by\": {"
+            + "     \"reviewer\": {"
+            + "       \"terms\": {"
+            + "         \"field\": \"user_id\""
+            + " } } },"
+            + "   \"aggregations\": {"
+            + "     \"avg_rating\": {"
+            + "       \"weighted_avg\": {"
+            + "         \"value\": {\"field\": \"stars\"},"
+            + "         \"weight\": {\"field\": \"stars\"}"
+            + "} } } }"
+            + "}";
+
+        createDataframeTransformRequest.setJsonEntity(config);
+        Map<String, Object> createDataframeTransformResponse = entityAsMap(client().performRequest(createDataframeTransformRequest));
+        assertThat(createDataframeTransformResponse.get("acknowledged"), equalTo(Boolean.TRUE));
+
+        startAndWaitForTransform(transformId, dataFrameIndex, BASIC_AUTH_VALUE_DATA_FRAME_ADMIN_WITH_SOME_DATA_ACCESS);
+        assertTrue(indexExists(dataFrameIndex));
+
+        Map<String, Object> searchResult = getAsMap(dataFrameIndex + "/_search?q=reviewer:user_4");
+        assertEquals(1, XContentMapValues.extractValue("hits.total.value", searchResult));
+        Number actual = (Number) ((List<?>) XContentMapValues.extractValue("hits.hits._source.avg_rating", searchResult)).get(0);
+        assertEquals(4.47169811, actual.doubleValue(), 0.000001);
     }
 
     private void assertOnePivotValue(String query, double expected) throws IOException {

@@ -982,6 +982,10 @@ Reindex supports <<sliced-scroll>> to parallelize the reindexing process.
 This parallelization can improve efficiency and provide a convenient way to
 break the request down into smaller parts.
 
+NOTE: Reindexing from remote clusters does not support
+<<docs-reindex-manual-slice, manual>> or
+<<docs-reindex-automatic-slice, automatic slicing>>.
+
 [float]
 [[docs-reindex-manual-slice]]
 ==== Manual slicing

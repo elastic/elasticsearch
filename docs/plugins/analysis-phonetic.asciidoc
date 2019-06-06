@@ -65,6 +65,14 @@ GET phonetic_sample/_analyze
 
 <1> Returns: `J`, `joe`, `BLKS`, `bloggs`
 
+It is important to note that `"replace": false` can lead to unexpected behavior since
+the original and the phonetically analyzed version are both kept at the same token position.
+Some queries handle these stacked tokens in special ways. For example, the fuzzy `match`
+query does not apply {ref}/common-options.html#fuzziness[fuzziness] to stacked synonym tokens.
+This can lead to issues that are difficult to diagnose and reason about. For this reason, it
+is often beneficial to use separate fields for analysis with and without phonetic filtering.
+That way searches can be run against both fields with differing boosts and trade-offs (e.g.
+only run a fuzzy `match` query on the original text field, but not on the phonetic version).
 
 [float]
 ===== Double metaphone settings

@@ -1,5 +1,5 @@
 [[modules-scripting-expression]]
-=== Lucene Expressions Language
+== Lucene expressions language
 
 Lucene's expressions compile a `javascript` expression to bytecode. They are
 designed for high-performance custom ranking and sorting functions and are

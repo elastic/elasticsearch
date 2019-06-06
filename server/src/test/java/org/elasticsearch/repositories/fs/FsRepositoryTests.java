@@ -75,6 +75,7 @@ import static java.util.Collections.emptySet;
 
 public class FsRepositoryTests extends ESTestCase {
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/42905")
     public void testSnapshotAndRestore() throws IOException, InterruptedException {
         ThreadPool threadPool = new TestThreadPool(getClass().getSimpleName());
         try (Directory directory = newDirectory()) {

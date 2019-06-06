@@ -19,16 +19,6 @@
 apply plugin: 'nebula.maven-base-publish'
 apply plugin: 'nebula.maven-scm'
 
-archivesBaseName = 'elasticsearch-secure-sm'
-
-publishing {
-    publications {
-        nebula {
-            artifactId = archivesBaseName
-        }
-    }
-}
-
 dependencies {
     // do not add non-test compile dependencies to secure-sm without a good reason to do so
 
@@ -36,9 +26,9 @@ dependencies {
     testCompile "junit:junit:${versions.junit}"
     testCompile "org.hamcrest:hamcrest:${versions.hamcrest}"
 
-    if (isEclipse == false || project.path == ":libs:secure-sm-tests") {
-        testCompile("org.elasticsearch.test:framework:${version}") {
-            exclude group: 'org.elasticsearch', module: 'secure-sm'
+    if (isEclipse == false || project.path == ":libs:elasticsearch-secure-sm-tests") {
+        testCompile(project(":test:framework")) {
+            exclude group: 'org.elasticsearch', module: 'elasticsearch-secure-sm'
         }
     }
 }
@@ -50,7 +40,7 @@ forbiddenApisMain {
 if (isEclipse) {
     // in Eclipse the project is under a fake root so we need to change around the source sets
     sourceSets {
-        if (project.path == ":libs:secure-sm") {
+        if (project.path == ":libs:elasticsearch-secure-sm") {
             main.java.srcDirs = ['java']
             main.resources.srcDirs = ['resources']
         } else {

@@ -212,7 +212,7 @@ public class SimpleValidateQueryIT extends ESIntegTestCase {
                 containsString("(field:jumps)^0.75"), true);
 
         // more like this queries
-        Item[] items = new Item[] { new Item(null, null, "1")};
+        Item[] items = new Item[] { new Item(null, "1") };
         assertExplanation(QueryBuilders.moreLikeThisQuery(new String[] { "field" }, null, items)
                         .include(true).minTermFreq(1).minDocFreq(1).maxQueryTerms(2),
                 containsString("field:huge field:pidgin"), true);

@@ -174,7 +174,7 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
         private final MMapDirectory delegate;
         private final Set<String> preloadExtensions;
 
-        public PreLoadMMapDirectory(MMapDirectory delegate, LockFactory lockFactory, Set<String> preload) throws IOException {
+        PreLoadMMapDirectory(MMapDirectory delegate, LockFactory lockFactory, Set<String> preload) throws IOException {
             super(delegate.getDirectory(), lockFactory);
             super.setPreload(false);
             this.delegate = delegate;

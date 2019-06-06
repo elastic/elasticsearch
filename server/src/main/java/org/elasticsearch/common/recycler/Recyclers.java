@@ -103,6 +103,10 @@ public enum Recyclers {
                 };
             }
 
+            @Override
+            public int recycledCount() {
+                return recycler.recycledCount();
+            }
         };
     }
 
@@ -145,6 +149,14 @@ public enum Recyclers {
                 return recyclers[slot()];
             }
 
+            @Override
+            public int recycledCount() {
+                int sum = 0;
+                for (Recycler<T> recycler : recyclers) {
+                    sum += recycler.recycledCount();
+                }
+                return sum;
+            }
         };
     }
 

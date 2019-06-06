@@ -45,6 +45,12 @@ public class DequeRecycler<T> extends AbstractRecycler<T> {
         return new DV(v, true);
     }
 
+    @Override
+    public int recycledCount() {
+        // TODO: Does not reflect that the currently allocated number of pages might be less.
+        return maxSize;
+    }
+
     /** Called before releasing an object, returns true if the object should be recycled and false otherwise. */
     protected boolean beforeRelease() {
         return deque.size() < maxSize;

@@ -157,6 +157,10 @@ public class PageCacheRecycler implements PageAllocator {
         return v;
     }
 
+    public int bytePageCount() {
+        return bytePage.recycledCount();
+    }
+
     @Override
     public Recycler.V<int[]> intPage(boolean clear) {
         final Recycler.V<int[]> v = intPage.obtain();

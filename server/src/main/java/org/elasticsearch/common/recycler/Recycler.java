@@ -55,4 +55,6 @@ public interface Recycler<T> {
 
     V<T> obtain();
 
+    int recycledCount();
+
 }

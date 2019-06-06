@@ -59,7 +59,7 @@ public class InstrumentedBytesAllocator implements PageAllocator {
     }
 
     public long bytesPoolSize() {
-        return PageCacheRecycler.BYTE_PAGE_SIZE;
+        return PageCacheRecycler.BYTE_PAGE_SIZE * delegate.bytePageCount();
     }
 
     public long allocationAmount() {

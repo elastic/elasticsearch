@@ -43,6 +43,7 @@ pertain to creating a token:
 `grant_type`::
 (string) The type of grant. Supported grant types are: `password`, `_kerberos` (beta),
 `client_credentials` and `refresh_token`.
+`_kerberos` implements SPNEGO based Kerberos support.
 
 `password`::
 (string) The user's password. If you specify the `password` grant type, this 
@@ -176,6 +177,22 @@ POST /_security/oauth2/token
 {
   "grant_type" : "_kerberos",
   "kerberos_ticket" : "YIIB6wYJKoZIhvcSAQICAQBuggHaMIIB1qADAgEFoQMCAQ6iBtaDcp4cdMODwOsIvmvdX//sye8NDJZ8Gstabor3MOGryBWyaJ1VxI4WBVZaSn1WnzE06Xy2"
+}
+--------------------------------------------------
+// NOTCONSOLE
+
+The API will return a new token and refresh token if kerberos authentication is successful. Each refresh token may only 
+be used one time. Along with this there might be an base64 encoded token for clients to consume and finalize the authentication.
+One must extract the token from the `kerberos_authenticate_response_data` which is in the form `Negotiate <base64 encoded token>`.
+
+[source,js]
+--------------------------------------------------
+{
+  "access_token" : "dGhpcyBpcyBub3QgYSByZWFsIHRva2VuIGJ1dCBpdCBpcyBvbmx5IHRlc3QgZGF0YS4gZG8gbm90IHRyeSB0byByZWFkIHRva2VuIQ==",
+  "type" : "Bearer",
+  "expires_in" : 1200,
+  "refresh_token": "vLBPvmAB6KvwvJZr27cS"
+  "kerberos_authenticate_response_data": "Negotiate YIIB6wYJKoZIhvcSAQICAQBuggHaMIIB1qADAg"
 }
 --------------------------------------------------
 // NOTCONSOLE

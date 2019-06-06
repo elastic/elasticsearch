@@ -19,11 +19,15 @@
 
 package org.elasticsearch.test.disruption;
 
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.test.InternalTestCluster;
 
+import java.lang.management.ManagementFactory;
+import java.lang.management.ThreadInfo;
+import java.lang.management.ThreadMXBean;
 import java.util.Arrays;
 import java.util.Random;
 import java.util.Set;
@@ -38,14 +42,19 @@ import java.util.stream.Collectors;
 public class LongGCDisruption extends SingleNodeDisruption {
 
     private static final Pattern[] unsafeClasses = new Pattern[]{
-        // logging has shared JVM locks - we may suspend a thread and block other nodes from doing their thing
+        // logging has shared JVM locks; we may suspend a thread and block other nodes from doing their thing
         Pattern.compile("logging\\.log4j"),
-        // security manager is shared across all nodes AND it uses synced hashmaps interanlly
-        Pattern.compile("java\\.lang\\.SecurityManager")
+        // security manager is shared across all nodes and it uses synchronized maps internally
+        Pattern.compile("java\\.lang\\.SecurityManager"),
+        // SecureRandom instance from SecureRandomHolder class is shared by all nodes
+        Pattern.compile("java\\.security\\.SecureRandom")
     };
+
+    private static final ThreadMXBean threadBean = ManagementFactory.getThreadMXBean();
 
     protected final String disruptedNode;
     private Set<Thread> suspendedThreads;
+    private Thread blockDetectionThread;
 
     public LongGCDisruption(Random random, String disruptedNode) {
         super(random);
@@ -60,48 +69,102 @@ public class LongGCDisruption extends SingleNodeDisruption {
                 suspendedThreads = ConcurrentHashMap.newKeySet();
 
                 final String currentThreadName = Thread.currentThread().getName();
-                assert currentThreadName.contains("[" + disruptedNode + "]") == false :
+                assert isDisruptedNodeThread(currentThreadName) == false :
                     "current thread match pattern. thread name: " + currentThreadName + ", node: " + disruptedNode;
                 // we spawn a background thread to protect against deadlock which can happen
-                // if there are shared resources between caller thread and and suspended threads
+                // if there are shared resources between caller thread and suspended threads
                 // see unsafeClasses to how to avoid that
-                final AtomicReference<Exception> stoppingError = new AtomicReference<>();
-                final Thread stoppingThread = new Thread(new AbstractRunnable() {
+                final AtomicReference<Exception> suspendingError = new AtomicReference<>();
+                final Thread suspendingThread = new Thread(new AbstractRunnable() {
                     @Override
                     public void onFailure(Exception e) {
-                        stoppingError.set(e);
+                        suspendingError.set(e);
                     }
 
                     @Override
                     protected void doRun() throws Exception {
-                        // keep trying to stop threads, until no new threads are discovered.
-                        while (stopNodeThreads(disruptedNode, suspendedThreads)) {
+                        // keep trying to suspend threads, until no new threads are discovered.
+                        while (suspendThreads(suspendedThreads)) {
                             if (Thread.interrupted()) {
                                 return;
                             }
                         }
                     }
                 });
-                stoppingThread.setName(currentThreadName + "[LongGCDisruption][threadStopper]");
-                stoppingThread.start();
+                suspendingThread.setName(currentThreadName + "[LongGCDisruption][threadSuspender]");
+                suspendingThread.start();
                 try {
-                    stoppingThread.join(getStoppingTimeoutInMillis());
+                    suspendingThread.join(getSuspendingTimeoutInMillis());
                 } catch (InterruptedException e) {
-                    stoppingThread.interrupt(); // best effort to signal stopping
+                    suspendingThread.interrupt(); // best effort to signal suspending
                     throw new RuntimeException(e);
                 }
-                if (stoppingError.get() != null) {
-                    throw new RuntimeException("unknown error while stopping threads", stoppingError.get());
+                if (suspendingError.get() != null) {
+                    throw new RuntimeException("unknown error while suspending threads", suspendingError.get());
                 }
-                if (stoppingThread.isAlive()) {
-                    logger.warn("failed to stop node [{}]'s threads within [{}] millis. Stopping thread stack trace:\n {}"
-                        , disruptedNode, getStoppingTimeoutInMillis(), stackTrace(stoppingThread));
-                    stoppingThread.interrupt(); // best effort;
-                    throw new RuntimeException("stopping node threads took too long");
+                if (suspendingThread.isAlive()) {
+                    logger.warn(
+                        "failed to suspend node [{}]'s threads within [{}] millis. Suspending thread stack trace:\n {}" +
+                            "\nThreads that weren't suspended:\n {}"
+                        , disruptedNode, getSuspendingTimeoutInMillis(), stackTrace(suspendingThread.getStackTrace()),
+                        suspendedThreads.stream()
+                            .map(t -> t.getName() + "\n----\n" + stackTrace(t.getStackTrace()))
+                            .collect(Collectors.joining("\n"))
+                    );
+                    suspendingThread.interrupt(); // best effort;
+                    try {
+                        /*
+                         * We need to join on the suspending thread in case it has suspended a thread that is in a critical section and
+                         * needs to be resumed.
+                         */
+                        suspendingThread.join();
+                    } catch (InterruptedException e) {
+                        throw new RuntimeException(e);
+                    }
+                    throw new RuntimeException("suspending node threads took too long");
+                }
+                // block detection checks if other threads are blocked waiting on an object that is held by one
+                // of the threads that was suspended
+                if (isBlockDetectionSupported()) {
+                    blockDetectionThread = new Thread(new AbstractRunnable() {
+                        @Override
+                        public void onFailure(Exception e) {
+                            if (e instanceof InterruptedException == false) {
+                                throw new AssertionError("unexpected exception in blockDetectionThread", e);
+                            }
+                        }
+
+                        @Override
+                        protected void doRun() throws Exception {
+                            while (Thread.currentThread().isInterrupted() == false) {
+                                ThreadInfo[] threadInfos = threadBean.dumpAllThreads(true, true);
+                                for (ThreadInfo threadInfo : threadInfos) {
+                                    if (isDisruptedNodeThread(threadInfo.getThreadName()) == false &&
+                                        threadInfo.getLockOwnerName() != null &&
+                                        isDisruptedNodeThread(threadInfo.getLockOwnerName())) {
+
+                                        // find ThreadInfo object of the blocking thread (if available)
+                                        ThreadInfo blockingThreadInfo = null;
+                                        for (ThreadInfo otherThreadInfo : threadInfos) {
+                                            if (otherThreadInfo.getThreadId() == threadInfo.getLockOwnerId()) {
+                                                blockingThreadInfo = otherThreadInfo;
+                                                break;
+                                            }
+                                        }
+                                        onBlockDetected(threadInfo, blockingThreadInfo);
+                                    }
+                                }
+                                Thread.sleep(getBlockDetectionIntervalInMillis());
+                            }
+                        }
+                    });
+                    blockDetectionThread.setName(currentThreadName + "[LongGCDisruption][blockDetection]");
+                    blockDetectionThread.start();
                 }
                 success = true;
             } finally {
                 if (success == false) {
+                    stopBlockDetection();
                     // resume threads if failed
                     resumeThreads(suspendedThreads);
                     suspendedThreads = null;
@@ -112,15 +175,32 @@ public class LongGCDisruption extends SingleNodeDisruption {
         }
     }
 
-    private String stackTrace(Thread thread) {
-        return Arrays.stream(thread.getStackTrace()).map(Object::toString).collect(Collectors.joining("\n"));
+    public boolean isDisruptedNodeThread(String threadName) {
+        return threadName.contains("[" + disruptedNode + "]");
+    }
+
+    private String stackTrace(StackTraceElement[] stackTraceElements) {
+        return Arrays.stream(stackTraceElements).map(Object::toString).collect(Collectors.joining("\n"));
     }
 
     @Override
     public synchronized void stopDisrupting() {
+        stopBlockDetection();
         if (suspendedThreads != null) {
             resumeThreads(suspendedThreads);
             suspendedThreads = null;
+        }
+    }
+
+    private void stopBlockDetection() {
+        if (blockDetectionThread != null) {
+            try {
+                blockDetectionThread.interrupt(); // best effort
+                blockDetectionThread.join(getSuspendingTimeoutInMillis());
+            } catch (InterruptedException e) {
+                throw new RuntimeException(e);
+            }
+            blockDetectionThread = null;
         }
     }
 
@@ -142,9 +222,9 @@ public class LongGCDisruption extends SingleNodeDisruption {
      * returns true if some live threads were found. The caller is expected to call this method
      * until no more "live" are found.
      */
-    @SuppressWarnings("deprecation") // stops/resumes threads intentionally
-    @SuppressForbidden(reason = "stops/resumes threads intentionally")
-    protected boolean stopNodeThreads(String node, Set<Thread> nodeThreads) {
+    @SuppressWarnings("deprecation") // suspends/resumes threads intentionally
+    @SuppressForbidden(reason = "suspends/resumes threads intentionally")
+    protected boolean suspendThreads(Set<Thread> nodeThreads) {
         Thread[] allThreads = null;
         while (allThreads == null) {
             allThreads = new Thread[Thread.activeCount()];
@@ -154,33 +234,48 @@ public class LongGCDisruption extends SingleNodeDisruption {
             }
         }
         boolean liveThreadsFound = false;
-        final String nodeThreadNamePart = "[" + node + "]";
         for (Thread thread : allThreads) {
             if (thread == null) {
                 continue;
             }
-            String name = thread.getName();
-            if (name.contains(nodeThreadNamePart)) {
+            String threadName = thread.getName();
+            if (isDisruptedNodeThread(threadName)) {
                 if (thread.isAlive() && nodeThreads.add(thread)) {
                     liveThreadsFound = true;
-                    logger.trace("stopping thread [{}]", name);
-                    thread.suspend();
-                    // double check the thread is not in a shared resource like logging. If so, let it go and come back..
-                    boolean safe = true;
-                    safe:
-                    for (StackTraceElement stackElement : thread.getStackTrace()) {
-                        String className = stackElement.getClassName();
-                        for (Pattern unsafePattern : getUnsafeClasses()) {
-                            if (unsafePattern.matcher(className).find()) {
-                                safe = false;
-                                break safe;
+                    logger.trace("suspending thread [{}]", threadName);
+                    // we assume it is not safe to suspend the thread
+                    boolean safe = false;
+                    try {
+                        /*
+                         * At the bottom of this try-block we will know whether or not it is safe to suspend the thread; we start by
+                         * assuming that it is safe.
+                         */
+                        boolean definitelySafe = true;
+                        thread.suspend();
+                        // double check the thread is not in a shared resource like logging; if so, let it go and come back
+                        safe:
+                        for (StackTraceElement stackElement : thread.getStackTrace()) {
+                            String className = stackElement.getClassName();
+                            for (Pattern unsafePattern : getUnsafeClasses()) {
+                                if (unsafePattern.matcher(className).find()) {
+                                    // it is definitely not safe to suspend the thread
+                                    definitelySafe = false;
+                                    break safe;
+                                }
                             }
                         }
-                    }
-                    if (!safe) {
-                        logger.trace("resuming thread [{}] as it is in a critical section", name);
-                        thread.resume();
-                        nodeThreads.remove(thread);
+                        safe = definitelySafe;
+                    } finally {
+                        if (!safe) {
+                            /*
+                             * Do not log before resuming as we might be interrupted while logging in which case we will throw an
+                             * interrupted exception and never resume the suspended thread that is in a critical section. Also, logging
+                             * before resuming makes for confusing log messages if we never hit the resume.
+                             */
+                            thread.resume();
+                            logger.trace("resumed thread [{}] as it is in a critical section", threadName);
+                            nodeThreads.remove(thread);
+                        }
                     }
                 }
             }
@@ -194,12 +289,34 @@ public class LongGCDisruption extends SingleNodeDisruption {
     }
 
     // for testing
-    protected long getStoppingTimeoutInMillis() {
+    protected long getSuspendingTimeoutInMillis() {
         return TimeValue.timeValueSeconds(30).getMillis();
     }
 
-    @SuppressWarnings("deprecation") // stops/resumes threads intentionally
-    @SuppressForbidden(reason = "stops/resumes threads intentionally")
+    public boolean isBlockDetectionSupported() {
+        return threadBean.isObjectMonitorUsageSupported() && threadBean.isSynchronizerUsageSupported();
+    }
+
+    // for testing
+    protected long getBlockDetectionIntervalInMillis() {
+        return 3000L;
+    }
+
+    // for testing
+    protected void onBlockDetected(ThreadInfo blockedThread, @Nullable ThreadInfo blockingThread) {
+        String blockedThreadStackTrace = stackTrace(blockedThread.getStackTrace());
+        String blockingThreadStackTrace = blockingThread != null ?
+            stackTrace(blockingThread.getStackTrace()) : "not available";
+        throw new AssertionError("Thread [" + blockedThread.getThreadName() + "] is blocked waiting on the resource [" +
+            blockedThread.getLockInfo() + "] held by the suspended thread [" + blockedThread.getLockOwnerName() +
+            "] of the disrupted node [" + disruptedNode + "].\n" +
+            "Please add this occurrence to the unsafeClasses list in [" + LongGCDisruption.class.getName() + "].\n" +
+            "Stack trace of blocked thread: " + blockedThreadStackTrace + "\n" +
+            "Stack trace of blocking thread: " + blockingThreadStackTrace);
+    }
+
+    @SuppressWarnings("deprecation") // suspends/resumes threads intentionally
+    @SuppressForbidden(reason = "suspends/resumes threads intentionally")
     protected void resumeThreads(Set<Thread> threads) {
         for (Thread thread : threads) {
             thread.resume();

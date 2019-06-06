@@ -1,0 +1,158 @@
+setup:
+  - skip:
+      version: "all"
+      reason:  "AwaitsFix https://github.com/elastic/elasticsearch/issues/42258"
+
+---
+"Test old cluster datafeed without aggs":
+  - do:
+      ml.get_datafeeds:
+        datafeed_id: old-cluster-datafeed-without-aggs
+  - match: { datafeeds.0.datafeed_id: "old-cluster-datafeed-without-aggs"}
+  - length: { datafeeds.0.indices: 1 }
+  - gte: { datafeeds.0.scroll_size: 2000 }
+  - match: { datafeeds.0.script_fields.double_responsetime.script.lang: painless }
+  - is_false: datafeeds.0.aggregations
+
+  - do:
+      ml.get_datafeed_stats:
+        datafeed_id: old-cluster-datafeed-without-aggs
+  - match: { datafeeds.0.state: "stopped"}
+  - is_false: datafeeds.0.node
+
+---
+"Test old cluster datafeed with aggs":
+  - skip:
+      features: "warnings"
+  - do:
+      warnings:
+        - '[interval] on [date_histogram] is deprecated, use [fixed_interval] or [calendar_interval] in the future.'
+      ml.get_datafeeds:
+        datafeed_id: old-cluster-datafeed-with-aggs
+  - match: { datafeeds.0.datafeed_id: "old-cluster-datafeed-with-aggs"}
+  - length: { datafeeds.0.indices: 1 }
+  - gte: { datafeeds.0.scroll_size: 2000 }
+  - is_false: datafeeds.0.script_fields
+  - match: { datafeeds.0.aggregations.buckets.date_histogram.field: time }
+  - match: { datafeeds.0.aggregations.buckets.aggregations.time.max.field: time }
+
+  - do:
+      ml.get_datafeed_stats:
+        datafeed_id: old-cluster-datafeed-with-aggs
+  - match: { datafeeds.0.state: "stopped"}
+  - is_false: datafeeds.0.node
+
+---
+"Put job and datafeed without aggs in mixed cluster":
+  - do:
+      ml.put_job:
+        job_id: mixed-cluster-datafeed-job-without-aggs
+        body:  >
+          {
+            "description":"Cluster upgrade",
+            "analysis_config" : {
+                "bucket_span": "60s",
+                "detectors" :[{"function":"count"}]
+            },
+            "analysis_limits" : {
+                "model_memory_limit": "50mb"
+            },
+            "data_description" : {
+                "format":"xcontent",
+                "time_field":"time"
+            }
+          }
+  - do:
+      ml.put_datafeed:
+        datafeed_id: mixed-cluster-datafeed-without-aggs
+        body:  >
+          {
+            "job_id":"mixed-cluster-datafeed-job-without-aggs",
+            "indices":["airline-data"],
+            "scroll_size": 2000,
+            "script_fields": {
+              "double_responsetime": {
+                "script": {
+                  "lang": "painless",
+                  "source": "doc['responsetime'].value * 2"
+                }
+              }
+            }
+          }
+
+  - do:
+      ml.get_datafeed_stats:
+        datafeed_id: mixed-cluster-datafeed-without-aggs
+  - match: { datafeeds.0.state: stopped}
+  - is_false: datafeeds.0.node
+
+---
+"Put job and datafeed with aggs in mixed cluster":
+  - skip:
+      features: "warnings"
+
+  - do:
+      ml.put_job:
+        job_id: mixed-cluster-datafeed-job-with-aggs
+        body:  >
+          {
+            "description":"Cluster upgrade",
+            "analysis_config" : {
+                "bucket_span": "60s",
+                "summary_count_field_name": "doc_count",
+                "detectors" :[{"function":"count"}]
+            },
+            "analysis_limits" : {
+                "model_memory_limit": "50mb"
+            },
+            "data_description" : {
+                "format":"xcontent",
+                "time_field":"time"
+            }
+          }
+
+  - do:
+      warnings:
+        - '[interval] on [date_histogram] is deprecated, use [fixed_interval] or [calendar_interval] in the future.'
+        - '[interval] on [date_histogram] is deprecated, use [fixed_interval] or [calendar_interval] in the future.'
+      ml.put_datafeed:
+        datafeed_id: mixed-cluster-datafeed-with-aggs
+        body:  >
+          {
+            "job_id":"mixed-cluster-datafeed-job-with-aggs",
+            "indices":["airline-data"],
+            "scroll_size": 2000,
+            "aggregations": {
+              "buckets": {
+                "date_histogram": {
+                  "field": "time",
+                  "interval": "30s",
+                  "time_zone": "UTC"
+                },
+                "aggregations": {
+                  "time": {
+                    "max": {"field": "time"}
+                  },
+                  "airline": {
+                    "terms": {
+                      "field": "airline",
+                      "size": 100
+                    },
+                    "aggregations": {
+                      "responsetime": {
+                        "avg": {
+                          "field": "responsetime"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+
+  - do:
+      ml.get_datafeed_stats:
+        datafeed_id: mixed-cluster-datafeed-with-aggs
+  - match: { datafeeds.0.state: stopped}
+  - is_false: datafeeds.0.node

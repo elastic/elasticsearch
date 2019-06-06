@@ -1,0 +1,29 @@
+[role="xpack"]
+[testenv="platinum"]
+[[remote-recovery]]
+== Remote recovery
+
+When you create a follower index, you cannot use it until it is fully initialized.
+The _remote recovery_ process builds a new copy of a shard on a follower node by
+copying data from the primary shard in the leader cluster. {es} uses this remote
+recovery process to bootstrap a follower index using the data from the leader index.
+This process provides the follower with a copy of the current state of the leader index,
+even if a complete history of changes is not available on the leader due to Lucene
+segment merging.
+
+Remote recovery is a network intensive process that transfers all of the Lucene
+segment files from the leader cluster to the follower cluster. The follower
+requests that a recovery session be initiated on the primary shard in the leader
+cluster. The follower then requests file chunks concurrently from the leader. By
+default, the process concurrently requests `5` large `1mb` file chunks. This default
+behavior is designed to support leader and follower clusters with high network latency
+between them.
+
+There are dynamic settings that you can use to rate-limit the transmitted data
+and manage the resources consumed by remote recoveries. See
+{ref}/ccr-settings.html[{ccr-cap} settings].
+
+You can obtain information about an in-progress remote recovery by using the
+{ref}/cat-recovery.html[recovery API] on the follower cluster. Remote recoveries
+are implemented using the {ref}/modules-snapshots.html[snapshot and restore] infrastructure. This means that on-going remote recoveries are labelled as type
+`snapshot` in the recovery API.

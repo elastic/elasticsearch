@@ -176,8 +176,8 @@ public class ESLoggerUsageChecker {
         private final Consumer<WrongLoggerUsage> wrongUsageCallback;
         private final Predicate<String> methodsToCheck;
 
-        public ClassChecker(Consumer<WrongLoggerUsage> wrongUsageCallback, Predicate<String> methodsToCheck) {
-            super(Opcodes.ASM5);
+        ClassChecker(Consumer<WrongLoggerUsage> wrongUsageCallback, Predicate<String> methodsToCheck) {
+            super(Opcodes.ASM7);
             this.wrongUsageCallback = wrongUsageCallback;
             this.methodsToCheck = methodsToCheck;
         }
@@ -210,7 +210,7 @@ public class ESLoggerUsageChecker {
         private final Consumer<WrongLoggerUsage> wrongUsageCallback;
         private boolean ignoreChecks;
 
-        public MethodChecker(String className, int access, String name, String desc, Consumer<WrongLoggerUsage> wrongUsageCallback) {
+        MethodChecker(String className, int access, String name, String desc, Consumer<WrongLoggerUsage> wrongUsageCallback) {
             super(Opcodes.ASM5, new MethodNode(access, name, desc, null, null));
             this.className = className;
             this.wrongUsageCallback = wrongUsageCallback;
@@ -409,13 +409,13 @@ public class ESLoggerUsageChecker {
         protected final int minValue;
         protected final int maxValue;
 
-        public IntMinMaxTrackingBasicValue(Type type, int value) {
+        IntMinMaxTrackingBasicValue(Type type, int value) {
             super(type);
             this.minValue = value;
             this.maxValue = value;
         }
 
-        public IntMinMaxTrackingBasicValue(Type type, int minValue, int maxValue) {
+        IntMinMaxTrackingBasicValue(Type type, int minValue, int maxValue) {
             super(type);
             this.minValue = minValue;
             this.maxValue = maxValue;
@@ -454,32 +454,37 @@ public class ESLoggerUsageChecker {
     private static final class PlaceHolderStringBasicValue extends IntMinMaxTrackingBasicValue {
         public static final Type STRING_OBJECT_TYPE = Type.getObjectType("java/lang/String");
 
-        public PlaceHolderStringBasicValue(int placeHolders) {
+        PlaceHolderStringBasicValue(int placeHolders) {
             super(STRING_OBJECT_TYPE, placeHolders);
         }
 
-        public PlaceHolderStringBasicValue(int minPlaceHolders, int maxPlaceHolders) {
+        PlaceHolderStringBasicValue(int minPlaceHolders, int maxPlaceHolders) {
             super(STRING_OBJECT_TYPE, minPlaceHolders, maxPlaceHolders);
         }
     }
 
     private static final class ArraySizeBasicValue extends IntMinMaxTrackingBasicValue {
-        public ArraySizeBasicValue(Type type, int minArraySize, int maxArraySize) {
+        ArraySizeBasicValue(Type type, int minArraySize, int maxArraySize) {
             super(type, minArraySize, maxArraySize);
         }
     }
 
     private static final class IntegerConstantBasicValue extends IntMinMaxTrackingBasicValue {
-        public IntegerConstantBasicValue(Type type, int constant) {
+        IntegerConstantBasicValue(Type type, int constant) {
             super(type, constant);
         }
 
-        public IntegerConstantBasicValue(Type type, int minConstant, int maxConstant) {
+        IntegerConstantBasicValue(Type type, int minConstant, int maxConstant) {
             super(type, minConstant, maxConstant);
         }
     }
 
     private static final class PlaceHolderStringInterpreter extends BasicInterpreter {
+
+        PlaceHolderStringInterpreter() {
+            super(Opcodes.ASM7);
+        }
+
         @Override
         public BasicValue newOperation(AbstractInsnNode insnNode) throws AnalyzerException {
             if (insnNode.getOpcode() == Opcodes.LDC) {
@@ -504,6 +509,11 @@ public class ESLoggerUsageChecker {
     }
 
     private static final class ArraySizeInterpreter extends BasicInterpreter {
+
+        ArraySizeInterpreter() {
+            super(Opcodes.ASM7);
+        }
+
         @Override
         public BasicValue newOperation(AbstractInsnNode insnNode) throws AnalyzerException {
             switch (insnNode.getOpcode()) {

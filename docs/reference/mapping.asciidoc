@@ -9,21 +9,20 @@ are stored and indexed.  For instance, use mappings to define:
 
 * which string fields should be treated as full text fields.
 * which fields contain numbers, dates, or geolocations.
-* whether the values of all fields in the document should be
-  indexed into the catch-all <<mapping-all-field,`_all`>> field.
 * the <<mapping-date-format,format>> of date values.
 * custom rules to control the mapping for
   <<dynamic-mapping,dynamically added fields>>.
 
 [float]
 [[mapping-type]]
-== Mapping Types
+== Mapping Type
 
-Each index has one or more _mapping types_, which are used to divide the
-documents in an index into logical groups. User documents might be stored in a
-`user` type, and blog posts in a `blogpost` type.
+Each index has one _mapping type_ which determines how the document will be
+indexed.
 
-Each mapping type has:
+deprecated[6.0.0,See <<removal-of-types>>].
+
+A mapping type has:
 
 <<mapping-fields,Meta-fields>>::
 
@@ -34,11 +33,8 @@ treated. Examples of meta-fields include the document's
 
 <<mapping-types,Fields>> or _properties_::
 
-Each mapping type contains a list of fields or `properties` pertinent to that
-type.  A `user` type might contain `title`, `name`, and `age` fields, while a
-`blogpost` type might contain `title`, `body`, `user_id` and `created` fields.
-Fields with the same name in different mapping types in the same index
-<<field-conflicts,must have the same mapping>>.
+A mapping type contains a list of fields or `properties` pertinent to the
+document.
 
 
 [float]
@@ -68,12 +64,21 @@ via the <<multi-fields>> parameter.
 [float]
 === Settings to prevent mappings explosion
 
+Defining too many fields in an index is a condition that can lead to a
+mapping explosion, which can cause out of memory errors and difficult
+situations to recover from. This problem may be more common than expected.
+As an example, consider a situation in which every new document inserted
+introduces new fields. This is quite common with dynamic mappings.
+Every time a document contains new fields, those will end up in the index's
+mappings. This isn't worrying for a small amount of data, but it can become a
+problem as the mapping grows.
 The following settings allow you to limit the number of field mappings that
 can be created manually or dynamically, in order to prevent bad documents from
 causing a mapping explosion:
 
 `index.mapping.total_fields.limit`::
-    The maximum number of fields in an index. The default value is `1000`.
+    The maximum number of fields in an index. Field and object mappings, as well as
+    field aliases count towards this limit. The default value is `1000`.
 
 `index.mapping.depth.limit`::
     The maximum depth for a field, which is measured as the number of inner
@@ -82,23 +87,29 @@ causing a mapping explosion:
     `2`, etc. The default is `20`.
 
 `index.mapping.nested_fields.limit`::
-    The maximum number of `nested` fields in an index, defaults to `50`.
-    Indexing 1 document with 100 nested fields actually indexes 101 documents
-    as each nested document is indexed as a separate hidden document.
+    The maximum number of distinct `nested` mappings in an index, defaults to `50`.
 
+`index.mapping.nested_objects.limit`::
+    The maximum number of `nested` JSON objects within a single document across
+    all nested types, defaults to 10000.
+
+`index.mapping.field_name_length.limit`::
+    Setting for the maximum length of a field name. The default value is
+    Long.MAX_VALUE (no limit). This setting isn't really something that addresses
+    mappings explosion but might still be useful if you want to limit the field length.
+    It usually shouldn't be necessary to set this setting. The default is okay
+    unless a user starts to add a huge number of fields with really long names.
 
 [float]
 == Dynamic mapping
 
 Fields and mapping types do not need to be defined before being used. Thanks
-to _dynamic mapping_, new mapping types and new field names will be added
-automatically, just by indexing a document. New fields can be added both to
-the top-level mapping type, and to inner <<object,`object`>>  and
-<<nested,`nested`>> fields.
+to _dynamic mapping_, new field names will be added automatically, just by
+indexing a document. New fields can be added both to the top-level mapping
+type, and to inner <<object,`object`>>  and <<nested,`nested`>> fields.
 
-The
-<<dynamic-mapping,dynamic mapping>> rules can be configured to
-customise the mapping that is used for new types and new fields.
+The <<dynamic-mapping,dynamic mapping>> rules can be configured to customise
+the mapping that is used for new fields.
 
 [float]
 == Explicit mappings
@@ -107,73 +118,37 @@ You know more about your data than Elasticsearch can guess, so while dynamic
 mapping can be useful to get started, at some point you will want to specify
 your own explicit mappings.
 
-You can create mapping types and field mappings when you
-<<indices-create-index,create an index>>, and you can add mapping types and
+You can create field mappings when you
+<<indices-create-index,create an index>>, and you can add
 fields to an existing index with the <<indices-put-mapping,PUT mapping API>>.
 
 [float]
-== Updating existing mappings
+== Updating existing field mappings
 
-Other than where documented, *existing type and field mappings cannot be
+Other than where documented, *existing field mappings cannot be
 updated*. Changing the mapping would mean invalidating already indexed
-documents.  Instead, you should create a new index with the correct mappings
-and reindex your data into that index.
-
-[[field-conflicts]]
-[float]
-== Fields are shared across mapping types
-
-Mapping types are used to group fields, but the fields in each mapping type
-are not independent of each other. Fields with:
-
-* the _same name_
-* in the _same index_
-* in _different mapping types_
-* map to the _same field_ internally,
-* and *must have the same mapping*.
-
-If a `title` field exists in both the `user` and `blogpost` mapping types, the
-`title` fields must have exactly the same mapping in each type.  The only
-exceptions to this rule are the <<copy-to>>, <<dynamic>>, <<enabled>>,
-<<ignore-above>>, <<include-in-all>>, and <<properties>> parameters, which may
-have different settings per field.
-
-Usually, fields with the same name also contain the same type of data, so
-having the same mapping is not a problem.  When conflicts do arise, these can
-be solved by choosing more descriptive names, such as `user_title` and
-`blog_title`.
+documents. Instead, you should create a new index with the correct mappings
+and <<docs-reindex,reindex>> your data into that index. If you only wish
+to rename a field and not change its mappings, it may make sense to introduce
+an <<alias, `alias`>> field.
 
 [float]
 == Example mapping
 
-A mapping for the example described above could be specified when creating the
-index, as follows:
+A mapping can be specified when creating an index, as follows:
 
 [source,js]
 ---------------------------------------
 PUT my_index <1>
 {
   "mappings": {
-    "user": { <2>
-      "_all":       { "enabled": false  }, <3>
-      "properties": { <4>
-        "title":    { "type": "text"  }, <5>
-        "name":     { "type": "text"  }, <5>
-        "age":      { "type": "integer" }  <5>
-      }
-    },
-    "blogpost": { <2>
-      "_all":       { "enabled": false  }, <3>
-      "properties": { <4>
-        "title":    { "type": "text"  }, <5>
-        "body":     { "type": "text"  }, <5>
-        "user_id":  {
-          "type":   "keyword" <5>
-        },
-        "created":  {
-          "type":   "date", <5>
-          "format": "strict_date_optional_time||epoch_millis"
-        }
+    "properties": { <2>
+      "title":    { "type": "text"  }, <3>
+      "name":     { "type": "text"  }, <4>
+      "age":      { "type": "integer" },  <5>
+      "created":  {
+        "type":   "date", <6>
+        "format": "strict_date_optional_time||epoch_millis"
       }
     }
   }
@@ -181,13 +156,15 @@ PUT my_index <1>
 ---------------------------------------
 // CONSOLE
 <1> Create an index called `my_index`.
-<2> Add mapping types called `user` and `blogpost`.
-<3> Disable the `_all` <<mapping-fields,meta field>> for the `user` mapping type.
-<4> Specify fields or _properties_ in each mapping type.
-<5> Specify the data `type` and mapping for each field.
-
+<2> Specify the fields or _properties_ in the mapping.
+<3> Specify that the `title` field contains `text` values.
+<4> Specify that the `name` field contains `text` values.
+<5> Specify that the `age` field contains `integer` values.
+<6> Specify that the `created` field contains `date` values in two possible formats.
 
 --
+
+include::mapping/removal_of_types.asciidoc[]
 
 include::mapping/types.asciidoc[]
 

@@ -20,17 +20,15 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Constant;
-import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
+import org.elasticsearch.painless.Location;
+import org.elasticsearch.painless.MethodWriter;
+import org.elasticsearch.painless.WriterConstants;
 
 import java.util.Set;
 import java.util.regex.Pattern;
 import java.util.regex.PatternSyntaxException;
-
-import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.MethodWriter;
-import org.elasticsearch.painless.WriterConstants;
 
 /**
  * Represents a regex constant. All regexes are constants.
@@ -68,26 +66,28 @@ public final class ERegex extends AExpression {
 
         try {
             Pattern.compile(pattern, flags);
-        } catch (PatternSyntaxException exception) {
-            throw createError(exception);
+        } catch (PatternSyntaxException e) {
+            throw new Location(location.getSourceName(), location.getOffset() + 1 + e.getIndex()).createError(
+                    new IllegalArgumentException("Error compiling regex: " + e.getDescription()));
         }
 
-        constant = new Constant(location, Definition.PATTERN_TYPE.type, "regexAt$" + location.getOffset(), this::initializeConstant);
-        actual = Definition.PATTERN_TYPE;
+        constant = new Constant(
+            location, MethodWriter.getType(Pattern.class), "regexAt$" + location.getOffset(), this::initializeConstant);
+        actual = Pattern.class;
     }
 
     @Override
     void write(MethodWriter writer, Globals globals) {
         writer.writeDebugInfo(location);
 
-        writer.getStatic(WriterConstants.CLASS_TYPE, constant.name, Definition.PATTERN_TYPE.type);
+        writer.getStatic(WriterConstants.CLASS_TYPE, constant.name, org.objectweb.asm.Type.getType(Pattern.class));
         globals.addConstantInitializer(constant);
     }
 
     private void initializeConstant(MethodWriter writer) {
         writer.push(pattern);
         writer.push(flags);
-        writer.invokeStatic(Definition.PATTERN_TYPE.type, WriterConstants.PATTERN_COMPILE);
+        writer.invokeStatic(org.objectweb.asm.Type.getType(Pattern.class), WriterConstants.PATTERN_COMPILE);
     }
 
     private int flagForChar(char c) {
@@ -103,5 +103,24 @@ public final class ERegex extends AExpression {
             default:
                 throw new IllegalArgumentException("Unknown flag [" + c + "]");
         }
+    }
+
+    @Override
+    public String toString() {
+        StringBuilder f = new StringBuilder();
+        if ((flags & Pattern.CANON_EQ) != 0)                f.append('c');
+        if ((flags & Pattern.CASE_INSENSITIVE) != 0)        f.append('i');
+        if ((flags & Pattern.LITERAL) != 0)                 f.append('l');
+        if ((flags & Pattern.MULTILINE) != 0)               f.append('m');
+        if ((flags & Pattern.DOTALL) != 0)                  f.append('s');
+        if ((flags & Pattern.UNICODE_CHARACTER_CLASS) != 0) f.append('U');
+        if ((flags & Pattern.UNICODE_CASE) != 0)            f.append('u');
+        if ((flags & Pattern.COMMENTS) != 0)                f.append('x');
+
+        String p = "/" + pattern + "/";
+        if (f.length() == 0) {
+            return singleLineToString(p);
+        }
+        return singleLineToString(p, f);
     }
 }

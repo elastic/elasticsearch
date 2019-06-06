@@ -1,0 +1,128 @@
+[[java-rest-low-config]]
+== Common configuration
+
+As explained in <<java-rest-low-usage-initialization>>, the `RestClientBuilder`
+supports providing both a `RequestConfigCallback` and an `HttpClientConfigCallback`
+which allow for any customization that the Apache Async Http Client exposes.
+Those callbacks make it possible to modify some specific behaviour of the client
+without overriding every other default configuration that the `RestClient`
+is initialized with. This section describes some common scenarios that require
+additional configuration for the low-level Java REST Client.
+
+=== Timeouts
+
+Configuring requests timeouts can be done by providing an instance of
+`RequestConfigCallback` while building the `RestClient` through its builder.
+The interface has one method that receives an instance of
+https://hc.apache.org/httpcomponents-client-ga/httpclient/apidocs/org/apache/http/client/config/RequestConfig.Builder.html[`org.apache.http.client.config.RequestConfig.Builder`]
+ as an argument and has the same return type. The request config builder can
+be modified and then returned. In the following example we increase the
+connect timeout (defaults to 1 second) and the socket timeout (defaults to 30
+seconds).
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/RestClientDocumentation.java[rest-client-config-timeouts]
+--------------------------------------------------
+
+=== Number of threads
+
+The Apache Http Async Client starts by default one dispatcher thread, and a
+number of worker threads used by the connection manager, as many as the number
+of locally detected processors (depending on what
+`Runtime.getRuntime().availableProcessors()` returns). The number of threads
+can be modified as follows:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/RestClientDocumentation.java[rest-client-config-threads]
+--------------------------------------------------
+
+=== Basic authentication
+
+Configuring basic authentication can be done by providing an
+`HttpClientConfigCallback` while building the `RestClient` through its builder.
+The interface has one method that receives an instance of
+https://hc.apache.org/httpcomponents-asyncclient-dev/httpasyncclient/apidocs/org/apache/http/impl/nio/client/HttpAsyncClientBuilder.html[`org.apache.http.impl.nio.client.HttpAsyncClientBuilder`]
+ as an argument and has the same return type. The http client builder can be
+modified and then returned. In the following example we set a default
+credentials provider that requires basic authentication.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/RestClientDocumentation.java[rest-client-config-basic-auth]
+--------------------------------------------------
+
+Preemptive Authentication can be disabled, which means that every request will be sent without
+authorization headers to see if it is accepted and, upon receiving an HTTP 401 response, it will
+resend the exact same request with the basic authentication header. If you wish to do this, then
+you can do so by disabling it via the `HttpAsyncClientBuilder`:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/RestClientDocumentation.java[rest-client-config-disable-preemptive-auth]
+--------------------------------------------------
+<1> Disable preemptive authentication
+
+=== Encrypted communication
+
+Encrypted communication can also be configured through the
+`HttpClientConfigCallback`. The
+https://hc.apache.org/httpcomponents-asyncclient-dev/httpasyncclient/apidocs/org/apache/http/impl/nio/client/HttpAsyncClientBuilder.html[`org.apache.http.impl.nio.client.HttpAsyncClientBuilder`]
+ received as an argument exposes multiple methods to configure encrypted
+ communication: `setSSLContext`, `setSSLSessionStrategy` and
+ `setConnectionManager`, in order of precedence from the least important.
+ The following is an example:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/RestClientDocumentation.java[rest-client-config-encrypted-communication]
+--------------------------------------------------
+
+If no explicit configuration is provided, the http://docs.oracle.com/javase/7/docs/technotes/guides/security/jsse/JSSERefGuide.html#CustomizingStores[system default configuration]
+will be used.
+
+=== Others
+
+For any other required configuration needed, the Apache HttpAsyncClient docs
+should be consulted: https://hc.apache.org/httpcomponents-asyncclient-4.1.x/ .
+
+NOTE: If your application runs under the security manager you might be subject
+to the JVM default policies of caching positive hostname resolutions
+indefinitely and negative hostname resolutions for ten seconds.  If the resolved
+addresses of the hosts to which you are connecting the client to vary with time
+then you might want to modify the default JVM behavior. These can be modified by
+adding
+http://docs.oracle.com/javase/8/docs/technotes/guides/net/properties.html[`networkaddress.cache.ttl=<timeout>`]
+and
+http://docs.oracle.com/javase/8/docs/technotes/guides/net/properties.html[`networkaddress.cache.negative.ttl=<timeout>`]
+to your
+http://docs.oracle.com/javase/8/docs/technotes/guides/security/PolicyFiles.html[Java
+security policy].
+
+=== Node selector
+
+The client sends each request to one of the configured nodes in round-robin
+fashion. Nodes can optionally be filtered through a node selector that needs
+to be provided when initializing the client. This is useful when sniffing is
+enabled, in case only dedicated master nodes should be hit by HTTP requests.
+For each request the client will run the eventually configured node selector
+to filter the node candidates, then select the next one in the list out of the
+remaining ones.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/RestClientDocumentation.java[rest-client-init-allocation-aware-selector]
+--------------------------------------------------
+<1> Set an allocation aware node selector that allows to pick a node in the
+local rack if any available, otherwise go to any other node in any rack. It
+acts as a preference rather than a strict requirement, given that it goes to
+another rack if none of the local nodes are available, rather than returning
+no nodes in such case which would make the client forcibly revive a local node
+whenever none of the nodes from the preferred rack is available.
+
+WARNING: Node selectors that do not consistently select the same set of nodes
+will make round-robin behaviour unpredictable and possibly unfair. The
+preference example  above is fine as it reasons about availability of nodes
+which already affects the predictability of round-robin. Node selection should
+not depend on other external factors or round-robin will not work properly.

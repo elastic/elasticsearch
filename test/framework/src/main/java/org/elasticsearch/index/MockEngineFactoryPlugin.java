@@ -20,23 +20,23 @@ package org.elasticsearch.index;
 
 import org.apache.lucene.index.AssertingDirectoryReader;
 import org.apache.lucene.index.FilterDirectoryReader;
-import org.elasticsearch.common.inject.AbstractModule;
-import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.SettingsModule;
+import org.elasticsearch.index.engine.EngineFactory;
+import org.elasticsearch.plugins.EnginePlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.engine.MockEngineFactory;
 import org.elasticsearch.test.engine.MockEngineSupport;
 
 import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
+import java.util.Optional;
 
-// this must exist in the same package as IndexModule to allow access to setting the impl
-public class MockEngineFactoryPlugin extends Plugin {
-
-    private Class<? extends FilterDirectoryReader> readerWrapper = AssertingDirectoryReader.class;
+/**
+ * A plugin to use {@link MockEngineFactory}.
+ *
+ * Subclasses may override the reader wrapper used.
+ */
+public class MockEngineFactoryPlugin extends Plugin implements EnginePlugin {
 
     @Override
     public List<Setting<?>> getSettings() {
@@ -44,23 +44,11 @@ public class MockEngineFactoryPlugin extends Plugin {
     }
 
     @Override
-    public void onIndexModule(IndexModule module) {
-        module.engineFactory.set(new MockEngineFactory(readerWrapper));
+    public Optional<EngineFactory> getEngineFactory(final IndexSettings indexSettings) {
+        return Optional.of(new MockEngineFactory(getReaderWrapperClass()));
     }
 
-    @Override
-    public Collection<Module> createGuiceModules() {
-        return Collections.singleton(new MockEngineReaderModule());
-    }
-
-    public class MockEngineReaderModule extends AbstractModule {
-
-        public void setReaderClass(Class<? extends FilterDirectoryReader> readerWrapper) {
-            MockEngineFactoryPlugin.this.readerWrapper = readerWrapper;
-        }
-
-        @Override
-        protected void configure() {
-        }
+    protected Class<? extends FilterDirectoryReader> getReaderWrapperClass() {
+        return AssertingDirectoryReader.class;
     }
 }

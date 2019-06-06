@@ -1,0 +1,172 @@
+---
+setup:
+  - skip:
+      features: headers
+
+  - do:
+      cluster.health:
+        wait_for_status: yellow
+
+  - do:
+      security.put_user:
+        username: "inline_template_user"
+        body:  >
+            {
+              "password": "x-pack-test-password",
+              "roles" : [ "role" ]
+            }
+
+  - do:
+      security.put_role:
+        name: "role"
+        body:  >
+            {
+              "indices": [
+                {
+                  "names": "foobar",
+                  "privileges": ["read"]
+                }
+              ]
+            }
+
+  - do:
+      index:
+        index: foobar
+        id: 1
+        body:
+          title: "contains some words"
+
+  - do:
+      index:
+        index: unauthorized_index
+        id: 2
+        body:
+          title: "contains some words too"
+
+  - do:
+      indices.refresh: {}
+
+---
+teardown:
+  - do:
+      security.delete_user:
+        username: "inline_template_user"
+        ignore: 404
+
+---
+"Test inline template against specific index":
+  - do:
+      headers:
+        Authorization: "Basic aW5saW5lX3RlbXBsYXRlX3VzZXI6eC1wYWNrLXRlc3QtcGFzc3dvcmQ"
+      search_template:
+        rest_total_hits_as_int: true
+        index: foobar
+        body:
+          source:
+            query:
+              match:
+                title: "{{query_string}}"
+          params:
+            query_string: "search for these words"
+
+  - match: { hits.total: 1}
+  - match: { hits.hits.0._id: "1"}
+
+---
+"Test inline template against all indices":
+  - do:
+      headers:
+        Authorization: "Basic aW5saW5lX3RlbXBsYXRlX3VzZXI6eC1wYWNrLXRlc3QtcGFzc3dvcmQ"
+      search_template:
+        rest_total_hits_as_int: true
+        body:
+          source:
+            query:
+              match:
+                title: "{{query_string}}"
+          params:
+            query_string: "search for these words"
+
+  - match: { hits.total: 1}
+  - match: { hits.hits.0._id: "1"}
+
+---
+"Test inline template against wildcard expression":
+  - do:
+      headers:
+        Authorization: "Basic aW5saW5lX3RlbXBsYXRlX3VzZXI6eC1wYWNrLXRlc3QtcGFzc3dvcmQ"
+      search_template:
+        rest_total_hits_as_int: true
+        index: foo*
+        body:
+          source:
+            query:
+              match:
+                title: "{{query_string}}"
+          params:
+            query_string: "search for these words"
+
+  - match: { hits.total: 1}
+  - match: { hits.hits.0._id: "1"}
+---
+"Test unauthorized inline template against wildcard expression":
+
+  - do:
+      headers:
+        Authorization: "Basic aW5saW5lX3RlbXBsYXRlX3VzZXI6eC1wYWNrLXRlc3QtcGFzc3dvcmQ"
+      search_template:
+        rest_total_hits_as_int: true
+        index: unauthorized*
+        body:
+          source:
+            query:
+              match:
+                title: "{{query_string}}"
+          params:
+            query_string: "search for these words"
+
+  - match: { hits.total: 0}
+
+---
+"Basic multi-search template":
+
+  - do:
+      headers:
+        Authorization: "Basic aW5saW5lX3RlbXBsYXRlX3VzZXI6eC1wYWNrLXRlc3QtcGFzc3dvcmQ"
+      msearch_template:
+        rest_total_hits_as_int: true
+        body:
+          - index: foobar
+          - source:
+              query:
+                match:
+                  title: "{{query_string}}"
+            params:
+              query_string: "search for these words"
+          - index: unauthorized*
+          - source:
+              query:
+                match:
+                  title: "{{query_string}}"
+            params:
+              query_string: "search for these words"
+
+  - match:  { responses.0.hits.total:     1  }
+  - match:  { responses.1.hits.total:     0  }
+
+---
+"Test render template":
+  - do:
+      headers:
+        Authorization: "Basic aW5saW5lX3RlbXBsYXRlX3VzZXI6eC1wYWNrLXRlc3QtcGFzc3dvcmQ"
+      render_search_template:
+        body:
+          source:
+            query:
+              match:
+                title: "{{query_string}}"
+          params:
+            query_string: "search for these words"
+
+  - match:  { template_output.query.match.title: "search for these words" }
+

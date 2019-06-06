@@ -19,13 +19,13 @@
 package org.elasticsearch.client.benchmark.ops.bulk;
 
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.client.benchmark.BenchmarkTask;
 import org.elasticsearch.client.benchmark.metrics.Sample;
 import org.elasticsearch.client.benchmark.metrics.SampleRecorder;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.PathUtils;
-import org.elasticsearch.common.logging.ESLoggerFactory;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -95,7 +95,7 @@ public class BulkBenchmarkTask implements BenchmarkTask {
         private final BlockingQueue<List<String>> bulkQueue;
         private final int bulkSize;
 
-        public LoadGenerator(Path bulkDataFile, BlockingQueue<List<String>> bulkQueue, int bulkSize) {
+        LoadGenerator(Path bulkDataFile, BlockingQueue<List<String>> bulkQueue, int bulkSize) {
             this.bulkDataFile = bulkDataFile;
             this.bulkQueue = bulkQueue;
             this.bulkSize = bulkSize;
@@ -135,7 +135,7 @@ public class BulkBenchmarkTask implements BenchmarkTask {
 
 
     private static final class BulkIndexer implements Runnable {
-        private static final Logger logger = ESLoggerFactory.getLogger(BulkIndexer.class.getName());
+        private static final Logger logger = LogManager.getLogger(BulkIndexer.class);
 
         private final BlockingQueue<List<String>> bulkData;
         private final int warmupIterations;
@@ -143,7 +143,7 @@ public class BulkBenchmarkTask implements BenchmarkTask {
         private final BulkRequestExecutor bulkRequestExecutor;
         private final SampleRecorder sampleRecorder;
 
-        public BulkIndexer(BlockingQueue<List<String>> bulkData, int warmupIterations, int measurementIterations,
+        BulkIndexer(BlockingQueue<List<String>> bulkData, int warmupIterations, int measurementIterations,
                            SampleRecorder sampleRecorder, BulkRequestExecutor bulkRequestExecutor) {
             this.bulkData = bulkData;
             this.warmupIterations = warmupIterations;

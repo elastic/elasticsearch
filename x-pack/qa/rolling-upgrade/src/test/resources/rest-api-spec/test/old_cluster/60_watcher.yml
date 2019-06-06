@@ -1,0 +1,103 @@
+---
+"CRUD watch APIs":
+  - skip:
+      reason: https://github.com/elastic/elasticsearch/issues/33185
+      version: "6.7.0 - "
+
+  - do:
+      watcher.put_watch:
+        id: "my_watch"
+        body:  >
+          {
+            "trigger": {
+              "schedule" : { "cron" : "0 0 0 1 * ? 2099" }
+            },
+            "input": {
+              "simple": {}
+            },
+            "actions": {
+              "logging": {
+                "logging": {
+                  "text": "my logging action"
+                }
+              }
+            }
+          }
+  - match: { _id: "my_watch" }
+
+  - do:
+      watcher.get_watch:
+        id: "my_watch"
+  - match: { found : true}
+  - match: { _id: "my_watch" }
+
+
+  # execute watch
+  - do:
+      watcher.execute_watch:
+        id: "my_watch"
+        body:  >
+          {
+            "record_execution" : true
+          }
+  - set: { _id : record_id }
+  - match: { watch_record.watch_id: "my_watch" }
+  - match: { watch_record.trigger_event.type: "manual" }
+  - match: { watch_record.state: "executed" }
+  - match: { watch_record.status.execution_state: "executed" }
+  - match: { watch_record.status.state.active: true }
+
+  # check watch history entry
+  - do:
+      indices.refresh:
+        index: .watcher-history-*
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: .watcher-history-*
+        body:
+          {
+            "query" : { "term" : { "_id" : "$record_id" } }
+          }
+  - match: { hits.total: 1 }
+
+  # deactivate watch, check with GET API as well
+  - do:
+      watcher.deactivate_watch:
+        watch_id: "my_watch"
+  - match: { status.state.active : false }
+  
+  - do:
+      watcher.get_watch:
+        id: "my_watch"
+  - match: { found : true}
+  - match: { _id: "my_watch" }
+  - match: { status.state.active: false }
+
+
+  # activate watch again, check with GET API as well
+  - do:
+      watcher.activate_watch:
+        watch_id: "my_watch"
+  - match: { status.state.active : true }
+  
+  - do:
+      watcher.get_watch:
+        id: "my_watch"
+  - match: { found : true}
+  - match: { _id: "my_watch" }
+  - match: { status.state.active: true }
+
+
+---
+"Test watcher stats output":
+
+  - skip:
+      reason: https://github.com/elastic/elasticsearch/issues/33185
+      version: "6.7.0 - "
+
+  - do:
+      watcher.stats: {}
+  - match: { "manually_stopped": false }
+  - match: { "stats.0.watcher_state": "started" }

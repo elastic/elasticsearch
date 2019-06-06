@@ -1,0 +1,90 @@
+---
+setup:
+
+  - do:
+      indices.create:
+          index:  test
+          body:
+            mappings:
+              properties:
+                my_date:
+                  type: date
+                  ignore_malformed: true
+                  store: true
+                my_ip:
+                  type: ip
+                  ignore_malformed: true
+
+  - do:
+      index:
+        index:  test
+        id:     1
+        body:   { "my_date": "2018-05-11", "my_ip": ":::1" }
+
+  - do:
+      index:
+        index:  test
+        id:     2
+        body:   { "my_date": "bar", "my_ip": "192.168.1.42" }
+
+  - do:
+      index:
+        index:  test
+        id:     3
+        body:   { "my_date": "bar", "my_ip": "quux" }
+
+  - do:
+      indices.refresh: {}
+
+---
+"Exists on _ignored":
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body: { query: { exists: { "field": "_ignored" } } }
+
+  - length:   { hits.hits: 3  }
+
+---
+"Search on _ignored with term":
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body: { query: { term: { "_ignored": "my_date" } } }
+
+  - length:   { hits.hits: 2  }
+
+---
+"Search on _ignored with terms":
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body: { query: { terms: { "_ignored": [ "my_date", "my_ip" ] } } }
+
+  - length:   { hits.hits: 3  }
+
+---
+"_ignored is returned by default":
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body: { query: { ids: { "values": [ "3" ] } } }
+
+  - length:   { hits.hits: 1  }
+  - length:   { hits.hits.0._ignored: 2}
+
+---
+"_ignored is still returned with explicit list of stored fields":
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        stored_fields: [ "my_date" ]
+        body: { query: { ids: { "values": [ "3" ] } } }
+
+  - length:   { hits.hits: 1  }
+  - is_true:  hits.hits.0._ignored

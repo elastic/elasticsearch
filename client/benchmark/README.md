@@ -1,11 +1,19 @@
 ### Steps to execute the benchmark
 
-1. Build `client-benchmark-noop-api-plugin` with `gradle :client:client-benchmark-noop-api-plugin:assemble`
-2. Install it on the target host with `bin/elasticsearch-plugin install file:///full/path/to/client-benchmark-noop-api-plugin.zip`
-3. Start Elasticsearch on the target host (ideally *not* on the same machine)
-4. Build an uberjar with `gradle :client:benchmark:shadowJar` and execute it.
+1. Build `client-benchmark-noop-api-plugin` with `./gradlew :client:client-benchmark-noop-api-plugin:assemble`
+2. Install it on the target host with `bin/elasticsearch-plugin install file:///full/path/to/client-benchmark-noop-api-plugin.zip`.
+3. Start Elasticsearch on the target host (ideally *not* on the machine
+that runs the benchmarks)
+4. Run the benchmark with
+```
+./gradlew -p client/benchmark run --args ' params go here'
+```
 
-Repeat all steps above for the other benchmark candidate.
+Everything in the `'` gets sent on the command line to JMH. The leading ` `
+inside the `'`s is important. Without it parameters are sometimes sent to
+gradle.
+
+See below for some example invocations.
 
 ### Example benchmark
 
@@ -13,41 +21,42 @@ In general, you should define a few GC-related settings `-Xms8192M -Xmx8192M -XX
 
 #### Bulk indexing
 
-Download benchmark data from http://benchmarks.elastic.co/corpora/geonames/documents.json.bz2 and decompress them.
+Download benchmark data from http://benchmarks.elasticsearch.org.s3.amazonaws.com/corpora/geonames and decompress them.
 
-Example command line parameters:
+Example invocation:
 
 ```
-rest bulk 192.168.2.2 ./documents.json geonames type 8647880 5000
+wget http://benchmarks.elasticsearch.org.s3.amazonaws.com/corpora/geonames/documents-2.json.bz2
+bzip2 -d documents-2.json.bz2
+mv documents-2.json client/benchmark/build
+gradlew -p client/benchmark run --args ' rest bulk localhost build/documents-2.json geonames type 8647880 5000'
 ```
 
-The parameters are in order:
+The parameters are all in the `'`s and are in order:
 
 * Client type: Use either "rest" or "transport"
 * Benchmark type: Use either "bulk" or "search"
 * Benchmark target host IP (the host where Elasticsearch is running)
 * full path to the file that should be bulk indexed
 * name of the index
-* name of the (sole) type in the index 
+* name of the (sole) type in the index
 * number of documents in the file
 * bulk size
 
 
-#### Bulk indexing
+#### Search
 
-Example command line parameters:
+Example invocation:
 
 ```
-rest search 192.168.2.2 geonames "{ \"query\": { \"match_phrase\": { \"name\": \"Sankt Georgen\" } } }\"" 500,1000,1100,1200
+./gradlew -p client/benchmark run --args ' rest search localhost geonames {"query":{"match_phrase":{"name":"Sankt Georgen"}}} 500,1000,1100,1200'
 ```
 
 The parameters are in order:
 
-* Client type: Use either "rest" or "transport"
+* Client type: Always "rest"
 * Benchmark type: Use either "bulk" or "search"
 * Benchmark target host IP (the host where Elasticsearch is running)
 * name of the index
-* a search request body (remember to escape double quotes). The `TransportClientBenchmark` uses `QueryBuilders.wrapperQuery()` internally which automatically adds a root key `query`, so it must not be present in the command line parameter.
+* a search request body (remember to escape double quotes).
 * A comma-separated list of target throughput rates
-
-

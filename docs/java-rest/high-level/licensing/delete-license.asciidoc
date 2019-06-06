@@ -1,0 +1,51 @@
+[[java-rest-high-delete-license]]
+=== Delete License
+
+[[java-rest-high-delete-license-execution]]
+==== Execution
+
+The license can be deleted using the `deleteLicense()` method:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/LicensingDocumentationIT.java[delete-license-execute]
+--------------------------------------------------
+
+[[java-rest-high-delete-license-response]]
+==== Response
+
+The returned `DeleteLicenseResponse` contains the `acknowledged` flag, which
+returns true if the request was processed by all nodes.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/LicensingDocumentationIT.java[delete-license-response]
+--------------------------------------------------
+<1> Check the acknowledge flag. It should be true if license deletion is acknowledged.
+
+[[java-rest-high-delete-license-async]]
+==== Asynchronous Execution
+
+This request can be executed asynchronously:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/LicensingDocumentationIT.java[delete-license-execute-async]
+--------------------------------------------------
+<1> The `DeleteLicenseRequest` to execute and the `ActionListener` to use when
+the execution completes
+
+The asynchronous method does not block and returns immediately. Once it is
+completed the `ActionListener` is called back using the `onResponse` method
+if the execution successfully completed or using the `onFailure` method if
+it failed.
+
+A typical listener for `DeleteLicenseResponse` looks like:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/LicensingDocumentationIT.java[delete-license-execute-listener]
+--------------------------------------------------
+<1> Called when the execution is successfully completed. The response is
+provided as an argument
+<2> Called in case of failure. The raised exception is provided as an argument

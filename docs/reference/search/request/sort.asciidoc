@@ -1,7 +1,7 @@
 [[search-request-sort]]
 === Sort
 
-Allows to add one or more sort on specific fields. Each sort can be
+Allows you to add one or more sorts on specific fields. Each sort can be
 reversed as well. The sort is defined on a per field level, with special
 field name for `_score` to sort by score, and `_doc` to sort by index order.
 
@@ -12,17 +12,15 @@ Assuming the following index mapping:
 PUT /my_index
 {
     "mappings": {
-        "my_type": {
-            "properties": {
-                "post_date": { "type": "date" },
-                "user": {
-                    "type": "keyword"
-                },
-                "name": {
-                    "type": "keyword"
-                },
-                "age": { "type": "integer" }
-            }
+        "properties": {
+            "post_date": { "type": "date" },
+            "user": {
+                "type": "keyword"
+            },
+            "name": {
+                "type": "keyword"
+            },
+            "age": { "type": "integer" }
         }
     }
 }
@@ -31,7 +29,7 @@ PUT /my_index
 
 [source,js]
 --------------------------------------------------
-GET /my_index/my_type/_search
+GET /my_index/_search
 {
     "sort" : [
         { "post_date" : {"order" : "asc"}},
@@ -84,6 +82,10 @@ to. The `mode` option can have the following values:
 `median`:: Use the median of all values as sort value.  Only applicable
            for number based array fields.
 
+The default sort mode in the ascending sort order is `min` -- the lowest value
+is picked. The default sort mode in the descending order is `max` --
+the highest value is picked.
+
 ===== Sort mode example usage
 
 In the example below the field price has multiple prices per document.
@@ -92,10 +94,10 @@ the average price per document.
 
 [source,js]
 --------------------------------------------------
-PUT /my_index/my_type/1?refresh
+PUT /my_index/_doc/1?refresh
 {
    "product": "chocolate",
-    "price": [20, 4]
+   "price": [20, 4]
 }
 
 POST /_search
@@ -110,29 +112,167 @@ POST /_search
 --------------------------------------------------
 // CONSOLE
 
+==== Sorting numeric fields
+
+For numeric fields it is also possible to cast the values from one type
+to another using the `numeric_type` option.
+This option accepts the following values: [`"double", "long", "date", "date_nanos"`]
+and can be useful for cross-index search if the sort field is mapped differently on some
+indices.
+
+Consider for instance these two indices:
+
+[source,js]
+--------------------------------------------------
+PUT /index_double
+{
+    "mappings": {
+        "properties": {
+            "field": { "type": "double" }
+        }
+    }
+}
+--------------------------------------------------
+// CONSOLE
+
+[source,js]
+--------------------------------------------------
+PUT /index_long
+{
+    "mappings": {
+        "properties": {
+            "field": { "type": "long" }
+        }
+    }
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+Since `field` is mapped as a `double` in the first index and as a `long`
+in the second index, it is not possible to use this field to sort requests
+that query both indices by default. However you can force the type to one
+or the other with the `numeric_type` option in order to force a specific
+type for all indices:
+
+[source,js]
+--------------------------------------------------
+POST /index_long,index_double/_search
+{
+   "sort" : [
+      {
+        "field" : {
+            "numeric_type" : "double"
+        }
+      }
+   ]
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+In the example above, values for the `index_long` index are casted to
+a double in order to be compatible with the values produced by the
+`index_double` index.
+It is also possible to transform a floating point field into a `long`
+but note that in this case floating points are replaced by the largest
+value that is less than or equal (greater than or equal if the value
+is negative) to the argument and is equal to a mathematical integer.
+
+This option can also be used to convert a `date` field that uses millisecond
+resolution to a `date_nanos` field with nanosecond resolution.
+Consider for instance these two indices:
+
+[source,js]
+--------------------------------------------------
+PUT /index_double
+{
+    "mappings": {
+        "properties": {
+            "field": { "type": "date" }
+        }
+    }
+}
+--------------------------------------------------
+// CONSOLE
+
+[source,js]
+--------------------------------------------------
+PUT /index_long
+{
+    "mappings": {
+        "properties": {
+            "field": { "type": "date_nanos" }
+        }
+    }
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+Values in these indices are stored with different resolutions so sorting on these
+fields will always sort the `date` before the `date_nanos` (ascending order).
+With the `numeric_type` type option it is possible to set a single resolution for
+the sort, setting to `date` will convert the `date_nanos` to the millisecond resolution
+while `date_nanos` will convert the values in the `date` field to the nanoseconds resolution:
+
+[source,js]
+--------------------------------------------------
+POST /index_long,index_double/_search
+{
+   "sort" : [
+      {
+        "field" : {
+            "numeric_type" : "date_nanos"
+        }
+      }
+   ]
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+[WARNING]
+To avoid overflow, the conversion to `date_nanos` cannot be applied on dates before
+1970 and after 2262 as nanoseconds are represented as longs.
+
 [[nested-sorting]]
 ==== Sorting within nested objects.
 
 Elasticsearch also supports sorting by
 fields that are inside one or more nested objects. The sorting by nested
-field support has the following parameters on top of the already
-existing sort options:
+field support has a `nested` sort option with the following properties:
 
-`nested_path`::
+`path`::
     Defines on which nested object to sort. The actual
     sort field must be a direct field inside this nested object.
     When sorting by nested field, this field is mandatory.
 
-`nested_filter`::
+`filter`::
     A filter that the inner objects inside the nested path
     should match with in order for its field values to be taken into account
     by sorting. Common case is to repeat the query / filter inside the
     nested filter or query. By default no `nested_filter` is active.
+`max_children`::
+    The maximum number of children to consider per root document
+    when picking the sort value. Defaults to unlimited.
+`nested`::
+    Same as top-level `nested` but applies to another nested path within the
+    current nested object.
 
-===== Nested sorting example
+[WARNING]
+.Nested sort options before Elasticsearch 6.1
+============================================
+
+The `nested_path` and `nested_filter` options have been deprecated in
+favor of the options documented above.
+
+============================================
+
+===== Nested sorting examples
 
 In the below example `offer` is a field of type `nested`.
-The `nested_path` needs to be specified; otherwise, elasticsearch doesn't know on what nested level sort values need to be captured.
+The nested `path` needs to be specified; otherwise, Elasticsearch doesn't know on what nested level sort values need to be captured.
 
 [source,js]
 --------------------------------------------------
@@ -146,13 +286,62 @@ POST /_search
           "offer.price" : {
              "mode" :  "avg",
              "order" : "asc",
-             "nested_path" : "offer",
-             "nested_filter" : {
-                "term" : { "offer.color" : "blue" }
+             "nested": {
+                "path": "offer",
+                "filter": {
+                   "term" : { "offer.color" : "blue" }
+                }
              }
           }
        }
     ]
+}
+--------------------------------------------------
+// CONSOLE
+
+In the below example `parent` and `child` fields are of type `nested`.
+The `nested_path` needs to be specified at each level; otherwise, Elasticsearch doesn't know on what nested level sort values need to be captured.
+
+[source,js]
+--------------------------------------------------
+POST /_search
+{
+   "query": {
+      "nested": {
+         "path": "parent",
+         "query": {
+            "bool": {
+                "must": {"range": {"parent.age": {"gte": 21}}},
+                "filter": {
+                    "nested": {
+                        "path": "parent.child",
+                        "query": {"match": {"parent.child.name": "matt"}}
+                    }
+                }
+            }
+         }
+      }
+   },
+   "sort" : [
+      {
+         "parent.child.age" : {
+            "mode" :  "min",
+            "order" : "asc",
+            "nested": {
+               "path": "parent",
+               "filter": {
+                  "range": {"parent.age": {"gte": 21}}
+               },
+               "nested": {
+                  "path": "parent.child",
+                  "filter": {
+                     "match": {"parent.child.name": "matt"}
+                  }
+               }
+            }
+         }
+      }
+   ]
 }
 --------------------------------------------------
 // CONSOLE
@@ -163,9 +352,12 @@ scripts and sorting by geo distance.
 ==== Missing Values
 
 The `missing` parameter specifies how docs which are missing
-the field should be treated: The `missing` value can be
+the sort field should be treated: The `missing` value can be
 set to `_last`, `_first`, or a custom value (that
-will be used for missing docs as the sort value). For example:
+will be used for missing docs as the sort value).
+The default is `_last`.
+
+For example:
 
 [source,js]
 --------------------------------------------------
@@ -187,7 +379,7 @@ the `nested_filter` then a missing value is used.
 ==== Ignoring Unmapped Fields
 
 By default, the search request will fail if there is no mapping
-associated with a field. The `unmapped_type` option allows to ignore
+associated with a field. The `unmapped_type` option allows you to ignore
 fields that have no mapping and not sort by them. The value of this
 parameter is used to determine what sort values to emit. Here is an
 example of how it can be used:
@@ -213,7 +405,7 @@ then Elasticsearch will handle it as if there was a mapping of type
 [[geo-sorting]]
 ==== Geo Distance Sorting
 
-Allow to sort by `_geo_distance`. Here is an example:
+Allow to sort by `_geo_distance`. Here is an example, assuming `pin.location` is a field of type `geo_point`:
 
 [source,js]
 --------------------------------------------------
@@ -225,8 +417,9 @@ GET /_search
                 "pin.location" : [-70, 40],
                 "order" : "asc",
                 "unit" : "km",
-		"mode" : "min",
-		"distance_type" : "sloppy_arc"
+                "mode" : "min",
+                "distance_type" : "arc",
+                "ignore_unmapped": true
             }
         }
     ],
@@ -241,9 +434,9 @@ GET /_search
 
 `distance_type`::
 
-    How to compute the distance. Can either be `sloppy_arc` (default), `arc` (slightly more precise but significantly slower) or `plane` (faster, but inaccurate on long distances and close to the poles).
+    How to compute the distance. Can either be `arc` (default), or `plane` (faster, but inaccurate on long distances and close to the poles).
 
-`sort_mode`::
+`mode`::
 
     What to do in case a field has several geo points. By default, the shortest
     distance is taken into account when sorting in ascending order and the
@@ -253,6 +446,12 @@ GET /_search
 `unit`::
 
     The unit to use when computing sort values. The default is `m` (meters).
+
+
+`ignore_unmapped`::
+
+    Indicates if the unmapped field should be treated as a missing value. Setting it to `true` is equivalent to specifying
+    an `unmapped_type` in the field sort. The default is `false` (unmapped field cause the search to fail).
 
 NOTE: geo distance sorting does not support configurable missing values: the
 distance will always be considered equal to +Infinity+ when a document does not
@@ -403,7 +602,7 @@ GET /_search
             "type" : "number",
             "script" : {
                 "lang": "painless",
-                "inline": "doc['field_name'].value * params.factor",
+                "source": "doc['field_name'].value * params.factor",
                 "params" : {
                     "factor" : 1.1
                 }

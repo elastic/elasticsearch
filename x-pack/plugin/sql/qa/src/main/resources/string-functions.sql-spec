@@ -1,0 +1,261 @@
+stringAscii
+SELECT ASCII(first_name) s FROM "test_emp" WHERE emp_no < 10010 ORDER BY emp_no;
+
+stringChar
+SELECT CHAR(emp_no % 10000) m, first_name FROM "test_emp" WHERE emp_no < 10010 ORDER BY emp_no;
+
+stringAsciiFilter
+SELECT emp_no, ASCII(first_name) a FROM "test_emp" WHERE ASCII(first_name) < 10010 ORDER BY emp_no;
+
+stringAsciiEqualsConstant
+SELECT emp_no, ASCII(first_name) a, first_name name FROM "test_emp" WHERE ASCII(first_name) = 65 ORDER BY emp_no;
+
+stringAsciiInline
+SELECT ASCII('E') e;
+
+//https://github.com/elastic/elasticsearch/issues/31863
+//stringSelectConstantAsciiEqualsConstant
+//SELECT ASCII('A') = 65 a FROM "test_emp" WHERE ASCII('A') = 65 ORDER BY emp_no;
+
+stringCharFilter
+SELECT emp_no, CHAR(emp_no % 10000) m FROM "test_emp" WHERE CHAR(emp_no % 10000) = 'A';
+
+stringSelectCharInline1
+SELECT CHAR(250) c;
+
+stringSelectCharInline2
+SELECT CHAR(2) c;
+
+charLengthInline1
+SELECT CAST(CHAR_LENGTH('Elasticsearch') AS INT) charlength;
+
+charLengthInline2
+SELECT CAST(CHAR_LENGTH('  Elasticsearch   ') AS INT) charlength;
+
+charLengthInline3
+SELECT CAST(CHAR_LENGTH('') AS INT) charlength;
+
+concatInline1
+SELECT CONCAT('Elastic','search') concat;
+
+concatInline2
+SELECT CONCAT(CONCAT('Lucene And ', 'Elastic'),'search') concat;
+
+concatInline3
+SELECT CONCAT(CONCAT('Lucene And ', 'Elastic'),CONCAT('search','')) concat;
+
+lcaseFilter
+SELECT LCASE(first_name) lc, CHAR(ASCII(LCASE(first_name))) chr FROM "test_emp" WHERE CHAR(ASCII(LCASE(first_name))) = 'a';
+
+lcaseInline1
+SELECT LCASE('') L;
+
+lcaseInline2
+SELECT LCASE('ElAsTiC fantastic') lower;
+
+leftInline1
+SELECT LEFT('Elasticsearch', 7) leftchars;
+
+leftInline2
+SELECT LEFT('Elasticsearch', 1) leftchars;
+
+leftInline3
+SELECT LEFT('Elasticsearch', 25) leftchars;
+
+leftInline4
+SELECT LEFT('Elasticsearch', LENGTH('abcdefghijklmnop')) leftchars;
+
+ltrimFilter
+SELECT LTRIM(first_name) lt FROM "test_emp" WHERE LTRIM(first_name) = 'Bob';
+
+ltrimInline1
+SELECT LTRIM('   Elastic   ') trimmed;
+
+ltrimInline2
+SELECT LTRIM('             ') trimmed;
+
+locateInline1
+SELECT LOCATE('a', 'Elasticsearch', 8) location;
+
+locateInline2
+SELECT LOCATE('a', 'Elasticsearch') location;
+
+locateInline3
+SELECT LOCATE('x', 'Elasticsearch') location;
+
+insertInline1
+SELECT INSERT('Insert [here] your comment!', 8, 6, '(random thoughts about Elasticsearch)') ins;
+
+insertInline2
+SELECT INSERT('Insert [here] your comment!', 8, 20, '(random thoughts about Elasticsearch)') ins;
+
+insertInline3
+SELECT INSERT('Insert [here] your comment!', 8, 19, '(random thoughts about Elasticsearch)') ins;
+
+positionInline1
+SELECT POSITION('a','Elasticsearch') pos;
+
+positionInline2
+SELECT POSITION('x','Elasticsearch') pos;
+
+repeatInline1
+SELECT REPEAT('Elastic',2) rep;
+
+repeatInline2
+SELECT REPEAT('Elastic',1) rep;
+
+replaceInline1
+SELECT REPLACE('Elasticsearch','sea','A') repl;
+
+replaceInline2
+SELECT REPLACE('Elasticsearch','x','A') repl;
+
+rightInline1
+SELECT RIGHT('Elasticsearch', LENGTH('Search')) rightchars;
+
+rightInline2
+SELECT RIGHT(CONCAT('Elastic','search'), LENGTH('Search')) rightchars;
+
+rightInline3
+SELECT RIGHT('Elasticsearch', 0) rightchars;
+
+// Unsupported yet
+// Functions combined with 'LIKE' should perform the match inside a Painless script, whereas at the moment it's handled as a regular `match` query in ES.
+//ltrimFilterWithLike
+//SELECT LTRIM("first_name") lt FROM "test_emp" WHERE LTRIM("first_name") LIKE '%a%';
+
+rtrimFilter
+SELECT RTRIM(first_name) rt FROM "test_emp" WHERE RTRIM(first_name) = 'Johnny';
+
+rtrimInline1
+SELECT RTRIM('   Elastic   ') trimmed;
+
+rtrimInline2
+SELECT RTRIM('             ') trimmed;
+
+spaceFilter
+SELECT SPACE(languages) spaces, languages FROM "test_emp" WHERE SPACE(languages) = '   ';
+
+spaceFilterWithLengthFunctions
+SELECT SPACE(languages) spaces, languages, first_name FROM "test_emp" WHERE CHAR_LENGTH(SPACE(languages)) = 3 ORDER BY first_name NULLS LAST;
+
+spaceInline1
+SELECT SPACE(5) space;
+
+spaceInline1
+SELECT SPACE(0) space;
+
+substringInline1
+SELECT SUBSTRING('Elasticsearch', 1, 7) sub;
+
+substringInline2
+SELECT SUBSTRING('Elasticsearch', 1, 15) sub;
+
+substringInline3
+SELECT SUBSTRING('Elasticsearch', 10, 10) sub;
+
+ucaseFilter
+SELECT UCASE(gender) uppercased, COUNT(*) count FROM "test_emp" WHERE UCASE(gender) = 'F' GROUP BY UCASE(gender);
+
+ucaseInline2
+SELECT UCASE('') upper;
+
+//
+// Group and order by
+//
+asciiGroupByAndOrderBy
+SELECT ASCII(first_name) A, COUNT(*) count FROM "test_emp" WHERE ASCII(first_name) < 75 GROUP BY ASCII(first_name) ORDER BY ASCII(first_name) DESC;
+
+charGroupByAndOrderBy
+SELECT CHAR(emp_no % 10000) C FROM "test_emp" WHERE emp_no > 10010 GROUP BY CHAR(emp_no % 10000) ORDER BY CHAR(emp_no % 10000) DESC LIMIT 20;
+
+//this would fail because H2 returns the result of char_length as Long, while we use a DataType of type String (size Integer.MAX_VALUE) and we return an Integer
+//CAST is used as an "workaround"
+charLengthGroupByAndHavingAndOrderBy
+SELECT CAST(CHAR_LENGTH("first_name") AS INT) cl, COUNT(*) count FROM "test_emp" GROUP BY "first_name" HAVING COUNT(*)>1 ORDER BY CHAR_LENGTH("first_name") ;
+
+//this one, without ORDER BY, would return different results than H2. In ES, the default ordering of the composite aggregation
+//values is "asc" while in H2 there is no default ordering
+lcaseGroupByAndOrderBy
+SELECT LCASE(first_name) lc, CHAR(ASCII(LCASE(first_name))) chr FROM "test_emp" GROUP BY LCASE(first_name) ORDER BY LCASE(first_name);
+
+ucaseGroupByAndOrderBy
+SELECT UCASE(gender) uc, COUNT(*) count FROM "test_emp" GROUP BY UCASE(gender) ORDER BY UCASE(gender) DESC;
+
+rtrimGroupByAndOrderBy
+SELECT RTRIM(first_name) rt FROM "test_emp" GROUP BY RTRIM(first_name) HAVING COUNT(*)>1;
+
+ltrimGroupByAndOrderBy
+SELECT LTRIM(first_name) lt FROM "test_emp" GROUP BY LTRIM(first_name) HAVING COUNT(*)>1;
+
+spaceGroupByWithCharLength
+SELECT CAST(CHAR_LENGTH(SPACE(languages)) AS INT) cls FROM "test_emp" GROUP BY CHAR_LENGTH(SPACE(languages)) ORDER BY CHAR_LENGTH(SPACE(languages)) ASC;
+
+spaceGroupByAndOrderBy
+SELECT SPACE("languages") s, COUNT(*) count FROM "test_emp" GROUP BY SPACE("languages") ORDER BY SPACE(languages);
+
+spaceGroupByAndOrderByWithCharLength
+SELECT SPACE("languages") s, COUNT(*) count, CAST(CHAR_LENGTH(SPACE("languages")) AS INT) cls FROM "test_emp" WHERE "languages" IS NOT NULL GROUP BY SPACE("languages") ORDER BY SPACE("languages");
+
+selectConcatWithOrderBy
+SELECT first_name f, last_name l, CONCAT(first_name,last_name) cct FROM test_emp ORDER BY CONCAT(first_name,last_name) LIMIT 10;
+
+selectNestedConcatWithOrderBy
+SELECT first_name f, last_name l, CONCAT(first_name,CONCAT(' ',last_name)) cct FROM test_emp ORDER BY CONCAT(first_name,CONCAT(' ',last_name)) LIMIT 10;
+
+selectConcatWithGroupBy
+SELECT CONCAT(first_name,last_name) cct FROM test_emp GROUP BY CONCAT(first_name,last_name) ORDER BY CONCAT(first_name,last_name) LIMIT 1;
+
+selectAsciiOfConcatWithGroupByOrderByCount
+SELECT ASCII(CONCAT("first_name","last_name")) ascii, COUNT(*) count FROM "test_emp" GROUP BY ASCII(CONCAT("first_name","last_name")) ORDER BY ASCII(CONCAT("first_name","last_name")) DESC LIMIT 10;
+
+selectRepeatTwice
+SELECT "first_name" orig, REPEAT("first_name",2) reps FROM "test_emp" WHERE ASCII("first_name")=65 ORDER BY REPEAT("first_name",2) ASC LIMIT 10;
+
+selectInsertWithLcase
+SELECT "first_name" orig, INSERT("first_name",2,1000,LCASE("first_name")) modified FROM "test_emp" WHERE ASCII("first_name")=65 ORDER BY "first_name" ASC LIMIT 10;
+
+selectInsertWithUcaseWithGroupByAndOrderBy
+SELECT INSERT(UCASE("first_name"),2,123000,INSERT(UCASE("last_name"),2,500,' ')) modified, COUNT(*) count FROM "test_emp" WHERE ASCII("first_name")=65 GROUP BY INSERT(UCASE("first_name"),2,123000,INSERT(UCASE("last_name"),2,500,' ')) ORDER BY INSERT(UCASE("first_name"),2,123000,INSERT(UCASE("last_name"),2,500,' ')) ASC LIMIT 10;
+
+selectSubstringWithGroupBy
+SELECT SUBSTRING("first_name",1,2) modified, COUNT(*) count FROM "test_emp" WHERE ASCII("first_name")=65 GROUP BY SUBSTRING("first_name",1,2) ORDER BY SUBSTRING("first_name",1,2) ASC LIMIT 10;
+
+selectSubstringWithWhereCountAndGroupBy
+SELECT SUBSTRING("first_name",1,2) modified, COUNT(*) count FROM "test_emp" WHERE SUBSTRING("first_name",1,2)='Al' GROUP BY SUBSTRING("first_name",1,2) LIMIT 10;
+
+selectSubstringWithWhereAndGroupBy
+SELECT SUBSTRING("first_name",5,20) modified, COUNT(*) count FROM "test_emp" GROUP BY SUBSTRING("first_name",5,20) ORDER BY SUBSTRING("first_name",5,20) LIMIT 10;
+
+selectReplace
+SELECT REPLACE("first_name",'A','X') modified, "first_name" origFN FROM "test_emp" ORDER BY "first_name" NULLS LAST LIMIT 10;
+
+selectReplaceWithGroupBy
+SELECT REPLACE("first_name",'jan','_JAN_') modified, COUNT(*) count FROM "test_emp" GROUP BY REPLACE("first_name",'jan','_JAN_') ORDER BY REPLACE("first_name",'jan','_JAN_') LIMIT 10;
+
+selectReplaceWithCastAndCondition
+SELECT REPLACE(CAST("languages" AS VARCHAR),'1','100') foo, "languages" FROM "test_emp" WHERE "languages"=1 OR "languages"=2 LIMIT 5;
+
+selectPositionWithConditionAndLcase
+SELECT POSITION('x',LCASE("first_name")) pos, "first_name" FROM "test_emp" WHERE POSITION('x',LCASE("first_name")) > 0 ORDER BY "first_name" NULLS LAST;
+
+selectPositionWithLcaseAndConditionWithGroupByAndOrderBy
+SELECT POSITION('m',LCASE("first_name")) posOfM, COUNT(*) pos FROM "test_emp" WHERE POSITION('m',LCASE("first_name")) > 0 GROUP BY POSITION('m',LCASE("first_name")) ORDER BY POSITION('m',LCASE("first_name")) NULLS LAST;
+
+selectInsertWithPositionAndCondition
+SELECT INSERT("first_name",POSITION('m',"first_name"),1,'M') modified, POSITION('m',"first_name") pos FROM "test_emp" WHERE POSITION('m',"first_name") > 1;
+
+selectLocateAndInsertWithLocateWithConditionAndThreeParameters
+SELECT LOCATE('a',"first_name",7) pos, INSERT("first_name",LOCATE('a',"first_name",7),1,'AAA') inserted FROM "test_emp" WHERE LOCATE('a',"first_name",7) > 0;
+
+selectLocateAndInsertWithLocateWithConditionAndTwoParameters
+SELECT LOCATE('a',"first_name") pos, INSERT("first_name",LOCATE('a',"first_name"),1,'AAA') inserted FROM "test_emp" WHERE LOCATE('a',"first_name") > 0 ORDER BY "first_name" LIMIT 10;
+
+selectLeft
+SELECT LEFT("first_name",2) f FROM "test_emp" ORDER BY "first_name" NULLS LAST LIMIT 10;
+
+selectRight
+SELECT RIGHT("first_name",2) f FROM "test_emp" ORDER BY "first_name" NULLS LAST LIMIT 10;
+
+selectRightWithGroupByAndOrderBy
+SELECT RIGHT("first_name",2) f, COUNT(*) count FROM "test_emp" GROUP BY RIGHT("first_name",2) ORDER BY RIGHT("first_name",2) LIMIT 10;

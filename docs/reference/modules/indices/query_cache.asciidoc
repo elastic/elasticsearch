@@ -5,6 +5,7 @@ The query cache is responsible for caching the results of queries.
 There is one queries cache per node that is shared by all shards.
 The cache implements an LRU eviction policy: when a cache becomes full, the
 least recently used data is evicted to make way for new data.
+It is not possible to look at the contents being cached.
 
 The query cache only caches queries which are being used in a filter context.
 

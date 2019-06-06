@@ -30,7 +30,6 @@ import java.nio.file.Path;
 import java.nio.file.attribute.PosixFileAttributeView;
 import java.nio.file.attribute.PosixFilePermission;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashSet;
 
 public class NodeEnvironmentEvilTests extends ESTestCase {
@@ -51,11 +50,12 @@ public class NodeEnvironmentEvilTests extends ESTestCase {
                 PosixFilePermission.OWNER_READ)));
             Settings build = Settings.builder()
                     .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toAbsolutePath().toString())
-                    .putArray(Environment.PATH_DATA_SETTING.getKey(), tempPaths).build();
-            IOException ioException = expectThrows(IOException.class, () -> {
-                new NodeEnvironment(build, new Environment(build));
+                    .putList(Environment.PATH_DATA_SETTING.getKey(), tempPaths).build();
+            IllegalStateException exception = expectThrows(IllegalStateException.class, () -> {
+                new NodeEnvironment(build, TestEnvironment.newEnvironment(build));
             });
-            assertTrue(ioException.getMessage(), ioException.getMessage().startsWith(path.toString()));
+            assertTrue(exception.getCause().getCause().getMessage(),
+                exception.getCause().getCause().getMessage().startsWith(path.toString()));
         }
     }
 
@@ -63,7 +63,7 @@ public class NodeEnvironmentEvilTests extends ESTestCase {
         assumeTrue("posix filesystem", isPosix);
         final String[] tempPaths = tmpPaths();
         Path path = PathUtils.get(randomFrom(tempPaths));
-        Path fooIndex = path.resolve("nodes").resolve("0").resolve(NodeEnvironment.INDICES_FOLDER)
+        Path fooIndex = path.resolve(NodeEnvironment.INDICES_FOLDER)
             .resolve("foo");
         Files.createDirectories(fooIndex);
         try (PosixPermissionsResetter attr = new PosixPermissionsResetter(fooIndex)) {
@@ -71,11 +71,11 @@ public class NodeEnvironmentEvilTests extends ESTestCase {
                 PosixFilePermission.OWNER_READ)));
             Settings build = Settings.builder()
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toAbsolutePath().toString())
-                .putArray(Environment.PATH_DATA_SETTING.getKey(), tempPaths).build();
+                .putList(Environment.PATH_DATA_SETTING.getKey(), tempPaths).build();
             IOException ioException = expectThrows(IOException.class, () -> {
-                new NodeEnvironment(build, new Environment(build));
+                new NodeEnvironment(build, TestEnvironment.newEnvironment(build));
             });
-            assertTrue(ioException.getMessage(), ioException.getMessage().startsWith("failed to write in data directory"));
+            assertTrue(ioException.getMessage(), ioException.getMessage().startsWith("failed to test writes in data directory"));
         }
     }
 
@@ -83,7 +83,7 @@ public class NodeEnvironmentEvilTests extends ESTestCase {
         assumeTrue("posix filesystem", isPosix);
         final String[] tempPaths = tmpPaths();
         Path path = PathUtils.get(randomFrom(tempPaths));
-        Path fooIndex = path.resolve("nodes").resolve("0").resolve(NodeEnvironment.INDICES_FOLDER)
+        Path fooIndex = path.resolve(NodeEnvironment.INDICES_FOLDER)
             .resolve("foo");
         Path fooShard = fooIndex.resolve("0");
         Path fooShardIndex = fooShard.resolve("index");
@@ -96,11 +96,11 @@ public class NodeEnvironmentEvilTests extends ESTestCase {
                 PosixFilePermission.OWNER_READ)));
             Settings build = Settings.builder()
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toAbsolutePath().toString())
-                .putArray(Environment.PATH_DATA_SETTING.getKey(), tempPaths).build();
+                .putList(Environment.PATH_DATA_SETTING.getKey(), tempPaths).build();
             IOException ioException = expectThrows(IOException.class, () -> {
-                new NodeEnvironment(build, new Environment(build));
+                new NodeEnvironment(build, TestEnvironment.newEnvironment(build));
             });
-            assertTrue(ioException.getMessage(), ioException.getMessage().startsWith("failed to write in data directory"));
+            assertTrue(ioException.getMessage(), ioException.getMessage().startsWith("failed to test writes in data directory"));
         }
     }
 }

@@ -1,0 +1,40 @@
+--
+:api: ilm-get-lifecycle-policy
+:request: GetLifecyclePolicyRequest
+:response: GetLifecyclePolicyResponse
+--
+
+[id="{upid}-{api}"]
+=== Get Lifecycle Policy API
+
+
+[id="{upid}-{api}-request"]
+==== Request
+
+The Get Lifecycle Policy API allows you to retrieve the definition of an Index
+Lifecycle Management Policy from the cluster.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request]
+--------------------------------------------------
+<1> Gets all policies.
+<2> Gets `my_policy` and `other_policy`
+
+[id="{upid}-{api}-response"]
+==== Response
+
+The returned +{response}+ contains a map of `LifecyclePolicyMetadata`,
+accessible by the name of the policy, which contains data about each policy,
+as well as the policy definition.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-response]
+--------------------------------------------------
+<1> The retrieved policies are retrieved by name.
+<2> The policy definition itself.
+
+include::../execution.asciidoc[]
+
+

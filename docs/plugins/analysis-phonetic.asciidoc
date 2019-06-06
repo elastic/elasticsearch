@@ -5,35 +5,9 @@ The Phonetic Analysis plugin provides token filters which convert tokens to
 their phonetic representation using Soundex, Metaphone, and a variety of other
 algorithms.
 
-[[analysis-phonetic-install]]
-[float]
-==== Installation
+:plugin_name: analysis-phonetic
+include::install_remove.asciidoc[]
 
-This plugin can be installed using the plugin manager:
-
-[source,sh]
-----------------------------------------------------------------
-sudo bin/elasticsearch-plugin install analysis-phonetic
-----------------------------------------------------------------
-
-The plugin must be installed on every node in the cluster, and each node must
-be restarted after installation.
-
-This plugin can be downloaded for <<plugin-management-custom-url,offline install>> from
-{plugin_url}/analysis-phonetic/analysis-phonetic-{version}.zip.
-
-[[analysis-phonetic-remove]]
-[float]
-==== Removal
-
-The plugin can be removed with the following command:
-
-[source,sh]
-----------------------------------------------------------------
-sudo bin/elasticsearch-plugin remove analysis-phonetic
-----------------------------------------------------------------
-
-The node must be stopped before removing the plugin.
 
 [[analysis-phonetic-token-filter]]
 ==== `phonetic` token filter
@@ -43,15 +17,15 @@ The `phonetic` token filter takes the following settings:
 `encoder`::
 
     Which phonetic encoder to use.  Accepts `metaphone` (default),
-    `doublemetaphone`, `soundex`, `refinedsoundex`, `caverphone1`,
+    `double_metaphone`, `soundex`, `refined_soundex`, `caverphone1`,
     `caverphone2`, `cologne`, `nysiis`, `koelnerphonetik`, `haasephonetik`,
-    `beidermorse`, `daitch_mokotoff`.
+    `beider_morse`, `daitch_mokotoff`.
 
 `replace`::
 
     Whether or not the original token should be replaced by the phonetic
     token. Accepts `true` (default) and `false`.  Not supported by
-    `beidermorse` encoding.
+    `beider_morse` encoding.
 
 [source,js]
 --------------------------------------------------
@@ -64,7 +38,6 @@ PUT phonetic_sample
           "my_analyzer": {
             "tokenizer": "standard",
             "filter": [
-              "standard",
               "lowercase",
               "my_metaphone"
             ]
@@ -92,6 +65,14 @@ GET phonetic_sample/_analyze
 
 <1> Returns: `J`, `joe`, `BLKS`, `bloggs`
 
+It is important to note that `"replace": false` can lead to unexpected behavior since
+the original and the phonetically analyzed version are both kept at the same token position.
+Some queries handle these stacked tokens in special ways. For example, the fuzzy `match`
+query does not apply {ref}/common-options.html#fuzziness[fuzziness] to stacked synonym tokens.
+This can lead to issues that are difficult to diagnose and reason about. For this reason, it
+is often beneficial to use separate fields for analysis with and without phonetic filtering.
+That way searches can be run against both fields with differing boosts and trade-offs (e.g.
+only run a fuzzy `match` query on the original text field, but not on the phonetic version).
 
 [float]
 ===== Double metaphone settings
@@ -120,6 +101,6 @@ supported:
 `languageset`::
 
     An array of languages to check. If not specified, then the language will
-    be guessed. Accepts: `any`, `comomon`, `cyrillic`, `english`, `french`,
+    be guessed. Accepts: `any`, `common`, `cyrillic`, `english`, `french`,
     `german`, `hebrew`, `hungarian`, `polish`, `romanian`, `russian`,
     `spanish`.

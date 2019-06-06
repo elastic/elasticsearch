@@ -1,0 +1,45 @@
+--
+:api: search
+:request: SearchRequest
+:response: SearchResponse
+--
+
+[id="{upid}-{api}"]
+=== Rollup Search API
+
+The Rollup Search endpoint allows searching rolled-up data using the standard
+query DSL. The Rollup Search endpoint is needed because, internally,
+rolled-up documents utilize a different document structure than the original
+data. The Rollup Search endpoint rewrites standard query DSL into a format that
+matches the rollup documents, then takes the response and rewrites it back to
+what a client would expect given the original query.
+
+[id="{upid}-{api}-request"]
+==== Request
+
+Rollup Search uses the same +{request}+ that is used by the <<{mainid}-search>>
+but it is mostly for aggregations you should set the `size` to 0 and add
+aggregations like this:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request]
+--------------------------------------------------
+
+NOTE:: Rollup Search is limited in many ways because only some query elements
+can be translated into queries against the rollup indices. See the main
+{ref}/rollup-search.html[Rollup Search] documentation for more.
+
+include::../execution.asciidoc[]
+
+[id="{upid}-{api}-response"]
+==== Response
+
+Rollup Search returns the same +{response}+ that is used by the
+<<{mainid}-search>> and everything can be accessed in exactly the same way.
+This will access the aggregation built by the example request above:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-response]
+--------------------------------------------------

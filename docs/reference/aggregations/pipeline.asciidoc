@@ -2,8 +2,6 @@
 
 == Pipeline Aggregations
 
-experimental[]
-
 Pipeline aggregations work on the outputs produced from other aggregations rather than from document sets, adding
 information to the output tree. There are many different types of pipeline aggregation, each computing different information from
 other aggregations, but these types can be broken down into two families:
@@ -48,7 +46,7 @@ For example, the path `"my_bucket>my_stats.avg"` will path to the `avg` value in
 contained in the `"my_bucket"` bucket aggregation.
 
 Paths are relative from the position of the pipeline aggregation; they are not absolute paths, and the path cannot go back "up" the
-aggregation tree. For example, this moving average is embedded inside a date_histogram and refers to a "sibling"
+aggregation tree. For example, this derivative is embedded inside a date_histogram and refers to a "sibling"
 metric `"the_sum"`:
 
 [source,js]
@@ -59,14 +57,14 @@ POST /_search
         "my_date_histo":{
             "date_histogram":{
                 "field":"timestamp",
-                "interval":"day"
+                "calendar_interval":"day"
             },
             "aggs":{
                 "the_sum":{
                     "sum":{ "field": "lemmings" } <1>
                 },
-                "the_movavg":{
-                    "moving_avg":{ "buckets_path": "the_sum" } <2>
+                "the_deriv":{
+                    "derivative":{ "buckets_path": "the_sum" } <2>
                 }
             }
         }
@@ -89,7 +87,7 @@ POST /_search
         "sales_per_month" : {
             "date_histogram" : {
                 "field" : "date",
-                "interval" : "month"
+                "calendar_interval" : "month"
             },
             "aggs": {
                 "sales": {
@@ -116,7 +114,8 @@ POST /_search
 === Special Paths
 
 Instead of pathing to a metric, `buckets_path` can use a special `"_count"` path.  This instructs
-the pipeline aggregation to use the document count as it's input.  For example, a moving average can be calculated on the document count of each bucket, instead of a specific metric:
+the pipeline aggregation to use the document count as its input.  For example, a derivative can be calculated
+on the document count of each bucket, instead of a specific metric:
 
 [source,js]
 --------------------------------------------------
@@ -126,11 +125,11 @@ POST /_search
         "my_date_histo": {
             "date_histogram": {
                 "field":"timestamp",
-                "interval":"day"
+                "calendar_interval":"day"
             },
             "aggs": {
-                "the_movavg": {
-                    "moving_avg": { "buckets_path": "_count" } <1>
+                "the_deriv": {
+                    "derivative": { "buckets_path": "_count" } <1>
                 }
             }
         }
@@ -138,7 +137,7 @@ POST /_search
 }
 --------------------------------------------------
 // CONSOLE
-<1> By using `_count` instead of a metric name, we can calculate the moving average of document counts in the histogram
+<1> By using `_count` instead of a metric name, we can calculate the derivative of document counts in the histogram
 
 The `buckets_path` can also use `"_bucket_count"` and path to a multi-bucket aggregation to use the number of buckets
 returned by that aggregation in the pipeline aggregation instead of a metric. for example a `bucket_selector` can be
@@ -153,7 +152,7 @@ POST /sales/_search
     "histo": {
       "date_histogram": {
         "field": "date",
-        "interval": "day"
+        "calendar_interval": "day"
       },
       "aggs": {
         "categories": {
@@ -167,7 +166,7 @@ POST /sales/_search
               "count": "categories._bucket_count" <1>
             },
             "script": {
-              "inline": "params.count != 0"
+              "source": "params.count != 0"
             }
           }
         }
@@ -194,6 +193,7 @@ may be referred to as:
 ---------------
 "buckets_path": "my_percentile[99.9]"
 ---------------
+// NOTCONSOLE
 
 [[gap-policy]]
 [float]
@@ -232,7 +232,9 @@ include::pipeline/stats-bucket-aggregation.asciidoc[]
 include::pipeline/extended-stats-bucket-aggregation.asciidoc[]
 include::pipeline/percentiles-bucket-aggregation.asciidoc[]
 include::pipeline/movavg-aggregation.asciidoc[]
+include::pipeline/movfn-aggregation.asciidoc[]
 include::pipeline/cumulative-sum-aggregation.asciidoc[]
 include::pipeline/bucket-script-aggregation.asciidoc[]
 include::pipeline/bucket-selector-aggregation.asciidoc[]
+include::pipeline/bucket-sort-aggregation.asciidoc[]
 include::pipeline/serial-diff-aggregation.asciidoc[]

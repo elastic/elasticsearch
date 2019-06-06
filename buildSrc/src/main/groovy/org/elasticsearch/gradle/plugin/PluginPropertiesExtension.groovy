@@ -20,6 +20,7 @@ package org.elasticsearch.gradle.plugin
 
 import org.gradle.api.Project
 import org.gradle.api.tasks.Input
+import org.gradle.api.tasks.InputFile
 
 /**
  * A container for plugin properties that will be written to the plugin descriptor, for easy
@@ -39,12 +40,51 @@ class PluginPropertiesExtension {
     @Input
     String classname
 
-    /** Indicates whether the plugin jar should be made available for the transport client. */
+    /** Other plugins this plugin extends through SPI */
     @Input
-    boolean hasClientJar = false
+    List<String> extendedPlugins = []
+
+    @Input
+    boolean hasNativeController = false
+
+    /** True if the plugin requires the elasticsearch keystore to exist, false otherwise. */
+    @Input
+    boolean requiresKeystore = false
+
+    /** A license file that should be included in the built plugin zip. */
+    private File licenseFile = null
+
+    /**
+     * A notice file that should be included in the built plugin zip. This will be
+     * extended with notices from the {@code licenses/} directory.
+     */
+    private File noticeFile = null
+
+    Project project = null
 
     PluginPropertiesExtension(Project project) {
         name = project.name
         version = project.version
+        this.project = project
+    }
+
+    @InputFile
+    File getLicenseFile() {
+        return licenseFile
+    }
+
+    void setLicenseFile(File licenseFile) {
+        project.ext.licenseFile = licenseFile
+        this.licenseFile = licenseFile
+    }
+
+    @InputFile
+    File getNoticeFile() {
+        return noticeFile
+    }
+
+    void setNoticeFile(File noticeFile) {
+        project.ext.noticeFile = noticeFile
+        this.noticeFile = noticeFile
     }
 }

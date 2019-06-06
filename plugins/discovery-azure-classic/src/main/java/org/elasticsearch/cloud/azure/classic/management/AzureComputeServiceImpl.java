@@ -20,6 +20,9 @@
 package org.elasticsearch.cloud.azure.classic.management;
 
 import java.io.IOException;
+import java.security.AccessController;
+import java.security.PrivilegedActionException;
+import java.security.PrivilegedExceptionAction;
 import java.util.ServiceLoader;
 
 import com.microsoft.windowsazure.Configuration;
@@ -30,24 +33,30 @@ import com.microsoft.windowsazure.management.compute.ComputeManagementClient;
 import com.microsoft.windowsazure.management.compute.ComputeManagementService;
 import com.microsoft.windowsazure.management.compute.models.HostedServiceGetDetailedResponse;
 import com.microsoft.windowsazure.management.configuration.ManagementConfiguration;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.cloud.azure.classic.AzureServiceRemoteException;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 
 public class AzureComputeServiceImpl extends AbstractLifecycleComponent
     implements AzureComputeService {
+    private static final Logger logger = LogManager.getLogger(AzureComputeServiceImpl.class);
+
 
     private final ComputeManagementClient client;
     private final String serviceName;
 
     public AzureComputeServiceImpl(Settings settings) {
-        super(settings);
-        String subscriptionId = Management.SUBSCRIPTION_ID_SETTING.get(settings);
+        String subscriptionId = getRequiredSetting(settings, Management.SUBSCRIPTION_ID_SETTING);
 
-        serviceName = Management.SERVICE_NAME_SETTING.get(settings);
-        String keystorePath = Management.KEYSTORE_PATH_SETTING.get(settings);
-        String keystorePassword = Management.KEYSTORE_PASSWORD_SETTING.get(settings);
+        serviceName = getRequiredSetting(settings, Management.SERVICE_NAME_SETTING);
+        String keystorePath = getRequiredSetting(settings, Management.KEYSTORE_PATH_SETTING);
+        String keystorePassword = getRequiredSetting(settings, Management.KEYSTORE_PASSWORD_SETTING);
         KeyStoreType keystoreType = Management.KEYSTORE_TYPE_SETTING.get(settings);
 
         logger.trace("creating new Azure client for [{}], [{}]", subscriptionId, serviceName);
@@ -77,12 +86,22 @@ public class AzureComputeServiceImpl extends AbstractLifecycleComponent
         }
     }
 
+    private static String getRequiredSetting(Settings settings, Setting<String> setting) {
+        String value = setting.get(settings);
+        if (value == null || Strings.hasLength(value) == false) {
+            throw new IllegalArgumentException("Missing required setting " + setting.getKey() + " for azure");
+        }
+        return value;
+    }
+
     @Override
     public HostedServiceGetDetailedResponse getServiceDetails() {
+        SpecialPermission.check();
         try {
-            return client.getHostedServicesOperations().getDetailed(serviceName);
-        } catch (Exception e) {
-            throw new AzureServiceRemoteException("can not get list of azure nodes", e);
+            return AccessController.doPrivileged((PrivilegedExceptionAction<HostedServiceGetDetailedResponse>)
+                () -> client.getHostedServicesOperations().getDetailed(serviceName));
+        } catch (PrivilegedActionException e) {
+            throw new AzureServiceRemoteException("can not get list of azure nodes", e.getCause());
         }
     }
 

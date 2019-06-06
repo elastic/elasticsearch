@@ -2,7 +2,9 @@
 === Completion Suggester
 
 NOTE: In order to understand the format of suggestions, please
-read the <<search-suggesters>> page first.
+read the <<search-suggesters>> page first. For more flexible
+search-as-you-type searches that do not use suggesters, see the
+<<search-as-you-type,`search_as_you_type` field type>>.
 
 The `completion` suggester provides auto-complete/search-as-you-type
 functionality. This is a navigational feature to guide users to
@@ -27,14 +29,12 @@ which indexes the field values for fast completions.
 PUT music
 {
     "mappings": {
-        "song" : {
-            "properties" : {
-                "suggest" : {
-                    "type" : "completion"
-                },
-                "title" : {
-                    "type": "keyword"
-                }
+        "properties" : {
+            "suggest" : {
+                "type" : "completion"
+            },
+            "title" : {
+                "type": "keyword"
             }
         }
     }
@@ -45,12 +45,9 @@ PUT music
 
 Mapping supports the following parameters:
 
+[horizontal]
 `analyzer`::
     The index analyzer to use, defaults to `simple`.
-    In case you are wondering why we did not opt for the `standard`
-    analyzer: We try to have easy to understand behaviour here, and if you
-    index the field content `At the Drive-in`, you will not get any
-    suggestions for `a`, nor for `d` (the first non stopword).
 
 `search_analyzer`::
     The search analyzer to use, defaults to value of `analyzer`.
@@ -72,7 +69,7 @@ Mapping supports the following parameters:
     Limits the length of a single input, defaults to `50` UTF-16 code points.
     This limit is only used at index time to reduce the total number of
     characters per input string in order to prevent massive inputs from
-    bloating the underlying datastructure. Most usecases won't be influenced
+    bloating the underlying datastructure. Most use cases won't be influenced
     by the default value since prefix completions seldom grow beyond prefixes longer
     than a handful of characters.
 
@@ -86,7 +83,7 @@ the suggestions will be scored. Indexing a suggestion is as follows:
 
 [source,js]
 --------------------------------------------------
-PUT music/song/1?refresh
+PUT music/_doc/1?refresh
 {
     "suggest" : {
         "input": [ "Nevermind", "Nirvana" ],
@@ -99,6 +96,7 @@ PUT music/song/1?refresh
 
 The following parameters are supported:
 
+[horizontal]
 `input`::
     The input to store, this can be an array of strings or just
     a string. This field is mandatory.
@@ -112,7 +110,7 @@ You can index multiple suggestions for a document as follows:
 
 [source,js]
 --------------------------------------------------
-PUT music/song/1?refresh
+PUT music/_doc/1?refresh
 {
     "suggest" : [
         {
@@ -130,11 +128,11 @@ PUT music/song/1?refresh
 // TEST[continued]
 
 You can use the following shorthand form. Note that you can not specify
-a weight with suggestion(s).
+a weight with suggestion(s) in the shorthand form.
 
 [source,js]
 --------------------------------------------------
-PUT music/song/1?refresh
+PUT music/_doc/1?refresh
 {
   "suggest" : [ "Nevermind", "Nirvana" ]
 }
@@ -152,12 +150,14 @@ documents once deleted are never shown. This request:
 
 [source,js]
 --------------------------------------------------
-POST music/_suggest?pretty
+POST music/_search?pretty
 {
-    "song-suggest" : {
-        "prefix" : "nir",
-        "completion" : {
-            "field" : "suggest"
+    "suggest": {
+        "song-suggest" : {
+            "prefix" : "nir", <1>
+            "completion" : { <2>
+                "field" : "suggest" <3>
+            }
         }
     }
 }
@@ -165,34 +165,45 @@ POST music/_suggest?pretty
 // CONSOLE
 // TEST[continued]
 
+<1> Prefix used to search for suggestions
+<2> Type of suggestions
+<3> Name of the field to search for suggestions in
+
 returns this response:
 
 [source,js]
 --------------------------------------------------
 {
   "_shards" : {
-    "total" : 5,
-    "successful" : 5,
+    "total" : 1,
+    "successful" : 1,
+    "skipped" : 0,
     "failed" : 0
   },
-  "song-suggest" : [ {
-    "text" : "nir",
-    "offset" : 0,
-    "length" : 3,
-    "options" : [ {
-      "text" : "Nirvana",
-      "_index": "music",
-      "_type": "song",
-      "_id": "1",
-      "_score": 1.0,
-      "_source": {
-        "suggest": ["Nevermind", "Nirvana"]
-      }
+  "hits": ...
+  "took": 2,
+  "timed_out": false,
+  "suggest": {
+    "song-suggest" : [ {
+      "text" : "nir",
+      "offset" : 0,
+      "length" : 3,
+      "options" : [ {
+        "text" : "Nirvana",
+        "_index": "music",
+        "_type": "_doc",
+        "_id": "1",
+        "_score": 1.0,
+        "_source": {
+          "suggest": ["Nevermind", "Nirvana"]
+        }
+      } ]
     } ]
-  } ]
+  }
 }
 --------------------------------------------------
-// TESTRESPONSE
+// TESTRESPONSE[s/"hits": .../"hits": "$body.hits",/]
+// TESTRESPONSE[s/"took": 2,/"took": "$body.took",/]
 
 
 IMPORTANT: `_source` meta-field must be enabled, which is the default
@@ -202,29 +213,82 @@ The configured weight for a suggestion is returned as `_score`. The
 `text` field uses the `input` of your indexed suggestion. Suggestions
 return the full document `_source` by default. The size of the `_source`
 can impact performance due to disk fetch and network transport overhead.
-For best performance, filter out unnecessary fields from the `_source`
+To save some network overhead, filter out unnecessary fields from the `_source`
 using <<search-request-source-filtering, source filtering>> to minimize
-`_source` size. The following demonstrates an example completion query
-with source filtering:
+`_source` size. Note that the _suggest endpoint doesn't support source
+filtering but using suggest on the `_search` endpoint does:
 
 [source,js]
 --------------------------------------------------
-POST music/_suggest
+POST music/_search
 {
-    "_source": "completion.*",
-    "song-suggest" : {
-        "prefix" : "nir",
-        "completion" : {
-            "field" : "suggest"
+    "_source": "suggest", <1>
+    "suggest": {
+        "song-suggest" : {
+            "prefix" : "nir",
+            "completion" : {
+                "field" : "suggest", <2>
+                "size" : 5 <3>
+            }
         }
     }
 }
 --------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+<1> Filter the source to return only the `suggest` field
+<2> Name of the field to search for suggestions in
+<3> Number of suggestions to return
+
+Which should look like:
+
+[source,js]
+--------------------------------------------------
+{
+    "took": 6,
+    "timed_out": false,
+    "_shards" : {
+        "total" : 1,
+        "successful" : 1,
+        "skipped" : 0,
+        "failed" : 0
+    },
+    "hits": {
+        "total" : {
+            "value": 0,
+            "relation": "eq"
+        },
+        "max_score" : null,
+        "hits" : []
+    },
+    "suggest": {
+        "song-suggest" : [ {
+            "text" : "nir",
+            "offset" : 0,
+            "length" : 3,
+            "options" : [ {
+                "text" : "Nirvana",
+                "_index": "music",
+                "_type": "_doc",
+                "_id": "1",
+                "_score": 1.0,
+                "_source": {
+                    "suggest": ["Nevermind", "Nirvana"]
+                }
+            } ]
+        } ]
+    }
+}
+--------------------------------------------------
+// TESTRESPONSE[s/"took": 6,/"took": $body.took,/]
 
 The basic completion suggester query supports the following parameters:
 
+[horizontal]
 `field`:: The name of the field on which to run the query (required).
 `size`::  The number of suggestions to return (defaults to `5`).
+`skip_duplicates`:: Whether duplicate suggestions should be filtered out (defaults to `false`).
 
 NOTE: The completion suggester considers all documents in the index.
 See <<suggester-context>> for an explanation of how to query a subset of
@@ -239,22 +303,51 @@ index completions into a single shard index. In case of high heap usage due to
 shard size, it is still recommended to break index into multiple shards instead
 of optimizing for completion performance.
 
+[[skip_duplicates]]
+==== Skip duplicate suggestions
+
+Queries can return duplicate suggestions coming from different documents.
+It is possible to modify this behavior by setting `skip_duplicates` to true.
+When set, this option filters out documents with duplicate suggestions from the result.
+
+[source,js]
+--------------------------------------------------
+POST music/_search?pretty
+{
+    "suggest": {
+        "song-suggest" : {
+            "prefix" : "nor",
+            "completion" : {
+                "field" : "suggest",
+                "skip_duplicates": true
+            }
+        }
+    }
+}
+--------------------------------------------------
+// CONSOLE
+
+WARNING: When set to true, this option can slow down search because more suggestions
+need to be visited to find the top N.
+
 [[fuzzy]]
 ==== Fuzzy queries
 
-The completion suggester also supports fuzzy queries - this means,
+The completion suggester also supports fuzzy queries -- this means
 you can have a typo in your search and still get results back.
 
 [source,js]
 --------------------------------------------------
-POST music/_suggest?pretty
+POST music/_search?pretty
 {
-    "song-suggest" : {
-        "prefix" : "nor",
-        "completion" : {
-            "field" : "suggest",
-            "fuzzy" : {
-                "fuzziness" : 2
+    "suggest": {
+        "song-suggest" : {
+            "prefix" : "nor",
+            "completion" : {
+                "field" : "suggest",
+                "fuzzy" : {
+                    "fuzziness" : 2
+                }
             }
         }
     }
@@ -304,12 +397,14 @@ you can express a prefix as a regular expression
 
 [source,js]
 --------------------------------------------------
-POST music/_suggest?pretty
+POST music/_search?pretty
 {
-    "song-suggest" : {
-        "regex" : "n[ever|i]r",
-        "completion" : {
-            "field" : "suggest"
+    "suggest": {
+        "song-suggest" : {
+            "regex" : "n[ever|i]r",
+            "completion" : {
+                "field" : "suggest"
+            }
         }
     }
 }

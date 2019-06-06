@@ -19,14 +19,16 @@
 
 package org.elasticsearch.test.rest.yaml;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.regex.Matcher;
@@ -36,10 +38,11 @@ import java.util.regex.Pattern;
  * Allows to cache the last obtained test response and or part of it within variables
  * that can be used as input values in following requests and assertions.
  */
-public class Stash implements ToXContent {
+public class Stash implements ToXContentFragment {
     private static final Pattern EXTENDED_KEY = Pattern.compile("\\$\\{([^}]+)\\}");
+    private static final Pattern PATH = Pattern.compile("\\$_path");
 
-    private static final Logger logger = Loggers.getLogger(Stash.class);
+    private static final Logger logger = LogManager.getLogger(Stash.class);
 
     public static final Stash EMPTY = new Stash();
 
@@ -121,35 +124,79 @@ public class Stash implements ToXContent {
      * Goes recursively against each map entry and replaces any string value starting with "$" with its
      * corresponding value retrieved from the stash
      */
+    @SuppressWarnings("unchecked") // Safe because we check that all the map keys are string in unstashObject
     public Map<String, Object> replaceStashedValues(Map<String, Object> map) throws IOException {
-        Map<String, Object> copy = new HashMap<>(map);
-        unstashObject(copy);
-        return copy;
+        return (Map<String, Object>) unstashObject(new ArrayList<>(), map);
     }
 
-    @SuppressWarnings("unchecked")
-    private void unstashObject(Object obj) throws IOException {
+    private Object unstashObject(List<Object> path, Object obj) throws IOException {
         if (obj instanceof List) {
-            List list = (List) obj;
-            for (int i = 0; i < list.size(); i++) {
-                Object o = list.get(i);
+            List<?> list = (List<?>) obj;
+            List<Object> result = new ArrayList<>();
+            int index = 0;
+            for (Object o : list) {
+                path.add(index++);
                 if (containsStashedValue(o)) {
-                    list.set(i, getValue(o.toString()));
+                    result.add(getValue(path, o.toString()));
                 } else {
-                    unstashObject(o);
+                    result.add(unstashObject(path, o));
                 }
+                path.remove(path.size() - 1);
             }
+            return result;
         }
         if (obj instanceof Map) {
-            Map<String, Object> map = (Map) obj;
-            for (Map.Entry<String, Object> entry : map.entrySet()) {
-                if (containsStashedValue(entry.getValue())) {
-                    entry.setValue(getValue(entry.getValue().toString()));
+            Map<?, ?> map = (Map<?, ?>) obj;
+            Map<String, Object> result = new HashMap<>();
+            for (Map.Entry<?, ?> entry : map.entrySet()) {
+                String key = (String) entry.getKey();
+                Object value = entry.getValue();
+                if (containsStashedValue(key)) {
+                    key = getValue(key).toString();
+                }
+                path.add(key);
+                if (containsStashedValue(value)) {
+                    value = getValue(path, value.toString());
                 } else {
-                    unstashObject(entry.getValue());
+                    value = unstashObject(path, value);
+                }
+                path.remove(path.size() - 1);
+                if (null != result.putIfAbsent(key, value)) {
+                    throw new IllegalArgumentException("Unstashing has caused a key conflict! The map is [" + result + "] and the key is ["
+                            + entry.getKey() + "] which unstashes to [" + key + "]");
                 }
             }
+            return result;
         }
+        return obj;
+    }
+
+    /**
+     * Lookup a value from the stash adding support for a special key ({@code $_path}) which
+     * returns a string that is the location in the path of the of the object currently being
+     * unstashed. This is useful during documentation testing.
+     */
+    private Object getValue(List<Object> path, String key) throws IOException {
+        Matcher matcher = PATH.matcher(key);
+        if (false == matcher.find()) {
+            return getValue(key);
+        }
+        StringBuilder pathBuilder = new StringBuilder();
+        Iterator<Object> element = path.iterator();
+        if (element.hasNext()) {
+            pathBuilder.append(element.next().toString().replace(".", "\\."));
+            while (element.hasNext()) {
+                pathBuilder.append('.');
+                pathBuilder.append(element.next().toString().replace(".", "\\."));
+            }
+        }
+        String builtPath = Matcher.quoteReplacement(pathBuilder.toString());
+        StringBuffer newKey = new StringBuffer(key.length());
+        do {
+            matcher.appendReplacement(newKey, builtPath);
+        } while (matcher.find());
+        matcher.appendTail(newKey);
+        return getValue(newKey.toString());
     }
 
     @Override

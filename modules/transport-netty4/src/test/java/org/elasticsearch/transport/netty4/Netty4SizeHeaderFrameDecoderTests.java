@@ -19,13 +19,15 @@
 
 package org.elasticsearch.transport.netty4;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.MockBigArrays;
+import org.elasticsearch.common.util.MockPageCacheRecycler;
+import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
+import org.elasticsearch.mocksocket.MockSocket;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportSettings;
@@ -42,7 +44,7 @@ import java.util.Collections;
 import static org.hamcrest.Matchers.is;
 
 /**
- * This test checks, if a HTTP look-alike request (starting with a HTTP method and a space)
+ * This test checks, if an HTTP look-alike request (starting with an HTTP method and a space)
  * actually returns text response instead of just dropping the connection
  */
 public class Netty4SizeHeaderFrameDecoderTests extends ESTestCase {
@@ -61,14 +63,14 @@ public class Netty4SizeHeaderFrameDecoderTests extends ESTestCase {
     @Before
     public void startThreadPool() {
         threadPool = new ThreadPool(settings);
-        NetworkService networkService = new NetworkService(settings, Collections.emptyList());
-        BigArrays bigArrays = new MockBigArrays(Settings.EMPTY, new NoneCircuitBreakerService());
-        nettyTransport = new Netty4Transport(settings, threadPool, networkService, bigArrays,
+        NetworkService networkService = new NetworkService(Collections.emptyList());
+        PageCacheRecycler recycler = new MockPageCacheRecycler(Settings.EMPTY);
+        nettyTransport = new Netty4Transport(settings, Version.CURRENT, threadPool, networkService, recycler,
             new NamedWriteableRegistry(Collections.emptyList()), new NoneCircuitBreakerService());
         nettyTransport.start();
 
         TransportAddress[] boundAddresses = nettyTransport.boundAddress().boundAddresses();
-        TransportAddress transportAddress = (TransportAddress) randomFrom(boundAddresses);
+        TransportAddress transportAddress = randomFrom(boundAddresses);
         port = transportAddress.address().getPort();
         host = transportAddress.address().getAddress();
     }
@@ -84,18 +86,18 @@ public class Netty4SizeHeaderFrameDecoderTests extends ESTestCase {
         String randomMethod = randomFrom("GET", "POST", "PUT", "DELETE", "HEAD", "OPTIONS", "PATCH");
         String data = randomMethod + " / HTTP/1.1";
 
-        try (Socket socket = new Socket(host, port)) {
+        try (Socket socket = new MockSocket(host, port)) {
             socket.getOutputStream().write(data.getBytes(StandardCharsets.UTF_8));
             socket.getOutputStream().flush();
 
             try (BufferedReader reader = new BufferedReader(new InputStreamReader(socket.getInputStream(), StandardCharsets.UTF_8))) {
-                assertThat(reader.readLine(), is("This is not a HTTP port"));
+                assertThat(reader.readLine(), is("This is not an HTTP port"));
             }
         }
     }
 
     public void testThatNothingIsReturnedForOtherInvalidPackets() throws Exception {
-        try (Socket socket = new Socket(host, port)) {
+        try (Socket socket = new MockSocket(host, port)) {
             socket.getOutputStream().write("FOOBAR".getBytes(StandardCharsets.UTF_8));
             socket.getOutputStream().flush();
 

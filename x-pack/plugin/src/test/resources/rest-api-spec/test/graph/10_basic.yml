@@ -1,0 +1,43 @@
+---
+setup:
+- do:
+    indices.create:
+      index: test_1
+      body:
+        settings:
+          index:
+            number_of_shards:   1
+            number_of_replicas: 0
+        mappings:
+          properties:
+            keys:
+              type : integer
+
+---
+"Test basic graph explore":
+  - do:
+      index:
+          index:  test_1
+          id:     1
+          body:   { keys: [1,2,3] }
+
+  - do:
+      index:
+          index:  test_1
+          id:     2
+          body:   { keys: [4,5,6] }
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      cluster.health:
+           index: test_1
+           wait_for_status: green
+
+  - do:
+      graph.explore:
+        index:  test_1
+        body:  {"query": {"match": {"keys": 1}},"controls":{"use_significance":false},"vertices":[{"field": "keys","min_doc_count": 1}]}
+  - length: {failures: 0}
+  - length: {vertices: 3}

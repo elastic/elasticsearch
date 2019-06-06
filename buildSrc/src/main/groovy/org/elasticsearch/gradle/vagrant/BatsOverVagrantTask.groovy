@@ -18,14 +18,7 @@
  */
 package org.elasticsearch.gradle.vagrant
 
-import org.gradle.api.DefaultTask
 import org.gradle.api.tasks.Input
-import org.gradle.api.tasks.TaskAction
-import org.gradle.logging.ProgressLoggerFactory
-import org.gradle.process.internal.ExecAction
-import org.gradle.process.internal.ExecActionFactory
-
-import javax.inject.Inject
 
 /**
  * Runs bats over vagrant. Pretty much like running it using Exec but with a
@@ -34,12 +27,15 @@ import javax.inject.Inject
 public class BatsOverVagrantTask extends VagrantCommandTask {
 
     @Input
-    String command
+    Object remoteCommand
 
     BatsOverVagrantTask() {
-        project.afterEvaluate {
-            args 'ssh', boxName, '--command', command
-        }
+        command = 'ssh'
+    }
+
+    void setRemoteCommand(Object remoteCommand) {
+        this.remoteCommand = Objects.requireNonNull(remoteCommand)
+        setArgs((Iterable<?>) ['--command', remoteCommand])
     }
 
     @Override

@@ -1,0 +1,64 @@
+setup:
+  - do:
+      ml.put_job:
+        job_id: forecast-job
+        body:  >
+          {
+            "description":"A forecast job",
+            "analysis_config" : {
+                "detectors" :[{"function":"metric","field_name":"responsetime","by_field_name":"airline"}]
+            },
+            "data_description" : {
+                "format":"xcontent"
+            }
+          }
+
+---
+"Test forecast unknown job":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/issues/34747"
+      version: "6.5.0 - "
+
+  - do:
+      catch: missing
+      ml.forecast:
+        job_id: "non-existing-job"
+
+---
+"Test forecast on closed job":
+  - do:
+      catch: /status_exception/
+      ml.forecast:
+        job_id: "forecast-job"
+
+---
+"Test forecast given duration is zero":
+  - do:
+      catch: /\[duration\] must be positive[:] \[0s\]/
+      ml.forecast:
+        job_id: "forecast-job"
+        duration: "0s"
+
+---
+"Test forecast given duration is negative":
+  - do:
+      catch: /\[duration\] must be positive[:] \[-1\]/
+      ml.forecast:
+        job_id: "forecast-job"
+        duration: "-1s"
+
+---
+"Test forecast given duration is too large":
+  - do:
+      catch: /\[duration\] must be 3650d or less[:] \[3651d\]/
+      ml.forecast:
+        job_id: "forecast-job"
+        duration: "3651d"
+
+---
+"Test forecast given expires_in is negative":
+  - do:
+      catch: /\[expires_in\] must be non-negative[:] \[-1\]/
+      ml.forecast:
+        job_id: "forecast-job"
+        expires_in: "-1s"

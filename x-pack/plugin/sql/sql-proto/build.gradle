@@ -1,0 +1,31 @@
+
+/*
+ * This project contains XContent protocol classes shared between server and http client
+ */
+apply plugin: 'elasticsearch.build'
+
+description = 'Request and response objects shared by the cli, jdbc ' +
+        'and the Elasticsearch plugin'
+
+dependencies {
+    compile (project(':libs:elasticsearch-core')) {
+        transitive = false
+    }
+    compile (project(':libs:elasticsearch-x-content')) {
+        transitive = false
+    }
+    runtime "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
+
+    testCompile project(":test:framework")
+}
+
+forbiddenApisMain {
+    //sql does not depend on server, so only jdk signatures should be checked
+    replaceSignatureFiles 'jdk-signatures'
+}
+
+dependencyLicenses {
+    mapping from: /elasticsearch-core.*/, to: 'elasticsearch'
+    mapping from: /jackson-.*/, to: 'jackson'
+    ignoreSha 'elasticsearch-core'
+}

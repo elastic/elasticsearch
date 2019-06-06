@@ -16,28 +16,23 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
-import org.elasticsearch.gradle.precommit.PrecommitTasks
-import org.gradle.api.JavaVersion
-
 apply plugin: 'elasticsearch.build'
-apply plugin: 'ru.vyarus.animalsniffer'
 
-targetCompatibility = JavaVersion.VERSION_1_7
-sourceCompatibility = JavaVersion.VERSION_1_7
+targetCompatibility = JavaVersion.VERSION_1_8
+sourceCompatibility = JavaVersion.VERSION_1_8
+
+group = "${group}.client.test"
 
 dependencies {
   compile "org.apache.httpcomponents:httpcore:${versions.httpcore}"
   compile "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
   compile "junit:junit:${versions.junit}"
-  compile "org.hamcrest:hamcrest-all:${versions.hamcrest}"
-  compile "org.codehaus.mojo:animal-sniffer-annotations:1.15"
-  signature "org.codehaus.mojo.signature:java17:1.0@signature"
+  compile "org.hamcrest:hamcrest:${versions.hamcrest}"
 }
 
 forbiddenApisMain {
   //client does not depend on core, so only jdk signatures should be checked
-  signaturesURLs = [PrecommitTasks.getResource('/forbidden/jdk-signatures.txt')]
+  replaceSignatureFiles 'jdk-signatures'
 }
 
 forbiddenApisTest {
@@ -45,16 +40,16 @@ forbiddenApisTest {
   bundledSignatures -= 'jdk-non-portable'
   bundledSignatures += 'jdk-internal'
   //client does not depend on core, so only jdk signatures should be checked
-  signaturesURLs = [PrecommitTasks.getResource('/forbidden/jdk-signatures.txt')]
+  replaceSignatureFiles 'jdk-signatures'
 }
 
-//JarHell is part of es core, which we don't want to pull in
+// JarHell is part of es server, which we don't want to pull in
+// TODO: Not anymore. Now in :libs:elasticsearch-core
 jarHell.enabled=false
 
 // TODO: should we have licenses for our test deps?
 dependencyLicenses.enabled = false
-
-namingConventions.enabled = false
+dependenciesInfo.enabled = false
 
 //we aren't releasing this jar
 thirdPartyAudit.enabled = false

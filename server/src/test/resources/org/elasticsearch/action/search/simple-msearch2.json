@@ -1,0 +1,10 @@
+{"index":"test"}
+{"query" : {"match_all" : {}}}
+{"index" : "test"}
+{"query" : {"match_all" : {}}}
+{}
+{"query" : {"match_all" : {}}}
+{"search_type" : "dfs_query_then_fetch"}
+{"query" : {"match_all" : {}}}
+
+{"query" : {"match_all" : {}}}

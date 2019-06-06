@@ -1,0 +1,76 @@
+[[starting-elasticsearch]]
+== Starting Elasticsearch
+
+The method for starting {es} varies depending on how you installed it. 
+
+[float]
+[[start-targz]]
+=== Archive packages (`.tar.gz`)
+
+If you installed {es} with a `.tar.gz` package, you can start {es} from the 
+command line.  
+
+[float]
+include::install/targz-start.asciidoc[]
+
+[float]
+include::install/targz-daemon.asciidoc[]
+
+[float]
+[[start-zip]]
+=== Archive packages (`.zip`)
+
+If you installed {es} on Windows with a `.zip` package, you can start {es} from 
+the command line. If you want {es} to start automatically at boot time without 
+any user interaction, <<windows-service,install {es} as a service>>.
+
+[float]
+include::install/zip-windows-start.asciidoc[]
+
+[float]
+[[start-deb]]
+=== Debian packages
+
+include::install/init-systemd.asciidoc[]
+
+[float]
+[[start-es-deb-init]]
+include::install/deb-init.asciidoc[]
+
+[float]
+[[start-es-deb-systemd]]
+include::install/systemd.asciidoc[]
+
+[float]
+[[start-docker]]
+=== Docker images
+
+If you installed a Docker image, you can start {es} from the command line. There 
+are different methods depending on whether you're using development mode or 
+production mode. See <<docker-cli-run>>. 
+
+[float]
+[[start-msi]]
+=== MSI packages
+
+If you installed {es} on Windows using the `.msi` package, you can start {es} 
+from the command line. If you want it to start automatically at boot time 
+without any user interaction, 
+<<msi-installer-windows-service,install {es} as a Windows service>>.
+
+[float]
+include::install/msi-windows-start.asciidoc[]
+
+[float]
+[[start-rpm]]
+=== RPM packages
+
+include::install/init-systemd.asciidoc[]
+
+[float]
+[[start-es-rpm-init]]
+include::install/rpm-init.asciidoc[]
+
+[float]
+[[start-es-rpm-systemd]]
+include::install/systemd.asciidoc[]

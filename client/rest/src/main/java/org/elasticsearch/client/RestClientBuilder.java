@@ -20,7 +20,6 @@
 package org.elasticsearch.client;
 
 import org.apache.http.Header;
-import org.apache.http.HttpHost;
 import org.apache.http.client.config.RequestConfig;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClientBuilder;
@@ -28,6 +27,11 @@ import org.apache.http.impl.nio.client.CloseableHttpAsyncClient;
 import org.apache.http.impl.nio.client.HttpAsyncClientBuilder;
 import org.apache.http.nio.conn.SchemeIOSessionStrategy;
 
+import javax.net.ssl.SSLContext;
+import java.security.AccessController;
+import java.security.NoSuchAlgorithmException;
+import java.security.PrivilegedAction;
+import java.util.List;
 import java.util.Objects;
 
 /**
@@ -37,37 +41,36 @@ import java.util.Objects;
  */
 public final class RestClientBuilder {
     public static final int DEFAULT_CONNECT_TIMEOUT_MILLIS = 1000;
-    public static final int DEFAULT_SOCKET_TIMEOUT_MILLIS = 10000;
-    public static final int DEFAULT_MAX_RETRY_TIMEOUT_MILLIS = DEFAULT_SOCKET_TIMEOUT_MILLIS;
-    public static final int DEFAULT_CONNECTION_REQUEST_TIMEOUT_MILLIS = 500;
+    public static final int DEFAULT_SOCKET_TIMEOUT_MILLIS = 30000;
     public static final int DEFAULT_MAX_CONN_PER_ROUTE = 10;
     public static final int DEFAULT_MAX_CONN_TOTAL = 30;
 
     private static final Header[] EMPTY_HEADERS = new Header[0];
 
-    private final HttpHost[] hosts;
-    private int maxRetryTimeout = DEFAULT_MAX_RETRY_TIMEOUT_MILLIS;
+    private final List<Node> nodes;
     private Header[] defaultHeaders = EMPTY_HEADERS;
     private RestClient.FailureListener failureListener;
     private HttpClientConfigCallback httpClientConfigCallback;
     private RequestConfigCallback requestConfigCallback;
     private String pathPrefix;
+    private NodeSelector nodeSelector = NodeSelector.ANY;
+    private boolean strictDeprecationMode = false;
 
     /**
      * Creates a new builder instance and sets the hosts that the client will send requests to.
      *
-     * @throws NullPointerException if {@code hosts} or any host is {@code null}.
-     * @throws IllegalArgumentException if {@code hosts} is empty.
+     * @throws IllegalArgumentException if {@code nodes} is {@code null} or empty.
      */
-    RestClientBuilder(HttpHost... hosts) {
-        Objects.requireNonNull(hosts, "hosts must not be null");
-        if (hosts.length == 0) {
-            throw new IllegalArgumentException("no hosts provided");
+    RestClientBuilder(List<Node> nodes) {
+        if (nodes == null || nodes.isEmpty()) {
+            throw new IllegalArgumentException("nodes must not be null or empty");
         }
-        for (HttpHost host : hosts) {
-            Objects.requireNonNull(host, "host cannot be null");
+        for (Node node : nodes) {
+            if (node == null) {
+                throw new IllegalArgumentException("node cannot be null");
+            }
         }
-        this.hosts = hosts;
+        this.nodes = nodes;
     }
 
     /**
@@ -94,20 +97,6 @@ public final class RestClientBuilder {
     public RestClientBuilder setFailureListener(RestClient.FailureListener failureListener) {
         Objects.requireNonNull(failureListener, "failureListener must not be null");
         this.failureListener = failureListener;
-        return this;
-    }
-
-    /**
-     * Sets the maximum timeout (in milliseconds) to honour in case of multiple retries of the same request.
-     * {@link #DEFAULT_MAX_RETRY_TIMEOUT_MILLIS} if not specified.
-     *
-     * @throws IllegalArgumentException if {@code maxRetryTimeoutMillis} is not greater than 0
-     */
-    public RestClientBuilder setMaxRetryTimeoutMillis(int maxRetryTimeoutMillis) {
-        if (maxRetryTimeoutMillis <= 0) {
-            throw new IllegalArgumentException("maxRetryTimeoutMillis must be greater than 0");
-        }
-        this.maxRetryTimeout = maxRetryTimeoutMillis;
         return this;
     }
 
@@ -139,22 +128,26 @@ public final class RestClientBuilder {
      * For example, if this is set to "/my/path", then any client request will become <code>"/my/path/" + endpoint</code>.
      * <p>
      * In essence, every request's {@code endpoint} is prefixed by this {@code pathPrefix}. The path prefix is useful for when
-     * Elasticsearch is behind a proxy that provides a base path; it is not intended for other purposes and it should not be supplied in
-     * other scenarios.
+     * Elasticsearch is behind a proxy that provides a base path or a proxy that requires all paths to start with '/';
+     * it is not intended for other purposes and it should not be supplied in other scenarios.
      *
      * @throws NullPointerException if {@code pathPrefix} is {@code null}.
-     * @throws IllegalArgumentException if {@code pathPrefix} is empty, only '/', or ends with more than one '/'.
+     * @throws IllegalArgumentException if {@code pathPrefix} is empty, or ends with more than one '/'.
      */
     public RestClientBuilder setPathPrefix(String pathPrefix) {
         Objects.requireNonNull(pathPrefix, "pathPrefix must not be null");
-        String cleanPathPrefix = pathPrefix;
 
+        if (pathPrefix.isEmpty()) {
+            throw new IllegalArgumentException("pathPrefix must not be empty");
+        }
+
+        String cleanPathPrefix = pathPrefix;
         if (cleanPathPrefix.startsWith("/") == false) {
             cleanPathPrefix = "/" + cleanPathPrefix;
         }
 
         // best effort to ensure that it looks like "/base/path" rather than "/base/path/"
-        if (cleanPathPrefix.endsWith("/")) {
+        if (cleanPathPrefix.endsWith("/") && cleanPathPrefix.length() > 1) {
             cleanPathPrefix = cleanPathPrefix.substring(0, cleanPathPrefix.length() - 1);
 
             if (cleanPathPrefix.endsWith("/")) {
@@ -162,11 +155,27 @@ public final class RestClientBuilder {
             }
         }
 
-        if (cleanPathPrefix.isEmpty() || "/".equals(cleanPathPrefix)) {
-            throw new IllegalArgumentException("pathPrefix must not be empty or '/': [" + pathPrefix + "]");
-        }
 
         this.pathPrefix = cleanPathPrefix;
+        return this;
+    }
+
+    /**
+     * Sets the {@link NodeSelector} to be used for all requests.
+     * @throws NullPointerException if the provided nodeSelector is null
+     */
+    public RestClientBuilder setNodeSelector(NodeSelector nodeSelector) {
+        Objects.requireNonNull(nodeSelector, "nodeSelector must not be null");
+        this.nodeSelector = nodeSelector;
+        return this;
+    }
+
+    /**
+     * Whether the REST client should return any response containing at least
+     * one warning header as a failure.
+     */
+    public RestClientBuilder setStrictDeprecationMode(boolean strictDeprecationMode) {
+        this.strictDeprecationMode = strictDeprecationMode;
         return this;
     }
 
@@ -177,28 +186,38 @@ public final class RestClientBuilder {
         if (failureListener == null) {
             failureListener = new RestClient.FailureListener();
         }
-        CloseableHttpAsyncClient httpClient = createHttpClient();
-        RestClient restClient = new RestClient(httpClient, maxRetryTimeout, defaultHeaders, hosts, pathPrefix, failureListener);
+        CloseableHttpAsyncClient httpClient = AccessController.doPrivileged(
+            (PrivilegedAction<CloseableHttpAsyncClient>) this::createHttpClient);
+        RestClient restClient = new RestClient(httpClient, defaultHeaders, nodes,
+                pathPrefix, failureListener, nodeSelector, strictDeprecationMode);
         httpClient.start();
         return restClient;
     }
 
     private CloseableHttpAsyncClient createHttpClient() {
         //default timeouts are all infinite
-        RequestConfig.Builder requestConfigBuilder = RequestConfig.custom().setConnectTimeout(DEFAULT_CONNECT_TIMEOUT_MILLIS)
-                .setSocketTimeout(DEFAULT_SOCKET_TIMEOUT_MILLIS)
-                .setConnectionRequestTimeout(DEFAULT_CONNECTION_REQUEST_TIMEOUT_MILLIS);
+        RequestConfig.Builder requestConfigBuilder = RequestConfig.custom()
+                .setConnectTimeout(DEFAULT_CONNECT_TIMEOUT_MILLIS)
+                .setSocketTimeout(DEFAULT_SOCKET_TIMEOUT_MILLIS);
         if (requestConfigCallback != null) {
             requestConfigBuilder = requestConfigCallback.customizeRequestConfig(requestConfigBuilder);
         }
 
-        HttpAsyncClientBuilder httpClientBuilder = HttpAsyncClientBuilder.create().setDefaultRequestConfig(requestConfigBuilder.build())
+        try {
+            HttpAsyncClientBuilder httpClientBuilder = HttpAsyncClientBuilder.create().setDefaultRequestConfig(requestConfigBuilder.build())
                 //default settings for connection pooling may be too constraining
-                .setMaxConnPerRoute(DEFAULT_MAX_CONN_PER_ROUTE).setMaxConnTotal(DEFAULT_MAX_CONN_TOTAL);
-        if (httpClientConfigCallback != null) {
-            httpClientBuilder = httpClientConfigCallback.customizeHttpClient(httpClientBuilder);
+                .setMaxConnPerRoute(DEFAULT_MAX_CONN_PER_ROUTE).setMaxConnTotal(DEFAULT_MAX_CONN_TOTAL)
+                .setSSLContext(SSLContext.getDefault())
+                .setTargetAuthenticationStrategy(new PersistentCredentialsAuthenticationStrategy());
+            if (httpClientConfigCallback != null) {
+                httpClientBuilder = httpClientConfigCallback.customizeHttpClient(httpClientBuilder);
+            }
+
+            final HttpAsyncClientBuilder finalBuilder = httpClientBuilder;
+            return AccessController.doPrivileged((PrivilegedAction<CloseableHttpAsyncClient>) finalBuilder::build);
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException("could not create the default ssl context", e);
         }
-        return httpClientBuilder.build();
     }
 
     /**

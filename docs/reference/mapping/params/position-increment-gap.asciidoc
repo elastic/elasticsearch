@@ -13,12 +13,12 @@ For example:
 
 [source,js]
 --------------------------------------------------
-PUT my_index/groups/1
+PUT my_index/_doc/1
 {
     "names": [ "John Abraham", "Lincoln Smith"]
 }
 
-GET my_index/groups/_search
+GET my_index/_search
 {
     "query": {
         "match_phrase": {
@@ -29,7 +29,7 @@ GET my_index/groups/_search
     }
 }
 
-GET my_index/groups/_search
+GET my_index/_search
 {
     "query": {
         "match_phrase": {
@@ -54,23 +54,21 @@ The `position_increment_gap` can be specified in the mapping.  For instance:
 PUT my_index
 {
   "mappings": {
-    "groups": {
-      "properties": {
-        "names": {
-          "type": "text",
-          "position_increment_gap": 0 <1>
-        }
+    "properties": {
+      "names": {
+        "type": "text",
+        "position_increment_gap": 0 <1>
       }
     }
   }
 }
 
-PUT my_index/groups/1
+PUT my_index/_doc/1
 {
     "names": [ "John Abraham", "Lincoln Smith"]
 }
 
-GET my_index/groups/_search
+GET my_index/_search
 {
     "query": {
         "match_phrase": {
@@ -85,6 +83,3 @@ GET my_index/groups/_search
 <2> The phrase query matches our document which is weird, but its what we asked
     for in the mapping.
 
-TIP: The `position_increment_gap` setting is allowed to have different settings
-for fields of the same name in the same index.  Its value can be updated on
-existing fields using the <<indices-put-mapping,PUT mapping API>>.

@@ -19,19 +19,19 @@
 
 package org.elasticsearch.bootstrap;
 
+
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.common.settings.Settings;
 
 import static org.hamcrest.CoreMatchers.equalTo;
-import static org.hamcrest.Matchers.hasEntry;
 
 public class EvilElasticsearchCliTests extends ESElasticsearchCliTestCase {
 
     @SuppressForbidden(reason = "manipulates system properties for testing")
     public void testPathHome() throws Exception {
         final String pathHome = System.getProperty("es.path.home");
-        final String value = randomAsciiOfLength(16);
+        final String value = randomAlphaOfLength(16);
         System.setProperty("es.path.home", value);
 
         runTest(
@@ -39,19 +39,23 @@ public class EvilElasticsearchCliTests extends ESElasticsearchCliTestCase {
                 true,
                 output -> {},
                 (foreground, pidFile, quiet, esSettings) -> {
-                    assertThat(esSettings.size(), equalTo(1));
-                    assertThat(esSettings, hasEntry("path.home", value));
+                    Settings settings = esSettings.settings();
+                    assertThat(settings.size(), equalTo(2));
+                    assertEquals(value, settings.get("path.home"));
+                    assertTrue(settings.keySet().contains("path.logs")); // added by env initialization
                 });
 
         System.clearProperty("es.path.home");
-        final String commandLineValue = randomAsciiOfLength(16);
+        final String commandLineValue = randomAlphaOfLength(16);
         runTest(
                 ExitCodes.OK,
                 true,
                 output -> {},
                 (foreground, pidFile, quiet, esSettings) -> {
-                    assertThat(esSettings.size(), equalTo(1));
-                    assertThat(esSettings, hasEntry("path.home", commandLineValue));
+                    Settings settings = esSettings.settings();
+                    assertThat(settings.size(), equalTo(2));
+                    assertEquals(commandLineValue, settings.get("path.home"));
+                    assertTrue(settings.keySet().contains("path.logs")); // added by env initialization
                 },
                 "-Epath.home=" + commandLineValue);
 

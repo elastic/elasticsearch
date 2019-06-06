@@ -1,0 +1,170 @@
+==== {component} TLS/SSL Settings
+You can configure the following TLS/SSL settings. If the settings are not configured,
+the {ref}/security-settings.html#ssl-tls-settings[Default TLS/SSL Settings]
+are used.
+
+ifdef::server[]
++{ssl-prefix}.ssl.enabled+::
+Used to enable or disable TLS/SSL. The default is `false`.
+endif::server[]
+
++{ssl-prefix}.ssl.supported_protocols+::
+Supported protocols with versions. Valid protocols: `SSLv2Hello`,
+`SSLv3`, `TLSv1`, `TLSv1.1`, `TLSv1.2`, `TLSv1.3`. Defaults to `TLSv1.3,TLSv1.2,TLSv1.1` if
+the JVM supports TLSv1.3, otherwise `TLSv1.2,TLSv1.1`.
+
+
+ifdef::server[]
++{ssl-prefix}.ssl.client_authentication+::
+Controls the server's behavior in regard to requesting a certificate
+from client connections. Valid values are `required`, `optional`, and `none`.
+`required` forces a client to present a certificate, while `optional`
+requests a client certificate but the client is not required to present one.
+ifndef::client-auth-default[]
+Defaults to `none``.
+endif::client-auth-default[]
+ifdef::client-auth-default[]
+Defaults to +{client-auth-default}+.
+endif::client-auth-default[]
+endif::server[]
+
+ifdef::verifies[]
++{ssl-prefix}.ssl.verification_mode+::
+Controls the verification of certificates. Valid values are `none`,
+`certificate`, and `full`. Defaults to `full`.
+endif::verifies[]
+
++{ssl-prefix}.ssl.cipher_suites+::
+Supported cipher suites can be found in Oracle's http://docs.oracle.com/javase/8/docs/technotes/guides/security/SunProviders.html[
+Java Cryptography Architecture documentation]. Defaults to ``.
+
+[#{ssl-context}-tls-ssl-key-trusted-certificate-settings]
+===== {component} TLS/SSL Key and Trusted Certificate Settings
+
+The following settings are used to specify a private key, certificate, and the
+trusted certificates that should be used when communicating over an SSL/TLS connection.
+ifdef::server[]
+A private key and certificate must be configured.
+endif::server[]
+ifndef::server[]
+A private key and certificate are optional and would be used if the server requires client authentication for PKI
+authentication.
+endif::server[]
+If none of the settings below are specified, the {ref}/security-settings.html#ssl-tls-settings[Default TLS/SSL Settings] are used.
+
+
+===== PEM Encoded Files
+
+When using PEM encoded files, use the following settings:
+
++{ssl-prefix}.ssl.key+::
+Path to a PEM encoded file containing the private key.
+
++{ssl-prefix}.ssl.key_passphrase+::
+The passphrase that is used to decrypt the private key. This value is optional
+as the key might not be encrypted.
+
++{ssl-prefix}.ssl.secure_key_passphrase+ (<<secure-settings,Secure>>)::
+The passphrase that is used to decrypt the private key. This value is optional
+as the key might not be encrypted.
+
++{ssl-prefix}.ssl.certificate+::
+Path to a PEM encoded file containing the certificate (or certificate chain)
+that will be presented when requested.
+
++{ssl-prefix}.ssl.certificate_authorities+::
+List of paths to the PEM encoded certificate files that should be trusted.
+
+===== Java Keystore Files
+
+When using Java keystore files (JKS), which contain the private key, certificate
+and certificates that should be trusted, use the following settings:
+
++{ssl-prefix}.ssl.keystore.path+::
+Path to the keystore that holds the private key and certificate.
+
++{ssl-prefix}.ssl.keystore.password+::
+Password to the keystore.
+
++{ssl-prefix}.ssl.keystore.secure_password+ (<<secure-settings,Secure>>)::
+Password to the keystore.
+
++{ssl-prefix}.ssl.keystore.key_password+::
+Password for the private key in the keystore. Defaults to the
+same value as +{ssl-prefix}.ssl.keystore.password+.
+
++{ssl-prefix}.ssl.keystore.secure_key_password+ (<<secure-settings,Secure>>)::
+Password for the private key in the keystore.
+
++{ssl-prefix}.ssl.truststore.path+::
+Path to the truststore file.
+
++{ssl-prefix}.ssl.truststore.password+::
+Password to the truststore.
+
++{ssl-prefix}.ssl.truststore.secure_password+ (<<secure-settings,Secure>>)::
+Password to the truststore.
+
+[#{ssl-context}-pkcs12-files]
+===== PKCS#12 Files
+
+{es} can be configured to use PKCS#12 container files (`.p12` or `.pfx` files)
+that contain the private key, certificate and certificates that should be trusted.
+
+PKCS#12 files are configured in the same way as Java Keystore Files:
+
++{ssl-prefix}.ssl.keystore.path+::
+Path to the PKCS#12 file that holds the private key and certificate.
+
++{ssl-prefix}.ssl.keystore.type+::
+Set this to `PKCS12` to indicate that the keystore is a PKCS#12 file.
+
++{ssl-prefix}.ssl.keystore.password+::
+Password to the PKCS#12 file.
+
++{ssl-prefix}.ssl.keystore.secure_password+ (<<secure-settings,Secure>>)::
+Password to the PKCS#12 file.
+
++{ssl-prefix}.ssl.keystore.key_password+::
+Password for the private key stored in the PKCS#12 file.
+Defaults to the same value as +{ssl-prefix}.ssl.keystore.password+.
+
++{ssl-prefix}.ssl.keystore.secure_key_password+ (<<secure-settings,Secure>>)::
+Password for the private key stored in the PKCS#12 file.
+
++{ssl-prefix}.ssl.truststore.path+::
+Path to the PKCS#12 file that holds the certificates to be trusted.
+
++{ssl-prefix}.ssl.truststore.type+::
+Set this to `PKCS12` to indicate that the truststore is a PKCS#12 file.
+
++{ssl-prefix}.ssl.truststore.password+::
+Password to the PKCS#12 file.
+
++{ssl-prefix}.ssl.truststore.secure_password+ (<<secure-settings,Secure>>)::
+Password to the PKCS#12 file.
+
+[#{ssl-context}-pkcs11-tokens]
+===== PKCS#11 Tokens
+
+{es} can be configured to use a PKCS#11 token that contains the private key,
+certificate and certificates that should be trusted.
+
+PKCS#11 token require additional configuration on the JVM level and can be enabled
+via the following settings:
+
++{ssl-prefix}.keystore.type+::
+Set this to `PKCS11` to indicate that the PKCS#11 token should be used as a keystore.
+
++{ssl-prefix}.truststore.type+::
+Set this to `PKCS11` to indicate that the PKCS#11 token should be used as a truststore.
+
+[NOTE]
+When configuring the PKCS#11 token that your JVM is configured to use as
+a keystore or a truststore for Elasticsearch, the PIN for the token can be
+configured by setting the appropriate value to `ssl.truststore.password`
+or `ssl.truststore.secure_password` in the context that you are configuring.
+Since there can only be one PKCS#11 token configured, only one keystore and
+truststore will be usable for configuration in {es}. This in turn means
+that only one certificate can be used for TLS both in the transport and the
+http layer.

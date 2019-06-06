@@ -20,20 +20,11 @@
 esplugin {
     description 'Module for ingest processors that do not require additional security permissions or have large dependencies and resources'
     classname 'org.elasticsearch.ingest.common.IngestCommonPlugin'
+    extendedPlugins = ['lang-painless']
 }
 
 dependencies {
-    compile 'org.jruby.joni:joni:2.1.6'
-    // joni dependencies:
-    compile 'org.jruby.jcodings:jcodings:1.0.12'
+    compileOnly project(':modules:lang-painless')
+    compile project(':libs:elasticsearch-grok')
+    compile project(':libs:elasticsearch-dissect')
 }
-
-compileJava.options.compilerArgs << "-Xlint:-unchecked,-rawtypes"
-compileTestJava.options.compilerArgs << "-Xlint:-unchecked,-rawtypes"
-
-thirdPartyAudit.excludes = [
-        // joni has AsmCompilerSupport, but that isn't being used:
-        'org.objectweb.asm.ClassWriter',
-        'org.objectweb.asm.MethodVisitor',
-        'org.objectweb.asm.Opcodes',
-]

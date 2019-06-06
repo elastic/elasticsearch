@@ -44,6 +44,7 @@
 import argparse
 import tempfile
 import os
+from os.path import basename, dirname, isdir, join
 import signal
 import shutil
 import urllib
@@ -57,28 +58,14 @@ from urllib.parse import urlparse
 
 from http.client import HTTPConnection
 
-DEFAULT_PLUGINS = ["analysis-icu",
-                   "analysis-kuromoji",
-                   "analysis-phonetic",
-                   "analysis-smartcn",
-                   "analysis-stempel",
-                   "discovery-azure-classic",
-                   "discovery-ec2",
-                   "discovery-file",
-                   "discovery-gce",
-                   "ingest-attachment",
-                   "ingest-geoip",
-                   "ingest-user-agent",
-                   "lang-javascript",
-                   "lang-python",
-                   "mapper-attachments",
-                   "mapper-murmur3",
-                   "mapper-size",
-                   "repository-azure",
-                   "repository-gcs",
-                   "repository-hdfs",
-                   "repository-s3",
-                   "store-smb"]
+def find_official_plugins():
+    plugins_dir = join(dirname(dirname(__file__)), 'plugins')
+    plugins = []
+    for plugin in os.listdir(plugins_dir):
+        if isdir(join(plugins_dir, plugin)):
+            plugins.append(plugin)
+    return plugins
+DEFAULT_PLUGINS = find_official_plugins()
 
 try:
   JAVA_HOME = os.environ['JAVA_HOME']
@@ -213,7 +200,7 @@ def smoke_test_release(release, files, hash, plugins):
       headers = {}
     print('  Starting elasticsearch deamon from [%s]' % es_dir)
     try:
-      run('%s; %s -Enode.name=smoke_tester -Ecluster.name=prepare_release -Escript.inline=true -Escript.stored=true -Erepositories.url.allowed_urls=http://snapshot.test* %s -Epidfile=%s -Enode.portsfile=true'
+      run('%s; %s -Enode.name=smoke_tester -Ecluster.name=prepare_release -Erepositories.url.allowed_urls=http://snapshot.test* %s -Epidfile=%s -Enode.portsfile=true'
           % (java_exe(), es_run_path, '-d', os.path.join(es_dir, 'es-smoke.pid')))
       if not wait_for_node_startup(es_dir, header=headers):
         print("elasticsearch logs:")
@@ -297,6 +284,3 @@ if __name__ == "__main__":
   else:
     download_url = 'https://staging.elastic.co/%s-%s/downloads/elasticsearch' % (version, hash)
   download_and_verify(version, hash, files, download_url, plugins=DEFAULT_PLUGINS + plugins)
-
-
-

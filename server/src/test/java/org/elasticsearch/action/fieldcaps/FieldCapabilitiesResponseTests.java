@@ -1,0 +1,88 @@
+/*
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+package org.elasticsearch.action.fieldcaps;
+
+import org.elasticsearch.test.AbstractStreamableTestCase;
+
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+import static com.carrotsearch.randomizedtesting.RandomizedTest.randomAsciiLettersOfLength;
+
+
+public class FieldCapabilitiesResponseTests extends AbstractStreamableTestCase<FieldCapabilitiesResponse> {
+    @Override
+    protected FieldCapabilitiesResponse createBlankInstance() {
+        return new FieldCapabilitiesResponse();
+    }
+
+    @Override
+    protected FieldCapabilitiesResponse createTestInstance() {
+        List<FieldCapabilitiesIndexResponse> responses = new ArrayList<>();
+        int numResponse = randomIntBetween(0, 10);
+
+        for (int i = 0; i < numResponse; i++) {
+            responses.add(createRandomIndexResponse());
+        }
+        return new FieldCapabilitiesResponse(responses);
+    }
+
+    private FieldCapabilitiesIndexResponse createRandomIndexResponse() {
+        Map<String, FieldCapabilities> responses = new HashMap<>();
+
+        String[] fields = generateRandomStringArray(5, 10, false, true);
+        assertNotNull(fields);
+
+        for (String field : fields) {
+            responses.put(field, FieldCapabilitiesTests.randomFieldCaps(field));
+        }
+        return new FieldCapabilitiesIndexResponse(randomAsciiLettersOfLength(10), responses);
+    }
+
+    @Override
+    protected FieldCapabilitiesResponse mutateInstance(FieldCapabilitiesResponse response) {
+        Map<String, Map<String, FieldCapabilities>> mutatedResponses = new HashMap<>(response.get());
+
+        int mutation = response.get().isEmpty() ? 0 : randomIntBetween(0, 2);
+
+        switch (mutation) {
+            case 0:
+                String toAdd = randomAlphaOfLength(10);
+                mutatedResponses.put(toAdd, Collections.singletonMap(
+                    randomAlphaOfLength(10),
+                    FieldCapabilitiesTests.randomFieldCaps(toAdd)));
+                break;
+            case 1:
+                String toRemove = randomFrom(mutatedResponses.keySet());
+                mutatedResponses.remove(toRemove);
+                break;
+            case 2:
+                String toReplace = randomFrom(mutatedResponses.keySet());
+                mutatedResponses.put(toReplace, Collections.singletonMap(
+                    randomAlphaOfLength(10),
+                    FieldCapabilitiesTests.randomFieldCaps(toReplace)));
+                break;
+        }
+        return new FieldCapabilitiesResponse(null, mutatedResponses);
+    }
+}

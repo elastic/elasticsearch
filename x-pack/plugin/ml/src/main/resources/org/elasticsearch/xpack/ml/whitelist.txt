@@ -1,0 +1,5 @@
+
+static_import {
+    List domainSplit(String) from_class org.elasticsearch.xpack.ml.utils.DomainSplitFunction
+    List domainSplit(String,Map) from_class org.elasticsearch.xpack.ml.utils.DomainSplitFunction
+}

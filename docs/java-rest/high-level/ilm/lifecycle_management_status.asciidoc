@@ -1,0 +1,36 @@
+--
+:api: ilm-status
+:request: LifecycleManagementStatusRequest
+:response: AcknowledgedResponse
+--
+
+[id="{upid}-{api}"]
+=== Index Lifecycle Management Status API
+
+
+[id="{upid}-{api}-request"]
+==== Request
+
+The Index Lifecycle Management Status API allows you to retrieve the status
+of Index Lifecycle Management
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request]
+--------------------------------------------------
+
+
+[id="{upid}-{api}-response"]
+==== Response
+
+The returned +{response}+ indicates the status of Index Lifecycle Management.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-response]
+--------------------------------------------------
+<1> The returned status can be `RUNNING`, `STOPPING`, or `STOPPED`.
+
+include::../execution.asciidoc[]
+
+

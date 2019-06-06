@@ -20,9 +20,9 @@
 package org.elasticsearch.ingest.common;
 
 import org.elasticsearch.ingest.IngestDocument;
+import org.elasticsearch.ingest.IngestDocument.MetaData;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.ingest.RandomDocumentPicks;
-import org.elasticsearch.ingest.TemplateService;
 import org.elasticsearch.ingest.TestTemplateService;
 import org.elasticsearch.ingest.ValueSource;
 import org.elasticsearch.test.ESTestCase;
@@ -100,17 +100,32 @@ public class SetProcessorTests extends ESTestCase {
         assertThat(ingestDocument.getFieldValue(fieldName, Object.class), equalTo(newValue));
     }
 
-    public void testSetMetadata() throws Exception {
-        IngestDocument.MetaData randomMetaData = randomFrom(IngestDocument.MetaData.values());
+    public void testSetMetadataExceptVersion() throws Exception {
+        MetaData randomMetaData = randomFrom(MetaData.INDEX, MetaData.TYPE, MetaData.ID, MetaData.ROUTING);
         Processor processor = createSetProcessor(randomMetaData.getFieldName(), "_value", true);
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
         processor.execute(ingestDocument);
         assertThat(ingestDocument.getFieldValue(randomMetaData.getFieldName(), String.class), Matchers.equalTo("_value"));
     }
 
+    public void testSetMetadataVersion() throws Exception {
+        long version = randomNonNegativeLong();
+        Processor processor = createSetProcessor(MetaData.VERSION.getFieldName(), version, true);
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
+        processor.execute(ingestDocument);
+        assertThat(ingestDocument.getFieldValue(MetaData.VERSION.getFieldName(), Long.class), Matchers.equalTo(version));
+    }
+
+    public void testSetMetadataVersionType() throws Exception {
+        String versionType = randomFrom("internal", "external", "external_gte");
+        Processor processor = createSetProcessor(MetaData.VERSION_TYPE.getFieldName(), versionType, true);
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
+        processor.execute(ingestDocument);
+        assertThat(ingestDocument.getFieldValue(MetaData.VERSION_TYPE.getFieldName(), String.class), Matchers.equalTo(versionType));
+    }
+
     private static Processor createSetProcessor(String fieldName, Object fieldValue, boolean overrideEnabled) {
-        TemplateService templateService = TestTemplateService.instance();
-        return new SetProcessor(randomAsciiOfLength(10), templateService.compile(fieldName),
-                ValueSource.wrap(fieldValue, templateService), overrideEnabled);
+        return new SetProcessor(randomAlphaOfLength(10), new TestTemplateService.MockTemplateScript.Factory(fieldName),
+                ValueSource.wrap(fieldValue, TestTemplateService.instance()), overrideEnabled);
     }
 }

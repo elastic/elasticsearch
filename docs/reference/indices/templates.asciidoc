@@ -2,12 +2,15 @@
 == Index Templates
 
 Index templates allow you to define templates that will automatically be
-applied when new indices are created. The templates include both settings and
-mappings, and a simple pattern template that controls whether the template
-should be applied to the new index.
+applied when new indices are created. The templates include both 
+<<index-modules-settings,settings>> and <<mapping,mappings>>
+and a simple pattern template that controls whether the template should be 
+applied to the new index.
 
-NOTE: Templates are only applied at index creation time.  Changing a template
-will have no impact on existing indices.
+NOTE: Templates are only applied at index creation time. Changing a template
+will have no impact on existing indices. When using the create index API, the
+settings/mappings defined as part of the create index call will take precedence
+over any matching settings/mappings defined in the template.
 
 For example:
 
@@ -15,23 +18,21 @@ For example:
 --------------------------------------------------
 PUT _template/template_1
 {
-  "template": "te*",
+  "index_patterns": ["te*", "bar*"],
   "settings": {
     "number_of_shards": 1
   },
   "mappings": {
-    "type1": {
-      "_source": {
-        "enabled": false
+    "_source": {
+      "enabled": false
+    },
+    "properties": {
+      "host_name": {
+        "type": "keyword"
       },
-      "properties": {
-        "host_name": {
-          "type": "keyword"
-        },
-        "created_at": {
-          "type": "date",
-          "format": "EEE MMM dd HH:mm:ss Z YYYY"
-        }
+      "created_at": {
+        "type": "date",
+        "format": "EEE MMM dd HH:mm:ss Z yyyy"
       }
     }
   }
@@ -41,11 +42,11 @@ PUT _template/template_1
 // TESTSETUP
 
 NOTE: Index templates provide C-style /* */ block comments. Comments are allowed
-everywhere in the JSON document except before to the initial opening curly bracket. 
+everywhere in the JSON document except before the initial opening curly bracket. 
 
-Defines a template named template_1, with a template pattern of `te*`.
+Defines a template named `template_1`, with a template pattern of `te*` or `bar*`.
 The settings and mappings will be applied to any index name that matches
-the `te*` template.
+the `te*` or `bar*` pattern.
 
 It is also possible to include aliases in an index template as follows:
 
@@ -53,7 +54,7 @@ It is also possible to include aliases in an index template as follows:
 --------------------------------------------------
 PUT _template/template_1
 {
-    "template" : "te*",
+    "index_patterns" : ["te*"],
     "settings" : {
         "number_of_shards" : 1
     },
@@ -72,8 +73,8 @@ PUT _template/template_1
 // CONSOLE
 // TEST[s/^/DELETE _template\/template_1\n/]
 
-<1> the `{index}` placeholder within the alias name will be replaced with the
-actual index name that the template gets applied to during index creation.
+<1> the `{index}` placeholder in the alias name will be replaced with the
+actual index name that the template gets applied to, during index creation.
 
 [float]
 [[delete]]
@@ -120,7 +121,7 @@ GET /_template
 
 [float]
 [[indices-templates-exists]]
-=== Templates exists
+=== Template exists
 
 Used to check if the template exists or not. For example:
 
@@ -131,11 +132,16 @@ HEAD _template/template_1
 // CONSOLE
 
 The HTTP status code indicates if the template with the given name
-exists or not. A status code `200` means it exists, a `404` it does not.
+exists or not. Status code `200` means it exists and `404` means
+it does not.
+
+NOTE: Before 7.0.0, the 'mappings' definition used to include a type name. Although mappings
+no longer contain a type name by default, you can still use the old format by setting
+the parameter include_type_name. For more details, please see <<removal-of-types>>.
 
 [float]
 [[multiple-templates]]
-=== Multiple Template Matching
+=== Multiple Templates Matching
 
 Multiple index templates can potentially match an index, in this case,
 both the settings and mappings are merged into the final configuration
@@ -147,40 +153,39 @@ orders overriding them. For example:
 --------------------------------------------------
 PUT /_template/template_1
 {
-    "template" : "*",
+    "index_patterns" : ["*"],
     "order" : 0,
     "settings" : {
         "number_of_shards" : 1
     },
     "mappings" : {
-        "type1" : {
-            "_source" : { "enabled" : false }
-        }
+        "_source" : { "enabled" : false }
     }
 }
 
 PUT /_template/template_2
 {
-    "template" : "te*",
+    "index_patterns" : ["te*"],
     "order" : 1,
     "settings" : {
         "number_of_shards" : 1
     },
     "mappings" : {
-        "type1" : {
-            "_source" : { "enabled" : true }
-        }
+        "_source" : { "enabled" : true }
     }
 }
 --------------------------------------------------
 // CONSOLE
 // TEST[s/^/DELETE _template\/template_1\n/]
 
-The above will disable storing the `_source` on all `type1` types, but
-for indices of that start with `te*`, source will still be enabled.
+The above will disable storing the `_source`, but
+for indices that start with `te*`, `_source` will still be enabled.
 Note, for mappings, the merging is "deep", meaning that specific
 object/property based mappings can easily be added/overridden on higher
 order templates, with lower order templates providing the basis.
+
+NOTE: Multiple matching templates with the same order value will 
+result in a non-deterministic merging order.
 
 [float]
 [[versioning-templates]]
@@ -196,7 +201,7 @@ one.
 --------------------------------------------------
 PUT /_template/template_1
 {
-    "template" : "*",
+    "index_patterns" : ["*"],
     "order" : 0,
     "settings" : {
         "number_of_shards" : 1
@@ -206,7 +211,7 @@ PUT /_template/template_1
 --------------------------------------------------
 // CONSOLE
 
-To check for the `version`, you can
+To check the `version`, you can
 <<common-options-response-filtering, filter responses>>
 using `filter_path` to limit the response to just the `version`:
 

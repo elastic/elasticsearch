@@ -1,0 +1,13 @@
+[[release-highlights]]
+= Release highlights
+
+[partintro]
+--
+This section summarizes the most important changes in each release. For the 
+full list, see <<es-release-notes>> and <<breaking-changes>>. 
+
+* <<release-highlights-8.0.0>>
+
+--
+
+include::highlights-8.0.0.asciidoc[]

@@ -26,7 +26,9 @@ following settings:
 
     Doc number, term frequencies, positions, and start and end character
     offsets (which map the term back to the original string) are indexed.
-    Offsets are used by the <<postings-highlighter,postings highlighter>>.
+    Offsets are used by the <<unified-highlighter,unified highlighter>> to speed up highlighting.
+
+NOTE: <<number,Numeric fields>> don't support the `index_options` parameter any longer.
 
 <<mapping-index,Analyzed>> string fields use `positions` as the default, and
 all other fields use `docs` as the default.
@@ -36,18 +38,16 @@ all other fields use `docs` as the default.
 PUT my_index
 {
   "mappings": {
-    "my_type": {
-      "properties": {
-        "text": {
-          "type": "text",
-          "index_options": "offsets"
-        }
+    "properties": {
+      "text": {
+        "type": "text",
+        "index_options": "offsets"
       }
     }
   }
 }
 
-PUT my_index/my_type/1
+PUT my_index/_doc/1
 {
   "text": "Quick brown fox"
 }
@@ -67,4 +67,4 @@ GET my_index/_search
 }
 --------------------------------------------------
 // CONSOLE
-<1> The `text` field will use the postings highlighter by default because `offsets` are indexed.
+<1> The `text` field will use the postings for the highlighting by default because `offsets` are indexed.

@@ -1,0 +1,46 @@
+//
+// Null expressions
+//
+
+dateTimeOverNull
+SELECT YEAR(CAST(NULL AS DATETIME)) d;
+
+d:i
+null
+;
+
+addOfNull
+SELECT CAST(NULL AS INT) + CAST(NULL AS FLOAT) AS n;
+
+n:d
+null
+;
+
+
+divOfCastedNull
+SELECT 5 / CAST(NULL AS FLOAT) + 10 AS n;
+
+n:d
+null
+;
+
+divNoNull
+SELECT 5 / null + 1 AS n;
+
+n:i
+null
+;
+
+coalesceJustWithNull
+SELECT COALESCE(null, null, null) AS c;
+
+c
+null
+;
+
+coalesceMixed
+SELECT COALESCE(null, 123, null, 321);
+
+COALESCE(null, 123, null, 321):i
+123
+;

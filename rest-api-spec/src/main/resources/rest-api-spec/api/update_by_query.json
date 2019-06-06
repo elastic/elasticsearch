@@ -4,17 +4,13 @@
     "methods": ["POST"],
     "url": {
       "path": "/{index}/_update_by_query",
-      "paths": ["/{index}/_update_by_query", "/{index}/{type}/_update_by_query"],
+      "paths": ["/{index}/_update_by_query"],
       "comment": "most things below this are just copied from search.json",
       "parts": {
         "index": {
          "required" : true,
          "type" : "list",
          "description" : "A comma-separated list of index names to search; use `_all` or empty string to perform the operation on all indices"
-        },
-        "type": {
-          "type" : "list",
-          "description" : "A comma-separated list of document types to search; leave empty to perform the operation on all types"
         }
       },
       "params": {
@@ -106,11 +102,11 @@
           "type" : "list",
           "description" : "True or false to return the _source field or not, or a list of fields to return"
         },
-        "_source_exclude": {
+        "_source_excludes": {
           "type" : "list",
           "description" : "A list of fields to exclude from the returned _source field"
         },
-        "_source_include": {
+        "_source_includes": {
           "type" : "list",
           "description" : "A list of fields to extract and return from the _source field"
         },
@@ -150,11 +146,11 @@
         "scroll_size": {
           "type": "number",
           "defaut_value": 100,
-          "description": "Size on the scroll request powering the update_by_query"
+          "description": "Size on the scroll request powering the update by query"
         },
         "wait_for_completion": {
            "type" : "boolean",
-           "default": false,
+           "default": true,
            "description" : "Should the request should block until the update by query operation is complete."
         },
         "requests_per_second": {
@@ -163,7 +159,7 @@
           "description": "The throttle to set on this request in sub-requests per second. -1 means no throttle."
         },
         "slices": {
-          "type": "integer",
+          "type": "number",
           "default": 1,
           "description": "The number of slices this task should be divided into. Defaults to 1 meaning the task isn't sliced into subtasks."
         }

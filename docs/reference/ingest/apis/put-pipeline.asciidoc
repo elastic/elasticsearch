@@ -1,0 +1,43 @@
+[[put-pipeline-api]]
+=== Put Pipeline API
+
+The put pipeline API adds pipelines and updates existing pipelines in the cluster.
+
+[source,js]
+--------------------------------------------------
+PUT _ingest/pipeline/my-pipeline-id
+{
+  "description" : "describe pipeline",
+  "processors" : [
+    {
+      "set" : {
+        "field": "foo",
+        "value": "bar"
+      }
+    }
+  ]
+}
+--------------------------------------------------
+// CONSOLE
+
+//////////////////////////
+
+[source,js]
+--------------------------------------------------
+DELETE /_ingest/pipeline/my-pipeline-id
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+[source,js]
+--------------------------------------------------
+{
+"acknowledged": true
+}
+--------------------------------------------------
+// TESTRESPONSE
+
+//////////////////////////
+
+NOTE: The put pipeline API also instructs all ingest nodes to reload their in-memory representation of pipelines, so that
+      pipeline changes take effect immediately.

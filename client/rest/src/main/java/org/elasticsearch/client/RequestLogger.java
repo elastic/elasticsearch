@@ -59,6 +59,12 @@ final class RequestLogger {
             logger.debug("request [" + request.getMethod() + " " + host + getUri(request.getRequestLine()) +
                     "] returned [" + httpResponse.getStatusLine() + "]");
         }
+        if (logger.isWarnEnabled()) {
+            Header[] warnings = httpResponse.getHeaders("Warning");
+            if (warnings != null && warnings.length > 0) {
+                logger.warn(buildWarningMessage(request, host, warnings));
+            }
+        }
         if (tracer.isTraceEnabled()) {
             String requestLine;
             try {
@@ -81,20 +87,32 @@ final class RequestLogger {
     /**
      * Logs a request that failed
      */
-    static void logFailedRequest(Log logger, HttpUriRequest request, HttpHost host, Exception e) {
+    static void logFailedRequest(Log logger, HttpUriRequest request, Node node, Exception e) {
         if (logger.isDebugEnabled()) {
-            logger.debug("request [" + request.getMethod() + " " + host + getUri(request.getRequestLine()) + "] failed", e);
+            logger.debug("request [" + request.getMethod() + " " + node.getHost() + getUri(request.getRequestLine()) + "] failed", e);
         }
         if (tracer.isTraceEnabled()) {
             String traceRequest;
             try {
-                traceRequest = buildTraceRequest(request, host);
+                traceRequest = buildTraceRequest(request, node.getHost());
             } catch (IOException e1) {
                 tracer.trace("error while reading request for trace purposes", e);
                 traceRequest = "";
             }
             tracer.trace(traceRequest);
         }
+    }
+
+    static String buildWarningMessage(HttpUriRequest request, HttpHost host, Header[] warnings) {
+        StringBuilder message = new StringBuilder("request [").append(request.getMethod()).append(" ").append(host)
+                .append(getUri(request.getRequestLine())).append("] returned ").append(warnings.length).append(" warnings: ");
+        for (int i = 0; i < warnings.length; i++) {
+            if (i > 0) {
+                message.append(",");
+            }
+            message.append("[").append(warnings[i].getValue()).append("]");
+        }
+        return message.toString();
     }
 
     /**
@@ -121,11 +139,12 @@ final class RequestLogger {
      * Creates curl output for given response
      */
     static String buildTraceResponse(HttpResponse httpResponse) throws IOException {
-        String responseLine = "# " + httpResponse.getStatusLine().toString();
+        StringBuilder responseLine = new StringBuilder();
+        responseLine.append("# ").append(httpResponse.getStatusLine());
         for (Header header : httpResponse.getAllHeaders()) {
-            responseLine += "\n# " + header.getName() + ": " + header.getValue();
+            responseLine.append("\n# ").append(header.getName()).append(": ").append(header.getValue());
         }
-        responseLine += "\n#";
+        responseLine.append("\n#");
         HttpEntity entity = httpResponse.getEntity();
         if (entity != null) {
             if (entity.isRepeatable() == false) {
@@ -134,17 +153,17 @@ final class RequestLogger {
             httpResponse.setEntity(entity);
             ContentType contentType = ContentType.get(entity);
             Charset charset = StandardCharsets.UTF_8;
-            if (contentType != null) {
+            if (contentType != null && contentType.getCharset() != null) {
                 charset = contentType.getCharset();
             }
             try (BufferedReader reader = new BufferedReader(new InputStreamReader(entity.getContent(), charset))) {
                 String line;
                 while( (line = reader.readLine()) != null) {
-                    responseLine += "\n# " + line;
+                    responseLine.append("\n# ").append(line);
                 }
             }
         }
-        return responseLine;
+        return responseLine.toString();
     }
 
     private static String getUri(RequestLine requestLine) {

@@ -1,0 +1,11 @@
+[[painless-api-reference]]
+== Painless API Reference
+
+Painless has a strict whitelist for methods and classes per context to
+ensure all painless scripts are secure. Most of these methods are
+exposed directly from the Java Runtime Environment (JRE) while others
+are part of Elasticsearch or Painless itself. Below is a list of the available
+APIs per context. The shared API is available to all contexts, while the
+specialized API available differs between contexts.
+
+include::painless-api-reference/index.asciidoc[]

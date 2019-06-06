@@ -1,0 +1,5 @@
+{ "index":{"_id":"1"} }
+{ "field1" : "value1" }
+{ "delete" : {  "_id" : "2" } }
+{ "create" : {  "_id" : "3" } }
+{ "field1" : "value3" }

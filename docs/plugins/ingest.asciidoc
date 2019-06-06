@@ -15,15 +15,26 @@ using the Apache text extraction library http://lucene.apache.org/tika/[Tika].
 
 <<ingest-geoip>>::
 
-The GeoIP processor adds information about the geographical location of IP addresses, based on data from the Maxmind databases.
-This processor adds this information by default under the `geoip` field.
-+
-The ingest-geoip plugin ships by default with the GeoLite2 City and GeoLite2 Country geoip2 databases from Maxmind made available
-under the CCA-ShareAlike 3.0 license. For more details see, http://dev.maxmind.com/geoip/geoip2/geolite2/.
+The `geoip` processor adds information about the geographical location of IP
+addresses, based on data from the Maxmind databases. This processor adds this
+information by default under the `geoip` field. The `geoip` processor is no
+longer distributed as a plugin, but is now a module distributed by default with
+Elasticsearch. See {ref}/geoip-processor.html[GeoIP processor] for more
+details.
 
 <<ingest-user-agent>>::
 
-A processor that extracts details from the User-Agent header value.
+A processor that extracts details from the User-Agent header value. The
+`user_agent` processor is no longer distributed as a plugin, but is now a module
+distributed by default with Elasticsearch. See
+{ref}/user-agent-processor.html[User Agent processor] for more details.
+
+[float]
+=== Community contributed ingest plugins
+
+The following plugin has been contributed by our community:
+
+* https://github.com/johtani/elasticsearch-ingest-csv[Ingest CSV Processor Plugin] (by Jun Ohtani)
 
 include::ingest-attachment.asciidoc[]
 

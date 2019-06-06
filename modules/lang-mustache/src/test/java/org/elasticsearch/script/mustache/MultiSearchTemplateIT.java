@@ -21,6 +21,7 @@ package org.elasticsearch.script.mustache;
 
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.ScriptType;
@@ -36,6 +37,7 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.core.Is.is;
 
@@ -44,11 +46,6 @@ public class MultiSearchTemplateIT extends ESIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Collections.singleton(MustachePlugin.class);
-    }
-
-    @Override
-    protected Collection<Class<? extends Plugin>> transportClientPlugins() {
-        return nodePlugins();
     }
 
     public void testBasic() throws Exception {
@@ -61,13 +58,13 @@ public class MultiSearchTemplateIT extends ESIntegTestCase {
         }
         indexRandom(true, indexRequestBuilders);
 
-        final String template = jsonBuilder().startObject()
+        final String template = Strings.toString(jsonBuilder().startObject()
                                                 .startObject("query")
                                                     .startObject("{{query_type}}")
                                                         .field("{{field_name}}", "{{field_value}}")
                                                     .endObject()
                                                 .endObject()
-                                            .endObject().string();
+                                            .endObject());
 
         MultiSearchTemplateRequest multiRequest = new MultiSearchTemplateRequest();
 
@@ -139,6 +136,7 @@ public class MultiSearchTemplateIT extends ESIntegTestCase {
 
         MultiSearchTemplateResponse response = client().execute(MultiSearchTemplateAction.INSTANCE, multiRequest).get();
         assertThat(response.getResponses(), arrayWithSize(5));
+        assertThat(response.getTook().millis(), greaterThan(0L));
 
         MultiSearchTemplateResponse.Item response1 = response.getResponses()[0];
         assertThat(response1.isFailure(), is(false));
@@ -166,7 +164,7 @@ public class MultiSearchTemplateIT extends ESIntegTestCase {
         MultiSearchTemplateResponse.Item response4 = response.getResponses()[3];
         assertThat(response4.isFailure(), is(true));
         assertThat(response4.getFailure(), instanceOf(IndexNotFoundException.class));
-        assertThat(response4.getFailure().getMessage(), equalTo("no such index"));
+        assertThat(response4.getFailure().getMessage(), equalTo("no such index [unknown]"));
 
         MultiSearchTemplateResponse.Item response5 = response.getResponses()[4];
         assertThat(response5.isFailure(), is(false));

@@ -1,0 +1,104 @@
+---
+"Test PagerDuty Action":
+  - do:
+      cluster.health:
+          wait_for_status: yellow
+
+  - do:
+      watcher.put_watch:
+        id: "pagerduty_watch"
+        body:  >
+          {
+            "trigger": {
+              "schedule": {
+                "interval": "1d"
+              }
+            },
+            "input": {
+              "simple": {
+              }
+            },
+            "actions": {
+              "my_pagerduty_action": {
+                "pagerduty": {
+                  "description": "#testIncidentEvent()",
+                  "client": "PagerDutyServiceTests",
+                  "client_url": "_client_url",
+                  "account" : "_account",
+                  "contexts" : [
+                    {
+                      "type": "link",
+                      "href": "https://www.elastic.co/products/x-pack/alerting",
+                      "text": "Go to the Elastic.co Alerting website"
+                    },
+                    {
+                      "type": "image",
+                      "src": "https://www.elastic.co/assets/blte5d899fd0b0e6808/icon-alerting-bb.svg",
+                      "href": "https://www.elastic.co/assets/blte5d899fd0b0e6808/icon-alerting-bb.svg",
+                      "alt": "X-Pack-Alerting website link with log"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+  
+  - do:
+      watcher.execute_watch:
+        id: "pagerduty_watch"
+        body: >
+          {
+            "record_execution": true
+          }
+
+  - match: { watch_record.trigger_event.type: "manual" }
+  - match: { watch_record.state: "executed" }
+  - match: { watch_record.result.actions.0.id: "my_pagerduty_action" }
+  - match: { watch_record.result.actions.0.type: "pagerduty" }
+  - match: { watch_record.result.actions.0.status: "success" }
+  - match: { watch_record.result.actions.0.pagerduty.sent_event.event.account: "_account" }
+  - match: { watch_record.result.actions.0.pagerduty.sent_event.event.incident_key: "pagerduty_watch" }
+  - match: { watch_record.result.actions.0.pagerduty.sent_event.event.description: "#testIncidentEvent()" }
+  - match: { watch_record.result.actions.0.pagerduty.sent_event.event.client: "PagerDutyServiceTests" }
+  - match: { watch_record.result.actions.0.pagerduty.sent_event.event.client_url: "_client_url" }
+  - match: { watch_record.result.actions.0.pagerduty.sent_event.event.attach_payload: false }
+  - match: { watch_record.result.actions.0.pagerduty.sent_event.event.contexts.0.type: "link" }
+  - match: { watch_record.result.actions.0.pagerduty.sent_event.event.contexts.1.type: "image" }
+
+  # Waits for the watcher history index to be available
+  - do:
+      cluster.health:
+          index: ".watcher-history-*"
+          wait_for_no_relocating_shards: true
+          timeout: 60s
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: ".watcher-history-*"
+        body: >
+          {
+            "query" : {
+              "term" : {
+                "watch_id" : "pagerduty_watch"
+              }
+            }
+          }
+
+  - match: { hits.total: 1 }
+  - match: { hits.hits.0._source.state: "executed" }
+  - match: { hits.hits.0._source.result.actions.0.id: "my_pagerduty_action" }
+  - match: { hits.hits.0._source.result.actions.0.type: "pagerduty" }
+  - match: { hits.hits.0._source.result.actions.0.status: "success" }
+  - match: { hits.hits.0._source.result.actions.0.pagerduty.sent_event.event.account: "_account" }
+  - match: { hits.hits.0._source.result.actions.0.pagerduty.sent_event.event.incident_key: "pagerduty_watch" }
+  - match: { hits.hits.0._source.result.actions.0.pagerduty.sent_event.event.description: "#testIncidentEvent()" }
+  - match: { hits.hits.0._source.result.actions.0.pagerduty.sent_event.event.client: "PagerDutyServiceTests" }
+  - match: { hits.hits.0._source.result.actions.0.pagerduty.sent_event.event.client_url: "_client_url" }
+  - match: { hits.hits.0._source.result.actions.0.pagerduty.sent_event.event.attach_payload: false }
+  - match: { hits.hits.0._source.result.actions.0.pagerduty.sent_event.event.contexts.0.type: "link" }
+  - match: { hits.hits.0._source.result.actions.0.pagerduty.sent_event.event.contexts.1.type: "image" }
+

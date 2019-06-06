@@ -1,0 +1,63 @@
+[[http-clients]]
+=== HTTP/REST clients and security
+
+The {es} {security-features} work with standard HTTP 
+{wikipedia}/Basic_access_authentication[basic authentication]
+headers to authenticate users. Since Elasticsearch is stateless, this header must
+be sent with every request:
+
+[source,shell]
+--------------------------------------------------
+Authorization: Basic <TOKEN> <1>
+--------------------------------------------------
+<1> The `<TOKEN>` is computed as `base64(USERNAME:PASSWORD)`
+
+[float]
+==== Client examples
+
+This example uses `curl` without basic auth to create an index:
+
+[source,shell]
+-------------------------------------------------------------------------------
+curl -XPUT 'localhost:9200/idx'
+-------------------------------------------------------------------------------
+
+[source,js]
+-------------------------------------------------------------------------------
+{
+  "error":  "AuthenticationException[Missing authentication token]",
+  "status": 401
+}
+-------------------------------------------------------------------------------
+
+Since no user is associated with the request above, an authentication error is
+returned. Now we'll use `curl` with basic auth to create an index as the
+`rdeniro` user:
+
+[source,shell]
+---------------------------------------------------------
+curl --user rdeniro:taxidriver -XPUT 'localhost:9200/idx'
+---------------------------------------------------------
+
+[source,js]
+---------------------------------------------------------
+{
+  "acknowledged": true
+}
+---------------------------------------------------------
+
+[float]
+==== Client Libraries over HTTP
+
+For more information about using {security-features} with the language 
+specific clients, refer to
+https://github.com/elasticsearch/elasticsearch-ruby/tree/master/elasticsearch-transport#authentication[Ruby],
+http://elasticsearch-py.readthedocs.org/en/master/#ssl-and-authentication[Python],
+https://metacpan.org/pod/Search::Elasticsearch::Cxn::HTTPTiny#CONFIGURATION[Perl],
+http://www.elastic.co/guide/en/elasticsearch/client/php-api/current/security.html[PHP],
+http://nest.azurewebsites.net/elasticsearch-net/security.html[.NET],
+http://www.elastic.co/guide/en/elasticsearch/client/javascript-api/current/auth-reference.html[JavaScript]
+
+////
+Groovy - TODO link
+////

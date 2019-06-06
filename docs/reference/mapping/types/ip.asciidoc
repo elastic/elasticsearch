@@ -9,17 +9,15 @@ https://en.wikipedia.org/wiki/IPv6[IPv6] addresses.
 PUT my_index
 {
   "mappings": {
-    "my_type": {
-      "properties": {
-        "ip_addr": {
-          "type": "ip"
-        }
+    "properties": {
+      "ip_addr": {
+        "type": "ip"
       }
     }
   }
 }
 
-PUT my_index/my_type/1
+PUT my_index/_doc/1
 {
   "ip_addr": "192.168.1.1"
 }
@@ -34,7 +32,9 @@ GET my_index/_search
 }
 --------------------------------------------------
 // CONSOLE
+// TESTSETUP
 
+NOTE: You can also store ip ranges in a single field using an <<range,ip_range datatype>>.
 
 [[ip-params]]
 ==== Parameters for `ip` fields
@@ -54,14 +54,6 @@ The following parameters are accepted by `ip` fields:
     can later be used for sorting, aggregations, or scripting? Accepts `true`
     (default) or `false`.
 
-<<include-in-all,`include_in_all`>>::
-
-    Whether or not the field value should be included in the
-    <<mapping-all-field,`_all`>> field? Accepts `true` or `false`.  Defaults
-    to `false` if <<mapping-index,`index`>> is set to `false`, or if a parent
-    <<object,`object`>> field sets `include_in_all` to `false`.
-    Otherwise defaults to `true`.
-
 <<mapping-index,`index`>>::
 
     Should the field be searchable? Accepts `true` (default) and `false`.
@@ -77,6 +69,7 @@ The following parameters are accepted by `ip` fields:
     the <<mapping-source-field,`_source`>> field. Accepts `true` or `false`
     (default).
 
+[[query-ip-fields]]
 ==== Querying `ip` fields
 
 The most common way to query ip addresses is to use the
@@ -94,6 +87,7 @@ GET my_index/_search
   }
 }
 --------------------------------------------------
+// CONSOLE
 
 or
 
@@ -108,6 +102,7 @@ GET my_index/_search
   }
 }
 --------------------------------------------------
+// CONSOLE
 
 Also beware that colons are special characters to the
 <<query-dsl-query-string-query,`query_string`>> query, so ipv6 addresses will
@@ -116,7 +111,7 @@ searched value:
 
 [source,js]
 --------------------------------------------------
-GET t/_search
+GET my_index/_search
 {
   "query": {
     "query_string" : {
@@ -125,3 +120,4 @@ GET t/_search
   }
 }
 --------------------------------------------------
+// CONSOLE

@@ -1,5 +1,5 @@
 [[setup]]
-= Setup Elasticsearch
+= Set up Elasticsearch
 
 [partintro]
 --
@@ -16,23 +16,24 @@ running, including:
 == Supported platforms
 
 The matrix of officially supported operating systems and JVMs is available here:
-link:/support/matrix[Support Matrix].  Elasticsearch is tested on the listed
+link:/support/matrix[Support Matrix]. Elasticsearch is tested on the listed
 platforms, but it is possible that it will work on other platforms too.
 
 [float]
 [[jvm-version]]
 == Java (JVM) Version
 
-Elasticsearch is built using Java, and requires at least
-http://www.oracle.com/technetwork/java/javase/downloads/index.html[Java 8] in
-order to run. Only Oracle's Java and the OpenJDK are supported. The same JVM
-version should be used on all Elasticsearch nodes and clients.
+Elasticsearch is built using Java, and includes a bundled version of
+http://openjdk.java.net[OpenJDK] from the JDK maintainers (GPLv2+CE)
+within each distribution. The bundled JVM is the recommended JVM and
+is located within the `jdk` directory of the Elasticsearch home directory.
 
-We recommend installing Java version *{jdk} or later*. Elasticsearch will
-refuse to start if a known-bad version of Java is used.
-
-The version of Java that Elasticsearch will use can be configured by setting
-the `JAVA_HOME` environment variable.
+To use your own version of Java, set the `JAVA_HOME` environment variable.
+If you must use a version of Java that is different from the bundled JVM,
+we recommend using a link:/support/matrix[supported]
+http://www.oracle.com/technetwork/java/eol-135779.html[LTS version of Java].
+Elasticsearch will refuse to start if a known-bad version of Java is used.
+The bundled JVM directory may be removed when using your own JVM.
 
 --
 
@@ -40,12 +41,38 @@ include::setup/install.asciidoc[]
 
 include::setup/configuration.asciidoc[]
 
-include::setup/important-settings.asciidoc[]
+include::setup/jvm-options.asciidoc[]
 
-include::setup/bootstrap-checks.asciidoc[]
+include::setup/secure-settings.asciidoc[]
+
+include::setup/logging-config.asciidoc[]
+
+include::settings/audit-settings.asciidoc[]
+
+include::settings/ccr-settings.asciidoc[]
+
+include::settings/ilm-settings.asciidoc[]
+
+include::settings/license-settings.asciidoc[]
+
+include::settings/ml-settings.asciidoc[]
+
+include::settings/monitoring-settings.asciidoc[]
+
+include::settings/security-settings.asciidoc[]
+
+include::settings/sql-settings.asciidoc[]
+
+include::settings/notification-settings.asciidoc[]
+
+include::setup/important-settings.asciidoc[]
 
 include::setup/sysconfig.asciidoc[]
 
-include::setup/upgrade.asciidoc[]
+include::setup/bootstrap-checks.asciidoc[]
+
+include::setup/starting.asciidoc[]
 
 include::setup/stopping.asciidoc[]
+
+include::setup/add-nodes.asciidoc[]

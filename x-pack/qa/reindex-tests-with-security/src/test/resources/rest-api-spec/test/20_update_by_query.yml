@@ -1,0 +1,221 @@
+setup:
+  - skip:
+      features: headers
+---
+"Update_by_query as same user works":
+
+  - do:
+      index:
+        index:   source
+        type:    _doc
+        id:      1
+        body:    { "text": "test" }
+  - do:
+      indices.refresh: {}
+
+  - do:
+      update_by_query:
+        refresh: true
+        index: source
+        body:
+          script:
+            source: ctx._source['hi'] = 'there'
+  - match: {updated: 1}
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: source
+        body:
+          query:
+            match:
+              hi: there
+  - match: { hits.total: 1 }
+
+---
+"Update_by_query with runas user works":
+
+  - do:
+      index:
+        index:   source
+        type:    _doc
+        id:      1
+        body:    { "text": "test" }
+  - do:
+      indices.refresh: {}
+
+  - do:
+      headers: {es-security-runas-user: powerful_user}
+      update_by_query:
+        refresh: true
+        index: source
+        body:
+          script:
+            source: ctx._source['hi'] = 'there'
+  - match: {updated: 1}
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: source
+        body:
+          query:
+            match:
+              hi: there
+  - match: { hits.total: 1 }
+
+---
+"Update_by_query with runas user with minimal privileges works":
+
+  - do:
+      index:
+        index:   source
+        type:    _doc
+        id:      1
+        body:    { "text": "test" }
+  - do:
+      indices.refresh: {}
+
+  - do:
+      headers: {es-security-runas-user: minimal_user}
+      update_by_query:
+        refresh: true
+        index: source
+        body:
+          script:
+            source: ctx._source['hi'] = 'there'
+  - match: {updated: 1}
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: source
+        body:
+          query:
+            match:
+              hi: there
+  - match: { hits.total: 1 }
+
+---
+"Update_by_query as readonly user is forbidden":
+
+  - do:
+      index:
+        index:   source
+        type:    _doc
+        id:      1
+        body:    { "text": "test" }
+  - do:
+      indices.refresh: {}
+
+  - do:
+      headers: {es-security-runas-user: readonly_user}
+      catch: forbidden
+      update_by_query:
+        index: source
+
+---
+"Update_by_query as user that can't read from the source is forbidden":
+
+  - do:
+      index:
+        index:   source
+        type:    _doc
+        id:      1
+        body:    { "text": "test" }
+  - do:
+      indices.refresh: {}
+
+  - do:
+      headers: {es-security-runas-user: dest_only_user}
+      catch: forbidden
+      update_by_query:
+        index: source
+
+---
+"Update_by_query misses hidden docs":
+
+  - do:
+      index:
+        index:   source
+        type:    _doc
+        id:      1
+        body:    { "text": "test" }
+  - do:
+      index:
+        index:   source
+        type:    _doc
+        id:      2
+        body:    { "text": "test", "hidden": true }
+  - do:
+      indices.refresh: {}
+
+  - do:
+      headers: {es-security-runas-user: can_not_see_hidden_docs_user}
+      update_by_query:
+        refresh: true
+        index: source
+        body:
+          script:
+            source: ctx._source['hi'] = 'there'
+  - match: {updated: 1}
+
+  # We only updated one doc, presumably the one without the hidden field
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: source
+        body:
+          query:
+            match:
+              hi: there
+  - match: { hits.total: 1 }
+
+  # We didn't update the doc with the hidden field
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: source
+        body:
+          query:
+            bool:
+              must:
+                - match:
+                    hi: there
+                - match:
+                    hidden: true
+  - match: { hits.total: 0 }
+
+---
+"Reindex misses hidden fields":
+
+  - do:
+      index:
+        index:   source
+        type:    _doc
+        id:      1
+        body:    { "text": "test", "foo": "z", "bar": "z" }
+  - do:
+      indices.refresh: {}
+
+  - do:
+      headers: {es-security-runas-user: can_not_see_hidden_fields_user}
+      update_by_query:
+        index: source
+        body:
+          script:
+            source: ctx._source['hi'] = ctx._source['text'] + ';' + ctx._source['foo']
+  - match: {updated: 1}
+
+  - do:
+      get:
+        index: source
+        type: _doc
+        id: 1
+  # These were visible to the user running the update_by_query so they stayed.
+  - match: { _source.foo: z }
+  - match: { _source.bar: z }
+  # This wasn't visible to the update_by_query-ing user so it is gone.
+  - is_false: _source.text
+  # The reindexing user tried to sneak an invisible field using a script and got a null for their trouble.
+  - match: { _source.hi: null;z }

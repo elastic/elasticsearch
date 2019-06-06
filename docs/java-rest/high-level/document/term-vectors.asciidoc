@@ -1,0 +1,100 @@
+--
+:api: term-vectors
+:request: TermVectorsRequest
+:response: TermVectorsResponse
+--
+
+[id="{upid}-{api}"]
+=== Term Vectors API
+
+Term Vectors API returns information and statistics on terms in the fields
+of a particular document. The document could be stored in the index or
+artificially provided by the user.
+
+
+[id="{upid}-{api}-request"]
+==== Term Vectors Request
+
+A +{request}+ expects an `index` and an `id` to specify
+a certain document, and fields for which the information is retrieved.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request]
+--------------------------------------------------
+
+Term vectors can also be generated for artificial documents, that is for
+documents not present in the index:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-artificial]
+--------------------------------------------------
+<1> An artificial document is provided as an `XContentBuilder` object,
+the Elasticsearch built-in helper to generate JSON content.
+
+===== Optional arguments
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-optional-arguments]
+--------------------------------------------------
+<1> Set `fieldStatistics` to `false` (default is `true`) to omit document count,
+sum of document frequencies, sum of total term frequencies.
+<2> Set `termStatistics` to `true` (default is `false`) to display
+total term frequency and document frequency.
+<3> Set `positions` to `false` (default is `true`) to omit the output of
+positions.
+<4> Set `offsets` to `false` (default is `true`) to omit the output of
+offsets.
+<5> Set `payloads` to `false` (default is `true`) to omit the output of
+payloads.
+<6> Set `filterSettings` to filter the terms that can be returned based
+on their tf-idf scores.
+<7> Set `perFieldAnalyzer` to specify  a different analyzer than
+the one that the field has.
+<8> Set `realtime` to `false` (default is `true`) to retrieve term vectors
+near realtime.
+<9> Set a routing parameter
+
+
+include::../execution.asciidoc[]
+
+
+[id="{upid}-{api}-response"]
+==== Term Vectors Response
+
++{response}+ contains the following information:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-response]
+--------------------------------------------------
+<1> The index name of the document.
+<2> The id of the document.
+<3> Indicates whether or not the document found.
+
+
+===== Inspecting Term Vectors
+If +{response}+ contains non-null list of term vectors,
+more information about each term vector can be obtained using the following:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-term-vectors]
+--------------------------------------------------
+<1> The name of the current field
+<2> Fields statistics for the current field - document count
+<3> Fields statistics for the current field - sum of total term frequencies
+<4> Fields statistics for the current field - sum of document frequencies
+<5> Terms for the current field
+<6> The name of the term
+<7> Term frequency of the term
+<8> Document frequency of the term
+<9> Total term frequency of the term
+<10> Score of the term
+<11> Tokens of the term
+<12> Position of the token
+<13> Start offset of the token
+<14> End offset of the token
+<15> Payload of the token

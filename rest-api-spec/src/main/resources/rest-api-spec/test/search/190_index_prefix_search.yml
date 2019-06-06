@@ -1,0 +1,94 @@
+setup:
+  - do:
+      indices.create:
+        index:  test
+        body:
+          mappings:
+            properties:
+              text:
+                type: text
+                index_prefixes:
+                  min_chars: 2
+                  max_chars: 5
+
+  - do:
+      index:
+          index:  test
+          id:     1
+          body:   { text: some short words with a stupendously long one }
+
+  - do:
+      indices.refresh:
+        index: [test]
+
+---
+"search with index prefixes":
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        q: shor*
+        df: text
+
+  - match: {hits.total: 1}
+  - match: {hits.max_score: 1}
+  - match: {hits.hits.0._score: 1}
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          query:
+            query_string:
+              default_field: text
+              query: shor*
+              boost: 2
+
+  - match: {hits.total: 1}
+  - match: {hits.max_score: 2}
+  - match: {hits.hits.0._score: 2}
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          explain: true
+          query:
+            query_string:
+              default_field: text
+              query: a*
+              boost: 2
+
+  - match: {hits.total: 1}
+  - match: {hits.max_score: 2}
+  - match: {hits.hits.0._score: 2}
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        q: stupendousl*
+        df: text
+
+  - match: {hits.total: 1}
+  - match: {hits.max_score: 1}
+  - match: {hits.hits.0._score: 1}
+
+---
+"search index prefixes with span_multi":
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          query:
+            span_near:
+              clauses: [
+                { "span_term": { "text": "short" } },
+                { "span_multi": { "match": { "prefix": { "text": "word" } } } }
+              ]
+
+  - match: {hits.total: 1}

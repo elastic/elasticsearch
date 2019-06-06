@@ -18,6 +18,8 @@
  */
 package org.elasticsearch.test;
 
+import java.util.EnumSet;
+import java.util.Set;
 import org.junit.Assert;
 
 import java.io.IOException;
@@ -25,8 +27,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.attribute.PosixFileAttributeView;
 import java.nio.file.attribute.PosixFilePermission;
-import java.util.HashSet;
-import java.util.Set;
 
 /** Stores the posix attributes for a path and resets them on close. */
 public class PosixPermissionsResetter implements AutoCloseable {
@@ -46,6 +46,6 @@ public class PosixPermissionsResetter implements AutoCloseable {
     }
 
     public Set<PosixFilePermission> getCopyPermissions() {
-        return new HashSet<>(permissions);
+        return EnumSet.copyOf(permissions);
     }
 }

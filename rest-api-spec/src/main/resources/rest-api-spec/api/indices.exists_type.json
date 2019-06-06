@@ -2,6 +2,10 @@
   "indices.exists_type": {
     "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/indices-types-exists.html",
     "methods": ["HEAD"],
+    "deprecated" : {
+      "version" : "7.0.0",
+      "description" : "Types are being removed from elasticsearch and therefor this API is on the way out. Read more here: https://www.elastic.co/guide/en/elasticsearch/reference/master/removal-of-types.html"
+    },
     "url": {
       "path": "/{index}/_mapping/{type}",
       "paths": ["/{index}/_mapping/{type}"],

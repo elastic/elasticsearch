@@ -21,27 +21,26 @@ package org.elasticsearch.discovery.ec2;
 
 import com.amazonaws.services.ec2.model.Tag;
 import org.elasticsearch.Version;
-import org.elasticsearch.cloud.aws.AwsEc2Service;
-import org.elasticsearch.cloud.aws.AwsEc2Service.DISCOVERY_EC2;
-import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.collect.CopyOnWriteHashMap;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.MockTcpTransport;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.transport.nio.MockNioTransport;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
 
+import java.io.IOException;
+import java.net.InetAddress;
+import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -74,11 +73,11 @@ public class Ec2DiscoveryTests extends ESTestCase {
     @Before
     public void createTransportService() {
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(Collections.emptyList());
-        final Transport transport = new MockTcpTransport(Settings.EMPTY, threadPool, BigArrays.NON_RECYCLING_INSTANCE,
-            new NoneCircuitBreakerService(), namedWriteableRegistry, new NetworkService(Settings.EMPTY, Collections.emptyList()),
-            Version.CURRENT) {
+        final Transport transport = new MockNioTransport(Settings.EMPTY, Version.CURRENT, threadPool,
+            new NetworkService(Collections.emptyList()), PageCacheRecycler.NON_RECYCLING_INSTANCE, namedWriteableRegistry,
+            new NoneCircuitBreakerService()) {
             @Override
-            public TransportAddress[] addressesFromString(String address, int perAddressLimit) throws Exception {
+            public TransportAddress[] addressesFromString(String address) throws UnknownHostException {
                 // we just need to ensure we don't resolve DNS here
                 return new TransportAddress[] {poorMansDNS.getOrDefault(address, buildNewFakeTransportAddress())};
             }
@@ -87,23 +86,27 @@ public class Ec2DiscoveryTests extends ESTestCase {
                 null);
     }
 
-    protected List<DiscoveryNode> buildDynamicNodes(Settings nodeSettings, int nodes) {
-        return buildDynamicNodes(nodeSettings, nodes, null);
+    protected List<TransportAddress> buildDynamicHosts(Settings nodeSettings, int nodes) {
+        return buildDynamicHosts(nodeSettings, nodes, null);
     }
 
-    protected List<DiscoveryNode> buildDynamicNodes(Settings nodeSettings, int nodes, List<List<Tag>> tagsList) {
-        AwsEc2Service awsEc2Service = new AwsEc2ServiceMock(nodeSettings, nodes, tagsList);
-        AwsEc2UnicastHostsProvider provider = new AwsEc2UnicastHostsProvider(nodeSettings, transportService, awsEc2Service);
-        List<DiscoveryNode> discoveryNodes = provider.buildDynamicNodes();
-        logger.debug("--> nodes found: {}", discoveryNodes);
-        return discoveryNodes;
+    protected List<TransportAddress> buildDynamicHosts(Settings nodeSettings, int nodes, List<List<Tag>> tagsList) {
+        try (Ec2DiscoveryPluginMock plugin = new Ec2DiscoveryPluginMock(Settings.EMPTY, nodes, tagsList)) {
+            AwsEc2SeedHostsProvider provider = new AwsEc2SeedHostsProvider(nodeSettings, transportService, plugin.ec2Service);
+            List<TransportAddress> dynamicHosts = provider.getSeedAddresses(null);
+            logger.debug("--> addresses found: {}", dynamicHosts);
+            return dynamicHosts;
+        } catch (IOException e) {
+            fail("Unexpected IOException");
+            return null;
+        }
     }
 
     public void testDefaultSettings() throws InterruptedException {
         int nodes = randomInt(10);
         Settings nodeSettings = Settings.builder()
                 .build();
-        List<DiscoveryNode> discoveryNodes = buildDynamicNodes(nodeSettings, nodes);
+        List<TransportAddress> discoveryNodes = buildDynamicHosts(nodeSettings, nodes);
         assertThat(discoveryNodes, hasSize(nodes));
     }
 
@@ -113,14 +116,13 @@ public class Ec2DiscoveryTests extends ESTestCase {
             poorMansDNS.put(AmazonEC2Mock.PREFIX_PRIVATE_IP + (i+1), buildNewFakeTransportAddress());
         }
         Settings nodeSettings = Settings.builder()
-                .put(DISCOVERY_EC2.HOST_TYPE_SETTING.getKey(), "private_ip")
+                .put(AwsEc2Service.HOST_TYPE_SETTING.getKey(), "private_ip")
                 .build();
-        List<DiscoveryNode> discoveryNodes = buildDynamicNodes(nodeSettings, nodes);
-        assertThat(discoveryNodes, hasSize(nodes));
+        List<TransportAddress> transportAddresses = buildDynamicHosts(nodeSettings, nodes);
+        assertThat(transportAddresses, hasSize(nodes));
         // We check that we are using here expected address
         int node = 1;
-        for (DiscoveryNode discoveryNode : discoveryNodes) {
-            TransportAddress address = discoveryNode.getAddress();
+        for (TransportAddress address : transportAddresses) {
             TransportAddress expected = poorMansDNS.get(AmazonEC2Mock.PREFIX_PRIVATE_IP + node++);
             assertEquals(address, expected);
         }
@@ -132,14 +134,13 @@ public class Ec2DiscoveryTests extends ESTestCase {
             poorMansDNS.put(AmazonEC2Mock.PREFIX_PUBLIC_IP + (i+1), buildNewFakeTransportAddress());
         }
         Settings nodeSettings = Settings.builder()
-                .put(DISCOVERY_EC2.HOST_TYPE_SETTING.getKey(), "public_ip")
+                .put(AwsEc2Service.HOST_TYPE_SETTING.getKey(), "public_ip")
                 .build();
-        List<DiscoveryNode> discoveryNodes = buildDynamicNodes(nodeSettings, nodes);
-        assertThat(discoveryNodes, hasSize(nodes));
+        List<TransportAddress> dynamicHosts = buildDynamicHosts(nodeSettings, nodes);
+        assertThat(dynamicHosts, hasSize(nodes));
         // We check that we are using here expected address
         int node = 1;
-        for (DiscoveryNode discoveryNode : discoveryNodes) {
-            TransportAddress address = discoveryNode.getAddress();
+        for (TransportAddress address : dynamicHosts) {
             TransportAddress expected = poorMansDNS.get(AmazonEC2Mock.PREFIX_PUBLIC_IP + node++);
             assertEquals(address, expected);
         }
@@ -153,15 +154,14 @@ public class Ec2DiscoveryTests extends ESTestCase {
                 AmazonEC2Mock.SUFFIX_PRIVATE_DNS, buildNewFakeTransportAddress());
         }
         Settings nodeSettings = Settings.builder()
-                .put(DISCOVERY_EC2.HOST_TYPE_SETTING.getKey(), "private_dns")
+                .put(AwsEc2Service.HOST_TYPE_SETTING.getKey(), "private_dns")
                 .build();
-        List<DiscoveryNode> discoveryNodes = buildDynamicNodes(nodeSettings, nodes);
-        assertThat(discoveryNodes, hasSize(nodes));
+        List<TransportAddress> dynamicHosts = buildDynamicHosts(nodeSettings, nodes);
+        assertThat(dynamicHosts, hasSize(nodes));
         // We check that we are using here expected address
         int node = 1;
-        for (DiscoveryNode discoveryNode : discoveryNodes) {
+        for (TransportAddress address : dynamicHosts) {
             String instanceId = "node" + node++;
-            TransportAddress address = discoveryNode.getAddress();
             TransportAddress expected = poorMansDNS.get(
                     AmazonEC2Mock.PREFIX_PRIVATE_DNS + instanceId + AmazonEC2Mock.SUFFIX_PRIVATE_DNS);
             assertEquals(address, expected);
@@ -176,15 +176,14 @@ public class Ec2DiscoveryTests extends ESTestCase {
                 + AmazonEC2Mock.SUFFIX_PUBLIC_DNS, buildNewFakeTransportAddress());
         }
         Settings nodeSettings = Settings.builder()
-                .put(DISCOVERY_EC2.HOST_TYPE_SETTING.getKey(), "public_dns")
+                .put(AwsEc2Service.HOST_TYPE_SETTING.getKey(), "public_dns")
                 .build();
-        List<DiscoveryNode> discoveryNodes = buildDynamicNodes(nodeSettings, nodes);
-        assertThat(discoveryNodes, hasSize(nodes));
+        List<TransportAddress> dynamicHosts = buildDynamicHosts(nodeSettings, nodes);
+        assertThat(dynamicHosts, hasSize(nodes));
         // We check that we are using here expected address
         int node = 1;
-        for (DiscoveryNode discoveryNode : discoveryNodes) {
+        for (TransportAddress address : dynamicHosts) {
             String instanceId = "node" + node++;
-            TransportAddress address = discoveryNode.getAddress();
             TransportAddress expected = poorMansDNS.get(
                     AmazonEC2Mock.PREFIX_PUBLIC_DNS + instanceId + AmazonEC2Mock.SUFFIX_PUBLIC_DNS);
             assertEquals(address, expected);
@@ -193,20 +192,19 @@ public class Ec2DiscoveryTests extends ESTestCase {
 
     public void testInvalidHostType() throws InterruptedException {
         Settings nodeSettings = Settings.builder()
-                .put(DISCOVERY_EC2.HOST_TYPE_SETTING.getKey(), "does_not_exist")
+                .put(AwsEc2Service.HOST_TYPE_SETTING.getKey(), "does_not_exist")
                 .build();
-        try {
-            buildDynamicNodes(nodeSettings, 1);
-            fail("Expected IllegalArgumentException");
-        } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), containsString("No enum constant"));
-        }
+
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> {
+            buildDynamicHosts(nodeSettings, 1);
+        });
+        assertThat(exception.getMessage(), containsString("does_not_exist is unknown for discovery.ec2.host_type"));
     }
 
     public void testFilterByTags() throws InterruptedException {
         int nodes = randomIntBetween(5, 10);
         Settings nodeSettings = Settings.builder()
-                .put(DISCOVERY_EC2.TAG_SETTING.getKey() + "stage", "prod")
+                .put(AwsEc2Service.TAG_SETTING.getKey() + "stage", "prod")
                 .build();
 
         int prodInstances = 0;
@@ -224,14 +222,14 @@ public class Ec2DiscoveryTests extends ESTestCase {
         }
 
         logger.info("started [{}] instances with [{}] stage=prod tag", nodes, prodInstances);
-        List<DiscoveryNode> discoveryNodes = buildDynamicNodes(nodeSettings, nodes, tagsList);
-        assertThat(discoveryNodes, hasSize(prodInstances));
+        List<TransportAddress> dynamicHosts = buildDynamicHosts(nodeSettings, nodes, tagsList);
+        assertThat(dynamicHosts, hasSize(prodInstances));
     }
 
     public void testFilterByMultipleTags() throws InterruptedException {
         int nodes = randomIntBetween(5, 10);
         Settings nodeSettings = Settings.builder()
-                .putArray(DISCOVERY_EC2.TAG_SETTING.getKey() + "stage", "prod", "preprod")
+                .putList(AwsEc2Service.TAG_SETTING.getKey() + "stage", "prod", "preprod")
                 .build();
 
         int prodInstances = 0;
@@ -255,51 +253,85 @@ public class Ec2DiscoveryTests extends ESTestCase {
         }
 
         logger.info("started [{}] instances with [{}] stage=prod tag", nodes, prodInstances);
-        List<DiscoveryNode> discoveryNodes = buildDynamicNodes(nodeSettings, nodes, tagsList);
-        assertThat(discoveryNodes, hasSize(prodInstances));
+        List<TransportAddress> dynamicHosts = buildDynamicHosts(nodeSettings, nodes, tagsList);
+        assertThat(dynamicHosts, hasSize(prodInstances));
     }
 
-    abstract class DummyEc2HostProvider extends AwsEc2UnicastHostsProvider {
+    public void testReadHostFromTag() throws UnknownHostException {
+        int nodes = randomIntBetween(5, 10);
+
+        String[] addresses = new String[nodes];
+
+        for (int node = 0; node < nodes; node++) {
+            addresses[node] = "192.168.0." + (node + 1);
+            poorMansDNS.put("node" + (node + 1), new TransportAddress(InetAddress.getByName(addresses[node]), 9300));
+        }
+
+        Settings nodeSettings = Settings.builder()
+            .put(AwsEc2Service.HOST_TYPE_SETTING.getKey(), "tag:foo")
+            .build();
+
+        List<List<Tag>> tagsList = new ArrayList<>();
+
+        for (int node = 0; node < nodes; node++) {
+            List<Tag> tags = new ArrayList<>();
+            tags.add(new Tag("foo", "node" + (node + 1)));
+            tagsList.add(tags);
+        }
+
+        logger.info("started [{}] instances", nodes);
+        List<TransportAddress> dynamicHosts = buildDynamicHosts(nodeSettings, nodes, tagsList);
+        assertThat(dynamicHosts, hasSize(nodes));
+        int node = 1;
+        for (TransportAddress address : dynamicHosts) {
+            TransportAddress expected = poorMansDNS.get("node" + node++);
+            assertEquals(address, expected);
+        }
+    }
+
+
+    abstract class DummyEc2SeedHostsProvider extends AwsEc2SeedHostsProvider {
         public int fetchCount = 0;
-        public DummyEc2HostProvider(Settings settings, TransportService transportService, AwsEc2Service service) {
+        DummyEc2SeedHostsProvider(Settings settings, TransportService transportService, AwsEc2Service service) {
             super(settings, transportService, service);
         }
     }
 
-    public void testGetNodeListEmptyCache() throws Exception {
-        AwsEc2Service awsEc2Service = new AwsEc2ServiceMock(Settings.EMPTY, 1, null);
-        DummyEc2HostProvider provider = new DummyEc2HostProvider(Settings.EMPTY, transportService, awsEc2Service) {
+    public void testGetNodeListEmptyCache() {
+        AwsEc2Service awsEc2Service = new AwsEc2ServiceMock(1, null);
+        DummyEc2SeedHostsProvider provider = new DummyEc2SeedHostsProvider(Settings.EMPTY, transportService, awsEc2Service) {
             @Override
-            protected List<DiscoveryNode> fetchDynamicNodes() {
+            protected List<TransportAddress> fetchDynamicNodes() {
                 fetchCount++;
                 return new ArrayList<>();
             }
         };
         for (int i=0; i<3; i++) {
-            provider.buildDynamicNodes();
+            provider.getSeedAddresses(null);
         }
         assertThat(provider.fetchCount, is(3));
     }
 
     public void testGetNodeListCached() throws Exception {
         Settings.Builder builder = Settings.builder()
-                .put(DISCOVERY_EC2.NODE_CACHE_TIME_SETTING.getKey(), "500ms");
-        AwsEc2Service awsEc2Service = new AwsEc2ServiceMock(Settings.EMPTY, 1, null);
-        DummyEc2HostProvider provider = new DummyEc2HostProvider(builder.build(), transportService, awsEc2Service) {
-            @Override
-            protected List<DiscoveryNode> fetchDynamicNodes() {
-                fetchCount++;
-                return Ec2DiscoveryTests.this.buildDynamicNodes(Settings.EMPTY, 1);
+                .put(AwsEc2Service.NODE_CACHE_TIME_SETTING.getKey(), "500ms");
+        try (Ec2DiscoveryPluginMock plugin = new Ec2DiscoveryPluginMock(Settings.EMPTY)) {
+            DummyEc2SeedHostsProvider provider = new DummyEc2SeedHostsProvider(builder.build(), transportService, plugin.ec2Service) {
+                @Override
+                protected List<TransportAddress> fetchDynamicNodes() {
+                    fetchCount++;
+                    return Ec2DiscoveryTests.this.buildDynamicHosts(Settings.EMPTY, 1);
+                }
+            };
+            for (int i=0; i<3; i++) {
+                provider.getSeedAddresses(null);
             }
-        };
-        for (int i=0; i<3; i++) {
-            provider.buildDynamicNodes();
+            assertThat(provider.fetchCount, is(1));
+            Thread.sleep(1_000L); // wait for cache to expire
+            for (int i=0; i<3; i++) {
+                provider.getSeedAddresses(null);
+            }
+            assertThat(provider.fetchCount, is(2));
         }
-        assertThat(provider.fetchCount, is(1));
-        Thread.sleep(1_000L); // wait for cache to expire
-        for (int i=0; i<3; i++) {
-            provider.buildDynamicNodes();
-        }
-        assertThat(provider.fetchCount, is(2));
     }
 }

@@ -1,5 +1,3 @@
-import org.elasticsearch.gradle.precommit.PrecommitTasks
-
 /*
  * Licensed to Elasticsearch under one or more contributor
  * license agreements. See the NOTICE file distributed with
@@ -20,20 +18,22 @@ import org.elasticsearch.gradle.precommit.PrecommitTasks
  */
 
 dependencies {
-  compile 'org.ow2.asm:asm-debug-all:5.0.4' // use asm-debug-all as asm-all is broken
+  compile 'org.ow2.asm:asm:7.1'
+  compile 'org.ow2.asm:asm-tree:7.1'
+  compile 'org.ow2.asm:asm-analysis:7.1'
   compile "org.apache.logging.log4j:log4j-api:${versions.log4j}"
-  testCompile "org.elasticsearch.test:framework:${version}"
+  testCompile project(":test:framework")
 }
 
 loggerUsageCheck.enabled = false
 
 forbiddenApisMain.enabled = true // disabled by parent project
 forbiddenApisMain {
-  signaturesURLs = [PrecommitTasks.getResource('/forbidden/jdk-signatures.txt')] // does not depend on core, only jdk signatures
+  replaceSignatureFiles 'jdk-signatures' // does not depend on core, only jdk signatures
 }
 jarHell.enabled = true // disabled by parent project
 
-thirdPartyAudit.excludes = [
+thirdPartyAudit.ignoreMissingClasses (
   // log4j
   'org.osgi.framework.AdaptPermission',
   'org.osgi.framework.AdminPermission',
@@ -44,4 +44,4 @@ thirdPartyAudit.excludes = [
   'org.osgi.framework.SynchronousBundleListener',
   'org.osgi.framework.wiring.BundleWire',
   'org.osgi.framework.wiring.BundleWiring'
-]
+)

@@ -1,0 +1,172 @@
+import org.elasticsearch.gradle.MavenFilteringHack
+
+import java.nio.file.Files
+import java.nio.file.Paths
+
+apply plugin: 'elasticsearch.esplugin'
+apply plugin: 'nebula.maven-base-publish'
+apply plugin: 'nebula.maven-scm'
+
+archivesBaseName = 'x-pack-core'
+
+esplugin {
+  name 'x-pack-core'
+  description 'Elasticsearch Expanded Pack Plugin - Core'
+  classname 'org.elasticsearch.xpack.core.XPackPlugin'
+  hasNativeController false
+  requiresKeystore false
+}
+
+dependencyLicenses {
+  mapping from: /http.*/, to: 'httpclient' // pulled in by rest client
+  mapping from: /commons-.*/, to: 'commons' // pulled in by rest client
+}
+
+dependencies {
+    compileOnly project(":server")
+    compile "org.apache.httpcomponents:httpclient:${versions.httpclient}"
+    compile "org.apache.httpcomponents:httpcore:${versions.httpcore}"
+    compile "org.apache.httpcomponents:httpcore-nio:${versions.httpcore}"
+    compile "org.apache.httpcomponents:httpasyncclient:${versions.httpasyncclient}"
+
+    compile "commons-logging:commons-logging:${versions.commonslogging}"
+    compile "org.apache.logging.log4j:log4j-1.2-api:${versions.log4j}"
+    compile "commons-codec:commons-codec:${versions.commonscodec}"
+
+    // security deps
+    compile 'com.unboundid:unboundid-ldapsdk:4.0.8'
+    compile project(path: ':modules:transport-netty4', configuration: 'runtime')
+    compile(project(path: ':plugins:transport-nio', configuration: 'runtime')) {
+        // TODO: core exclusion should not be necessary, since it is a transitive dep of all plugins
+        exclude group: "org.elasticsearch", module: "elasticsearch-core"
+    }
+
+    testCompile 'org.elasticsearch:securemock:1.2'
+    testCompile "org.elasticsearch:mocksocket:${versions.mocksocket}"
+    testCompile "org.apache.logging.log4j:log4j-slf4j-impl:${versions.log4j}"
+    testCompile "org.slf4j:slf4j-api:${versions.slf4j}"
+    testCompile project(path: ':modules:reindex', configuration: 'runtime')
+    testCompile project(path: ':modules:parent-join', configuration: 'runtime')
+    testCompile project(path: ':modules:lang-mustache', configuration: 'runtime')
+    testCompile project(path: ':modules:analysis-common', configuration: 'runtime')
+    testCompile project(":client:rest-high-level")
+
+    if (isEclipse == false || project.path == ":x-pack:plugin:core-tests") {
+      testCompile(project(':x-pack:license-tools')) {
+          transitive = false
+      }
+    }
+}
+
+ext.expansions = [
+  'project.version': version
+]
+
+processResources {
+  from(sourceSets.main.resources.srcDirs) {
+    exclude '**/public.key'
+    inputs.properties(expansions)
+    MavenFilteringHack.filter(it, expansions)
+  }
+  boolean snapshot = "true".equals(System.getProperty("build.snapshot", "true"))
+  String licenseKey = System.getProperty("license.key")
+  if (licenseKey != null) {
+    println "Using provided license key from ${licenseKey}"
+  } else if (snapshot) {
+    if (isEclipse) {
+      licenseKey = Paths.get(project.projectDir.path, '../../snapshot.key')
+    } else {
+      licenseKey = Paths.get(project.projectDir.path, 'snapshot.key')
+    }
+  } else {
+    throw new IllegalArgumentException('Property license.key must be set for release build')
+  }
+  if (Files.exists(Paths.get(licenseKey)) == false) {
+    throw new IllegalArgumentException('license.key at specified path [' + licenseKey + '] does not exist')
+  }
+  from(licenseKey) {
+    rename { String filename -> 'public.key' }
+  }
+}
+
+forbiddenPatterns {
+    exclude '**/*.key'
+    exclude '**/*.p12'
+    exclude '**/*.der'
+    exclude '**/*.zip'
+}
+
+forbiddenApisMain {
+    signaturesFiles += files('forbidden/hasher-signatures.txt')
+}
+
+if (isEclipse) {
+    // in eclipse the project is under a fake root, we need to change around the source sets
+    sourceSets {
+        if (project.path == ":libs:elasticsearch-core") {
+            main.java.srcDirs = ['java']
+            main.resources.srcDirs = ['resources']
+        } else {
+            test.java.srcDirs = ['java']
+            test.resources.srcDirs = ['resources']
+        }
+    }
+}
+
+compileJava.options.compilerArgs << "-Xlint:-rawtypes,-unchecked"
+compileTestJava.options.compilerArgs << "-Xlint:-rawtypes,-unchecked"
+
+licenseHeaders {
+  approvedLicenses << 'BCrypt (BSD-like)'
+  additionalLicense 'BCRYP', 'BCrypt (BSD-like)', 'Copyright (c) 2006 Damien Miller <djm@mindrot.org>'
+  excludes << 'org/elasticsearch/xpack/core/ssl/DerParser.java'
+}
+
+// make LicenseSigner available for testing signed licenses
+sourceSets.test.resources {
+    srcDir 'src/main/config'
+}
+
+test {
+    /*
+     * We have to disable setting the number of available processors as tests in the same JVM randomize processors and will step on each
+     * other if we allow them to set the number of available processors as it's set-once in Netty.
+     */
+    systemProperty 'es.set.netty.runtime.available.processors', 'false'
+}
+
+// TODO: don't publish test artifacts just to run messy tests, fix the tests!
+// https://github.com/elastic/x-plugins/issues/724
+configurations {
+    testArtifacts.extendsFrom testRuntime
+}
+task testJar(type: Jar) {
+    appendix 'test'
+    from sourceSets.test.output
+}
+
+artifacts {
+    // normal es plugins do not publish the jar but we need to since users need it for extensions
+    archives jar
+    testArtifacts testJar
+}
+
+thirdPartyAudit.ignoreMissingClasses (
+  //commons-logging optional dependencies
+  'org.apache.avalon.framework.logger.Logger',
+  'org.apache.log.Hierarchy',
+  'org.apache.log.Logger',
+  //commons-logging provided dependencies
+  'javax.servlet.ServletContextEvent',
+  'javax.servlet.ServletContextListener'
+)
+
+// xpack modules are installed in real clusters as the meta plugin, so
+// installing them as individual plugins for integ tests doesn't make sense,
+// so we disable integ tests
+integTest.enabled = false
+
+// There are some integ tests that don't require a cluster, we still want to run those
+task internalClusterTest(type: Test) {
+    include "**/*IT.class"
+}

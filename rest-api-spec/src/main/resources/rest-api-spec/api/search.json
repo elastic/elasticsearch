@@ -4,15 +4,11 @@
     "methods": ["GET", "POST"],
     "url": {
       "path": "/_search",
-      "paths": ["/_search", "/{index}/_search", "/{index}/{type}/_search"],
+      "paths": ["/_search", "/{index}/_search"],
       "parts": {
         "index": {
          "type" : "list",
          "description" : "A comma-separated list of index names to search; use `_all` or empty string to perform the operation on all indices"
-        },
-        "type": {
-          "type" : "list",
-          "description" : "A comma-separated list of document types to search; leave empty to perform the operation on all types"
         }
       },
       "params": {
@@ -23,6 +19,11 @@
         "analyze_wildcard": {
           "type" : "boolean",
           "description" : "Specify whether wildcard and prefix queries should be analyzed (default: false)"
+        },
+        "ccs_minimize_roundtrips": {
+          "type" : "boolean",
+          "description" : "Indicates whether network round-trips should be minimized as part of cross-cluster search requests execution",
+          "default" : "true"
         },
         "default_operator": {
           "type" : "enum",
@@ -46,10 +47,6 @@
           "type" : "list",
           "description" : "A comma-separated list of fields to return as the docvalue representation of a field for each hit"
         },
-        "fielddata_fields": {
-          "type" : "list",
-          "description" : "A comma-separated list of fields to return as the docvalue representation of a field for each hit"
-        },
         "from": {
           "type" : "number",
           "description" : "Starting offset (default: 0)"
@@ -57,6 +54,10 @@
         "ignore_unavailable": {
             "type" : "boolean",
             "description" : "Whether specified concrete indices should be ignored when unavailable (missing or closed)"
+        },
+        "ignore_throttled": {
+          "type" : "boolean",
+          "description" : "Whether specified concrete, expanded or aliased indices should be ignored when throttled"
         },
         "allow_no_indices": {
             "type" : "boolean",
@@ -105,11 +106,11 @@
           "type" : "list",
           "description" : "True or false to return the _source field or not, or a list of fields to return"
         },
-        "_source_exclude": {
+        "_source_excludes": {
           "type" : "list",
           "description" : "A list of fields to exclude from the returned _source field"
         },
-        "_source_include": {
+        "_source_includes": {
           "type" : "list",
           "description" : "A list of fields to extract and return from the _source field"
         },
@@ -147,13 +148,50 @@
           "type" : "boolean",
           "description": "Whether to calculate and return scores even if they are not used for sorting"
         },
+        "track_total_hits": {
+          "type" : "boolean",
+          "description": "Indicate if the number of documents that match the query should be tracked"
+        },
+        "allow_partial_search_results": {
+          "type" : "boolean",
+          "default" : true,
+          "description": "Indicate if an error should be returned if there is a partial search failure or timeout"
+        },
+        "typed_keys": {
+          "type" : "boolean",
+          "description" : "Specify whether aggregation and suggester names should be prefixed by their respective types in the response"
+        },
         "version": {
           "type" : "boolean",
           "description" : "Specify whether to return document version as part of a hit"
         },
+        "seq_no_primary_term": {
+          "type" : "boolean",
+          "description" : "Specify whether to return sequence number and primary term of the last modification of each hit"
+        },
         "request_cache": {
           "type" : "boolean",
           "description" : "Specify if request cache should be used for this request or not, defaults to index level setting"
+        },
+        "batched_reduce_size" : {
+          "type" : "number",
+          "description" : "The number of shard results that should be reduced at once on the coordinating node. This value should be used as a protection mechanism to reduce the memory overhead per search request if the potential number of shards in the request can be large.",
+          "default" : 512
+        },
+        "max_concurrent_shard_requests" : {
+          "type" : "number",
+          "description" : "The number of concurrent shard requests per node this search executes concurrently. This value should be used to limit the impact of the search on the cluster in order to limit the number of concurrent shard requests",
+          "default" : 5
+        },
+        "pre_filter_shard_size" : {
+          "type" : "number",
+          "description" : "A threshold that enforces a pre-filter roundtrip to prefilter search shards based on query rewriting if the number of shards the search request expands to exceeds the threshold. This filter roundtrip can limit the number of shards significantly if for instance a shard can not match any documents based on it's rewrite method ie. if date filters are mandatory to match but the shard bounds and the query are disjoint.",
+          "default" : 128
+        },
+        "rest_total_hits_as_int" : {
+          "type" : "boolean",
+          "description" : "Indicates whether hits.total should be rendered as an integer or an object in the rest search response",
+          "default" : false
         }
       }
     },

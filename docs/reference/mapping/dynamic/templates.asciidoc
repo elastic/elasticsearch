@@ -32,24 +32,36 @@ Dynamic templates are specified as an array of named objects:
     ...
   ]
 --------------------------------------------------
+// NOTCONSOLE
 <1> The template name can be any string value.
 <2> The match conditions can include any of : `match_mapping_type`, `match`, `match_pattern`, `unmatch`, `path_match`, `path_unmatch`.
 <3> The mapping that the matched field should use.
 
 
-Templates are processed in order -- the first matching template wins. New
-templates can be appended to the end of the list with the
-<<indices-put-mapping,PUT mapping>> API.  If a new template has the same
-name as an existing template, it will replace the old version.
+Templates are processed in order -- the first matching template wins. When
+putting new dynamic templates through the <<indices-put-mapping, put mapping>> API,
+all existing templates are overwritten. This allows for dynamic templates to be
+reordered or deleted after they were initially added.
 
 [[match-mapping-type]]
 ==== `match_mapping_type`
 
-The `match_mapping_type` matches on the datatype detected by
-<<dynamic-field-mapping,dynamic field mapping>>, in other words, the datatype
-that Elasticsearch thinks the field should have.  Only the following datatypes
-can be automatically detected: `boolean`, `date`, `double`, `long`, `object`,
-`string`.  It also accepts `*` to match all datatypes.
+The `match_mapping_type` is the datatype detected by the json parser. Since
+JSON doesn't allow to distinguish a `long` from an `integer` or a `double` from
+a `float`, it will always choose the wider datatype, i.e. `long` for integers
+and `double` for floating-point numbers.
+
+The following datatypes may be automatically detected:
+
+ - `boolean` when `true` or `false` are encountered.
+ - `date` when <<date-detection,date detection>> is enabled and a string is
+   found that matches any of the configured date formats.
+ - `double` for numbers with a decimal part.
+ - `long` for numbers without a decimal part.
+ - `object` for objects, also called hashes.
+ - `string` for character strings.
+
+`*` may also be used in order to match all datatypes.
 
 For example, if we wanted to map all integer fields as `integer` instead of
 `long`, and all `string` fields as both `text` and `keyword`, we
@@ -60,41 +72,38 @@ could use the following template:
 PUT my_index
 {
   "mappings": {
-    "my_type": {
-      "dynamic_templates": [
-        {
-          "integers": {
-            "match_mapping_type": "long",
-            "mapping": {
-              "type": "integer"
-            }
+    "dynamic_templates": [
+      {
+        "integers": {
+          "match_mapping_type": "long",
+          "mapping": {
+            "type": "integer"
           }
-        },
-        {
-          "strings": {
-            "match_mapping_type": "string",
-            "mapping": {
-              "type": "text",
-              "fields": {
-                "raw": {
-                  "type":  "keyword",
-                  "ignore_above": 256
-                }
+        }
+      },
+      {
+        "strings": {
+          "match_mapping_type": "string",
+          "mapping": {
+            "type": "text",
+            "fields": {
+              "raw": {
+                "type":  "keyword",
+                "ignore_above": 256
               }
             }
           }
         }
-      ]
-    }
+      }
+    ]
   }
 }
 
-PUT my_index/my_type/1
+PUT my_index/_doc/1
 {
   "my_integer": 5, <1>
   "my_string": "Some string" <2>
 }
-
 --------------------------------------------------
 // CONSOLE
 <1> The `my_integer` field is mapped as an `integer`.
@@ -104,7 +113,7 @@ PUT my_index/my_type/1
 [[match-unmatch]]
 ==== `match` and `unmatch`
 
-The `match` parameter uses a pattern to match on the fieldname, while
+The `match` parameter uses a pattern to match on the field name, while
 `unmatch` uses a pattern to exclude fields matched by `match`.
 
 The following example matches all `string` fields whose name starts with
@@ -117,24 +126,22 @@ fields:
 PUT my_index
 {
   "mappings": {
-    "my_type": {
-      "dynamic_templates": [
-        {
-          "longs_as_strings": {
-            "match_mapping_type": "string",
-            "match":   "long_*",
-            "unmatch": "*_text",
-            "mapping": {
-              "type": "long"
-            }
+    "dynamic_templates": [
+      {
+        "longs_as_strings": {
+          "match_mapping_type": "string",
+          "match":   "long_*",
+          "unmatch": "*_text",
+          "mapping": {
+            "type": "long"
           }
         }
-      ]
-    }
+      }
+    ]
   }
 }
 
-PUT my_index/my_type/1
+PUT my_index/_doc/1
 {
   "long_num": "5", <1>
   "long_text": "foo" <2>
@@ -156,6 +163,7 @@ instead of simple wildcards, for instance:
   "match_pattern": "regex",
   "match": "^profit_\d+$"
 --------------------------------------------------
+// NOTCONSOLE
 
 [[path-match-unmatch]]
 ==== `path_match` and `path_unmatch`
@@ -172,33 +180,54 @@ top-level `full_name` field, except for the `middle` field:
 PUT my_index
 {
   "mappings": {
-    "my_type": {
-      "dynamic_templates": [
-        {
-          "full_name": {
-            "path_match":   "name.*",
-            "path_unmatch": "*.middle",
-            "mapping": {
-              "type":       "text",
-              "copy_to":    "full_name"
-            }
+    "dynamic_templates": [
+      {
+        "full_name": {
+          "path_match":   "name.*",
+          "path_unmatch": "*.middle",
+          "mapping": {
+            "type":       "text",
+            "copy_to":    "full_name"
           }
         }
-      ]
-    }
+      }
+    ]
   }
 }
 
-PUT my_index/my_type/1
+PUT my_index/_doc/1
 {
   "name": {
-    "first":  "Alice",
-    "middle": "Mary",
-    "last":   "White"
+    "first":  "John",
+    "middle": "Winston",
+    "last":   "Lennon"
   }
 }
 --------------------------------------------------
 // CONSOLE
+
+Note that the `path_match` and `path_unmatch` parameters match on object paths
+in addition to leaf fields. As an example, indexing the following document will
+result in an error because the `path_match` setting also matches the object
+field `name.title`, which can't be mapped as text:
+
+[source,js]
+--------------------------------------------------
+PUT my_index/_doc/2
+{
+  "name": {
+    "first":  "Paul",
+    "last":   "McCartney",
+    "title": {
+      "value": "Sir",
+      "category": "order of chivalry"
+    }
+  }
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+// TEST[catch:bad_request]
 
 [[template-variables]]
 ==== `{name}` and `{dynamic_type}`
@@ -213,33 +242,31 @@ field, and disables <<doc-values,`doc_values`>> for all non-string fields:
 PUT my_index
 {
   "mappings": {
-    "my_type": {
-      "dynamic_templates": [
-        {
-          "named_analyzers": {
-            "match_mapping_type": "string",
-            "match": "*",
-            "mapping": {
-              "type": "text",
-              "analyzer": "{name}"
-            }
-          }
-        },
-        {
-          "no_doc_values": {
-            "match_mapping_type":"*",
-            "mapping": {
-              "type": "{dynamic_type}",
-              "doc_values": false
-            }
+    "dynamic_templates": [
+      {
+        "named_analyzers": {
+          "match_mapping_type": "string",
+          "match": "*",
+          "mapping": {
+            "type": "text",
+            "analyzer": "{name}"
           }
         }
-      ]
-    }
+      },
+      {
+        "no_doc_values": {
+          "match_mapping_type":"*",
+          "mapping": {
+            "type": "{dynamic_type}",
+            "doc_values": false
+          }
+        }
+      }
+    ]
   }
 }
 
-PUT my_index/my_type/1
+PUT my_index/_doc/1
 {
   "english": "Some English text", <1>
   "count":   5 <2>
@@ -247,7 +274,7 @@ PUT my_index/my_type/1
 --------------------------------------------------
 // CONSOLE
 <1> The `english` field is mapped as a `string` field with the `english` analyzer.
-<2> The `count` field is mapped as a `long` field with `doc_values` disabled
+<2> The `count` field is mapped as a `long` field with `doc_values` disabled.
 
 [[template-examples]]
 ==== Template examples
@@ -256,9 +283,9 @@ Here are some examples of potentially useful dynamic templates:
 
 ===== Structured search
 
-By default elasticsearch will map string fields as a `text` field with a sub
+By default Elasticsearch will map string fields as a `text` field with a sub
 `keyword` field. However if you are only indexing structured content and not
-interested in full text search, you can make elasticsearch map your fields
+interested in full text search, you can make Elasticsearch map your fields
 only as `keyword`s. Note that this means that in order to search those fields,
 you will have to search on the exact same value that was indexed.
 
@@ -267,28 +294,28 @@ you will have to search on the exact same value that was indexed.
 PUT my_index
 {
   "mappings": {
-    "my_type": {
-      "dynamic_templates": [
-        {
-          "strings_as_keywords": {
-            "match_mapping_type": "string",
-            "mapping": {
-              "type": "keyword"
-            }
+    "dynamic_templates": [
+      {
+        "strings_as_keywords": {
+          "match_mapping_type": "string",
+          "mapping": {
+            "type": "keyword"
           }
         }
-      ]
-    }
+      }
+    ]
   }
 }
 --------------------------------------------------
+// CONSOLE
 
+[[text-only-mappings-strings]]
 ===== `text`-only mappings for strings
 
 On the contrary to the previous example, if the only thing that you care about
 on your string fields is full-text search, and if you don't plan on running
 aggregations, sorting or exact search on your string fields, you could tell
-elasticsearch to map it only as a text field (which was the default behaviour
+Elasticsearch to map it only as a text field (which was the default behaviour
 before 5.0):
 
 [source,js]
@@ -296,21 +323,20 @@ before 5.0):
 PUT my_index
 {
   "mappings": {
-    "my_type": {
-      "dynamic_templates": [
-        {
-          "strings_as_text": {
-            "match_mapping_type": "string",
-            "mapping": {
-              "type": "text"
-            }
+    "dynamic_templates": [
+      {
+        "strings_as_text": {
+          "match_mapping_type": "string",
+          "mapping": {
+            "type": "text"
           }
         }
-      ]
-    }
+      }
+    ]
   }
 }
 --------------------------------------------------
+// CONSOLE
 
 ===== Disabled norms
 
@@ -323,28 +349,27 @@ disable the storage of these scoring factors in the index and save some space.
 PUT my_index
 {
   "mappings": {
-    "my_type": {
-      "dynamic_templates": [
-        {
-          "strings_as_keywords": {
-            "match_mapping_type": "string",
-            "mapping": {
-              "type": "text",
-              "norms": false,
-              "fields": {
-                "keyword": {
-                  "type": "keyword",
-                  "ignore_above": 256
-                }
+    "dynamic_templates": [
+      {
+        "strings_as_keywords": {
+          "match_mapping_type": "string",
+          "mapping": {
+            "type": "text",
+            "norms": false,
+            "fields": {
+              "keyword": {
+                "type": "keyword",
+                "ignore_above": 256
               }
             }
           }
         }
-      ]
-    }
+      }
+    ]
   }
 }
 --------------------------------------------------
+// CONSOLE
 
 The sub `keyword` field appears in this template to be consistent with the
 default rules of dynamic mappings. Of course if you do not need them because
@@ -353,7 +378,7 @@ remove it as described in the previous section.
 
 ===== Time-series
 
-When doing time series analysis with elasticsearch, it is common to have many
+When doing time series analysis with Elasticsearch, it is common to have many
 numeric fields that you will often aggregate on but never filter on. In such a
 case, you could disable indexing on those fields to save disk space and also
 maybe gain some indexing speed:
@@ -363,62 +388,30 @@ maybe gain some indexing speed:
 PUT my_index
 {
   "mappings": {
-    "my_type": {
-      "dynamic_templates": [
-        {
-          "unindexed_longs": {
-            "match_mapping_type": "long",
-            "mapping": {
-              "type": "long",
-              "index": false
-            }
-          }
-        },
-        {
-          "unindexed_doubles": {
-            "match_mapping_type": "double",
-            "mapping": {
-              "type": "float", <1>
-              "index": false
-            }
+    "dynamic_templates": [
+      {
+        "unindexed_longs": {
+          "match_mapping_type": "long",
+          "mapping": {
+            "type": "long",
+            "index": false
           }
         }
-      ]
-    }
-  }
-}
---------------------------------------------------
-<1> Like the default dynamic mapping rules, doubles are mapped as floats, which
-    are usually accurate enough, yet require half the disk space.
-
-
-[[override-default-template]]
-=== Override default template
-
-You can override the default mappings for all indices and all types
-by specifying a `_default_` type mapping in an index template
-which matches all indices.
-
-For example, to disable the `_all` field by default for all types in all
-new indices, you could create the following index template:
-
-[source,js]
---------------------------------------------------
-PUT _template/disable_all_field
-{
-  "order": 0,
-  "template": "*", <1>
-  "mappings": {
-    "_default_": { <2>
-      "_all": { <3>
-        "enabled": false
+      },
+      {
+        "unindexed_doubles": {
+          "match_mapping_type": "double",
+          "mapping": {
+            "type": "float", <1>
+            "index": false
+          }
+        }
       }
-    }
+    ]
   }
 }
 --------------------------------------------------
 // CONSOLE
-<1> Applies the mappings to an `index` which matches the pattern `*`, in other
-    words, all new indices.
-<2> Defines the `_default_` type mapping types within the index.
-<3> Disables the `_all` field by default.
+<1> Like the default dynamic mapping rules, doubles are mapped as floats, which
+    are usually accurate enough, yet require half the disk space.
+

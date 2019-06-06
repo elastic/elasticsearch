@@ -19,62 +19,22 @@
 
 package org.elasticsearch.ingest.common;
 
-import org.elasticsearch.ingest.IngestDocument;
-import org.elasticsearch.ingest.Processor;
-import org.elasticsearch.ingest.RandomDocumentPicks;
-import org.elasticsearch.test.ESTestCase;
-
-import java.util.Collections;
-import java.util.HashMap;
 import java.util.regex.Pattern;
 
-import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.equalTo;
+public class GsubProcessorTests extends AbstractStringProcessorTestCase<String> {
 
-public class GsubProcessorTests extends ESTestCase {
-
-    public void testGsub() throws Exception {
-        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
-        String fieldName = RandomDocumentPicks.addRandomField(random(), ingestDocument, "127.0.0.1");
-        Processor processor = new GsubProcessor(randomAsciiOfLength(10), fieldName, Pattern.compile("\\."), "-");
-        processor.execute(ingestDocument);
-        assertThat(ingestDocument.getFieldValue(fieldName, String.class), equalTo("127-0-0-1"));
+    @Override
+    protected AbstractStringProcessor<String> newProcessor(String field, boolean ignoreMissing, String targetField) {
+        return new GsubProcessor(randomAlphaOfLength(10), field, Pattern.compile("\\."), "-", ignoreMissing, targetField);
     }
 
-    public void testGsubNotAStringValue() throws Exception {
-        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
-        String fieldName = RandomDocumentPicks.randomFieldName(random());
-        ingestDocument.setFieldValue(fieldName, 123);
-        Processor processor = new GsubProcessor(randomAsciiOfLength(10), fieldName, Pattern.compile("\\."), "-");
-        try {
-            processor.execute(ingestDocument);
-            fail("processor execution should have failed");
-        } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), equalTo("field [" + fieldName +
-                    "] of type [java.lang.Integer] cannot be cast to [java.lang.String]"));
-        }
+    @Override
+    protected String modifyInput(String input) {
+        return "127.0.0.1";
     }
 
-    public void testGsubFieldNotFound() throws Exception {
-        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
-        String fieldName = RandomDocumentPicks.randomFieldName(random());
-        Processor processor = new GsubProcessor(randomAsciiOfLength(10), fieldName, Pattern.compile("\\."), "-");
-        try {
-            processor.execute(ingestDocument);
-            fail("processor execution should have failed");
-        } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), containsString("not present as part of path [" + fieldName + "]"));
-        }
-    }
-
-    public void testGsubNullValue() throws Exception {
-        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), Collections.singletonMap("field", null));
-        Processor processor = new GsubProcessor(randomAsciiOfLength(10), "field", Pattern.compile("\\."), "-");
-        try {
-            processor.execute(ingestDocument);
-            fail("processor execution should have failed");
-        } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), equalTo("field [field] is null, cannot match pattern."));
-        }
+    @Override
+    protected String expectedResult(String input) {
+        return "127-0-0-1";
     }
 }

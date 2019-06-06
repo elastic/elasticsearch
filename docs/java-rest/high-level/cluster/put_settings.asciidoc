@@ -1,0 +1,93 @@
+--
+:api: put-settings
+:request: ClusterUpdateSettingsRequest
+:response: ClusterUpdateSettingsResponse
+--
+
+[id="{upid}-{api}"]
+=== Cluster Update Settings API
+
+The Cluster Update Settings API allows to update cluster wide settings.
+
+[id="{upid}-{api}-request"]
+==== Cluster Update Settings Request
+
+A +{request}+:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request]
+--------------------------------------------------
+
+==== Cluster Settings
+At least one setting to be updated must be provided:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-cluster-settings]
+--------------------------------------------------
+<1> Sets the transient settings to be applied
+<2> Sets the persistent setting to be applied
+
+==== Providing the Settings
+The settings to be applied can be provided in different ways:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-create-settings]
+--------------------------------------------------
+<1> Creates a transient setting as `Settings`
+<2> Creates a persistent setting as `Settings`
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-settings-builder]
+--------------------------------------------------
+<1> Settings provided as `Settings.Builder`
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-settings-source]
+--------------------------------------------------
+<1> Settings provided as `String`
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-settings-map]
+--------------------------------------------------
+<1> Settings provided as a `Map`
+
+==== Optional Arguments
+The following arguments can optionally be provided:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-timeout]
+--------------------------------------------------
+<1> Timeout to wait for the all the nodes to acknowledge the settings were applied
+as a `TimeValue`
+<2> Timeout to wait for the all the nodes to acknowledge the settings were applied
+as a `String`
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-masterTimeout]
+--------------------------------------------------
+<1> Timeout to connect to the master node as a `TimeValue`
+<2> Timeout to connect to the master node as a `String`
+
+include::../execution.asciidoc[]
+
+[id="{upid}-{api}-response"]
+==== Cluster Update Settings Response
+
+The returned +{response}+ allows to retrieve information about the
+executed operation as follows:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-response]
+--------------------------------------------------
+<1> Indicates whether all of the nodes have acknowledged the request
+<2> Indicates which transient settings have been applied
+<3> Indicates which persistent settings have been applied

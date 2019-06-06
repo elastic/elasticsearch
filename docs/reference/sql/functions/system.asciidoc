@@ -1,0 +1,52 @@
+[role="xpack"]
+[testenv="basic"]
+[[sql-functions-system]]
+=== System Functions
+
+These functions return metadata type of information about the system being queried.
+
+[[sql-functions-system-database]]
+==== `DATABASE`
+
+.Synopsis:
+[source, sql]
+--------------------------------------------------
+DATABASE()
+--------------------------------------------------
+
+*Input*: _none_
+
+*Output*: string
+
+.Description:
+
+Returns the name of the database being queried. In the case of Elasticsearch SQL, this
+is the name of the Elasticsearch cluster. This function should always return a non-null
+value.
+
+[source, sql]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs/docs.csv-spec[database]
+--------------------------------------------------
+
+[[sql-functions-system-user]]
+==== `USER`
+
+.Synopsis:
+[source, sql]
+--------------------------------------------------
+USER()
+--------------------------------------------------
+*Input*: _none_
+
+*Output*: string
+
+.Description:
+
+Returns the username of the authenticated user executing the query. This function can
+return `null` in case {stack-ov}/elasticsearch-security.html[Security] is disabled.
+
+[source, sql]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs/docs.csv-spec[user]
+--------------------------------------------------

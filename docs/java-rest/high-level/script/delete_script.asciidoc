@@ -1,0 +1,81 @@
+[[java-rest-high-delete-stored-script]]
+
+=== Delete Stored Script API
+
+[[java-rest-high-delete-stored-script-request]]
+==== Delete Stored Script Request
+
+A `DeleteStoredScriptRequest` requires an `id`:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/StoredScriptsDocumentationIT.java[delete-stored-script-request]
+--------------------------------------------------
+<1> The id of the script
+
+==== Optional arguments
+The following arguments can optionally be provided:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/StoredScriptsDocumentationIT.java[delete-stored-script-request-timeout]
+--------------------------------------------------
+<1> Timeout to wait for the all the nodes to acknowledge the stored script is deleted as a `TimeValue`
+<2> Timeout to wait for the all the nodes to acknowledge the stored script is deleted as a `String`
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/StoredScriptsDocumentationIT.java[delete-stored-script-request-masterTimeout]
+--------------------------------------------------
+<1> Timeout to connect to the master node as a `TimeValue`
+<2> Timeout to connect to the master node as a `String`
+
+[[java-rest-high-delete-stored-script-sync]]
+==== Synchronous Execution
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/StoredScriptsDocumentationIT.java[delete-stored-script-execute]
+--------------------------------------------------
+
+[[java-rest-high-delete-stored-script-async]]
+==== Asynchronous Execution
+
+The asynchronous execution of a delete stored script request requires both the `DeleteStoredScriptRequest`
+instance and an `ActionListener` instance to be passed to the asynchronous method:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/StoredScriptsDocumentationIT.java[delete-stored-script-execute-async]
+--------------------------------------------------
+<1> The `DeleteStoredScriptRequest` to execute and the `ActionListener` to use when
+the execution completes
+
+[[java-rest-high-delete-stored-script-listener]]
+===== Action Listener
+
+The asynchronous method does not block and returns immediately. Once it is
+completed the `ActionListener` is called back using the `onResponse` method
+if the execution successfully completed or using the `onFailure` method if
+it failed.
+
+A typical listener for `DeleteStoredScriptResponse` looks like:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/StoredScriptsDocumentationIT.java[delete-stored-script-execute-listener]
+--------------------------------------------------
+<1> Called when the execution is successfully completed. The response is
+provided as an argument
+<2> Called in case of failure. The raised exception is provided as an argument
+
+[[java-rest-high-delete-stored-script-response]]
+==== Delete Stored Script Response
+
+The returned `DeleteStoredScriptResponse` allows to retrieve information about the
+executed operation as follows:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/StoredScriptsDocumentationIT.java[delete-stored-script-response]
+--------------------------------------------------
+<1> Indicates whether all of the nodes have acknowledged the request

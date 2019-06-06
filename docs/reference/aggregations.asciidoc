@@ -11,7 +11,7 @@ the execution defines what this document set is (e.g. a top-level aggregation ex
 query/filters of the search request).
 
 There are many different types of aggregations, each with its own purpose and output. To better understand these types,
-it is often easier to break them into three main families:
+it is often easier to break them into four main families:
 
 <<search-aggregations-bucket, _Bucketing_>>::
 				A family of aggregations that build buckets, where each bucket is associated with a _key_ and a document
@@ -39,6 +39,10 @@ NOTE:	Bucketing aggregations can have sub-aggregations (bucketing or metric). Th
 		the buckets which their parent aggregation generates. There is no hard limit on the level/depth of nested
 		aggregations (one can nest an aggregation under a "parent" aggregation, which is itself a sub-aggregation of
 		another higher-level aggregation).
+
+NOTE:   Aggregations operate on the `double` representation of
+        the data. As a consequence, the result may be approximate when running on longs
+        whose absolute value is greater than `2^53`.
 
 [float]
 == Structuring Aggregations
@@ -92,11 +96,15 @@ enables defining all the "dynamic" expressions in the script as parameters, whic
 between calls (this will ensure the use of the cached compiled scripts in Elasticsearch).
 ===============================
 
-Scripts can generate a single value or multiple values per document. When generating multiple values, one can use the
-`script_values_sorted` settings to indicate whether these values are sorted or not. Internally, Elasticsearch can
-perform optimizations when dealing with sorted values (for example, with the `min` aggregations, knowing the values are
-sorted, Elasticsearch will skip the iterations over all the values and rely on the first value in the list to be the
-minimum value among all other values associated with the same document).
+Elasticsearch uses the type of the field in the mapping in order to figure out
+how to run the aggregation and format the response. However there are two cases
+in which Elasticsearch cannot figure out this information: unmapped fields (for
+instance in the case of a search request across multiple indices, and only some
+of them have a mapping for the field) and pure scripts. For those cases, it is
+possible to give Elasticsearch a hint using the `value_type` option, which
+accepts the following values: `string`, `long` (works for all integer types),
+`double` (works for all decimal types like `float` or `scaled_float`), `date`,
+`ip` and `boolean`.
 
 --
 

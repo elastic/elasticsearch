@@ -19,10 +19,9 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Locals;
+import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 
 import java.util.Objects;
@@ -50,10 +49,10 @@ public final class EExplicit extends AExpression {
 
     @Override
     void analyze(Locals locals) {
-        try {
-            actual = Definition.getType(this.type);
-        } catch (IllegalArgumentException exception) {
-            throw createError(new IllegalArgumentException("Not a type [" + this.type + "]."));
+        actual = locals.getPainlessLookup().canonicalTypeNameToType(type);
+
+        if (actual == null) {
+            throw createError(new IllegalArgumentException("Not a type [" + type + "]."));
         }
 
         child.expected = actual;
@@ -73,5 +72,10 @@ public final class EExplicit extends AExpression {
         child.internal = internal;
 
         return child.cast(locals);
+    }
+
+    @Override
+    public String toString() {
+        return singleLineToString(type, child);
     }
 }

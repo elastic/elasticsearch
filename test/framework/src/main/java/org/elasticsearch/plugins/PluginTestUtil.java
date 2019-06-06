@@ -27,12 +27,15 @@ import java.util.Properties;
 
 /** Utility methods for testing plugins */
 public class PluginTestUtil {
-    
+
+    public static void writePluginProperties(Path pluginDir, String... stringProps) throws IOException {
+        writeProperties(pluginDir.resolve(PluginInfo.ES_PLUGIN_PROPERTIES), stringProps);
+    }
+
     /** convenience method to write a plugin properties file */
-    public static void writeProperties(Path pluginDir, String... stringProps) throws IOException {
+    private static void writeProperties(Path propertiesFile, String... stringProps) throws IOException {
         assert stringProps.length % 2 == 0;
-        Files.createDirectories(pluginDir);
-        Path propertiesFile = pluginDir.resolve(PluginInfo.ES_PLUGIN_PROPERTIES);
+        Files.createDirectories(propertiesFile.getParent());
         Properties properties =  new Properties();
         for (int i = 0; i < stringProps.length; i += 2) {
             properties.put(stringProps[i], stringProps[i + 1]);

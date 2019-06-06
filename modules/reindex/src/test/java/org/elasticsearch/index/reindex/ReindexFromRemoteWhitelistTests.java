@@ -20,7 +20,6 @@
 package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.index.reindex.remote.RemoteInfo;
 import org.elasticsearch.test.ESTestCase;
 
 import java.net.UnknownHostException;
@@ -46,47 +45,49 @@ public class ReindexFromRemoteWhitelistTests extends ESTestCase {
         checkRemoteWhitelist(buildRemoteWhitelist(randomWhitelist()), null);
     }
 
+    /**
+     * Build a {@link RemoteInfo}, defaulting values that we don't care about in this test to values that don't hurt anything.
+     */
+    private RemoteInfo newRemoteInfo(String host, int port) {
+        return new RemoteInfo(randomAlphaOfLength(5), host, port, null, new BytesArray("test"), null, null, emptyMap(),
+                RemoteInfo.DEFAULT_SOCKET_TIMEOUT, RemoteInfo.DEFAULT_CONNECT_TIMEOUT);
+    }
+
     public void testWhitelistedRemote() {
         List<String> whitelist = randomWhitelist();
         String[] inList = whitelist.iterator().next().split(":");
         String host = inList[0];
         int port = Integer.valueOf(inList[1]);
-        checkRemoteWhitelist(buildRemoteWhitelist(whitelist),
-                new RemoteInfo(randomAsciiOfLength(5), host, port, new BytesArray("test"), null, null, emptyMap()));
+        checkRemoteWhitelist(buildRemoteWhitelist(whitelist), newRemoteInfo(host, port));
     }
 
     public void testWhitelistedByPrefix() {
         checkRemoteWhitelist(buildRemoteWhitelist(singletonList("*.example.com:9200")),
-                new RemoteInfo(randomAsciiOfLength(5), "es.example.com", 9200, new BytesArray("test"), null, null, emptyMap()));
+                new RemoteInfo(randomAlphaOfLength(5), "es.example.com", 9200, null, new BytesArray("test"), null, null, emptyMap(),
+                        RemoteInfo.DEFAULT_SOCKET_TIMEOUT, RemoteInfo.DEFAULT_CONNECT_TIMEOUT));
         checkRemoteWhitelist(buildRemoteWhitelist(singletonList("*.example.com:9200")),
-                new RemoteInfo(randomAsciiOfLength(5), "6e134134a1.us-east-1.aws.example.com", 9200,
-                        new BytesArray("test"), null, null, emptyMap()));
+                newRemoteInfo("6e134134a1.us-east-1.aws.example.com", 9200));
     }
 
     public void testWhitelistedBySuffix() {
-        checkRemoteWhitelist(buildRemoteWhitelist(singletonList("es.example.com:*")),
-                new RemoteInfo(randomAsciiOfLength(5), "es.example.com", 9200, new BytesArray("test"), null, null, emptyMap()));
+        checkRemoteWhitelist(buildRemoteWhitelist(singletonList("es.example.com:*")), newRemoteInfo("es.example.com", 9200));
     }
 
     public void testWhitelistedByInfix() {
-        checkRemoteWhitelist(buildRemoteWhitelist(singletonList("es*.example.com:9200")),
-                new RemoteInfo(randomAsciiOfLength(5), "es1.example.com", 9200, new BytesArray("test"), null, null, emptyMap()));
+        checkRemoteWhitelist(buildRemoteWhitelist(singletonList("es*.example.com:9200")), newRemoteInfo("es1.example.com", 9200));
     }
-
 
     public void testLoopbackInWhitelistRemote() throws UnknownHostException {
         List<String> whitelist = randomWhitelist();
         whitelist.add("127.0.0.1:*");
-        checkRemoteWhitelist(buildRemoteWhitelist(whitelist),
-                new RemoteInfo(randomAsciiOfLength(5), "127.0.0.1", 9200, new BytesArray("test"), null, null, emptyMap()));
+        checkRemoteWhitelist(buildRemoteWhitelist(whitelist), newRemoteInfo("127.0.0.1", 9200));
     }
 
     public void testUnwhitelistedRemote() {
         int port = between(1, Integer.MAX_VALUE);
-        RemoteInfo remoteInfo = new RemoteInfo(randomAsciiOfLength(5), "not in list", port, new BytesArray("test"), null, null, emptyMap());
         List<String> whitelist = randomBoolean() ? randomWhitelist() : emptyList();
         Exception e = expectThrows(IllegalArgumentException.class,
-                () -> checkRemoteWhitelist(buildRemoteWhitelist(whitelist), remoteInfo));
+                () -> checkRemoteWhitelist(buildRemoteWhitelist(whitelist), newRemoteInfo("not in list", port)));
         assertEquals("[not in list:" + port + "] not whitelisted in reindex.remote.whitelist", e.getMessage());
     }
 
@@ -101,6 +102,12 @@ public class ReindexFromRemoteWhitelistTests extends ESTestCase {
         assertMatchesTooMuch(random);
     }
 
+    public void testIPv6Address() {
+        List<String> whitelist = randomWhitelist();
+        whitelist.add("[::1]:*");
+        checkRemoteWhitelist(buildRemoteWhitelist(whitelist), newRemoteInfo("[::1]", 9200));
+    }
+
     private void assertMatchesTooMuch(List<String> whitelist) {
         Exception e = expectThrows(IllegalArgumentException.class, () -> buildRemoteWhitelist(whitelist));
         assertEquals("Refusing to start because whitelist " + whitelist + " accepts all addresses. "
@@ -112,7 +119,7 @@ public class ReindexFromRemoteWhitelistTests extends ESTestCase {
         int size = between(1, 100);
         List<String> whitelist = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
-            whitelist.add(randomAsciiOfLength(5) + ':' + between(1, Integer.MAX_VALUE));
+            whitelist.add(randomAlphaOfLength(5) + ':' + between(1, Integer.MAX_VALUE));
         }
         return whitelist;
     }

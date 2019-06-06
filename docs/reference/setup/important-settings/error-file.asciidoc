@@ -1,0 +1,12 @@
+[[error-file-path]]
+=== JVM fatal error logs
+
+By default, Elasticsearch configures the JVM to write fatal error logs
+to the default logging directory (this is `/var/log/elasticsearch` for
+the <<rpm,RPM>> and <<deb,Debian>> package distributions, and the `logs`
+directory under the root of the Elasticsearch installation for the
+<<targz,tar>> and <<zip-windows,zip>> archive distributions). These are logs
+produced by the JVM when it encounters a fatal error (e.g., a
+segmentation fault). If this path is not suitable for receiving logs,
+you should modify the entry `-XX:ErrorFile=...` in
+<<jvm-options,`jvm.options`>> to an alternate path.

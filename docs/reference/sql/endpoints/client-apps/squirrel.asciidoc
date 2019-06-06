@@ -1,0 +1,52 @@
+[role="xpack"]
+[testenv="platinum"]
+[[sql-client-apps-squirrel]]
+=== SQuirreL SQL
+
+[quote, http://squirrel-sql.sourceforge.net/]
+____
+http://squirrel-sql.sourceforge.net/[SQuirreL SQL] is a graphical, [multi-platform] Java program that will allow you to view the structure of a JDBC compliant database [...].
+____
+
+IMPORTANT: Elastic does not endorse, promote or provide support for this application; for native Elasticsearch integration in this product, please reach out to its vendor.
+
+==== Prerequisites
+
+* {es-sql} <<sql-jdbc, JDBC driver>>
+
+==== Add {es} JDBC Driver
+
+To add the {es} JDBC driver, use *Windows* > *View Drivers* menu (or Ctrl+Shift+D shortcut):
+
+image:images/sql/client-apps/squirell-1-view-drivers.png[]
+
+This opens up the `Drivers` panel on the left. Click on the `+` sign to create a new driver:
+
+image:images/sql/client-apps/squirell-2-new-driver.png[]
+
+Select the *Extra Class Path* tab and *Add* the JDBC jar. *List Drivers* to have the `Class Name` filled-in
+automatically and name the connection:
+
+image:images/sql/client-apps/squirell-3-add-driver.png[]
+
+The driver should now appear in the list:
+
+image:images/sql/client-apps/squirell-4-driver-list.png[]
+
+==== Add an alias for {es}
+
+Add a new connection or in SQuirelL terminology an _alias_ using the new driver. To do so, select the *Aliases* panel on the left and click the `+` sign:
+
+image:images/sql/client-apps/squirell-5-add-alias.png[]
+
+Name the new alias and select the `Elasticsearch` driver previously added:
+
+image:images/sql/client-apps/squirell-6-alias-props.png[]
+
+The setup is completed. Double check it by clicking on *Test Connection*.
+
+==== Execute SQL queries
+
+The connection should open automatically (if it has been created before simply click on *Connect* in the *Alias* panel). SQuirelL SQL can now issue SQL commands to {es}:
+
+image:images/sql/client-apps/squirell-7-data.png[]

@@ -1,0 +1,83 @@
+apply plugin: 'elasticsearch.build'
+apply plugin: 'nebula.maven-base-publish'
+apply plugin: 'nebula.maven-scm'
+apply plugin: 'com.github.johnrengelman.shadow'
+
+description = 'JDBC driver for Elasticsearch'
+archivesBaseName = "x-pack-sql-jdbc"
+
+forbiddenApisMain {
+    // does not depend on core, so only jdk and http signatures should be checked
+    replaceSignatureFiles 'jdk-signatures'
+}
+
+dependencies {
+    compile (xpackProject('plugin:sql:sql-client')) {
+        transitive = false
+    }
+    compile (xpackProject('plugin:sql:sql-proto')) {
+        transitive = false
+    }
+    compile (project(':libs:elasticsearch-x-content')) {
+        transitive = false
+    }
+    compile (project(':libs:elasticsearch-geo')) {
+        transitive = false
+    }
+    compile project(':libs:elasticsearch-core')
+    runtime "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
+    testCompile project(":test:framework")
+    testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
+    if (isEclipse) {
+      testCompile project(path: xpackModule('core-tests'), configuration: 'testArtifacts')
+    }
+}
+
+dependencyLicenses {
+    mapping from: /sql-proto.*/, to: 'elasticsearch'
+    mapping from: /sql-client.*/, to: 'elasticsearch'
+    mapping from: /jackson-.*/, to: 'jackson'
+    mapping from: /elasticsearch-core.*/, to: 'elasticsearch'
+    ignoreSha 'sql-proto'
+    ignoreSha 'sql-client'
+    ignoreSha 'elasticsearch'
+}
+
+test {
+    // don't use the shaded jar for tests
+    classpath += project.tasks.compileJava.outputs.files
+    classpath -= project.tasks.shadowJar.outputs.files
+}
+
+shadowJar {
+    relocate 'com.fasterxml', 'org.elasticsearch.fasterxml'
+    // set the shaded configuration back to runtime instead of bundle because
+    // we need tests to use the non-shaded deps to allow editing/testing in intellij
+    configurations = [project.configurations.runtime]
+}
+
+// We need a no-depenencies jar though for qa testing so it doesn't conflict with cli
+configurations {
+    nodeps
+}
+
+task nodepsJar(type: Jar) {
+    appendix 'nodeps'
+    from sourceSets.main.output
+}
+
+artifacts  {
+    nodeps nodepsJar
+}
+
+publishing {
+    publications {
+        nebula {
+            artifactId = archivesBaseName
+            pom.withXml {
+                // Nebula is mistakenly including all dependencies that are already shadowed into the shadow jar
+                asNode().remove(asNode().dependencies)
+            }
+        }
+    }
+}

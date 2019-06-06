@@ -1,0 +1,67 @@
+--
+:api: flush
+:request: FlushRequest
+:response: FlushResponse
+--
+
+[id="{upid}-{api}"]
+=== Flush API
+
+[id="{upid}-{api}-request"]
+==== Flush Request
+
+A +{request}+ can be applied to one or more indices, or even on `_all` the indices:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request]
+--------------------------------------------------
+<1> Flush one index
+<2> Flush multiple indices
+<3> Flush all the indices
+
+==== Optional arguments
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-indicesOptions]
+--------------------------------------------------
+<1> Setting `IndicesOptions` controls how unavailable indices are resolved and
+how wildcard expressions are expanded
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-wait]
+--------------------------------------------------
+<1> Set the `wait_if_ongoing` flag to `true`
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-force]
+--------------------------------------------------
+<1> Set the `force` flag to `true`
+
+include::../execution.asciidoc[]
+
+[id="{upid}-{api}-response"]
+==== Flush Response
+
+The returned +{response}+ allows to retrieve information about the
+executed operation as follows:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-response]
+--------------------------------------------------
+<1> Total number of shards hit by the flush request
+<2> Number of shards where the flush has succeeded
+<3> Number of shards where the flush has failed
+<4> A list of failures if the operation failed on one or more shards
+
+By default, if the indices were not found, an `ElasticsearchException` will be thrown:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-notfound]
+--------------------------------------------------
+<1> Do something if the indices to be flushed were not found

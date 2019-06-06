@@ -32,7 +32,7 @@ import java.util.Map;
 /**
  * Processor that splits fields content into different items based on the occurrence of a specified separator.
  * New field value will be an array containing all of the different extracted items.
- * Throws exception if the field is null or a type other than string.
+ * Support fields of string type only, throws exception if a field is of a different type.
  */
 public final class SplitProcessor extends AbstractProcessor {
 
@@ -40,11 +40,15 @@ public final class SplitProcessor extends AbstractProcessor {
 
     private final String field;
     private final String separator;
+    private final boolean ignoreMissing;
+    private final String targetField;
 
-    SplitProcessor(String tag, String field, String separator) {
+    SplitProcessor(String tag, String field, String separator, boolean ignoreMissing, String targetField) {
         super(tag);
         this.field = field;
         this.separator = separator;
+        this.ignoreMissing = ignoreMissing;
+        this.targetField = targetField;
     }
 
     String getField() {
@@ -55,16 +59,29 @@ public final class SplitProcessor extends AbstractProcessor {
         return separator;
     }
 
+    boolean isIgnoreMissing() {
+        return ignoreMissing;
+    }
+
+    String getTargetField() {
+        return targetField;
+    }
+
     @Override
-    public void execute(IngestDocument document) {
-        String oldVal = document.getFieldValue(field, String.class);
-        if (oldVal == null) {
+    public IngestDocument execute(IngestDocument document) {
+        String oldVal = document.getFieldValue(field, String.class, ignoreMissing);
+
+        if (oldVal == null && ignoreMissing) {
+            return document;
+        } else if (oldVal == null) {
             throw new IllegalArgumentException("field [" + field + "] is null, cannot split.");
         }
+
         String[] strings = oldVal.split(separator);
         List<String> splitList = new ArrayList<>(strings.length);
         Collections.addAll(splitList, strings);
-        document.setFieldValue(field, splitList);
+        document.setFieldValue(targetField, splitList);
+        return document;
     }
 
     @Override
@@ -77,7 +94,10 @@ public final class SplitProcessor extends AbstractProcessor {
         public SplitProcessor create(Map<String, Processor.Factory> registry, String processorTag,
                                      Map<String, Object> config) throws Exception {
             String field = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "field");
-            return new SplitProcessor(processorTag, field, ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "separator"));
+            boolean ignoreMissing = ConfigurationUtils.readBooleanProperty(TYPE, processorTag, config, "ignore_missing", false);
+            String targetField = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "target_field", field);
+            return new SplitProcessor(processorTag, field,
+                ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "separator"), ignoreMissing, targetField);
         }
     }
 }

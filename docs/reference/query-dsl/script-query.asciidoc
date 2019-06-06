@@ -11,10 +11,10 @@ GET /_search
 {
     "query": {
         "bool" : {
-            "must" : {
+            "filter" : {
                 "script" : {
                     "script" : {
-                        "inline": "doc['num1'].value > 1",
+                        "source": "doc['num1'].value > 1",
                         "lang": "painless"
                      }
                 }
@@ -38,10 +38,10 @@ GET /_search
 {
     "query": {
         "bool" : {
-            "must" : {
+            "filter" : {
                 "script" : {
                     "script" : {
-                        "inline" : "doc['num1'].value > params.param1",
+                        "source" : "doc['num1'].value > params.param1",
                         "lang"   : "painless",
                         "params" : {
                             "param1" : 5

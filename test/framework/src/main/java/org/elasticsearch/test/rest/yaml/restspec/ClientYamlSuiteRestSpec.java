@@ -18,29 +18,34 @@
  */
 package org.elasticsearch.test.rest.yaml.restspec;
 
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.test.rest.yaml.FileUtils;
-
 import java.io.IOException;
 import java.io.InputStream;
-import java.nio.file.FileSystem;
+import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Stream;
+
+import org.elasticsearch.common.io.PathUtils;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 
 /**
  * Holds the specification used to turn {@code do} actions in the YAML suite into REST api calls.
  */
 public class ClientYamlSuiteRestSpec {
-    Map<String, ClientYamlSuiteRestApi> restApiMap = new HashMap<>();
+    private final Set<String> globalParameters = new HashSet<>();
+    private final Map<String, ClientYamlSuiteRestApi> restApiMap = new HashMap<>();
 
-    private ClientYamlSuiteRestSpec() {
-    }
+    private ClientYamlSuiteRestSpec() {}
 
-    void addApi(ClientYamlSuiteRestApi restApi) {
+    private void addApi(ClientYamlSuiteRestApi restApi) {
         ClientYamlSuiteRestApi previous = restApiMap.putIfAbsent(restApi.getName(), restApi);
         if (previous != null) {
             throw new IllegalArgumentException("cannot register api [" + restApi.getName() + "] found in [" + restApi.getLocation() + "]. "
@@ -57,29 +62,76 @@ public class ClientYamlSuiteRestSpec {
     }
 
     /**
+     * Returns whether the provided parameter is one of those parameters that are supported by all Elasticsearch api
+     */
+    public boolean isGlobalParameter(String param) {
+        return globalParameters.contains(param);
+    }
+
+    /**
+     * Returns whether the provided parameter is one of those parameters that are supported by the Elasticsearch language clients, meaning
+     * that they influence the client behaviour and don't get sent to Elasticsearch
+     */
+    public boolean isClientParameter(String name) {
+        return "ignore".equals(name);
+    }
+
+    /**
      * Parses the complete set of REST spec available under the provided directories
      */
-    public static ClientYamlSuiteRestSpec parseFrom(FileSystem fileSystem, String optionalPathPrefix, String... paths) throws IOException {
+    public static ClientYamlSuiteRestSpec load(String classpathPrefix) throws Exception {
+        Path dir = PathUtils.get(ClientYamlSuiteRestSpec.class.getResource(classpathPrefix).toURI());
         ClientYamlSuiteRestSpec restSpec = new ClientYamlSuiteRestSpec();
         ClientYamlSuiteRestApiParser restApiParser = new ClientYamlSuiteRestApiParser();
-        for (String path : paths) {
-            for (Path jsonFile : FileUtils.findJsonSpec(fileSystem, optionalPathPrefix, path)) {
-                try (InputStream stream = Files.newInputStream(jsonFile)) {
-                    try (XContentParser parser = JsonXContent.jsonXContent.createParser(stream)) {
-                        ClientYamlSuiteRestApi restApi = restApiParser.parse(jsonFile.toString(), parser);
-                        String filename = jsonFile.getFileName().toString();
-                        String expectedApiName = filename.substring(0, filename.lastIndexOf('.'));
-                        if (restApi.getName().equals(expectedApiName) == false) {
-                            throw new IllegalArgumentException("found api [" + restApi.getName() + "] in [" + jsonFile.toString() + "]. " +
-                                    "Each api is expected to have the same name as the file that defines it.");
-                        }
-                        restSpec.addApi(restApi);
-                    }
-                } catch (Exception ex) {
-                    throw new IOException("Can't parse rest spec file: [" + jsonFile + "]", ex);
+        try (Stream<Path> stream = Files.walk(dir)) {
+            stream.forEach(item -> {
+                if (item.toString().endsWith(".json")) {
+                    parseSpecFile(restApiParser, item, restSpec);
                 }
-            }
+            });
         }
         return restSpec;
+    }
+
+    private static void parseSpecFile(ClientYamlSuiteRestApiParser restApiParser, Path jsonFile, ClientYamlSuiteRestSpec restSpec) {
+        try (InputStream stream = Files.newInputStream(jsonFile)) {
+            try (XContentParser parser =
+                     JsonXContent.jsonXContent.createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, stream)) {
+                String filename = jsonFile.getFileName().toString();
+                if (filename.equals("_common.json")) {
+                    String currentFieldName = null;
+                    while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
+                        if (parser.currentToken() == XContentParser.Token.FIELD_NAME) {
+                            currentFieldName = parser.currentName();
+                        } else if (parser.currentToken() == XContentParser.Token.START_OBJECT
+                            && "params".equals(currentFieldName)) {
+                            while (parser.nextToken() == XContentParser.Token.FIELD_NAME) {
+                                String param = parser.currentName();
+                                if (restSpec.globalParameters.contains(param)) {
+                                    throw new IllegalArgumentException("Found duplicate global param [" + param + "]");
+                                }
+                                restSpec.globalParameters.add(param);
+                                parser.nextToken();
+                                if (parser.currentToken() != XContentParser.Token.START_OBJECT) {
+                                    throw new IllegalArgumentException("Expected params field in rest api definition to " +
+                                        "contain an object");
+                                }
+                                parser.skipChildren();
+                            }
+                        }
+                    }
+                } else {
+                    ClientYamlSuiteRestApi restApi = restApiParser.parse(jsonFile.toString(), parser);
+                    String expectedApiName = filename.substring(0, filename.lastIndexOf('.'));
+                    if (restApi.getName().equals(expectedApiName) == false) {
+                        throw new IllegalArgumentException("found api [" + restApi.getName() + "] in [" + jsonFile.toString() + "]. " +
+                            "Each api is expected to have the same name as the file that defines it.");
+                    }
+                    restSpec.addApi(restApi);
+                }
+            }
+        } catch (IOException ex) {
+            throw new UncheckedIOException("Can't parse rest spec file: [" + jsonFile + "]", ex);
+        }
     }
 }

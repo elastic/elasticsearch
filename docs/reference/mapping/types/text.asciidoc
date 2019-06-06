@@ -7,7 +7,7 @@ description of a product. These fields are `analyzed`, that is they are passed t
 before being indexed. The analysis process allows Elasticsearch to search for
 individual words _within_  each full text field.  Text fields are not
 used for sorting and seldom used for aggregations (although the
-<<search-aggregations-bucket-significantterms-aggregation,significant terms aggregation>>
+<<search-aggregations-bucket-significanttext-aggregation,significant text aggregation>>
 is a notable exception).
 
 If you need to index structured content such as email addresses, hostnames, status
@@ -20,11 +20,9 @@ Below is an example of a mapping for a text field:
 PUT my_index
 {
   "mappings": {
-    "my_type": {
-      "properties": {
-        "full_name": {
-          "type":  "text"
-        }
+    "properties": {
+      "full_name": {
+        "type":  "text"
       }
     }
   }
@@ -57,7 +55,7 @@ The following parameters are accepted by `text` fields:
     Mapping field-level query time boosting. Accepts a floating point number, defaults
     to `1.0`.
 
-<<global-ordinals,`eager_global_ordinals`>>::
+<<eager-global-ordinals,`eager_global_ordinals`>>::
 
     Should global ordinals be loaded eagerly on refresh? Accepts `true` or `false`
     (default). Enabling this is a good idea on fields that are frequently used for
@@ -80,14 +78,6 @@ The following parameters are accepted by `text` fields:
     sorting and aggregations, or the same string value analyzed by different
     analyzers.
 
-<<include-in-all,`include_in_all`>>::
-
-    Whether or not the field value should be included in the
-    <<mapping-all-field,`_all`>> field? Accepts `true` or `false`.  Defaults
-    to `false` if <<mapping-index,`index`>> is set to `no`, or if a parent
-    <<object,`object`>> field sets `include_in_all` to `false`.
-    Otherwise defaults to `true`.
-
 <<mapping-index,`index`>>::
 
     Should the field be searchable? Accepts `true` (default) or `false`.
@@ -96,6 +86,20 @@ The following parameters are accepted by `text` fields:
 
     What information should be stored in the index, for search and highlighting purposes.
     Defaults to `positions`.
+
+<<index-prefixes,`index_prefixes`>>::
+
+    If enabled, term prefixes of between 2 and 5 characters are indexed into a
+    separate field.  This allows prefix searches to run more efficiently, at
+    the expense of a larger index.
+
+<<index-phrases,`index_phrases`>>::
+
+    If enabled, two-term word combinations ('shingles') are indexed into a separate
+    field.  This allows exact phrase queries (no slop) to run more efficiently, at the expense
+    of a larger index.  Note that this works best when stopwords are not removed,
+    as phrases containing stopwords will not use the subsidiary field and will fall
+    back to a standard phrase query.  Accepts `true` or `false` (default).
 
 <<norms,`norms`>>::
 
@@ -129,15 +133,9 @@ The following parameters are accepted by `text` fields:
 <<similarity,`similarity`>>::
 
     Which scoring algorithm or _similarity_ should be used. Defaults
-    to `classic`, which uses TF/IDF.
+    to `BM25`.
 
 <<term-vector,`term_vector`>>::
 
     Whether term vectors should be stored for an <<mapping-index,`analyzed`>>
     field. Defaults to `no`.
-
-NOTE: Indexes imported from 2.x do not support `text`. Instead they will
-attempt to downgrade `text` into `string`. This allows you to merge modern
-mappings with legacy mappings. Long lived indexes will have to be recreated
-before upgrading to 6.x but mapping downgrade gives you the opportunity to do
-the recreation on your own schedule.

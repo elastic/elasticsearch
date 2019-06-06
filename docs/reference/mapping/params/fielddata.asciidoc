@@ -19,6 +19,7 @@ reading the entire inverted index for each segment from disk, inverting the
 term ↔︎ document relationship, and storing the result in memory, in the JVM
 heap.
 
+[[fielddata-disabled-text-fields]]
 ==== Fielddata is disabled on `text` fields by default
 
 Fielddata can consume a *lot* of heap space, especially when loading high
@@ -58,14 +59,12 @@ enabled for aggregations, as follows:
 PUT my_index
 {
   "mappings": {
-    "my_type": {
-      "properties": {
-        "my_field": { <1>
-          "type": "text",
-          "fields": {
-            "keyword": { <2>
-              "type": "keyword"
-            }
+    "properties": {
+      "my_field": { <1>
+        "type": "text",
+        "fields": {
+          "keyword": { <2>
+            "type": "keyword"
           }
         }
       }
@@ -77,6 +76,7 @@ PUT my_index
 <1> Use the `my_field` field for searches.
 <2> Use the `my_field.keyword` field for aggregations, sorting, or in scripts.
 
+[[enable-fielddata-text-fields]]
 ==== Enabling fielddata on `text` fields
 
 You can enable fielddata on an existing `text` field using the
@@ -84,7 +84,7 @@ You can enable fielddata on an existing `text` field using the
 
 [source,js]
 -----------------------------------
-PUT my_index/_mapping/my_type
+PUT my_index/_mapping
 {
   "properties": {
     "my_field": { <1>
@@ -99,46 +99,6 @@ PUT my_index/_mapping/my_type
 
 <1> The mapping that you specify for `my_field` should consist of the existing
     mapping for that field, plus the `fielddata` parameter.
-
-TIP: The `fielddata.*` parameter must have the same settings for fields of the
-same name in the same index.  Its value can be updated on existing fields
-using the <<indices-put-mapping,PUT mapping API>>.
-
-
-[[global-ordinals]]
-.Global ordinals
-*****************************************
-
-Global ordinals is a data-structure on top of fielddata and doc values, that
-maintains an incremental numbering for each unique term in a lexicographic
-order. Each term has a unique number and the number of term 'A' is lower than
-the number of term 'B'. Global ordinals are only supported on <<text,`text`>>
-and <<keyword,`keyword`>> fields.
-
-Fielddata and doc values also have ordinals, which is a unique numbering for
-all terms in a particular segment and field. Global ordinals just build on top
-of this, by providing a mapping between the segment ordinals and the global
-ordinals, the latter being unique across the entire shard.
-
-Global ordinals are used for features that use segment ordinals, such as
-sorting and the terms aggregation, to improve the execution time. A terms
-aggregation relies purely on global ordinals to perform the aggregation at the
-shard level, then converts global ordinals to the real term only for the final
-reduce phase, which combines results from different shards.
-
-Global ordinals for a specified field are tied to _all the segments of a
-shard_, while fielddata and doc values ordinals are tied to a single segment.
-which is different than for field data for a specific field which is tied to a
-single segment. For this reason global ordinals need to be entirely rebuilt
-whenever a once new segment becomes visible.
-
-The loading time of global ordinals depends on the number of terms in a field,
-but in general it is low, since it source field data has already been loaded.
-The memory overhead of global ordinals is a small because it is very
-efficiently compressed. Eager loading of global ordinals can move the loading
-time from the first search request, to the refresh itself.
-
-*****************************************
 
 [[field-data-filtering]]
 ==== `fielddata_frequency_filter`
@@ -161,16 +121,14 @@ number of docs that the segment should contain with `min_segment_size`:
 PUT my_index
 {
   "mappings": {
-    "my_type": {
-      "properties": {
-        "tag": {
-          "type": "text",
-          "fielddata": true,
-          "fielddata_frequency_filter": {
-            "min": 0.001,
-            "max": 0.1,
-            "min_segment_size": 500
-          }
+    "properties": {
+      "tag": {
+        "type": "text",
+        "fielddata": true,
+        "fielddata_frequency_filter": {
+          "min": 0.001,
+          "max": 0.1,
+          "min_segment_size": 500
         }
       }
     }

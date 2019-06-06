@@ -1,6 +1,8 @@
 [[mapping-type-field]]
 === `_type` field
 
+deprecated[6.0.0,See <<removal-of-types>>]
+
 Each document indexed is associated with a <<mapping-type-field,`_type`>> (see
 <<mapping-type>>) and an <<mapping-id-field,`_id`>>.  The `_type` field is
 indexed in order to make searching by type name fast.
@@ -11,21 +13,17 @@ scripts, and when sorting:
 [source,js]
 --------------------------
 # Example documents
-PUT my_index/type_1/1
+
+PUT my_index/_doc/1?refresh=true
 {
-  "text": "Document with type 1"
+  "text": "Document with type 'doc'"
 }
 
-PUT my_index/type_2/2?refresh=true
-{
-  "text": "Document with type 2"
-}
-
-GET my_index/type_*/_search
+GET my_index/_search
 {
   "query": {
-    "terms": {
-      "_type": [ "type_1", "type_2" ] <1>
+    "term": {
+      "_type": "_doc"  <1>
     }
   },
   "aggs": {
@@ -47,7 +45,7 @@ GET my_index/type_*/_search
     "type": {
       "script": {
         "lang": "painless",
-        "inline": "doc['_type']" <4>
+        "source": "doc['_type']" <4>
       }
     }
   }

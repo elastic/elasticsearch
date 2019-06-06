@@ -48,12 +48,11 @@ final class GeoLatitudeValueSource extends ValueSource {
         final MultiGeoPointValues values = leafData.getGeoPointValues();
         return new DoubleDocValues(this) {
             @Override
-            public double doubleVal(int doc) {
-                values.setDocument(doc);
-                if (values.count() == 0) {
-                    return 0.0;
+            public double doubleVal(int doc) throws IOException {
+                if (values.advanceExact(doc)) {
+                    return values.nextValue().getLat();
                 } else {
-                    return values.valueAt(0).getLat();
+                    return 0.0;
                 }
             }
         };

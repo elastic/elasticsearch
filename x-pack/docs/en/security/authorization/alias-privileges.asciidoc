@@ -1,0 +1,103 @@
+[role="xpack"]
+[[securing-aliases]]
+=== Granting privileges for indices and aliases
+
+Elasticsearch allows to execute operations against {ref}/indices-aliases.html[index aliases],
+which are effectively virtual indices. An alias points to one or more indices,
+holds metadata and potentially a filter. The {es} {security-features} treat
+aliases and indices
+the same. Privileges for indices actions are granted on specific indices or
+aliases. In order for an indices action to be authorized, the user that executes
+it needs to have permissions for that action on all the specific indices or
+aliases that the request relates to.
+
+Let's look at an example. Assuming we have an index called `2015`, an alias that
+points to it called `current_year`, and a user with the following role:
+
+[source,js]
+--------------------------------------------------
+{
+  "names" : [ "2015" ],
+  "privileges" : [ "read" ]
+}
+--------------------------------------------------
+// NOTCONSOLE
+
+The user attempts to retrieve a document from `current_year`:
+
+[source,shell]
+-------------------------------------------------------------------------------
+GET /current_year/event/1
+-------------------------------------------------------------------------------
+// CONSOLE
+// TEST[s/^/PUT 2015\n{"aliases": {"current_year": {}}}\nPUT 2015\/event\/1\n{}\n/]
+
+The above request gets rejected, although the user has `read` privilege on the
+concrete index that the `current_year` alias points to. The correct permission
+would be as follows:
+
+[source,js]
+--------------------------------------------------
+{
+  "names" : [ "current_year" ],
+  "privileges" : [ "read" ]
+}
+--------------------------------------------------
+// NOTCONSOLE
+
+[float]
+==== Managing aliases
+
+Unlike creating indices, which requires the `create_index` privilege, adding,
+removing and retrieving aliases requires the `manage` permission. Aliases can be
+added to an index directly as part of the index creation:
+
+[source,shell]
+-------------------------------------------------------------------------------
+PUT /2015
+{
+    "aliases" : {
+        "current_year" : {}
+    }
+}
+-------------------------------------------------------------------------------
+// CONSOLE
+
+or via the dedicated aliases api if the index already exists:
+
+[source,shell]
+-------------------------------------------------------------------------------
+POST /_aliases
+{
+    "actions" : [
+        { "add" : { "index" : "2015", "alias" : "current_year" } }
+    ]
+}
+-------------------------------------------------------------------------------
+// CONSOLE
+// TEST[s/^/PUT 2015\n/]
+
+The above requests both require the `manage` privilege on the alias name as well
+as the targeted index, as follows:
+
+[source,js]
+--------------------------------------------------
+{
+  "names" : [ "20*", "current_year" ],
+  "privileges" : [ "manage" ]
+}
+--------------------------------------------------
+// NOTCONSOLE
+
+The index aliases api also allows also to delete aliases from existing indices.
+The privileges required for such a request are the same as above. Both index and
+alias need the `manage` permission.
+
+
+[float]
+==== Filtered aliases
+
+Aliases can hold a filter, which allows to select a subset of documents that can
+be accessed out of all the documents that the physical index contains. These
+filters are not always applied and should not be used in place of
+<<document-level-security, document level security>>.

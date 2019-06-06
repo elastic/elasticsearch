@@ -1,0 +1,87 @@
+---
+"Test url escaping with url mustache function":
+  - skip:
+      version: "all"
+      reason: "AwaitsFix https://github.com/elastic/elasticsearch/issues/41172"
+  - do:
+      cluster.health:
+          wait_for_status: yellow
+
+  - do:
+      index:
+        index:   <date-index-{now/d}>
+        type:    log
+        id:      1
+        refresh: true
+        body:    { foo: bar }
+
+  - do: {watcher.stats:{}}
+  - match: { "stats.0.watcher_state": "started" }
+  - match: { "stats.0.watch_count": 0 }
+
+  # extract http host and port from master node
+  - do:
+      cluster.state: {}
+  - set: { master_node: master }
+
+  - do:
+      nodes.info:
+        metric: [ http ]
+  - is_true: nodes.$master.http.publish_address
+  - set: { nodes.$master.http.publish_address: host }
+
+  - do:
+      ingest.simulate:
+        body:
+          pipeline:
+            description: _description
+            processors: [ grok: { field: host, patterns : ["%{IPORHOST:hostname}:%{NUMBER:port:int}"] } ]
+          docs: [ { _index: index, _type: type, _id: id, _source: { host: $host } } ]
+  - set: { docs.0.doc._source.hostname: hostname }
+  - set: { docs.0.doc._source.port: port }
+
+  - do:
+      watcher.put_watch:
+          id: "test_watch"
+          body:
+            metadata:
+              index: "<date-index-{now/d}>"
+            trigger:
+              schedule:
+                interval: 1h
+            input:
+              http:
+                request:
+                  host: $hostname
+                  port: $port
+                  path: "/{{#url}}{{ctx.metadata.index}}{{/url}}/_search"
+                  params:
+                    rest_total_hits_as_int: "true"
+            condition:
+              compare:
+                "ctx.payload.hits.total":
+                  eq: 1
+            actions:
+              output:
+                webhook:
+                  method: PUT
+                  host: $hostname
+                  port: $port
+                  path: "/{{#url}}{{ctx.metadata.index}}{{/url}}/log/2"
+                  params:
+                    refresh: "true"
+                  body: "{ \"foo\": \"bar\" }"
+
+  - match: { _id: "test_watch" }
+  - match: { created: true }
+
+  - do:
+      watcher.execute_watch:
+          id: "test_watch"
+
+  - do:
+      count:
+          index: <date-index-{now/d}>
+
+  - match: {count : 2}
+

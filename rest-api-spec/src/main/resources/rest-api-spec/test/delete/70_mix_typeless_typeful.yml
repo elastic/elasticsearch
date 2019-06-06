@@ -1,0 +1,39 @@
+---
+"DELETE with typeless API on an index that has types":
+
+ - do:
+      indices.create: # not using include_type_name: false on purpose
+          include_type_name: true
+          index: index
+          body:
+              mappings:
+                  not_doc:
+                      properties:
+                          foo:
+                              type: "keyword"
+
+ - do:
+      index:
+          index:  index
+          type:   not_doc
+          id:     1
+          body:   { foo: bar }
+
+ - do:
+      catch:   bad_request
+      delete:
+          index:  index
+          type:   some_random_type
+          id:     1
+
+ - match:   { error.root_cause.0.reason:   "/Rejecting.mapping.update.to.\\[index\\].as.the.final.mapping.would.have.more.than.1.type.*/" }
+
+ - do:
+      delete:
+          index:  index
+          id:     1
+
+ - match:   { _index:   "index" }
+ - match:   { _type:    "_doc" }
+ - match:   { _id:      "1"}
+ - match:   { _version: 2}

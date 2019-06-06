@@ -1,0 +1,6 @@
+IMPORTANT: If you are upgrading from 6.2 or earlier and use {xpack},
+run `bin/elasticsearch-plugin remove x-pack` to remove the {xpack} plugin before
+you upgrade. The {xpack} functionality is now included in the default distribution
+and is no longer installed separately. The node won't start after upgrade if
+the {xpack} plugin is present. You will need to downgrade, remove the plugin,
+and reapply the upgrade.

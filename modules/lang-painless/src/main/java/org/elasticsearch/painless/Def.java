@@ -19,14 +19,14 @@
 
 package org.elasticsearch.painless;
 
-import org.elasticsearch.painless.Definition.Method;
-import org.elasticsearch.painless.Definition.RuntimeClass;
+import org.elasticsearch.painless.Locals.LocalMethod;
+import org.elasticsearch.painless.lookup.PainlessLookup;
+import org.elasticsearch.painless.lookup.PainlessLookupUtility;
+import org.elasticsearch.painless.lookup.PainlessMethod;
 
 import java.lang.invoke.CallSite;
-import java.lang.invoke.LambdaMetafactory;
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
-import java.lang.invoke.MethodHandles.Lookup;
 import java.lang.invoke.MethodType;
 import java.util.BitSet;
 import java.util.Collections;
@@ -36,6 +36,8 @@ import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+
+import static org.elasticsearch.painless.lookup.PainlessLookupUtility.typeToCanonicalTypeName;
 
 /**
  * Support for dynamic type (def).
@@ -61,14 +63,15 @@ public final class Def {
      */
     @SuppressWarnings("unused") // getArrayLength() methods are are actually used, javac just does not know :)
     private static final class ArrayLengthHelper {
-        private static final Lookup PRIV_LOOKUP = MethodHandles.lookup();
+        private static final MethodHandles.Lookup PRIVATE_METHOD_HANDLES_LOOKUP = MethodHandles.lookup();
 
         private static final Map<Class<?>,MethodHandle> ARRAY_TYPE_MH_MAPPING = Collections.unmodifiableMap(
             Stream.of(boolean[].class, byte[].class, short[].class, int[].class, long[].class,
                 char[].class, float[].class, double[].class, Object[].class)
                 .collect(Collectors.toMap(Function.identity(), type -> {
                     try {
-                        return PRIV_LOOKUP.findStatic(PRIV_LOOKUP.lookupClass(), "getArrayLength", MethodType.methodType(int.class, type));
+                        return PRIVATE_METHOD_HANDLES_LOOKUP.findStatic(
+                                PRIVATE_METHOD_HANDLES_LOOKUP.lookupClass(), "getArrayLength", MethodType.methodType(int.class, type));
                     } catch (ReflectiveOperationException e) {
                         throw new AssertionError(e);
                     }
@@ -113,31 +116,31 @@ public final class Def {
     private static final MethodHandle MAP_INDEX_NORMALIZE;
     /** pointer to {@link Def#listIndexNormalize}. */
     private static final MethodHandle LIST_INDEX_NORMALIZE;
-    /** factory for arraylength MethodHandle (intrinsic) from Java 9 */
-    private static final MethodHandle JAVA9_ARRAY_LENGTH_MH_FACTORY;
+    /** factory for arraylength MethodHandle (intrinsic) from Java 9 (pkg-private for tests) */
+    static final MethodHandle JAVA9_ARRAY_LENGTH_MH_FACTORY;
 
     static {
-        final Lookup lookup = MethodHandles.publicLookup();
+        final MethodHandles.Lookup methodHandlesLookup = MethodHandles.publicLookup();
 
         try {
-            MAP_GET  = lookup.findVirtual(Map.class , "get", MethodType.methodType(Object.class, Object.class));
-            MAP_PUT  = lookup.findVirtual(Map.class , "put", MethodType.methodType(Object.class, Object.class, Object.class));
-            LIST_GET = lookup.findVirtual(List.class, "get", MethodType.methodType(Object.class, int.class));
-            LIST_SET = lookup.findVirtual(List.class, "set", MethodType.methodType(Object.class, int.class, Object.class));
-            ITERATOR = lookup.findVirtual(Iterable.class, "iterator", MethodType.methodType(Iterator.class));
-            MAP_INDEX_NORMALIZE = lookup.findStatic(Def.class, "mapIndexNormalize",
+            MAP_GET  = methodHandlesLookup.findVirtual(Map.class , "get", MethodType.methodType(Object.class, Object.class));
+            MAP_PUT  = methodHandlesLookup.findVirtual(Map.class , "put", MethodType.methodType(Object.class, Object.class, Object.class));
+            LIST_GET = methodHandlesLookup.findVirtual(List.class, "get", MethodType.methodType(Object.class, int.class));
+            LIST_SET = methodHandlesLookup.findVirtual(List.class, "set", MethodType.methodType(Object.class, int.class, Object.class));
+            ITERATOR = methodHandlesLookup.findVirtual(Iterable.class, "iterator", MethodType.methodType(Iterator.class));
+            MAP_INDEX_NORMALIZE = methodHandlesLookup.findStatic(Def.class, "mapIndexNormalize",
                     MethodType.methodType(Object.class, Map.class, Object.class));
-            LIST_INDEX_NORMALIZE = lookup.findStatic(Def.class, "listIndexNormalize",
+            LIST_INDEX_NORMALIZE = methodHandlesLookup.findStatic(Def.class, "listIndexNormalize",
                     MethodType.methodType(int.class, List.class, int.class));
         } catch (final ReflectiveOperationException roe) {
             throw new AssertionError(roe);
         }
-        
+
         // lookup up the factory for arraylength MethodHandle (intrinsic) from Java 9:
         // https://bugs.openjdk.java.net/browse/JDK-8156915
         MethodHandle arrayLengthMHFactory;
         try {
-            arrayLengthMHFactory = lookup.findStatic(MethodHandles.class, "arrayLength",
+            arrayLengthMHFactory = methodHandlesLookup.findStatic(MethodHandles.class, "arrayLength",
                 MethodType.methodType(MethodHandle.class, Class.class));
         } catch (final ReflectiveOperationException roe) {
             arrayLengthMHFactory = null;
@@ -150,7 +153,7 @@ public final class Def {
     static <T extends Throwable> void rethrow(Throwable t) throws T {
         throw (T) t;
     }
-    
+
     /** Returns an array length getter MethodHandle for the given array type */
     static MethodHandle arrayLengthGetter(Class<?> arrayType) {
         if (JAVA9_ARRAY_LENGTH_MH_FACTORY != null) {
@@ -166,51 +169,6 @@ public final class Def {
     }
 
     /**
-     * Looks up method entry for a dynamic method call.
-     * <p>
-     * A dynamic method call for variable {@code x} of type {@code def} looks like:
-     * {@code x.method(args...)}
-     * <p>
-     * This method traverses {@code recieverClass}'s class hierarchy (including interfaces)
-     * until it finds a matching whitelisted method. If one is not found, it throws an exception.
-     * Otherwise it returns the matching method.
-     * <p>
-     * @param receiverClass Class of the object to invoke the method on.
-     * @param name Name of the method.
-     * @param arity arity of method
-     * @return matching method to invoke. never returns null.
-     * @throws IllegalArgumentException if no matching whitelisted method was found.
-     */
-    static Method lookupMethodInternal(Class<?> receiverClass, String name, int arity) {
-        Definition.MethodKey key = new Definition.MethodKey(name, arity);
-        // check whitelist for matching method
-        for (Class<?> clazz = receiverClass; clazz != null; clazz = clazz.getSuperclass()) {
-            RuntimeClass struct = Definition.getRuntimeClass(clazz);
-
-            if (struct != null) {
-                Method method = struct.methods.get(key);
-                if (method != null) {
-                    return method;
-                }
-            }
-
-            for (Class<?> iface : clazz.getInterfaces()) {
-                struct = Definition.getRuntimeClass(iface);
-
-                if (struct != null) {
-                    Method method = struct.methods.get(key);
-                    if (method != null) {
-                        return method;
-                    }
-                }
-            }
-        }
-        
-        throw new IllegalArgumentException("Unable to find dynamic method [" + name + "] with [" + arity + "] arguments " +
-                                           "for class [" + receiverClass.getCanonicalName() + "].");
-    }
-
-    /**
      * Looks up handle for a dynamic method call, with lambda replacement
      * <p>
      * A dynamic method call for variable {@code x} of type {@code def} looks like:
@@ -220,7 +178,8 @@ public final class Def {
      * until it finds a matching whitelisted method. If one is not found, it throws an exception.
      * Otherwise it returns a handle to the matching method.
      * <p>
-     * @param lookup caller's lookup
+     * @param painlessLookup the whitelist
+     * @param methodHandlesLookup caller's lookup
      * @param callSiteType callsite's type
      * @param receiverClass Class of the object to invoke the method on.
      * @param name Name of the method.
@@ -229,23 +188,32 @@ public final class Def {
      * @throws IllegalArgumentException if no matching whitelisted method was found.
      * @throws Throwable if a method reference cannot be converted to an functional interface
      */
-     static MethodHandle lookupMethod(Lookup lookup, MethodType callSiteType, 
-             Class<?> receiverClass, String name, Object args[]) throws Throwable {
+    static MethodHandle lookupMethod(PainlessLookup painlessLookup, Map<String, LocalMethod> localMethods,
+            MethodHandles.Lookup methodHandlesLookup, MethodType callSiteType, Class<?> receiverClass, String name, Object args[])
+            throws Throwable {
+
          String recipeString = (String) args[0];
          int numArguments = callSiteType.parameterCount();
          // simple case: no lambdas
          if (recipeString.isEmpty()) {
-             return lookupMethodInternal(receiverClass, name, numArguments - 1).handle;
+             PainlessMethod painlessMethod = painlessLookup.lookupRuntimePainlessMethod(receiverClass, name, numArguments - 1);
+
+             if (painlessMethod == null) {
+                 throw new IllegalArgumentException("dynamic method " +
+                         "[" + typeToCanonicalTypeName(receiverClass) + ", " + name + "/" + (numArguments - 1) + "] not found");
+             }
+
+             return painlessMethod.methodHandle;
          }
-         
+
          // convert recipe string to a bitset for convenience (the code below should be refactored...)
-         BitSet lambdaArgs = new BitSet();
+         BitSet lambdaArgs = new BitSet(recipeString.length());
          for (int i = 0; i < recipeString.length(); i++) {
              lambdaArgs.set(recipeString.charAt(i));
          }
 
          // otherwise: first we have to compute the "real" arity. This is because we have extra arguments:
-         // e.g. f(a, g(x), b, h(y), i()) looks like f(a, g, x, b, h, y, i). 
+         // e.g. f(a, g(x), b, h(y), i()) looks like f(a, g, x, b, h, y, i).
          int arity = callSiteType.parameterCount() - 1;
          int upTo = 1;
          for (int i = 1; i < numArguments; i++) {
@@ -255,49 +223,59 @@ public final class Def {
                  arity -= numCaptures;
              }
          }
-         
+
          // lookup the method with the proper arity, then we know everything (e.g. interface types of parameters).
          // based on these we can finally link any remaining lambdas that were deferred.
-         Method method = lookupMethodInternal(receiverClass, name, arity);
-         MethodHandle handle = method.handle;
+         PainlessMethod method = painlessLookup.lookupRuntimePainlessMethod(receiverClass, name, arity);
+
+        if (method == null) {
+            throw new IllegalArgumentException(
+                    "dynamic method [" + typeToCanonicalTypeName(receiverClass) + ", " + name + "/" + arity + "] not found");
+        }
+
+         MethodHandle handle = method.methodHandle;
 
          int replaced = 0;
          upTo = 1;
          for (int i = 1; i < numArguments; i++) {
              // its a functional reference, replace the argument with an impl
              if (lambdaArgs.get(i - 1)) {
-                 // decode signature of form 'type.call,2' 
+                 // decode signature of form 'type.call,2'
                  String signature = (String) args[upTo++];
-                 int separator = signature.indexOf('.');
+                 int separator = signature.lastIndexOf('.');
                  int separator2 = signature.indexOf(',');
                  String type = signature.substring(1, separator);
                  String call = signature.substring(separator+1, separator2);
                  int numCaptures = Integer.parseInt(signature.substring(separator2+1));
-                 Class<?> captures[] = new Class<?>[numCaptures];
-                 for (int capture = 0; capture < captures.length; capture++) {
-                     captures[capture] = callSiteType.parameterType(i + 1 + capture);
-                 }
                  MethodHandle filter;
-                 Definition.Type interfaceType = method.arguments.get(i - 1 - replaced);
+                 Class<?> interfaceType = method.typeParameters.get(i - 1 - replaced);
                  if (signature.charAt(0) == 'S') {
                      // the implementation is strongly typed, now that we know the interface type,
                      // we have everything.
-                     filter = lookupReferenceInternal(lookup,
+                     filter = lookupReferenceInternal(painlessLookup,
+                                                      localMethods,
+                                                      methodHandlesLookup,
                                                       interfaceType,
                                                       type,
                                                       call,
-                                                      captures);
+                                                      numCaptures);
                  } else if (signature.charAt(0) == 'D') {
                      // the interface type is now known, but we need to get the implementation.
                      // this is dynamically based on the receiver type (and cached separately, underneath
                      // this cache). It won't blow up since we never nest here (just references)
-                     MethodType nestedType = MethodType.methodType(interfaceType.clazz, captures);
-                     CallSite nested = DefBootstrap.bootstrap(lookup, 
+                     Class<?> captures[] = new Class<?>[numCaptures];
+                     for (int capture = 0; capture < captures.length; capture++) {
+                         captures[capture] = callSiteType.parameterType(i + 1 + capture);
+                     }
+                     MethodType nestedType = MethodType.methodType(interfaceType, captures);
+                     CallSite nested = DefBootstrap.bootstrap(painlessLookup,
+                                                              localMethods,
+                                                              methodHandlesLookup,
                                                               call,
                                                               nestedType,
                                                               0,
                                                               DefBootstrap.REFERENCE,
-                                                              interfaceType.name);
+                                                              PainlessLookupUtility.typeToCanonicalTypeName(interfaceType));
                      filter = nested.dynamicInvoker();
                  } else {
                      throw new AssertionError();
@@ -309,86 +287,54 @@ public final class Def {
                  replaced += numCaptures;
              }
          }
-         
+
          return handle;
      }
-     
+
      /**
       * Returns an implementation of interfaceClass that calls receiverClass.name
       * <p>
       * This is just like LambdaMetaFactory, only with a dynamic type. The interface type is known,
       * so we simply need to lookup the matching implementation method based on receiver type.
       */
-     static MethodHandle lookupReference(Lookup lookup, String interfaceClass, 
-                                         Class<?> receiverClass, String name) throws Throwable {
-         Definition.Type interfaceType = Definition.getType(interfaceClass);
-         Method interfaceMethod = interfaceType.struct.getFunctionalMethod();
-         if (interfaceMethod == null) {
-             throw new IllegalArgumentException("Class [" + interfaceClass + "] is not a functional interface");
-         }
-         int arity = interfaceMethod.arguments.size();
-         Method implMethod = lookupMethodInternal(receiverClass, name, arity);
-         return lookupReferenceInternal(lookup, interfaceType, implMethod.owner.name, implMethod.name, receiverClass);
+    static MethodHandle lookupReference(PainlessLookup painlessLookup, Map<String, LocalMethod> localMethods,
+            MethodHandles.Lookup methodHandlesLookup, String interfaceClass, Class<?> receiverClass, String name) throws Throwable {
+        Class<?> interfaceType = painlessLookup.canonicalTypeNameToType(interfaceClass);
+        if (interfaceType == null) {
+            throw new IllegalArgumentException("type [" + interfaceClass + "] not found");
+        }
+        PainlessMethod interfaceMethod = painlessLookup.lookupFunctionalInterfacePainlessMethod(interfaceType);
+        if (interfaceMethod == null) {
+            throw new IllegalArgumentException("Class [" + interfaceClass + "] is not a functional interface");
+        }
+        int arity = interfaceMethod.typeParameters.size();
+        PainlessMethod implMethod = painlessLookup.lookupRuntimePainlessMethod(receiverClass, name, arity);
+        if (implMethod == null) {
+            throw new IllegalArgumentException(
+                    "dynamic method [" + typeToCanonicalTypeName(receiverClass) + ", " + name + "/" + arity + "] not found");
+        }
+
+        return lookupReferenceInternal(painlessLookup, localMethods, methodHandlesLookup,
+            interfaceType, PainlessLookupUtility.typeToCanonicalTypeName(implMethod.targetClass),
+            implMethod.javaMethod.getName(), 1);
      }
-     
+
      /** Returns a method handle to an implementation of clazz, given method reference signature. */
-     private static MethodHandle lookupReferenceInternal(Lookup lookup, Definition.Type clazz, String type,
-                                                         String call, Class<?>... captures) throws Throwable {
-         final FunctionRef ref;
-         if ("this".equals(type)) {
-             // user written method
-             Method interfaceMethod = clazz.struct.getFunctionalMethod();
-             if (interfaceMethod == null) {
-                 throw new IllegalArgumentException("Cannot convert function reference [" + type + "::" + call + "] " +
-                                                    "to [" + clazz.name + "], not a functional interface");
-             }
-             int arity = interfaceMethod.arguments.size() + captures.length;
-             final MethodHandle handle;
-             try {
-                 MethodHandle accessor = lookup.findStaticGetter(lookup.lookupClass(), 
-                                                                 getUserFunctionHandleFieldName(call, arity), 
-                                                                 MethodHandle.class);
-                 handle = (MethodHandle) accessor.invokeExact();
-             } catch (NoSuchFieldException | IllegalAccessException e) {
-                 // is it a synthetic method? If we generated the method ourselves, be more helpful. It can only fail
-                 // because the arity does not match the expected interface type.
-                 if (call.contains("$")) {
-                     throw new IllegalArgumentException("Incorrect number of parameters for [" + interfaceMethod.name + 
-                                                        "] in [" + clazz.clazz + "]");
-                 }
-                 throw new IllegalArgumentException("Unknown call [" + call + "] with [" + arity + "] arguments.");
-             }
-             ref = new FunctionRef(clazz, interfaceMethod, handle, captures.length);
-         } else {
-             // whitelist lookup
-             ref = new FunctionRef(clazz, type, call, captures.length);
-         }
-         final CallSite callSite;
-         if (ref.needsBridges()) {
-             callSite = LambdaMetafactory.altMetafactory(lookup, 
-                     ref.invokedName, 
-                     ref.invokedType,
-                     ref.samMethodType,
-                     ref.implMethod,
-                     ref.samMethodType,
-                     LambdaMetafactory.FLAG_BRIDGES,
-                     1,
-                     ref.interfaceMethodType);
-         } else {
-             callSite = LambdaMetafactory.altMetafactory(lookup, 
-                     ref.invokedName, 
-                     ref.invokedType,
-                     ref.samMethodType,
-                     ref.implMethod,
-                     ref.samMethodType,
-                     0);
-         }
-         return callSite.dynamicInvoker().asType(MethodType.methodType(clazz.clazz, captures));
-     }
-     
-     /** gets the field name used to lookup up the MethodHandle for a function. */
-     public static String getUserFunctionHandleFieldName(String name, int arity) {
-         return "handle$" + name + "$" + arity;
+    private static MethodHandle lookupReferenceInternal(PainlessLookup painlessLookup, Map<String, LocalMethod> localMethods,
+            MethodHandles.Lookup methodHandlesLookup, Class<?> clazz, String type, String call, int captures) throws Throwable {
+        final FunctionRef ref = FunctionRef.create(painlessLookup, localMethods, null, clazz, type, call, captures);
+        final CallSite callSite = LambdaBootstrap.lambdaBootstrap(
+            methodHandlesLookup,
+            ref.interfaceMethodName,
+            ref.factoryMethodType,
+            ref.interfaceMethodType,
+            ref.delegateClassName,
+            ref.delegateInvokeType,
+            ref.delegateMethodName,
+            ref.delegateMethodType,
+            ref.isDelegateInterface ? 1 : 0
+        );
+        return callSite.dynamicInvoker().asType(MethodType.methodType(clazz, ref.factoryMethodType.parameterArray()));
      }
 
     /**
@@ -411,34 +357,20 @@ public final class Def {
      * until it finds a matching whitelisted getter. If one is not found, it throws an exception.
      * Otherwise it returns a handle to the matching getter.
      * <p>
+     * @param painlessLookup the whitelist
      * @param receiverClass Class of the object to retrieve the field from.
      * @param name Name of the field.
      * @return pointer to matching field. never returns null.
      * @throws IllegalArgumentException if no matching whitelisted field was found.
      */
-    static MethodHandle lookupGetter(Class<?> receiverClass, String name) {
+    static MethodHandle lookupGetter(PainlessLookup painlessLookup, Class<?> receiverClass, String name) {
         // first try whitelist
-        for (Class<?> clazz = receiverClass; clazz != null; clazz = clazz.getSuperclass()) {
-            RuntimeClass struct = Definition.getRuntimeClass(clazz);
+        MethodHandle getter = painlessLookup.lookupRuntimeGetterMethodHandle(receiverClass, name);
 
-            if (struct != null) {
-                MethodHandle handle = struct.getters.get(name);
-                if (handle != null) {
-                    return handle;
-                }
-            }
-
-            for (final Class<?> iface : clazz.getInterfaces()) {
-                struct = Definition.getRuntimeClass(iface);
-
-                if (struct != null) {
-                    MethodHandle handle = struct.getters.get(name);
-                    if (handle != null) {
-                        return handle;
-                    }
-                }
-            }
+        if (getter != null) {
+            return getter;
         }
+
         // special case: arrays, maps, and lists
         if (receiverClass.isArray() && "length".equals(name)) {
             // arrays expose .length as a read-only getter
@@ -455,12 +387,12 @@ public final class Def {
                 int index = Integer.parseInt(name);
                 return MethodHandles.insertArguments(LIST_GET, 1, index);
             } catch (NumberFormatException exception) {
-                throw new IllegalArgumentException( "Illegal list shortcut value [" + name + "].");
+                throw new IllegalArgumentException("Illegal list shortcut value [" + name + "].");
             }
         }
 
-        throw new IllegalArgumentException("Unable to find dynamic field [" + name + "] " +
-                                           "for class [" + receiverClass.getCanonicalName() + "].");
+        throw new IllegalArgumentException(
+                "dynamic getter [" + typeToCanonicalTypeName(receiverClass) + ", " + name + "] not found");
     }
 
     /**
@@ -481,34 +413,20 @@ public final class Def {
      * until it finds a matching whitelisted setter. If one is not found, it throws an exception.
      * Otherwise it returns a handle to the matching setter.
      * <p>
+     * @param painlessLookup the whitelist
      * @param receiverClass Class of the object to retrieve the field from.
      * @param name Name of the field.
      * @return pointer to matching field. never returns null.
      * @throws IllegalArgumentException if no matching whitelisted field was found.
      */
-    static MethodHandle lookupSetter(Class<?> receiverClass, String name) {
+    static MethodHandle lookupSetter(PainlessLookup painlessLookup, Class<?> receiverClass, String name) {
         // first try whitelist
-        for (Class<?> clazz = receiverClass; clazz != null; clazz = clazz.getSuperclass()) {
-            RuntimeClass struct = Definition.getRuntimeClass(clazz);
+        MethodHandle setter = painlessLookup.lookupRuntimeSetterMethodHandle(receiverClass, name);
 
-            if (struct != null) {
-                MethodHandle handle = struct.setters.get(name);
-                if (handle != null) {
-                    return handle;
-                }
-            }
-
-            for (final Class<?> iface : clazz.getInterfaces()) {
-                struct = Definition.getRuntimeClass(iface);
-
-                if (struct != null) {
-                    MethodHandle handle = struct.setters.get(name);
-                    if (handle != null) {
-                        return handle;
-                    }
-                }
-            }
+        if (setter != null) {
+            return setter;
         }
+
         // special case: maps, and lists
         if (Map.class.isAssignableFrom(receiverClass)) {
             // maps allow access like mymap.key
@@ -522,12 +440,12 @@ public final class Def {
                 int index = Integer.parseInt(name);
                 return MethodHandles.insertArguments(LIST_SET, 1, index);
             } catch (final NumberFormatException exception) {
-                throw new IllegalArgumentException( "Illegal list shortcut value [" + name + "].");
+                throw new IllegalArgumentException("Illegal list shortcut value [" + name + "].");
             }
         }
 
-        throw new IllegalArgumentException("Unable to find dynamic field [" + name + "] " +
-                                           "for class [" + receiverClass.getCanonicalName() + "].");
+        throw new IllegalArgumentException(
+                "dynamic setter [" + typeToCanonicalTypeName(receiverClass) + ", " + name + "] not found");
     }
 
     /**
@@ -587,21 +505,22 @@ public final class Def {
         throw new IllegalArgumentException("Attempting to address a non-array type " +
                                            "[" + receiverClass.getCanonicalName() + "] as an array.");
     }
-    
+
     /** Helper class for isolating MethodHandles and methods to get iterators over arrays
      * (to emulate "enhanced for loop" using MethodHandles). These cause boxing, and are not as efficient
      * as they could be, but works.
      */
     @SuppressWarnings("unused") // iterator() methods are are actually used, javac just does not know :)
     private static final class ArrayIteratorHelper {
-        private static final Lookup PRIV_LOOKUP = MethodHandles.lookup();
+        private static final MethodHandles.Lookup PRIVATE_METHOD_HANDLES_LOOKUP = MethodHandles.lookup();
 
         private static final Map<Class<?>,MethodHandle> ARRAY_TYPE_MH_MAPPING = Collections.unmodifiableMap(
             Stream.of(boolean[].class, byte[].class, short[].class, int[].class, long[].class,
                 char[].class, float[].class, double[].class, Object[].class)
                 .collect(Collectors.toMap(Function.identity(), type -> {
                     try {
-                        return PRIV_LOOKUP.findStatic(PRIV_LOOKUP.lookupClass(), "iterator", MethodType.methodType(Iterator.class, type));
+                        return PRIVATE_METHOD_HANDLES_LOOKUP.findStatic(
+                                PRIVATE_METHOD_HANDLES_LOOKUP.lookupClass(), "iterator", MethodType.methodType(Iterator.class, type));
                     } catch (ReflectiveOperationException e) {
                         throw new AssertionError(e);
                     }
@@ -700,46 +619,51 @@ public final class Def {
         }
     }
 
+    // Conversion methods for def to primitive types.
 
-    // Conversion methods for Def to primitive types.
-
-    public static boolean DefToboolean(final Object value) {
-        return (boolean)value;
+    public static boolean defToboolean(final Object value) {
+        if (value instanceof Boolean) {
+            return (boolean)value;
+        } else {
+            throw new ClassCastException("cannot cast " +
+                    "def [" + PainlessLookupUtility.typeToUnboxedType(value.getClass()).getCanonicalName() + "] to " +
+                    boolean.class.getCanonicalName());
+        }
     }
 
-    public static byte DefTobyteImplicit(final Object value) {
-        return (byte)value;
-    }
-
-    public static short DefToshortImplicit(final Object value) {
+    public static byte defTobyteImplicit(final Object value) {
         if (value instanceof Byte) {
             return (byte)value;
         } else {
-            return (short)value;
+            throw new ClassCastException("cannot implicitly cast " +
+                    "def [" + PainlessLookupUtility.typeToUnboxedType(value.getClass()).getCanonicalName() + "] to " +
+                    byte.class.getCanonicalName());
         }
     }
 
-    public static char DefTocharImplicit(final Object value) {
-        if (value instanceof Byte) {
-            return (char)(byte)value;
-        } else {
-            return (char)value;
-        }
-    }
-
-    public static int DefTointImplicit(final Object value) {
+    public static short defToshortImplicit(final Object value) {
         if (value instanceof Byte) {
             return (byte)value;
         } else if (value instanceof Short) {
             return (short)value;
-        } else if (value instanceof Character) {
-            return (char)value;
         } else {
-            return (int)value;
+            throw new ClassCastException("cannot implicitly cast " +
+                    "def [" + PainlessLookupUtility.typeToUnboxedType(value.getClass()).getCanonicalName() + "] to " +
+                    short.class.getCanonicalName());
         }
     }
 
-    public static long DefTolongImplicit(final Object value) {
+    public static char defTocharImplicit(final Object value) {
+        if (value instanceof Character) {
+            return (char)value;
+        } else {
+            throw new ClassCastException("cannot implicitly cast " +
+                    "def [" + PainlessLookupUtility.typeToUnboxedType(value.getClass()).getCanonicalName() + "] to " +
+                    char.class.getCanonicalName());
+        }
+    }
+
+    public static int defTointImplicit(final Object value) {
         if (value instanceof Byte) {
             return (byte)value;
         } else if (value instanceof Short) {
@@ -749,11 +673,13 @@ public final class Def {
         } else if (value instanceof Integer) {
             return (int)value;
         } else {
-            return (long)value;
+            throw new ClassCastException("cannot implicitly cast " +
+                    "def [" + PainlessLookupUtility.typeToUnboxedType(value.getClass()).getCanonicalName() + "] to " +
+                    int.class.getCanonicalName());
         }
     }
 
-    public static float DefTofloatImplicit(final Object value) {
+    public static long defTolongImplicit(final Object value) {
         if (value instanceof Byte) {
             return (byte)value;
         } else if (value instanceof Short) {
@@ -765,11 +691,13 @@ public final class Def {
         } else if (value instanceof Long) {
             return (long)value;
         } else {
-            return (float)value;
+            throw new ClassCastException("cannot implicitly cast " +
+                    "def [" + PainlessLookupUtility.typeToUnboxedType(value.getClass()).getCanonicalName() + "] to " +
+                    long.class.getCanonicalName());
         }
     }
 
-    public static double DefTodoubleImplicit(final Object value) {
+    public static float defTofloatImplicit(final Object value) {
         if (value instanceof Byte) {
             return (byte)value;
         } else if (value instanceof Short) {
@@ -783,63 +711,477 @@ public final class Def {
         } else if (value instanceof Float) {
             return (float)value;
         } else {
-            return (double)value;
+            throw new ClassCastException("cannot implicitly cast " +
+                    "def [" + PainlessLookupUtility.typeToUnboxedType(value.getClass()).getCanonicalName() + "] to " +
+                    float.class.getCanonicalName());
         }
     }
 
-    public static byte DefTobyteExplicit(final Object value) {
+    public static double defTodoubleImplicit(final Object value) {
+        if (value instanceof Byte) {
+            return (byte)value;
+        } else if (value instanceof Short) {
+            return (short)value;
+        } else if (value instanceof Character) {
+            return (char)value;
+        } else if (value instanceof Integer) {
+            return (int)value;
+        } else if (value instanceof Long) {
+            return (long)value;
+        } else if (value instanceof Float) {
+            return (float)value;
+        } else if (value instanceof Double) {
+            return (double)value;
+        } else {
+            throw new ClassCastException("cannot implicitly cast " +
+                    "def [" + PainlessLookupUtility.typeToUnboxedType(value.getClass()).getCanonicalName() + "] to " +
+                    double.class.getCanonicalName());
+        }
+    }
+
+    public static byte defTobyteExplicit(final Object value) {
         if (value instanceof Character) {
             return (byte)(char)value;
-        } else {
+        } else if (
+                value instanceof Byte    ||
+                value instanceof Short   ||
+                value instanceof Integer ||
+                value instanceof Long    ||
+                value instanceof Float   ||
+                value instanceof Double
+        ) {
             return ((Number)value).byteValue();
+        } else {
+            throw new ClassCastException("cannot explicitly cast " +
+                    "def [" + PainlessLookupUtility.typeToUnboxedType(value.getClass()).getCanonicalName() + "] to " +
+                    byte.class.getCanonicalName());
         }
     }
 
-    public static short DefToshortExplicit(final Object value) {
+    public static short defToshortExplicit(final Object value) {
         if (value instanceof Character) {
             return (short)(char)value;
-        } else {
+        } else if (
+                value instanceof Byte    ||
+                value instanceof Short   ||
+                value instanceof Integer ||
+                value instanceof Long    ||
+                value instanceof Float   ||
+                value instanceof Double
+        ) {
             return ((Number)value).shortValue();
+        } else {
+            throw new ClassCastException("cannot explicitly cast " +
+                    "def [" + PainlessLookupUtility.typeToUnboxedType(value.getClass()).getCanonicalName() + "] to " +
+                    short.class.getCanonicalName());
         }
     }
 
-    public static char DefTocharExplicit(final Object value) {
-        if (value instanceof Character) {
-            return ((Character)value);
-        } else {
+    public static char defTocharExplicit(final Object value) {
+        if (value instanceof String) {
+            return Utility.StringTochar((String)value);
+        } else if (value instanceof Character) {
+            return (char)value;
+        } else if (
+                value instanceof Byte    ||
+                value instanceof Short   ||
+                value instanceof Integer ||
+                value instanceof Long    ||
+                value instanceof Float   ||
+                value instanceof Double
+        ) {
             return (char)((Number)value).intValue();
+        } else {
+            throw new ClassCastException("cannot explicitly cast " +
+                    "def [" + PainlessLookupUtility.typeToUnboxedType(value.getClass()).getCanonicalName() + "] to " +
+                    char.class.getCanonicalName());
         }
     }
 
-    public static int DefTointExplicit(final Object value) {
+    public static int defTointExplicit(final Object value) {
         if (value instanceof Character) {
             return (char)value;
-        } else {
+        } else if (
+                value instanceof Byte    ||
+                value instanceof Short   ||
+                value instanceof Integer ||
+                value instanceof Long    ||
+                value instanceof Float   ||
+                value instanceof Double
+        ) {
             return ((Number)value).intValue();
+        } else {
+            throw new ClassCastException("cannot explicitly cast " +
+                    "def [" + PainlessLookupUtility.typeToUnboxedType(value.getClass()).getCanonicalName() + "] to " +
+                    int.class.getCanonicalName());
         }
     }
 
-    public static long DefTolongExplicit(final Object value) {
+    public static long defTolongExplicit(final Object value) {
         if (value instanceof Character) {
             return (char)value;
-        } else {
+        } else if (
+                value instanceof Byte    ||
+                value instanceof Short   ||
+                value instanceof Integer ||
+                value instanceof Long    ||
+                value instanceof Float   ||
+                value instanceof Double
+        ) {
             return ((Number)value).longValue();
+        } else {
+            throw new ClassCastException("cannot explicitly cast " +
+                    "def [" + PainlessLookupUtility.typeToUnboxedType(value.getClass()).getCanonicalName() + "] to " +
+                    long.class.getCanonicalName());
         }
     }
 
-    public static float DefTofloatExplicit(final Object value) {
+    public static float defTofloatExplicit(final Object value) {
         if (value instanceof Character) {
             return (char)value;
-        } else {
+        } else if (
+                value instanceof Byte    ||
+                value instanceof Short   ||
+                value instanceof Integer ||
+                value instanceof Long    ||
+                value instanceof Float   ||
+                value instanceof Double
+        ) {
             return ((Number)value).floatValue();
+        } else {
+            throw new ClassCastException("cannot explicitly cast " +
+                    "float [" + PainlessLookupUtility.typeToUnboxedType(value.getClass()).getCanonicalName() + "] to " +
+                    byte.class.getCanonicalName());
         }
     }
 
-    public static double DefTodoubleExplicit(final Object value) {
+    public static double defTodoubleExplicit(final Object value) {
         if (value instanceof Character) {
             return (char)value;
-        } else {
+        } else if (
+                value instanceof Byte    ||
+                value instanceof Short   ||
+                value instanceof Integer ||
+                value instanceof Long    ||
+                value instanceof Float   ||
+                value instanceof Double
+        ) {
             return ((Number)value).doubleValue();
+        } else {
+            throw new ClassCastException("cannot explicitly cast " +
+                    "def [" + PainlessLookupUtility.typeToUnboxedType(value.getClass()).getCanonicalName() + "] to " +
+                    byte.class.getCanonicalName());
+        }
+    }
+
+    // Conversion methods for def to boxed types.
+
+    public static Boolean defToBoolean(final Object value) {
+        if (value == null) {
+            return null;
+        } else if (value instanceof Boolean) {
+            return (Boolean)value;
+        } else {
+            throw new ClassCastException("cannot implicitly cast " +
+                    "def [" + PainlessLookupUtility.typeToUnboxedType(value.getClass()).getCanonicalName() + "] to " +
+                    Boolean.class.getCanonicalName());
+        }
+    }
+
+    public static Byte defToByteImplicit(final Object value) {
+        if (value == null) {
+            return null;
+        } else if (value instanceof Byte) {
+            return (Byte)value;
+        } else {
+            throw new ClassCastException("cannot implicitly cast " +
+                    "def [" + PainlessLookupUtility.typeToUnboxedType(value.getClass()).getCanonicalName() + "] to " +
+                    Byte.class.getCanonicalName());
+        }
+    }
+
+    public static Short defToShortImplicit(final Object value) {
+        if (value == null) {
+            return null;
+        } else if (value instanceof Byte) {
+            return (short)(byte)value;
+        } else if (value instanceof Short) {
+            return (Short)value;
+        } else {
+            throw new ClassCastException("cannot implicitly cast " +
+                    "def [" + PainlessLookupUtility.typeToUnboxedType(value.getClass()).getCanonicalName() + "] to " +
+                    Short.class.getCanonicalName());
+        }
+    }
+
+    public static Character defToCharacterImplicit(final Object value) {
+        if (value == null) {
+            return null;
+        } else if (value instanceof Character) {
+            return (Character)value;
+        } else {
+            throw new ClassCastException("cannot implicitly cast " +
+                    "def [" + PainlessLookupUtility.typeToUnboxedType(value.getClass()).getCanonicalName() + "] to " +
+                    Character.class.getCanonicalName());
+        }
+    }
+
+    public static Integer defToIntegerImplicit(final Object value) {
+        if (value == null) {
+            return null;
+        } else if (value instanceof Byte) {
+            return (int)(byte)value;
+        } else if (value instanceof Short) {
+            return (int)(short)value;
+        } else if (value instanceof Character) {
+            return (int)(char)value;
+        } else if (value instanceof Integer) {
+            return (Integer)value;
+        } else {
+            throw new ClassCastException("cannot implicitly cast " +
+                    "def [" + PainlessLookupUtility.typeToUnboxedType(value.getClass()).getCanonicalName() + "] to " +
+                    Integer.class.getCanonicalName());
+        }
+    }
+
+    public static Long defToLongImplicit(final Object value) {
+        if (value == null) {
+            return null;
+        } else if (value instanceof Byte) {
+            return (long)(byte)value;
+        } else if (value instanceof Short) {
+            return (long)(short)value;
+        } else if (value instanceof Character) {
+            return (long)(char)value;
+        } else if (value instanceof Integer) {
+            return (long)(int)value;
+        } else if (value instanceof Long) {
+            return (Long)value;
+        } else {
+            throw new ClassCastException("cannot implicitly cast " +
+                    "def [" + PainlessLookupUtility.typeToUnboxedType(value.getClass()).getCanonicalName() + "] to " +
+                    Long.class.getCanonicalName());
+        }
+    }
+
+    public static Float defToFloatImplicit(final Object value) {
+        if (value == null) {
+            return null;
+        } else if (value instanceof Byte) {
+            return (float)(byte)value;
+        } else if (value instanceof Short) {
+            return (float)(short)value;
+        } else if (value instanceof Character) {
+            return (float)(char)value;
+        } else if (value instanceof Integer) {
+            return (float)(int)value;
+        } else if (value instanceof Long) {
+            return (float)(long)value;
+        } else if (value instanceof Float) {
+            return (Float)value;
+        } else {
+            throw new ClassCastException("cannot implicitly cast " +
+                    "def [" + PainlessLookupUtility.typeToUnboxedType(value.getClass()).getCanonicalName() + "] to " +
+                    Float.class.getCanonicalName());
+        }
+    }
+
+    public static Double defToDoubleImplicit(final Object value) {
+        if (value == null) {
+            return null;
+        } else if (value instanceof Byte) {
+            return (double)(byte)value;
+        } else if (value instanceof Short) {
+            return (double)(short)value;
+        } else if (value instanceof Character) {
+            return (double)(char)value;
+        } else if (value instanceof Integer) {
+            return (double)(int)value;
+        } else if (value instanceof Long) {
+            return (double)(long)value;
+        } else if (value instanceof Float) {
+            return (double)(float)value;
+        } else if (value instanceof Double) {
+            return (Double)value;
+        } else {
+            throw new ClassCastException("cannot implicitly cast " +
+                    "def [" + PainlessLookupUtility.typeToUnboxedType(value.getClass()).getCanonicalName() + "] to " +
+                    Double.class.getCanonicalName());
+        }
+    }
+
+    public static Byte defToByteExplicit(final Object value) {
+        if (value == null) {
+            return null;
+        } else if (value instanceof Character) {
+            return (byte)(char)value;
+        } else if (
+            value instanceof Byte    ||
+            value instanceof Short   ||
+            value instanceof Integer ||
+            value instanceof Long    ||
+            value instanceof Float   ||
+            value instanceof Double
+        ) {
+            return ((Number)value).byteValue();
+        } else {
+            throw new ClassCastException("cannot explicitly cast " +
+                    "def [" + PainlessLookupUtility.typeToUnboxedType(value.getClass()).getCanonicalName() + "] to " +
+                    Byte.class.getCanonicalName());
+        }
+    }
+
+    public static Short defToShortExplicit(final Object value) {
+        if (value == null) {
+            return null;
+        } else if (value instanceof Character) {
+            return (short)(char)value;
+        } else if (
+                value instanceof Byte    ||
+                value instanceof Short   ||
+                value instanceof Integer ||
+                value instanceof Long    ||
+                value instanceof Float   ||
+                value instanceof Double
+        ) {
+            return ((Number)value).shortValue();
+        } else {
+            throw new ClassCastException("cannot explicitly cast " +
+                    "def [" + PainlessLookupUtility.typeToUnboxedType(value.getClass()).getCanonicalName() + "] to " +
+                    Short.class.getCanonicalName());
+        }
+    }
+
+    public static Character defToCharacterExplicit(final Object value) {
+        if (value == null) {
+            return null;
+        } else if (value instanceof String) {
+            return Utility.StringTochar((String)value);
+        } else if (value instanceof Character) {
+            return (Character)value;
+        } else if (
+                value instanceof Byte    ||
+                value instanceof Short   ||
+                value instanceof Integer ||
+                value instanceof Long    ||
+                value instanceof Float   ||
+                value instanceof Double
+        ) {
+            return (char)((Number)value).intValue();
+        } else {
+            throw new ClassCastException("cannot explicitly cast " +
+                    "def [" + PainlessLookupUtility.typeToUnboxedType(value.getClass()).getCanonicalName() + "] to " +
+                    Character.class.getCanonicalName());
+        }
+    }
+
+    public static Integer defToIntegerExplicit(final Object value) {
+        if (value == null) {
+            return null;
+        } else if (value instanceof Character) {
+            return (int)(char)value;
+        } else if (
+                value instanceof Byte    ||
+                value instanceof Short   ||
+                value instanceof Integer ||
+                value instanceof Long    ||
+                value instanceof Float   ||
+                value instanceof Double
+        ) {
+            return ((Number)value).intValue();
+        } else {
+            throw new ClassCastException("cannot explicitly cast " +
+                    "def [" + PainlessLookupUtility.typeToUnboxedType(value.getClass()).getCanonicalName() + "] to " +
+                    Integer.class.getCanonicalName());
+        }
+    }
+
+    public static Long defToLongExplicit(final Object value) {
+        if (value == null) {
+            return null;
+        } else if (value instanceof Character) {
+            return (long)(char)value;
+        } else if (
+                value instanceof Byte    ||
+                value instanceof Short   ||
+                value instanceof Integer ||
+                value instanceof Long    ||
+                value instanceof Float   ||
+                value instanceof Double
+        ) {
+            return ((Number)value).longValue();
+        } else {
+            throw new ClassCastException("cannot explicitly cast " +
+                    "def [" + PainlessLookupUtility.typeToUnboxedType(value.getClass()).getCanonicalName() + "] to " +
+                    Long.class.getCanonicalName());
+        }
+    }
+
+    public static Float defToFloatExplicit(final Object value) {
+        if (value == null) {
+            return null;
+        } else if (value instanceof Character) {
+            return (float)(char)value;
+        } else if (
+                value instanceof Byte    ||
+                value instanceof Short   ||
+                value instanceof Integer ||
+                value instanceof Long    ||
+                value instanceof Float   ||
+                value instanceof Double
+        ) {
+            return ((Number)value).floatValue();
+        } else {
+            throw new ClassCastException("cannot explicitly cast " +
+                    "def [" + PainlessLookupUtility.typeToUnboxedType(value.getClass()).getCanonicalName() + "] to " +
+                    Float.class.getCanonicalName());
+        }
+    }
+
+    public static Double defToDoubleExplicit(final Object value) {
+        if (value == null) {
+            return null;
+        } else if (value instanceof Character) {
+            return (double)(char)value;
+        } else if (
+                value instanceof Byte    ||
+                value instanceof Short   ||
+                value instanceof Integer ||
+                value instanceof Long    ||
+                value instanceof Float   ||
+                value instanceof Double
+        ) {
+            return ((Number)value).doubleValue();
+        } else {
+            throw new ClassCastException("cannot explicitly cast " +
+                    "def [" + PainlessLookupUtility.typeToUnboxedType(value.getClass()).getCanonicalName() + "] to " +
+                    Double.class.getCanonicalName());
+        }
+    }
+
+    public static String defToStringImplicit(final Object value) {
+        if (value == null) {
+            return null;
+        } else if (value instanceof String) {
+            return (String)value;
+        } else {
+            throw new ClassCastException("cannot implicitly cast " +
+                    "def [" + PainlessLookupUtility.typeToUnboxedType(value.getClass()).getCanonicalName() + "] to " +
+                    String.class.getCanonicalName());
+        }
+    }
+
+    public static String defToStringExplicit(final Object value) {
+        if (value == null) {
+            return null;
+        } else if (value instanceof Character) {
+            return Utility.charToString((char)value);
+        } else if (value instanceof String) {
+            return (String)value;
+        } else {
+             throw new ClassCastException("cannot explicitly cast " +
+                     "def [" + PainlessLookupUtility.typeToUnboxedType(value.getClass()).getCanonicalName() + "] to " +
+                     String.class.getCanonicalName());
         }
     }
 
@@ -862,14 +1204,14 @@ public final class Def {
      */
     @SuppressWarnings("unused") // normalizeIndex() methods are are actually used, javac just does not know :)
     private static final class ArrayIndexNormalizeHelper {
-        private static final Lookup PRIV_LOOKUP = MethodHandles.lookup();
+        private static final MethodHandles.Lookup PRIVATE_METHOD_HANDLES_LOOKUP = MethodHandles.lookup();
 
         private static final Map<Class<?>,MethodHandle> ARRAY_TYPE_MH_MAPPING = Collections.unmodifiableMap(
             Stream.of(boolean[].class, byte[].class, short[].class, int[].class, long[].class,
                 char[].class, float[].class, double[].class, Object[].class)
                 .collect(Collectors.toMap(Function.identity(), type -> {
                     try {
-                        return PRIV_LOOKUP.findStatic(PRIV_LOOKUP.lookupClass(), "normalizeIndex",
+                        return PRIVATE_METHOD_HANDLES_LOOKUP.findStatic(PRIVATE_METHOD_HANDLES_LOOKUP.lookupClass(), "normalizeIndex",
                                 MethodType.methodType(int.class, type, int.class));
                     } catch (ReflectiveOperationException e) {
                         throw new AssertionError(e);

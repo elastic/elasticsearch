@@ -19,12 +19,14 @@
 
 esplugin {
   description 'The Azure Repository plugin adds support for Azure storage repositories.'
-  classname 'org.elasticsearch.plugin.repository.azure.AzureRepositoryPlugin'
+  classname 'org.elasticsearch.repositories.azure.AzureRepositoryPlugin'
 }
 
 dependencies {
-  compile 'com.microsoft.azure:azure-storage:4.0.0'
-  compile 'org.apache.commons:commons-lang3:3.3.2'
+  compile 'com.microsoft.azure:azure-storage:8.0.0'
+  compile 'com.microsoft.azure:azure-keyvault-core:1.0.0'
+  compile 'com.google.guava:guava:20.0'
+  compile 'org.apache.commons:commons-lang3:3.4'
 }
 
 dependencyLicenses {
@@ -35,16 +37,58 @@ dependencyLicenses {
   mapping from: /stax-.*/, to: 'stax'
 }
 
-thirdPartyAudit.excludes = [
-  // Optional and not enabled by Elasticsearch
-  'org.slf4j.Logger',
-  'org.slf4j.LoggerFactory',
-]
+thirdPartyAudit {
+    ignoreMissingClasses (
+      // Optional and not enabled by Elasticsearch
+      'org.slf4j.Logger',
+      'org.slf4j.LoggerFactory'
+    )
 
-integTest {
-  cluster {
-    setting 'cloud.azure.storage.my_account_test.account', 'cloudazureresource'
-    setting 'cloud.azure.storage.my_account_test.key', 'abcdefgh'
-    setting 'script.stored', 'true'
-  }
+    ignoreViolations (
+      // uses internal java api: sun.misc.Unsafe
+      'com.google.common.cache.Striped64',
+      'com.google.common.cache.Striped64$1',
+      'com.google.common.cache.Striped64$Cell',
+      'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$1',
+      'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$2',
+      'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$3',
+      'com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper',
+      'com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper$1',
+      'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray',
+      'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator',
+      'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator$1'
+   )
+}
+
+check {
+  // also execute the QA tests when testing the plugin
+  dependsOn 'qa:microsoft-azure-storage:check'
+}
+
+testClusters {
+    integTest {
+        keystore 'azure.client.integration_test.account', 'azure_account'
+        keystore 'azure.client.integration_test.key', 'azure_key'
+    }
+}
+
+String azureAccount = System.getenv("azure_storage_account")
+String azureKey = System.getenv("azure_storage_key")
+String azureContainer = System.getenv("azure_storage_container")
+String azureBasePath = System.getenv("azure_storage_base_path")
+
+test {
+  exclude '**/AzureStorageCleanupThirdPartyTests.class'
+}
+
+task thirdPartyTest(type: Test) {
+  include '**/AzureStorageCleanupThirdPartyTests.class'
+  systemProperty 'test.azure.account', azureAccount ? azureAccount : ""
+  systemProperty 'test.azure.key', azureKey ? azureKey : ""
+  systemProperty 'test.azure.container', azureContainer ? azureContainer : ""
+  systemProperty 'test.azure.base', azureBasePath ? azureBasePath : ""
+}
+
+if (azureAccount || azureKey || azureContainer || azureBasePath) {
+  check.dependsOn(thirdPartyTest)
 }

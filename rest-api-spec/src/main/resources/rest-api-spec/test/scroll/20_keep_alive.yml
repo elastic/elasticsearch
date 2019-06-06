@@ -1,0 +1,68 @@
+---
+ teardown:
+
+  - do:
+      cluster.put_settings:
+        body:
+          transient:
+            search.max_keep_alive: null
+            search.default_keep_alive: null
+
+---
+"Max keep alive":
+
+  - do:
+      index:
+        index:  test_scroll
+        id:     1
+        body:   { foo: 1 }
+
+  - do:
+      index:
+        index:  test_scroll
+        id:     2
+        body:   { foo: 1 }
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      cluster.put_settings:
+        body:
+          transient:
+            search.default_keep_alive: "1m"
+            search.max_keep_alive: "1m"
+
+  - do:
+      catch: /.*Keep alive for scroll.*is too large.*/
+      search:
+        rest_total_hits_as_int: true
+        index: test_scroll
+        size: 1
+        scroll: 2m
+        sort: foo
+        body:
+          query:
+            match_all: {}
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test_scroll
+        size: 1
+        scroll: 1m
+        sort: foo
+        body:
+          query:
+            match_all: {}
+
+  - set: {_scroll_id: scroll_id}
+  - match: {hits.total:      2    }
+  - length: {hits.hits:      1    }
+
+  - do:
+      catch: /.*Keep alive for scroll.*is too large.*/
+      scroll:
+        rest_total_hits_as_int: true
+        scroll_id: $scroll_id
+        scroll: 3m

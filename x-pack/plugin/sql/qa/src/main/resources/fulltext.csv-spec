@@ -1,0 +1,141 @@
+//
+// Full-text
+//
+
+simpleQueryAllFields
+SELECT emp_no, first_name, gender, last_name FROM test_emp WHERE QUERY('Baek fox') LIMIT 3;
+
+   emp_no:i    | first_name:s  |   gender:s    |  last_name:s
+10080          |Premal         |M              |Baek
+;
+
+simpleQueryDedicatedField
+SELECT emp_no, first_name, gender, last_name FROM test_emp WHERE QUERY('Man*', 'default_field=last_name') LIMIT 5;
+
+   emp_no:i    | first_name:s  |   gender:s    |  last_name:s
+10096          |Jayson         |M              |Mandell
+;
+
+simpleQueryOptions
+SELECT emp_no, first_name, gender, last_name FROM test_emp WHERE QUERY('Man*', 'default_field=last_name;lenient=true;fuzzy_rewrite=scoring_boolean') LIMIT 5;
+
+   emp_no:i    | first_name:s  |   gender:s    |  last_name:s
+10096          |Jayson         |M              |Mandell
+;
+
+simpleQueryOptionsInMultipleCommaSeparatedStrings
+SELECT emp_no, first_name, gender, last_name FROM test_emp WHERE QUERY('Man*', 'default_field=last_name;lenient=true', 'fuzzy_rewrite=scoring_boolean') LIMIT 5;
+
+   emp_no:i    | first_name:s  |   gender:s    |  last_name:s
+10096          |Jayson         |M              |Mandell
+;
+
+matchWithFuzziness
+SELECT first_name, SCORE() FROM test_emp WHERE MATCH(first_name, 'geo', 'fuzziness=2');
+
+  first_name:s  |   SCORE():f
+----------------+---------------
+Gino            |1.3684646
+Gao             |2.7369292
+;
+
+matchWithFuzzinessAuto
+SELECT first_name, SCORE() FROM test_emp WHERE MATCH(first_name, 'geo', 'fuzziness=AUTO:1,7;fuzzy_rewrite=scoring_boolean');
+
+  first_name:s  |    SCORE():f
+----------------+---------------
+Gao             |2.7369292
+;
+
+multiMatchWithFuzzinessAuto
+SELECT first_name, last_name, SCORE() FROM test_emp WHERE MATCH('first_name^3,last_name^5', 'geo hir', 'fuzziness=AUTO:1,5;operator=or') ORDER BY first_name;
+
+  first_name:s  |   last_name:s   |    SCORE():f
+----------------+-----------------+---------------
+Gao             |Dolinsky         |8.210788
+Shir            |McClurg          |8.210788
+;
+
+multiMatchWithFuzziness
+SELECT first_name, last_name, SCORE() FROM test_emp WHERE MATCH('first_name^3,last_name^5', 'geo hir', 'fuzziness=2;operator=or') ORDER BY first_name;
+
+  first_name:s  |   last_name:s   |    SCORE():f
+----------------+-----------------+---------------
+Gao             |Dolinsky         |8.210788
+Gino            |Leonhardt        |4.105394
+Shir            |McClurg          |8.210788
+Uri             |Lenart           |4.105394
+;
+
+queryWithFuzziness
+SELECT first_name, SCORE() FROM test_emp WHERE QUERY('geo~', 'fuzziness=2;default_field=first_name');
+
+  first_name:s  |    SCORE():f
+----------------+---------------
+Gino            |1.3684646
+Gao             |2.7369292
+;
+
+queryWithFuzzinessAuto
+SELECT first_name, SCORE() FROM test_emp WHERE QUERY('geo~', 'fuzziness=AUTO:1,5;default_field=first_name');
+
+  first_name:s  |    SCORE():f
+----------------+---------------
+Gao             |2.7369292
+;
+
+matchQuery
+SELECT emp_no, first_name, gender, last_name FROM test_emp WHERE MATCH(first_name, 'Erez');
+
+   emp_no:i    | first_name:s  |   gender:s    |  last_name:s
+10076          |Erez           |F              |Ritzmann
+;
+
+matchQueryWithOptions
+SELECT emp_no, first_name, gender, last_name FROM test_emp WHERE MATCH(first_name, 'Erez', 'lenient=true;fuzzy_rewrite=scoring_boolean;minimum_should_match=1;operator=AND;max_expansions=30;prefix_length=1;analyzer=english;auto_generate_synonyms_phrase_query=true;fuzzy_transpositions=true');
+
+   emp_no:i    | first_name:s  |   gender:s    |  last_name:s
+10076          |Erez           |F              |Ritzmann
+;
+
+matchQueryWithOptionsInMultipleCommaSeparatedStrings
+SELECT emp_no, first_name, gender, last_name FROM test_emp WHERE MATCH(first_name, 'Erez', 'lenient=true','fuzzy_rewrite=scoring_boolean;minimum_should_match=1','operator=AND', 'max_expansions=30;prefix_length=1;analyzer=english;auto_generate_synonyms_phrase_query=true;fuzzy_transpositions=true');
+
+   emp_no:i    | first_name:s  |   gender:s    |  last_name:s
+10076          |Erez           |F              |Ritzmann
+;
+
+multiMatchQuery
+SELECT emp_no, first_name, gender, last_name FROM test_emp WHERE MATCH('first_name,last_name', 'Morton', 'type=best_fields;operator=OR');
+
+   emp_no:i    | first_name:s  |   gender:s    |  last_name:s
+10095          |Hilari         |M              |Morton
+;
+
+multiMatchQueryAllOptions
+SELECT emp_no, first_name, gender, last_name FROM test_emp WHERE MATCH('first_name,last_name', 'Morton', 'slop=1;lenient=true;tie_breaker=0.1;fuzzy_rewrite=scoring_boolean;minimum_should_match=1;operator=AND;max_expansions=30;prefix_length=1;analyzer=english;type=best_fields;auto_generate_synonyms_phrase_query=true;fuzzy_transpositions=true');
+
+   emp_no:i    | first_name:s  |   gender:s    |  last_name:s
+10095          |Hilari         |M              |Morton
+;
+
+multiMatchQueryWithInMultipleCommaSeparatedStrings
+SELECT emp_no, first_name, gender, last_name FROM test_emp WHERE MATCH('first_name,last_name', 'Morton', 'slop=1;lenient=true', 'tie_breaker=0.1;fuzzy_rewrite=scoring_boolean','minimum_should_match=1;operator=AND;max_expansions=30;prefix_length=1;analyzer=english;type=best_fields;auto_generate_synonyms_phrase_query=true;fuzzy_transpositions=true');
+
+   emp_no:i    | first_name:s  |   gender:s    |  last_name:s
+10095          |Hilari         |M              |Morton
+;
+
+score
+SELECT emp_no, first_name, SCORE() FROM test_emp WHERE MATCH(first_name, 'Erez') ORDER BY SCORE();
+
+   emp_no:i    | first_name:s  |   SCORE():f
+10076          |Erez           |4.1053944
+;
+
+scoreAsSomething
+SELECT emp_no, first_name, SCORE() as s FROM test_emp WHERE MATCH(first_name, 'Erez') ORDER BY SCORE();
+
+   emp_no:i    | first_name:s  |   s:f
+10076          |Erez           |4.1053944
+;

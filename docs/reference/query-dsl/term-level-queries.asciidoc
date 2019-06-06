@@ -3,7 +3,8 @@
 
 While the <<full-text-queries,full text queries>> will analyze the query
 string before executing, the _term-level queries_ operate on the exact terms
-that are stored in the inverted index.
+that are stored in the inverted index, and will normalize terms before executing 
+only for <<keyword,`keyword`>> fields with <<normalizer,`normalizer`>> property.
 
 These queries are usually used for structured data like numbers, dates, and
 enums, rather than full text fields.  Alternatively, they allow you to craft
@@ -20,6 +21,12 @@ The queries in this group are:
 
     Find documents which contain any of the exact terms specified in the field
     specified.
+
+<<query-dsl-terms-set-query,`terms_set` query>>::
+
+    Find documents which match with one or more of the specified terms. The
+    number of terms that must match depend on the specified minimum should
+    match field or script.
 
 <<query-dsl-range-query,`range` query>>::
 
@@ -53,18 +60,16 @@ The queries in this group are:
     http://en.wikipedia.org/wiki/Damerau%E2%80%93Levenshtein_distance[Levenshtein edit distance]
     of 1 or 2.
 
-<<query-dsl-type-query,`type` query>>::
-
-    Find documents of the specified type.
-
 <<query-dsl-ids-query,`ids` query>>::
 
-    Find documents with the specified type and IDs.
+    Find documents with the specified IDs.
 
 
 include::term-query.asciidoc[]
 
 include::terms-query.asciidoc[]
+
+include::terms-set-query.asciidoc[]
 
 include::range-query.asciidoc[]
 
@@ -77,7 +82,5 @@ include::wildcard-query.asciidoc[]
 include::regexp-query.asciidoc[]
 
 include::fuzzy-query.asciidoc[]
-
-include::type-query.asciidoc[]
 
 include::ids-query.asciidoc[]

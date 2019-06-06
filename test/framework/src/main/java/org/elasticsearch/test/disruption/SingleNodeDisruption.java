@@ -18,8 +18,8 @@
  */
 package org.elasticsearch.test.disruption;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.test.InternalTestCluster;
 
 import java.util.Random;
@@ -28,17 +28,11 @@ import static org.junit.Assert.assertFalse;
 
 public abstract class SingleNodeDisruption implements ServiceDisruptionScheme {
 
-    protected final Logger logger = Loggers.getLogger(getClass());
+    protected final Logger logger = LogManager.getLogger(getClass());
 
     protected volatile String disruptedNode;
     protected volatile InternalTestCluster cluster;
     protected final Random random;
-
-
-    public SingleNodeDisruption(String disruptedNode, Random random) {
-        this(random);
-        this.disruptedNode = disruptedNode;
-    }
 
     public SingleNodeDisruption(Random random) {
         this.random = new Random(random.nextLong());
@@ -84,7 +78,7 @@ public abstract class SingleNodeDisruption implements ServiceDisruptionScheme {
 
     protected void ensureNodeCount(InternalTestCluster cluster) {
         assertFalse("cluster failed to form after disruption was healed", cluster.client().admin().cluster().prepareHealth()
-                .setWaitForNodes("" + cluster.size())
+                .setWaitForNodes(String.valueOf(cluster.size()))
                 .setWaitForNoRelocatingShards(true)
                 .get().isTimedOut());
     }

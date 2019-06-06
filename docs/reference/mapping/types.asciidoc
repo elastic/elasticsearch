@@ -7,11 +7,13 @@ document:
 [float]
 === Core datatypes
 
-string::        <<text,`text`>> and <<keyword,`keyword`>>
-<<number>>::    `long`, `integer`, `short`, `byte`, `double`, `float`
-<<date>>::      `date`
-<<boolean>>::   `boolean`
-<<binary>>::    `binary`
+string::         <<text,`text`>> and <<keyword,`keyword`>>
+<<number>>::     `long`, `integer`, `short`, `byte`, `double`, `float`, `half_float`, `scaled_float`
+<<date>>::       `date`
+<<date_nanos>>:: `date_nanos`
+<<boolean>>::    `boolean`
+<<binary>>::     `binary`
+<<range>>::      `integer_range`, `float_range`, `long_range`, `double_range`, `date_range`
 
 [float]
 === Complex datatypes
@@ -33,9 +35,24 @@ string::        <<text,`text`>> and <<keyword,`keyword`>>
 <<search-suggesters-completion,Completion datatype>>::
                     `completion` to provide auto-complete suggestions
 <<token-count>>::   `token_count` to count the number of tokens in a string
-{plugins}/mapper-size.html[`mapper-murmur3`]:: `murmur3` to compute hashes of values at index-time and store them in the index
+{plugins}/mapper-murmur3.html[`mapper-murmur3`]:: `murmur3` to compute hashes of values at index-time and store them in the index
+{plugins}/mapper-annotated-text.html[`mapper-annotated-text`]:: `annotated-text` to index text containing special markup (typically used for identifying named entities)
 
 <<percolator>>::    Accepts queries from the query-dsl
+
+<<parent-join>>::   Defines parent/child relation for documents within the same index
+
+<<alias>>::         Defines an alias to an existing field.
+
+<<rank-feature>>::  Record numeric feature to boost hits at query time.
+
+<<rank-features>>:: Record numeric features to boost hits at query time.
+
+<<dense-vector>>::   Record dense vectors of float values.
+
+<<sparse-vector>>::   Record sparse vectors of float values.
+
+<<search-as-you-type>>:: A text-like field optimized for queries to implement as-you-type completion
 
 [float]
 === Multi-fields
@@ -51,13 +68,19 @@ the <<analysis-standard-analyzer,`standard` analyzer>>, the
 This is the purpose of _multi-fields_.  Most datatypes support multi-fields
 via the <<multi-fields>> parameter.
 
+include::types/alias.asciidoc[]
+
 include::types/array.asciidoc[]
 
 include::types/binary.asciidoc[]
 
+include::types/range.asciidoc[]
+
 include::types/boolean.asciidoc[]
 
 include::types/date.asciidoc[]
+
+include::types/date_nanos.asciidoc[]
 
 include::types/geo-point.asciidoc[]
 
@@ -73,16 +96,20 @@ include::types/numeric.asciidoc[]
 
 include::types/object.asciidoc[]
 
-include::types/string.asciidoc[]
-
 include::types/text.asciidoc[]
 
 include::types/token-count.asciidoc[]
 
 include::types/percolator.asciidoc[]
 
+include::types/parent-join.asciidoc[]
 
+include::types/rank-feature.asciidoc[]
 
+include::types/rank-features.asciidoc[]
 
+include::types/dense-vector.asciidoc[]
 
+include::types/sparse-vector.asciidoc[]
 
+include::types/search-as-you-type.asciidoc[]

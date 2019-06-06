@@ -1,0 +1,710 @@
+[role="xpack"]
+[testenv="basic"]
+[[sql-functions-datetime]]
+=== Date/Time and Interval Functions and Operators
+
+{es-sql} offers a wide range of facilities for performing date/time manipulations.
+
+[[sql-functions-datetime-interval]]
+==== Intervals
+
+A common requirement when dealing with date/time in general revolves around 
+the notion of `interval`, a topic that is worth exploring in the context of {es} and {es-sql}.
+
+{es} has comprehensive support for <<date-math, date math>> both inside <<date-math-index-names, index names>> and <<mapping-date-format, queries>>.
+Inside {es-sql} the former is supported as is by passing the expression in the table name, while the latter is supported through the standard SQL `INTERVAL`.
+
+The table below shows the mapping between {es} and {es-sql}:
+
+[cols="^m,^m"]
+|==========================
+s|{es}
+s|{es-sql}
+2+h| Index/Table datetime math
+2+|<index-{now/M{YYYY.MM}}>
+2+h| Query date/time math
+| 1y  | INTERVAL 1 YEAR
+| 2M  | INTERVAL 2 MONTH
+| 3w  | INTERVAL 21 DAY
+| 4d  | INTERVAL 4 DAY
+| 5h  | INTERVAL 5 HOUR
+| 6m  | INTERVAL 6 MINUTE
+| 7s  | INTERVAL 7 SECOND
+|==========================
+
+`INTERVAL` allows either `YEAR` and `MONTH` to be mixed together _or_ `DAY`, `HOUR`, `MINUTE` and `SECOND`.
+
+TIP: {es-sql} accepts also the plural for each time unit (e.g. both `YEAR` and `YEARS` are valid).
+
+Example of the possible combinations below:
+
+[cols="^,^"]
+
+|===
+s|Interval
+s|Description
+| `INTERVAL '1-2' YEAR TO MONTH`                | 1 year and 2 months
+| `INTERVAL '3 4' DAYS TO HOURS`                | 3 days and 4 hours
+| `INTERVAL '5 6:12' DAYS TO MINUTES`           | 5 days, 6 hours and 12 minutes
+| `INTERVAL '3 4:56:01' DAY TO SECOND`          | 3 days, 4 hours, 56 minutes and 1 second
+| `INTERVAL '2 3:45:01.23456789' DAY TO SECOND` | 2 days, 3 hours, 45 minutes, 1 second and 234567890 nanoseconds
+| `INTERVAL '123:45' HOUR TO MINUTES`           | 123 hours and 45 minutes
+| `INTERVAL '65:43:21.0123' HOUR TO SECONDS`    | 65 hours, 43 minutes, 21 seconds and 12300000 nanoseconds
+| `INTERVAL '45:01.23' MINUTES TO SECONDS`      | 45 minutes, 1 second and 230000000 nanoseconds
+|===
+
+==== Operators
+
+Basic arithmetic operators (`+`, `-`, etc) support date/time parameters as indicated below:
+
+[source, sql]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs/docs.csv-spec[dtIntervalPlusInterval]
+--------------------------------------------------
+
+[source, sql]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs/docs.csv-spec[dtDateTimePlusInterval]
+--------------------------------------------------
+
+[source, sql]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs/docs.csv-spec[dtMinusInterval]
+--------------------------------------------------
+
+[source, sql]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs/docs.csv-spec[dtIntervalMinusInterval]
+--------------------------------------------------
+
+[source, sql]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs/docs.csv-spec[dtDateTimeMinusInterval]
+--------------------------------------------------
+
+[source, sql]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs/docs.csv-spec[dtIntervalMul]
+--------------------------------------------------
+
+==== Functions
+
+Functions that target date/time.
+
+[[sql-functions-current-date]]
+==== `CURRENT_DATE/CURDATE`
+
+.Synopsis:
+[source, sql]
+--------------------------------------------------
+CURRENT_DATE
+CURRENT_DATE()
+CURDATE()
+--------------------------------------------------
+
+*Input*: _none_
+
+*Output*: date
+
+.Description:
+
+Returns the date (no time part) when the current query reached the server.
+It can be used both as a keyword: `CURRENT_DATE` or as a function with no arguments: `CURRENT_DATE()`.
+
+[NOTE]
+Unlike CURRENT_DATE, `CURDATE()` can only be used as a function with no arguments and not as a keyword.
+
+This method always returns the same value for its every occurrence within the same query.
+
+[source, sql]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs/docs.csv-spec[currentDate]
+--------------------------------------------------
+
+[source, sql]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs/docs.csv-spec[currentDateFunction]
+--------------------------------------------------
+
+[source, sql]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs/docs.csv-spec[curDateFunction]
+--------------------------------------------------
+
+Typically, this function (as well as its twin <<sql-functions-today,TODAY())>> function
+is used for relative date filtering:
+
+[source, sql]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs/docs.csv-spec[filterToday]
+--------------------------------------------------
+
+[[sql-functions-current-time]]
+==== `CURRENT_TIME/CURTIME`
+
+.Synopsis:
+[source, sql]
+--------------------------------------------------
+CURRENT_TIME
+CURRENT_TIME([precision]) <1>
+CURTIME
+--------------------------------------------------
+
+*Input*:
+
+<1> fractional digits; optional
+
+*Output*: time
+
+.Description:
+
+Returns the time when the current query reached the server.
+As a function, `CURRENT_TIME()` accepts _precision_ as an optional
+parameter for rounding the second fractional digits (nanoseconds). The default _precision_ is 3,
+meaning a milliseconds precision current time will be returned.
+
+This method always returns the same value for its every occurrence within the same query.
+
+[source, sql]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs/docs.csv-spec[currentTime]
+--------------------------------------------------
+
+[source, sql]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs/docs.csv-spec[currentTimeFunction]
+--------------------------------------------------
+
+[source, sql]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs/docs.csv-spec[curTimeFunction]
+--------------------------------------------------
+
+[source, sql]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs/docs.csv-spec[currentTimeFunctionPrecision]
+--------------------------------------------------
+
+Typically, this function is used for relative date/time filtering:
+
+[source, sql]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs/docs.csv-spec[filterCurrentTime]
+--------------------------------------------------
+
+[IMPORTANT]
+Currently, using a _precision_ greater than 3 doesn't make any difference to the output of the
+function as the maximum number of second fractional digits returned is 3 (milliseconds).
+
+[[sql-functions-current-timestamp]]
+==== `CURRENT_TIMESTAMP`
+
+.Synopsis:
+[source, sql]
+--------------------------------------------------
+CURRENT_TIMESTAMP
+CURRENT_TIMESTAMP([precision]) <1>
+--------------------------------------------------
+
+*Input*:
+
+<1> fractional digits; optional
+
+*Output*: date/time
+
+.Description:
+
+Returns the date/time when the current query reached the server.
+As a function, `CURRENT_TIMESTAMP()` accepts _precision_ as an optional
+parameter for rounding the second fractional digits (nanoseconds). The default _precision_ is 3,
+meaning a milliseconds precision current date/time will be returned.
+
+This method always returns the same value for its every occurrence within the same query.
+
+[source, sql]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs/docs.csv-spec[curTs]
+--------------------------------------------------
+
+[source, sql]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs/docs.csv-spec[curTsFunction]
+--------------------------------------------------
+
+[source, sql]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs/docs.csv-spec[curTsFunctionPrecision]
+--------------------------------------------------
+
+Typically, this function (as well as its twin <<sql-functions-now,NOW())>> function is used for
+relative date/time filtering:
+
+[source, sql]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs/docs.csv-spec[filterNow]
+--------------------------------------------------
+
+[IMPORTANT]
+Currently, using a _precision_ greater than 3 doesn't make any difference to the output of the
+function as the maximum number of second fractional digits returned is 3 (milliseconds).
+
+[[sql-functions-datetime-day]]
+==== `DAY_OF_MONTH/DOM/DAY`
+
+.Synopsis:
+[source, sql]
+--------------------------------------------------
+DAY_OF_MONTH(datetime_exp) <1>
+--------------------------------------------------
+
+*Input*:
+
+<1> date/datetime expression
+
+*Output*: integer
+
+.Description:
+
+Extract the day of the month from a date/datetime.
+
+[source, sql]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs/docs.csv-spec[dayOfMonth]
+--------------------------------------------------
+
+[[sql-functions-datetime-dow]]
+==== `DAY_OF_WEEK/DAYOFWEEK/DOW`
+
+.Synopsis:
+[source, sql]
+--------------------------------------------------
+DAY_OF_WEEK(datetime_exp) <1>
+--------------------------------------------------
+
+*Input*:
+
+<1> date/datetime expression
+
+*Output*: integer
+
+.Description:
+
+Extract the day of the week from a date/datetime. Sunday is `1`, Monday is `2`, etc.
+
+[source, sql]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs/docs.csv-spec[dayOfWeek]
+--------------------------------------------------
+
+[[sql-functions-datetime-doy]]
+==== `DAY_OF_YEAR/DOY`
+
+.Synopsis:
+[source, sql]
+--------------------------------------------------
+DAY_OF_YEAR(datetime_exp) <1>
+--------------------------------------------------
+
+*Input*:
+
+<1> date/datetime expression
+
+*Output*: integer
+
+.Description:
+
+Extract the day of the year from a date/datetime.
+
+[source, sql]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs/docs.csv-spec[dayOfYear]
+--------------------------------------------------
+
+[[sql-functions-datetime-dayname]]
+==== `DAY_NAME/DAYNAME`
+
+.Synopsis:
+[source, sql]
+--------------------------------------------------
+DAY_NAME(datetime_exp) <1>
+--------------------------------------------------
+
+*Input*:
+
+<1> date/datetime expression
+
+*Output*: string
+
+.Description:
+
+Extract the day of the week from a date/datetime in text format (`Monday`, `Tuesday`...).
+
+[source, sql]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs/docs.csv-spec[dayName]
+--------------------------------------------------
+
+[[sql-functions-datetime-hour]]
+==== `HOUR_OF_DAY/HOUR`
+
+.Synopsis:
+[source, sql]
+--------------------------------------------------
+HOUR_OF_DAY(datetime_exp) <1>
+--------------------------------------------------
+
+*Input*:
+
+<1> date/datetime expression
+
+*Output*: integer
+
+.Description:
+
+Extract the hour of the day from a date/datetime.
+
+[source, sql]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs/docs.csv-spec[hourOfDay]
+--------------------------------------------------
+
+[[sql-functions-datetime-isodow]]
+==== `ISO_DAY_OF_WEEK/ISODAYOFWEEK/ISODOW/IDOW`
+
+.Synopsis:
+[source, sql]
+--------------------------------------------------
+ISO_DAY_OF_WEEK(datetime_exp) <1>
+--------------------------------------------------
+
+*Input*:
+
+<1> date/datetime expression
+
+*Output*: integer
+
+.Description:
+
+Extract the day of the week from a date/datetime, following the https://en.wikipedia.org/wiki/ISO_week_date[ISO 8601 standard].
+Monday is `1`, Tuesday is `2`, etc.
+
+[source, sql]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs/docs.csv-spec[isoDayOfWeek]
+--------------------------------------------------
+
+[[sql-functions-datetime-isoweek]]
+==== `ISO_WEEK_OF_YEAR/ISOWEEKOFYEAR/ISOWEEK/IWOY/IW`
+
+.Synopsis:
+[source, sql]
+--------------------------------------------------
+ISO_WEEK_OF_YEAR(datetime_exp) <1>
+--------------------------------------------------
+
+*Input*:
+
+<1> date/datetime expression
+
+*Output*: integer
+
+.Description:
+
+Extract the week of the year from a date/datetime, following https://en.wikipedia.org/wiki/ISO_week_date[ISO 8601 standard]. The first week
+of a year is the first week with a majority (4 or more) of its days in January.
+
+[source, sql]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs/docs.csv-spec[isoWeekOfYear]
+--------------------------------------------------
+
+[[sql-functions-datetime-minuteofday]]
+==== `MINUTE_OF_DAY`
+
+.Synopsis:
+[source, sql]
+--------------------------------------------------
+MINUTE_OF_DAY(datetime_exp) <1>
+--------------------------------------------------
+
+*Input*:
+
+<1> date/datetime expression
+
+*Output*: integer
+
+.Description:
+
+Extract the minute of the day from a date/datetime.
+
+[source, sql]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs/docs.csv-spec[minuteOfDay]
+--------------------------------------------------
+
+[[sql-functions-datetime-minute]]
+==== `MINUTE_OF_HOUR/MINUTE`
+
+.Synopsis:
+[source, sql]
+--------------------------------------------------
+MINUTE_OF_HOUR(datetime_exp) <1>
+--------------------------------------------------
+
+*Input*:
+
+<1> date/datetime expression
+
+*Output*: integer
+
+.Description:
+
+Extract the minute of the hour from a date/datetime.
+
+[source, sql]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs/docs.csv-spec[minuteOfHour]
+--------------------------------------------------
+
+[[sql-functions-datetime-month]]
+==== `MONTH_OF_YEAR/MONTH`
+
+.Synopsis:
+[source, sql]
+--------------------------------------------------
+MONTH(datetime_exp) <1>
+--------------------------------------------------
+
+*Input*:
+
+<1> date/datetime expression
+
+*Output*: integer
+
+.Description:
+
+Extract the month of the year from a date/datetime.
+
+[source, sql]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs/docs.csv-spec[monthOfYear]
+--------------------------------------------------
+
+[[sql-functions-datetime-monthname]]
+==== `MONTH_NAME/MONTHNAME`
+
+.Synopsis:
+[source, sql]
+--------------------------------------------------
+MONTH_NAME(datetime_exp) <1>
+--------------------------------------------------
+
+*Input*:
+
+<1> date/datetime expression
+
+*Output*: string
+
+.Description:
+
+Extract the month from a date/datetime in text format (`January`, `February`...).
+
+[source, sql]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs/docs.csv-spec[monthName]
+--------------------------------------------------
+
+[[sql-functions-now]]
+==== `NOW`
+
+.Synopsis:
+[source, sql]
+--------------------------------------------------
+NOW()
+--------------------------------------------------
+
+*Input*: _none_
+
+*Output*: datetime
+
+.Description:
+
+This function offers the same functionality as <<sql-functions-current-timestamp,CURRENT_TIMESTAMP()>> function: returns
+the datetime when the current query reached the server. This method always returns the same value for its every
+occurrence within the same query.
+
+[source, sql]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs/docs.csv-spec[nowFunction]
+--------------------------------------------------
+
+Typically, this function (as well as its twin <<sql-functions-current-timestamp,CURRENT_TIMESTAMP())>> function is used
+for relative date/time filtering:
+
+[source, sql]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs/docs.csv-spec[filterNow]
+--------------------------------------------------
+
+[[sql-functions-datetime-second]]
+==== `SECOND_OF_MINUTE/SECOND`
+
+.Synopsis:
+[source, sql]
+--------------------------------------------------
+SECOND_OF_MINUTE(datetime_exp) <1>
+--------------------------------------------------
+
+*Input*:
+
+<1> date/datetime expression
+
+*Output*: integer
+
+.Description:
+
+Extract the second of the minute from a date/datetime.
+
+[source, sql]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs/docs.csv-spec[secondOfMinute]
+--------------------------------------------------
+
+[[sql-functions-datetime-quarter]]
+==== `QUARTER`
+
+.Synopsis:
+[source, sql]
+--------------------------------------------------
+QUARTER(datetime_exp) <1>
+--------------------------------------------------
+
+*Input*:
+
+<1> date/datetime expression
+
+*Output*: integer
+
+.Description:
+
+Extract the year quarter the date/datetime falls in.
+
+[source, sql]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs/docs.csv-spec[quarter]
+--------------------------------------------------
+
+[[sql-functions-today]]
+==== `TODAY`
+
+.Synopsis:
+[source, sql]
+--------------------------------------------------
+TODAY()
+--------------------------------------------------
+
+*Input*: _none_
+
+*Output*: date
+
+.Description:
+
+This function offers the same functionality as <<sql-functions-current-date,CURRENT_DATE()>> function: returns
+the date when the current query reached the server. This method always returns the same value for its every occurrence
+within the same query.
+
+[source, sql]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs/docs.csv-spec[todayFunction]
+--------------------------------------------------
+
+Typically, this function (as well as its twin <<sql-functions-current-timestamp,CURRENT_TIMESTAMP())>> function is used
+for relative date filtering:
+
+[source, sql]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs/docs.csv-spec[filterToday]
+--------------------------------------------------
+
+[[sql-functions-datetime-week]]
+==== `WEEK_OF_YEAR/WEEK`
+
+.Synopsis:
+[source, sql]
+--------------------------------------------------
+WEEK_OF_YEAR(datetime_exp) <1>
+--------------------------------------------------
+
+*Input*:
+
+<1> date/datetime expression
+
+*Output*: integer
+
+.Description:
+
+Extract the week of the year from a date/datetime.
+
+[source, sql]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs/docs.csv-spec[weekOfYear]
+--------------------------------------------------
+
+[[sql-functions-datetime-year]]
+==== `YEAR`
+
+.Synopsis:
+[source, sql]
+--------------------------------------------------
+YEAR(datetime_exp) <1>
+--------------------------------------------------
+
+*Input*:
+
+<1> date/datetime expression
+
+*Output*: integer
+
+.Description:
+
+Extract the year from a date/datetime.
+
+[source, sql]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs/docs.csv-spec[year]
+--------------------------------------------------
+
+[[sql-functions-datetime-extract]]
+==== `EXTRACT`
+
+.Synopsis:
+[source, sql]
+--------------------------------------------------
+EXTRACT(
+    datetime_function  <1>
+    FROM datetime_exp) <2>
+--------------------------------------------------
+
+*Input*:
+
+<1> date/time function name
+<2> date/datetime expression
+
+*Output*: integer
+
+.Description:
+
+Extract fields from a date/datetime by specifying the name of a <<sql-functions-datetime,datetime function>>.
+The following
+
+[source, sql]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs/docs.csv-spec[extractDayOfYear]
+--------------------------------------------------
+
+is the equivalent to
+
+[source, sql]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs/docs.csv-spec[dayOfYear]
+--------------------------------------------------

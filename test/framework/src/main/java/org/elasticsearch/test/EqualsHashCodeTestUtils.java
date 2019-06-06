@@ -33,14 +33,14 @@ import static org.junit.Assert.assertTrue;
  */
 public class EqualsHashCodeTestUtils {
 
-    private static Object[] someObjects = new Object[] { "some string", new Integer(1), new Double(1.0) };
+    private static Object[] someObjects = new Object[] { "some string", Integer.valueOf(1), Double.valueOf(1.0) };
 
     /**
      * A function that makes a copy of its input argument
      */
     public interface CopyFunction<T> {
         T copy(T t) throws IOException;
-    };
+    }
 
     /**
      * A function that creates a copy of its input argument that is different from its
@@ -48,7 +48,7 @@ public class EqualsHashCodeTestUtils {
      */
     public interface MutateFunction<T> {
         T mutate(T t) throws IOException;
-    };
+    }
 
     /**
      * Perform common equality and hashCode checks on the input object
@@ -78,7 +78,8 @@ public class EqualsHashCodeTestUtils {
             assertThat(objectName + " hashcode returns different values if called multiple times", original.hashCode(),
                     equalTo(original.hashCode()));
             if (mutationFunction != null) {
-                assertThat(objectName + " mutation should not be equal to original", mutationFunction.mutate(original),
+                T mutation = mutationFunction.mutate(original);
+                assertThat(objectName + " mutation should not be equal to original", mutation,
                         not(equalTo(original)));
             }
 

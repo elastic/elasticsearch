@@ -42,11 +42,37 @@ public final class ConvertProcessor extends AbstractProcessor {
             @Override
             public Object convert(Object value) {
                 try {
-                    return Integer.parseInt(value.toString());
+                    String strValue = value.toString();
+                    if (strValue.startsWith("0x") || strValue.startsWith("-0x")) {
+                        return Integer.decode(strValue);
+                    }
+                    return Integer.parseInt(strValue);
                 } catch(NumberFormatException e) {
                     throw new IllegalArgumentException("unable to convert [" + value + "] to integer", e);
                 }
 
+            }
+        }, LONG {
+            @Override
+            public Object convert(Object value) {
+                try {
+                    String strValue = value.toString();
+                    if (strValue.startsWith("0x") || strValue.startsWith("-0x")) {
+                        return Long.decode(strValue);
+                    }
+                    return Long.parseLong(strValue);
+                } catch(NumberFormatException e) {
+                    throw new IllegalArgumentException("unable to convert [" + value + "] to long", e);
+                }
+            }
+        }, DOUBLE {
+            @Override
+            public Object convert(Object value) {
+                try {
+                    return Double.parseDouble(value.toString());
+                } catch(NumberFormatException e) {
+                    throw new IllegalArgumentException("unable to convert [" + value + "] to double", e);
+                }
             }
         }, FLOAT {
             @Override
@@ -81,12 +107,18 @@ public final class ConvertProcessor extends AbstractProcessor {
                 }
                 try {
                     return BOOLEAN.convert(value);
-                } catch (IllegalArgumentException e) { }
+                } catch (IllegalArgumentException e) {}
                 try {
                     return INTEGER.convert(value);
                 } catch (IllegalArgumentException e) {}
                 try {
+                    return LONG.convert(value);
+                } catch (IllegalArgumentException e) {}
+                try {
                     return FLOAT.convert(value);
+                } catch (IllegalArgumentException e) {}
+                try {
+                    return DOUBLE.convert(value);
                 } catch (IllegalArgumentException e) {}
                 return value;
             }
@@ -141,28 +173,19 @@ public final class ConvertProcessor extends AbstractProcessor {
     }
 
     @Override
-    public void execute(IngestDocument document) {
-        Object oldValue = null;
+    public IngestDocument execute(IngestDocument document) {
+        Object oldValue = document.getFieldValue(field, Object.class, ignoreMissing);
         Object newValue;
 
-        try {
-            oldValue = document.getFieldValue(field, Object.class);
-        } catch (IllegalArgumentException e) {
-            if (ignoreMissing) {
-                return;
-            }
-            throw e;
-        }
-
         if (oldValue == null && ignoreMissing) {
-            return;
+            return document;
         } else if (oldValue == null) {
             throw new IllegalArgumentException("Field [" + field + "] is null, cannot be converted to type [" + convertType + "]");
         }
 
         if (oldValue instanceof List) {
             List<?> list = (List<?>) oldValue;
-            List<Object> newList = new ArrayList<>();
+            List<Object> newList = new ArrayList<>(list.size());
             for (Object value : list) {
                 newList.add(convertType.convert(value));
             }
@@ -171,6 +194,7 @@ public final class ConvertProcessor extends AbstractProcessor {
             newValue = convertType.convert(oldValue);
         }
         document.setFieldValue(targetField, newValue);
+        return document;
     }
 
     @Override

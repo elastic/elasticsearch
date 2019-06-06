@@ -1,15 +1,32 @@
 [[install-elasticsearch]]
 == Installing Elasticsearch
 
+[float]
+=== Hosted Elasticsearch
+
+You can run Elasticsearch on your own hardware, or use our
+https://www.elastic.co/cloud/elasticsearch-service[hosted Elasticsearch Service]
+on Elastic Cloud. The Elasticsearch Service is available on both AWS and GCP.
+https://www.elastic.co/cloud/elasticsearch-service/signup[Try out the
+Elasticsearch Service for free].
+
+[float]
+=== Installing Elasticsearch Yourself
+
 Elasticsearch is provided in the following package formats:
 
 [horizontal]
-`zip`/`tar.gz`::
+Linux and MacOS `tar.gz` archives::
 
-The `zip` and `tar.gz` packages are suitable for installation on any system
-and are the easiest choice for getting started with Elasticsearch.
+The `tar.gz` archives are available for installation on any Linux distribution and MacOS.
 +
-<<zip-targz>> or <<windows>>
+<<targz>>
+
+Windows `.zip` archive::
+
+The `zip` archive is suitable for installation on Windows.
++
+<<zip-windows>>
 
 `deb`::
 
@@ -27,6 +44,21 @@ Elasticsearch website or from our RPM repository.
 +
 <<rpm>>
 
+`msi`::
+
+beta[] The `msi` package is suitable for installation on Windows 64-bit systems with at least
+.NET 4.5 framework installed, and is the easiest choice for getting started with
+Elasticsearch on Windows. MSIs may be downloaded from the Elasticsearch website.
++
+<<windows>>
+
+`docker`::
+
+Images are available for running Elasticsearch as Docker containers. They may be
+downloaded from the Elastic Docker Registry.
++
+{ref}/docker.html[Install {es} with Docker]
+
 [float]
 [[config-mgmt-tools]]
 === Configuration Management Tools
@@ -37,9 +69,12 @@ large deployments:
 [horizontal]
 Puppet:: https://github.com/elastic/puppet-elasticsearch[puppet-elasticsearch]
 Chef::   https://github.com/elastic/cookbook-elasticsearch[cookbook-elasticsearch]
+Ansible:: https://github.com/elastic/ansible-elasticsearch[ansible-elasticsearch]
 
 
-include::install/zip-targz.asciidoc[]
+include::install/targz.asciidoc[]
+
+include::install/zip-windows.asciidoc[]
 
 include::install/deb.asciidoc[]
 
@@ -47,4 +82,5 @@ include::install/rpm.asciidoc[]
 
 include::install/windows.asciidoc[]
 
+include::install/docker.asciidoc[]
 

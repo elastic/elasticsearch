@@ -19,6 +19,7 @@
 
 package org.elasticsearch.common.util;
 
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.common.recycler.Recycler.V;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
@@ -27,6 +28,7 @@ import org.elasticsearch.test.ESTestCase;
 import java.lang.reflect.Array;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.ConcurrentHashMap;
@@ -48,8 +50,13 @@ public class MockPageCacheRecycler extends PageCacheRecycler {
                 masterCopy.keySet().retainAll(ACQUIRED_PAGES.keySet());
                 ACQUIRED_PAGES.keySet().removeAll(masterCopy.keySet()); // remove all existing master copy we will report on
                 if (!masterCopy.isEmpty()) {
-                    final Throwable t = masterCopy.entrySet().iterator().next().getValue();
-                    throw new RuntimeException(masterCopy.size() + " pages have not been released", t);
+                    Iterator<Throwable> causes = masterCopy.values().iterator();
+                    Throwable firstCause = causes.next();
+                    RuntimeException exception = new RuntimeException(masterCopy.size() + " pages have not been released", firstCause);
+                    while (causes.hasNext()) {
+                        exception.addSuppressed(causes.next());
+                    }
+                    throw exception;
                 }
             }
         }
@@ -57,7 +64,7 @@ public class MockPageCacheRecycler extends PageCacheRecycler {
 
     private final Random random;
 
-    MockPageCacheRecycler(Settings settings) {
+    public MockPageCacheRecycler(Settings settings) {
         super(settings);
         // we always initialize with 0 here since we really only wanna have some random bytes / ints / longs
         // and given the fact that it's called concurrently it won't reproduces anyway the same order other than in a unittest
@@ -66,7 +73,7 @@ public class MockPageCacheRecycler extends PageCacheRecycler {
     }
 
     private <T> V<T> wrap(final V<T> v) {
-        ACQUIRED_PAGES.put(v, new Throwable());
+        ACQUIRED_PAGES.put(v, new Throwable("Unreleased Page from test: " + LuceneTestCase.getTestClass().getName()));
         return new V<T>() {
 
             @Override

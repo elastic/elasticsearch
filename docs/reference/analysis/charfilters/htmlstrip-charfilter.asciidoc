@@ -43,14 +43,14 @@ POST _analyze
 
 The above example returns the term:
 
-[source,js]
+[source,text]
 ---------------------------
 [ \nI'm so happy!\n ]
 ---------------------------
 
 The same example with the `standard` tokenizer would return the following terms:
 
-[source,js]
+[source,text]
 ---------------------------
 [ I'm, so, happy ]
 ---------------------------

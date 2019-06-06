@@ -1,11 +1,10 @@
 [[search-aggregations-pipeline-bucket-script-aggregation]]
 === Bucket Script Aggregation
 
-experimental[]
-
 A parent pipeline aggregation which executes a script which can perform per bucket computations on specified metrics
 in the parent multi-bucket aggregation. The specified metric must be numeric and the script must return a numeric value.
 
+[[bucket-script-agg-syntax]]
 ==== Syntax
 
 A `bucket_script` aggregation looks like this in isolation:
@@ -18,24 +17,26 @@ A `bucket_script` aggregation looks like this in isolation:
             "my_var1": "the_sum", <1>
             "my_var2": "the_value_count"
         },
-        "script": "my_var1 / my_var2"
+        "script": "params.my_var1 / params.my_var2"
     }
 }
 --------------------------------------------------
+// NOTCONSOLE
 <1> Here, `my_var1` is the name of the variable for this buckets path to use in the script, `the_sum` is the path to
 the metrics to use for that variable.
 
-
+[[bucket-script-params]]
 .`bucket_script` Parameters
+[options="header"]
 |===
 |Parameter Name |Description |Required |Default Value
 |`script` |The script to run for this aggregation. The script can be inline, file or indexed. (see <<modules-scripting>>
 for more details) |Required |
 |`buckets_path` |A map of script variables and their associated path to the buckets we wish to use for the variable
 (see <<buckets-path-syntax>> for more details) |Required |
- |`gap_policy` |The policy to apply when gaps are found in the data (see <<gap-policy>> for more
- details)|Optional, defaults to `skip` |
- |`format` |format to apply to the output value of this aggregation |Optional, defaults to `null` |
+|`gap_policy` |The policy to apply when gaps are found in the data (see <<gap-policy>> for more
+ details)|Optional |`skip`
+|`format` |format to apply to the output value of this aggregation |Optional |`null`
 |===
 
 The following snippet calculates the ratio percentage of t-shirt sales compared to total sales each month:
@@ -49,7 +50,7 @@ POST /sales/_search
         "sales_per_month" : {
             "date_histogram" : {
                 "field" : "date",
-                "interval" : "month"
+                "calendar_interval" : "month"
             },
             "aggs": {
                 "total_sales": {

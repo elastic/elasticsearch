@@ -1,0 +1,23 @@
+[[java-rest-high-get-trial-status]]
+=== Get Trial Status
+
+[[java-rest-high-get-trial-status-execution]]
+==== Execution
+
+The trial status of the license can be retrieved as follows:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/LicensingDocumentationIT.java[get-trial-status-execute]
+--------------------------------------------------
+
+[[java-rest-high-get-trial-status-response]]
+==== Response
+
+The returned `GetTrialStatusResponse` holds only a `boolean` flag:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/LicensingDocumentationIT.java[get-trial-status-response]
+--------------------------------------------------
+<1> Whether the license is eligible to start trial or not

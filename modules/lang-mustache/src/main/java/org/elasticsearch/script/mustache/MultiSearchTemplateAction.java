@@ -20,10 +20,9 @@
 package org.elasticsearch.script.mustache;
 
 import org.elasticsearch.action.Action;
-import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.common.io.stream.Writeable;
 
-public class MultiSearchTemplateAction
-        extends Action<MultiSearchTemplateRequest, MultiSearchTemplateResponse, MultiSearchTemplateRequestBuilder> {
+public class MultiSearchTemplateAction extends Action<MultiSearchTemplateResponse> {
 
     public static final MultiSearchTemplateAction INSTANCE = new MultiSearchTemplateAction();
     public static final String NAME = "indices:data/read/msearch/template";
@@ -34,11 +33,11 @@ public class MultiSearchTemplateAction
 
     @Override
     public MultiSearchTemplateResponse newResponse() {
-        return new MultiSearchTemplateResponse();
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override
-    public MultiSearchTemplateRequestBuilder newRequestBuilder(ElasticsearchClient client) {
-        return new MultiSearchTemplateRequestBuilder(client, this);
+    public Writeable.Reader<MultiSearchTemplateResponse> getResponseReader() {
+        return MultiSearchTemplateResponse::new;
     }
 }

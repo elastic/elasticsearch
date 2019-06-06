@@ -64,7 +64,7 @@ def main():
   if c.version == '1.2.0':
     # 1.2.0 was pulled from download.elasticsearch.org because of routing bug:
     url = 'http://central.maven.org/maven2/org/elasticsearch/elasticsearch/1.2.0/%s' % filename
-  elif c.version.startswith('0.') or c.version.startswith('1.'):
+  elif c.version.startswith('0.') or c.version.startswith('1.') or c.version.startswith('2.'):
     url = 'https://download.elasticsearch.org/elasticsearch/elasticsearch/%s' % filename
   else:
     url = 'https://artifacts.elastic.co/downloads/elasticsearch/%s' % filename

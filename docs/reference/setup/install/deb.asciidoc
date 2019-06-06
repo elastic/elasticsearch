@@ -1,17 +1,19 @@
 [[deb]]
 === Install Elasticsearch with Debian Package
 
-The Debian package for Elasticsearch can be <<install-rpm,downloaded from our website>>
-or from our  <<deb-repo,APT repository>>. It can be used to install
+The Debian package for Elasticsearch can be <<install-deb,downloaded from our website>>
+or from our <<deb-repo,APT repository>>. It can be used to install
 Elasticsearch on any Debian-based system such as Debian and Ubuntu.
+
+include::license.asciidoc[]
 
 The latest stable version of Elasticsearch can be found on the
 link:/downloads/elasticsearch[Download Elasticsearch] page. Other versions can
 be found on the link:/downloads/past-releases[Past Releases page].
 
-NOTE: Elasticsearch requires Java 8 or later. Use the 
-http://www.oracle.com/technetwork/java/javase/downloads/index.html[official Oracle distribution]
-or an open-source distribution such as http://openjdk.java.net[OpenJDK].
+NOTE: Elasticsearch includes a bundled version of http://openjdk.java.net[OpenJDK]
+from the JDK maintainers (GPLv2+CE). To use your own version of Java,
+see the <<jvm-version, JVM version requirements>>
 
 [[deb-key]]
 ==== Import the Elasticsearch PGP Key
@@ -47,7 +49,7 @@ ifeval::["{release-state}"=="released"]
 
 ["source","sh",subs="attributes,callouts"]
 --------------------------------------------------
-echo "deb https://artifacts.elastic.co/packages/{major-version}-prerelease/apt stable main" | sudo tee -a /etc/apt/sources.list.d/elastic-{major-version}.list
+echo "deb https://artifacts.elastic.co/packages/{major-version}/apt stable main" | sudo tee -a /etc/apt/sources.list.d/elastic-{major-version}.list
 --------------------------------------------------
 
 endif::[]
@@ -56,24 +58,29 @@ ifeval::["{release-state}"=="prerelease"]
 
 ["source","sh",subs="attributes,callouts"]
 --------------------------------------------------
-echo "deb https://artifacts.elastic.co/packages/{major-version}/apt stable main" | sudo tee -a /etc/apt/sources.list.d/elastic-{major-version}.list
+echo "deb https://artifacts.elastic.co/packages/{major-version}-prerelease/apt stable main" | sudo tee -a /etc/apt/sources.list.d/elastic-{major-version}.list
 --------------------------------------------------
 
 endif::[]
 
 
-[WARNING]
+[NOTE]
 ==================================================
 
-Do not use `add-apt-repository` as it will add a `deb-src` entry as well, but
-we do not provide a source package. If you have added the `deb-src` entry, you
-will see an error like the following:
+These instructions do not use `add-apt-repository` for several reasons:
+
+. `add-apt-repository` adds entries to the system `/etc/apt/sources.list` file
+  rather than a clean per-repository file in `/etc/apt/sources.list.d`
+. `add-apt-repository` is not part of the default install on many distributions
+  and requires a number of non-default dependencies.
+. Older versions of `add-apt-repository` always add a `deb-src` entry which
+  will cause errors because we do not provide a source package. If you have added
+  the `deb-src` entry, you will see an error like the following until you delete
+  the `deb-src` line:
 
     Unable to find expected entry 'main/source/Sources' in Release file
     (Wrong sources.list entry or malformed file)
 
-Delete the `deb-src` entry from the `/etc/apt/sources.list` file and the
-installation should work as expected.
 ==================================================
 
 You can install the Elasticsearch Debian package with:
@@ -96,6 +103,37 @@ Examine +/etc/apt/sources.list.d/elasticsearch-{major-version}.list+ for the dup
 
 endif::[]
 
+include::skip-set-kernel-parameters.asciidoc[]
+
+ifeval::["{release-state}"!="unreleased"]
+
+[NOTE]
+==================================================
+
+An alternative package which contains only features that are available under the
+Apache 2.0 license is also available. To install it, use the following sources list:
+
+ifeval::["{release-state}"=="prerelease"]
+
+["source","sh",subs="attributes,callouts"]
+--------------------------------------------------
+echo "deb https://artifacts.elastic.co/packages/oss-{major-version}-prerelease/apt stable main" | sudo tee -a /etc/apt/sources.list.d/elastic-{major-version}.list
+--------------------------------------------------
+
+endif::[]
+
+ifeval::["{release-state}"!="prerelease"]
+
+["source","sh",subs="attributes,callouts"]
+--------------------------------------------------
+echo "deb https://artifacts.elastic.co/packages/oss-{major-version}/apt stable main" | sudo tee -a /etc/apt/sources.list.d/elastic-{major-version}.list
+--------------------------------------------------
+
+endif::[]
+
+==================================================
+
+endif::[]
 
 [[install-deb]]
 ==== Download and install the Debian package manually
@@ -108,42 +146,40 @@ endif::[]
 
 ifeval::["{release-state}"!="unreleased"]
 
-The Debian package for Elastisearch v{version} can be downloaded from the website and installed as follows:
+The Debian package for Elasticsearch v{version} can be downloaded from the website and installed as follows:
 
 ["source","sh",subs="attributes"]
 --------------------------------------------
-wget https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-{version}.deb
-sha1sum elasticsearch-{version}.deb <1>
-sudo dpkg -i elasticsearch-{version}.deb
+wget https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-{version}-amd64.deb
+wget https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-{version}-amd64.deb.sha512
+shasum -a 512 -c elasticsearch-{version}-amd64.deb.sha512 <1>
+sudo dpkg -i elasticsearch-{version}-amd64.deb
 --------------------------------------------
-<1> Compare the SHA produced by `sha1sum` or `shasum` with the
-    https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-{version}.deb.sha1[published SHA].
+<1> Compares the SHA of the downloaded Debian package and the published checksum, which should output
+    `elasticsearch-{version}-amd64.deb: OK`.
+    
+Alternatively, you can download the following package, which contains only 
+features that are available under the Apache 2.0 license: 
+https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-oss-{version}-amd64.deb    
 
 endif::[]
+
+ifdef::include-xpack[]
+[[deb-enable-indices]]
+==== Enable automatic creation of {xpack} indices
+
+{xpack} will try to automatically create a number of indices within Elasticsearch.
+include::xpack-indices.asciidoc[]
+
+endif::include-xpack[]
+
+[[deb-sysv-init-vs-systemd]]
+==== SysV `init` vs `systemd`
 
 include::init-systemd.asciidoc[]
 
 [[deb-running-init]]
-==== Running Elasticsearch with SysV `init`
-
-Use the `update-rc.d` command to configure Elasticsearch to start automatically
-when the system boots up:
-
-[source,sh]
---------------------------------------------------
-sudo update-rc.d elasticsearch defaults 95 10
---------------------------------------------------
-
-Elasticsearch can be started and stopped using the `service` command:
-
-[source,sh]
---------------------------------------------
-sudo -i service elasticsearch start
-sudo -i service elasticsearch stop
---------------------------------------------
-
-If Elasticsearch fails to start for any reason, it will print the reason for
-failure to STDOUT. Log files can be found in `/var/log/elasticsearch/`.
+include::deb-init.asciidoc[]
 
 [[deb-running-systemd]]
 include::systemd.asciidoc[]
@@ -154,9 +190,7 @@ include::check-running.asciidoc[]
 [[deb-configuring]]
 ==== Configuring Elasticsearch
 
-Elasticsearch loads its configuration from the `/etc/elasticsearch/elasticsearch.yml`
-file by default.  The format of this config file is explained in
-<<settings>>.
+include::etc-elasticsearch.asciidoc[]
 
 The Debian package also has a system configuration file (`/etc/default/elasticsearch`),
 which allows you to set the following parameters:
@@ -191,7 +225,7 @@ locations for a Debian-based system:
 | conf
   | Configuration files including `elasticsearch.yml`
   | /etc/elasticsearch
-  | path.conf
+  | <<config-files-location,ES_PATH_CONF>>
 
 | conf
   | Environment variables including heap size, file descriptors.
@@ -212,16 +246,12 @@ locations for a Debian-based system:
 | plugins
   | Plugin files location. Each plugin will be contained in a subdirectory.
   | /usr/share/elasticsearch/plugins
+  |
 
 | repo
   | Shared file system repository locations. Can hold multiple locations. A file system repository can be placed in to any subdirectory of any directory specified here.
  d| Not configured
   | path.repo
-
-| script
-  | Location of script files.
-  | /etc/elasticsearch/scripts
-  | path.scripts
 
 |=======================================================================
 

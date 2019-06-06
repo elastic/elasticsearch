@@ -20,33 +20,29 @@
 package org.elasticsearch.discovery.azure.classic;
 
 import org.elasticsearch.cloud.azure.classic.AbstractAzureComputeServiceTestCase;
-import org.elasticsearch.cloud.azure.classic.AzureComputeServiceSimpleMock;
 import org.elasticsearch.cloud.azure.classic.management.AzureComputeService.Discovery;
 import org.elasticsearch.cloud.azure.classic.management.AzureComputeService.Management;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.notNullValue;
 
-@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, transportClientRatio = 0.0, numClientNodes = 0)
+@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST,
+    numDataNodes = 0,
+    numClientNodes = 0)
 public class AzureSimpleTests extends AbstractAzureComputeServiceTestCase {
-    public AzureSimpleTests() {
-        super(AzureComputeServiceSimpleMock.TestPlugin.class);
-    }
 
     public void testOneNodeShouldRunUsingPrivateIp() {
         Settings.Builder settings = Settings.builder()
                 .put(Management.SERVICE_NAME_SETTING.getKey(), "dummy")
                 .put(Discovery.HOST_TYPE_SETTING.getKey(), "private_ip");
 
-        logger.info("--> start one node");
-        internalCluster().startNode(settings);
-        assertThat(client().admin().cluster().prepareState().setMasterNodeTimeout("1s").get().getState().nodes().getMasterNodeId(),
-            notNullValue());
+        final String node1 = internalCluster().startNode(settings);
+        registerAzureNode(node1);
+        assertNotNull(client().admin().cluster().prepareState().setMasterNodeTimeout("1s").get().getState().nodes().getMasterNodeId());
 
         // We expect having 1 node as part of the cluster, let's test that
-        checkNumberOfNodes(1);
+        assertNumberOfNodes(1);
     }
 
     public void testOneNodeShouldRunUsingPublicIp() {
@@ -54,13 +50,12 @@ public class AzureSimpleTests extends AbstractAzureComputeServiceTestCase {
                 .put(Management.SERVICE_NAME_SETTING.getKey(), "dummy")
                 .put(Discovery.HOST_TYPE_SETTING.getKey(), "public_ip");
 
-        logger.info("--> start one node");
-        internalCluster().startNode(settings);
-        assertThat(client().admin().cluster().prepareState().setMasterNodeTimeout("1s").get().getState().nodes().getMasterNodeId(),
-            notNullValue());
+        final String node1 = internalCluster().startNode(settings);
+        registerAzureNode(node1);
+        assertNotNull(client().admin().cluster().prepareState().setMasterNodeTimeout("1s").get().getState().nodes().getMasterNodeId());
 
         // We expect having 1 node as part of the cluster, let's test that
-        checkNumberOfNodes(1);
+        assertNumberOfNodes(1);
     }
 
     public void testOneNodeShouldRunUsingWrongSettings() {
@@ -68,12 +63,7 @@ public class AzureSimpleTests extends AbstractAzureComputeServiceTestCase {
                 .put(Management.SERVICE_NAME_SETTING.getKey(), "dummy")
                 .put(Discovery.HOST_TYPE_SETTING.getKey(), "do_not_exist");
 
-        logger.info("--> start one node");
-        try {
-            internalCluster().startNode(settings);
-            fail("Expected IllegalArgumentException on startup");
-        } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), containsString("invalid value for host type [do_not_exist]"));
-        }
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> internalCluster().startNode(settings));
+        assertThat(e.getMessage(), containsString("invalid value for host type [do_not_exist]"));
     }
 }

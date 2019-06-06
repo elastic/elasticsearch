@@ -1,0 +1,34 @@
+# All cluster rights
+# All operations on all indices
+admin:
+  cluster:
+    - all
+  indices:
+    - names: '*'
+      privileges: [ all ]
+
+_system:
+  cluster:
+    - all
+  indices:
+    - names: '*'
+      privileges:
+        - all
+
+superuser:
+  cluster:
+    - all
+  indices:
+    - names: '*'
+      privileges:
+        - all
+  run_as:
+    - '*'
+
+kibana_system:
+  cluster:
+    - all
+
+transport_client:
+  cluster:
+    - all

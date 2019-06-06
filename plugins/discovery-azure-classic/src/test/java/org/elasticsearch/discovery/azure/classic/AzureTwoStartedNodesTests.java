@@ -20,61 +20,36 @@
 package org.elasticsearch.discovery.azure.classic;
 
 import org.elasticsearch.cloud.azure.classic.AbstractAzureComputeServiceTestCase;
-import org.elasticsearch.cloud.azure.classic.AzureComputeServiceTwoNodesMock;
 import org.elasticsearch.cloud.azure.classic.management.AzureComputeService.Discovery;
 import org.elasticsearch.cloud.azure.classic.management.AzureComputeService.Management;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESIntegTestCase;
 
-import static org.hamcrest.Matchers.notNullValue;
-
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST,
         numDataNodes = 0,
-        transportClientRatio = 0.0,
         numClientNodes = 0)
 public class AzureTwoStartedNodesTests extends AbstractAzureComputeServiceTestCase {
 
-    public AzureTwoStartedNodesTests() {
-        super(AzureComputeServiceTwoNodesMock.TestPlugin.class);
-    }
+    public void testTwoNodesShouldRunUsingPrivateOrPublicIp() {
+        final String hostType = randomFrom(AzureSeedHostsProvider.HostType.values()).getType();
+        logger.info("--> using azure host type " + hostType);
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/11533")
-    public void testTwoNodesShouldRunUsingPrivateIp() {
-        Settings.Builder settings = Settings.builder()
-                .put(Management.SERVICE_NAME_SETTING.getKey(), "dummy")
-                .put(Discovery.HOST_TYPE_SETTING.getKey(), "private_ip");
-
-        logger.info("--> start first node");
-        internalCluster().startNode(settings);
-        assertThat(client().admin().cluster().prepareState().setMasterNodeTimeout("1s").get().getState().nodes().getMasterNodeId(),
-            notNullValue());
-
-        logger.info("--> start another node");
-        internalCluster().startNode(settings);
-        assertThat(client().admin().cluster().prepareState().setMasterNodeTimeout("1s").get().getState().nodes().getMasterNodeId(),
-            notNullValue());
-
-        // We expect having 2 nodes as part of the cluster, let's test that
-        checkNumberOfNodes(2);
-    }
-
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/11533")
-    public void testTwoNodesShouldRunUsingPublicIp() {
-        Settings.Builder settings = Settings.builder()
-                .put(Management.SERVICE_NAME_SETTING.getKey(), "dummy")
-                .put(Discovery.HOST_TYPE_SETTING.getKey(), "public_ip");
+        final Settings settings = Settings.builder()
+            .put(Management.SERVICE_NAME_SETTING.getKey(), "dummy")
+            .put(Discovery.HOST_TYPE_SETTING.getKey(), hostType)
+            .build();
 
         logger.info("--> start first node");
-        internalCluster().startNode(settings);
-        assertThat(client().admin().cluster().prepareState().setMasterNodeTimeout("1s").get().getState().nodes().getMasterNodeId(),
-            notNullValue());
+        final String node1 = internalCluster().startNode(settings);
+        registerAzureNode(node1);
+        assertNotNull(client().admin().cluster().prepareState().setMasterNodeTimeout("1s").get().getState().nodes().getMasterNodeId());
 
         logger.info("--> start another node");
-        internalCluster().startNode(settings);
-        assertThat(client().admin().cluster().prepareState().setMasterNodeTimeout("1s").get().getState().nodes().getMasterNodeId(),
-            notNullValue());
+        final String node2 = internalCluster().startNode(settings);
+        registerAzureNode(node2);
+        assertNotNull(client().admin().cluster().prepareState().setMasterNodeTimeout("1s").get().getState().nodes().getMasterNodeId());
 
         // We expect having 2 nodes as part of the cluster, let's test that
-        checkNumberOfNodes(2);
+        assertNumberOfNodes(2);
     }
 }

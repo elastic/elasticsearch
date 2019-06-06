@@ -1,0 +1,155 @@
+[[modules-discovery-bootstrap-cluster]]
+=== Bootstrapping a cluster
+
+Starting an Elasticsearch cluster for the very first time requires the initial
+set of <<master-node,master-eligible nodes>> to be explicitly defined on one or
+more of the master-eligible nodes in the cluster. This is known as _cluster
+bootstrapping_.  This is only required the very first time the cluster starts
+up: nodes that have already joined a cluster store this information in their
+data folder for use in a <<restart-upgrade,full cluster restart>>, and
+freshly-started nodes that are joining a running cluster obtain this
+information from the cluster's elected master.
+
+The initial set of master-eligible nodes is defined in the
+<<initial_master_nodes,`cluster.initial_master_nodes` setting>>. This should be
+set to a list containing one of the following items for each master-eligible
+node:
+
+- The <<node.name,node name>> of the node.
+- The node's hostname if `node.name` is not set, because `node.name` defaults
+  to the node's hostname. You must use either the fully-qualified hostname or
+  the bare hostname <<modules-discovery-bootstrap-cluster-fqdns,depending on
+  your system configuration>>.
+- The IP address of the node's <<modules-transport,publish address>>, if it is
+  not possible to use the `node.name` of the node. This is normally the IP
+  address to which <<common-network-settings,`network.host`>> resolves but
+  <<advanced-network-settings,this can be overridden>>.
+- The IP address and port of the node's publish address, in the form `IP:PORT`,
+  if it is not possible to use the `node.name` of the node and there are
+  multiple nodes sharing a single IP address.
+
+When you start a master-eligible node, you can provide this setting on the
+command line or in the `elasticsearch.yml` file. After the cluster has formed,
+this setting is no longer required and is ignored. It need not be set on
+master-ineligible nodes, nor on master-eligible nodes that are started to join
+an existing cluster. Note that master-eligible nodes should use storage that
+persists across restarts. If they do not, and `cluster.initial_master_nodes` is
+set, and a full cluster restart occurs, then another brand-new cluster will
+form and this may result in data loss.
+
+It is technically sufficient to set `cluster.initial_master_nodes` on a single
+master-eligible node in the cluster, and only to mention that single node in the
+setting's value, but this provides no fault tolerance before the cluster has
+fully formed. It is therefore better to bootstrap using at least three
+master-eligible nodes, each with a `cluster.initial_master_nodes` setting
+containing all three nodes.
+
+WARNING: You must set `cluster.initial_master_nodes` to the same list of nodes
+on each node on which it is set in order to be sure that only a single cluster
+forms during bootstrapping and therefore to avoid the risk of data loss.
+
+For a cluster with 3 master-eligible nodes (with <<node.name,node names>>
+`master-a`, `master-b` and `master-c`) the configuration will look as follows:
+
+[source,yaml]
+--------------------------------------------------
+cluster.initial_master_nodes:
+  - master-a
+  - master-b
+  - master-c
+--------------------------------------------------
+
+Like all node settings, it is also possible to specify the initial set of master
+nodes on the command-line that is used to start Elasticsearch:
+
+[source,bash]
+--------------------------------------------------
+$ bin/elasticsearch -Ecluster.initial_master_nodes=master-a,master-b,master-c
+--------------------------------------------------
+
+[NOTE]
+==================================================
+
+[[modules-discovery-bootstrap-cluster-fqdns]] The node names used in the
+`cluster.initial_master_nodes` list must exactly match the `node.name`
+properties of the nodes. By default the node name is set to the machine's
+hostname which may or may not be fully-qualified depending on your system
+configuration. If each node name is a fully-qualified domain name such as
+`master-a.example.com` then you must use fully-qualified domain names in the
+`cluster.initial_master_nodes` list too; conversely if your node names are bare
+hostnames (without the `.example.com` suffix) then you must use bare hostnames
+in the `cluster.initial_master_nodes` list. If you use a mix of fully-qualifed
+and bare hostnames, or there is some other mismatch between `node.name` and
+`cluster.initial_master_nodes`, then the cluster will not form successfully and
+you will see log messages like the following.
+
+[source,text]
+--------------------------------------------------
+[master-a.example.com] master not discovered yet, this node has
+not previously joined a bootstrapped (v7+) cluster, and this
+node must discover master-eligible nodes [master-a, master-b] to
+bootstrap a cluster: have discovered [{master-b.example.com}{...
+--------------------------------------------------
+
+This message shows the node names `master-a.example.com` and
+`master-b.example.com` as well as the `cluster.initial_master_nodes` entries
+`master-a` and `master-b`, and it is clear from this message that they do not
+match exactly.
+
+==================================================
+
+[float]
+==== Choosing a cluster name
+
+The <<cluster.name,`cluster.name`>> setting enables you to create multiple
+clusters which are separated from each other. Nodes verify that they agree on
+their cluster name when they first connect to each other, and Elasticsearch
+will only form a cluster from nodes that all have the same cluster name. The
+default value for the cluster name is `elasticsearch`, but it is recommended to
+change this to reflect the logical name of the cluster.
+
+[float]
+==== Auto-bootstrapping in development mode
+
+If the cluster is running with a completely default configuration then it will
+automatically bootstrap a cluster based on the nodes that could be discovered to
+be running on the same host within a short time after startup. This means that
+by default it is possible to start up several nodes on a single machine and have
+them automatically form a cluster which is very useful for development
+environments and experimentation.  However, since nodes may not always
+successfully discover each other quickly enough this automatic bootstrapping
+cannot be relied upon and cannot be used in production deployments.
+
+If any of the following settings are configured then auto-bootstrapping will not
+take place, and you must configure `cluster.initial_master_nodes` as described
+in the <<modules-discovery-bootstrap-cluster,section on cluster bootstrapping>>:
+
+* `discovery.seed_providers`
+* `discovery.seed_hosts`
+* `cluster.initial_master_nodes`
+
+[NOTE]
+==================================================
+
+[[modules-discovery-bootstrap-cluster-joining]] If you start an {es} node
+without configuring these settings then it will start up in development mode and
+auto-bootstrap itself into a new cluster. If you start some {es} nodes on
+different hosts then by default they will not discover each other and will form
+a different cluster on each host. {es} will not merge separate clusters together
+after they have formed, even if you subsequently try and configure all the nodes
+into a single cluster. This is because there is no way to merge these separate
+clusters together without a risk of data loss. You can tell that you have formed
+separate clusters by checking the cluster UUID reported by `GET /` on each node.
+If you intended to form a single cluster then you should start again:
+
+* Take a <<modules-snapshots,snapshot>> of each of the single-host clusters if
+  you do not want to lose any data that they hold. Note that each cluster must
+  use its own snapshot repository.
+* Shut down all the nodes.
+* Completely wipe each node by deleting the contents of their
+  <<data-path,data folders>>.
+* Configure `cluster.initial_master_nodes` as described above.
+* Restart all the nodes and verify that they have formed a single cluster.
+* <<modules-snapshots,Restore>> any snapshots as required.
+
+==================================================

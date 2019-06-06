@@ -1,0 +1,97 @@
+--
+:api: analyze
+:request: AnalyzeRequest
+:response: AnalyzeResponse
+--
+
+[id="{upid}-{api}"]
+=== Analyze API
+
+[id="{upid}-{api}-request"]
+==== Analyze Request
+
+An +{request}+ contains the text to analyze, and one of several options to
+specify how the analysis should be performed.
+
+The simplest version uses a built-in analyzer:
+
+["source","java",subs="attributes,callouts,macros"]
+---------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-builtin-request]
+---------------------------------------------------
+<1> A built-in analyzer
+<2> The text to include.  Multiple strings are treated as a multi-valued field
+
+You can configure a custom analyzer:
+["source","java",subs="attributes,callouts,macros"]
+---------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-custom-request]
+---------------------------------------------------
+<1> Configuration for a custom tokenfilter
+<2> Configure the tokenizer
+<3> Configure char filters
+<4> Add a built-in tokenfilter
+<5> Add the custom tokenfilter
+
+You can also build a custom normalizer, by including only charfilters and
+tokenfilters:
+["source","java",subs="attributes,callouts,macros"]
+---------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-custom-normalizer-request]
+---------------------------------------------------
+
+You can analyze text using an analyzer defined in an existing index:
+["source","java",subs="attributes,callouts,macros"]
+---------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-index-request]
+---------------------------------------------------
+<1> The index containing the mappings
+<2> The analyzer defined on this index to use
+
+Or you can use a normalizer:
+["source","java",subs="attributes,callouts,macros"]
+---------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-index-normalizer-request]
+---------------------------------------------------
+<1> The index containing the mappings
+<2> The normalizer defined on this index to use
+
+You can analyze text using the mappings for a particular field in an index:
+["source","java",subs="attributes,callouts,macros"]
+---------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-field-request]
+---------------------------------------------------
+
+==== Optional arguments
+The following arguments can also optionally be provided:
+
+["source","java",subs="attributes,callouts,macros"]
+---------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-explain]
+---------------------------------------------------
+<1> Setting `explain` to true will add further details to the response
+<2> Setting `attributes` allows you to return only token attributes that you are
+interested in
+
+include::../execution.asciidoc[]
+
+[id="{upid}-{api}-response"]
+==== Analyze Response
+
+The returned +{response}+ allows you to retrieve details of the analysis as
+follows:
+["source","java",subs="attributes,callouts,macros"]
+---------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-response-tokens]
+---------------------------------------------------
+<1> `AnalyzeToken` holds information about the individual tokens produced by analysis
+
+If `explain` was set to `true`, then information is instead returned from the `detail()`
+method:
+
+["source","java",subs="attributes,callouts,macros"]
+---------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-response-detail]
+---------------------------------------------------
+<1> `DetailAnalyzeResponse` holds more detailed information about tokens produced by
+the various substeps in the analysis chain.

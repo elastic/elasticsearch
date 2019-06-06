@@ -1,0 +1,217 @@
+{
+  "_nodes": {
+    "total": 8,
+    "successful": 8,
+    "failed": 0
+  },
+  "cluster_name": "elasticsearch",
+  "nodes": {
+    "0S4r3NurTYSFSb8R9SxwWA": {
+      "name": "m1",
+      "transport_address": "127.0.0.1:9300",
+      "host": "127.0.0.1",
+      "ip": "127.0.0.1",
+      "version": "5.0.0",
+      "build_hash": "253032b",
+      "roles": [
+        "master",
+        "ingest"
+      ],
+      "attributes": {
+        "dummy": "everyone_has_me",
+        "number": "1",
+        "array.0": "m",
+        "array.1": "1"
+      },
+      "http": {
+        "bound_address": [
+          "[::1]:9200",
+          "127.0.0.1:9200"
+        ],
+        "publish_address": "127.0.0.1:9200",
+        "max_content_length_in_bytes": 104857600
+      }
+    },
+    "k_CBrMXARkS57Qb5-3Mw5g": {
+      "name": "m2",
+      "transport_address": "127.0.0.1:9301",
+      "host": "127.0.0.1",
+      "ip": "127.0.0.1",
+      "version": "5.0.0",
+      "build_hash": "253032b",
+      "roles": [
+        "master",
+        "data",
+        "ingest"
+      ],
+      "attributes": {
+        "dummy": "everyone_has_me",
+        "number": "2",
+        "array.0": "m",
+        "array.1": "2"
+      },
+      "http": {
+        "bound_address": [
+          "[::1]:9201",
+          "127.0.0.1:9201"
+        ],
+        "publish_address": "127.0.0.1:9201",
+        "max_content_length_in_bytes": 104857600
+      }
+    },
+    "6eynRPQ1RleJTeGDuTR9mw": {
+      "name": "m3",
+      "transport_address": "127.0.0.1:9302",
+      "host": "127.0.0.1",
+      "ip": "127.0.0.1",
+      "version": "5.0.0",
+      "build_hash": "253032b",
+      "roles": [
+        "master",
+        "ingest"
+      ],
+      "attributes": {
+        "dummy": "everyone_has_me",
+        "number": "3",
+        "array.0": "m",
+        "array.1": "3"
+      },
+      "http": {
+        "bound_address": [
+          "[::1]:9202",
+          "127.0.0.1:9202"
+        ],
+        "publish_address": "127.0.0.1:9202",
+        "max_content_length_in_bytes": 104857600
+      }
+    },
+    "cbGC-ay1QNWaESvEh5513w": {
+      "name": "d1",
+      "transport_address": "127.0.0.1:9303",
+      "host": "127.0.0.1",
+      "ip": "127.0.0.1",
+      "version": "5.0.0",
+      "build_hash": "253032b",
+      "roles": [
+        "data",
+        "ingest"
+      ],
+      "attributes": {
+        "dummy": "everyone_has_me",
+        "number": "1",
+        "array.0": "d",
+        "array.1": "1"
+      },
+      "http": {
+        "bound_address": [
+          "[::1]:9203",
+          "127.0.0.1:9203"
+        ],
+        "publish_address": "127.0.0.1:9203",
+        "max_content_length_in_bytes": 104857600
+      }
+    },
+    "LexndPpXR2ytYsU5fTElnQ": {
+      "name": "d2",
+      "transport_address": "127.0.0.1:9304",
+      "host": "127.0.0.1",
+      "ip": "127.0.0.1",
+      "version": "5.0.0",
+      "build_hash": "253032b",
+      "roles": [
+        "data",
+        "ingest"
+      ],
+      "attributes": {
+        "dummy": "everyone_has_me",
+        "number": "2",
+        "array.0": "d",
+        "array.1": "2"
+      },
+      "http": {
+        "bound_address": [
+          "[::1]:9204",
+          "127.0.0.1:9204"
+        ],
+        "publish_address": "127.0.0.1:9204",
+        "max_content_length_in_bytes": 104857600
+      }
+    },
+    "SbNG1DKYSBu20zfOz2gDZQ": {
+      "name": "d3",
+      "transport_address": "127.0.0.1:9305",
+      "host": "127.0.0.1",
+      "ip": "127.0.0.1",
+      "version": "5.0.0",
+      "build_hash": "253032b",
+      "roles": [
+        "data",
+        "ingest"
+      ],
+      "attributes": {
+        "dummy": "everyone_has_me",
+        "number": "3",
+        "array.0": "d",
+        "array.1": "3"
+      },
+      "http": {
+        "bound_address": [
+          "[::1]:9205",
+          "127.0.0.1:9205"
+        ],
+        "publish_address": "127.0.0.1:9205",
+        "max_content_length_in_bytes": 104857600
+      }
+    },
+    "fM4H-m2WTDWmsGsL7jIJew": {
+      "name": "c1",
+      "transport_address": "127.0.0.1:9306",
+      "host": "127.0.0.1",
+      "ip": "127.0.0.1",
+      "version": "5.0.0",
+      "build_hash": "253032b",
+      "roles": [
+        "ingest"
+      ],
+      "attributes": {
+        "dummy": "everyone_has_me",
+        "number": "1",
+        "array.0": "c",
+        "array.1": "1"
+      },
+      "http": {
+        "bound_address": [
+          "[::1]:9206",
+          "127.0.0.1:9206"
+        ],
+        "publish_address": "127.0.0.1:9206",
+        "max_content_length_in_bytes": 104857600
+      }
+    },
+    "pFoh7d0BTbqqI3HKd9na5A": {
+      "name": "c2",
+      "transport_address": "127.0.0.1:9307",
+      "host": "127.0.0.1",
+      "ip": "127.0.0.1",
+      "version": "5.0.0",
+      "build_hash": "253032b",
+      "roles": [
+        "ingest"
+      ],
+      "attributes": {
+        "dummy": "everyone_has_me",
+        "number": "2",
+        "array.0": "c",
+        "array.1": "2"
+      },
+      "http": {
+        "bound_address": [
+          "[::1]:9207",
+          "127.0.0.1:9207"
+        ],
+        "publish_address": "127.0.0.1:9207",
+        "max_content_length_in_bytes": 104857600
+      }
+    }
+  }
+}

@@ -1,0 +1,34 @@
+apply plugin: 'elasticsearch.standalone-test'
+apply plugin: 'elasticsearch.test.fixtures'
+
+dependencies {
+  testCompile project(xpackModule('security'))
+  testCompile project(path: xpackModule('security'), configuration: 'testArtifacts')
+}
+
+testFixtures.useFixture ":x-pack:test:smb-fixture"
+
+// add test resources from security, so tests can use example certs
+processTestResources {
+  from(project(xpackModule('security')).sourceSets.test.resources.srcDirs) 
+}
+
+compileTestJava.options.compilerArgs << "-Xlint:-rawtypes,-unchecked"
+
+// we have to repeat these patterns because the security test resources are effectively in the src of this project
+forbiddenPatterns {
+  exclude '**/*.key'
+  exclude '**/*.p12'
+  exclude '**/*.der'
+}
+
+test {
+  /*
+   * We have to disable setting the number of available processors as tests in the same JVM randomize processors and will step on each
+   * other if we allow them to set the number of available processors as it's set-once in Netty.
+   */
+  systemProperty 'es.set.netty.runtime.available.processors', 'false'
+  include '**/*IT.class'
+  include '**/*Tests.class'
+}
+

@@ -28,6 +28,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * Descriptive stats gathered per shard. Coordinating node computes final correlation and covariance stats
@@ -53,11 +54,11 @@ public class RunningStats implements Writeable, Cloneable {
     /** covariance values */
     protected HashMap<String, HashMap<String, Double>> covariances;
 
-    public RunningStats() {
+    RunningStats() {
         init();
     }
 
-    public RunningStats(final String[] fieldNames, final double[] fieldVals) {
+    RunningStats(final String[] fieldNames, final double[] fieldVals) {
         if (fieldVals != null && fieldVals.length > 0) {
             init();
             this.add(fieldNames, fieldVals);
@@ -308,5 +309,25 @@ public class RunningStats implements Writeable, Cloneable {
         } catch (CloneNotSupportedException e) {
             throw new ElasticsearchException("Error trying to create a copy of RunningStats");
         }
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        RunningStats that = (RunningStats) o;
+        return docCount == that.docCount &&
+            Objects.equals(fieldSum, that.fieldSum) &&
+            Objects.equals(counts, that.counts) &&
+            Objects.equals(means, that.means) &&
+            Objects.equals(variances, that.variances) &&
+            Objects.equals(skewness, that.skewness) &&
+            Objects.equals(kurtosis, that.kurtosis) &&
+            Objects.equals(covariances, that.covariances);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(docCount, fieldSum, counts, means, variances, skewness, kurtosis, covariances);
     }
 }

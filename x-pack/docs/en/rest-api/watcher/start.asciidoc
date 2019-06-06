@@ -1,0 +1,38 @@
+[role="xpack"]
+[[watcher-api-start]]
+=== Start API
+++++
+<titleabbrev>Start</titleabbrev>
+++++
+
+The `start` API starts the {watcher} service if the service is not already
+running.
+
+[float]
+==== Request
+
+`POST _watcher/_start`
+
+==== Authorization
+
+You must have `manage_watcher` cluster privileges to use this API. For more
+information, see {xpack-ref}/security-privileges.html[Security Privileges].
+
+[float]
+==== Examples
+
+[source,js]
+--------------------------------------------------
+POST _watcher/_start
+--------------------------------------------------
+// CONSOLE
+
+{watcher} returns the following response if the request is successful:
+
+[source,js]
+--------------------------------------------------
+{
+   "acknowledged": true
+}
+--------------------------------------------------
+// TESTRESPONSE

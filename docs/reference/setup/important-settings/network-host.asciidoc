@@ -1,0 +1,29 @@
+[[network.host]]
+=== `network.host`
+
+By default, Elasticsearch binds to loopback addresses only -- e.g. `127.0.0.1`
+and `[::1]`. This is sufficient to run a single development node on a server.
+
+TIP: In fact, more than one node can be started from the same `$ES_HOME`
+location on a single node.  This can be useful for testing Elasticsearch's
+ability to form clusters, but it is not a configuration recommended for
+production.
+
+In order to form a cluster with nodes on other servers, your
+node will need to bind to a non-loopback address. While there are many
+<<modules-network,network settings>>, usually all you need to configure is
+`network.host`:
+
+[source,yaml]
+--------------------------------------------------
+network.host: 192.168.1.10
+--------------------------------------------------
+
+The `network.host` setting also understands some special values such as
+`_local_`, `_site_`, `_global_` and modifiers like `:ip4` and `:ip6`, details of
+which can be found in <<network-interface-values>>.
+
+IMPORTANT: As soon as you provide a custom setting for `network.host`,
+Elasticsearch assumes that you are moving from development mode to production
+mode, and upgrades a number of system startup checks from warnings to
+exceptions. See <<dev-vs-prod>> for more information.

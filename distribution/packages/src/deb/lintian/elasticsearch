@@ -1,0 +1,48 @@
+# we don't have a changelog, but we put our copyright file
+# under /usr/share/doc/elasticsearch, which triggers this warning
+changelog-file-missing-in-native-package
+
+# we intentionally copy our copyright file for all deb packages
+copyright-file-contains-full-apache-2-license
+copyright-should-refer-to-common-license-file-for-apache-2
+copyright-without-copyright-notice
+
+# we still put all our files under /usr/share/elasticsearch even after transition to platform dependent packages
+arch-dependent-file-in-usr-share
+
+# we have a bundled jdk, so don't use jarwrapper
+missing-dep-on-jarwrapper
+
+# we prefer to not make our config and log files world readable
+non-standard-file-perm etc/default/elasticsearch 0660 != 0644
+non-standard-dir-perm etc/elasticsearch/ 2750 != 0755
+non-standard-file-perm etc/elasticsearch/*
+non-standard-dir-perm var/lib/elasticsearch/ 2750 != 0755
+non-standard-dir-perm var/log/elasticsearch/ 2750 != 0755
+executable-is-not-world-readable etc/init.d/elasticsearch 0750
+non-standard-file-permissions-for-etc-init.d-script etc/init.d/elasticsearch 0750 != 0755
+
+# this lintian tag is simply wrong; contrary to the explanation, debian systemd
+# does actually look at /usr/lib/systemd/system
+systemd-service-file-outside-lib usr/lib/systemd/system/elasticsearch.service
+
+# we do not automatically enable the service in init.d or systemd
+script-in-etc-init.d-not-registered-via-update-rc.d etc/init.d/elasticsearch
+
+# the package scripts handle init.d/systemd directly and don't need to use deb helpers
+maintainer-script-calls-systemctl
+prerm-calls-updaterc.d elasticsearch
+
+# bundled JDK
+embedded-library
+arch-dependent-file-in-usr-share usr/share/elasticsearch/jdk/*
+unstripped-binary-or-object usr/share/elasticsearch/jdk/*
+extra-license-file usr/share/elasticsearch/jdk/legal/*
+hardening-no-pie usr/share/elasticsearch/jdk/bin/*
+hardening-no-pie usr/share/elasticsearch/jdk/lib/*
+
+# the system java version that lintian assumes is far behind what elasticsearch uses
+unknown-java-class-version
+
+# elastic licensed modules contain elastic license
+extra-license-file usr/share/elasticsearch/modules/*

@@ -1,0 +1,37 @@
+---
+setup:
+  - skip:
+      features: headers
+
+  - do:
+      cluster.health:
+          wait_for_status: yellow
+
+  - do:
+      security.put_user:
+        username: "authenticate_user"
+        body:  >
+          {
+            "password" : "x-pack-test-password",
+            "roles" : [ "superuser" ],
+            "full_name" : "Authenticate User"
+          }
+
+---
+teardown:
+  - do:
+      security.delete_user:
+        username: "authenticate_user"
+        ignore: 404
+
+---
+"Test authenticate api":
+
+  - do:
+      headers:
+        Authorization: "Basic YXV0aGVudGljYXRlX3VzZXI6eC1wYWNrLXRlc3QtcGFzc3dvcmQ="
+      security.authenticate: {}
+
+  - match: { username: "authenticate_user" }
+  - match: { roles.0:  "superuser" }
+  - match: { full_name: "Authenticate User" }

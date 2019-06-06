@@ -1,7 +1,15 @@
 package org.elasticsearch.painless;
 
+import org.elasticsearch.painless.spi.Whitelist;
+import org.elasticsearch.script.ScriptContext;
+
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+import static java.util.Collections.emptyMap;
 
 /*
  * Licensed to Elasticsearch under one or more contributor
@@ -22,11 +30,13 @@ import java.util.Collections;
  * under the License.
  */
 
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-
 public class BasicStatementTests extends ScriptTestCase {
+
+    protected Map<ScriptContext<?>, List<Whitelist>> scriptContexts() {
+        Map<ScriptContext<?>, List<Whitelist>> contexts = super.scriptContexts();
+        contexts.put(OneArg.CONTEXT, Whitelist.BASE_WHITELISTS);
+        return contexts;
+    }
 
     public void testIfStatement() {
         assertEquals(1, exec("int x = 5; if (x == 5) return 1; return 0;"));
@@ -108,7 +118,11 @@ public class BasicStatementTests extends ScriptTestCase {
     }
 
     public void testForStatement() {
+        assertEquals(6, exec("int x, y; for (x = 0; x < 4; ++x) {y += x;} return y;"));
         assertEquals("aaaaaa", exec("String c = \"a\"; for (int x = 0; x < 5; ++x) c += \"a\"; return c;"));
+
+        assertEquals(6, exec("double test() { return 0.0; }" +
+            "int x, y; for (test(); x < 4; test()) {y += x; ++x;} return y;"));
 
         Object value = exec(
                 " int[][] b = new int[5][5];  \n" +
@@ -245,6 +259,43 @@ public class BasicStatementTests extends ScriptTestCase {
         assertEquals(10, ((Map)exec("Map s = new HashMap(); s.put(\"x\", 10); return s;")).get("x"));
     }
 
+    public abstract static class OneArg {
+        public interface Factory {
+            OneArg newInstance();
+        }
+
+        public static final ScriptContext<OneArg.Factory> CONTEXT = new ScriptContext<>("onearg", OneArg.Factory.class);
+
+        public static final String[] PARAMETERS = new String[] {"arg"};
+        public abstract void execute(List<Integer> arg);
+    }
+    public void testVoidReturnStatement() {
+        List<Integer> expected = Collections.singletonList(1);
+        assertEquals(expected, exec("void test(List list) {if (list.isEmpty()) {list.add(1); return;} list.add(2);} " +
+                "List rtn = new ArrayList(); test(rtn); rtn"));
+        assertEquals(expected, exec("void test(List list) {if (list.isEmpty()) {list.add(1); return} list.add(2);} " +
+                "List rtn = new ArrayList(); test(rtn); rtn"));
+        expected = new ArrayList<>();
+        expected.add(0);
+        expected.add(2);
+        assertEquals(expected, exec("void test(List list) {if (list.isEmpty()) {list.add(1); return} list.add(2);} " +
+                "List rtn = new ArrayList(); rtn.add(0); test(rtn); rtn"));
+
+        ArrayList<Integer> input = new ArrayList<>();
+        scriptEngine.compile("testOneArg", "if (arg.isEmpty()) {arg.add(1); return;} arg.add(2);",
+                OneArg.CONTEXT, emptyMap()).newInstance().execute(input);
+        assertEquals(Collections.singletonList(1), input);
+        input = new ArrayList<>();
+        scriptEngine.compile("testOneArg", "if (arg.isEmpty()) {arg.add(1); return} arg.add(2);",
+                OneArg.CONTEXT, emptyMap()).newInstance().execute(input);
+        assertEquals(Collections.singletonList(1), input);
+        input = new ArrayList<>();
+        input.add(0);
+        scriptEngine.compile("testOneArg", "if (arg.isEmpty()) {arg.add(1); return} arg.add(2);",
+                OneArg.CONTEXT, emptyMap()).newInstance().execute(input);
+        assertEquals(expected, input);
+    }
+
     public void testLastInBlockDoesntNeedSemi() {
         // One statement in the block in case that is a special case
         assertEquals(10, exec("def i = 1; if (i == 1) {return 10}"));
@@ -259,19 +310,19 @@ public class BasicStatementTests extends ScriptTestCase {
                               "for (int i = 0; i < array.length; i++) { sum += array[i] } return sum",
                               Collections.emptyMap(),
                               Collections.singletonMap(CompilerSettings.MAX_LOOP_COUNTER, "0"),
-                              null, true
+                              true
        ));
        assertEquals(6L, exec("long sum = 0; long[] array = new long[] { 1, 2, 3 };" +
                              "int i = 0; while (i < array.length) { sum += array[i++] } return sum",
                              Collections.emptyMap(),
                              Collections.singletonMap(CompilerSettings.MAX_LOOP_COUNTER, "0"),
-                             null, true
+                             true
        ));
        assertEquals(6L, exec("long sum = 0; long[] array = new long[] { 1, 2, 3 };" +
                              "int i = 0; do { sum += array[i++] } while (i < array.length); return sum",
                              Collections.emptyMap(),
                              Collections.singletonMap(CompilerSettings.MAX_LOOP_COUNTER, "0"),
-                             null, true
+                             true
        ));
     }
 

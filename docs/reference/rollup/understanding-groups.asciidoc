@@ -1,0 +1,201 @@
+[role="xpack"]
+[testenv="basic"]
+[[rollup-understanding-groups]]
+== Understanding Groups
+
+experimental[]
+
+To preserve flexibility, Rollup Jobs are defined based on how future queries may need to use the data.  Traditionally, systems force
+the admin to make decisions about what metrics to rollup and on what interval.  E.g. The average of `cpu_time` on an hourly basis.  This
+is limiting; if, at a future date, the admin wishes to see the average of `cpu_time` on an hourly basis _and partitioned by `host_name`_,
+they are out of luck.
+
+Of course, the admin can decide to rollup the `[hour, host]` tuple on an hourly basis, but as the number of grouping keys grows, so do the
+number of tuples the admin needs to configure.  Furthermore, these `[hours, host]` tuples are only useful for hourly rollups... daily, weekly,
+or monthly rollups all require new configurations.
+
+Rather than force the admin to decide ahead of time which individual tuples should be rolled up, Elasticsearch's Rollup jobs are configured
+based on which groups are potentially useful to future queries.  For example, this configuration:
+
+[source,js]
+--------------------------------------------------
+"groups" : {
+  "date_histogram": {
+    "field": "timestamp",
+    "fixed_interval": "1h",
+    "delay": "7d"
+  },
+  "terms": {
+    "fields": ["hostname", "datacenter"]
+  },
+  "histogram": {
+    "fields": ["load", "net_in", "net_out"],
+    "interval": 5
+  }
+}
+--------------------------------------------------
+// NOTCONSOLE
+
+Allows `date_histogram`'s to be used on the `"timestamp"` field, `terms` aggregations to be used on the `"hostname"` and `"datacenter"`
+fields, and `histograms` to be used on any of `"load"`, `"net_in"`, `"net_out"` fields.
+
+Importantly, these aggs/fields can be used in any combination.  This aggregation:
+
+[source,js]
+--------------------------------------------------
+"aggs" : {
+  "hourly": {
+    "date_histogram": {
+      "field": "timestamp",
+      "fixed_interval": "1h"
+    },
+    "aggs": {
+      "host_names": {
+        "terms": {
+          "field": "hostname"
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
+// NOTCONSOLE
+
+is just as valid as this aggregation:
+
+[source,js]
+--------------------------------------------------
+"aggs" : {
+  "hourly": {
+    "date_histogram": {
+      "field": "timestamp",
+      "fixed_interval": "1h"
+    },
+    "aggs": {
+      "data_center": {
+        "terms": {
+          "field": "datacenter"
+        }
+      },
+      "aggs": {
+        "host_names": {
+          "terms": {
+            "field": "hostname"
+          }
+        },
+        "aggs": {
+          "load_values": {
+            "histogram": {
+              "field": "load",
+              "interval": 5
+            }
+          }
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
+// NOTCONSOLE
+
+
+You'll notice that the second aggregation is not only substantially larger, it also swapped the position of the terms aggregation on
+`"hostname"`, illustrating how the order of aggregations does not matter to rollups.  Similarly, while the `date_histogram` is required
+for rolling up data, it isn't required while querying (although often used).  For example, this is a valid aggregation for
+Rollup Search to execute:
+
+
+[source,js]
+--------------------------------------------------
+"aggs" : {
+  "host_names": {
+    "terms": {
+      "field": "hostname"
+    }
+  }
+}
+--------------------------------------------------
+// NOTCONSOLE
+
+Ultimately, when configuring `groups` for a job, think in terms of how you might wish to partition data in a query at a future date...
+then include those in the config.  Because Rollup Search allows any order or combination of the grouped fields, you just need to decide
+if a field is useful for aggregating later, and how you might wish to use it (terms, histogram, etc)
+
+=== Grouping Limitations with heterogeneous indices
+
+There was previously a limitation in how Rollup could handle indices that had heterogeneous mappings (multiple, unrelated/non-overlapping
+mappings).  The recommendation at the time was to configure a separate job per data "type".  For example, you might configure a separate
+job for each Beats module that you had enabled (one for `process`, another for `filesystem`, etc).
+
+This recommendation was driven by internal implementation details that caused document counts to be potentially incorrect if a single "merged"
+job was used.
+
+This limitation has since been alleviated.  As of 6.4.0, it is now considered best practice to combine all rollup configurations
+into a single job.
+
+As an example, if your index has two types of documents:
+
+[source,js]
+--------------------------------------------------
+{
+  "timestamp": 1516729294000,
+  "temperature": 200,
+  "voltage": 5.2,
+  "node": "a"
+}
+--------------------------------------------------
+// NOTCONSOLE
+
+and
+
+[source,js]
+--------------------------------------------------
+{
+  "timestamp": 1516729294000,
+  "price": 123,
+  "title": "Foo"
+}
+--------------------------------------------------
+// NOTCONSOLE
+
+the best practice is to combine them into a single rollup job which covers both of these document types, like this:
+
+[source,js]
+--------------------------------------------------
+PUT _rollup/job/combined
+{
+    "index_pattern": "data-*",
+    "rollup_index": "data_rollup",
+    "cron": "*/30 * * * * ?",
+    "page_size" :1000,
+    "groups" : {
+      "date_histogram": {
+        "field": "timestamp",
+        "fixed_interval": "1h",
+        "delay": "7d"
+      },
+      "terms": {
+        "fields": ["node", "title"]
+      }
+    },
+    "metrics": [
+        {
+            "field": "temperature",
+            "metrics": ["min", "max", "sum"]
+        },
+        {
+            "field": "price",
+            "metrics": ["avg"]
+        }
+    ]
+}
+--------------------------------------------------
+// NOTCONSOLE
+
+=== Doc counts and overlapping jobs
+
+There was previously an issue with document counts on "overlapping" job configurations, driven by the same internal implementation detail.
+If there were  two Rollup jobs saving to the same index, where one job is a "subset" of another job, it was possible that document counts
+could be incorrect for certain aggregation arrangements.
+
+This issue has also since been eliminated in 6.4.0.

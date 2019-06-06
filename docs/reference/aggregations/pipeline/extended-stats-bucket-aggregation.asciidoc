@@ -1,8 +1,6 @@
 [[search-aggregations-pipeline-extended-stats-bucket-aggregation]]
 === Extended Stats Bucket Aggregation
 
-experimental[]
-
 A sibling pipeline aggregation which calculates a variety of stats across all bucket of a specified metric in a sibling aggregation.
 The specified metric must be numeric and the sibling aggregation must be a multi-bucket aggregation.
 
@@ -20,8 +18,11 @@ A `extended_stats_bucket` aggregation looks like this in isolation:
     }
 }
 --------------------------------------------------
+// NOTCONSOLE
 
+[[extended-stats-bucket-params]]
 .`extended_stats_bucket` Parameters
+[options="header"]
 |===
 |Parameter Name |Description |Required |Default Value
 |`buckets_path` |The path to the buckets we wish to calculate stats for (see <<buckets-path-syntax>> for more
@@ -32,7 +33,7 @@ A `extended_stats_bucket` aggregation looks like this in isolation:
 |`sigma` |The number of standard deviations above/below the mean to display |Optional | 2
 |===
 
-The following snippet calculates the sum of all the total monthly `sales` buckets:
+The following snippet calculates the extended stats for monthly `sales` bucket:
 
 [source,js]
 --------------------------------------------------
@@ -43,7 +44,7 @@ POST /sales/_search
         "sales_per_month" : {
             "date_histogram" : {
                 "field" : "date",
-                "interval" : "month"
+                "calendar_interval" : "month"
             },
             "aggs": {
                 "sales": {

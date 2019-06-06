@@ -29,7 +29,7 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
-public class BulkIndexByScrollResponseMatcher extends TypeSafeMatcher<BulkIndexByScrollResponse> {
+public class BulkIndexByScrollResponseMatcher extends TypeSafeMatcher<BulkByScrollResponse> {
 
     private Matcher<Long> createdMatcher = equalTo(0L);
     private Matcher<Long> updatedMatcher = equalTo(0L);
@@ -130,7 +130,7 @@ public class BulkIndexByScrollResponseMatcher extends TypeSafeMatcher<BulkIndexB
     }
 
     @Override
-    protected boolean matchesSafely(BulkIndexByScrollResponse item) {
+    protected boolean matchesSafely(BulkByScrollResponse item) {
         return updatedMatcher.matches(item.getUpdated()) &&
                 createdMatcher.matches(item.getCreated()) &&
                 deletedMatcher.matches(item.getDeleted()) &&

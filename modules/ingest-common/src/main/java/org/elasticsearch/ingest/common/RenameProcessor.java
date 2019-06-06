@@ -23,6 +23,8 @@ import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.ConfigurationUtils;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
+import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.TemplateScript;
 
 import java.util.Map;
 
@@ -33,22 +35,22 @@ public final class RenameProcessor extends AbstractProcessor {
 
     public static final String TYPE = "rename";
 
-    private final String field;
-    private final String targetField;
+    private final TemplateScript.Factory field;
+    private final TemplateScript.Factory targetField;
     private final boolean ignoreMissing;
 
-    RenameProcessor(String tag, String field, String targetField, boolean ignoreMissing) {
+    RenameProcessor(String tag, TemplateScript.Factory field, TemplateScript.Factory targetField, boolean ignoreMissing) {
         super(tag);
         this.field = field;
         this.targetField = targetField;
         this.ignoreMissing = ignoreMissing;
     }
 
-    String getField() {
+    TemplateScript.Factory getField() {
         return field;
     }
 
-    String getTargetField() {
+    TemplateScript.Factory getTargetField() {
         return targetField;
     }
 
@@ -57,31 +59,34 @@ public final class RenameProcessor extends AbstractProcessor {
     }
 
     @Override
-    public void execute(IngestDocument document) {
-        if (document.hasField(field, true) == false) {
+    public IngestDocument execute(IngestDocument document) {
+        String path = document.renderTemplate(field);
+        if (document.hasField(path, true) == false) {
             if (ignoreMissing) {
-                return;
+                return document;
             } else {
-                throw new IllegalArgumentException("field [" + field + "] doesn't exist");
+                throw new IllegalArgumentException("field [" + path + "] doesn't exist");
             }
         }
         // We fail here if the target field point to an array slot that is out of range.
         // If we didn't do this then we would fail if we set the value in the target_field
         // and then on failure processors would not see that value we tried to rename as we already
         // removed it.
-        if (document.hasField(targetField, true)) {
-            throw new IllegalArgumentException("field [" + targetField + "] already exists");
+        String target = document.renderTemplate(targetField);
+        if (document.hasField(target, true)) {
+            throw new IllegalArgumentException("field [" + target + "] already exists");
         }
 
-        Object value = document.getFieldValue(field, Object.class);
-        document.removeField(field);
+        Object value = document.getFieldValue(path, Object.class);
+        document.removeField(path);
         try {
-            document.setFieldValue(targetField, value);
+            document.setFieldValue(target, value);
         } catch (Exception e) {
             // setting the value back to the original field shouldn't as we just fetched it from that field:
-            document.setFieldValue(field, value);
+            document.setFieldValue(path, value);
             throw e;
         }
+        return document;
     }
 
     @Override
@@ -90,13 +95,24 @@ public final class RenameProcessor extends AbstractProcessor {
     }
 
     public static final class Factory implements Processor.Factory {
+
+        private final ScriptService scriptService;
+
+        public Factory(ScriptService scriptService) {
+            this.scriptService = scriptService;
+        }
+
         @Override
         public RenameProcessor create(Map<String, Processor.Factory> registry, String processorTag,
                                       Map<String, Object> config) throws Exception {
             String field = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "field");
+            TemplateScript.Factory fieldTemplate = ConfigurationUtils.compileTemplate(TYPE, processorTag,
+                "field", field, scriptService);
             String targetField = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "target_field");
+            TemplateScript.Factory targetFieldTemplate = ConfigurationUtils.compileTemplate(TYPE, processorTag,
+                "target_field", targetField, scriptService);
             boolean ignoreMissing = ConfigurationUtils.readBooleanProperty(TYPE, processorTag, config, "ignore_missing", false);
-            return new RenameProcessor(processorTag, field, targetField, ignoreMissing);
+            return new RenameProcessor(processorTag, fieldTemplate, targetFieldTemplate , ignoreMissing);
         }
     }
 }

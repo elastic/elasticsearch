@@ -1,0 +1,111 @@
+[role="xpack"]
+[[tls-transport]]
+==== Encrypting communications between nodes in a cluster
+
+The transport networking layer is used for internal communication between nodes
+in a cluster. When {security-features} are enabled, you must use TLS to ensure
+that communication between the nodes is encrypted.
+
+. <<node-certificates,Generate node certificates>>.
+
+. Enable TLS and specify the information required to access the node’s
+certificate.
+
+** If the signed certificate is in PKCS#12 format, add the following information to the
+`elasticsearch.yml` file on each node:
++
+--
+[source,yaml]
+-----------------------------------------------------------
+xpack.security.transport.ssl.enabled: true
+xpack.security.transport.ssl.verification_mode: certificate <1>
+xpack.security.transport.ssl.keystore.path: certs/elastic-certificates.p12 <2>
+xpack.security.transport.ssl.truststore.path: certs/elastic-certificates.p12 <3>
+-----------------------------------------------------------
+<1> If you used the `--dns` or `--ip` options with the `elasticsearch-certutil cert` command
+and you want to enable strict hostname checking, set the verification mode to
+`full`.
+See <<ssl-tls-settings, `xpack.security.transport.ssl.verification_mode`>> for a description of these values.
+
+<2> If you created a separate certificate for each node, then you might need to
+customize this path on each node. If the filename matches the node name, you can
+use the `certs/${node.name}.p12` format, for example.
+<3> The `elasticsearch-certutil` outputs a PKCS#12 keystore which includes the
+CA certificate as a trusted certificate entry. This allows for the keystore to
+also be used as a truststore. In this case, the path value should match
+the `keystore.path` value.
+Note, however, that this is not the general rule. There are keystores that cannot be
+used as trustores, only 
+{ref}/security-settings.html#pkcs12-truststore-note[specifically crafted ones can]
+--
+
+** If the certificate is in PEM format, add the following information to the
+`elasticsearch.yml` file on each node:
++
+--
+[source, yaml]
+--------------------------------------------------
+xpack.security.transport.ssl.enabled: true
+xpack.security.transport.ssl.verification_mode: certificate <1>
+xpack.security.transport.ssl.key: /home/es/config/node01.key <2>
+xpack.security.transport.ssl.certificate: /home/es/config/node01.crt <3>
+xpack.security.transport.ssl.certificate_authorities: [ "/home/es/config/ca.crt" ] <4>
+--------------------------------------------------
+<1> If you used the `--dns` or `--ip` options with the `elasticsearch-certutil cert` command
+and you want to enable strict hostname checking, set the verification mode to
+`full`.
+See <<ssl-tls-settings, `xpack.security.transport.ssl.verification_mode`>> for a description of these values.
+<2> The full path to the node key file. This must be a location within the
+    {es} configuration directory.
+<3> The full path to the node certificate. This must be a location within the
+    {es} configuration directory.
+<4> An array of paths to the CA certificates that should be trusted. These paths
+    must be a location within the {es} configuration directory.
+--
+
+. If you secured the node's certificate with a password, add the password to
+your {es} keystore:
+
+** If the signed certificate is in PKCS#12 format, use the following commands:
++
+--
+[source,shell]
+-----------------------------------------------------------
+bin/elasticsearch-keystore add xpack.security.transport.ssl.keystore.secure_password
+
+bin/elasticsearch-keystore add xpack.security.transport.ssl.truststore.secure_password
+-----------------------------------------------------------
+--
+
+** If the certificate is in PEM format, use the following commands:
++
+--
+[source,shell]
+-----------------------------------------------------------
+bin/elasticsearch-keystore add xpack.security.transport.ssl.secure_key_passphrase
+-----------------------------------------------------------
+--
+
+. Restart {es}.
++
+--
+You must perform a full cluster restart. Nodes which are configured to use TLS
+cannot communicate with nodes that are using unencrypted networking (and
+vice-versa). After enabling TLS you must restart all nodes in order to maintain
+communication across the cluster.
+--
+
+[NOTE]
+===============================
+* All TLS-related node settings are considered to be highly sensitive and
+therefore are not exposed via the
+{ref}/cluster-nodes-info.html#cluster-nodes-info[nodes info API] For more
+information about any of these settings, see <<security-settings>>.
+
+* {es} monitors all files such as certificates, keys, keystores, or truststores 
+that are configured as values of TLS-related node settings. If you update any of 
+these files (for example, when your hostnames change or your certificates are 
+due to expire), {es} reloads them. The files are polled for changes at 
+a frequency determined by the global {es} `resource.reload.interval.high` 
+setting, which defaults to 5 seconds.
+===============================

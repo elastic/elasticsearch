@@ -20,9 +20,8 @@
 package org.elasticsearch.test.test;
 
 import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.common.logging.ESLoggerFactory;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.junit.listeners.LoggingListener;
@@ -48,10 +47,10 @@ public class LoggingListenerTests extends ESTestCase {
 
         Description suiteDescription = Description.createSuiteDescription(TestClass.class);
 
-        Logger xyzLogger = Loggers.getLogger("xyz");
-        Logger abcLogger = Loggers.getLogger("abc");
+        Logger xyzLogger = LogManager.getLogger("xyz");
+        Logger abcLogger = LogManager.getLogger("abc");
 
-        final Level level = ESLoggerFactory.getRootLogger().getLevel();
+        final Level level = LogManager.getRootLogger().getLevel();
 
         assertThat(xyzLogger.getLevel(), equalTo(level));
         assertThat(abcLogger.getLevel(), equalTo(level));
@@ -80,29 +79,44 @@ public class LoggingListenerTests extends ESTestCase {
 
         Description suiteDescription = Description.createSuiteDescription(AnnotatedTestClass.class);
 
-        Logger abcLogger = Loggers.getLogger("abc");
-        Logger xyzLogger = Loggers.getLogger("xyz");
+        Logger abcLogger = LogManager.getLogger("abc");
+        Logger xyzLogger = LogManager.getLogger("xyz");
+        // we include foo and foo.bar to maintain that logging levels are applied from the top of the hierarchy down; this ensures that
+        // setting the logging level for a parent logger and a child logger applies the parent level first and then the child as otherwise
+        // setting the parent level would overwrite the child level
+        Logger fooLogger = LogManager.getLogger("foo");
+        Logger fooBarLogger = LogManager.getLogger("foo.bar");
 
-        final Level level = ESLoggerFactory.getRootLogger().getLevel();
+        final Level level = LogManager.getRootLogger().getLevel();
 
         assertThat(xyzLogger.getLevel(), equalTo(level));
         assertThat(abcLogger.getLevel(), equalTo(level));
+        assertThat(fooLogger.getLevel(), equalTo(level));
+        assertThat(fooBarLogger.getLevel(), equalTo(level));
         loggingListener.testRunStarted(suiteDescription);
         assertThat(xyzLogger.getLevel(), equalTo(level));
         assertThat(abcLogger.getLevel(), equalTo(Level.WARN));
+        assertThat(fooLogger.getLevel(), equalTo(Level.WARN));
+        assertThat(fooBarLogger.getLevel(), equalTo(Level.ERROR));
 
         Description testDescription = Description.createTestDescription(LoggingListenerTests.class, "test");
         loggingListener.testStarted(testDescription);
         assertThat(xyzLogger.getLevel(), equalTo(level));
         assertThat(abcLogger.getLevel(), equalTo(Level.WARN));
+        assertThat(fooLogger.getLevel(), equalTo(Level.WARN));
+        assertThat(fooBarLogger.getLevel(), equalTo(Level.ERROR));
 
         loggingListener.testFinished(testDescription);
         assertThat(xyzLogger.getLevel(), equalTo(level));
         assertThat(abcLogger.getLevel(), equalTo(Level.WARN));
+        assertThat(fooLogger.getLevel(), equalTo(Level.WARN));
+        assertThat(fooBarLogger.getLevel(), equalTo(Level.ERROR));
 
         loggingListener.testRunFinished(new Result());
         assertThat(xyzLogger.getLevel(), equalTo(level));
         assertThat(abcLogger.getLevel(), equalTo(level));
+        assertThat(fooLogger.getLevel(), equalTo(level));
+        assertThat(fooBarLogger.getLevel(), equalTo(level));
     }
 
     public void testCustomLevelPerClassAndPerMethod() throws Exception {
@@ -110,10 +124,10 @@ public class LoggingListenerTests extends ESTestCase {
 
         Description suiteDescription = Description.createSuiteDescription(AnnotatedTestClass.class);
 
-        Logger abcLogger = Loggers.getLogger("abc");
-        Logger xyzLogger = Loggers.getLogger("xyz");
+        Logger abcLogger = LogManager.getLogger("abc");
+        Logger xyzLogger = LogManager.getLogger("xyz");
 
-        final Level level = ESLoggerFactory.getRootLogger().getLevel();
+        final Level level = LogManager.getRootLogger().getLevel();
 
         assertThat(xyzLogger.getLevel(), equalTo(level));
         assertThat(abcLogger.getLevel(), equalTo(level));
@@ -148,26 +162,77 @@ public class LoggingListenerTests extends ESTestCase {
         assertThat(abcLogger.getLevel(), equalTo(level));
     }
 
+    public void testInvalidClassTestLoggingAnnotation() throws Exception {
+        final LoggingListener loggingListener = new LoggingListener();
+
+        final Description suiteDescription = Description.createSuiteDescription(InvalidClass.class);
+
+        final IllegalArgumentException e =
+            expectThrows(IllegalArgumentException.class, () -> loggingListener.testRunStarted(suiteDescription));
+        assertThat(e.getMessage(), equalTo("invalid test logging annotation [abc]"));
+    }
+
+    public void testInvalidMethodTestLoggingAnnotation() throws Exception {
+        final LoggingListener loggingListener = new LoggingListener();
+
+        final Description suiteDescription = Description.createSuiteDescription(InvalidMethod.class);
+
+        loggingListener.testRunStarted(suiteDescription);
+
+        final Method method = InvalidMethod.class.getMethod("invalidMethod");
+        final TestLogging annotation = method.getAnnotation(TestLogging.class);
+        Description testDescription = Description.createTestDescription(InvalidMethod.class, "invalidMethod", annotation);
+        final IllegalArgumentException e =
+            expectThrows(IllegalArgumentException.class, () -> loggingListener.testStarted(testDescription));
+        assertThat(e.getMessage(), equalTo("invalid test logging annotation [abc:INFO:WARN]"));
+    }
+
     /**
-     * dummy class used to create a junit suite description that has the @TestLogging annotation
+     * Dummy class used to create a JUnit suite description that has the {@link TestLogging} annotation.
      */
-    @TestLogging("abc:WARN")
+    @TestLogging("abc:WARN,foo:WARN,foo.bar:ERROR")
     public static class AnnotatedTestClass {
 
     }
 
     /**
-     * dummy class used to create a junit suite description that doesn't have the @TestLogging annotation, but its test methods have it
+     * Dummy class used to create a JUnit suite description that doesn't have the {@link TestLogging} annotation, but its test methods have
+     * it.
      */
     public static class TestClass {
 
         @SuppressWarnings("unused")
-        @TestLogging("xyz:TRACE")
-        public void annotatedTestMethod() {}
+        @TestLogging("xyz:TRACE,foo:WARN,foo.bar:ERROR")
+        public void annotatedTestMethod() {
+
+        }
 
         @SuppressWarnings("unused")
         @TestLogging("abc:TRACE,xyz:DEBUG")
-        public void annotatedTestMethod2() {}
+        public void annotatedTestMethod2() {
+
+        }
+
+    }
+
+    /**
+     * Dummy class with an invalid {@link TestLogging} annotation.
+     */
+    @TestLogging("abc")
+    public static class InvalidClass {
+
+    }
+
+    /**
+     * Dummy class with an invalid {@link TestLogging} annotation on a method.
+     */
+    public static class InvalidMethod {
+
+        @SuppressWarnings("unused")
+        @TestLogging("abc:INFO:WARN")
+        public void invalidMethod() {
+
+        }
 
     }
 

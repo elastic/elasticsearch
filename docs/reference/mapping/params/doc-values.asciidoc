@@ -26,15 +26,13 @@ value from a script, you can disable doc values in order to save disk space:
 PUT my_index
 {
   "mappings": {
-    "my_type": {
-      "properties": {
-        "status_code": { <1>
-          "type":       "keyword"
-        },
-        "session_id": { <2>
-          "type":       "keyword",
-          "doc_values": false
-        }
+    "properties": {
+      "status_code": { <1>
+        "type":       "keyword"
+      },
+      "session_id": { <2>
+        "type":       "keyword",
+        "doc_values": false
       }
     }
   }
@@ -43,9 +41,4 @@ PUT my_index
 // CONSOLE
 <1> The `status_code` field has `doc_values` enabled by default.
 <2> The `session_id` has `doc_values` disabled, but can still be queried.
-
-TIP: The `doc_values` setting is allowed to have different settings for fields
-of the same name in the same index.  It can be disabled (set to `false`) on
-existing fields using the <<indices-put-mapping,PUT mapping API>>.
-
 

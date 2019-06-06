@@ -23,7 +23,8 @@ import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.ConfigurationUtils;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
-import org.elasticsearch.ingest.TemplateService;
+import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.TemplateScript;
 
 import java.util.Map;
 
@@ -35,19 +36,19 @@ public final class FailProcessor extends AbstractProcessor {
 
     public static final String TYPE = "fail";
 
-    private final TemplateService.Template message;
+    private final TemplateScript.Factory message;
 
-    FailProcessor(String tag, TemplateService.Template message) {
+    FailProcessor(String tag, TemplateScript.Factory message) {
         super(tag);
         this.message = message;
     }
 
-    public TemplateService.Template getMessage() {
+    public TemplateScript.Factory getMessage() {
         return message;
     }
 
     @Override
-    public void execute(IngestDocument document) {
+    public IngestDocument execute(IngestDocument document) {
         throw new FailProcessorException(document.renderTemplate(message));
     }
 
@@ -58,18 +59,18 @@ public final class FailProcessor extends AbstractProcessor {
 
     public static final class Factory implements Processor.Factory {
 
-        private final TemplateService templateService;
+        private final ScriptService scriptService;
 
-        public Factory(TemplateService templateService) {
-            this.templateService = templateService;
+        public Factory(ScriptService scriptService) {
+            this.scriptService = scriptService;
         }
 
         @Override
         public FailProcessor create(Map<String, Processor.Factory> registry, String processorTag,
                                     Map<String, Object> config) throws Exception {
             String message = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "message");
-            TemplateService.Template compiledTemplate = ConfigurationUtils.compileTemplate(TYPE, processorTag,
-                "message", message, templateService);
+            TemplateScript.Factory compiledTemplate = ConfigurationUtils.compileTemplate(TYPE, processorTag,
+                "message", message, scriptService);
             return new FailProcessor(processorTag, compiledTemplate);
         }
     }

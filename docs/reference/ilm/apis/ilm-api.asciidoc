@@ -1,0 +1,45 @@
+[[index-lifecycle-management-api]]
+== {ilm-cap} API
+
+You can use the following APIs to manage policies on indices. See
+<<index-lifecycle-management,Managing the index lifecycle>> for more information
+about Index Lifecycle Management.
+
+[float]
+[[ilm-api-policy-endpoint]]
+=== Policy management APIs
+
+* <<ilm-put-lifecycle,Create lifecycle policy>>
+* <<ilm-get-lifecycle,Get lifecycle policy>>
+* <<ilm-delete-lifecycle,Delete lifecycle policy>>
+
+[float]
+[[ilm-api-index-endpoint]]
+=== Index management APIs
+
+* <<ilm-move-to-step,Move index to step>>
+* <<ilm-retry-policy,Retry policy on indices>>
+* <<ilm-remove-policy,Remove policy from index>>
+
+[float]
+[[ilm-api-management-endpoint]]
+=== Operation management APIs
+
+* <<ilm-get-status,Get ILM operation mode>>
+* <<ilm-start,Start ILM>>
+* <<ilm-stop,Stop ILM>>
+* <<ilm-explain-lifecycle,Explain API>>
+
+
+include::put-lifecycle.asciidoc[]
+include::get-lifecycle.asciidoc[]
+include::delete-lifecycle.asciidoc[]
+
+include::move-to-step.asciidoc[]
+include::remove-policy-from-index.asciidoc[]
+include::retry-policy.asciidoc[]
+
+include::get-status.asciidoc[]
+include::explain.asciidoc[]
+include::start.asciidoc[]
+include::stop.asciidoc[]

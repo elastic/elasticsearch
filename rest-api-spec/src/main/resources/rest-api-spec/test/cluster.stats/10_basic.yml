@@ -1,0 +1,85 @@
+---
+"cluster stats test":
+  - do:
+      cluster.stats: {}
+
+  - is_true: timestamp
+  - is_true: cluster_name
+  - match: {status: green}
+  - gte: { indices.count: 0}
+  - is_true: indices.docs
+  - is_true: indices.store
+  - is_true: indices.fielddata
+  - is_true: indices.query_cache
+  - is_true: indices.completion
+  - is_true: indices.segments
+  - gte: { nodes.count.total: 1}
+  - gte: { nodes.count.master: 1}
+  - gte: { nodes.count.data: 1}
+  - gte: { nodes.count.ingest: 0}
+  - gte: { nodes.count.coordinating_only: 0}
+  - is_true: nodes.os
+  - is_true: nodes.os.mem.total_in_bytes
+  - is_true: nodes.os.mem.free_in_bytes
+  - is_true: nodes.os.mem.used_in_bytes
+  - gte: { nodes.os.mem.free_percent: 0 }
+  - gte: { nodes.os.mem.used_percent: 0 }
+  - is_true: nodes.process
+  - is_true: nodes.jvm
+  - is_true: nodes.fs
+  - is_true: nodes.plugins
+  - is_true: nodes.network_types
+
+---
+"get cluster stats returns cluster_uuid at the top level":
+
+  - do:
+      cluster.stats: {}
+
+  - is_true: cluster_uuid
+  - is_true: timestamp
+  - is_true: cluster_name
+  - match: {status: green}
+  - gte: { indices.count: 0}
+  - is_true: indices.docs
+  - is_true: indices.store
+  - is_true: indices.fielddata
+  - is_true: indices.query_cache
+  - is_true: indices.completion
+  - is_true: indices.segments
+  - gte: { nodes.count.total: 1}
+  - gte: { nodes.count.master: 1}
+  - gte: { nodes.count.data: 1}
+  - gte: { nodes.count.ingest: 0}
+  - gte: { nodes.count.coordinating_only: 0}
+  - is_true: nodes.os
+  - is_true: nodes.os.mem.total_in_bytes
+  - is_true: nodes.os.mem.free_in_bytes
+  - is_true: nodes.os.mem.used_in_bytes
+  - gte: { nodes.os.mem.free_percent: 0 }
+  - gte: { nodes.os.mem.used_percent: 0 }
+  - is_true: nodes.process
+  - is_true: nodes.jvm
+  - is_true: nodes.fs
+  - is_true: nodes.plugins
+  - is_true: nodes.network_types
+
+---
+"get cluster stats returns discovery types":
+
+  - do:
+      cluster.stats: {}
+
+  - is_true: nodes.discovery_types
+
+---
+"get cluster stats returns packaging types":
+
+  - skip:
+      version: " - 7.1.99"
+      reason:  "packaging types are added for v7.2.0"
+
+  - do:
+      cluster.stats: {}
+
+  - is_true: nodes.packaging_types

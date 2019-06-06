@@ -1,0 +1,13 @@
+[[node.name]]
+=== `node.name`
+
+Elasticsearch uses `node.name` as a human readable identifier for a
+particular instance of Elasticsearch so it is included in the response
+of many APIs. It defaults to the hostname that the machine has when
+Elasticsearch starts but can be configured explicitly in
+`elasticsearch.yml` as follows:
+
+[source,yaml]
+--------------------------------------------------
+node.name: prod-data-2
+--------------------------------------------------

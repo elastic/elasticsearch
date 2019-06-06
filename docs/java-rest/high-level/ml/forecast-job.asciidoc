@@ -1,0 +1,49 @@
+--
+:api: forecast-job 
+:request: ForecastJobRequest
+:response: ForecastJobResponse
+--
+[id="{upid}-{api}"]
+=== Forecast Job API
+
+The Forecast Job API provides the ability to forecast a {ml} job's behavior based
+on historical data.
+It accepts a +{request}+ object and responds
+with a +{response}+ object.
+
+[id="{upid}-{api}-request"]
+==== Forecast Job Request
+
+A +{request}+ object gets created with an existing non-null `jobId`.
+All other fields are optional for the request.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request]
+--------------------------------------------------
+<1> Constructing a new request referencing an existing `jobId`
+
+==== Optional Arguments
+
+The following arguments are optional.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-options]
+--------------------------------------------------
+<1> Set when the forecast for the job should expire
+<2> Set how far into the future should the forecast predict
+
+[id="{upid}-{api}-response"]
+==== Forecast Job Response
+
+A +{response}+ contains an acknowledgement and the forecast ID
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-response]
+--------------------------------------------------
+<1> `isAcknowledged()` indicates if the forecast was successful
+<2> `getForecastId()` provides the ID of the forecast that was created
+
+include::../execution.asciidoc[]

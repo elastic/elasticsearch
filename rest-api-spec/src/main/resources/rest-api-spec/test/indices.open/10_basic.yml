@@ -1,0 +1,118 @@
+---
+"Basic test for index open/close":
+  - do:
+      indices.create:
+        index: test_index
+        body:
+          settings:
+            number_of_replicas: 0
+
+  - do:
+      cluster.health:
+        wait_for_status: green
+
+  - do:
+      indices.close:
+        index: test_index
+  - is_true: acknowledged
+
+  - do:
+      catch: bad_request
+      search:
+        rest_total_hits_as_int: true
+        index: test_index
+
+  - do:
+      indices.open:
+        index: test_index
+  - is_true: acknowledged
+
+  - do:
+      cluster.health:
+        wait_for_status: green
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test_index
+
+---
+"Open index with wait_for_active_shards set to all":
+
+  - do:
+      indices.create:
+        index: test_index
+        body:
+          settings:
+            number_of_replicas: 0
+
+  - do:
+      indices.close:
+        index: test_index
+  - is_true: acknowledged
+
+  - do:
+      indices.open:
+        index: test_index
+        wait_for_active_shards: all
+  - is_true: acknowledged
+  - match: { acknowledged: true }
+  - match: { shards_acknowledged: true }
+
+---
+"Close index with wait_for_active_shards set to all":
+  - skip:
+      version: " - 7.1.99"
+      reason:  "closed indices are replicated starting version 7.2.0"
+
+  - do:
+      indices.create:
+        index: test_index
+        body:
+          settings:
+            number_of_replicas: 0
+
+  - do:
+      indices.close:
+        index: test_index
+        wait_for_active_shards: all
+  - is_true: acknowledged
+  - match: { acknowledged: true }
+  - match: { shards_acknowledged: true }
+---
+"Close index response with result per index":
+  - skip:
+      version: " - 7.99.99"
+      reason: "close index response reports result per index starting version 8.0.0"
+
+  - do:
+      indices.create:
+        index: index_1
+        body:
+          settings:
+            number_of_replicas: 0
+
+  - do:
+      indices.create:
+        index: index_2
+        body:
+          settings:
+            number_of_replicas: 0
+
+  - do:
+      indices.create:
+        index: index_3
+        body:
+          settings:
+            number_of_replicas: 0
+
+  - do:
+      indices.close:
+        index: "index_*"
+
+  - match: { acknowledged: true }
+  - match: { shards_acknowledged: true }
+  - match: { indices.index_1.closed: true }
+  - match: { indices.index_2.closed: true }
+  - match: { indices.index_3.closed: true }
+

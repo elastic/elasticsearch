@@ -1,0 +1,67 @@
+[[java-rest-high-start-basic]]
+=== Start Basic License
+
+[[java-rest-high-start-basic-execution]]
+==== Execution
+
+This API creates and enables a basic license using the `startBasic()` method.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/LicensingDocumentationIT.java[start-basic-execute]
+--------------------------------------------------
+
+[[java-rest-high-start-basic-response]]
+==== Response
+
+The returned `StartBasicResponse` returns a field indicating whether the
+basic was started. If it was started, the response returns a the type of
+license started. If it was not started, it returns an error message describing
+why.
+
+Acknowledgement messages may also be returned if this API was called without
+the `acknowledge` flag set to `true`.  In this case you need to display the
+messages to the end user and if they agree, resubmit the request with the
+`acknowledge` flag set to `true`. Please note that the response will still
+return a 200 return code even if it requires an acknowledgement. So, it is
+necessary to check the `acknowledged` flag.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/LicensingDocumentationIT.java[start-basic-response]
+--------------------------------------------------
+<1> Whether or not the request had the `acknowledge` flag set
+<2> Whether or not this request caused a basic to start
+<3> If this request did not cause a basic to start, a message explaining why
+<4> If the user's request did not have the `acknowledge` flag set, a summary
+of the user's acknowledgement required for this API
+<5> If the user's request did not have the `acknowledge` flag set, contains
+keys of commercial features and values of messages describing how they will
+be affected by licensing changes as the result of starting a basic
+
+[[java-rest-high-start-basic-async]]
+==== Asynchronous Execution
+
+This request can be executed asynchronously:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/LicensingDocumentationIT.java[start-basic-execute-async]
+--------------------------------------------------
+<1> The `StartBasicResponse` to execute and the `ActionListener` to use when
+the execution completes
+
+The asynchronous method does not block and returns immediately. Once it is
+completed the `ActionListener` is called back using the `onResponse` method
+if the execution successfully completed or using the `onFailure` method if
+it failed.
+
+A typical listener for `StartBasicResponse` looks like:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/LicensingDocumentationIT.java[start-basic-listener]
+--------------------------------------------------
+<1> Called when the execution is successfully completed. The response is
+provided as an argument
+<2> Called in case of failure. The raised exception is provided as an argument

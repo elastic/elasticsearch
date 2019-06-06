@@ -1,15 +1,13 @@
 [[search-aggregations-pipeline-min-bucket-aggregation]]
 === Min Bucket Aggregation
 
-experimental[]
-
 A sibling pipeline aggregation which identifies the bucket(s) with the minimum value of a specified metric in a sibling aggregation
 and outputs both the value and the key(s) of the bucket(s). The specified metric must be numeric and the sibling aggregation must
 be a multi-bucket aggregation.
 
 ==== Syntax
 
-A `max_bucket` aggregation looks like this in isolation:
+A `min_bucket` aggregation looks like this in isolation:
 
 [source,js]
 --------------------------------------------------
@@ -19,17 +17,19 @@ A `max_bucket` aggregation looks like this in isolation:
     }
 }
 --------------------------------------------------
+// NOTCONSOLE
 
+[[min-bucket-params]]
 .`min_bucket` Parameters
+[options="header"]
 |===
 |Parameter Name |Description |Required |Default Value
 |`buckets_path` |The path to the buckets we wish to find the minimum for (see <<buckets-path-syntax>> for more
  details) |Required |
  |`gap_policy` |The policy to apply when gaps are found in the data (see <<gap-policy>> for more
- details)|Optional, defaults to `skip` |
- |`format` |format to apply to the output value of this aggregation |Optional, defaults to `null` |
+ details)|Optional | `skip`
+ |`format` |format to apply to the output value of this aggregation |Optional |`null`
 |===
-
 
 The following snippet calculates the minimum of the total monthly `sales`:
 
@@ -42,7 +42,7 @@ POST /sales/_search
         "sales_per_month" : {
             "date_histogram" : {
                 "field" : "date",
-                "interval" : "month"
+                "calendar_interval" : "month"
             },
             "aggs": {
                 "sales": {
@@ -63,7 +63,7 @@ POST /sales/_search
 // CONSOLE
 // TEST[setup:sales]
 
-<1> `buckets_path` instructs this max_bucket aggregation that we want the minimum value of the `sales` aggregation in the
+<1> `buckets_path` instructs this min_bucket aggregation that we want the minimum value of the `sales` aggregation in the
 `sales_per_month` date histogram.
 
 And the following may be the response:

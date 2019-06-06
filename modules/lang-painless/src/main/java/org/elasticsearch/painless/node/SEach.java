@@ -19,14 +19,13 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.Definition;
-import org.elasticsearch.painless.Definition.Sort;
-import org.elasticsearch.painless.Definition.Type;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Locals.Variable;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
+import org.elasticsearch.painless.lookup.PainlessLookupUtility;
+import org.elasticsearch.painless.lookup.def;
 
 import java.util.Objects;
 import java.util.Set;
@@ -69,23 +68,22 @@ public class SEach extends AStatement {
         expression.expected = expression.actual;
         expression = expression.cast(locals);
 
-        final Type type;
+        Class<?> clazz = locals.getPainlessLookup().canonicalTypeNameToType(this.type);
 
-        try {
-            type = Definition.getType(this.type);
-        } catch (IllegalArgumentException exception) {
+        if (clazz == null) {
             throw createError(new IllegalArgumentException("Not a type [" + this.type + "]."));
         }
 
         locals = Locals.newLocalScope(locals);
-        Variable variable = locals.addVariable(location, type, name, true);
+        Variable variable = locals.addVariable(location, clazz, name, true);
 
-        if (expression.actual.sort == Sort.ARRAY) {
+        if (expression.actual.isArray()) {
             sub = new SSubEachArray(location, variable, expression, block);
-        } else if (expression.actual.sort == Sort.DEF || Iterable.class.isAssignableFrom(expression.actual.clazz)) {
+        } else if (expression.actual == def.class || Iterable.class.isAssignableFrom(expression.actual)) {
             sub = new SSubEachIterable(location, variable, expression, block);
         } else {
-            throw createError(new IllegalArgumentException("Illegal for each type [" + expression.actual.name + "]."));
+            throw createError(new IllegalArgumentException("Illegal for each type " +
+                    "[" + PainlessLookupUtility.typeToCanonicalTypeName(expression.actual) + "]."));
         }
 
         sub.analyze(locals);
@@ -113,5 +111,10 @@ public class SEach extends AStatement {
     @Override
     void write(MethodWriter writer, Globals globals) {
         sub.write(writer, globals);
+    }
+
+    @Override
+    public String toString() {
+        return singleLineToString(type, name, expression, block);
     }
 }

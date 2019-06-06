@@ -6,20 +6,19 @@ formula:
 
     shard_num = hash(_routing) % num_primary_shards
 
-The default value used for `_routing` is the document's <<mapping-id-field,`_id`>>
-or the document's <<mapping-parent-field,`_parent`>> ID, if present.
+The default value used for `_routing` is the document's <<mapping-id-field,`_id`>>.
 
 Custom routing patterns can be implemented by specifying a custom `routing`
 value per document.  For instance:
 
 [source,js]
 ------------------------------
-PUT my_index/my_type/1?routing=user1&refresh=true <1>
+PUT my_index/_doc/1?routing=user1&refresh=true <1>
 {
   "title": "This is a document"
 }
 
-GET my_index/my_type/1?routing=user1 <2>
+GET my_index/_doc/1?routing=user1 <2>
 ------------------------------
 // CONSOLE
 // TESTSETUP
@@ -83,22 +82,20 @@ custom `routing` value required for all CRUD operations:
 PUT my_index2
 {
   "mappings": {
-    "my_type": {
-      "_routing": {
-        "required": true <1>
-      }
+    "_routing": {
+      "required": true <1>
     }
   }
 }
 
-PUT my_index2/my_type/1 <2>
+PUT my_index2/_doc/1 <2>
 {
   "text": "No routing value provided"
 }
 ------------------------------
 // CONSOLE
-// TEST[catch:request]
-<1> Routing is required for `my_type` documents.
+// TEST[catch:bad_request]
+<1> Routing is required for `_doc` documents.
 <2> This index request throws a `routing_missing_exception`.
 
 ==== Unique IDs with custom routing
@@ -109,3 +106,29 @@ documents with the same `_id` might end up on different shards if indexed with
 different `_routing` values.
 
 It is up to the user to ensure that IDs are unique across the index.
+
+[[routing-index-partition]]
+==== Routing to an index partition
+
+An index can be configured such that custom routing values will go to a subset of the shards rather
+than a single shard. This helps mitigate the risk of ending up with an imbalanced cluster while still
+reducing the impact of searches.
+
+This is done by providing the index level setting <<routing-partition-size,`index.routing_partition_size`>> at index creation.
+As the partition size increases, the more evenly distributed the data will become at the
+expense of having to search more shards per request.
+
+When this setting is present, the formula for calculating the shard becomes:
+
+    shard_num = (hash(_routing) + hash(_id) % routing_partition_size) % num_primary_shards
+
+That is, the `_routing` field is used to calculate a set of shards within the index and then the
+`_id` is used to pick a shard within that set.
+
+To enable this feature, the `index.routing_partition_size` should have a value greater than 1 and
+less than `index.number_of_shards`.
+
+Once enabled, the partitioned index will have the following limitations:
+
+*   Mappings with <<parent-join,`join` field>> relationships cannot be created within it.
+*   All mappings within the index must have the `_routing` field marked as required.

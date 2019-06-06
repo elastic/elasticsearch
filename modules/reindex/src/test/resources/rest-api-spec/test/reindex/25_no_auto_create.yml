@@ -1,0 +1,69 @@
+teardown:
+  - do:
+      cluster.put_settings:
+        body:
+          transient:
+            action.auto_create_index: null
+
+---
+"auto_create_index is false":
+  - do:
+      index:
+        index:   test
+        id:      1
+        body:    { "text": "test" }
+  - do:
+      cluster.put_settings:
+        body:
+          transient:
+            action.auto_create_index: false
+  - do:
+      catch: /no such index \[dest\] and \[action.auto_create_index\] is \[false\]/
+      reindex:
+        body:
+          source:
+            index: test
+          dest:
+            index: dest
+
+---
+"auto_create_index doesn't include new index":
+  - do:
+      cluster.put_settings:
+        body:
+          transient:
+            action.auto_create_index: test
+  - do:
+      index:
+        index:   test
+        id:      1
+        body:    { "text": "test" }
+  - do:
+      catch: /no such index \[dest\] and \[action.auto_create_index\] \(\[test\]\) doesn't match/
+      reindex:
+        body:
+          source:
+            index: test
+          dest:
+            index: dest
+
+---
+"auto_create_index forbids new index":
+  - do:
+      cluster.put_settings:
+        body:
+          transient:
+            action.auto_create_index: test,-dest
+  - do:
+      index:
+        index:   test
+        id:      1
+        body:    { "text": "test" }
+  - do:
+      catch: /no such index \[dest\] and \[action.auto_create_index\] contains \[-dest\] which forbids automatic creation of the index/
+      reindex:
+        body:
+          source:
+            index: test
+          dest:
+            index: dest

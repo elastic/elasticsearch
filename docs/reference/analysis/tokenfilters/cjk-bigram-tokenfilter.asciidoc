@@ -16,8 +16,9 @@ Bigrams are generated for characters in `han`, `hiragana`, `katakana` and
 
 [source,js]
 --------------------------------------------------
+PUT /cjk_bigram_example
 {
-    "index" : {
+    "settings" : {
         "analysis" : {
             "analyzer" : {
                 "han_bigrams" : {
@@ -40,3 +41,4 @@ Bigrams are generated for characters in `han`, `hiragana`, `katakana` and
     }
 }
 --------------------------------------------------
+// CONSOLE

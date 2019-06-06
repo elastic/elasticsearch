@@ -1,0 +1,8 @@
+// some comment
+
+// name of the test - translated into 'testName'
+name
+// SQL query to be executed against H2 and ES
+SELECT COUNT(*) FROM "emp";
+
+// repeat the above

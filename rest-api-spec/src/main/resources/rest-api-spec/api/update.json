@@ -3,8 +3,15 @@
     "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/docs-update.html",
     "methods": ["POST"],
     "url": {
-      "path": "/{index}/{type}/{id}/_update",
-      "paths": ["/{index}/{type}/{id}/_update"],
+      "path": "/{index}/_update/{id}",
+      "paths": ["/{index}/_update/{id}"],
+      "deprecated_paths" : [
+        {
+          "version" : "7.0.0",
+          "path" : "/{index}/{type}/{id}/_update",
+          "description" : "Specifying types in urls has been deprecated"
+        }
+      ],
       "parts": {
         "id": {
           "type": "string",
@@ -18,7 +25,6 @@
         },
         "type": {
           "type": "string",
-          "required": true,
           "description": "The type of the document"
         }
       },
@@ -27,29 +33,21 @@
           "type": "string",
           "description": "Sets the number of shard copies that must be active before proceeding with the update operation. Defaults to 1, meaning the primary shard only. Set to `all` for all shard copies, otherwise set to any non-negative value less than or equal to the total number of copies for the shard (number of replicas + 1)"
         },
-        "fields": {
-          "type": "list",
-          "description": "A comma-separated list of fields to return in the response"
-        },
         "_source": {
           "type" : "list",
           "description" : "True or false to return the _source field or not, or a list of fields to return"
         },
-        "_source_exclude": {
+        "_source_excludes": {
           "type" : "list",
           "description" : "A list of fields to exclude from the returned _source field"
         },
-        "_source_include": {
+        "_source_includes": {
           "type" : "list",
           "description" : "A list of fields to extract and return from the _source field"
         },
         "lang": {
           "type": "string",
-          "description": "The script language (default: groovy)"
-        },
-        "parent": {
-          "type": "string",
-          "description": "ID of the parent document. Is is only used for routing and when for the upsert request"
+          "description": "The script language (default: painless)"
         },
         "refresh": {
           "type" : "enum",
@@ -68,27 +66,19 @@
           "type": "time",
           "description": "Explicit operation timeout"
         },
-        "timestamp": {
-          "type": "time",
-          "description": "Explicit timestamp for the document"
+        "if_seq_no" : {
+          "type" : "number",
+          "description" : "only perform the update operation if the last operation that has changed the document has the specified sequence number"
         },
-        "ttl": {
-          "type": "time",
-          "description": "Expiration time for the document"
-        },
-        "version": {
-          "type": "number",
-          "description": "Explicit version number for concurrency control"
-        },
-        "version_type": {
-          "type": "enum",
-          "options": ["internal", "force"],
-          "description": "Specific version type"
+        "if_primary_term" : {
+          "type" : "number",
+          "description" : "only perform the update operation if the last operation that has changed the document has the specified primary term"
         }
       }
     },
     "body": {
-      "description": "The request definition using either `script` or partial `doc`"
+      "description": "The request definition requires either `script` or partial `doc`",
+      "required": true
     }
   }
 }

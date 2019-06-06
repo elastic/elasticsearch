@@ -20,15 +20,14 @@
 package org.elasticsearch.painless;
 
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.script.ScriptException;
 
 import java.nio.CharBuffer;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.regex.Pattern;
-import java.util.regex.PatternSyntaxException;
 
 import static java.util.Collections.singletonMap;
-import static org.hamcrest.Matchers.containsString;
 
 public class RegexTests extends ScriptTestCase {
     @Override
@@ -44,8 +43,17 @@ public class RegexTests extends ScriptTestCase {
         assertEquals(false, exec("return 'bar' ==~ /foo/"));
     }
 
-    public void testSlashesEscapePattern() {
-        assertEquals(true, exec("return '//' ==~ /\\/\\//"));
+    public void testBackslashEscapesForwardSlash() {
+        assertEquals(true, exec("'//' ==~ /\\/\\//"));
+    }
+
+    public void testBackslashEscapeBackslash() {
+        // Both of these are single backslashes but java escaping + Painless escaping....
+        assertEquals(true, exec("'\\\\' ==~ /\\\\/"));
+    }
+
+    public void testRegexIsNonGreedy() {
+        assertEquals(true, exec("def s = /\\\\/.split('.\\\\.'); return s[1] ==~ /\\./"));
     }
 
     public void testPatternAfterAssignment() {
@@ -145,7 +153,7 @@ public class RegexTests extends ScriptTestCase {
     }
 
     public void testSplitAsStream() {
-        assertEquals(new HashSet<>(Arrays.asList("cat", "dog")), exec("/,/.splitAsStream('cat,dog').collect(Collectors.toSet())"));
+        assertEquals(new HashSet<String>(Arrays.asList("cat", "dog")), exec("/,/.splitAsStream('cat,dog').collect(Collectors.toSet())"));
     }
 
     // Make sure the flags are set
@@ -244,22 +252,26 @@ public class RegexTests extends ScriptTestCase {
         IllegalArgumentException e = expectScriptThrows(IllegalArgumentException.class, () -> {
             exec("Pattern.compile('aa')");
         });
-        assertEquals("Unknown call [compile] with [1] arguments on type [Pattern].", e.getMessage());
+        assertTrue(e.getMessage().contains("[java.util.regex.Pattern, compile/1]"));
     }
 
     public void testBadRegexPattern() {
-        PatternSyntaxException e = expectScriptThrows(PatternSyntaxException.class, () -> {
+        ScriptException e = expectThrows(ScriptException.class, () -> {
             exec("/\\ujjjj/"); // Invalid unicode
         });
-        assertThat(e.getMessage(), containsString("Illegal Unicode escape sequence near index 2"));
-        assertThat(e.getMessage(), containsString("\\ujjjj"));
+        assertEquals("Error compiling regex: Illegal Unicode escape sequence", e.getCause().getMessage());
+
+        // And make sure the location of the error points to the offset inside the pattern
+        assertScriptStack(e,
+                "/\\ujjjj/",
+                "   ^---- HERE");
     }
 
     public void testRegexAgainstNumber() {
         ClassCastException e = expectScriptThrows(ClassCastException.class, () -> {
             exec("12 ==~ /cat/");
         });
-        assertEquals("Cannot cast from [int] to [String].", e.getMessage());
+        assertEquals("Cannot cast from [int] to [java.lang.String].", e.getMessage());
     }
 
     public void testBogusRegexFlag() {

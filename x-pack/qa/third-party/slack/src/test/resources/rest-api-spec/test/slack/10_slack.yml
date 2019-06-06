@@ -1,0 +1,129 @@
+---
+"Test Slack Action":
+  - do:
+      cluster.health:
+          wait_for_status: yellow
+
+  - do:
+      watcher.put_watch:
+        id: "slack_watch"
+        body:  >
+          {
+            "trigger": {
+              "schedule": {
+                "interval": "1d"
+              }
+            },
+            "input": {
+              "simple": {
+                "foo" : "something from input",
+                "hits" : {
+                  "hits" : [
+                    { "_source" : { "name" : "first",  "value" : "2018-04-26T11:45:12.518Z" } },
+                    { "_source" : { "name" : "second", "value" : "anything" } }
+                  ]
+                }
+              }
+            },
+            "actions": {
+              "my_slack_action": {
+                "slack": {
+                  "account": "test_account",
+                  "message": {
+                    "from": "SlackServiceTests",
+                    "to": [
+                      "#watcher-test", "#watcher-test-2"
+                    ],
+                    "text": "slack integration test {{ctx.trigger.triggered_time}}",
+                    "attachments": [
+                      {
+                        "title": "title あいうえお",
+                        "text": "From input: {{ctx.payload.foo}} - other testing: :facepalm: also `code` and *bold*",
+                        "color": "warning",
+                        "author_name" : "your friendly slack integration test"
+                      },
+                      {
+                        "title" : "attachment with action",
+                        "text" : "button test",
+                        "actions" : [
+                          {
+                            "name" : "action name",
+                            "style" : "danger",
+                            "type" : "button",
+                            "text" : "Button to go to elastic.co",
+                            "url" : "https://elastic.co"
+                          }
+                        ]
+                      }
+                    ],
+                    "dynamic_attachments" : {
+                      "list_path" : "ctx.payload.hits.hits",
+                      "attachment_template" : {
+                        "title": "Title",
+                        "fields" : [
+                          {
+                            "title" : "Field title {{_source.name}}",
+                            "value" : "{{_source.value}}",
+                            "short" : true
+                          }
+                        ]
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+  
+  - do:
+      watcher.execute_watch:
+        id: "slack_watch"
+        body: >
+          {
+            "record_execution": true
+          }
+
+  - match: { watch_record.trigger_event.type: "manual" }
+  - match: { watch_record.state: "executed" }
+  - match: { watch_record.result.actions.0.id: "my_slack_action" }
+  - match: { watch_record.result.actions.0.type: "slack" }
+  - match: { watch_record.result.actions.0.status: "success" }
+  - match: { watch_record.result.actions.0.slack.account: "test_account" }
+  - match: { watch_record.result.actions.0.slack.sent_messages.0.to: "#watcher-test" }
+  - match: { watch_record.result.actions.0.slack.sent_messages.1.to: "#watcher-test-2" }
+  - match: { watch_record.result.actions.0.slack.sent_messages.0.status: "success" }
+  - match: { watch_record.result.actions.0.slack.sent_messages.1.status: "success" }
+
+  # Waits for the watcher history index to be available
+  - do:
+      cluster.health:
+          index: ".watcher-history-*"
+          wait_for_no_relocating_shards: true
+          timeout: 60s
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: ".watcher-history-*"
+        body: >
+          {
+            "query" : {
+              "term" : {
+                "watch_id" : "slack_watch"
+              }
+            }
+          }
+
+  - match: { hits.total: 1 }
+  - match: { hits.hits.0._source.state: "executed" }
+  - match: { hits.hits.0._source.result.actions.0.id: "my_slack_action" }
+  - match: { hits.hits.0._source.result.actions.0.type: "slack" }
+  - match: { hits.hits.0._source.result.actions.0.status: "success" }
+  - match: { hits.hits.0._source.result.actions.0.slack.account: "test_account" }
+  - match: { hits.hits.0._source.result.actions.0.slack.sent_messages.0.to: "#watcher-test" }
+  - match: { hits.hits.0._source.result.actions.0.slack.sent_messages.1.to: "#watcher-test-2" }
+  - match: { hits.hits.0._source.result.actions.0.slack.sent_messages.0.status: "success" }
+  - match: { hits.hits.0._source.result.actions.0.slack.sent_messages.1.status: "success" }

@@ -34,13 +34,21 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.Map;
 
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class EvilLoggerConfigurationTests extends ESTestCase {
+
+    @Override
+    public void setUp() throws Exception {
+        super.setUp();
+        LogConfigurator.registerErrorListener();
+    }
 
     @Override
     public void tearDown() throws Exception {
@@ -50,14 +58,13 @@ public class EvilLoggerConfigurationTests extends ESTestCase {
     }
 
     public void testResolveMultipleConfigs() throws Exception {
-        final Level level = ESLoggerFactory.getLogger("test").getLevel();
+        final Level level = LogManager.getLogger("test").getLevel();
         try {
             final Path configDir = getDataPath("config");
             final Settings settings = Settings.builder()
-                .put(Environment.PATH_CONF_SETTING.getKey(), configDir.toAbsolutePath())
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
                 .build();
-            final Environment environment = new Environment(settings);
+            final Environment environment = new Environment(settings, configDir);
             LogConfigurator.configure(environment);
 
             {
@@ -92,15 +99,14 @@ public class EvilLoggerConfigurationTests extends ESTestCase {
         final Path configDir = getDataPath("config");
         final String level = randomFrom(Level.TRACE, Level.DEBUG, Level.INFO, Level.WARN, Level.ERROR).toString();
         final Settings settings = Settings.builder()
-            .put(Environment.PATH_CONF_SETTING.getKey(), configDir.toAbsolutePath())
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
             .put("logger.level", level)
             .build();
-        final Environment environment = new Environment(settings);
+        final Environment environment = new Environment(settings, configDir);
         LogConfigurator.configure(environment);
 
         final String loggerName = "test";
-        final Logger logger = ESLoggerFactory.getLogger(loggerName);
+        final Logger logger = LogManager.getLogger(loggerName);
         assertThat(logger.getLevel().toString(), equalTo(level));
     }
 
@@ -108,47 +114,72 @@ public class EvilLoggerConfigurationTests extends ESTestCase {
     public void testResolveOrder() throws Exception {
         final Path configDir = getDataPath("config");
         final Settings settings = Settings.builder()
-            .put(Environment.PATH_CONF_SETTING.getKey(), configDir.toAbsolutePath())
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
             .put("logger.test_resolve_order", "TRACE")
             .build();
-        final Environment environment = new Environment(settings);
+        final Environment environment = new Environment(settings, configDir);
         LogConfigurator.configure(environment);
 
         // args should overwrite whatever is in the config
         final String loggerName = "test_resolve_order";
-        final Logger logger = ESLoggerFactory.getLogger(loggerName);
+        final Logger logger = LogManager.getLogger(loggerName);
         assertTrue(logger.isTraceEnabled());
     }
 
     public void testHierarchy() throws Exception {
         final Path configDir = getDataPath("hierarchy");
         final Settings settings = Settings.builder()
-                .put(Environment.PATH_CONF_SETTING.getKey(), configDir.toAbsolutePath())
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
                 .build();
-        final Environment environment = new Environment(settings);
+        final Environment environment = new Environment(settings, configDir);
         LogConfigurator.configure(environment);
 
-        assertThat(ESLoggerFactory.getLogger("x").getLevel(), equalTo(Level.TRACE));
-        assertThat(ESLoggerFactory.getLogger("x.y").getLevel(), equalTo(Level.DEBUG));
+        assertThat(LogManager.getLogger("x").getLevel(), equalTo(Level.TRACE));
+        assertThat(LogManager.getLogger("x.y").getLevel(), equalTo(Level.DEBUG));
 
         final Level level = randomFrom(Level.TRACE, Level.DEBUG, Level.INFO, Level.WARN, Level.ERROR);
-        Loggers.setLevel(ESLoggerFactory.getLogger("x"), level);
+        Loggers.setLevel(LogManager.getLogger("x"), level);
 
-        assertThat(ESLoggerFactory.getLogger("x").getLevel(), equalTo(level));
-        assertThat(ESLoggerFactory.getLogger("x.y").getLevel(), equalTo(level));
+        assertThat(LogManager.getLogger("x").getLevel(), equalTo(level));
+        assertThat(LogManager.getLogger("x.y").getLevel(), equalTo(level));
     }
 
     public void testMissingConfigFile() {
         final Path configDir = getDataPath("does_not_exist");
         final Settings settings = Settings.builder()
-            .put(Environment.PATH_CONF_SETTING.getKey(), configDir.toAbsolutePath())
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
             .build();
-        final Environment environment = new Environment(settings);
+        final Environment environment = new Environment(settings, configDir);
         UserException e = expectThrows(UserException.class, () -> LogConfigurator.configure(environment));
         assertThat(e, hasToString(containsString("no log4j2.properties found; tried")));
+    }
+
+    public void testLoggingLevelsFromSettings() throws IOException, UserException {
+        final Level rootLevel = randomFrom(Level.TRACE, Level.DEBUG, Level.INFO, Level.WARN, Level.ERROR);
+        final Level fooLevel = randomFrom(Level.TRACE, Level.DEBUG, Level.INFO, Level.WARN, Level.ERROR);
+        final Level barLevel = randomFrom(Level.TRACE, Level.DEBUG, Level.INFO, Level.WARN, Level.ERROR);
+        final Path configDir = getDataPath("minimal");
+        final Settings settings = Settings.builder()
+            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
+            .put("logger.level", rootLevel.name())
+            .put("logger.foo", fooLevel.name())
+            .put("logger.bar", barLevel.name())
+            .build();
+        final Environment environment = new Environment(settings, configDir);
+        LogConfigurator.configure(environment);
+
+        final LoggerContext ctx = (LoggerContext) LogManager.getContext(false);
+        final Configuration config = ctx.getConfiguration();
+        final Map<String, LoggerConfig> loggerConfigs = config.getLoggers();
+        assertThat(loggerConfigs.size(), equalTo(3));
+        assertThat(loggerConfigs, hasKey(""));
+        assertThat(loggerConfigs.get("").getLevel(), equalTo(rootLevel));
+        assertThat(loggerConfigs, hasKey("foo"));
+        assertThat(loggerConfigs.get("foo").getLevel(), equalTo(fooLevel));
+        assertThat(loggerConfigs, hasKey("bar"));
+        assertThat(loggerConfigs.get("bar").getLevel(), equalTo(barLevel));
+
+        assertThat(ctx.getLogger(randomAlphaOfLength(16)).getLevel(), equalTo(rootLevel));
     }
 
 }

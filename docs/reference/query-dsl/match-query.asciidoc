@@ -19,7 +19,7 @@ GET /_search
 // CONSOLE
 
 Note, `message` is the name of a field, you can substitute the name of
-any field (including `_all`) instead.
+any field instead.
 
 [[query-dsl-match-query-boolean]]
 ==== match
@@ -31,6 +31,25 @@ to control the boolean clauses (defaults to `or`). The minimum number of
 optional `should` clauses to match can be set using the
 <<query-dsl-minimum-should-match,`minimum_should_match`>>
 parameter.
+
+Here is an example when providing additional parameters (note the slight
+change in structure, `message` is the field name):
+
+[source,js]
+--------------------------------------------------
+GET /_search
+{
+    "query": {
+        "match" : {
+            "message" : {
+                "query" : "this is a test",
+                "operator" : "and"
+            }
+        }
+    }
+}
+--------------------------------------------------
+// CONSOLE
 
 The `analyzer` can be set to control which analyzer will perform the
 analysis process on the text. It defaults to the field explicit mapping
@@ -56,8 +75,10 @@ rewritten.
 Fuzzy transpositions (`ab` -> `ba`) are allowed by default but can be disabled
 by setting `fuzzy_transpositions` to `false`.
 
-Here is an example when providing additional parameters (note the slight
-change in structure, `message` is the field name):
+NOTE: Fuzzy matching is not applied to terms with synonyms or in cases where the
+analysis process produces multiple tokens at the same position. Under the hood
+these terms are expanded to a special synonym query that blends term frequencies,
+which does not support fuzzy expansion.
 
 [source,js]
 --------------------------------------------------
@@ -66,8 +87,8 @@ GET /_search
     "query": {
         "match" : {
             "message" : {
-                "query" : "this is a test",
-                "operator" : "and"
+                "query" : "this is a testt",
+                "fuzziness": "AUTO"
             }
         }
     }
@@ -99,49 +120,40 @@ GET /_search
 --------------------------------------------------
 // CONSOLE
 
-[[query-dsl-match-query-cutoff]]
-===== Cutoff frequency
+[[query-dsl-match-query-synonyms]]
+===== Synonyms
 
-The match query supports a `cutoff_frequency` that allows
-specifying an absolute or relative document frequency where high
-frequency terms are moved into an optional subquery and are only scored
-if one of the low frequency (below the cutoff) terms in the case of an
-`or` operator or all of the low frequency terms in the case of an `and`
-operator match.
+The `match` query supports multi-terms synonym expansion with the <<analysis-synonym-graph-tokenfilter,
+synonym_graph>> token filter. When this filter is used, the parser creates a phrase query for each multi-terms synonyms.
+For example, the following synonym: `"ny, new york" would produce:`
 
-This query allows handling `stopwords` dynamically at runtime, is domain
-independent and doesn't require a stopword file. It prevents scoring /
-iterating high frequency terms and only takes the terms into account if a
-more significant / lower frequency term matches a document. Yet, if all
-of the query terms are above the given `cutoff_frequency` the query is
-automatically transformed into a pure conjunction (`and`) query to
-ensure fast execution.
+`(ny OR ("new york"))`
 
-The `cutoff_frequency` can either be relative to the total number of
-documents if in the range `[0..1)` or absolute if greater or equal to
-`1.0`.
-
-Here is an example showing a query composed of stopwords exclusively:
+It is also possible to match multi terms synonyms with conjunctions instead:
 
 [source,js]
 --------------------------------------------------
 GET /_search
 {
-    "query": {
-        "match" : {
-            "message" : {
-                "query" : "to be or not to be",
-                "cutoff_frequency" : 0.001
-            }
-        }
-    }
+   "query": {
+       "match" : {
+           "message": {
+               "query" : "ny city",
+               "auto_generate_synonyms_phrase_query" : false
+           }
+       }
+   }
 }
 --------------------------------------------------
 // CONSOLE
 
-IMPORTANT: The `cutoff_frequency` option operates on a per-shard-level. This means
-that when trying it out on test indexes with low document numbers you
-should follow the advice in {defguide}/relevance-is-broken.html[Relevance is broken].
+The example above creates a boolean query:
+
+`(ny OR (new AND york)) city`
+
+that matches documents with the term `ny` or the conjunction `new AND york`.
+By default the parameter `auto_generate_synonyms_phrase_query` is set to `true`.
+
 
 .Comparison to query_string / field
 **************************************************
@@ -151,8 +163,6 @@ process. It does not support field name prefixes, wildcard characters,
 or other "advanced" features. For this reason, chances of it failing are
 very small / non existent, and it provides an excellent behavior when it
 comes to just analyze and run that text as a query behavior (which is
-usually what a text search box does). Also, the `phrase_prefix` type can
-provide a great "as you type" behavior to automatically load search
-results.
+usually what a text search box does).
 
 **************************************************

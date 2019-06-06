@@ -4,10 +4,11 @@
     "methods": ["POST"],
     "url": {
       "path": "/_reindex/{task_id}/_rethrottle",
-      "paths": ["/_reindex/{task_id}/_rethrottle", "/_update_by_query/{task_id}/_rethrottle", "/_delete_by_query/{task_id}/_rethrottle"],
+      "paths": ["/_reindex/{task_id}/_rethrottle"],
       "parts": {
         "task_id": {
           "type": "string",
+          "required" : true,
           "description": "The task id to rethrottle"
         }
       },

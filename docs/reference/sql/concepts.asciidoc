@@ -1,0 +1,65 @@
+[role="xpack"]
+[testenv="basic"]
+[[sql-concepts]]
+== Conventions and Terminology
+
+For clarity, it is important to establish the meaning behind certain words as, the same wording might convey different meanings to different readers depending on one's familiarity with SQL versus {es}.
+
+NOTE: This documentation while trying to be complete, does assume the reader has _basic_ understanding of {es} and/or SQL. If that is not the case, please continue reading the documentation however take notes and pursue the topics that are unclear either through the main {es} documentation or through the plethora of SQL material available in the open (there are simply too many excellent resources here to enumerate).
+
+As a general rule, {es-sql} as the name indicates provides a SQL interface to {es}. As such, it follows the SQL terminology and conventions first, whenever possible. However the backing engine itself is {es} for which {es-sql} was purposely created hence why features or concepts that are not available, or cannot be mapped correctly, in SQL appear
+in {es-sql}.
+Last but not least, {es-sql} tries to obey the https://en.wikipedia.org/wiki/Principle_of_least_astonishment[principle of least surprise], though as all things in the world, everything is relative.
+
+=== Mapping concepts across SQL and {es}
+
+While SQL and {es} have different terms for the way the data is organized (and different semantics), essentially their purpose is the same.
+
+So let's start from the bottom; these roughly are:
+
+[cols="1,1,5", options="header"]
+|===
+|SQL         
+|{es}       
+|Description
+
+|`column`
+|`field`
+|In both cases, at the lowest level, data is stored in _named_ entries, of a variety of <<sql-data-types, data types>>, containing _one_ value. SQL calls such an entry a _column_ while {es} a _field_.
+Notice that in {es} a field can contain _multiple_ values of the same type (essentially a list) while in SQL, a _column_ can contain _exactly_ one value of said type.
+{es-sql} will do its best to preserve the SQL semantic and, depending on the query, reject those that return fields with more than one value.
+
+|`row`
+|`document`
+|++Column++s and ++field++s do _not_ exist by themselves; they are part of a `row` or a `document`. The two have slightly different semantics: a `row` tends to be _strict_ (and have more enforcements) while a `document` tends to be a bit more flexible or loose (while still having a structure).
+
+|`table`
+|`index`
+|The target against which queries, whether in SQL or {es} get executed against.
+
+|`schema`
+|_implicit_
+|In RDBMS, `schema` is mainly a namespace of tables and typically used as a security boundary. {es} does not provide an equivalent concept for it. However when security is enabled, {es} automatically applies the security enforcement so that a role sees only the data it is allowed to (in SQL jargon, its _schema_).
+
+|`catalog` or `database`
+|`cluster` instance 
+|In SQL, `catalog` or `database` are used interchangeably and represent a set of schemas that is, a number of tables.
+In {es} the set of indices available are grouped in a `cluster`. The semantics also differ a bit; a `database` is essentially yet another namespace (which can have some implications on the way data is stored) while an {es} `cluster` is a runtime instance, or rather a set of at least one {es} instance (typically running distributed).
+In practice this means that while in SQL one can potentially have multiple catalogs inside an instance, in {es} one is restricted to only _one_.
+
+|`cluster`
+|`cluster` (federated)
+|Traditionally in SQL, _cluster_ refers to a single RDMBS instance which contains a number of ++catalog++s or ++database++s (see above). The same word can be reused inside {es} as well however its semantic clarified a bit.
+
+While RDBMS tend to have only one running instance, on a single machine (_not_ distributed), {es} goes the opposite way and by default, is distributed and multi-instance.
+
+Further more, an {es} `cluster` can be connected to other ++cluster++s in a _federated_ fashion thus `cluster` means:
+
+single cluster::
+Multiple {es} instances typically distributed across machines, running within the same namespace.
+multiple clusters::
+Multiple clusters, each with its own namespace, connected to each other in a federated setup (see <<modules-cross-cluster-search, {ccs-cap}>>).
+
+|===
+
+As one can see while the mapping between the concepts are not exactly one to one and the semantics somewhat different, there are more things in common than differences. In fact, thanks to SQL declarative nature, many concepts can move across {es} transparently and the terminology of the two likely to be used interchangeably throughout the rest of the material.

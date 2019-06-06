@@ -24,47 +24,56 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 
+import java.io.EOFException;
 import java.io.IOException;
 
 /**
- * A Netty {@link io.netty.buffer.ByteBuf} based {@link org.elasticsearch.common.io.stream.StreamInput}.
+ * A Netty {@link ByteBuf} based {@link StreamInput}.
  */
 class ByteBufStreamInput extends StreamInput {
 
     private final ByteBuf buffer;
-    private final int startIndex;
     private final int endIndex;
 
-    public ByteBufStreamInput(ByteBuf buffer, int length) {
+    ByteBufStreamInput(ByteBuf buffer, int length) {
         if (length > buffer.readableBytes()) {
             throw new IndexOutOfBoundsException();
         }
         this.buffer = buffer;
-        startIndex = buffer.readerIndex();
+        int startIndex = buffer.readerIndex();
         endIndex = startIndex + length;
         buffer.markReaderIndex();
     }
 
     @Override
     public BytesReference readBytesReference(int length) throws IOException {
-        BytesReference ref = Netty4Utils.toBytesReference(buffer.slice(buffer.readerIndex(), length));
-        buffer.skipBytes(length);
-        return ref;
+        // NOTE: It is unsafe to share a reference of the internal structure, so we
+        // use the default implementation which will copy the bytes. It is unsafe because
+        // a netty ByteBuf might be pooled which requires a manual release to prevent
+        // memory leaks.
+        return super.readBytesReference(length);
     }
 
     @Override
     public BytesRef readBytesRef(int length) throws IOException {
-        if (!buffer.hasArray()) {
-            return super.readBytesRef(length);
-        }
-        BytesRef bytesRef = new BytesRef(buffer.array(), buffer.arrayOffset() + buffer.readerIndex(), length);
-        buffer.skipBytes(length);
-        return bytesRef;
+        // NOTE: It is unsafe to share a reference of the internal structure, so we
+        // use the default implementation which will copy the bytes. It is unsafe because
+        // a netty ByteBuf might be pooled which requires a manual release to prevent
+        // memory leaks.
+        return super.readBytesRef(length);
     }
 
     @Override
     public int available() throws IOException {
         return endIndex - buffer.readerIndex();
+    }
+
+    @Override
+    protected void ensureCanReadBytes(int length) throws EOFException {
+        int bytesAvailable = endIndex - buffer.readerIndex();
+        if (bytesAvailable < length) {
+            throw new EOFException("tried to read: " + length + " bytes but only " + bytesAvailable + " remaining");
+        }
     }
 
     @Override
@@ -101,6 +110,39 @@ class ByteBufStreamInput extends StreamInput {
     }
 
     @Override
+    public short readShort() throws IOException {
+        try {
+            return buffer.readShort();
+        } catch (IndexOutOfBoundsException ex) {
+            EOFException eofException = new EOFException();
+            eofException.initCause(ex);
+            throw eofException;
+        }
+    }
+
+    @Override
+    public int readInt() throws IOException {
+        try {
+            return buffer.readInt();
+        } catch (IndexOutOfBoundsException ex) {
+            EOFException eofException = new EOFException();
+            eofException.initCause(ex);
+            throw eofException;
+        }
+    }
+
+    @Override
+    public long readLong() throws IOException {
+        try {
+            return buffer.readLong();
+        } catch (IndexOutOfBoundsException ex) {
+            EOFException eofException = new EOFException();
+            eofException.initCause(ex);
+            throw eofException;
+        }
+    }
+
+    @Override
     public void reset() throws IOException {
         buffer.resetReaderIndex();
     }
@@ -123,7 +165,13 @@ class ByteBufStreamInput extends StreamInput {
 
     @Override
     public byte readByte() throws IOException {
-        return buffer.readByte();
+        try {
+            return buffer.readByte();
+        } catch (IndexOutOfBoundsException ex) {
+            EOFException eofException = new EOFException();
+            eofException.initCause(ex);
+            throw eofException;
+        }
     }
 
     @Override

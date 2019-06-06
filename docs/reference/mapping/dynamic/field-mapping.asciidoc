@@ -4,7 +4,8 @@
 By default, when a previously unseen field is found in a document,
 Elasticsearch will add the new field to the type mapping.   This behaviour can
 be disabled, both at the document and at the <<object,`object`>>  level, by
-setting the <<dynamic,`dynamic`>> parameter to `false` or to `strict`.
+setting the <<dynamic,`dynamic`>> parameter to `false` (to ignore new fields) or to `strict` (to throw
+an exception if an unknown field is encountered).
 
 Assuming `dynamic` field mapping is enabled, some simple rules are used to
 determine which datatype the field should have:
@@ -47,7 +48,7 @@ For example:
 
 [source,js]
 --------------------------------------------------
-PUT my_index/my_type/1
+PUT my_index/_doc/1
 {
   "create_date": "2015/09/02"
 }
@@ -68,13 +69,11 @@ Dynamic date detection can be disabled by setting `date_detection` to `false`:
 PUT my_index
 {
   "mappings": {
-    "my_type": {
-      "date_detection": false
-    }
+    "date_detection": false
   }
 }
 
-PUT my_index/my_type/1 <1>
+PUT my_index/_doc/1 <1>
 {
   "create": "2015/09/02"
 }
@@ -93,13 +92,11 @@ own <<mapping-date-format,date formats>>:
 PUT my_index
 {
   "mappings": {
-    "my_type": {
-      "dynamic_date_formats": ["MM/dd/yyyy"]
-    }
+    "dynamic_date_formats": ["MM/dd/yyyy"]
   }
 }
 
-PUT my_index/my_type/1
+PUT my_index/_doc/1
 {
   "create_date": "09/25/2015"
 }
@@ -121,19 +118,17 @@ correct solution is to map these fields explicitly, but numeric detection
 PUT my_index
 {
   "mappings": {
-    "my_type": {
-      "numeric_detection": true
-    }
+    "numeric_detection": true
   }
 }
 
-PUT my_index/my_type/1
+PUT my_index/_doc/1
 {
   "my_float":   "1.0", <1>
   "my_integer": "1" <2>
 }
 --------------------------------------------------
 // CONSOLE
-<1> The `my_float` field is added as a <<number,`double`>> field.
+<1> The `my_float` field is added as a <<number,`float`>> field.
 <2> The `my_integer` field is added as a <<number,`long`>> field.
 

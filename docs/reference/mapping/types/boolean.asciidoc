@@ -2,16 +2,16 @@
 === Boolean datatype
 
 Boolean fields accept JSON `true` and `false` values, but can also accept
-strings and numbers which are interpreted as either true or false:
+strings which are interpreted as either true or false:
 
 [horizontal]
 False values::
 
-    `false`, `"false"`, `"off"`, `"no"`, `"0"`, `""` (empty string), `0`, `0.0`
+    `false`, `"false"`
 
 True values::
 
-    Anything that isn't false.
+    `true`, `"true"`
 
 For example:
 
@@ -20,33 +20,31 @@ For example:
 PUT my_index
 {
   "mappings": {
-    "my_type": {
-      "properties": {
-        "is_published": {
-          "type": "boolean"
-        }
+    "properties": {
+      "is_published": {
+        "type": "boolean"
       }
     }
   }
 }
 
-POST my_index/my_type/1
+POST my_index/_doc/1
 {
-  "is_published": true <1>
+  "is_published": "true" <1>
 }
 
 GET my_index/_search
 {
   "query": {
     "term": {
-      "is_published": 1 <2>
+      "is_published": true <2>
     }
   }
 }
 --------------------------------------------------
 // CONSOLE
-<1> Indexing a document with a JSON `true`.
-<2> Querying for the document with `1`, which is interpreted as `true`.
+<1> Indexing a document with `"true"`, which is interpreted as `true`.
+<2> Searching for documents with a JSON `true`.
 
 Aggregations like the <<search-aggregations-bucket-terms-aggregation,`terms`
 aggregation>>  use `1` and `0` for the `key`, and the strings `"true"` and
@@ -55,12 +53,12 @@ return `1` and `0`:
 
 [source,js]
 --------------------------------------------------
-POST my_index/my_type/1
+POST my_index/_doc/1
 {
   "is_published": true
 }
 
-POST my_index/my_type/2
+POST my_index/_doc/2
 {
   "is_published": false
 }
@@ -78,7 +76,7 @@ GET my_index/_search
     "is_published": {
       "script": {
         "lang": "painless",
-        "inline": "doc['is_published'].value"
+        "source": "doc['is_published'].value"
       }
     }
   }

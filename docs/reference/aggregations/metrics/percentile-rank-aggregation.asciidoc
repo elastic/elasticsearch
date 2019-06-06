@@ -18,23 +18,27 @@ value.  For example, if a value is greater than or equal to 95% of the observed 
 it is said to be at the 95th percentile rank.
 
 Assume your data consists of website load times.  You may have a service agreement that
-95% of page loads completely within 15ms and 99% of page loads complete within 30ms.
+95% of page loads completely within 500ms and 99% of page loads complete within 600ms.
 
 Let's look at a range of percentiles representing load time:
 
 [source,js]
 --------------------------------------------------
+GET latency/_search
 {
+    "size": 0,
     "aggs" : {
-        "load_time_outlier" : {
+        "load_time_ranks" : {
             "percentile_ranks" : {
                 "field" : "load_time", <1>
-                "values" : [15, 30]
+                "values" : [500, 600]
             }
         }
     }
 }
 --------------------------------------------------
+// CONSOLE
+// TEST[setup:latency]
 <1> The field `load_time` must be a numeric field
 
 The response will look like this:
@@ -45,18 +49,67 @@ The response will look like this:
     ...
 
    "aggregations": {
-      "load_time_outlier": {
+      "load_time_ranks": {
          "values" : {
-            "15": 92,
-            "30": 100
+            "500.0": 55.00000000000001,
+            "600.0": 64.0
          }
       }
    }
 }
 --------------------------------------------------
+// TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
 
 From this information you can determine you are hitting the 99% load time target but not quite
 hitting the 95% load time target
+
+==== Keyed Response
+
+By default the `keyed` flag is set to `true` associates a unique string key with each bucket and returns the ranges as a hash rather than an array. Setting the `keyed` flag to `false` will disable this behavior:
+
+[source,js]
+--------------------------------------------------
+GET latency/_search
+{
+    "size": 0,
+    "aggs": {
+        "load_time_ranks": {
+            "percentile_ranks": {
+                "field": "load_time",
+                "values": [500, 600],
+                "keyed": false
+            }
+        }
+    }
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[setup:latency]
+
+Response:
+
+[source,js]
+--------------------------------------------------
+{
+    ...
+
+    "aggregations": {
+        "load_time_ranks": {
+            "values": [
+                {
+                    "key": 500.0,
+                    "value": 55.00000000000001
+                },
+                {
+                    "key": 600.0,
+                    "value": 64.0
+                }
+            ]
+        }
+    }
+}
+--------------------------------------------------
+// TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
 
 
 ==== Script
@@ -67,14 +120,16 @@ a script to convert them on-the-fly:
 
 [source,js]
 --------------------------------------------------
+GET latency/_search
 {
+    "size": 0,
     "aggs" : {
-        "load_time_outlier" : {
+        "load_time_ranks" : {
             "percentile_ranks" : {
-                "values" : [3, 5],
+                "values" : [500, 600],
                 "script" : {
                     "lang": "painless",
-                    "inline": "doc['load_time'].value / params.timeUnit", <1>
+                    "source": "doc['load_time'].value / params.timeUnit", <1>
                     "params" : {
                         "timeUnit" : 1000   <2>
                     }
@@ -84,23 +139,27 @@ a script to convert them on-the-fly:
     }
 }
 --------------------------------------------------
+// CONSOLE
+// TEST[setup:latency]
 <1> The `field` parameter is replaced with a `script` parameter, which uses the
 script to generate values which percentile ranks are calculated on
 <2> Scripting supports parameterized input just like any other script
 
-This will interpret the `script` parameter as an `inline` script with the `painless` script language and no script parameters. To use a file script use the following syntax:
+This will interpret the `script` parameter as an `inline` script with the `painless` script language and no script parameters. To use a stored script use the following syntax:
 
 [source,js]
 --------------------------------------------------
+GET latency/_search
 {
+    "size": 0,
     "aggs" : {
-        "load_time_outlier" : {
+        "load_time_ranks" : {
             "percentile_ranks" : {
-                "values" : [3, 5],
+                "values" : [500, 600],
                 "script" : {
-                    "file": "my_script",
-                    "params" : {
-                        "timeUnit" : 1000
+                    "id": "my_script",
+                    "params": {
+                        "field": "load_time"
                     }
                 }
             }
@@ -108,12 +167,12 @@ This will interpret the `script` parameter as an `inline` script with the `painl
     }
 }
 --------------------------------------------------
-
-TIP: for indexed scripts replace the `file` parameter with an `id` parameter.
+// CONSOLE
+// TEST[setup:latency,stored_example_script]
 
 ==== HDR Histogram
 
-experimental[]
+NOTE: This setting exposes the internal implementation of HDR Histogram and the syntax may change in the future.
 
 https://github.com/HdrHistogram/HdrHistogram[HDR Histogram] (High Dynamic Range Histogram) is an alternative implementation
 that can be useful when calculating percentile ranks for latency measurements as it can be faster than the t-digest implementation
@@ -126,12 +185,14 @@ The HDR Histogram can be used by specifying the `method` parameter in the reques
 
 [source,js]
 --------------------------------------------------
+GET latency/_search
 {
+    "size": 0,
     "aggs" : {
-        "load_time_outlier" : {
+        "load_time_ranks" : {
             "percentile_ranks" : {
                 "field" : "load_time",
-                "values" : [15, 30],
+                "values" : [500, 600],
                 "hdr": { <1>
                   "number_of_significant_value_digits" : 3 <2>
                 }
@@ -140,6 +201,8 @@ The HDR Histogram can be used by specifying the `method` parameter in the reques
     }
 }
 --------------------------------------------------
+// CONSOLE
+// TEST[setup:latency]
 <1> `hdr` object indicates that HDR Histogram should be used to calculate the percentiles and specific settings for this algorithm can be specified inside the object
 <2> `number_of_significant_value_digits` specifies the resolution of values for the histogram in number of significant digits
 
@@ -154,16 +217,20 @@ had a value.
 
 [source,js]
 --------------------------------------------------
+GET latency/_search
 {
+    "size": 0,
     "aggs" : {
-        "grade_ranks" : {
+        "load_time_ranks" : {
             "percentile_ranks" : {
-                "field" : "grade",
+                "field" : "load_time",
+                "values" : [500, 600],
                 "missing": 10 <1>
             }
         }
     }
 }
 --------------------------------------------------
-
-<1> Documents without a value in the `grade` field will fall into the same bucket as documents that have the value `10`.
+// CONSOLE
+// TEST[setup:latency]
+<1> Documents without a value in the `load_time` field will fall into the same bucket as documents that have the value `10`.

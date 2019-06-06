@@ -1,0 +1,161 @@
+{
+  "metadata": {
+    "name": "X-Pack Monitoring: Cluster Status (${monitoring.watch.cluster_uuid})",
+    "xpack": {
+      "alert_index": ".monitoring-alerts-7",
+      "cluster_uuid": "${monitoring.watch.cluster_uuid}",
+      "link": "elasticsearch/indices",
+      "severity": 2100,
+      "type": "monitoring",
+      "version_created": 7000099,
+      "watch": "${monitoring.watch.id}"
+    }
+  },
+  "trigger": {
+    "schedule": {
+      "interval": "1m"
+    }
+  },
+  "input": {
+    "chain": {
+      "inputs": [
+        {
+          "check": {
+            "search": {
+              "request": {
+                "indices": [
+                  ".monitoring-es-*"
+                ],
+                "body": {
+                  "size": 1,
+                  "sort": [
+                    {
+                      "timestamp": {
+                        "order": "desc"
+                      }
+                    }
+                  ],
+                  "_source": [
+                    "cluster_state.status"
+                  ],
+                  "query": {
+                    "bool": {
+                      "filter": [
+                        {
+                          "term": {
+                            "cluster_uuid": "{{ctx.metadata.xpack.cluster_uuid}}"
+                          }
+                        },
+                        {
+                          "term": {
+                            "type": "cluster_stats"
+                          }
+                        },
+                        {
+                          "range": {
+                            "timestamp": {
+                              "gte": "now-2m"
+                            }
+                          }
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "alert": {
+            "search": {
+              "request": {
+                "indices": [
+                  ".monitoring-alerts-7"
+                ],
+                "body": {
+                  "size": 1,
+                  "terminate_after": 1,
+                  "query": {
+                    "bool": {
+                      "filter": {
+                        "term": {
+                          "_id": "{{ctx.watch_id}}"
+                        }
+                      }
+                    }
+                  },
+                  "sort": [
+                    { "timestamp": { "order": "desc" } }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        {
+          "kibana_settings": {
+            "search": {
+              "request": {
+                "search_type": "query_then_fetch",
+                "indices": [
+                  ".monitoring-kibana-7-*"
+                ],
+                "body": {
+                  "size": 1,
+                  "query": {
+                    "bool": {
+                      "filter": {
+                        "term": {
+                          "type": "kibana_settings"
+                        }
+                      }
+                    }
+                  },
+                  "sort": [
+                    {
+                      "timestamp": {
+                        "order": "desc"
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      ]
+    }
+  },
+  "condition": {
+    "script": {
+      "source": "ctx.vars.fails_check = ctx.payload.check.hits.total != 0 && ctx.payload.check.hits.hits[0]._source.cluster_state.status != 'green';ctx.vars.not_resolved = ctx.payload.alert.hits.total == 1 && ctx.payload.alert.hits.hits[0]._source.resolved_timestamp == null;return ctx.vars.fails_check || ctx.vars.not_resolved"
+    }
+  },
+  "transform": {
+    "script": {
+      "source": "ctx.vars.email_recipient = (ctx.payload.kibana_settings.hits.total > 0 && ctx.payload.kibana_settings.hits.hits[0]._source.kibana_settings.xpack != null) ? ctx.payload.kibana_settings.hits.hits[0]._source.kibana_settings.xpack.default_admin_email : null;ctx.vars.is_new = ctx.vars.fails_check && !ctx.vars.not_resolved;ctx.vars.is_resolved = !ctx.vars.fails_check && ctx.vars.not_resolved;def state = ctx.payload.check.hits.hits[0]._source.cluster_state.status;if (ctx.vars.not_resolved){ctx.payload = ctx.payload.alert.hits.hits[0]._source;if (ctx.vars.fails_check == false) {ctx.payload.resolved_timestamp = ctx.execution_time;}} else {ctx.payload = ['timestamp': ctx.execution_time, 'metadata': ctx.metadata.xpack];}if (ctx.vars.fails_check) {ctx.payload.prefix = 'Elasticsearch cluster status is ' + state + '.';if (state == 'red') {ctx.payload.message = 'Allocate missing primary shards and replica shards.';ctx.payload.metadata.severity = 2100;} else {ctx.payload.message = 'Allocate missing replica shards.';ctx.payload.metadata.severity = 1100;}}ctx.vars.state = state.toUpperCase();ctx.payload.update_timestamp = ctx.execution_time;return ctx.payload;"
+    }
+  },
+  "actions": {
+    "add_to_alerts_index": {
+      "index": {
+        "index": ".monitoring-alerts-7",
+        "doc_id": "${monitoring.watch.unique_id}"
+      }
+    },
+    "send_email_to_admin": {
+      "condition": {
+        "script": "return ctx.vars.email_recipient != null && (ctx.vars.is_new || ctx.vars.is_resolved)"
+      },
+      "email": {
+        "to": "X-Pack Admin <{{ctx.vars.email_recipient}}>",
+        "from": "X-Pack Admin <{{ctx.vars.email_recipient}}>",
+        "subject": "[{{#ctx.vars.is_new}}NEW{{/ctx.vars.is_new}}{{#ctx.vars.is_resolved}}RESOLVED{{/ctx.vars.is_resolved}}] {{ctx.metadata.name}} [{{ctx.vars.state}}]",
+        "body": {
+          "text": "{{#ctx.vars.is_resolved}}This cluster alert has been resolved: {{/ctx.vars.is_resolved}}{{ctx.payload.prefix}} {{ctx.payload.message}}"
+        }
+      }
+    }
+  }
+}

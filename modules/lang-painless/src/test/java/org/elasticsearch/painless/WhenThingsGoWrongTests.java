@@ -19,60 +19,102 @@
 
 package org.elasticsearch.painless;
 
+import junit.framework.AssertionFailedError;
 import org.apache.lucene.util.Constants;
+import org.elasticsearch.script.ScriptException;
 
 import java.lang.invoke.WrongMethodTypeException;
-import java.util.Arrays;
 import java.util.Collections;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
+import static org.hamcrest.Matchers.instanceOf;
 
 public class WhenThingsGoWrongTests extends ScriptTestCase {
     public void testNullPointer() {
         expectScriptThrows(NullPointerException.class, () -> {
             exec("int x = params['missing']; return x;");
         });
+        expectScriptThrows(NullPointerException.class, () -> {
+            exec("Double.parseDouble(params['missing'])");
+        });
     }
 
-    /** test "line numbers" in the bytecode, which are really 1-based offsets */
-    public void testLineNumbers() {
-        // trigger NPE at line 1 of the script
-        NullPointerException exception = expectScriptThrows(NullPointerException.class, () -> {
-            exec("String x = null; boolean y = x.isEmpty();\n" +
-                 "return y;");
-        });
-        // null deref at x.isEmpty(), the '.' is offset 30 (+1)
-        assertEquals(30 + 1, exception.getStackTrace()[0].getLineNumber());
+    /**
+     * Test that the scriptStack looks good. By implication this tests that we build proper "line numbers" in stack trace. These line
+     * numbers are really 1 based character numbers.
+     */
+    public void testScriptStack() {
+        for (String type : new String[] {"String", "def   "}) {
+            // trigger NPE at line 1 of the script
+            ScriptException exception = expectThrows(ScriptException.class, () -> {
+                exec(type + " x = null; boolean y = x.isEmpty();\n" +
+                     "return y;");
+            });
+            // null deref at x.isEmpty(), the '.' is offset 30
+            assertScriptElementColumn(30, exception);
+            assertScriptStack(exception,
+                    "y = x.isEmpty();\n",
+                    "     ^---- HERE");
+            assertThat(exception.getCause(), instanceOf(NullPointerException.class));
 
-        // trigger NPE at line 2 of the script
-        exception = expectScriptThrows(NullPointerException.class, () -> {
-            exec("String x = null;\n" +
-                 "return x.isEmpty();");
-        });
-        // null deref at x.isEmpty(), the '.' is offset 25 (+1)
-        assertEquals(25 + 1, exception.getStackTrace()[0].getLineNumber());
+            // trigger NPE at line 2 of the script
+            exception = expectThrows(ScriptException.class, () -> {
+                exec(type + " x = null;\n" +
+                     "return x.isEmpty();");
+            });
+            // null deref at x.isEmpty(), the '.' is offset 25
+            assertScriptElementColumn(25, exception);
+            assertScriptStack(exception,
+                    "return x.isEmpty();",
+                    "        ^---- HERE");
+            assertThat(exception.getCause(), instanceOf(NullPointerException.class));
 
-        // trigger NPE at line 3 of the script
-        exception = expectScriptThrows(NullPointerException.class, () -> {
-            exec("String x = null;\n" +
-                 "String y = x;\n" +
-                 "return y.isEmpty();");
-        });
-        // null deref at y.isEmpty(), the '.' is offset 39 (+1)
-        assertEquals(39 + 1, exception.getStackTrace()[0].getLineNumber());
+            // trigger NPE at line 3 of the script
+            exception = expectThrows(ScriptException.class, () -> {
+                exec(type + " x = null;\n" +
+                     type + " y = x;\n" +
+                     "return y.isEmpty();");
+            });
+            // null deref at y.isEmpty(), the '.' is offset 39
+            assertScriptElementColumn(39, exception);
+            assertScriptStack(exception,
+                    "return y.isEmpty();",
+                    "        ^---- HERE");
+            assertThat(exception.getCause(), instanceOf(NullPointerException.class));
 
-        // trigger NPE at line 4 in script (inside conditional)
-        exception = expectScriptThrows(NullPointerException.class, () -> {
-            exec("String x = null;\n" +
-                 "boolean y = false;\n" +
-                 "if (!y) {\n" +
-                 "  y = x.isEmpty();\n" +
-                 "}\n" +
-                 "return y;");
-        });
-        // null deref at x.isEmpty(), the '.' is offset 53 (+1)
-        assertEquals(53 + 1, exception.getStackTrace()[0].getLineNumber());
+            // trigger NPE at line 4 in script (inside conditional)
+            exception = expectThrows(ScriptException.class, () -> {
+                exec(type + " x = null;\n" +
+                     "boolean y = false;\n" +
+                     "if (!y) {\n" +
+                     "  y = x.isEmpty();\n" +
+                     "}\n" +
+                     "return y;");
+            });
+            // null deref at x.isEmpty(), the '.' is offset 53
+            assertScriptElementColumn(53, exception);
+            assertScriptStack(exception,
+                    "y = x.isEmpty();\n}\n",
+                    "     ^---- HERE");
+            assertThat(exception.getCause(), instanceOf(NullPointerException.class));
+        }
+    }
+
+    private void assertScriptElementColumn(int expectedColumn, ScriptException exception) {
+        StackTraceElement[] stackTrace = exception.getCause().getStackTrace();
+        for (int i = 0; i < stackTrace.length; i++) {
+            if (WriterConstants.CLASS_NAME.equals(stackTrace[i].getClassName())) {
+                if (expectedColumn + 1 != stackTrace[i].getLineNumber()) {
+                    AssertionFailedError assertion = new AssertionFailedError("Expected column to be [" + expectedColumn + "] but was ["
+                            + stackTrace[i].getLineNumber() + "]");
+                    assertion.initCause(exception);
+                    throw assertion;
+                }
+                return;
+            }
+        }
+        fail("didn't find script stack element");
     }
 
     public void testInvalidShift() {
@@ -87,7 +129,7 @@ public class WhenThingsGoWrongTests extends ScriptTestCase {
 
     public void testBogusParameter() {
         IllegalArgumentException expected = expectThrows(IllegalArgumentException.class, () -> {
-            exec("return 5;", null, Collections.singletonMap("bogusParameterKey", "bogusParameterValue"), null, true);
+            exec("return 5;", null, Collections.singletonMap("bogusParameterKey", "bogusParameterValue"), true);
         });
         assertTrue(expected.getMessage().contains("Unrecognized compile-time parameter"));
     }
@@ -148,35 +190,20 @@ public class WhenThingsGoWrongTests extends ScriptTestCase {
 
     public void testLoopLimits() {
         // right below limit: ok
-        exec("for (int x = 0; x < 9999; ++x) {}");
+        exec("for (int x = 0; x < 999999; ++x) {}");
 
         PainlessError expected = expectScriptThrows(PainlessError.class, () -> {
-            exec("for (int x = 0; x < 10000; ++x) {}");
+            exec("for (int x = 0; x < 1000000; ++x) {}");
         });
         assertTrue(expected.getMessage().contains(
                    "The maximum number of statements that can be executed in a loop has been reached."));
-    }
-
-    public void testSourceLimits() {
-        final char[] tooManyChars = new char[Compiler.MAXIMUM_SOURCE_LENGTH + 1];
-        Arrays.fill(tooManyChars, '0');
-
-        IllegalArgumentException expected = expectScriptThrows(IllegalArgumentException.class, () -> {
-            exec(new String(tooManyChars));
-        });
-        assertTrue(expected.getMessage().contains("Scripts may be no longer than"));
-
-        final char[] exactlyAtLimit = new char[Compiler.MAXIMUM_SOURCE_LENGTH];
-        Arrays.fill(exactlyAtLimit, '0');
-        // ok
-        assertEquals(0, exec(new String(exactlyAtLimit)));
     }
 
     public void testIllegalDynamicMethod() {
         IllegalArgumentException expected = expectScriptThrows(IllegalArgumentException.class, () -> {
             exec("def x = 'test'; return x.getClass().toString()");
         });
-        assertTrue(expected.getMessage().contains("Unable to find dynamic method"));
+        assertTrue(expected.getMessage().contains("dynamic method [java.lang.String, getClass/0] not found"));
     }
 
     public void testDynamicNPE() {
@@ -210,9 +237,9 @@ public class WhenThingsGoWrongTests extends ScriptTestCase {
     public void testRCurlyNotDelim() {
         IllegalArgumentException e = expectScriptThrows(IllegalArgumentException.class, () -> {
             // We don't want PICKY here so we get the normal error message
-            exec("def i = 1} return 1", emptyMap(), emptyMap(), null, false);
+            exec("def i = 1} return 1", emptyMap(), emptyMap(), false);
         });
-        assertEquals("unexpected token ['}'] was expecting one of [<EOF>].", e.getMessage());
+        assertEquals("unexpected token ['}'] was expecting one of [{<EOF>, ';'}].", e.getMessage());
     }
 
     public void testBadBoxingCast() {
@@ -242,7 +269,44 @@ public class WhenThingsGoWrongTests extends ScriptTestCase {
 
     public void testCanNotOverrideRegexEnabled() {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                () -> exec("", null, singletonMap(CompilerSettings.REGEX_ENABLED.getKey(), "true"), null, false));
+                () -> exec("", null, singletonMap(CompilerSettings.REGEX_ENABLED.getKey(), "true"), false));
         assertEquals("[painless.regex.enabled] can only be set on node startup.", e.getMessage());
+    }
+
+    public void testInvalidIntConstantSuggestsLong() {
+        IllegalArgumentException e = expectScriptThrows(IllegalArgumentException.class, () -> exec("return 864000000000"));
+        assertEquals("Invalid int constant [864000000000]. If you want a long constant then change it to [864000000000L].", e.getMessage());
+        assertEquals(864000000000L, exec("return 864000000000L"));
+        e = expectScriptThrows(IllegalArgumentException.class, () -> exec("return -864000000000"));
+        assertEquals("Invalid int constant [-864000000000]. If you want a long constant then change it to [-864000000000L].",
+                e.getMessage());
+        assertEquals(-864000000000L, exec("return -864000000000L"));
+
+        // If it isn't a valid long we don't give any suggestions
+        e = expectScriptThrows(IllegalArgumentException.class, () -> exec("return 92233720368547758070"));
+        assertEquals("Invalid int constant [92233720368547758070].", e.getMessage());
+        e = expectScriptThrows(IllegalArgumentException.class, () -> exec("return -92233720368547758070"));
+        assertEquals("Invalid int constant [-92233720368547758070].", e.getMessage());
+    }
+
+    public void testQuestionSpaceDotIsNotNullSafeDereference() {
+        Exception e = expectScriptThrows(IllegalArgumentException.class, () -> exec("return params.a? .b", false));
+        assertEquals("invalid sequence of tokens near ['.'].", e.getMessage());
+    }
+
+    public void testBadStringEscape() {
+        Exception e = expectScriptThrows(IllegalArgumentException.class, () -> exec("'\\a'", false));
+        assertEquals("unexpected character ['\\a]. The only valid escape sequences in strings starting with ['] are [\\\\] and [\\'].",
+                e.getMessage());
+        e = expectScriptThrows(IllegalArgumentException.class, () -> exec("\"\\a\"", false));
+        assertEquals("unexpected character [\"\\a]. The only valid escape sequences in strings starting with [\"] are [\\\\] and [\\\"].",
+                e.getMessage());
+    }
+
+    public void testRegularUnexpectedCharacter() {
+        Exception e = expectScriptThrows(IllegalArgumentException.class, () -> exec("'", false));
+        assertEquals("unexpected character ['].", e.getMessage());
+        e = expectScriptThrows(IllegalArgumentException.class, () -> exec("'cat", false));
+        assertEquals("unexpected character ['cat].", e.getMessage());
     }
 }

@@ -4,20 +4,19 @@
     "methods":[ "GET" ],
     "url":{
       "path":"/{index}",
-      "paths":[ "/{index}", "/{index}/{feature}" ],
+      "paths":[ "/{index}" ],
       "parts":{
         "index":{
           "type":"list",
           "required" : true,
           "description":"A comma-separated list of index names"
-        },
-        "feature":{
-          "type":"list",
-          "description":"A comma-separated list of features",
-          "options": ["_settings", "_mappings", "_aliases"]
         }
       },
       "params":{
+        "include_type_name": {
+          "type" : "boolean",
+          "description" : "Whether to add the type name to the response (default: false)"
+        },
         "local":{
           "type":"boolean",
           "description":"Return local information, do not retrieve the state from master node (default: false)"
@@ -40,15 +39,14 @@
           "type": "boolean",
           "description": "Return settings in flat format (default: false)"
         },
-        "human": {
-          "type": "boolean",
-          "description": "Whether to return version and creation date values in human-readable format.",
-          "default": false
-        },
         "include_defaults": {
           "type": "boolean",
           "description": "Whether to return all default setting for each of the indices.",
           "default": false
+        },
+        "master_timeout": {
+          "type" : "time",
+          "description" : "Specify timeout for connection to master"
         }
       }
     },

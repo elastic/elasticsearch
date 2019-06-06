@@ -1,0 +1,10 @@
+if [ ! -f /etc/elasticsearch/elasticsearch.keystore ]; then
+    /usr/share/elasticsearch/bin/elasticsearch-keystore create
+    chown root:elasticsearch /etc/elasticsearch/elasticsearch.keystore
+    chmod 660 /etc/elasticsearch/elasticsearch.keystore
+    md5sum /etc/elasticsearch/elasticsearch.keystore > /etc/elasticsearch/.elasticsearch.keystore.initial_md5sum
+else
+    /usr/share/elasticsearch/bin/elasticsearch-keystore upgrade
+fi
+
+${scripts.footer}

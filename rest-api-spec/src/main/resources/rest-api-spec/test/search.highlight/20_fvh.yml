@@ -1,0 +1,45 @@
+setup:
+  - do:
+      indices.create:
+          index: test
+          body:
+            mappings:
+              "properties":
+                "title":
+                   "type": "text"
+                   "term_vector": "with_positions_offsets"
+                "description":
+                   "type": "text"
+                   "term_vector": "with_positions_offsets"
+  - do:
+      index:
+        index: test
+        id:    1
+        body:
+            "title" : "The quick brown fox is brown"
+            "description" : "The quick pink panther is pink"
+  - do:
+      indices.refresh: {}
+
+---
+"Highlight query":
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+         highlight:
+          type: fvh
+          fields:
+            description:
+              type: fvh
+              highlight_query:
+                prefix:
+                  description: br
+            title:
+              type: fvh
+              highlight_query:
+                prefix:
+                  title: br
+
+  - match: {hits.hits.0.highlight.title.0: "The quick <em>brown</em> fox is <em>brown</em>"}
+  - is_false: hits.hits.0.highlight.description

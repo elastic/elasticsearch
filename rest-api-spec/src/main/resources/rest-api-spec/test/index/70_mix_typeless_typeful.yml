@@ -1,0 +1,92 @@
+---
+"Index with typeless API on an index that has types":
+ - do:
+      indices.create: # not using include_type_name: false on purpose
+          include_type_name: true
+          index: index
+          body:
+              mappings:
+                  not_doc:
+                      properties:
+                          foo:
+                              type: "keyword"
+
+ - do:
+      index:
+          index:  index
+          id:     1
+          body:   { foo: bar }
+
+ - match:   { _index:   "index" }
+ - match:   { _type:    "_doc" }
+ - match:   { _id:      "1"}
+ - match:   { _version: 1}
+
+ - do:
+      get: # not using typeless API on purpose
+          index:  index
+          type:   not_doc
+          id:     1
+
+ - match:   { _index:   "index" }
+ - match:   { _type:    "not_doc" } # the important bit to check
+ - match:   { _id:      "1"}
+ - match:   { _version: 1}
+ - match:   { _source: { foo: bar }}
+
+
+ - do:
+      index:
+          index:  index
+          body:   { foo: bar }
+
+ - match:   { _index:   "index" }
+ - match:   { _type:    "_doc" }
+ - match:   { _version: 1}
+ - set:     { _id:      id }
+
+ - do:
+      get: # using typeful API on purpose
+          index:  index
+          type:   not_doc
+          id:     '$id'
+
+ - match:   { _index:   "index" }
+ - match:   { _type:    "not_doc" } # the important bit to check
+ - match:   { _id:      $id}
+ - match:   { _version: 1}
+ - match:   { _source: { foo: bar }}
+
+---
+"Index call that introduces new field mappings":
+  - do:
+      indices.create: # not using include_type_name: false on purpose
+        include_type_name: true
+        index: index
+        body:
+          mappings:
+            not_doc:
+              properties:
+                foo:
+                  type: "keyword"
+  - do:
+      index:
+        index:  index
+        id:     2
+        body:   { new_field: value }
+
+  - match:   { _index:   "index" }
+  - match:   { _type:    "_doc" }
+  - match:   { _id:      "2" }
+  - match:   { _version: 1 }
+
+  - do:
+      get: # using typeful API on purpose
+        index:  index
+        type:   not_doc
+        id:     2
+
+  - match:   { _index:   "index" }
+  - match:   { _type:    "not_doc" }
+  - match:   { _id:      "2" }
+  - match:   { _version: 1}

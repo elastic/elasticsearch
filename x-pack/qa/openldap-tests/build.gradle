@@ -1,0 +1,22 @@
+apply plugin: 'elasticsearch.standalone-test'
+apply plugin: 'elasticsearch.test.fixtures'
+
+dependencies {
+    testCompile project(path: xpackModule('core'), configuration: 'default')
+    testCompile project(path: xpackModule('security'), configuration: 'testArtifacts')
+    testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
+    if (isEclipse) {
+      testCompile project(path: xpackModule('core-tests'), configuration: 'testArtifacts')
+    }
+}
+
+testFixtures.useFixture ":x-pack:test:idp-fixture"
+
+Project idpFixtureProject = xpackProject("test:idp-fixture")
+String outputDir = "${project.buildDir}/generated-resources/${project.name}"
+task copyIdpTrust(type: Copy) {
+    from idpFixtureProject.file('openldap/certs/ca.jks');
+    from idpFixtureProject.file('openldap/certs/ca_server.pem');
+    into outputDir
+}
+project.sourceSets.test.output.dir(outputDir, builtBy: copyIdpTrust)

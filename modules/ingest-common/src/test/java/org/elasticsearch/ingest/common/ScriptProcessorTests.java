@@ -19,24 +19,22 @@
 
 package org.elasticsearch.ingest.common;
 
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.ingest.IngestDocument;
+import org.elasticsearch.ingest.RandomDocumentPicks;
+import org.elasticsearch.script.MockScriptEngine;
+import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptModule;
+import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.ScriptType;
+import org.elasticsearch.test.ESTestCase;
+
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
-import org.elasticsearch.ingest.IngestDocument;
-import org.elasticsearch.ingest.RandomDocumentPicks;
-import org.elasticsearch.script.CompiledScript;
-import org.elasticsearch.script.ExecutableScript;
-import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.test.ESTestCase;
-import org.mockito.stubbing.Answer;
-
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.core.Is.is;
-import static org.mockito.Mockito.any;
-import static org.mockito.Mockito.doAnswer;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 public class ScriptProcessorTests extends ESTestCase {
 
@@ -44,23 +42,30 @@ public class ScriptProcessorTests extends ESTestCase {
         int randomBytesIn = randomInt();
         int randomBytesOut = randomInt();
         int randomBytesTotal = randomBytesIn + randomBytesOut;
-
-        ScriptService scriptService = mock(ScriptService.class);
-        Script script = new Script("_script");
-        ExecutableScript executableScript = mock(ExecutableScript.class);
-        when(scriptService.executable(any(), any(), any())).thenReturn(executableScript);
+        String scriptName = "script";
+        ScriptService scriptService = new ScriptService(Settings.builder().build(),
+            Collections.singletonMap(
+                Script.DEFAULT_SCRIPT_LANG, new MockScriptEngine(
+                    Script.DEFAULT_SCRIPT_LANG,
+                    Collections.singletonMap(
+                        scriptName, ctx -> {
+                            ctx.put("bytes_total", randomBytesTotal);
+                            return null;
+                        }
+                    ),
+                    Collections.emptyMap()
+                )
+            ),
+            new HashMap<>(ScriptModule.CORE_CONTEXTS)
+        );
+        Script script = new Script(ScriptType.INLINE, Script.DEFAULT_SCRIPT_LANG, scriptName, Collections.emptyMap());
 
         Map<String, Object> document = new HashMap<>();
         document.put("bytes_in", randomInt());
         document.put("bytes_out", randomInt());
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
 
-        doAnswer(invocationOnMock ->  {
-            ingestDocument.setFieldValue("bytes_total", randomBytesTotal);
-            return null;
-        }).when(executableScript).run();
-
-        ScriptProcessor processor = new ScriptProcessor(randomAsciiOfLength(10), script, scriptService);
+        ScriptProcessor processor = new ScriptProcessor(randomAlphaOfLength(10), script, scriptService);
 
         processor.execute(ingestDocument);
 
@@ -68,5 +73,29 @@ public class ScriptProcessorTests extends ESTestCase {
         assertThat(ingestDocument.getSourceAndMetadata(), hasKey("bytes_out"));
         assertThat(ingestDocument.getSourceAndMetadata(), hasKey("bytes_total"));
         assertThat(ingestDocument.getSourceAndMetadata().get("bytes_total"), is(randomBytesTotal));
+    }
+
+    public void testTypeDeprecation() throws Exception {
+        String scriptName = "script";
+        ScriptService scriptService = new ScriptService(Settings.builder().build(),
+                Collections.singletonMap(
+                        Script.DEFAULT_SCRIPT_LANG, new MockScriptEngine(
+                                Script.DEFAULT_SCRIPT_LANG,
+                                Collections.singletonMap(
+                                        scriptName, ctx -> {
+                                            ctx.get("_type");
+                                            return null;
+                                        }
+                                ),
+                                Collections.emptyMap()
+                        )
+                ),
+                new HashMap<>(ScriptModule.CORE_CONTEXTS)
+        );
+        Script script = new Script(ScriptType.INLINE, Script.DEFAULT_SCRIPT_LANG, scriptName, Collections.emptyMap());
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), Collections.emptyMap());
+        ScriptProcessor processor = new ScriptProcessor(randomAlphaOfLength(10), script, scriptService);
+        processor.execute(ingestDocument);
+        assertWarnings("[types removal] Looking up doc types [_type] in scripts is deprecated.");
     }
 }

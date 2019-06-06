@@ -41,7 +41,7 @@ public final class DotExpanderProcessor extends AbstractProcessor {
 
     @Override
     @SuppressWarnings("unchecked")
-    public void execute(IngestDocument ingestDocument) throws Exception {
+    public IngestDocument execute(IngestDocument ingestDocument) throws Exception {
         String path;
         Map<String, Object> map;
         if (this.path != null) {
@@ -52,29 +52,32 @@ public final class DotExpanderProcessor extends AbstractProcessor {
             map = ingestDocument.getSourceAndMetadata();
         }
 
-        if (ingestDocument.hasField(path)) {
-            Object value = map.remove(field);
-            ingestDocument.appendFieldValue(path, value);
-        } else {
-            // check whether we actually can expand the field in question into an object field.
-            // part of the path may already exist and if part of it would be a value field (string, integer etc.)
-            // then we can't override it with an object field and we should fail with a good reason.
-            // IngestDocument#setFieldValue(...) would fail too, but the error isn't very understandable
-            for (int index = path.indexOf('.'); index != -1; index = path.indexOf('.', index + 1)) {
-                String partialPath = path.substring(0, index);
-                if (ingestDocument.hasField(partialPath)) {
-                    Object val = ingestDocument.getFieldValue(partialPath, Object.class);
-                    if ((val instanceof Map) == false) {
-                        throw new IllegalArgumentException("cannot expend [" + path + "], because [" + partialPath +
+        if (map.containsKey(field)) {
+            if (ingestDocument.hasField(path)) {
+                Object value = map.remove(field);
+                ingestDocument.appendFieldValue(path, value);
+            } else {
+                // check whether we actually can expand the field in question into an object field.
+                // part of the path may already exist and if part of it would be a value field (string, integer etc.)
+                // then we can't override it with an object field and we should fail with a good reason.
+                // IngestDocument#setFieldValue(...) would fail too, but the error isn't very understandable
+                for (int index = path.indexOf('.'); index != -1; index = path.indexOf('.', index + 1)) {
+                    String partialPath = path.substring(0, index);
+                    if (ingestDocument.hasField(partialPath)) {
+                        Object val = ingestDocument.getFieldValue(partialPath, Object.class);
+                        if ((val instanceof Map) == false) {
+                            throw new IllegalArgumentException("cannot expend [" + path + "], because [" + partialPath +
                                 "] is not an object field, but a value field");
+                        }
+                    } else {
+                        break;
                     }
-                } else {
-                    break;
                 }
+                Object value = map.remove(field);
+                ingestDocument.setFieldValue(path, value);
             }
-            Object value = map.remove(field);
-            ingestDocument.setFieldValue(path, value);
         }
+        return ingestDocument;
     }
 
     @Override

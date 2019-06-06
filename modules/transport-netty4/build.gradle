@@ -26,30 +26,43 @@
 esplugin {
     description 'Netty 4 based transport implementation'
     classname 'org.elasticsearch.transport.Netty4Plugin'
-    hasClientJar = true
 }
 
-compileTestJava.options.compilerArgs << "-Xlint:-cast,-deprecation,-rawtypes,-try,-unchecked"
+compileTestJava.options.compilerArgs << "-Xlint:-cast,-rawtypes,-unchecked"
 
 dependencies {
     // network stack
-    compile "io.netty:netty-buffer:4.1.6.Final"
-    compile "io.netty:netty-codec:4.1.6.Final"
-    compile "io.netty:netty-codec-http:4.1.6.Final"
-    compile "io.netty:netty-common:4.1.6.Final"
-    compile "io.netty:netty-handler:4.1.6.Final"
-    compile "io.netty:netty-resolver:4.1.6.Final"
-    compile "io.netty:netty-transport:4.1.6.Final"
+    compile "io.netty:netty-buffer:${versions.netty}"
+    compile "io.netty:netty-codec:${versions.netty}"
+    compile "io.netty:netty-codec-http:${versions.netty}"
+    compile "io.netty:netty-common:${versions.netty}"
+    compile "io.netty:netty-handler:${versions.netty}"
+    compile "io.netty:netty-resolver:${versions.netty}"
+    compile "io.netty:netty-transport:${versions.netty}"
 }
 
-integTest {
-    includePackaged = true
-    cluster {
-        numNodes = 2
-    }
+dependencyLicenses {
+  mapping from: /netty-.*/, to: 'netty'
 }
 
-thirdPartyAudit.excludes = [
+test {
+    /*
+     * We have to disable setting the number of available processors as tests in the same JVM randomize processors and will step on each
+     * other if we allow them to set the number of available processors as it's set-once in Netty.
+     */
+    systemProperty 'es.set.netty.runtime.available.processors', 'false'
+}
+
+integTestRunner {
+    /*
+     * We have to disable setting the number of available processors as tests in the same JVM randomize processors and will step on each
+     * other if we allow them to set the number of available processors as it's set-once in Netty.
+     */
+    systemProperty 'es.set.netty.runtime.available.processors', 'false'
+}
+
+thirdPartyAudit {
+    ignoreMissingClasses (
         // classes are missing
 
         // from io.netty.handler.codec.protobuf.ProtobufDecoder (netty)
@@ -62,15 +75,18 @@ thirdPartyAudit.excludes = [
         'org.apache.commons.logging.Log',
         'org.apache.commons.logging.LogFactory',
 
+        // from Log4j (deliberate, Netty will fallback to Log4j 2)
+        'org.apache.log4j.Level',
+        'org.apache.log4j.Logger',
+
         // from io.netty.handler.ssl.OpenSslEngine (netty)
-        'org.apache.tomcat.jni.Buffer',
-        'org.apache.tomcat.jni.Library',
-        'org.apache.tomcat.jni.Pool',
-        'org.apache.tomcat.jni.SSL',
-        'org.apache.tomcat.jni.SSLContext',
+        'io.netty.internal.tcnative.Buffer',
+        'io.netty.internal.tcnative.Library',
+        'io.netty.internal.tcnative.SSL',
+        'io.netty.internal.tcnative.SSLContext',
+        'io.netty.internal.tcnative.SSLPrivateKeyMethod',
 
         // from io.netty.handler.ssl.util.BouncyCastleSelfSignedCertGenerator (netty)
-        'org.bouncycastle.asn1.x500.X500Name',
         'org.bouncycastle.cert.X509v3CertificateBuilder',
         'org.bouncycastle.cert.jcajce.JcaX509CertificateConverter',
         'org.bouncycastle.cert.jcajce.JcaX509v3CertificateBuilder',
@@ -97,8 +113,11 @@ thirdPartyAudit.excludes = [
         'org.jboss.marshalling.Unmarshaller',
 
         // from io.netty.util.internal.logging.InternalLoggerFactory (netty) - it's optional
+        'org.slf4j.helpers.FormattingTuple',
+        'org.slf4j.helpers.MessageFormatter',
         'org.slf4j.Logger',
         'org.slf4j.LoggerFactory',
+        'org.slf4j.spi.LocationAwareLogger',
 
         'com.google.protobuf.ExtensionRegistryLite',
         'com.google.protobuf.MessageLiteOrBuilder',
@@ -114,57 +133,54 @@ thirdPartyAudit.excludes = [
         'com.ning.compress.lzf.LZFEncoder',
         'com.ning.compress.lzf.util.ChunkDecoderFactory',
         'com.ning.compress.lzf.util.ChunkEncoderFactory',
-        'javassist.ClassClassPath',
-        'javassist.ClassPath',
-        'javassist.ClassPool',
-        'javassist.CtClass',
-        'javassist.CtMethod',
         'lzma.sdk.lzma.Encoder',
         'net.jpountz.lz4.LZ4Compressor',
         'net.jpountz.lz4.LZ4Factory',
         'net.jpountz.lz4.LZ4FastDecompressor',
         'net.jpountz.xxhash.StreamingXXHash32',
         'net.jpountz.xxhash.XXHashFactory',
-        'org.apache.tomcat.Apr',
-        'org.apache.tomcat.jni.CertificateRequestedCallback',
-        'org.apache.tomcat.jni.CertificateRequestedCallback$KeyMaterial',
-        'org.apache.tomcat.jni.CertificateVerifier',
-        'org.apache.tomcat.jni.SessionTicketKey',
+        'io.netty.internal.tcnative.CertificateCallback',
+        'io.netty.internal.tcnative.CertificateVerifier',
+        'io.netty.internal.tcnative.SessionTicketKey',
+        'io.netty.internal.tcnative.SniHostNameMatcher',
         'org.eclipse.jetty.alpn.ALPN$ClientProvider',
         'org.eclipse.jetty.alpn.ALPN$ServerProvider',
         'org.eclipse.jetty.alpn.ALPN',
 
-        'io.netty.handler.ssl.util.OpenJdkSelfSignedCertGenerator',
+
+        'org.conscrypt.AllocatedBuffer',
+        'org.conscrypt.BufferAllocator',
+        'org.conscrypt.Conscrypt',
+        'org.conscrypt.HandshakeListener'
+   )
+
+   ignoreViolations ( 
         'io.netty.util.internal.PlatformDependent0',
+        'io.netty.util.internal.PlatformDependent0$1',
         'io.netty.util.internal.PlatformDependent0$2',
         'io.netty.util.internal.PlatformDependent0$3',
-        'io.netty.util.internal.UnsafeAtomicIntegerFieldUpdater',
-        'io.netty.util.internal.UnsafeAtomicLongFieldUpdater',
-        'io.netty.util.internal.UnsafeAtomicReferenceFieldUpdater',
-        'io.netty.util.internal.chmv8.ConcurrentHashMapV8',
-        'io.netty.util.internal.chmv8.ConcurrentHashMapV8$1',
-        'io.netty.util.internal.chmv8.ConcurrentHashMapV8$TreeBin',
-        'io.netty.util.internal.chmv8.CountedCompleter',
-        'io.netty.util.internal.chmv8.CountedCompleter$1',
-        'io.netty.util.internal.chmv8.ForkJoinPool',
-        'io.netty.util.internal.chmv8.ForkJoinPool$2',
-        'io.netty.util.internal.chmv8.ForkJoinPool$WorkQueue',
-        'io.netty.util.internal.chmv8.ForkJoinTask',
-        'io.netty.util.internal.chmv8.ForkJoinTask$1',
-        'io.netty.util.internal.chmv8.Striped64',
-        'io.netty.util.internal.chmv8.Striped64$1',
-        'io.netty.util.internal.chmv8.Striped64$Cell',
+        'io.netty.util.internal.PlatformDependent0$5',
         'io.netty.util.internal.shaded.org.jctools.queues.BaseLinkedQueueConsumerNodeRef',
         'io.netty.util.internal.shaded.org.jctools.queues.BaseLinkedQueueProducerNodeRef',
-        'io.netty.util.internal.shaded.org.jctools.queues.ConcurrentSequencedCircularArrayQueue',
+        'io.netty.util.internal.shaded.org.jctools.queues.BaseMpscLinkedArrayQueueColdProducerFields',
+        'io.netty.util.internal.shaded.org.jctools.queues.BaseMpscLinkedArrayQueueConsumerFields',
+        'io.netty.util.internal.shaded.org.jctools.queues.BaseMpscLinkedArrayQueueProducerFields',
         'io.netty.util.internal.shaded.org.jctools.queues.LinkedQueueNode',
-        'io.netty.util.internal.shaded.org.jctools.queues.MpmcArrayQueueConsumerField',
-        'io.netty.util.internal.shaded.org.jctools.queues.MpmcArrayQueueProducerField',
-        'io.netty.util.internal.shaded.org.jctools.queues.MpscArrayQueueConsumerField',
-        'io.netty.util.internal.shaded.org.jctools.queues.MpscArrayQueueHeadLimitField',
-        'io.netty.util.internal.shaded.org.jctools.queues.MpscArrayQueueTailField',
-        'io.netty.util.internal.shaded.org.jctools.queues.MpscChunkedArrayQueue',
-        'io.netty.util.internal.shaded.org.jctools.util.JvmInfo',
+        'io.netty.util.internal.shaded.org.jctools.queues.MpscArrayQueueConsumerIndexField',
+        'io.netty.util.internal.shaded.org.jctools.queues.MpscArrayQueueProducerIndexField',
+        'io.netty.util.internal.shaded.org.jctools.queues.MpscArrayQueueProducerLimitField',
         'io.netty.util.internal.shaded.org.jctools.util.UnsafeAccess',
         'io.netty.util.internal.shaded.org.jctools.util.UnsafeRefArrayAccess',
-]
+        'io.netty.handler.ssl.util.OpenJdkSelfSignedCertGenerator'
+    )
+}
+
+rootProject.globalInfo.ready {
+    if (project.inFipsJvm == false) {
+        // BouncyCastleFIPS provides this class, so the exclusion is invalid when running CI in
+        // a FIPS JVM with BouncyCastleFIPS Provider
+        thirdPartyAudit.ignoreMissingClasses(
+                'org.bouncycastle.asn1.x500.X500Name'
+        )
+    }
+}

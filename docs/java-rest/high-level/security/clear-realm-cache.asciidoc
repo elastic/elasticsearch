@@ -1,0 +1,33 @@
+
+--
+:api: clear-realm-cache
+:request: ClearRealmCacheRequest
+:response: ClearRealmCacheResponse
+--
+
+[id="{upid}-{api}"]
+=== Clear Realm Cache API
+
+[id="{upid}-{api}-request"]
+==== Clear Realm Cache Request
+
+A +{request}+ supports defining the name of realms and usernames that the cache should be cleared
+for.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request]
+--------------------------------------------------
+
+include::../execution.asciidoc[]
+
+[id="{upid}-{api}-response"]
+==== Clear Roles Cache Response
+
+The returned +{response}+ allows to retrieve information about where the cache was cleared.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-response]
+--------------------------------------------------
+<1> the list of nodes that the cache was cleared on

@@ -1,0 +1,97 @@
+--
+:api: rollover-index
+:request: RolloverRequest
+:response: RolloverResponse
+--
+
+[id="{upid}-{api}"]
+=== Rollover Index API
+
+[id="{upid}-{api}-request"]
+==== Rollover Request
+
+The Rollover Index API requires a +{request}+ instance.
+A +{request}+ requires two string arguments at construction time, and
+one or more conditions that determine when the index has to be rolled over:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request]
+--------------------------------------------------
+<1> The alias (first argument) that points to the index to rollover, and
+the name of the new index in case the rollover operation is performed.
+The new index argument is optional, and can be set to null
+<2> Condition on the age of the index
+<3> Condition on the number of documents in the index
+<4> Condition on the size of the index
+
+==== Optional arguments
+The following arguments can optionally be provided:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-dryRun]
+--------------------------------------------------
+<1> Whether the rollover should be performed (default) or only simulated
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-timeout]
+--------------------------------------------------
+<1> Timeout to wait for the all the nodes to acknowledge the index is opened
+as a `TimeValue`
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-masterTimeout]
+--------------------------------------------------
+<1> Timeout to connect to the master node as a `TimeValue`
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-waitForActiveShards]
+--------------------------------------------------
+<1> Sets the number of active shard copies to wait for before the rollover
+index API returns a response
+<2> Resets the number of active shard copies to wait for to the default value
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-settings]
+--------------------------------------------------
+<1> Add the settings to apply to the new index, which include the number of
+shards to create for it
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-mapping]
+--------------------------------------------------
+<1> Add the mappings to associate the new index with. See <<java-rest-high-create-index-request-mappings>>
+for examples on the different ways to provide mappings
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-alias]
+--------------------------------------------------
+<1> Add the aliases to associate the new index with
+
+include::../execution.asciidoc[]
+
+[id="{upid}-{api}-response"]
+==== Rollover Response
+
+The returned +{response}+ allows to retrieve information about the
+executed operation as follows:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-response]
+--------------------------------------------------
+<1> Indicates whether all of the nodes have acknowledged the request
+<2> Indicates whether the requisite number of shard copies were started for
+each shard in the index before timing out
+<3> The name of the old index, eventually rolled over
+<4> The name of the new index
+<5> Whether the index has been rolled over
+<6> Whether the operation was performed or it was a dry run
+<7> The different conditions and whether they were matched or not

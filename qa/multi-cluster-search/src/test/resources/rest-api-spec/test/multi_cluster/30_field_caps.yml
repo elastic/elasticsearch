@@ -1,0 +1,74 @@
+---
+"Get simple field caps from remote cluster":
+  - do:
+        indices.create:
+          index: field_caps_index_2
+          body:
+              mappings:
+                properties:
+                  text:
+                    type:     text
+                  keyword:
+                    type:     keyword
+                  number:
+                    type:     double
+                  geo:
+                    type:     geo_point
+                  object:
+                    type: object
+                    properties:
+                      nested1 :
+                        type : text
+                        index: true
+                      nested2:
+                        type: float
+                        doc_values: true
+
+  - do:
+      field_caps:
+        index: 'field_caps_index_2,my_remote_cluster:field_*'
+        fields: [text, keyword, number, geo]
+
+  - match: {fields.text.text.searchable:                true}
+  - match: {fields.text.text.aggregatable:              false}
+  - is_false: fields.text.text.indices
+  - is_false: fields.text.text.non_searchable_indices
+  - is_false: fields.text.text.non_aggregatable_indices
+  - match: {fields.keyword.keyword.searchable:          true}
+  - match: {fields.keyword.keyword.aggregatable:        true}
+  - is_false: fields.text.keyword.indices
+  - is_false: fields.text.keyword.non_searchable_indices
+  - is_false: fields.text.keyword.non_aggregatable_indices
+  - match: {fields.number.double.searchable:            true}
+  - match: {fields.number.double.aggregatable:          true}
+  - match: {fields.number.double.indices:               ["field_caps_index_2", "my_remote_cluster:field_caps_index_1"]}
+  - is_false: fields.number.double.non_searchable_indices
+  - is_false: fields.number.double.non_aggregatable_indices
+  - match: {fields.number.long.searchable:              true}
+  - match: {fields.number.long.aggregatable:            true}
+  - match: {fields.number.long.indices:                 ["my_remote_cluster:field_caps_index_3"]}
+  - is_false: fields.number.long.non_searchable_indices
+  - is_false: fields.number.long.non_aggregatable_indices
+  - match: {fields.geo.geo_point.searchable:            true}
+  - match: {fields.geo.geo_point.aggregatable:          true}
+  - match: {fields.geo.geo_point.indices:               ["field_caps_index_2", "my_remote_cluster:field_caps_index_1"]}
+  - is_false: fields.geo.geo_point.non_searchable_indices
+  - is_false: fields.geo.geo_point.non_aggregatable_indices
+  - match: {fields.geo.keyword.searchable:              true}
+  - match: {fields.geo.keyword.aggregatable:            true}
+  - match: {fields.geo.keyword.indices:                 ["my_remote_cluster:field_caps_index_3"]}
+  - is_false: fields.geo.keyword.non_searchable_indices
+  - is_false: fields.geo.keyword.on_aggregatable_indices
+
+  - do:
+      field_caps:
+        index: 'my_remote_cluster:some_index_that_doesnt_exist'
+        fields: [number]
+  - match: { 'fields': {} } # empty response - this index doesn't exists
+
+  - do:
+      field_caps:
+        index: 'my_remote_cluster:field_caps_index_1'
+        fields: [number]
+  - match: {fields.number.double.searchable:            true}
+  - match: {fields.number.double.aggregatable:          true}

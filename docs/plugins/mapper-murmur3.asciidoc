@@ -5,35 +5,8 @@ The mapper-murmur3 plugin provides the ability to compute hash of field values
 at index-time and store them in the index. This can sometimes be helpful when
 running cardinality aggregations on high-cardinality and large string fields.
 
-[[mapper-murmur3-install]]
-[float]
-==== Installation
-
-This plugin can be installed using the plugin manager:
-
-[source,sh]
-----------------------------------------------------------------
-sudo bin/elasticsearch-plugin install mapper-murmur3
-----------------------------------------------------------------
-
-The plugin must be installed on every node in the cluster, and each node must
-be restarted after installation.
-
-This plugin can be downloaded for <<plugin-management-custom-url,offline install>> from
-{plugin_url}/mapper-murmur3/mapper-murmur3-{version}.zip.
-
-[[mapper-murmur3-remove]]
-[float]
-==== Removal
-
-The plugin can be removed with the following command:
-
-[source,sh]
-----------------------------------------------------------------
-sudo bin/elasticsearch-plugin remove mapper-murmur3
-----------------------------------------------------------------
-
-The node must be stopped before removing the plugin.
+:plugin_name: mapper-murmur3
+include::install_remove.asciidoc[]
 
 [[mapper-murmur3-usage]]
 ==== Using the `murmur3` field
@@ -46,14 +19,12 @@ value and its hash are stored in the index:
 PUT my_index
 {
   "mappings": {
-    "my_type": {
-      "properties": {
-        "my_field": {
-          "type": "keyword",
-          "fields": {
-            "hash": {
-              "type": "murmur3"
-            }
+    "properties": {
+      "my_field": {
+        "type": "keyword",
+        "fields": {
+          "hash": {
+            "type": "murmur3"
           }
         }
       }
@@ -70,12 +41,12 @@ of the values of the `my_field` field. This is only useful in order to run
 [source,js]
 --------------------------
 # Example documents
-PUT my_index/my_type/1
+PUT my_index/_doc/1
 {
   "my_field": "This is a document"
 }
 
-PUT my_index/my_type/2
+PUT my_index/_doc/2
 {
   "my_field": "This is another document"
 }

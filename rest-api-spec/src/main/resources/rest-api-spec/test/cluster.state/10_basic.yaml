@@ -1,6 +1,0 @@
----
-"cluster state test":
-  - do:
-      cluster.state: {}
-  
-  - is_true: master_node

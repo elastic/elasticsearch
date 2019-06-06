@@ -26,28 +26,25 @@ import java.security.PrivilegedAction;
 import java.util.Collections;
 import java.util.Map;
 
+import org.apache.hadoop.hdfs.protocolPB.ClientNamenodeProtocolPB;
+import org.apache.hadoop.security.KerberosInfo;
+import org.apache.hadoop.security.SecurityUtil;
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.RepositoryPlugin;
-import org.elasticsearch.repositories.RepositoriesModule;
 import org.elasticsearch.repositories.Repository;
+import org.elasticsearch.threadpool.ThreadPool;
 
 public final class HdfsPlugin extends Plugin implements RepositoryPlugin {
 
     // initialize some problematic classes with elevated privileges
     static {
-        SecurityManager sm = System.getSecurityManager();
-        if (sm != null) {
-            sm.checkPermission(new SpecialPermission());
-        }
-        AccessController.doPrivileged(new PrivilegedAction<Void>() {
-            @Override
-            public Void run() {
-                return evilHadoopInit();
-            }
-        });
+        SpecialPermission.check();
+        AccessController.doPrivileged((PrivilegedAction<Void>) HdfsPlugin::evilHadoopInit);
+        AccessController.doPrivileged((PrivilegedAction<Void>) HdfsPlugin::eagerInit);
     }
 
     @SuppressForbidden(reason = "Needs a security hack for hadoop on windows, until HADOOP-XXXX is fixed")
@@ -66,8 +63,6 @@ public final class HdfsPlugin extends Plugin implements RepositoryPlugin {
             Class.forName("org.apache.hadoop.util.StringUtils");
             Class.forName("org.apache.hadoop.util.ShutdownHookManager");
             Class.forName("org.apache.hadoop.conf.Configuration");
-            Class.forName("org.apache.hadoop.hdfs.protocol.HdfsConstants");
-            Class.forName("org.apache.hadoop.hdfs.protocol.datatransfer.PipelineAck");
         } catch (ClassNotFoundException | IOException e) {
             throw new RuntimeException(e);
         } finally {
@@ -87,8 +82,37 @@ public final class HdfsPlugin extends Plugin implements RepositoryPlugin {
         return null;
     }
 
+    private static Void eagerInit() {
+        /*
+         * Hadoop RPC wire serialization uses ProtocolBuffers. All proto classes for Hadoop
+         * come annotated with configurations that denote information about if they support
+         * certain security options like Kerberos, and how to send information with the
+         * message to support that authentication method. SecurityUtil creates a service loader
+         * in a static field during its clinit. This loader provides the implementations that
+         * pull the security information for each proto class. The service loader sources its
+         * services from the current thread's context class loader, which must contain the Hadoop
+         * jars. Since plugins don't execute with their class loaders installed as the thread's
+         * context class loader, we need to install the loader briefly, allow the util to be
+         * initialized, then restore the old loader since we don't actually own this thread.
+         */
+        ClassLoader oldCCL = Thread.currentThread().getContextClassLoader();
+        try {
+            Thread.currentThread().setContextClassLoader(HdfsRepository.class.getClassLoader());
+            KerberosInfo info = SecurityUtil.getKerberosInfo(ClientNamenodeProtocolPB.class, null);
+            // Make sure that the correct class loader was installed.
+            if (info == null) {
+                throw new RuntimeException("Could not initialize SecurityUtil: " +
+                    "Unable to find services for [org.apache.hadoop.security.SecurityInfo]");
+            }
+        } finally {
+            Thread.currentThread().setContextClassLoader(oldCCL);
+        }
+        return null;
+    }
+
     @Override
-    public Map<String, Repository.Factory> getRepositories(Environment env) {
-        return Collections.singletonMap("hdfs", (metadata) -> new HdfsRepository(metadata, env));
+    public Map<String, Repository.Factory> getRepositories(Environment env, NamedXContentRegistry namedXContentRegistry,
+                                                           ThreadPool threadPool) {
+        return Collections.singletonMap("hdfs", (metadata) -> new HdfsRepository(metadata, env, namedXContentRegistry, threadPool));
     }
 }

@@ -19,19 +19,18 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.Definition;
-import org.elasticsearch.painless.Definition.Method;
-import org.elasticsearch.painless.Definition.MethodKey;
-import org.elasticsearch.painless.Definition.Sort;
-import org.elasticsearch.painless.Definition.Struct;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
+import org.elasticsearch.painless.lookup.PainlessMethod;
+import org.elasticsearch.painless.lookup.def;
 
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
+
+import static org.elasticsearch.painless.lookup.PainlessLookupUtility.typeToCanonicalTypeName;
 
 /**
  * Represents a method call and defers to a child subnode.
@@ -39,14 +38,16 @@ import java.util.Set;
 public final class PCallInvoke extends AExpression {
 
     private final String name;
+    private final boolean nullSafe;
     private final List<AExpression> arguments;
 
     private AExpression sub = null;
 
-    public PCallInvoke(Location location, AExpression prefix, String name, List<AExpression> arguments) {
+    public PCallInvoke(Location location, AExpression prefix, String name, boolean nullSafe, List<AExpression> arguments) {
         super(location, prefix);
 
         this.name = Objects.requireNonNull(name);
+        this.nullSafe = nullSafe;
         this.arguments = Objects.requireNonNull(arguments);
     }
 
@@ -65,26 +66,22 @@ public final class PCallInvoke extends AExpression {
         prefix.expected = prefix.actual;
         prefix = prefix.cast(locals);
 
-        if (prefix.actual.sort == Sort.ARRAY) {
-            throw createError(new IllegalArgumentException("Illegal call [" + name + "] on array type."));
-        }
-
-        Struct struct = prefix.actual.struct;
-
-        if (prefix.actual.sort.primitive) {
-            struct = Definition.getType(prefix.actual.sort.boxed.getSimpleName()).struct;
-        }
-
-        MethodKey methodKey = new MethodKey(name, arguments.size());
-        Method method = prefix instanceof EStatic ? struct.staticMethods.get(methodKey) : struct.methods.get(methodKey);
-
-        if (method != null) {
-            sub = new PSubCallInvoke(location, method, prefix.actual, arguments);
-        } else if (prefix.actual.sort == Sort.DEF) {
+        if (prefix.actual == def.class) {
             sub = new PSubDefCall(location, name, arguments);
         } else {
-            throw createError(new IllegalArgumentException(
-                "Unknown call [" + name + "] with [" + arguments.size() + "] arguments on type [" + struct.name + "]."));
+            PainlessMethod method =
+                    locals.getPainlessLookup().lookupPainlessMethod(prefix.actual, prefix instanceof EStatic, name, arguments.size());
+
+            if (method == null) {
+                throw createError(new IllegalArgumentException(
+                        "method [" + typeToCanonicalTypeName(prefix.actual) + ", " + name + "/" + arguments.size() + "] not found"));
+            }
+
+            sub = new PSubCallInvoke(location, method, prefix.actual, arguments);
+        }
+
+        if (nullSafe) {
+            sub = new PSubNullSafeCallInvoke(location, sub);
         }
 
         sub.expected = expected;
@@ -99,5 +96,10 @@ public final class PCallInvoke extends AExpression {
     void write(MethodWriter writer, Globals globals) {
         prefix.write(writer, globals);
         sub.write(writer, globals);
+    }
+
+    @Override
+    public String toString() {
+        return singleLineToStringWithOptionalArgs(arguments, prefix, name);
     }
 }

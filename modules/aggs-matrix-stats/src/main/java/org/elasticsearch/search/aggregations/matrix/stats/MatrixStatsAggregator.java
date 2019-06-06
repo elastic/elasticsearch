@@ -19,6 +19,7 @@
 package org.elasticsearch.search.aggregations.matrix.stats;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.ScoreMode;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.ObjectArray;
@@ -30,9 +31,9 @@ import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.metrics.MetricsAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.search.aggregations.support.AggregationContext;
-import org.elasticsearch.search.aggregations.support.MultiValuesSource.NumericMultiValuesSource;
+import org.elasticsearch.search.aggregations.support.ArrayValuesSource.NumericArrayValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
+import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.List;
@@ -41,19 +42,19 @@ import java.util.Map;
 /**
  * Metric Aggregation for computing the pearson product correlation coefficient between multiple fields
  **/
-public class MatrixStatsAggregator extends MetricsAggregator {
+final class MatrixStatsAggregator extends MetricsAggregator {
     /** Multiple ValuesSource with field names */
-    final NumericMultiValuesSource valuesSources;
+    private final NumericArrayValuesSource valuesSources;
 
     /** array of descriptive stats, per shard, needed to compute the correlation */
     ObjectArray<RunningStats> stats;
 
-    public MatrixStatsAggregator(String name, Map<String, ValuesSource.Numeric> valuesSources, AggregationContext context,
+    MatrixStatsAggregator(String name, Map<String, ValuesSource.Numeric> valuesSources, SearchContext context,
                                  Aggregator parent, MultiValueMode multiValueMode, List<PipelineAggregator> pipelineAggregators,
                                  Map<String,Object> metaData) throws IOException {
         super(name, context, parent, pipelineAggregators, metaData);
         if (valuesSources != null && !valuesSources.isEmpty()) {
-            this.valuesSources = new NumericMultiValuesSource(valuesSources, multiValueMode);
+            this.valuesSources = new NumericArrayValuesSource(valuesSources, multiValueMode);
             stats = context.bigArrays().newObjectArray(1);
         } else {
             this.valuesSources = null;
@@ -61,8 +62,8 @@ public class MatrixStatsAggregator extends MetricsAggregator {
     }
 
     @Override
-    public boolean needsScores() {
-        return (valuesSources == null) ? false : valuesSources.needsScores();
+    public ScoreMode scoreMode() {
+        return (valuesSources != null && valuesSources.needsScores()) ? ScoreMode.COMPLETE : ScoreMode.COMPLETE_NO_SCORES;
     }
 
     @Override
@@ -100,16 +101,20 @@ public class MatrixStatsAggregator extends MetricsAggregator {
             /**
              * return a map of field names and data
              */
-            private boolean includeDocument(int doc) {
+            private boolean includeDocument(int doc) throws IOException {
                 // loop over fields
                 for (int i = 0; i < fieldVals.length; ++i) {
                     final NumericDoubleValues doubleValues = values[i];
-                    final double value = doubleValues.get(doc);
-                    // skip if value is missing
-                    if (value == Double.NEGATIVE_INFINITY) {
+                    if (doubleValues.advanceExact(doc)) {
+                        final double value = doubleValues.doubleValue();
+                        if (value == Double.NEGATIVE_INFINITY) {
+                            // TODO: Fix matrix stats to treat neg inf as any other value
+                            return false;
+                        }
+                        fieldVals[i] = value;
+                    } else {
                         return false;
                     }
-                    fieldVals[i] = value;
                 }
                 return true;
             }

@@ -19,9 +19,6 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.Definition;
-import org.elasticsearch.painless.Definition.Method;
-import org.elasticsearch.painless.Definition.MethodKey;
 import org.elasticsearch.painless.FunctionRef;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
@@ -29,11 +26,8 @@ import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.objectweb.asm.Type;
 
-import java.lang.invoke.LambdaMetafactory;
 import java.util.Objects;
 import java.util.Set;
-
-import static org.elasticsearch.painless.WriterConstants.LAMBDA_BOOTSTRAP_HANDLE;
 
 /**
  * Represents a function reference.
@@ -59,31 +53,11 @@ public final class EFunctionRef extends AExpression implements ILambda {
     void analyze(Locals locals) {
         if (expected == null) {
             ref = null;
-            actual = Definition.getType("String");
+            actual = String.class;
             defPointer = "S" + type + "." + call + ",0";
         } else {
             defPointer = null;
-            try {
-                if ("this".equals(type)) {
-                    // user's own function
-                    Method interfaceMethod = expected.struct.getFunctionalMethod();
-                    if (interfaceMethod == null) {
-                        throw new IllegalArgumentException("Cannot convert function reference [" + type + "::" + call + "] " +
-                                                           "to [" + expected.name + "], not a functional interface");
-                    }
-                    Method implMethod = locals.getMethod(new MethodKey(call, interfaceMethod.arguments.size()));
-                    if (implMethod == null) {
-                        throw new IllegalArgumentException("Cannot convert function reference [" + type + "::" + call + "] " +
-                                                           "to [" + expected.name + "], function not found");
-                    }
-                    ref = new FunctionRef(expected, interfaceMethod, implMethod, 0);
-                } else {
-                    // whitelist lookup
-                    ref = new FunctionRef(expected, type, call, 0);
-                }
-            } catch (IllegalArgumentException e) {
-                throw createError(e);
-            }
+            ref = FunctionRef.create(locals.getPainlessLookup(), locals.getMethods(), location, expected, type, call, 0);
             actual = expected;
         }
     }
@@ -92,29 +66,7 @@ public final class EFunctionRef extends AExpression implements ILambda {
     void write(MethodWriter writer, Globals globals) {
         if (ref != null) {
             writer.writeDebugInfo(location);
-            // convert MethodTypes to asm Type for the constant pool.
-            String invokedType = ref.invokedType.toMethodDescriptorString();
-            Type samMethodType = Type.getMethodType(ref.samMethodType.toMethodDescriptorString());
-            Type interfaceType = Type.getMethodType(ref.interfaceMethodType.toMethodDescriptorString());
-            if (ref.needsBridges()) {
-                writer.invokeDynamic(ref.invokedName,
-                                     invokedType,
-                                     LAMBDA_BOOTSTRAP_HANDLE,
-                                     samMethodType,
-                                     ref.implMethodASM,
-                                     samMethodType,
-                                     LambdaMetafactory.FLAG_BRIDGES,
-                                     1,
-                                     interfaceType);
-            } else {
-                writer.invokeDynamic(ref.invokedName,
-                                     invokedType,
-                                     LAMBDA_BOOTSTRAP_HANDLE,
-                                     samMethodType,
-                                     ref.implMethodASM,
-                                     samMethodType,
-                                     0);
-            }
+            writer.invokeLambdaCall(ref);
         } else {
             // TODO: don't do this: its just to cutover :)
             writer.push((String)null);
@@ -129,5 +81,10 @@ public final class EFunctionRef extends AExpression implements ILambda {
     @Override
     public Type[] getCaptures() {
         return new Type[0]; // no captures
+    }
+
+    @Override
+    public String toString() {
+        return singleLineToString(type, call);
     }
 }

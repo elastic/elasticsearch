@@ -19,12 +19,7 @@
 
 package org.elasticsearch.ingest.common;
 
-import org.elasticsearch.ingest.AbstractProcessor;
-import org.elasticsearch.ingest.IngestDocument;
-import org.elasticsearch.ingest.Processor;
-
 import java.util.Map;
-import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import static org.elasticsearch.ingest.ConfigurationUtils.newConfigurationException;
@@ -34,23 +29,17 @@ import static org.elasticsearch.ingest.ConfigurationUtils.readStringProperty;
  * Processor that allows to search for patterns in field content and replace them with corresponding string replacement.
  * Support fields of string type only, throws exception if a field is of a different type.
  */
-public final class GsubProcessor extends AbstractProcessor {
+public final class GsubProcessor extends AbstractStringProcessor<String> {
 
     public static final String TYPE = "gsub";
 
-    private final String field;
     private final Pattern pattern;
     private final String replacement;
 
-    GsubProcessor(String tag, String field, Pattern pattern, String replacement) {
-        super(tag);
-        this.field = field;
+    GsubProcessor(String tag, String field, Pattern pattern, String replacement, boolean ignoreMissing, String targetField) {
+        super(tag, field, ignoreMissing, targetField);
         this.pattern = pattern;
         this.replacement = replacement;
-    }
-
-    String getField() {
-        return field;
     }
 
     Pattern getPattern() {
@@ -61,16 +50,9 @@ public final class GsubProcessor extends AbstractProcessor {
         return replacement;
     }
 
-
     @Override
-    public void execute(IngestDocument document) {
-        String oldVal = document.getFieldValue(field, String.class);
-        if (oldVal == null) {
-            throw new IllegalArgumentException("field [" + field + "] is null, cannot match pattern.");
-        }
-        Matcher matcher = pattern.matcher(oldVal);
-        String newVal = matcher.replaceAll(replacement);
-        document.setFieldValue(field, newVal);
+    protected String process(String value) {
+        return pattern.matcher(value).replaceAll(replacement);
     }
 
     @Override
@@ -78,11 +60,15 @@ public final class GsubProcessor extends AbstractProcessor {
         return TYPE;
     }
 
-    public static final class Factory implements Processor.Factory {
+    public static final class Factory extends AbstractStringProcessor.Factory {
+
+        public Factory() {
+            super(TYPE);
+        }
+
         @Override
-        public GsubProcessor create(Map<String, Processor.Factory> registry, String processorTag,
-                                    Map<String, Object> config) throws Exception {
-            String field = readStringProperty(TYPE, processorTag, config, "field");
+        protected GsubProcessor newProcessor(String processorTag, Map<String, Object> config, String field,
+                                             boolean ignoreMissing, String targetField) {
             String pattern = readStringProperty(TYPE, processorTag, config, "pattern");
             String replacement = readStringProperty(TYPE, processorTag, config, "replacement");
             Pattern searchPattern;
@@ -91,7 +77,7 @@ public final class GsubProcessor extends AbstractProcessor {
             } catch (Exception e) {
                 throw newConfigurationException(TYPE, processorTag, "pattern", "Invalid regex pattern. " + e.getMessage());
             }
-            return new GsubProcessor(processorTag, field, searchPattern, replacement);
+            return new GsubProcessor(processorTag, field, searchPattern, replacement, ignoreMissing, targetField);
         }
     }
 }

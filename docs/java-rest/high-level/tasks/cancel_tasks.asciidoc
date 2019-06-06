@@ -1,0 +1,82 @@
+[[java-rest-high-cluster-cancel-tasks]]
+=== Cancel Tasks API
+
+The Cancel Tasks API allows cancellation of a currently running task.
+
+==== Cancel Tasks Request
+
+A `CancelTasksRequest`:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/TasksClientDocumentationIT.java[cancel-tasks-request]
+--------------------------------------------------
+There are no required parameters. The task cancellation command supports the same
+task selection parameters as the list tasks command.
+
+==== Parameters
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/TasksClientDocumentationIT.java[cancel-tasks-request-filter]
+--------------------------------------------------
+<1> Cancel a task
+<2> Cancel only cluster-related tasks
+<3> Cancel all tasks running on nodes nodeId1 and nodeId2
+
+==== Synchronous Execution
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/TasksClientDocumentationIT.java[cancel-tasks-execute]
+--------------------------------------------------
+
+==== Asynchronous Execution
+
+The asynchronous execution requires `CancelTasksRequest` instance and an
+`ActionListener` instance to be passed to the asynchronous method:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/TasksClientDocumentationIT.java[cancel-tasks-execute-async]
+--------------------------------------------------
+<1> The `CancelTasksRequest` to execute and the `ActionListener` to use
+when the execution completes
+
+The asynchronous method does not block and returns immediately. Once it is
+completed the `ActionListener` is called back using the `onResponse` method
+if the execution successfully completed or using the `onFailure` method if
+it failed.
+
+A typical listener for `CancelTasksResponse` looks like:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/TasksClientDocumentationIT.java[cancel-tasks-execute-listener]
+--------------------------------------------------
+<1> Called when the execution is successfully completed. The response is
+provided as an argument
+<2> Called in case of a failure. The raised exception is provided as an argument
+
+==== Cancel Tasks Response
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/TasksClientDocumentationIT.java[cancel-tasks-response-tasks]
+--------------------------------------------------
+<1> List of cancelled tasks
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/TasksClientDocumentationIT.java[cancel-tasks-response-calc]
+--------------------------------------------------
+<1> List of cancelled tasks grouped by a node
+<2> List of cancelled tasks grouped by a parent task
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/TasksClientDocumentationIT.java[cancel-tasks-response-failures]
+--------------------------------------------------
+<1> List of node failures
+<2> List of task cancellation failures
+

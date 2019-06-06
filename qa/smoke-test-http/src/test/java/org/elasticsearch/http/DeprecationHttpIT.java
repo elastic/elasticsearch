@@ -22,7 +22,10 @@ import org.apache.http.Header;
 import org.apache.http.HttpEntity;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
+import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -39,10 +42,12 @@ import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static org.elasticsearch.rest.RestStatus.OK;
+import static org.elasticsearch.common.logging.DeprecationLogger.WARNING_HEADER_PATTERN;
 import static org.elasticsearch.http.TestDeprecationHeaderRestAction.TEST_DEPRECATED_SETTING_TRUE1;
 import static org.elasticsearch.http.TestDeprecationHeaderRestAction.TEST_DEPRECATED_SETTING_TRUE2;
 import static org.elasticsearch.http.TestDeprecationHeaderRestAction.TEST_NOT_DEPRECATED_SETTING;
+import static org.elasticsearch.rest.RestStatus.OK;
+import static org.elasticsearch.test.hamcrest.RegexMatcher.matches;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
@@ -54,10 +59,14 @@ import static org.hamcrest.Matchers.hasSize;
 public class DeprecationHttpIT extends HttpSmokeTestCase {
 
     @Override
+    protected boolean addMockHttpTransport() {
+        return false; // enable http
+    }
+
+    @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
-                .put("force.http.enabled", true)
                 // change values of deprecated settings so that accessing them is logged
                 .put(TEST_DEPRECATED_SETTING_TRUE1.getKey(), ! TEST_DEPRECATED_SETTING_TRUE1.getDefault(Settings.EMPTY))
                 .put(TEST_DEPRECATED_SETTING_TRUE2.getKey(), ! TEST_DEPRECATED_SETTING_TRUE2.getDefault(Settings.EMPTY))
@@ -98,11 +107,10 @@ public class DeprecationHttpIT extends HttpSmokeTestCase {
 
         final String commaSeparatedIndices = Stream.of(indices).collect(Collectors.joining(","));
 
-        final String body = "{\"query\":{\"bool\":{\"filter\":[{\"" + TestDeprecatedQueryBuilder.NAME +  "\":{}}]}}}";
-
         // trigger all index deprecations
-        Response response = getRestClient().performRequest("GET", "/" + commaSeparatedIndices + "/_search",
-                Collections.emptyMap(), new StringEntity(body, ContentType.APPLICATION_JSON));
+        Request request = new Request("GET", "/" + commaSeparatedIndices + "/_search");
+        request.setJsonEntity("{\"query\":{\"bool\":{\"filter\":[{\"" + TestDeprecatedQueryBuilder.NAME +  "\":{}}]}}}");
+        Response response = getRestClient().performRequest(request);
         assertThat(response.getStatusLine().getStatusCode(), equalTo(OK.getStatus()));
 
         final List<String> deprecatedWarnings = getWarningHeaders(response.getHeaders());
@@ -154,8 +162,9 @@ public class DeprecationHttpIT extends HttpSmokeTestCase {
         Collections.shuffle(settings, random());
 
         // trigger all deprecations
-        Response response = getRestClient().performRequest("GET", "/_test_cluster/deprecated_settings",
-                Collections.emptyMap(), buildSettingsRequest(settings, useDeprecatedField));
+        Request request = new Request("GET", "/_test_cluster/deprecated_settings");
+        request.setEntity(buildSettingsRequest(settings, useDeprecatedField));
+        Response response = getRestClient().performRequest(request);
         assertThat(response.getStatusLine().getStatusCode(), equalTo(OK.getStatus()));
 
         final List<String> deprecatedWarnings = getWarningHeaders(response.getHeaders());
@@ -167,13 +176,20 @@ public class DeprecationHttpIT extends HttpSmokeTestCase {
         }
         for (Setting<?> setting : settings) {
             if (setting.isDeprecated()) {
-                headerMatchers.add(containsString(LoggerMessageFormat.format("[{}] setting was deprecated", (Object)setting.getKey())));
+                headerMatchers.add(equalTo(
+                        "[" + setting.getKey() + "] setting was deprecated in Elasticsearch and will be removed in a future release! " +
+                        "See the breaking changes documentation for the next major version."));
             }
         }
 
         assertThat(deprecatedWarnings, hasSize(headerMatchers.size()));
+        for (final String deprecatedWarning : deprecatedWarnings) {
+            assertThat(deprecatedWarning, matches(WARNING_HEADER_PATTERN.pattern()));
+        }
+        final List<String> actualWarningValues =
+                deprecatedWarnings.stream().map(DeprecationLogger::extractWarningValueFromWarningHeader).collect(Collectors.toList());
         for (Matcher<String> headerMatcher : headerMatchers) {
-            assertThat(deprecatedWarnings, hasItem(headerMatcher));
+            assertThat(actualWarningValues, hasItem(headerMatcher));
         }
     }
 
@@ -200,7 +216,7 @@ public class DeprecationHttpIT extends HttpSmokeTestCase {
 
         builder.endArray().endObject();
 
-        return new StringEntity(builder.string(), ContentType.APPLICATION_JSON);
+        return new StringEntity(Strings.toString(builder), ContentType.APPLICATION_JSON);
     }
 
 }

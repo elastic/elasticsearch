@@ -1,0 +1,24 @@
+---
+"Basic":
+
+
+
+  - do:
+      index:
+        index: test_1
+        id:    1
+        body:  { "foo": "bar" }
+
+  - do:
+      get_source:
+        index: test_1
+        id:    1
+
+  - match: { '':  { foo: bar } }
+
+  - do:
+      get_source:
+        index: test_1
+        id:    1
+
+  - match: { '':  { foo: bar } }

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
@@ -27,8 +26,11 @@ import org.elasticsearch.painless.MethodWriter;
 import org.objectweb.asm.Label;
 import org.objectweb.asm.Opcodes;
 
+import java.util.Arrays;
 import java.util.Objects;
 import java.util.Set;
+
+import static java.util.Collections.singleton;
 
 /**
  * Represents an if/else block.
@@ -62,7 +64,7 @@ public final class SIfElse extends AStatement {
 
     @Override
     void analyze(Locals locals) {
-        condition.expected = Definition.BOOLEAN_TYPE;
+        condition.expected = boolean.class;
         condition.analyze(locals);
         condition = condition.cast(locals);
 
@@ -127,5 +129,10 @@ public final class SIfElse extends AStatement {
         elseblock.write(writer, globals);
 
         writer.mark(end);
+    }
+
+    @Override
+    public String toString() {
+        return multilineToString(singleton(condition), Arrays.asList(ifblock, elseblock));
     }
 }

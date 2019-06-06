@@ -1,0 +1,73 @@
+--
+:api: force-merge
+:request: ForceMergeRequest
+:response: ForceMergeResponse
+--
+
+[id="{upid}-{api}"]
+=== Force Merge API
+
+[id="{upid}-{api}-request"]
+==== Force merge Request
+
+A +{request}+ can be applied to one or more indices, or even on `_all` the indices:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request]
+--------------------------------------------------
+<1> Force merge one index
+<2> Force merge multiple indices
+<3> Force merge all the indices
+
+==== Optional arguments
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-indicesOptions]
+--------------------------------------------------
+<1> Setting `IndicesOptions` controls how unavailable indices are resolved and
+how wildcard expressions are expanded
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-segments-num]
+--------------------------------------------------
+<1> Set `max_num_segments` to control the number of segments to merge down to.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-only-expunge-deletes]
+--------------------------------------------------
+<1> Set the `only_expunge_deletes` flag to `true`
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-flush]
+--------------------------------------------------
+<1> Set the `flush` flag to `true`
+
+include::../execution.asciidoc[]
+
+[id="{upid}-{api}-response"]
+==== Force Merge Response
+
+The returned +{response}+ allows to retrieve information about the
+executed operation as follows:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-response]
+--------------------------------------------------
+<1> Total number of shards hit by the force merge request
+<2> Number of shards where the force merge has succeeded
+<3> Number of shards where the force merge has failed
+<4> A list of failures if the operation failed on one or more shards
+
+By default, if the indices were not found, an `ElasticsearchException` will be thrown:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-notfound]
+--------------------------------------------------
+<1> Do something if the indices to be force merged were not found

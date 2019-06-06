@@ -1,0 +1,1 @@
+group = "${group}.plugins.discovery-gce.qa"

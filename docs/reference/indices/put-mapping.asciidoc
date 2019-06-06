@@ -1,34 +1,46 @@
 [[indices-put-mapping]]
 == Put Mapping
 
-The PUT mapping API allows you to provide type mappings while creating a new index, add a new type to an existing index, or add new
-fields to an existing type:
+The PUT mapping API allows you to add fields to an existing index or to change search only settings of existing fields.
 
 [source,js]
 --------------------------------------------------
 PUT twitter <1>
-{
-  "mappings": {
-    "tweet": {
-      "properties": {
-        "message": {
-          "type": "text"
-        }
-      }
-    }
-  }
-}
+{}
 
-PUT twitter/_mapping/user <2>
+PUT twitter/_mapping <2>
 {
   "properties": {
-    "name": {
-      "type": "text"
+    "email": {
+      "type": "keyword"
     }
   }
 }
+--------------------------------------------------
+// CONSOLE
+<1> <<indices-create-index,Creates an index>> called `twitter` without any mapping.
+<2> Uses the PUT mapping API to add a new field called `email`.
 
-PUT twitter/_mapping/tweet <3>
+More information on how to define mappings can be found in the <<mapping,mapping>> section.
+
+NOTE: Before 7.0.0, the 'mappings' definition used to include a type name. Although specifying
+types in requests is now deprecated, a type can still be provided if the request parameter
+include_type_name is set. For more details, please see <<removal-of-types>>.
+
+[float]
+=== Multi-index
+
+The PUT mapping API can be applied to multiple indices with a single request.
+For example, we can update the `twitter-1` and `twitter-2` mappings at the same time:
+
+[source,js]
+--------------------------------------------------
+# Create the two indices
+PUT twitter-1
+PUT twitter-2
+
+# Update both mappings
+PUT /twitter-1,twitter-2/_mapping <1>
 {
   "properties": {
     "user_name": {
@@ -38,28 +50,7 @@ PUT twitter/_mapping/tweet <3>
 }
 --------------------------------------------------
 // CONSOLE
-<1> <<indices-create-index,Creates an index>> called `twitter` with the `message` field in the `tweet` <<mapping-type,mapping type>>.
-<2> Uses the PUT mapping API to add a new mapping type called `user`.
-<3> Uses the PUT mapping API to add a new field called `user_name` to the `tweet` mapping type.
-
-More information on how to define type mappings can be found in the
-<<mapping,mapping>> section.
-
-[float]
-=== Multi-index
-
-The PUT mapping API can be applied to multiple indices with a single request.
-It has the following format:
-
-[source,js]
---------------------------------------------------
-PUT /{index}/_mapping/{type}
-{ body }
---------------------------------------------------
-
-* `{index}` accepts <<multi-index,multiple index names>> and wildcards.
-* `{type}` is the name of the type to update.
-* `{body}` contains the mapping changes that should be applied.
+<1> Note that the indices specified (`twitter-1,twitter-2`) follows <<multi-index,multiple index names>> and wildcard format.
 
 
 [[updating-field-mappings]]
@@ -71,7 +62,6 @@ exceptions to this rule. For instance:
 
 * new <<properties>> can be added to <<object>> fields.
 * new <<multi-fields,multi-fields>> can be added to existing fields.
-* <<doc-values>> can be disabled, but not enabled.
 * the <<ignore-above>> parameter can be updated.
 
 For example:
@@ -81,24 +71,22 @@ For example:
 PUT my_index <1>
 {
   "mappings": {
-    "user": {
-      "properties": {
-        "name": {
-          "properties": {
-            "first": {
-              "type": "text"
-            }
+    "properties": {
+      "name": {
+        "properties": {
+          "first": {
+            "type": "text"
           }
-        },
-        "user_id": {
-          "type": "keyword"
         }
+      },
+      "user_id": {
+        "type": "keyword"
       }
     }
   }
 }
 
-PUT my_index/_mapping/user
+PUT my_index/_mapping
 {
   "properties": {
     "name": {
@@ -122,78 +110,3 @@ PUT my_index/_mapping/user
 
 Each <<mapping-params,mapping parameter>> specifies whether or not its setting
 can be updated on an existing field.
-
-[float]
-[[merging-conflicts]]
-=== Conflicts between fields in different types
-
-Fields in the same index with the same name in two different types must have
-the same mapping, as they are backed by the same field internally.  Trying to
-<<updating-field-mappings,update a mapping parameter>> for a field which
-exists in more than one type will throw an exception, unless you specify the
-`update_all_types` parameter, in which case it will update that parameter
-across all fields with the same name in the same index.
-
-TIP: The only parameters which are exempt from this rule -- they can be set to
-different values on each field -- can be found in <<field-conflicts>>.
-
-For example, this fails:
-
-[source,js]
------------------------------------
-PUT my_index
-{
-  "mappings": {
-    "type_one": {
-      "properties": {
-        "text": { <1>
-          "type": "text",
-          "analyzer": "standard"
-        }
-      }
-    },
-    "type_two": {
-      "properties": {
-        "text": { <1>
-          "type": "text",
-          "analyzer": "standard"
-        }
-      }
-    }
-  }
-}
-
-PUT my_index/_mapping/type_one <2>
-{
-  "properties": {
-    "text": {
-      "type": "text",
-      "analyzer": "standard",
-      "search_analyzer": "whitespace"
-    }
-  }
-}
------------------------------------
-// CONSOLE
-// TEST[catch:request]
-<1> Create an index with two types, both of which contain a `text` field which have the same mapping.
-<2> Trying to update the `search_analyzer` just for `type_one` throws an exception like `"Merge failed with failures..."`.
-
-But this then running this succeeds:
-
-[source,js]
------------------------------------
-PUT my_index/_mapping/type_one?update_all_types <1>
-{
-  "properties": {
-    "text": {
-      "type": "text",
-      "analyzer": "standard",
-      "search_analyzer": "whitespace"
-    }
-  }
-}
------------------------------------
-// CONSOLE
-// TEST[continued]
-<1> Adding the `update_all_types` parameter updates the `text` field in `type_one` and `type_two`.

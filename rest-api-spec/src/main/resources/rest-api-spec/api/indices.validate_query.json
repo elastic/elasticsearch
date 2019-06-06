@@ -4,7 +4,14 @@
     "methods": ["GET", "POST"],
     "url": {
       "path": "/_validate/query",
-      "paths": ["/_validate/query", "/{index}/_validate/query", "/{index}/{type}/_validate/query"],
+      "paths": ["/_validate/query", "/{index}/_validate/query"],
+      "deprecated_paths" : [
+        {
+          "version" : "7.0.0",
+          "path" : "/{index}/{type}/_validate/query",
+          "description" : "Specifying types in urls has been deprecated"
+        }
+      ],
       "parts": {
         "index": {
           "type" : "list",
@@ -33,9 +40,6 @@
             "options" : ["open","closed","none","all"],
             "default" : "open",
             "description" : "Whether to expand wildcard expression to concrete indices that are open, closed or both."
-        },
-        "operation_threading": {
-          "description" : "TODO: ?"
         },
         "q": {
           "type" : "string",
@@ -66,6 +70,10 @@
         "rewrite": {
           "type": "boolean",
           "description": "Provide a more detailed explanation showing the actual Lucene query that will be executed."
+        },
+        "all_shards": {
+          "type": "boolean",
+          "description": "Execute validation on all shards instead of one random shard per index"
         }
       }
     },

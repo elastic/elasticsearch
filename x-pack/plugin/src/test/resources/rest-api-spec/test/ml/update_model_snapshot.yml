@@ -1,0 +1,228 @@
+setup:
+  - skip:
+      features: headers
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      ml.put_job:
+        job_id: update-model-snapshot
+        body:  >
+          {
+            "analysis_config" : {
+                "detectors" :[{"function":"metric","field_name":"responsetime","by_field_name":"airline"}]
+            },
+            "data_description" : {
+                "format":"xcontent",
+                "time_field":"time"
+            }
+          }
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+        Content-Type: application/json
+      index:
+        index:  .ml-anomalies-update-model-snapshot
+        id:     "update-model-snapshot_model_snapshot_snapshot-1"
+        body: >
+          {
+            "job_id" : "update-model-snapshot",
+            "timestamp": "2016-06-02T00:00:00Z",
+            "snapshot_id": "snapshot-1",
+            "snapshot_doc_count": 3,
+            "retain": false
+          }
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      index:
+        index:  .ml-state
+        id:     "update-model-snapshot_model_state_1#1"
+        body:  >
+          {
+          }
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      index:
+        index:  .ml-state
+        id:     "update-model-snapshot_model_state_1#2"
+        body:  >
+          {
+          }
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      index:
+        index:  .ml-state
+        id:     "update-model-snapshot_model_state_1#3"
+        body:  >
+          {
+          }
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+        Content-Type: application/json
+      index:
+        index:  .ml-anomalies-update-model-snapshot
+        id:     "update-model-snapshot_model_snapshot_snapshot-2"
+        body: >
+          {
+            "job_id": "update-model-snapshot",
+            "timestamp": "2016-06-01T00:00:00Z",
+            "snapshot_id": "snapshot-2",
+            "description": "snapshot 2 description",
+            "snapshot_doc_count": 2,
+            "retain": true
+          }
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      index:
+        index:  .ml-state
+        id:     "update-model-snapshot_model_state_2#1"
+        body:  >
+          {
+          }
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      index:
+        index:  .ml-state
+        id:     "update-model-snapshot_model_state_2#2"
+        body:  >
+          {
+          }
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      indices.refresh:
+        index: [.ml-anomalies-update-model-snapshot,.ml-state]
+
+---
+"Test with valid description":
+  - do:
+      ml.get_model_snapshots:
+        job_id: "update-model-snapshot"
+        snapshot_id: "snapshot-1"
+
+  - match: { count: 1 }
+  - is_false: model_snapshots.0.description
+
+  - do:
+      ml.update_model_snapshot:
+        job_id: "update-model-snapshot"
+        snapshot_id: "snapshot-1"
+        body: >
+          {
+            "description": "new_description"
+          }
+
+  - match: { acknowledged: true }
+  - match: { model.retain: false }
+  - match: { model.description: "new_description" }
+
+  - do:
+      ml.get_model_snapshots:
+        job_id: "update-model-snapshot"
+        snapshot_id: "snapshot-1"
+
+  - match: { count: 1 }
+  - match: { model_snapshots.0.snapshot_id: "snapshot-1" }
+  - match: { model_snapshots.0.timestamp: 1464825600000 }
+  - match: { model_snapshots.0.description: "new_description" }
+
+---
+"Test duplicate descriptions are allowed":
+  - do:
+      ml.update_model_snapshot:
+        job_id: "update-model-snapshot"
+        snapshot_id: "snapshot-1"
+        body: >
+          {
+            "description": "snapshot 2 description"
+          }
+
+  - do:
+      ml.get_model_snapshots:
+        job_id: "update-model-snapshot"
+
+  - match: { count: 2 }
+  - match: { model_snapshots.0.snapshot_id: "snapshot-1" }
+  - match: { model_snapshots.0.description: "snapshot 2 description" }
+  - match: { model_snapshots.1.snapshot_id: "snapshot-2" }
+  - match: { model_snapshots.1.description: "snapshot 2 description" }
+---
+"Test with retain":
+  - do:
+      ml.update_model_snapshot:
+        job_id: "update-model-snapshot"
+        snapshot_id: "snapshot-1"
+        body: >
+          {
+            "retain": true
+          }
+
+  - match: { acknowledged: true }
+  - match: { model.retain: true }
+
+  - do:
+      ml.update_model_snapshot:
+        job_id: "update-model-snapshot"
+        snapshot_id: "snapshot-2"
+        body: >
+          {
+            "retain": false
+          }
+
+  - match: { acknowledged: true }
+  - match: { model.retain: false }
+  - match: { model.description: "snapshot 2 description" }
+
+---
+"Test with all fields":
+  - do:
+      ml.update_model_snapshot:
+        job_id: "update-model-snapshot"
+        snapshot_id: "snapshot-1"
+        body: >
+          {
+            "description": "new snapshot 1 description",
+            "retain": true
+          }
+
+  - match: { acknowledged: true }
+  - match: { model.description: "new snapshot 1 description" }
+  - match: { model.retain: true }
+
+---
+"Test with unknown job id":
+  - do:
+      catch: missing
+      ml.update_model_snapshot:
+        job_id: "non-existent-job"
+        snapshot_id: "san"
+        body: >
+          {
+            "description": "new foo",
+            "retain": true
+          }
+
+---
+"Test with unknown snapshot id":
+  - do:
+      catch: missing
+      ml.update_model_snapshot:
+        job_id: "update-model-snapshot"
+        snapshot_id: "snapshot-9999"
+        body: >
+          {
+            "description": "new description for snapshot 9999"
+          }

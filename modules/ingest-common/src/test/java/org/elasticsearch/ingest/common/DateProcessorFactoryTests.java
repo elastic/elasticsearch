@@ -20,9 +20,11 @@
 package org.elasticsearch.ingest.common;
 
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.ingest.TestTemplateService;
 import org.elasticsearch.test.ESTestCase;
-import org.joda.time.DateTimeZone;
+import org.junit.Before;
 
+import java.time.ZoneId;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -34,26 +36,31 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class DateProcessorFactoryTests extends ESTestCase {
 
+    private DateProcessor.Factory factory;
+
+    @Before
+    public void init() {
+        factory = new DateProcessor.Factory(TestTemplateService.instance());
+    }
+
     public void testBuildDefaults() throws Exception {
-        DateProcessor.Factory factory = new DateProcessor.Factory();
         Map<String, Object> config = new HashMap<>();
-        String sourceField = randomAsciiOfLengthBetween(1, 10);
+        String sourceField = randomAlphaOfLengthBetween(1, 10);
         config.put("field", sourceField);
         config.put("formats", Collections.singletonList("dd/MM/yyyyy"));
-        String processorTag = randomAsciiOfLength(10);
+        String processorTag = randomAlphaOfLength(10);
         DateProcessor processor = factory.create(null, processorTag, config);
         assertThat(processor.getTag(), equalTo(processorTag));
         assertThat(processor.getField(), equalTo(sourceField));
         assertThat(processor.getTargetField(), equalTo(DateProcessor.DEFAULT_TARGET_FIELD));
         assertThat(processor.getFormats(), equalTo(Collections.singletonList("dd/MM/yyyyy")));
-        assertThat(processor.getLocale(), equalTo(Locale.ENGLISH));
-        assertThat(processor.getTimezone(), equalTo(DateTimeZone.UTC));
+        assertNull(processor.getLocale());
+        assertNull(processor.getTimezone());
     }
 
     public void testMatchFieldIsMandatory() throws Exception {
-        DateProcessor.Factory factory = new DateProcessor.Factory();
         Map<String, Object> config = new HashMap<>();
-        String targetField = randomAsciiOfLengthBetween(1, 10);
+        String targetField = randomAlphaOfLengthBetween(1, 10);
         config.put("target_field", targetField);
         config.put("formats", Collections.singletonList("dd/MM/yyyyy"));
 
@@ -66,10 +73,9 @@ public class DateProcessorFactoryTests extends ESTestCase {
     }
 
     public void testMatchFormatsIsMandatory() throws Exception {
-        DateProcessor.Factory factory = new DateProcessor.Factory();
         Map<String, Object> config = new HashMap<>();
-        String sourceField = randomAsciiOfLengthBetween(1, 10);
-        String targetField = randomAsciiOfLengthBetween(1, 10);
+        String sourceField = randomAlphaOfLengthBetween(1, 10);
+        String targetField = randomAlphaOfLengthBetween(1, 10);
         config.put("field", sourceField);
         config.put("target_field", targetField);
 
@@ -82,65 +88,32 @@ public class DateProcessorFactoryTests extends ESTestCase {
     }
 
     public void testParseLocale() throws Exception {
-        DateProcessor.Factory factory = new DateProcessor.Factory();
         Map<String, Object> config = new HashMap<>();
-        String sourceField = randomAsciiOfLengthBetween(1, 10);
+        String sourceField = randomAlphaOfLengthBetween(1, 10);
         config.put("field", sourceField);
         config.put("formats", Collections.singletonList("dd/MM/yyyyy"));
-        Locale locale = randomLocale(random());
+        Locale locale = randomFrom(Locale.GERMANY, Locale.FRENCH, Locale.ROOT);
         config.put("locale", locale.toLanguageTag());
 
         DateProcessor processor = factory.create(null, null, config);
-        assertThat(processor.getLocale().toLanguageTag(), equalTo(locale.toLanguageTag()));
-    }
-
-    public void testParseInvalidLocale() throws Exception {
-        DateProcessor.Factory factory = new DateProcessor.Factory();
-        Map<String, Object> config = new HashMap<>();
-        String sourceField = randomAsciiOfLengthBetween(1, 10);
-        config.put("field", sourceField);
-        config.put("formats", Collections.singletonList("dd/MM/yyyyy"));
-        config.put("locale", "invalid_locale");
-        try {
-            factory.create(null, null, config);
-            fail("should fail with invalid locale");
-        } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), equalTo("Invalid language tag specified: invalid_locale"));
-        }
+        assertThat(processor.getLocale().newInstance(Collections.emptyMap()).execute(), equalTo(locale.toLanguageTag()));
     }
 
     public void testParseTimezone() throws Exception {
-        DateProcessor.Factory factory = new DateProcessor.Factory();
         Map<String, Object> config = new HashMap<>();
-        String sourceField = randomAsciiOfLengthBetween(1, 10);
+        String sourceField = randomAlphaOfLengthBetween(1, 10);
         config.put("field", sourceField);
         config.put("formats", Collections.singletonList("dd/MM/yyyyy"));
 
-        DateTimeZone timezone = randomDateTimeZone();
-        config.put("timezone", timezone.getID());
+        ZoneId timezone = randomZone();
+        config.put("timezone", timezone.getId());
         DateProcessor processor = factory.create(null, null, config);
-        assertThat(processor.getTimezone(), equalTo(timezone));
-    }
-
-    public void testParseInvalidTimezone() throws Exception {
-        DateProcessor.Factory factory = new DateProcessor.Factory();
-        Map<String, Object> config = new HashMap<>();
-        String sourceField = randomAsciiOfLengthBetween(1, 10);
-        config.put("field", sourceField);
-        config.put("match_formats", Collections.singletonList("dd/MM/yyyyy"));
-        config.put("timezone", "invalid_timezone");
-        try {
-            factory.create(null, null, config);
-            fail("invalid timezone should fail");
-        } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), equalTo("The datetime zone id 'invalid_timezone' is not recognised"));
-        }
+        assertThat(processor.getTimezone().newInstance(Collections.emptyMap()).execute(), equalTo(timezone.getId()));
     }
 
     public void testParseMatchFormats() throws Exception {
-        DateProcessor.Factory factory = new DateProcessor.Factory();
         Map<String, Object> config = new HashMap<>();
-        String sourceField = randomAsciiOfLengthBetween(1, 10);
+        String sourceField = randomAlphaOfLengthBetween(1, 10);
         config.put("field", sourceField);
         config.put("formats", Arrays.asList("dd/MM/yyyy", "dd-MM-yyyy"));
 
@@ -149,9 +122,8 @@ public class DateProcessorFactoryTests extends ESTestCase {
     }
 
     public void testParseMatchFormatsFailure() throws Exception {
-        DateProcessor.Factory factory = new DateProcessor.Factory();
         Map<String, Object> config = new HashMap<>();
-        String sourceField = randomAsciiOfLengthBetween(1, 10);
+        String sourceField = randomAlphaOfLengthBetween(1, 10);
         config.put("field", sourceField);
         config.put("formats", "dd/MM/yyyy");
 
@@ -164,10 +136,9 @@ public class DateProcessorFactoryTests extends ESTestCase {
     }
 
     public void testParseTargetField() throws Exception {
-        DateProcessor.Factory factory = new DateProcessor.Factory();
         Map<String, Object> config = new HashMap<>();
-        String sourceField = randomAsciiOfLengthBetween(1, 10);
-        String targetField = randomAsciiOfLengthBetween(1, 10);
+        String sourceField = randomAlphaOfLengthBetween(1, 10);
+        String targetField = randomAlphaOfLengthBetween(1, 10);
         config.put("field", sourceField);
         config.put("target_field", targetField);
         config.put("formats", Arrays.asList("dd/MM/yyyy", "dd-MM-yyyy"));

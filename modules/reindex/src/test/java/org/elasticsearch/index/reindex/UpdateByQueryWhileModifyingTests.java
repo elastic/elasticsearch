@@ -38,7 +38,7 @@ import static org.hamcrest.Matchers.equalTo;
  */
 public class UpdateByQueryWhileModifyingTests extends ReindexTestCase {
     private static final int MAX_MUTATIONS = 50;
-    private static final int MAX_ATTEMPTS = 10;
+    private static final int MAX_ATTEMPTS = 50;
 
     public void testUpdateWhileReindexing() throws Exception {
         AtomicReference<String> value = new AtomicReference<>(randomSimpleString(random()));
@@ -49,7 +49,7 @@ public class UpdateByQueryWhileModifyingTests extends ReindexTestCase {
         Thread updater = new Thread(() -> {
             while (keepUpdating.get()) {
                 try {
-                    BulkIndexByScrollResponse response = updateByQuery().source("test").refresh(true).abortOnVersionConflict(false).get();
+                    BulkByScrollResponse response = updateByQuery().source("test").refresh(true).abortOnVersionConflict(false).get();
                     assertThat(response, matcher().updated(either(equalTo(0L)).or(equalTo(1L)))
                             .versionConflicts(either(equalTo(0L)).or(equalTo(1L))));
                 } catch (Exception e) {
@@ -67,7 +67,7 @@ public class UpdateByQueryWhileModifyingTests extends ReindexTestCase {
                 IndexRequestBuilder index = client().prepareIndex("test", "test", "test").setSource("test", value.get())
                         .setRefreshPolicy(IMMEDIATE);
                 /*
-                 * Update by query increments the version number so concurrent
+                 * Update by query changes the document so concurrent
                  * indexes might get version conflict exceptions so we just
                  * blindly retry.
                  */
@@ -75,16 +75,15 @@ public class UpdateByQueryWhileModifyingTests extends ReindexTestCase {
                 while (true) {
                     attempts++;
                     try {
-                        index.setVersion(get.getVersion()).get();
+                        index.setIfSeqNo(get.getSeqNo()).setIfPrimaryTerm(get.getPrimaryTerm()).get();
                         break;
                     } catch (VersionConflictEngineException e) {
                         if (attempts >= MAX_ATTEMPTS) {
                             throw new RuntimeException(
                                     "Failed to index after [" + MAX_ATTEMPTS + "] attempts. Too many version conflicts!");
                         }
-                        logger.info(
-                                "Caught expected version conflict trying to perform mutation number {} with version {}. Retrying.",
-                                i, get.getVersion());
+                        logger.info("Caught expected version conflict trying to perform mutation number [{}] with version [{}] "
+                                + "on attempt [{}]. Retrying.", i, get.getVersion(), attempts);
                         get = client().prepareGet("test", "test", "test").get();
                     }
                 }

@@ -40,5 +40,7 @@ as follows:
 
 [source,js]
 --------------------------------------------------
-curl -XGET 'http://localhost:9200/2013-*/_settings/name=index.number_*'
+GET /log_2013_-*/_settings/index.number_*
 --------------------------------------------------
+// CONSOLE
+// TEST[continued]

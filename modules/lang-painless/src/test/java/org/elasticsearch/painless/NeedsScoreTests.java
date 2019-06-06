@@ -21,13 +21,17 @@ package org.elasticsearch.painless;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexService;
-import org.elasticsearch.script.CompiledScript;
-import org.elasticsearch.script.ScriptType;
-import org.elasticsearch.script.SearchScript;
+import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.painless.spi.Whitelist;
+import org.elasticsearch.script.NumberSortScript;
+import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 /**
  * Test that needsScores() is reported correctly depending on whether _score is used
@@ -38,29 +42,28 @@ public class NeedsScoreTests extends ESSingleNodeTestCase {
     public void testNeedsScores() {
         IndexService index = createIndex("test", Settings.EMPTY, "type", "d", "type=double");
 
-        PainlessScriptEngineService service = new PainlessScriptEngineService(Settings.EMPTY);
-        SearchLookup lookup = new SearchLookup(index.mapperService(), index.fieldData(), null);
+        Map<ScriptContext<?>, List<Whitelist>> contexts = new HashMap<>();
+        contexts.put(NumberSortScript.CONTEXT, Whitelist.BASE_WHITELISTS);
+        PainlessScriptEngine service = new PainlessScriptEngine(Settings.EMPTY, contexts);
 
-        Object compiled = service.compile(null, "1.2", Collections.emptyMap());
-        SearchScript ss = service.search(new CompiledScript(ScriptType.INLINE, "randomName", "painless", compiled),
-                                         lookup, Collections.<String, Object>emptyMap());
-        assertFalse(ss.needsScores());
+        QueryShardContext shardContext = index.newQueryShardContext(0, null, () -> 0, null);
+        SearchLookup lookup = new SearchLookup(index.mapperService(), shardContext::getForField);
 
-        compiled = service.compile(null, "doc['d'].value", Collections.emptyMap());
-        ss = service.search(new CompiledScript(ScriptType.INLINE, "randomName", "painless", compiled),
-                            lookup, Collections.<String, Object>emptyMap());
-        assertFalse(ss.needsScores());
+        NumberSortScript.Factory factory = service.compile(null, "1.2", NumberSortScript.CONTEXT, Collections.emptyMap());
+        NumberSortScript.LeafFactory ss = factory.newFactory(Collections.emptyMap(), lookup);
+        assertFalse(ss.needs_score());
 
-        compiled = service.compile(null, "1/_score", Collections.emptyMap());
-        ss = service.search(new CompiledScript(ScriptType.INLINE, "randomName", "painless", compiled),
-                            lookup, Collections.<String, Object>emptyMap());
-        assertTrue(ss.needsScores());
+        factory = service.compile(null, "doc['d'].value", NumberSortScript.CONTEXT, Collections.emptyMap());
+        ss = factory.newFactory(Collections.emptyMap(), lookup);
+        assertFalse(ss.needs_score());
 
-        compiled = service.compile(null, "doc['d'].value * _score", Collections.emptyMap());
-        ss = service.search(new CompiledScript(ScriptType.INLINE, "randomName", "painless", compiled),
-                            lookup, Collections.<String, Object>emptyMap());
-        assertTrue(ss.needsScores());
-        service.close();
+        factory = service.compile(null, "1/_score", NumberSortScript.CONTEXT, Collections.emptyMap());
+        ss = factory.newFactory(Collections.emptyMap(), lookup);
+        assertTrue(ss.needs_score());
+
+        factory = service.compile(null, "doc['d'].value * _score", NumberSortScript.CONTEXT, Collections.emptyMap());
+        ss = factory.newFactory(Collections.emptyMap(), lookup);
+        assertTrue(ss.needs_score());
     }
 
 }

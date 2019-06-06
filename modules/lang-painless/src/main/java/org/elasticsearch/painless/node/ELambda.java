@@ -19,27 +19,24 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.Definition.Type;
+import org.elasticsearch.painless.FunctionRef;
+import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Locals.Variable;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
-import org.elasticsearch.painless.Definition.Method;
+import org.elasticsearch.painless.lookup.PainlessLookupUtility;
+import org.elasticsearch.painless.lookup.PainlessMethod;
+import org.elasticsearch.painless.lookup.def;
 import org.elasticsearch.painless.node.SFunction.FunctionReserved;
-import org.elasticsearch.painless.Definition;
-import org.elasticsearch.painless.FunctionRef;
-import org.elasticsearch.painless.Globals;
 import org.objectweb.asm.Opcodes;
 
-import java.lang.invoke.LambdaMetafactory;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
-
-import static org.elasticsearch.painless.WriterConstants.LAMBDA_BOOTSTRAP_HANDLE;
 
 /**
  * Lambda expression node.
@@ -101,39 +98,47 @@ public final class ELambda extends AExpression implements ILambda {
 
     @Override
     void analyze(Locals locals) {
-        final Type returnType;
-        final List<String> actualParamTypeStrs;
-        Method interfaceMethod;
+        Class<?> returnType;
+        List<String> actualParamTypeStrs;
+        PainlessMethod interfaceMethod;
         // inspect the target first, set interface method if we know it.
         if (expected == null) {
             interfaceMethod = null;
             // we don't know anything: treat as def
-            returnType = Definition.DEF_TYPE;
-            // don't infer any types
-            actualParamTypeStrs = paramTypeStrs;
+            returnType = def.class;
+            // don't infer any types, replace any null types with def
+            actualParamTypeStrs = new ArrayList<>(paramTypeStrs.size());
+            for (String type : paramTypeStrs) {
+                if (type == null) {
+                    actualParamTypeStrs.add("def");
+                } else {
+                    actualParamTypeStrs.add(type);
+                }
+            }
+
         } else {
             // we know the method statically, infer return type and any unknown/def types
-            interfaceMethod = expected.struct.getFunctionalMethod();
+            interfaceMethod = locals.getPainlessLookup().lookupFunctionalInterfacePainlessMethod(expected);
             if (interfaceMethod == null) {
-                throw createError(new IllegalArgumentException("Cannot pass lambda to [" + expected.name +
-                                                               "], not a functional interface"));
+                throw createError(new IllegalArgumentException("Cannot pass lambda to " +
+                        "[" + PainlessLookupUtility.typeToCanonicalTypeName(expected) + "], not a functional interface"));
             }
             // check arity before we manipulate parameters
-            if (interfaceMethod.arguments.size() != paramTypeStrs.size())
-                throw new IllegalArgumentException("Incorrect number of parameters for [" + interfaceMethod.name +
-                                                   "] in [" + expected.clazz + "]");
+            if (interfaceMethod.typeParameters.size() != paramTypeStrs.size())
+                throw new IllegalArgumentException("Incorrect number of parameters for [" + interfaceMethod.javaMethod.getName() +
+                        "] in [" + PainlessLookupUtility.typeToCanonicalTypeName(expected) + "]");
             // for method invocation, its allowed to ignore the return value
-            if (interfaceMethod.rtn == Definition.VOID_TYPE) {
-                returnType = Definition.DEF_TYPE;
+            if (interfaceMethod.returnType == void.class) {
+                returnType = def.class;
             } else {
-                returnType = interfaceMethod.rtn;
+                returnType = interfaceMethod.returnType;
             }
-            // replace any def types with the actual type (which could still be def)
-            actualParamTypeStrs = new ArrayList<String>();
+            // replace any null types with the actual type
+            actualParamTypeStrs = new ArrayList<>(paramTypeStrs.size());
             for (int i = 0; i < paramTypeStrs.size(); i++) {
                 String paramType = paramTypeStrs.get(i);
-                if (paramType.equals(Definition.DEF_TYPE.name)) {
-                    actualParamTypeStrs.add(interfaceMethod.arguments.get(i).name);
+                if (paramType == null) {
+                    actualParamTypeStrs.add(PainlessLookupUtility.typeToCanonicalTypeName(interfaceMethod.typeParameters.get(i)));
                 } else {
                     actualParamTypeStrs.add(paramType);
                 }
@@ -152,34 +157,31 @@ public final class ELambda extends AExpression implements ILambda {
             }
         }
         // prepend capture list to lambda's arguments
-        List<String> paramTypes = new ArrayList<>();
-        List<String> paramNames = new ArrayList<>();
+        List<String> paramTypes = new ArrayList<>(captures.size() + actualParamTypeStrs.size());
+        List<String> paramNames = new ArrayList<>(captures.size() + paramNameStrs.size());
         for (Variable var : captures) {
-            paramTypes.add(var.type.name);
+            paramTypes.add(PainlessLookupUtility.typeToCanonicalTypeName(var.clazz));
             paramNames.add(var.name);
         }
         paramTypes.addAll(actualParamTypeStrs);
         paramNames.addAll(paramNameStrs);
 
         // desugar lambda body into a synthetic method
-        desugared = new SFunction(reserved, location, returnType.name, name,
-                                            paramTypes, paramNames, statements, true);
-        desugared.generateSignature();
-        desugared.analyze(Locals.newLambdaScope(locals.getProgramScope(), returnType, desugared.parameters,
-                                                captures.size(), reserved.getMaxLoopCounter()));
+        desugared = new SFunction(reserved, location, PainlessLookupUtility.typeToCanonicalTypeName(returnType), name,
+                                  paramTypes, paramNames, statements, true);
+        desugared.generateSignature(locals.getPainlessLookup());
+        desugared.analyze(Locals.newLambdaScope(locals.getProgramScope(), desugared.name, returnType,
+                                                desugared.parameters, captures.size(), reserved.getMaxLoopCounter()));
 
         // setup method reference to synthetic method
         if (expected == null) {
             ref = null;
-            actual = Definition.getType("String");
+            actual = String.class;
             defPointer = "Sthis." + name + "," + captures.size();
         } else {
             defPointer = null;
-            try {
-                ref = new FunctionRef(expected, interfaceMethod, desugared.method, captures.size());
-            } catch (IllegalArgumentException e) {
-                throw createError(e);
-            }
+            ref = FunctionRef.create(
+                    locals.getPainlessLookup(), locals.getMethods(), location, expected, "this", desugared.name, captures.size());
             actual = expected;
         }
     }
@@ -192,39 +194,16 @@ public final class ELambda extends AExpression implements ILambda {
             writer.writeDebugInfo(location);
             // load captures
             for (Variable capture : captures) {
-                writer.visitVarInsn(capture.type.type.getOpcode(Opcodes.ILOAD), capture.getSlot());
+                writer.visitVarInsn(MethodWriter.getType(capture.clazz).getOpcode(Opcodes.ILOAD), capture.getSlot());
             }
-            // convert MethodTypes to asm Type for the constant pool.
-            String invokedType = ref.invokedType.toMethodDescriptorString();
-            org.objectweb.asm.Type samMethodType =
-                org.objectweb.asm.Type.getMethodType(ref.samMethodType.toMethodDescriptorString());
-            org.objectweb.asm.Type interfaceType =
-                org.objectweb.asm.Type.getMethodType(ref.interfaceMethodType.toMethodDescriptorString());
-            if (ref.needsBridges()) {
-                writer.invokeDynamic(ref.invokedName,
-                                     invokedType,
-                                     LAMBDA_BOOTSTRAP_HANDLE,
-                                     samMethodType,
-                                     ref.implMethodASM,
-                                     samMethodType,
-                                     LambdaMetafactory.FLAG_BRIDGES,
-                                     1,
-                                     interfaceType);
-            } else {
-                writer.invokeDynamic(ref.invokedName,
-                                     invokedType,
-                                     LAMBDA_BOOTSTRAP_HANDLE,
-                                     samMethodType,
-                                     ref.implMethodASM,
-                                     samMethodType,
-                                     0);
-            }
+
+            writer.invokeLambdaCall(ref);
         } else {
             // placeholder
             writer.push((String)null);
             // load captures
             for (Variable capture : captures) {
-                writer.visitVarInsn(capture.type.type.getOpcode(Opcodes.ILOAD), capture.getSlot());
+                writer.visitVarInsn(MethodWriter.getType(capture.clazz).getOpcode(Opcodes.ILOAD), capture.getSlot());
             }
         }
 
@@ -241,8 +220,13 @@ public final class ELambda extends AExpression implements ILambda {
     public org.objectweb.asm.Type[] getCaptures() {
         org.objectweb.asm.Type[] types = new org.objectweb.asm.Type[captures.size()];
         for (int i = 0; i < types.length; i++) {
-            types[i] = captures.get(i).type.type;
+            types[i] = MethodWriter.getType(captures.get(i).clazz);
         }
         return types;
+    }
+
+    @Override
+    public String toString() {
+        return multilineToString(pairwiseToString(paramTypeStrs, paramNameStrs), statements);
     }
 }

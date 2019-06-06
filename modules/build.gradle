@@ -17,8 +17,9 @@
  * under the License.
  */
 
-subprojects {
+configure(subprojects.findAll { it.parent.path == project.path }) {
   group = 'org.elasticsearch.plugin' // for modules which publish client jars
+  apply plugin: 'elasticsearch.testclusters'       
   apply plugin: 'elasticsearch.esplugin'
 
   esplugin {

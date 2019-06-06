@@ -1,28 +1,27 @@
 [[elasticsearch-reference]]
 = Elasticsearch Reference
 
-:version:        6.0.0-alpha1
-:major-version:  6.x
+:include-xpack:         true
+:es-test-dir:           {docdir}/../src/test
+:plugins-examples-dir:  {docdir}/../../plugins/examples
+:xes-repo-dir:          {docdir}/../../x-pack/docs/{lang}
+:es-repo-dir:           {docdir}
 
-//////////
-release-state can be: released | prerelease | unreleased
-//////////
 
-:release-state:  unreleased
-:lucene_version: 6.3.0
-:branch:         master
-:jdk:            1.8.0_73
-:defguide:       https://www.elastic.co/guide/en/elasticsearch/guide/master
-:plugins:        https://www.elastic.co/guide/en/elasticsearch/plugins/master
-:javaclient:     https://www.elastic.co/guide/en/elasticsearch/client/java-api/master/
-:issue:          https://github.com/elastic/elasticsearch/issues/
-:pull:           https://github.com/elastic/elasticsearch/pull/
+include::../Versions.asciidoc[]
 
 include::getting-started.asciidoc[]
 
 include::setup.asciidoc[]
 
-include::migration/index.asciidoc[]
+include::monitoring/configuring-monitoring.asciidoc[]
+
+include::{xes-repo-dir}/security/configuring-es.asciidoc[]
+
+include::setup/bootstrap-checks-xes.asciidoc[]
+
+:edit_url:
+include::upgrade.asciidoc[]
 
 include::api-conventions.asciidoc[]
 
@@ -50,14 +49,31 @@ include::index-modules.asciidoc[]
 
 include::ingest.asciidoc[]
 
+include::ilm/index.asciidoc[]
+
+include::sql/index.asciidoc[]
+
+include::monitoring/index.asciidoc[]
+
+include::rollup/index.asciidoc[]
+
+include::frozen-indices.asciidoc[]
+
+include::rest-api/index.asciidoc[]
+
+include::commands/index.asciidoc[]
+
+:edit_url:
 include::how-to.asciidoc[]
 
 include::testing.asciidoc[]
 
 include::glossary.asciidoc[]
 
-//////
- include::release-notes.asciidoc[]
-//////
+include::release-notes/highlights.asciidoc[]
+
+include::migration/index.asciidoc[]
+
+include::release-notes.asciidoc[]
 
 include::redirects.asciidoc[]

@@ -19,17 +19,16 @@
 package org.elasticsearch.search.aggregations.matrix.stats;
 
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.MultiValueMode;
-import org.elasticsearch.search.aggregations.support.MultiValuesSourceParser.NumericValuesSourceParser;
+import org.elasticsearch.search.aggregations.support.ArrayValuesSourceParser.NumericValuesSourceParser;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
 import java.util.Map;
 
-import static org.elasticsearch.search.aggregations.support.MultiValuesSourceAggregationBuilder.MULTIVALUE_MODE_FIELD;
+import static org.elasticsearch.search.aggregations.support.ArrayValuesSourceAggregationBuilder.MULTIVALUE_MODE_FIELD;
 
 public class MatrixStatsParser extends NumericValuesSourceParser {
 
@@ -39,8 +38,8 @@ public class MatrixStatsParser extends NumericValuesSourceParser {
 
     @Override
     protected boolean token(String aggregationName, String currentFieldName, XContentParser.Token token, XContentParser parser,
-                            ParseFieldMatcher parseFieldMatcher, Map<ParseField, Object> otherOptions) throws IOException {
-        if (parseFieldMatcher.match(currentFieldName, MULTIVALUE_MODE_FIELD)) {
+                            Map<ParseField, Object> otherOptions) throws IOException {
+        if (MULTIVALUE_MODE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
             if (token == XContentParser.Token.VALUE_STRING) {
                 otherOptions.put(MULTIVALUE_MODE_FIELD, parser.text());
                 return true;

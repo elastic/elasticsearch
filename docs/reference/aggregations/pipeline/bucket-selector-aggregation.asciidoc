@@ -1,14 +1,12 @@
 [[search-aggregations-pipeline-bucket-selector-aggregation]]
 === Bucket Selector Aggregation
 
-experimental[]
-
 A parent pipeline aggregation which executes a script which determines whether the current bucket will be retained
 in the parent multi-bucket aggregation. The specified metric must be numeric and the script must return a boolean value.
 If the script language is `expression` then a numeric return value is permitted. In this case 0.0 will be evaluated as `false`
 and all other values will evaluate to true.
 
-Note: The bucket_selector aggregation, like all pipeline aggregations, executions after all other sibling aggregations. This means that
+NOTE: The bucket_selector aggregation, like all pipeline aggregations, executes after all other sibling aggregations. This means that
 using the bucket_selector aggregation to filter the returned buckets in the response does not save on execution time running the aggregations.
 
 ==== Syntax
@@ -27,22 +25,24 @@ A `bucket_selector` aggregation looks like this in isolation:
     }
 }
 --------------------------------------------------
+// NOTCONSOLE
 <1> Here, `my_var1` is the name of the variable for this buckets path to use in the script, `the_sum` is the path to
 the metrics to use for that variable.
 
-
+[[bucket-selector-params]]
 .`bucket_selector` Parameters
+[options="header"]
 |===
 |Parameter Name |Description |Required |Default Value
 |`script` |The script to run for this aggregation. The script can be inline, file or indexed. (see <<modules-scripting>>
 for more details) |Required |
 |`buckets_path` |A map of script variables and their associated path to the buckets we wish to use for the variable
 (see <<buckets-path-syntax>> for more details) |Required |
- |`gap_policy` |The policy to apply when gaps are found in the data (see <<gap-policy>> for more
- details)|Optional, defaults to `skip` |
+|`gap_policy` |The policy to apply when gaps are found in the data (see <<gap-policy>> for more
+ details)|Optional |`skip`
 |===
 
-The following snippet only retains buckets where the total sales for the month is more than 400:
+The following snippet only retains buckets where the total sales for the month is more than 200:
 
 [source,js]
 --------------------------------------------------
@@ -53,7 +53,7 @@ POST /sales/_search
         "sales_per_month" : {
             "date_histogram" : {
                 "field" : "date",
-                "interval" : "month"
+                "calendar_interval" : "month"
             },
             "aggs": {
                 "total_sales": {

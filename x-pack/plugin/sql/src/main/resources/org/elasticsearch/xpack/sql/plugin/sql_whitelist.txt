@@ -1,0 +1,164 @@
+#
+# Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+# or more contributor license agreements. Licensed under the Elastic License;
+# you may not use this file except in compliance with the Elastic License.
+#
+
+# This file contains a whitelist for SQL specific utilities and classes available inside SQL scripting
+
+#### Classes
+
+class org.elasticsearch.xpack.sql.expression.function.scalar.geo.GeoShape {
+
+}
+
+
+class org.elasticsearch.xpack.sql.expression.literal.IntervalDayTime {
+}
+
+class org.elasticsearch.xpack.sql.expression.literal.IntervalYearMonth {
+}
+
+class java.time.OffsetTime {
+}
+
+class org.elasticsearch.xpack.sql.expression.function.scalar.whitelist.InternalSqlScriptUtils {
+
+#
+# Utilities
+# 
+  def docValue(java.util.Map, String)
+  boolean nullSafeFilter(Boolean)
+  double nullSafeSortNumeric(Number)
+  String nullSafeSortString(Object)
+
+#
+# Comparison
+#
+  Boolean eq(Object, Object)
+  Boolean nulleq(Object, Object)
+  Boolean neq(Object, Object)
+  Boolean lt(Object, Object)
+  Boolean lte(Object, Object)
+  Boolean gt(Object, Object)
+  Boolean gte(Object, Object)
+  Boolean in(Object, java.util.List)
+
+#
+# Logical
+#
+  Boolean and(Boolean, Boolean)
+  Boolean or(Boolean, Boolean)
+  Boolean not(Boolean)
+  Boolean isNull(Object)
+  Boolean isNotNull(Object)
+
+#
+# Conditional
+#
+  def caseFunction(java.util.List)
+  def coalesce(java.util.List)
+  def greatest(java.util.List)
+  def least(java.util.List)
+  def nullif(Object, Object)
+
+#
+# Regex
+#
+  Boolean regex(String, String)
+
+#
+# Math
+#
+  def add(Object, Object)
+  def sub(Object, Object)
+  def div(Object, Object)
+  def mod(Object, Object)
+  def mul(Object, Object)
+  Number atan2(Number, Number)
+  Number neg(Number)
+  Number power(Number, Number)
+  Number round(Number, Number)
+  Number truncate(Number, Number)
+  
+  Double abs(Number)
+  Double acos(Number)
+  Double asin(Number)
+  Double atan(Number)
+  Double cbrt(Number)
+  Double ceil(Number)
+  Double cos(Number)
+  Double cosh(Number)
+  Double cot(Number)
+  Double degrees(Number)
+  Double e(Number)
+  Double exp(Number)
+  Double expm1(Number)
+  Double floor(Number)
+  Double log(Number)
+  Double log10(Number)
+  Double pi(Number)
+  Double radians(Number)
+  Double random(Number)
+  Double sign(Number)
+  Double sin(Number)
+  Double sinh(Number)
+  Double sqrt(Number)
+  Double tan(Number)
+  
+#
+# Date/Time functions 
+#
+  Integer dateTimeChrono(Object, String, String)
+  String  dayName(Object, String)
+  Integer dayOfWeek(Object, String)
+  String  monthName(Object, String)
+  Integer quarter(Object, String)
+  Integer weekOfYear(Object, String)
+  IntervalDayTime intervalDayTime(String, String)
+  IntervalYearMonth intervalYearMonth(String, String)
+  ZonedDateTime asDateTime(Object)
+  OffsetTime asTime(String)
+
+#
+# ASCII Functions
+# 
+  Integer ascii(String)
+  Integer bitLength(String)
+  String  character(Number)
+  Integer charLength(String)
+  String  concat(String, String)
+  String  insert(String, Number, Number, String)
+  String  lcase(String)
+  String  left(String, Number)
+  Integer length(String)
+  Integer locate(String, String)
+  Integer locate(String, String, Number)
+  String  ltrim(String)
+  Integer octetLength(String)
+  Integer position(String, String)
+  String  repeat(String, Number)
+  String  replace(String, String, String)
+  String  right(String, Number)
+  String  rtrim(String)
+  String  space(Number)
+  String  substring(String, Number, Number)
+  String  ucase(String)
+
+#
+# Geo Functions
+#
+  GeoShape geoDocValue(java.util.Map, String)
+  String   stAswkt(Object)
+  Double   stDistance(Object, Object)
+  String   stGeometryType(Object)
+  GeoShape stWktToSql(String)
+  Double   stX(Object)
+  Double   stY(Object)
+  Double   stZ(Object)
+
+#
+# Casting
+#
+  def cast(Object, String)
+}

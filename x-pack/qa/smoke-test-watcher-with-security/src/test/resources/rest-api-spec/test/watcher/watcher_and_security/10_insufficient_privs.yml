@@ -1,0 +1,14 @@
+---
+"Test watcher is protected by security":
+  - skip:
+      features: headers
+  - do:
+      headers: { es-security-runas-user: powerless_user }
+      catch: forbidden
+      watcher.stats: {}
+  # there seems to be a bug in the yaml parser we use, where a single element list
+  # has the END_LIST token skipped...so here we just rerun the same request without
+  # the impersonation to show it works
+  - do:
+      watcher.stats: {}
+  - match: { stats.0.watcher_state: started }

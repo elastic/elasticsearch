@@ -1,0 +1,53 @@
+/*
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+apply plugin: 'nebula.maven-base-publish'
+apply plugin: 'nebula.maven-scm'
+
+dependencies {
+  compile project(':libs:elasticsearch-core')
+
+  testCompile "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
+  testCompile "junit:junit:${versions.junit}"
+  testCompile "org.hamcrest:hamcrest:${versions.hamcrest}"
+
+  if (isEclipse == false || project.path == ":libs:elasticsearch-nio-tests") {
+      testCompile(project(":test:framework")) {
+        exclude group: 'org.elasticsearch', module: 'elasticsearch-nio'
+      }
+  }
+}
+
+if (isEclipse) {
+  // in eclipse the project is under a fake root, we need to change around the source sets
+  sourceSets {
+    if (project.path == ":libs:elasticsearch-nio") {
+      main.java.srcDirs = ['java']
+      main.resources.srcDirs = ['resources']
+    } else {
+      test.java.srcDirs = ['java']
+      test.resources.srcDirs = ['resources']
+    }
+  }
+}
+
+forbiddenApisMain {
+  // nio does not depend on core, so only jdk signatures should be checked
+  // es-all is not checked as we connect and accept sockets
+  replaceSignatureFiles 'jdk-signatures'
+}

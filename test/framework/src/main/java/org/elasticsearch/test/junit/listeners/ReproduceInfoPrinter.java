@@ -19,9 +19,11 @@
 package org.elasticsearch.test.junit.listeners;
 
 import com.carrotsearch.randomizedtesting.ReproduceErrorMessageBuilder;
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.util.Constants;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
@@ -35,10 +37,9 @@ import java.util.TimeZone;
 
 import static com.carrotsearch.randomizedtesting.SysGlobals.SYSPROP_ITERATIONS;
 import static com.carrotsearch.randomizedtesting.SysGlobals.SYSPROP_PREFIX;
+import static com.carrotsearch.randomizedtesting.SysGlobals.SYSPROP_TESTCLASS;
 import static com.carrotsearch.randomizedtesting.SysGlobals.SYSPROP_TESTMETHOD;
-import static org.elasticsearch.test.ESIntegTestCase.TESTS_CLUSTER;
 import static org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase.REST_TESTS_BLACKLIST;
-import static org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase.REST_TESTS_SPEC;
 import static org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase.REST_TESTS_SUITE;
 
 /**
@@ -47,7 +48,7 @@ import static org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase.REST_TE
  */
 public class ReproduceInfoPrinter extends RunListener {
 
-    protected final Logger logger = Loggers.getLogger(ESTestCase.class);
+    protected final Logger logger = LogManager.getLogger(ESTestCase.class);
 
     @Override
     public void testStarted(Description description) throws Exception {
@@ -73,10 +74,20 @@ public class ReproduceInfoPrinter extends RunListener {
             return;
         }
 
-        final StringBuilder b = new StringBuilder("REPRODUCE WITH: gradle ");
+        final String gradlew = Constants.WINDOWS ? "gradlew" : "./gradlew";
+        final StringBuilder b = new StringBuilder("REPRODUCE WITH: " + gradlew + " ");
         String task = System.getProperty("tests.task");
-        // TODO: enforce (intellij still runs the runner?) or use default "test" but that won't work for integ
+
+        // append Gradle test runner test filter string
         b.append(task);
+        b.append(" --tests \"");
+        b.append(failure.getDescription().getClassName());
+        final String methodName = failure.getDescription().getMethodName();
+        if (methodName != null) {
+            b.append(".");
+            b.append(failure.getDescription().getMethodName());
+        }
+        b.append("\"");
 
         GradleMessageBuilder gradleMessageBuilder = new GradleMessageBuilder(b);
         gradleMessageBuilder.appendAllOpts(failure.getDescription());
@@ -86,7 +97,12 @@ public class ReproduceInfoPrinter extends RunListener {
             gradleMessageBuilder.appendClientYamlSuiteProperties();
         }
 
-        System.err.println(b.toString());
+        printToErr(b.toString());
+    }
+
+    @SuppressForbidden(reason = "printing repro info")
+    private static void printToErr(String s) {
+        System.err.println(s);
     }
 
     protected static class GradleMessageBuilder extends ReproduceErrorMessageBuilder {
@@ -98,11 +114,6 @@ public class ReproduceInfoPrinter extends RunListener {
         @Override
         public ReproduceErrorMessageBuilder appendAllOpts(Description description) {
             super.appendAllOpts(description);
-
-            if (description.getMethodName() != null) {
-                //prints out the raw method description instead of methodName(description) which filters out the parameters
-                super.appendOpt(SYSPROP_TESTMETHOD(), "\"" + description.getMethodName() + "\"");
-            }
 
             return appendESProperties();
         }
@@ -121,6 +132,11 @@ public class ReproduceInfoPrinter extends RunListener {
             if (sysPropName.equals(SYSPROP_ITERATIONS())) { // we don't want the iters to be in there!
                 return this;
             }
+            if (sysPropName.equals(SYSPROP_TESTCLASS())) {
+                //don't print out the test class, we print it ourselves in appendAllOpts
+                //without filtering out the parameters (needed for REST tests)
+                return this;
+            }
             if (sysPropName.equals(SYSPROP_TESTMETHOD())) {
                 //don't print out the test method, we print it ourselves in appendAllOpts
                 //without filtering out the parameters (needed for REST tests)
@@ -136,24 +152,29 @@ public class ReproduceInfoPrinter extends RunListener {
             return this;
         }
 
-        public ReproduceErrorMessageBuilder appendESProperties() {
+        private ReproduceErrorMessageBuilder appendESProperties() {
             appendProperties("tests.es.logger.level");
             if (inVerifyPhase()) {
                 // these properties only make sense for integration tests
-                appendProperties(TESTS_CLUSTER, ESIntegTestCase.TESTS_ENABLE_MOCK_MODULES);
+                appendProperties(ESIntegTestCase.TESTS_ENABLE_MOCK_MODULES);
             }
             appendProperties("tests.assertion.disabled", "tests.security.manager", "tests.nightly", "tests.jvms",
-                             "tests.client.ratio", "tests.heap.size", "tests.bwc", "tests.bwc.version");
+                             "tests.client.ratio", "tests.heap.size", "tests.bwc", "tests.bwc.version", "build.snapshot");
             if (System.getProperty("tests.jvm.argline") != null && !System.getProperty("tests.jvm.argline").isEmpty()) {
                 appendOpt("tests.jvm.argline", "\"" + System.getProperty("tests.jvm.argline") + "\"");
             }
             appendOpt("tests.locale", Locale.getDefault().toLanguageTag());
             appendOpt("tests.timezone", TimeZone.getDefault().getID());
+            appendOpt("tests.distribution", System.getProperty("tests.distribution"));
+            appendOpt("compiler.java", System.getProperty("compiler.java"));
+            appendOpt("runtime.java", System.getProperty("runtime.java"));
+            appendOpt("javax.net.ssl.keyStorePassword", System.getProperty("javax.net.ssl.keyStorePassword"));
+            appendOpt("javax.net.ssl.trustStorePassword", System.getProperty("javax.net.ssl.trustStorePassword"));
             return this;
         }
 
         public ReproduceErrorMessageBuilder appendClientYamlSuiteProperties() {
-            return appendProperties(REST_TESTS_SUITE, REST_TESTS_SPEC, REST_TESTS_BLACKLIST);
+            return appendProperties(REST_TESTS_SUITE, REST_TESTS_BLACKLIST);
         }
 
         protected ReproduceErrorMessageBuilder appendProperties(String... properties) {

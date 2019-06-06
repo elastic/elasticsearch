@@ -27,17 +27,21 @@ import org.elasticsearch.ingest.Processor;
 import java.util.Map;
 
 /**
- * Base class for processors that manipulate strings and require a single "fields" array config value, which
+ * Base class for processors that manipulate source strings and require a single "fields" array config value, which
  * holds a list of field names in string format.
+ *
+ * @param <T> The resultant type for the target field
  */
-abstract class AbstractStringProcessor extends AbstractProcessor {
+abstract class AbstractStringProcessor<T> extends AbstractProcessor {
     private final String field;
     private final boolean ignoreMissing;
+    private final String targetField;
 
-    protected AbstractStringProcessor(String tag, String field, boolean ignoreMissing) {
+    AbstractStringProcessor(String tag, String field, boolean ignoreMissing, String targetField) {
         super(tag);
         this.field = field;
         this.ignoreMissing = ignoreMissing;
+        this.targetField = targetField;
     }
 
     public String getField() {
@@ -48,44 +52,44 @@ abstract class AbstractStringProcessor extends AbstractProcessor {
         return ignoreMissing;
     }
 
-    @Override
-    public final void execute(IngestDocument document) {
-        String val;
+    String getTargetField() {
+        return targetField;
+    }
 
-        try {
-            val = document.getFieldValue(field, String.class);
-        } catch (IllegalArgumentException e) {
-            if (ignoreMissing && document.hasField(field) != true) {
-                return;
-            }
-            throw e;
-        }
+    @Override
+    public final IngestDocument execute(IngestDocument document) {
+        String val = document.getFieldValue(field, String.class, ignoreMissing);
+
         if (val == null && ignoreMissing) {
-            return;
+            return document;
         } else if (val == null) {
             throw new IllegalArgumentException("field [" + field + "] is null, cannot process it.");
         }
 
-        document.setFieldValue(field, process(val));
+        document.setFieldValue(targetField, process(val));
+        return document;
     }
 
-    protected abstract String process(String value);
+    protected abstract T process(String value);
 
     abstract static class Factory implements Processor.Factory {
-        protected final String processorType;
+        final String processorType;
 
         protected Factory(String processorType) {
             this.processorType = processorType;
         }
 
         @Override
-        public AbstractStringProcessor create(Map<String, Processor.Factory> registry, String tag,
-                                              Map<String, Object> config) throws Exception {
+        public AbstractStringProcessor<?> create(Map<String, Processor.Factory> registry, String tag,
+                                                 Map<String, Object> config) throws Exception {
             String field = ConfigurationUtils.readStringProperty(processorType, tag, config, "field");
             boolean ignoreMissing = ConfigurationUtils.readBooleanProperty(processorType, tag, config, "ignore_missing", false);
-            return newProcessor(tag, field, ignoreMissing);
+            String targetField = ConfigurationUtils.readStringProperty(processorType, tag, config, "target_field", field);
+
+            return newProcessor(tag, config, field, ignoreMissing, targetField);
         }
 
-        protected abstract AbstractStringProcessor newProcessor(String processorTag, String field, boolean ignoreMissing);
+        protected abstract AbstractStringProcessor<?> newProcessor(String processorTag, Map<String, Object> config, String field,
+                                                                   boolean ignoreMissing, String targetField);
     }
 }

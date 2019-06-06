@@ -1,47 +1,20 @@
 [[discovery-azure-classic]]
 === Azure Classic Discovery Plugin
 
-The Azure Classic Discovery plugin uses the Azure Classic API for unicast discovery.
+The Azure Classic Discovery plugin uses the Azure Classic API to identify the
+addresses of seed hosts.
 
-// TODO: Link to ARM plugin when ready
-// See issue https://github.com/elastic/elasticsearch/issues/19146
-deprecated[5.0.0, Use coming Azure ARM Discovery plugin instead]
+deprecated[5.0.0, This plugin will be removed in the future]
 
-[[discovery-azure-classic-install]]
-[float]
-==== Installation
+:plugin_name: discovery-azure-classic
+include::install_remove.asciidoc[]
 
-This plugin can be installed using the plugin manager:
-
-[source,sh]
-----------------------------------------------------------------
-sudo bin/elasticsearch-plugin install discovery-azure-classic
-----------------------------------------------------------------
-
-The plugin must be installed on every node in the cluster, and each node must
-be restarted after installation.
-
-This plugin can be downloaded for <<plugin-management-custom-url,offline install>> from
-{plugin_url}/discovery-azure-classic/discovery-azure-classic-{version}.zip.
-
-[[discovery-azure-classic-remove]]
-[float]
-==== Removal
-
-The plugin can be removed with the following command:
-
-[source,sh]
-----------------------------------------------------------------
-sudo bin/elasticsearch-plugin remove discovery-azure-classic
-----------------------------------------------------------------
-
-The node must be stopped before removing the plugin.
 
 [[discovery-azure-classic-usage]]
 ==== Azure Virtual Machine Discovery
 
-Azure VM discovery allows to use the azure APIs to perform automatic discovery (similar to multicast in non hostile
-multicast environments). Here is a simple sample configuration:
+Azure VM discovery allows to use the Azure APIs to perform automatic discovery.
+Here is a simple sample configuration:
 
 [source,yaml]
 ----
@@ -56,14 +29,14 @@ cloud:
                    type: pkcs12
 
 discovery:
-    type: azure
+    seed_providers: azure
 ----
 
 [IMPORTANT]
 .Binding the network host
 ==============================================
 
-The keystore file must be placed in a directory accessible by elasticsearch like the `config` directory.
+The keystore file must be placed in a directory accessible by Elasticsearch like the `config` directory.
 
 It's important to define `network.host` as by default it's bound to `localhost`.
 
@@ -121,7 +94,7 @@ The following are a list of settings that can further control the discovery:
 `discovery.azure.endpoint.name`::
 
     When using `public_ip` this setting is used to identify the endpoint name
-    used to forward requests to elasticsearch (aka transport port name).
+    used to forward requests to Elasticsearch (aka transport port name).
     Defaults to `elasticsearch`. In Azure management console, you could define
     an endpoint `elasticsearch` forwarding for example requests on public IP
     on port 8100 to the virtual machine on port 9300.
@@ -157,7 +130,7 @@ discovery:
 We will expose here one strategy which is to hide our Elasticsearch cluster from outside.
 
 With this strategy, only VMs behind the same virtual port can talk to each
-other.  That means that with this mode, you can use elasticsearch unicast
+other.  That means that with this mode, you can use Elasticsearch unicast
 discovery to build a cluster, using the Azure API to retrieve information
 about your nodes.
 
@@ -169,7 +142,7 @@ Before starting, you need to have:
 * A http://www.windowsazure.com/[Windows Azure account]
 * OpenSSL that isn't from MacPorts, specifically `OpenSSL 1.0.1f 6 Jan
   2014` doesn't seem to create a valid keypair for ssh. FWIW,
- `OpenSSL 1.0.1c 10 May 2012` on Ubuntu 12.04 LTS is known to work.
+ `OpenSSL 1.0.1c 10 May 2012` on Ubuntu 14.04 LTS is known to work.
 * SSH keys and certificate
 +
 --
@@ -203,7 +176,7 @@ cat azure-cert.pem azure-pk.pem > azure.pem.txt
 openssl pkcs12 -export -in azure.pem.txt -out azurekeystore.pkcs12 -name azure -noiter -nomaciter
 ----
 
-Upload the `azure-certificate.cer` file both in the elasticsearch Cloud Service (under `Manage Certificates`),
+Upload the `azure-certificate.cer` file both in the Elasticsearch Cloud Service (under `Manage Certificates`),
 and under `Settings -> Manage Certificates`.
 
 IMPORTANT: When prompted for a password, you need to enter a non empty one.
@@ -380,7 +353,7 @@ sudo dpkg -i elasticsearch-{version}.deb
 ----
 // NOTCONSOLE
 
-Check that elasticsearch is running:
+Check that Elasticsearch is running:
 
 [source,js]
 ----
@@ -397,11 +370,15 @@ This command should give you a JSON result:
   "cluster_name" : "elasticsearch",
   "cluster_uuid" : "AT69_T_DTp-1qgIJlatQqA",
   "version" : {
-    "number" : "{version}",
+    "number" : "{version_qualified}",
+    "build_flavor" : "{build_flavor}",
+    "build_type" : "{build_type}",
     "build_hash" : "f27399d",
     "build_date" : "2016-03-30T09:51:41.449Z",
     "build_snapshot" : false,
-    "lucene_version" : "{lucene_version}"
+    "lucene_version" : "{lucene_version}",
+    "minimum_wire_compatibility_version" : "1.2.3",
+    "minimum_index_compatibility_version" : "1.2.3"
   },
   "tagline" : "You Know, for Search"
 }
@@ -412,14 +389,16 @@ This command should give you a JSON result:
 // TESTRESPONSE[s/"build_hash" : "f27399d",/"build_hash" : "$body.version.build_hash",/]
 // TESTRESPONSE[s/"build_date" : "2016-03-30T09:51:41.449Z",/"build_date" : $body.version.build_date,/]
 // TESTRESPONSE[s/"build_snapshot" : false,/"build_snapshot" : $body.version.build_snapshot,/]
+// TESTRESPONSE[s/"minimum_wire_compatibility_version" : "1.2.3"/"minimum_wire_compatibility_version" : $body.version.minimum_wire_compatibility_version/]
+// TESTRESPONSE[s/"minimum_index_compatibility_version" : "1.2.3"/"minimum_index_compatibility_version" : $body.version.minimum_index_compatibility_version/]
 // So much s/// but at least we test that the layout is close to matching....
 
 [[discovery-azure-classic-long-plugin]]
-===== Install elasticsearch cloud azure plugin
+===== Install Elasticsearch cloud azure plugin
 
 [source,sh]
 ----
-# Stop elasticsearch
+# Stop Elasticsearch
 sudo service elasticsearch stop
 
 # Install the plugin
@@ -450,7 +429,7 @@ discovery:
 # path.data: /mnt/resource/elasticsearch/data
 ----
 
-Restart elasticsearch:
+Restart Elasticsearch:
 
 [source,sh]
 ----

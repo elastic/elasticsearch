@@ -1,0 +1,691 @@
+setup:
+  - skip:
+      features: headers
+---
+"Test CRUD on two jobs in shared index":
+
+  - do:
+      ml.put_job:
+        job_id: index-layout-job
+        body:  >
+          {
+            "job_id":"index-layout-job",
+            "description":"Analysis of response time by airline",
+            "analysis_config" : {
+                "bucket_span": "1h",
+                "detectors" :[{"function":"metric","field_name":"responsetime","by_field_name":"airline"}]
+            },
+            "analysis_limits" : {
+                "model_memory_limit": "20mb"
+            },
+            "data_description" : {
+                "format":"xcontent",
+                "time_field":"time",
+                "time_format":"epoch"
+            }
+          }
+  - match: { job_id: "index-layout-job" }
+
+
+  - do:
+      ml.put_job:
+        job_id: index-layout-job2
+        body:  >
+          {
+            "job_id":"index-layout-job2",
+            "description":"Analysis of response time by airline",
+            "analysis_config" : {
+                "bucket_span": "1h",
+                "detectors" :[{"function":"metric","field_name":"responsetime","by_field_name":"airline"}]
+            },
+            "analysis_limits" : {
+                "model_memory_limit": "20mb"
+            },
+            "data_description" : {
+                "format":"xcontent",
+                "time_field":"time",
+                "time_format":"epoch"
+            }
+          }
+  - match: { job_id: "index-layout-job2" }
+
+  - do:
+      ml.open_job:
+        job_id: index-layout-job
+
+  - do:
+      ml.open_job:
+        job_id: index-layout-job2
+
+  - do:
+      ml.post_data:
+        job_id: index-layout-job
+        body: >
+          {"airline":"AAL","responsetime":"132.2046","sourcetype":"farequote","time":"1403481600"}
+          {"airline":"JZA","responsetime":"990.4628","sourcetype":"farequote","time":"1403481700"}
+
+  - do:
+      ml.post_data:
+        job_id: index-layout-job2
+        body: >
+          {"airline":"AAL","responsetime":"132.2046","sourcetype":"farequote","time":"1403481600"}
+          {"airline":"JZA","responsetime":"990.4628","sourcetype":"farequote","time":"1403481700"}
+
+
+  - do:
+      ml.flush_job:
+        job_id: index-layout-job
+  - match: { flushed: true }
+
+  - do:
+      ml.flush_job:
+        job_id: index-layout-job2
+  - match: { flushed: true }
+
+
+  - do:
+      ml.close_job:
+        job_id: index-layout-job
+  - match: { closed: true }
+
+  - do:
+      ml.close_job:
+        job_id: index-layout-job2
+  - match: { closed: true }
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      indices.exists:
+        index: ".ml-state"
+  - is_true: ''
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      indices.exists:
+        index: ".ml-anomalies-index-layout-job"
+  - is_true: ''
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      indices.refresh: {}
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      count:
+        index: .ml-state
+  - gt: {count: 0}
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      count:
+        index: .ml-anomalies-shared
+  - match: {count: 6}
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      count:
+        index: .ml-anomalies-index-layout-job
+        body:
+          query:
+            constant_score:
+              filter:
+                term:
+                  job_id: index-layout-job
+
+  - match: {count: 3}
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      count:
+        index: .ml-anomalies-shared
+        body:
+          query:
+            constant_score:
+              filter:
+                term:
+                  job_id: index-layout-job
+
+  - match: {count: 3}
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      count:
+        index: .ml-anomalies-index-layout-job2
+        body:
+          query:
+            constant_score:
+              filter:
+                term:
+                  job_id: index-layout-job2
+
+  - match: {count: 3}
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      count:
+        index: .ml-anomalies-shared
+        body:
+          query:
+            constant_score:
+              filter:
+                term:
+                  job_id: index-layout-job2
+  - match: {count: 3}
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      index:
+        index: .ml-state
+        id: index-layout-job2_categorizer_state#1
+        body:
+          key: value
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      index:
+        index: .ml-state
+        id: index-layout-job2_categorizer_state#2
+        body:
+          key: value
+
+  - do:
+      ml.delete_job:
+        job_id: "index-layout-job"
+  - match: { acknowledged: true }
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      indices.exists:
+        index: ".ml-anomalies-shared"
+  - is_true: ''
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      count:
+        index: .ml-state
+  - match: {count: 4}
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      count:
+        index: .ml-anomalies-shared
+        body:
+          query:
+            constant_score:
+              filter:
+                term:
+                  job_id: index-layout-job
+  - match: {count: 0}
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      count:
+        index: .ml-anomalies-shared
+  - match: {count: 3}
+
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      count:
+        index: .ml-anomalies-index-layout-job2
+        body:
+          query:
+            constant_score:
+              filter:
+                term:
+                  job_id: index-layout-job2
+
+  - match: {count: 3}
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      count:
+        index: .ml-anomalies-shared
+        body:
+          query:
+            constant_score:
+              filter:
+                term:
+                  job_id: index-layout-job2
+
+  - match: {count: 3}
+
+  - do:
+      ml.delete_job:
+        job_id: "index-layout-job2"
+  - match: { acknowledged: true }
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      indices.exists:
+        index: ".ml-anomalies-shared"
+  - is_true: ''
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      indices.exists:
+        index: ".ml-anomalies-index-layout-job"
+  - is_false: ''
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      indices.exists:
+        index: ".ml-anomalies-index-layout-job2"
+  - is_false: ''
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      count:
+        index: .ml-state
+  - match: {count: 0}
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      count:
+        index: .ml-state
+  - match: {count: 0}
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      count:
+        index: .ml-state
+  - match: {count: 0}
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      count:
+        index: .ml-state
+  - match: {count: 0}
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      count:
+        index: .ml-anomalies-shared
+  - match: {count: 0}
+
+
+---
+"Test unrelated index":
+
+  - do:
+      ml.put_job:
+        job_id: index-layout-job
+        body:  >
+          {
+            "job_id":"index-layout-job",
+            "description":"Analysis of response time by airline",
+            "analysis_config" : {
+                "bucket_span": "1h",
+                "detectors" :[{"function":"metric","field_name":"responsetime","by_field_name":"airline"}]
+            },
+            "analysis_limits" : {
+                "model_memory_limit": "20mb"
+            },
+            "data_description" : {
+                "format":"xcontent",
+                "time_field":"time",
+                "time_format":"epoch"
+            }
+          }
+  - match: { job_id: "index-layout-job" }
+
+  - do:
+      ml.open_job:
+        job_id: index-layout-job
+
+  - do:
+      ml.post_data:
+        job_id: index-layout-job
+        body: >
+          {"airline":"AAL","responsetime":"132.2046","sourcetype":"farequote","time":"1403481600"}
+          {"airline":"JZA","responsetime":"990.4628","sourcetype":"farequote","time":"1403481700"}
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      indices.create:
+        index: foo
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      indices.create:
+        index: .ml-anomalies-foo
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      index:
+        index: foo
+        body:
+          key: value
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      index:
+        index: .ml-anomalies-foo
+        body:
+          key: value
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      index:
+        index: .ml-anomalies-foo
+        body:
+          key: value
+          job_id: foo
+
+  - do:
+      ml.flush_job:
+        job_id: index-layout-job
+  - match: { flushed: true }
+
+  - do:
+      ml.close_job:
+        job_id: index-layout-job
+  - match: { closed: true }
+
+  - do:
+      ml.delete_job:
+        job_id: "index-layout-job"
+  - match: { acknowledged: true }
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      indices.exists:
+        index: ".ml-anomalies-shared"
+  - is_true: ''
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      indices.exists:
+        index: ".ml-anomalies-foo"
+  - is_true: ''
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      indices.exists:
+        index: ".ml-state"
+  - is_true: ''
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      indices.exists:
+        index: "foo"
+  - is_true: ''
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      count:
+        index: .ml-state
+  - match: {count: 0}
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      count:
+        index: .ml-anomalies-shared
+  - match: {count: 0}
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      indices.refresh: {}
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      count:
+        index: foo
+  - match: {count: 1}
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      count:
+        index: .ml-anomalies-foo
+  - match: {count: 2}
+
+---
+"Test delete removes quantiles":
+
+  - do:
+      ml.put_job:
+        job_id: index-layout-quantiles-job
+        body:  >
+          {
+            "analysis_config" : {
+                "bucket_span": "1h",
+                "detectors" :[{"function":"metric","field_name":"responsetime","by_field_name":"airline"}]
+            },
+            "analysis_limits" : {
+                "model_memory_limit": "20mb"
+            },
+            "data_description" : {
+                "format":"xcontent"
+            }
+          }
+  - match: { job_id: "index-layout-quantiles-job" }
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      index:
+        index: .ml-state
+        id: index-layout-quantiles-job_quantiles
+        body:
+          state: quantile-state
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      indices.refresh: {}
+
+  - do:
+      ml.delete_job:
+        job_id: "index-layout-quantiles-job"
+  - match: { acknowledged: true }
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      count:
+        index: .ml-state
+  - match: {count: 0}
+
+---
+"Test delete removes state":
+
+  - do:
+      ml.put_job:
+        job_id: index-layout-state-job
+        body:  >
+          {
+            "analysis_config" : {
+                "bucket_span": "1h",
+                "detectors" :[{"function":"metric","field_name":"responsetime","by_field_name":"mlcategory"}],
+                "categorization_field_name": "message"
+            },
+            "analysis_limits" : {
+                "model_memory_limit": "20mb"
+            },
+            "data_description" : {
+                "format":"xcontent"
+            }
+          }
+  - match: { job_id: "index-layout-state-job" }
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+        Content-Type: application/json
+
+      index:
+        index:  .ml-anomalies-shared
+        id:     "index-layout-state-job_model_snapshot_123"
+        body: >
+          {
+            "job_id" : "index-layout-state-job",
+            "timestamp": "2017-05-02T00:00:00Z",
+            "snapshot_id": "123",
+            "snapshot_doc_count": 2,
+            "retain": false
+          }
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      index:
+        index: .ml-state
+        id: index-layout-state-job_model_state_123#1
+        body:
+          state: new-model-state
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      index:
+        index: .ml-state
+        id: index-layout-state-job_model_state_123#2
+        body:
+          state: more-new-model-state
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      index:
+        index: .ml-state
+        id: index-layout-state-job_categorizer_state#1
+        body:
+          state: new-categorizer-state
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      index:
+        index: .ml-state
+        id: index-layout-state-job_categorizer_state#2
+        body:
+          state: more-new-categorizer-state
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      indices.refresh: {}
+
+  - do:
+      ml.delete_job:
+        job_id: "index-layout-state-job"
+  - match: { acknowledged: true }
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      count:
+        index: .ml-anomalies-shared
+  - match: {count: 0}
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      count:
+        index: .ml-state
+  - match: {count: 0}
+
+---
+"Test force close does not create state":
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      indices.create:
+        index: .ml-state
+
+  - do:
+      ml.put_job:
+        job_id: index-layout-force-close-job
+        body:  >
+          {
+            "description":"Analysis of response time by airline",
+            "analysis_config" : {
+                "bucket_span": "1h",
+                "detectors" :[{"function":"metric","field_name":"responsetime","by_field_name":"airline"}]
+            },
+            "analysis_limits" : {
+                "model_memory_limit": "20mb"
+            },
+            "data_description" : {
+                "time_field":"time",
+                "time_format":"epoch"
+            }
+          }
+  - match: { job_id: "index-layout-force-close-job" }
+
+  - do:
+      ml.open_job:
+        job_id: index-layout-force-close-job
+
+  - do:
+      ml.post_data:
+        job_id: index-layout-force-close-job
+        body: >
+          {"airline":"AAL","responsetime":"132.2046","sourcetype":"farequote","time":"1403481600"}
+          {"airline":"JZA","responsetime":"990.4628","sourcetype":"farequote","time":"1403481700"}
+
+  - do:
+      ml.close_job:
+        job_id: index-layout-force-close-job
+        force: true
+  - match: { closed: true }
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      indices.exists:
+        index: ".ml-state"
+  - is_true: ''
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      indices.refresh: {}
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      count:
+        index: .ml-state
+  - match: {count: 0}
+

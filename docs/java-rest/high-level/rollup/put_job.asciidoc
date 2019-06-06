@@ -1,0 +1,172 @@
+[[java-rest-high-x-pack-rollup-put-job]]
+=== Put Rollup Job API
+
+The Put Rollup Job API can be used to create a new Rollup job
+in the cluster. The API accepts a `PutRollupJobRequest` object
+as a request and returns a `PutRollupJobResponse`.
+
+[[java-rest-high-x-pack-rollup-put-rollup-job-request]]
+==== Put Rollup Job Request
+
+A `PutRollupJobRequest` requires the following argument:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/RollupDocumentationIT.java[x-pack-rollup-put-rollup-job-request]
+--------------------------------------------------
+<1> The configuration of the Rollup job to create as a `RollupJobConfig`
+
+[[java-rest-high-x-pack-rollup-put-rollup-job-config]]
+==== Rollup Job Configuration
+
+The `RollupJobConfig` object contains all the details about the rollup job
+configuration. See {ref}/rollup-job-config.html[Rollup configuration] to learn more
+about the various configuration settings.
+
+A `RollupJobConfig` requires the following arguments:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/RollupDocumentationIT.java[x-pack-rollup-put-rollup-job-config]
+--------------------------------------------------
+<1> The name of the Rollup job
+<2> The index (or index pattern) to rollup
+<3> The index to store rollup results into
+<4> A cron expression which defines when the Rollup job should be executed
+<5> The page size to use for the Rollup job
+<6> The grouping configuration of the Rollup job as a `GroupConfig`
+<7> The metrics configuration of the Rollup job as a list of `MetricConfig`
+<8> The timeout value to use for the Rollup job as a `TimeValue`
+
+
+[[java-rest-high-x-pack-rollup-put-rollup-job-group-config]]
+==== Grouping Configuration
+
+The grouping configuration of the Rollup job is defined in the `RollupJobConfig`
+using a `GroupConfig` instance. `GroupConfig` reflects all the configuration
+settings that can be defined using the REST API. See {ref}/rollup-job-config.html#rollup-groups-config[Grouping Config]
+to learn more about these settings.
+
+Using the REST API, we could define this grouping configuration:
+
+[source,js]
+--------------------------------------------------
+"groups" : {
+  "date_histogram": {
+    "field": "timestamp",
+    "calendar_interval": "1h",
+    "delay": "7d",
+    "time_zone": "UTC"
+  },
+  "terms": {
+    "fields": ["hostname", "datacenter"]
+  },
+  "histogram": {
+    "fields": ["load", "net_in", "net_out"],
+    "interval": 5
+  }
+}
+--------------------------------------------------
+// NOTCONSOLE
+
+Using the `GroupConfig` object and the high level REST client, the same
+configuration would be:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/RollupDocumentationIT.java[x-pack-rollup-put-rollup-job-group-config]
+--------------------------------------------------
+<1> The date histogram aggregation to use to rollup up documents, as a `DateHistogramGroupConfig`
+<2> The terms aggregation to use to rollup up documents, as a `TermsGroupConfig`
+<3> The histogram aggregation to use to rollup up documents, as a `HistogramGroupConfig`
+<4> The grouping configuration as a `GroupConfig`
+
+
+[[java-rest-high-x-pack-rollup-put-rollup-job-metrics-config]]
+==== Metrics Configuration
+
+After defining which groups should be generated for the data, you next configure
+which metrics should be collected. The list of metrics is defined in the `RollupJobConfig`
+using a `List<MetricConfig>` instance. `MetricConfig` reflects all the configuration
+settings that can be defined using the REST API. See {ref}/rollup-job-config.html#rollup-metrics-config[Metrics Config]
+to learn more about these settings.
+
+Using the REST API, we could define this metrics configuration:
+
+[source,js]
+--------------------------------------------------
+"metrics": [
+    {
+        "field": "temperature",
+        "metrics": ["min", "max", "sum"]
+    },
+    {
+        "field": "voltage",
+        "metrics": ["avg", "value_count"]
+    }
+]
+--------------------------------------------------
+// NOTCONSOLE
+
+Using the `MetricConfig` object and the high level REST client, the same
+configuration would be:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/RollupDocumentationIT.java[x-pack-rollup-put-rollup-job-metrics-config]
+--------------------------------------------------
+<1> The list of `MetricConfig` to configure in the  `RollupJobConfig`
+<2> Adds the metrics to compute on the `temperature` field
+<3> Adds the metrics to compute on the `voltage` field
+
+
+[[java-rest-high-x-pack-rollup-put-rollup-job-execution]]
+==== Execution
+
+The Put Rollup Job API can be executed through a `RollupClient`
+instance. Such instance can be retrieved from a `RestHighLevelClient`
+using the `rollup()` method:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/RollupDocumentationIT.java[x-pack-rollup-put-rollup-job-execute]
+--------------------------------------------------
+
+[[java-rest-high-x-pack-rollup-put-rollup-job-response]]
+==== Response
+
+The returned `PutRollupJobResponse` indicates if the new Rollup job
+has been successfully created:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/RollupDocumentationIT.java[x-pack-rollup-put-rollup-job-response]
+--------------------------------------------------
+<1> `acknowledged` is a boolean indicating whether the job was successfully created
+
+[[java-rest-high-x-pack-rollup-put-rollup-job-async]]
+==== Asynchronous Execution
+
+This request can be executed asynchronously:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/RollupDocumentationIT.java[x-pack-rollup-put-rollup-job-execute-async]
+--------------------------------------------------
+<1> The `PutRollupJobRequest` to execute and the `ActionListener` to use when
+the execution completes
+
+The asynchronous method does not block and returns immediately. Once it is
+completed the `ActionListener` is called back using the `onResponse` method
+if the execution successfully completed or using the `onFailure` method if
+it failed.
+
+A typical listener for `PutRollupJobResponse` looks like:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/RollupDocumentationIT.java[x-pack-rollup-put-rollup-job-execute-listener]
+--------------------------------------------------
+<1> Called when the execution is successfully completed. The response is
+provided as an argument
+<2> Called in case of failure. The raised exception is provided as an argument

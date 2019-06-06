@@ -21,6 +21,7 @@ package org.elasticsearch.ingest.common;
 
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
+import org.elasticsearch.ingest.TestTemplateService;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Collections;
@@ -86,7 +87,8 @@ public class DotExpanderProcessorTests extends ESTestCase {
         // so because foo is no branch field but a value field the `foo.bar` field can't be expanded
         // into [foo].[bar], so foo should be renamed first into `[foo].[bar]:
         IngestDocument document = new IngestDocument(source, Collections.emptyMap());
-        Processor processor = new RenameProcessor("_tag", "foo", "foo.bar", false);
+        Processor processor = new RenameProcessor("_tag", new TestTemplateService.MockTemplateScript.Factory("foo"),
+            new TestTemplateService.MockTemplateScript.Factory("foo.bar"), false);
         processor.execute(document);
         processor = new DotExpanderProcessor("_tag", null, "foo.bar");
         processor.execute(document);
@@ -139,6 +141,40 @@ public class DotExpanderProcessorTests extends ESTestCase {
         assertThat(document.getFieldValue("field.foo", Map.class).size(), equalTo(1));
         assertThat(document.getFieldValue("field.foo.bar", Map.class).size(), equalTo(1));
         assertThat(document.getFieldValue("field.foo.bar.baz", String.class), equalTo("value"));
+    }
+
+
+    public void testEscapeFields_doNothingIfFieldNotInSourceDoc() throws Exception {
+        //asking to expand a (literal) field that is not present in the source document
+        Map<String, Object> source = new HashMap<>();
+        source.put("foo.bar", "baz1");
+        IngestDocument document = new IngestDocument(source, Collections.emptyMap());
+        //abc.def does not exist in source, so don't mutate document
+        DotExpanderProcessor processor = new DotExpanderProcessor("_tag", null, "abc.def");
+        processor.execute(document);
+        //hasField returns false since it requires the expanded form, which is not expanded since we did not ask for it to be
+        assertFalse(document.hasField("foo.bar"));
+        //nothing has changed
+        assertEquals(document.getSourceAndMetadata().get("foo.bar"), "baz1");
+        //abc.def is not found anywhere
+        assertFalse(document.hasField("abc.def"));
+        assertFalse(document.getSourceAndMetadata().containsKey("abc"));
+        assertFalse(document.getSourceAndMetadata().containsKey("abc.def"));
+
+        //asking to expand a (literal) field that does not exist, but the nested field does exist
+        source = new HashMap<>();
+        Map<String, Object> inner = new HashMap<>();
+        inner.put("bar", "baz1");
+        source.put("foo", inner);
+        document = new IngestDocument(source, Collections.emptyMap());
+        //foo.bar, the literal value (as opposed to nested value) does not exist in source, so don't mutate document
+        processor = new DotExpanderProcessor("_tag", null, "foo.bar");
+        processor.execute(document);
+        //hasField returns true because the nested/expanded form exists in the source document
+        assertTrue(document.hasField("foo.bar"));
+        //nothing changed
+        assertThat(document.getFieldValue("foo", Map.class).size(), equalTo(1));
+        assertThat(document.getFieldValue("foo.bar", String.class), equalTo("baz1"));
     }
 
 }

@@ -1,8 +1,6 @@
 [[search-aggregations-pipeline-serialdiff-aggregation]]
 === Serial Differencing Aggregation
 
-experimental[]
-
 Serial differencing is a technique where values in a time series are subtracted from itself at
 different time lags or periods. For example, the datapoint f(x) = f(x~t~) - f(x~t-n~), where n is the period being used.
 
@@ -46,8 +44,11 @@ A `serial_diff` aggregation looks like this in isolation:
     }
 }
 --------------------------------------------------
+// NOTCONSOLE
 
+[[serial-diff-params]]
 .`serial_diff` Parameters
+[options="header"]
 |===
 |Parameter Name |Description |Required |Default Value
 |`buckets_path` |Path to the metric of interest (see <<buckets-path-syntax, `buckets_path` Syntax>> for more details |Required |
@@ -68,7 +69,7 @@ POST /_search
       "my_date_histo": {                  <1>
          "date_histogram": {
             "field": "timestamp",
-            "interval": "day"
+            "calendar_interval": "day"
          },
          "aggs": {
             "the_sum": {

@@ -1,0 +1,162 @@
+[role="xpack"]
+[testenv="basic"]
+[[sql-functions]]
+== Functions and Operators
+
+{es-sql} provides a comprehensive set of built-in operators and functions:
+
+* <<sql-operators, Operators>>
+** <<sql-operators-equality>>
+** <<sql-operators-null-safe-equality>>
+** <<sql-operators-inequality>>
+** <<sql-operators-comparison>>
+** <<sql-operators-between>>
+** <<sql-operators-is-null>>
+** <<sql-operators-in>>
+** <<sql-operators-and>>
+** <<sql-operators-or>>
+** <<sql-operators-not>>
+** <<sql-operators-plus>>
+** <<sql-operators-subtract>>
+** <<sql-operators-negate>>
+** <<sql-operators-multiply>>
+** <<sql-operators-divide>>
+** <<sql-operators-remainder>>
+** <<sql-operators-cast-cast>>
+* <<sql-like-rlike-operators>>
+** <<sql-like-operator>>
+** <<sql-rlike-operator>>
+* <<sql-functions-aggs>>
+** <<sql-functions-aggs-avg>>
+** <<sql-functions-aggs-count>>
+** <<sql-functions-aggs-count-all>>
+** <<sql-functions-aggs-count-distinct>>
+** <<sql-functions-aggs-first>>
+** <<sql-functions-aggs-last>>
+** <<sql-functions-aggs-max>>
+** <<sql-functions-aggs-min>>
+** <<sql-functions-aggs-sum>>
+** <<sql-functions-aggs-kurtosis>>
+** <<sql-functions-aggs-mad>>
+** <<sql-functions-aggs-percentile>>
+** <<sql-functions-aggs-percentile-rank>>
+** <<sql-functions-aggs-skewness>>
+** <<sql-functions-aggs-stddev-pop>>
+** <<sql-functions-aggs-sum-squares>>
+** <<sql-functions-aggs-var-pop>>
+* <<sql-functions-grouping>>
+** <<sql-functions-grouping-histogram>>
+* <<sql-functions-datetime-interval, Date-Time Operators>>
+* <<sql-functions-current-date, Date-Time Functions>>
+** <<sql-functions-current-date>>
+** <<sql-functions-current-time>>
+** <<sql-functions-current-timestamp>>
+** <<sql-functions-datetime-day>>
+** <<sql-functions-datetime-dow>>
+** <<sql-functions-datetime-doy>>
+** <<sql-functions-datetime-dayname>>
+** <<sql-functions-datetime-hour>>
+** <<sql-functions-datetime-isodow>>
+** <<sql-functions-datetime-isoweek>>
+** <<sql-functions-datetime-minuteofday>>
+** <<sql-functions-datetime-minute>>
+** <<sql-functions-datetime-month>>
+** <<sql-functions-datetime-monthname>>
+** <<sql-functions-now>>
+** <<sql-functions-datetime-second>>
+** <<sql-functions-datetime-quarter>>
+** <<sql-functions-today>>
+** <<sql-functions-datetime-week>>
+** <<sql-functions-datetime-year>>
+** <<sql-functions-datetime-extract>>
+* <<sql-functions-search>>
+** <<sql-functions-search-match>>
+** <<sql-functions-search-query>>
+** <<sql-functions-search-score>>
+* <<sql-functions-math>>
+** <<sql-functions-math-abs>>
+** <<sql-functions-math-cbrt>>
+** <<sql-functions-math-ceil>>
+** <<sql-functions-math-e>>
+** <<sql-functions-math-exp>>
+** <<sql-functions-math-expm1>>
+** <<sql-functions-math-floor>>
+** <<sql-functions-math-log>>
+** <<sql-functions-math-log10>>
+** <<sql-functions-math-pi>>
+** <<sql-functions-math-power>>
+** <<sql-functions-math-random>> 
+** <<sql-functions-math-round>>
+** <<sql-functions-math-sign>>
+** <<sql-functions-math-sqrt>>
+** <<sql-functions-math-truncate>>
+** <<sql-functions-math-acos>>
+** <<sql-functions-math-asin>>
+** <<sql-functions-math-atan>>
+** <<sql-functions-math-atan2>>
+** <<sql-functions-math-cos>>
+** <<sql-functions-math-cosh>>
+** <<sql-functions-math-cot>>
+** <<sql-functions-math-degrees>>
+** <<sql-functions-math-radians>>
+** <<sql-functions-math-sin>>
+** <<sql-functions-math-sinh>>
+** <<sql-functions-math-tan>>
+* <<sql-functions-string>>
+** <<sql-functions-string-ascii>>
+** <<sql-functions-string-bit-length>>
+** <<sql-functions-string-char>>
+** <<sql-functions-string-char-length>>
+** <<sql-functions-string-concat>>
+** <<sql-functions-string-insert>>
+** <<sql-functions-string-lcase>>
+** <<sql-functions-string-left>>
+** <<sql-functions-string-length>>
+** <<sql-functions-string-locate>>
+** <<sql-functions-string-ltrim>>
+** <<sql-functions-string-octet-length>>
+** <<sql-functions-string-position>>
+** <<sql-functions-string-repeat>>
+** <<sql-functions-string-replace>>
+** <<sql-functions-string-right>>
+** <<sql-functions-string-rtrim>>
+** <<sql-functions-string-space>>
+** <<sql-functions-string-substring>>
+** <<sql-functions-string-ucase>>
+* <<sql-functions-type-conversion>>
+** <<sql-functions-type-conversion-cast>>
+** <<sql-functions-type-conversion-convert>>
+* <<sql-functions-conditional>>
+** <<sql-functions-conditional-case>>
+** <<sql-functions-conditional-coalesce>>
+** <<sql-functions-conditional-greatest>>
+** <<sql-functions-conditional-ifnull>>
+** <<sql-functions-conditional-iif>>
+** <<sql-functions-conditional-isnull>>
+** <<sql-functions-conditional-least>>
+** <<sql-functions-conditional-nullif>>
+** <<sql-functions-conditional-nvl>>
+* <<sql-functions-geo>>
+** <<sql-functions-geo-st-as-wkt>>
+** <<sql-functions-geo-st-distance>>
+** <<sql-functions-geo-st-geometrytype>>
+** <<sql-functions-geo-st-wkt-to-sql>>
+** <<sql-functions-geo-st-x>>
+** <<sql-functions-geo-st-y>>
+** <<sql-functions-geo-st-z>>
+* <<sql-functions-system>>
+** <<sql-functions-system-database>>
+** <<sql-functions-system-user>>
+
+include::operators.asciidoc[]
+include::like-rlike.asciidoc[]
+include::aggs.asciidoc[]
+include::grouping.asciidoc[]
+include::date-time.asciidoc[]
+include::search.asciidoc[]
+include::math.asciidoc[]
+include::string.asciidoc[]
+include::type-conversion.asciidoc[]
+include::geo.asciidoc[]
+include::conditional.asciidoc[]
+include::system.asciidoc[]

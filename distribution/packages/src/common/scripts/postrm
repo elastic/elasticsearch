@@ -1,0 +1,92 @@
+#
+# This script is executed in the post-removal phase
+#
+#   On Debian,
+#       $1=remove    : indicates a removal
+#       $1=purge     : indicates an upgrade
+#
+#   On RedHat,
+#       $1=0         : indicates a removal
+#       $1=1         : indicates an upgrade
+REMOVE_DIRS=false
+REMOVE_USER_AND_GROUP=false
+
+case "$1" in
+
+    # Debian ####################################################
+    remove)
+        REMOVE_DIRS=true
+    ;;
+
+    purge)
+        REMOVE_USER_AND_GROUP=true
+    ;;
+    failed-upgrade|abort-install|abort-upgrade|disappear|upgrade|disappear)
+    ;;
+
+    # RedHat ####################################################
+    0)
+        REMOVE_DIRS=true
+        REMOVE_USER_AND_GROUP=true
+    ;;
+    1)
+        # If $1=1 this is an upgrade
+        IS_UPGRADE=true
+    ;;
+
+    *)
+        echo "post remove script called with unknown argument \`$1'" >&2
+        exit 1
+    ;;
+esac
+
+if [ "$REMOVE_DIRS" = "true" ]; then
+
+    if [ -d /var/log/elasticsearch ]; then
+        echo -n "Deleting log directory..."
+        rm -rf /var/log/elasticsearch
+        echo " OK"
+    fi
+
+    if [ -d /usr/share/elasticsearch/plugins ]; then
+        echo -n "Deleting plugins directory..."
+        rm -rf /usr/share/elasticsearch/plugins
+        echo " OK"
+    fi
+
+    # plugins may have contained bin files
+    if [ -d /usr/share/elasticsearch/bin ]; then
+        echo -n "Deleting plugin bin directories..."
+        rm -rf /usr/share/elasticsearch/bin
+        echo " OK"
+    fi
+
+    if [ -d /var/run/elasticsearch ]; then
+        echo -n "Deleting PID directory..."
+        rm -rf /var/run/elasticsearch
+        echo " OK"
+    fi
+
+    # Delete the data directory if and only if empty
+    if [ -d /var/lib/elasticsearch ]; then
+        rmdir --ignore-fail-on-non-empty /var/lib/elasticsearch
+    fi
+
+    # delete the conf directory if and only if empty
+    if [ -d /etc/elasticsearch ]; then
+        rmdir --ignore-fail-on-non-empty /etc/elasticsearch
+    fi
+
+fi
+
+if [ "$REMOVE_USER_AND_GROUP" = "true" ]; then
+    if id elasticsearch > /dev/null 2>&1 ; then
+        userdel elasticsearch
+    fi
+
+    if getent group elasticsearch > /dev/null 2>&1 ; then
+        groupdel elasticsearch
+    fi
+fi
+
+${scripts.footer}

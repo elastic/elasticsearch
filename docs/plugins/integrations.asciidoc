@@ -17,16 +17,19 @@ Integrations are not plugins, but are external tools or modules that make it eas
 * https://drupal.org/project/elasticsearch_connector[Drupal]:
   Drupal Elasticsearch integration.
 
-* http://searchbox-io.github.com/wp-elasticsearch/[Wp-Elasticsearch]:
+* https://wordpress.org/plugins/elasticpress/[ElasticPress]:
   Elasticsearch WordPress Plugin
 
-* https://github.com/wallmanderco/elasticsearch-indexer[Elasticsearch Indexer]:
-  Elasticsearch WordPress Plugin
+* https://wordpress.org/plugins/wpsolr-search-engine/[WPSOLR]:
+  Elasticsearch (and Apache Solr) WordPress Plugin
 
 * https://doc.tiki.org/Elasticsearch[Tiki Wiki CMS Groupware]:
   Tiki has native support for Elasticsearch. This provides faster & better
   search (facets, etc), along with some Natural Language Processing features
   (ex.: More like this)
+
+* http://extensions.xwiki.org/xwiki/bin/view/Extension/Elastic+Search+Macro/[XWiki Next Generation Wiki]:
+  XWiki has an Elasticsearch and Kibana macro allowing to run Elasticsearch queries and display the results in XWiki pages using XWiki's scripting language as well as include Kibana Widgets in XWiki pages
 
 [float]
 [[data-integrations]]
@@ -38,13 +41,13 @@ releases 2.0 and later do not support rivers.
 [float]
 ==== Supported by Elasticsearch:
 
-* https://www.elastic.co/guide/en/logstash/current/plugins-outputs-elasticsearch.html[Logstash output to Elasticsearch]:
+* {logstash-ref}/plugins-outputs-elasticsearch.html[Logstash output to Elasticsearch]:
   The Logstash `elasticsearch` output plugin.
-* https://www.elastic.co/guide/en/logstash/current/plugins-inputs-elasticsearch.html[Elasticsearch input to Logstash]
+* {logstash-ref}/plugins-inputs-elasticsearch.html[Elasticsearch input to Logstash]
   The Logstash `elasticsearch` input plugin.
-* https://www.elastic.co/guide/en/logstash/current/plugins-filters-elasticsearch.html[Elasticsearch event filtering in Logstash]
+* {logstash-ref}/plugins-filters-elasticsearch.html[Elasticsearch event filtering in Logstash]
   The Logstash `elasticsearch` filter plugin.
-* https://www.elastic.co/guide/en/logstash/current/plugins-codecs-es_bulk.html[Elasticsearch bulk codec]
+* {logstash-ref}/plugins-codecs-es_bulk.html[Elasticsearch bulk codec]
   The Logstash `es_bulk` plugin decodes the Elasticsearch bulk format into individual events.
 
 [float]
@@ -53,11 +56,11 @@ releases 2.0 and later do not support rivers.
 * https://github.com/jprante/elasticsearch-jdbc[JDBC importer]:
   The Java Database Connection (JDBC) importer allows to fetch data from JDBC sources for indexing into Elasticsearch (by Jörg Prante)
 
-* https://github.com/reachkrishnaraj/kafka-elasticsearch-standalone-consumer/tree/branch2.0[Kafka Standalone Consumer(Indexer)]:
-  Kafka Standalone Consumer [Indexer] will read messages from Kafka in batches, processes(as implemented) and bulk-indexes them into ElasticSearch. Flexible and scalable. More documentation in above GitHub repo's Wiki.(Please use branch 2.0)!
+* https://github.com/BigDataDevs/kafka-elasticsearch-consumer [Kafka Standalone Consumer(Indexer)]:
+  Kafka Standalone Consumer [Indexer] will read messages from Kafka in batches, processes(as implemented) and bulk-indexes them into Elasticsearch. Flexible and scalable. More documentation in above GitHub repo's Wiki.
 
 * https://github.com/ozlerhakan/mongolastic[Mongolastic]:
-  A tool that clones data from ElasticSearch to MongoDB and vice versa
+  A tool that clones data from Elasticsearch to MongoDB and vice versa
 
 * https://github.com/Aconex/scrutineer[Scrutineer]:
   A high performance consistency checker to compare what you've indexed
@@ -69,12 +72,18 @@ releases 2.0 and later do not support rivers.
 * https://github.com/dadoonet/fscrawler[FS Crawler]:
   The File System (FS) crawler allows to index documents (PDF, Open Office...) from your local file system and over SSH. (by David Pilato)
 
+* https://github.com/senacor/elasticsearch-evolution[Elasticsearch Evolution]:
+  A library to migrate elasticsearch mappings.
+
 [float]
 [[deployment]]
 === Deployment
 
 [float]
 ==== Supported by Elasticsearch:
+
+* https://github.com/elastic/ansible-elasticsearch[Ansible playbook for Elasticsearch]:
+  An officially supported ansible playbook for Elasticsearch. Tested with the latest version of 5.x and 6.x on Ubuntu 14.04/16.04, Debian 8, Centos 7.
 
 * https://github.com/elastic/puppet-elasticsearch[Puppet]:
   Elasticsearch puppet module.
@@ -100,14 +109,10 @@ releases 2.0 and later do not support rivers.
   indexing in Elasticsearch.
 
 * https://camel.apache.org/elasticsearch.html[Apache Camel Integration]:
-  An Apache camel component to integrate elasticsearch
+  An Apache camel component to integrate Elasticsearch
 
-* https://metacpan.org/release/Catmandu-Store-ElasticSearch[Catmanadu]:
+* https://metacpan.org/pod/Catmandu::Store::ElasticSearch[Catmandu]:
   An Elasticsearch backend for the Catmandu framework.
-
-* https://github.com/tlrx/elasticsearch-test[elasticsearch-test]:
-  Elasticsearch Java annotations for unit testing with
-  http://www.junit.org/[JUnit]
 
 * https://github.com/FriendsOfSymfony/FOSElasticaBundle[FOSElasticaBundle]:
   Symfony2 Bundle wrapping Elastica.
@@ -118,8 +123,8 @@ releases 2.0 and later do not support rivers.
 * http://haystacksearch.org/[Haystack]:
   Modular search for Django
 
-* https://github.com/cleverage/play2-elasticsearch[play2-elasticsearch]:
-  Elasticsearch module for Play Framework 2.x
+* http://hibernate.org/search/[Hibernate Search]
+  Integration with Hibernate ORM, from the Hibernate team. Automatic synchronization of write operations, yet exposes full Elasticsearch capabilities for queries. Can return either Elasticsearch native or re-map queries back into managed entities loaded within transaction from the reference database.
 
 * https://github.com/spring-projects/spring-data-elasticsearch[Spring Data Elasticsearch]:
   Spring Data implementation for Elasticsearch
@@ -130,6 +135,27 @@ releases 2.0 and later do not support rivers.
 * https://github.com/twitter/storehaus[Twitter Storehaus]:
   Thin asynchronous Scala client for Storehaus.
 
+* https://zeebe.io[Zeebe]:
+  An Elasticsearch exporter acts as a bridge between Zeebe and Elasticsearch
+
+* https://pulsar.apache.org/docs/en/io-elasticsearch[Apache Pulsar]:
+  The Elasticsearch Sink Connector is used to pull messages from Pulsar topics
+  and persist the messages to a index.
+
+* https://micronaut-projects.github.io/micronaut-elasticsearch/latest/guide/index.html[Micronaut Elasticsearch Integration]:
+  Integration of Micronaut with Elasticsearch
+
+* https://docs.streampipes.org/docs/user-guide-introduction[StreamPipes]:
+  StreamPipes is a framework that enables users to work with data streams allowing to store data in Elasticsearch.
+
+* https://metamodel.apache.org/[Apache MetaModel]:
+  Providing a common interface for discovery, exploration of metadata and querying of different types of data sources.
+
+* https://jooby.org/doc/elasticsearch/[Jooby Framework]:
+  Scalable, fast and modular micro web framework for Java.
+
+* https://micrometer.io[Micrometer]:
+  Vendor-neutral application metrics facade. Think SLF4j, but for metrics.
 
 [float]
 [[hadoop-integrations]]
@@ -142,6 +168,12 @@ releases 2.0 and later do not support rivers.
   search and analytics natively integrated with Hadoop. Supports Map/Reduce,
   Cascading, Apache Hive, Apache Pig, Apache Spark and Apache Storm.
 
+[float]
+==== Supported by the community:
+
+* https://github.com/criteo/garmadon[Garmadon]:
+  Garmadon is a solution for Hadoop Cluster realtime introspection.
+
 
 [float]
 [[monitoring-integrations]]
@@ -150,24 +182,8 @@ releases 2.0 and later do not support rivers.
 [float]
 ==== Supported by the community:
 
-* https://github.com/anchor/nagios-plugin-elasticsearch[check_elasticsearch]:
-  An Elasticsearch availability and performance monitoring plugin for
-  Nagios.
-
 * https://github.com/radu-gheorghe/check-es[check-es]:
-  Nagios/Shinken plugins for checking on elasticsearch
-
-* https://github.com/mattweber/es2graphite[es2graphite]:
-  Send cluster and indices stats and status to Graphite for monitoring and graphing.
-
-
-* https://itunes.apple.com/us/app/elasticocean/id955278030?ls=1&mt=8[ElasticOcean]:
-  Elasticsearch & DigitalOcean iOS Real-Time Monitoring tool to keep an eye on DigitalOcean Droplets or Elasticsearch instances or both of them on-a-go.
-
-* https://github.com/rbramley/Opsview-elasticsearch[opsview-elasticsearch]:
-  Opsview plugin written in Perl for monitoring Elasticsearch
-
-* https://scoutapp.com[Scout]: Provides plugins for monitoring Elasticsearch https://scoutapp.com/plugin_urls/1331-elasticsearch-node-status[nodes], https://scoutapp.com/plugin_urls/1321-elasticsearch-cluster-status[clusters], and https://scoutapp.com/plugin_urls/1341-elasticsearch-index-status[indices].
+  Nagios/Shinken plugins for checking on Elasticsearch
 
 * http://sematext.com/spm/index.html[SPM for Elasticsearch]:
   Performance monitoring with live charts showing cluster and node stats, integrated
@@ -181,23 +197,9 @@ releases 2.0 and later do not support rivers.
 [float]
 ==== Supported by the community:
 
-* https://github.com/kodcu/pes[Pes]:
-  A pluggable elastic Javascript query DSL builder for Elasticsearch
-
 * https://www.wireshark.org/[Wireshark]:
-  Protocol dissection for Zen discovery, HTTP and the binary protocol
+  Protocol dissection for HTTP and the transport protocol
 
 * https://www.itemsapi.com/[ItemsAPI]:
   Search backend for mobile and web
 
-
-These projects appear to have been abandoned:
-
-* http://www.github.com/neogenix/daikon[daikon]:
-  Daikon Elasticsearch CLI
-
-* https://github.com/fullscale/dangle[dangle]:
-  A set of AngularJS directives that provide common visualizations for elasticsearch based on
-  D3.
-* https://github.com/OlegKunitsyn/eslogd[eslogd]:
-  Linux daemon that replicates events to a central Elasticsearch server in realtime

@@ -32,7 +32,7 @@ punctuation symbols. It is the best choice for most languages.
 The `letter` tokenizer divides text into terms whenever it encounters a
 character which is not a letter.
 
-<<analysis-letter-tokenizer,Lowercase Tokenizer>>::
+<<analysis-lowercase-tokenizer,Lowercase Tokenizer>>::
 
 The `lowercase` tokenizer, like the `letter` tokenizer,  divides text into
 terms whenever it encounters a character which is not a letter, but it also
@@ -97,6 +97,23 @@ The `pattern` tokenizer uses a regular expression to either split text into
 terms whenever it matches a word separator, or to capture matching text as
 terms.
 
+<<analysis-simplepattern-tokenizer,Simple Pattern Tokenizer>>::
+
+The `simple_pattern` tokenizer uses a regular expression to capture matching
+text as terms. It uses a restricted subset of regular expression features
+and is generally faster than the `pattern` tokenizer.
+
+<<analysis-chargroup-tokenizer,Char Group Tokenizer>>::
+
+The `char_group` tokenizer is configurable through sets of characters to split
+on, which is usually less expensive than running regular expressions.
+
+<<analysis-simplepatternsplit-tokenizer,Simple Pattern Split Tokenizer>>::
+
+The `simple_pattern_split` tokenizer uses the same restricted regular expression
+subset as the `simple_pattern` tokenizer, but splits the input at matches rather
+than returning the matches as terms.
+
 <<analysis-pathhierarchy-tokenizer,Path Tokenizer>>::
 
 The `path_hierarchy` tokenizer takes a hierarchical value like a filesystem
@@ -131,6 +148,14 @@ include::tokenizers/keyword-tokenizer.asciidoc[]
 
 include::tokenizers/pattern-tokenizer.asciidoc[]
 
+include::tokenizers/chargroup-tokenizer.asciidoc[]
+
+include::tokenizers/simplepattern-tokenizer.asciidoc[]
+
+include::tokenizers/simplepatternsplit-tokenizer.asciidoc[]
+
 include::tokenizers/pathhierarchy-tokenizer.asciidoc[]
+
+include::tokenizers/pathhierarchy-tokenizer-examples.asciidoc[]
 
 

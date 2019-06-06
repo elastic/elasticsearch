@@ -1,8 +1,6 @@
 [[search-aggregations-pipeline-percentiles-bucket-aggregation]]
 === Percentiles Bucket Aggregation
 
-experimental[]
-
 A sibling pipeline aggregation which calculates percentiles across all bucket of a specified metric in a sibling aggregation.
 The specified metric must be numeric and the sibling aggregation must be a multi-bucket aggregation.
 
@@ -18,19 +16,23 @@ A `percentiles_bucket` aggregation looks like this in isolation:
     }
 }
 --------------------------------------------------
+// NOTCONSOLE
 
-.`sum_bucket` Parameters
+[[percentiles-bucket-params]]
+.`percentiles_bucket` Parameters
+[options="header"]
 |===
 |Parameter Name |Description |Required |Default Value
-|`buckets_path` |The path to the buckets we wish to find the sum for (see <<buckets-path-syntax>> for more
+|`buckets_path` |The path to the buckets we wish to find the percentiles for (see <<buckets-path-syntax>> for more
  details) |Required |
 |`gap_policy` |The policy to apply when gaps are found in the data (see <<gap-policy>> for more
  details)|Optional | `skip`
 |`format` |format to apply to the output value of this aggregation |Optional | `null`
 |`percents` |The list of percentiles to calculate |Optional | `[ 1, 5, 25, 50, 75, 95, 99 ]`
+|`keyed` |Flag which returns the range as an hash instead of an array of key-value pairs |Optional | `true`
 |===
 
-The following snippet calculates the sum of all the total monthly `sales` buckets:
+The following snippet calculates the percentiles for the total monthly `sales` buckets:
 
 [source,js]
 --------------------------------------------------
@@ -41,7 +43,7 @@ POST /sales/_search
         "sales_per_month" : {
             "date_histogram" : {
                 "field" : "date",
-                "interval" : "month"
+                "calendar_interval" : "month"
             },
             "aggs": {
                 "sales": {
@@ -65,7 +67,7 @@ POST /sales/_search
 
 <1> `buckets_path` instructs this percentiles_bucket aggregation that we want to calculate percentiles for
 the `sales` aggregation in the `sales_per_month` date histogram.
-<2> `percents` specifies which percentiles we wish to calculate, in this case, the 25th, 50th and 75th percentil
+<2> `percents` specifies which percentiles we wish to calculate, in this case, the 25th, 50th and 75th percentiles.
 
 And the following may be the response:
 
@@ -107,7 +109,7 @@ And the following may be the response:
       },
       "percentiles_monthly_sales": {
         "values" : {
-            "25.0": 60.0,
+            "25.0": 375.0,
             "50.0": 375.0,
             "75.0": 550.0
          }

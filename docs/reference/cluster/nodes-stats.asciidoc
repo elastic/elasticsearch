@@ -9,9 +9,10 @@ the cluster nodes statistics.
 
 [source,js]
 --------------------------------------------------
-curl -XGET 'http://localhost:9200/_nodes/stats'
-curl -XGET 'http://localhost:9200/_nodes/nodeId1,nodeId2/stats'
+GET /_nodes/stats
+GET /_nodes/nodeId1,nodeId2/stats
 --------------------------------------------------
+// CONSOLE
 
 The first command retrieves stats of all the nodes in the cluster. The
 second command selectively retrieves nodes stats of only `nodeId1` and
@@ -24,57 +25,63 @@ of `indices`, `os`, `process`, `jvm`, `transport`, `http`,
 
 [horizontal]
 `indices`::
-	Indices stats about size, document count, indexing and
-	deletion times, search times, field cache size, merges and flushes
+  Indices stats about size, document count, indexing and
+  deletion times, search times, field cache size, merges and flushes
 
 `fs`::
-	File system information, data path, free disk space, read/write
-	stats (see <<fs-info,FS information>>)
+  File system information, data path, free disk space, read/write
+  stats (see <<fs-info,FS information>>)
 
 `http`::
-	HTTP connection information
+  HTTP connection information
 
 `jvm`::
-	JVM stats, memory pool information, garbage collection, buffer
-	pools, number of loaded/unloaded classes
+  JVM stats, memory pool information, garbage collection, buffer
+  pools, number of loaded/unloaded classes
 
 `os`::
-	Operating system stats, load average, mem, swap
-	(see <<os-stats,OS statistics>>)
+  Operating system stats, load average, mem, swap
+  (see <<os-stats,OS statistics>>)
 
 `process`::
-	Process statistics, memory consumption, cpu usage, open
-	file descriptors (see <<process-stats,Process statistics>>)
+  Process statistics, memory consumption, cpu usage, open
+  file descriptors (see <<process-stats,Process statistics>>)
 
 `thread_pool`::
-	Statistics about each thread pool, including current
-	size, queue and rejected tasks
+  Statistics about each thread pool, including current
+  size, queue and rejected tasks
 
 `transport`::
-	Transport statistics about sent and received bytes in
-	cluster communication
+  Transport statistics about sent and received bytes in
+  cluster communication
 
 `breaker`::
-	Statistics about the field data circuit breaker
+  Statistics about the field data circuit breaker
 
 `discovery`::
-	Statistics about the discovery
+  Statistics about the discovery
 
 `ingest`::
-    Statistics about ingest preprocessing
+  Statistics about ingest preprocessing
+
+`adaptive_selection`::
+  Statistics about <<search-adaptive-replica,adaptive replica selection>>. See
+  <<adaptive-selection-stats,adaptive selection statistics>>.
 
 [source,js]
 --------------------------------------------------
-# return indices and os
-curl -XGET 'http://localhost:9200/_nodes/stats/os'
-# return just os and process
-curl -XGET 'http://localhost:9200/_nodes/stats/os,process'
-# specific type endpoint
-curl -XGET 'http://localhost:9200/_nodes/stats/process'
-curl -XGET 'http://localhost:9200/_nodes/10.0.0.1/stats/process'
---------------------------------------------------
+# return just indices
+GET /_nodes/stats/indices
 
-The `all` flag can be set to return all the stats.
+# return just os and process
+GET /_nodes/stats/os,process
+
+# return just process for node with IP address 10.0.0.1
+GET /_nodes/10.0.0.1/stats/process
+--------------------------------------------------
+// CONSOLE
+
+All stats can be explicitly requested via `/_nodes/stats/_all` or `/_nodes/stats?metric=_all`.
 
 [float]
 [[fs-info]]
@@ -84,42 +91,39 @@ The `fs` flag can be set to retrieve
 information that concern the file system:
 
 `fs.timestamp`::
-	Last time the file stores statistics have been refreshed
+  Last time the file stores statistics have been refreshed
 
 `fs.total.total_in_bytes`::
-	Total size (in bytes) of all file stores
+  Total size (in bytes) of all file stores
 
 `fs.total.free_in_bytes`::
-	Total number of unallocated bytes in all file stores
+  Total number of unallocated bytes in all file stores
 
 `fs.total.available_in_bytes`::
-	Total number of bytes available to this Java virtual machine on all file stores
+  Total number of bytes available to this Java virtual machine on all file stores.
+  Depending on OS or process level restrictions, this might appear less than `fs.total.free_in_bytes`.
+  This is the actual amount of free disk space the Elasticsearch node can utilise.
 
 `fs.data`::
-	List of all file stores
+  List of all file stores
 
 `fs.data.path`::
-	Path to the file store
+  Path to the file store
 
 `fs.data.mount`::
-	Mount point of the file store (ex: /dev/sda2)
+  Mount point of the file store (ex: /dev/sda2)
 
 `fs.data.type`::
-	Type of the file store (ex: ext4)
+  Type of the file store (ex: ext4)
 
 `fs.data.total_in_bytes`::
-	Total size (in bytes) of the file store
+  Total size (in bytes) of the file store
 
 `fs.data.free_in_bytes`::
-	Total number of unallocated bytes in the file store
+  Total number of unallocated bytes in the file store
 
 `fs.data.available_in_bytes`::
-	Total number of bytes available to this Java virtual machine on this file store
-
-`fs.data.spins` (Linux only)::
-	Indicates if the file store is backed by spinning storage.
-	`null` means we could not determine it, `true` means the device possibly spins
-	 and `false` means it does not (ex: solid-state disks).
+  Total number of bytes available to this Java virtual machine on this file store
 
 `fs.io_stats.devices` (Linux only)::
     Array of disk metrics for each device that is backing an
@@ -178,7 +182,7 @@ The `os` flag can be set to retrieve statistics that concern
 the operating system:
 
 `os.timestamp`::
-	Last time the operating system statistics have been refreshed
+  Last time the operating system statistics have been refreshed
 
 `os.cpu.percent`::
     Recent CPU usage for the whole system, or -1 if not supported
@@ -194,34 +198,34 @@ the operating system:
     fifteen-minute load average is not available)
 
 `os.mem.total_in_bytes`::
-	Total amount of physical memory in bytes
+  Total amount of physical memory in bytes
 
 `os.mem.free_in_bytes`::
-	Amount of free physical memory in bytes
+  Amount of free physical memory in bytes
 
 `os.mem.free_percent`::
-	Percentage of free memory
+  Percentage of free memory
 
 `os.mem.used_in_bytes`::
-	Amount of used physical memory in bytes
+  Amount of used physical memory in bytes
 
 `os.mem.used_percent`::
-	Percentage of used memory
+  Percentage of used memory
 
 `os.swap.total_in_bytes`::
-	Total amount of swap space in bytes
+  Total amount of swap space in bytes
 
 `os.swap.free_in_bytes`::
-	Amount of free swap space in bytes
+  Amount of free swap space in bytes
 
 `os.swap.used_in_bytes`::
-	Amount of used swap space in bytes
+  Amount of used swap space in bytes
 
 `os.cgroup.cpuacct.control_group` (Linux only)::
     The `cpuacct` control group to which the Elasticsearch process
     belongs
 
-`os.cgroup.cpuacct.usage` (Linux only)::
+`os.cgroup.cpuacct.usage_nanos` (Linux only)::
     The total CPU time (in nanoseconds) consumed by all tasks in the
     same cgroup as the Elasticsearch process
 
@@ -250,8 +254,27 @@ the operating system:
     The total amount of time (in nanoseconds) for which all tasks in
     the same cgroup as the Elasticsearch process have been throttled.
 
+`os.cgroup.memory.control_group` (Linux only)::
+    The `memory` control group to which the Elasticsearch process
+    belongs
+
+`os.cgroup.memory.limit_in_bytes` (Linux only)::
+    The maximum amount of user memory (including file cache) allowed
+    for all tasks in the same cgroup as the Elasticsearch process.
+    This value can be too big to store in a `long`, so is returned as
+    a string so that the value returned can exactly match what the
+    underlying operating system interface returns. Any value that is
+    too large to parse into a `long` almost certainly means no limit
+    has been set for the cgroup.
+
+`os.cgroup.memory.usage_in_bytes` (Linux only)::
+    The total current memory usage by processes in the cgroup (in bytes)
+    by all tasks in the same cgroup as the Elasticsearch process.
+    This value is stored as a string for consistency with
+    `os.cgroup.memory.limit_in_bytes`.
+
 NOTE: For the cgroup stats to be visible, cgroups must be compiled into
-the kernal, the `cpu` and `cpuacct` cgroup subsystems must be
+the kernel, the `cpu` and `cpuacct` cgroup subsystems must be
 configured and stats must be readable from `/sys/fs/cgroup/cpu`
 and `/sys/fs/cgroup/cpuacct`.
 
@@ -263,43 +286,63 @@ The `process` flag can be set to retrieve statistics that concern
 the current running process:
 
 `process.timestamp`::
-	Last time the process statistics have been refreshed
+  Last time the process statistics have been refreshed
 
 `process.open_file_descriptors`::
-	Number of opened file descriptors associated with the current process, or -1 if not supported
+  Number of opened file descriptors associated with the current process, or -1 if not supported
 
 `process.max_file_descriptors`::
-	Maximum number of file descriptors allowed on the system, or -1 if not supported
+  Maximum number of file descriptors allowed on the system, or -1 if not supported
 
 `process.cpu.percent`::
-	CPU usage in percent, or -1 if not known at the time the stats are computed
+  CPU usage in percent, or -1 if not known at the time the stats are computed
 
 `process.cpu.total_in_millis`::
-	CPU time (in milliseconds) used by the process on which the Java virtual machine is running, or -1 if not supported
+  CPU time (in milliseconds) used by the process on which the Java virtual machine is running, or -1 if not supported
 
 `process.mem.total_virtual_in_bytes`::
-	Size in bytes of virtual memory that is guaranteed to be available to the running process
-
+  Size in bytes of virtual memory that is guaranteed to be available to the running process
 
 [float]
-[[field-data]]
-=== Field data statistics
+[[node-indices-stats]]
+=== Indices statistics
 
-You can get information about field data memory usage on node
-level or on index level.
+You can get information about indices stats on `node`, `indices`, or `shards` level.
 
 [source,js]
 --------------------------------------------------
-# Node Stats
-curl -XGET 'http://localhost:9200/_nodes/stats/indices/?fields=field1,field2&pretty'
+# Fielddata summarised by node
+GET /_nodes/stats/indices/fielddata?fields=field1,field2
 
-# Indices Stat
-curl -XGET 'http://localhost:9200/_stats/fielddata/?fields=field1,field2&pretty'
+# Fielddata summarised by node and index
+GET /_nodes/stats/indices/fielddata?level=indices&fields=field1,field2
+
+# Fielddata summarised by node, index, and shard
+GET /_nodes/stats/indices/fielddata?level=shards&fields=field1,field2
 
 # You can use wildcards for field names
-curl -XGET 'http://localhost:9200/_stats/fielddata/?fields=field*&pretty'
-curl -XGET 'http://localhost:9200/_nodes/stats/indices/?fields=field*&pretty'
+GET /_nodes/stats/indices/fielddata?fields=field*
 --------------------------------------------------
+// CONSOLE
+
+Supported metrics are:
+
+* `completion`
+* `docs`
+* `fielddata`
+* `flush`
+* `get`
+* `indexing`
+* `merge`
+* `query_cache`
+* `recovery`
+* `refresh`
+* `request_cache`
+* `search`
+* `segments`
+* `store`
+* `translog`
+* `warmer`
 
 [float]
 [[search-groups]]
@@ -311,11 +354,12 @@ on this node.
 [source,js]
 --------------------------------------------------
 # All groups with all stats
-curl -XGET 'http://localhost:9200/_nodes/stats?pretty&groups=_all'
+GET /_nodes/stats?groups=_all
 
 # Some groups from just the indices stats
-curl -XGET 'http://localhost:9200/_nodes/stats/indices?pretty&groups=foo,bar'
+GET /_nodes/stats/indices?groups=foo,bar
 --------------------------------------------------
+// CONSOLE
 
 [float]
 [[ingest-stats]]
@@ -324,15 +368,43 @@ curl -XGET 'http://localhost:9200/_nodes/stats/indices?pretty&groups=foo,bar'
 The `ingest` flag can be set to retrieve statistics that concern ingest:
 
 `ingest.total.count`::
-    The total number of document ingested during the lifetime of this node
+  The total number of document ingested during the lifetime of this node
 
 `ingest.total.time_in_millis`::
-    The total time spent on ingest preprocessing documents during the lifetime of this node
+  The total time spent on ingest preprocessing documents during the lifetime of this node
 
 `ingest.total.current`::
-    The total number of documents currently being ingested.
+  The total number of documents currently being ingested.
 
 `ingest.total.failed`::
-    The total number ingest preprocessing operations failed during the lifetime of this node
+  The total number ingest preprocessing operations failed during the lifetime of this node
 
 On top of these overall ingest statistics, these statistics are also provided on a per pipeline basis.
+
+[float]
+[[adaptive-selection-stats]]
+=== Adaptive selection statistics
+
+The `adaptive_selection` flag can be set to retrieve statistics that concern
+<<search-adaptive-replica,adaptive replica selection>>. These statistics are
+keyed by node. For each node:
+
+`adaptive_selection.outgoing_searches`::
+  The number of outstanding search requests from the node these stats are for to
+  the keyed node.
+
+`avg_queue_size`::
+  The exponentially weighted moving average queue size of search requests on the
+  keyed node.
+
+`avg_service_time_ns`::
+  The exponentially weighted moving average service time of search requests on
+  the keyed node.
+
+`avg_response_time_ns`::
+  The exponentially weighted moving average response time of search requests on
+  the keyed node.
+
+`rank`::
+  The rank of this node; used for shard selection when routing search requests.
+

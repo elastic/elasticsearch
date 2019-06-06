@@ -1,0 +1,6 @@
+apply plugin: 'elasticsearch.standalone-test'
+
+dependencies {
+    testCompile project(":x-pack:plugin:core")
+    testCompile project(path: xpackModule('ml'), configuration: 'runtime')
+}

@@ -20,11 +20,13 @@ package org.elasticsearch.client;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+import org.apache.http.ConnectionClosedException;
 import org.apache.http.Header;
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpHost;
 import org.apache.http.HttpRequest;
 import org.apache.http.HttpResponse;
+import org.apache.http.client.AuthCache;
 import org.apache.http.client.ClientProtocolException;
 import org.apache.http.client.methods.HttpEntityEnclosingRequestBase;
 import org.apache.http.client.methods.HttpHead;
@@ -34,23 +36,32 @@ import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
 import org.apache.http.client.methods.HttpRequestBase;
 import org.apache.http.client.methods.HttpTrace;
+import org.apache.http.client.protocol.HttpClientContext;
 import org.apache.http.client.utils.URIBuilder;
 import org.apache.http.concurrent.FutureCallback;
+import org.apache.http.conn.ConnectTimeoutException;
+import org.apache.http.impl.auth.BasicScheme;
+import org.apache.http.impl.client.BasicAuthCache;
 import org.apache.http.impl.nio.client.CloseableHttpAsyncClient;
 import org.apache.http.nio.client.methods.HttpAsyncMethods;
 import org.apache.http.nio.protocol.HttpAsyncRequestProducer;
 import org.apache.http.nio.protocol.HttpAsyncResponseConsumer;
 
+import javax.net.ssl.SSLHandshakeException;
 import java.io.Closeable;
 import java.io.IOException;
+import java.net.ConnectException;
+import java.net.SocketTimeoutException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.Comparator;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -58,20 +69,20 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Collectors;
+
+import static java.util.Collections.singletonList;
 
 /**
  * Client that connects to an Elasticsearch cluster through HTTP.
  * <p>
  * Must be created using {@link RestClientBuilder}, which allows to set all the different options or just rely on defaults.
  * The hosts that are part of the cluster need to be provided at creation time, but can also be replaced later
- * by calling {@link #setHosts(HttpHost...)}.
+ * by calling {@link #setNodes(Collection)}.
  * <p>
- * The method {@link #performRequest(String, String, Map, HttpEntity, Header...)} allows to send a request to the cluster. When
+ * The method {@link #performRequest(Request)} allows to send a request to the cluster. When
  * sending a request, a host gets selected out of the provided ones in a round-robin fashion. Failing hosts are marked dead and
  * retried after a certain amount of time (minimum 1 minute, maximum 30 minutes), depending on how many times they previously
  * failed (the more failures, the later they will be retried). In case of failures all of the alive nodes (or dead nodes that
@@ -86,236 +97,213 @@ public class RestClient implements Closeable {
     private static final Log logger = LogFactory.getLog(RestClient.class);
 
     private final CloseableHttpAsyncClient client;
-    //we don't rely on default headers supported by HttpAsyncClient as those cannot be replaced
-    private final Header[] defaultHeaders;
-    private final long maxRetryTimeoutMillis;
+    // We don't rely on default headers supported by HttpAsyncClient as those cannot be replaced.
+    // These are package private for tests.
+    final List<Header> defaultHeaders;
     private final String pathPrefix;
-    private final AtomicInteger lastHostIndex = new AtomicInteger(0);
-    private volatile Set<HttpHost> hosts;
+    private final AtomicInteger lastNodeIndex = new AtomicInteger(0);
     private final ConcurrentMap<HttpHost, DeadHostState> blacklist = new ConcurrentHashMap<>();
     private final FailureListener failureListener;
+    private final NodeSelector nodeSelector;
+    private volatile NodeTuple<List<Node>> nodeTuple;
+    private final WarningsHandler warningsHandler;
 
-    RestClient(CloseableHttpAsyncClient client, long maxRetryTimeoutMillis, Header[] defaultHeaders,
-               HttpHost[] hosts, String pathPrefix, FailureListener failureListener) {
+    RestClient(CloseableHttpAsyncClient client, Header[] defaultHeaders, List<Node> nodes, String pathPrefix,
+            FailureListener failureListener, NodeSelector nodeSelector, boolean strictDeprecationMode) {
         this.client = client;
-        this.maxRetryTimeoutMillis = maxRetryTimeoutMillis;
-        this.defaultHeaders = defaultHeaders;
+        this.defaultHeaders = Collections.unmodifiableList(Arrays.asList(defaultHeaders));
         this.failureListener = failureListener;
         this.pathPrefix = pathPrefix;
-        setHosts(hosts);
+        this.nodeSelector = nodeSelector;
+        this.warningsHandler = strictDeprecationMode ? WarningsHandler.STRICT : WarningsHandler.PERMISSIVE;
+        setNodes(nodes);
     }
 
     /**
      * Returns a new {@link RestClientBuilder} to help with {@link RestClient} creation.
+     * Creates a new builder instance and sets the hosts that the client will send requests to.
+     * <p>
+     * Prefer this to {@link #builder(HttpHost...)} if you have metadata up front about the nodes.
+     * If you don't either one is fine.
      */
-    public static RestClientBuilder builder(HttpHost... hosts) {
-        return new RestClientBuilder(hosts);
+    public static RestClientBuilder builder(Node... nodes) {
+        return new RestClientBuilder(nodes == null ? null : Arrays.asList(nodes));
     }
 
     /**
-     * Replaces the hosts that the client communicates with.
-     * @see HttpHost
+     * Returns a new {@link RestClientBuilder} to help with {@link RestClient} creation.
+     * Creates a new builder instance and sets the nodes that the client will send requests to.
+     * <p>
+     * You can use this if you do not have metadata up front about the nodes. If you do, prefer
+     * {@link #builder(Node...)}.
+     * @see Node#Node(HttpHost)
      */
-    public synchronized void setHosts(HttpHost... hosts) {
+    public static RestClientBuilder builder(HttpHost... hosts) {
         if (hosts == null || hosts.length == 0) {
             throw new IllegalArgumentException("hosts must not be null nor empty");
         }
-        Set<HttpHost> httpHosts = new HashSet<>();
-        for (HttpHost host : hosts) {
-            Objects.requireNonNull(host, "host cannot be null");
-            httpHosts.add(host);
+        List<Node> nodes = Arrays.stream(hosts).map(Node::new).collect(Collectors.toList());
+        return new RestClientBuilder(nodes);
+    }
+
+    /**
+     * Replaces the nodes with which the client communicates.
+     */
+    public synchronized void setNodes(Collection<Node> nodes) {
+        if (nodes == null || nodes.isEmpty()) {
+            throw new IllegalArgumentException("nodes must not be null or empty");
         }
-        this.hosts = Collections.unmodifiableSet(httpHosts);
+        AuthCache authCache = new BasicAuthCache();
+
+        Map<HttpHost, Node> nodesByHost = new LinkedHashMap<>();
+        for (Node node : nodes) {
+            Objects.requireNonNull(node, "node cannot be null");
+            // TODO should we throw an IAE if we have two nodes with the same host?
+            nodesByHost.put(node.getHost(), node);
+            authCache.put(node.getHost(), new BasicScheme());
+        }
+        this.nodeTuple = new NodeTuple<>(
+                Collections.unmodifiableList(new ArrayList<>(nodesByHost.values())), authCache);
         this.blacklist.clear();
     }
 
     /**
-     * Sends a request to the Elasticsearch cluster that the client points to and waits for the corresponding response
-     * to be returned. Shortcut to {@link #performRequest(String, String, Map, HttpEntity, Header...)} but without parameters
-     * and request body.
+     * Get the list of nodes that the client knows about. The list is
+     * unmodifiable.
+     */
+    public List<Node> getNodes() {
+        return nodeTuple.nodes;
+    }
+
+    /**
+     * Sends a request to the Elasticsearch cluster that the client points to.
+     * Blocks until the request is completed and returns its response or fails
+     * by throwing an exception. Selects a host out of the provided ones in a
+     * round-robin fashion. Failing hosts are marked dead and retried after a
+     * certain amount of time (minimum 1 minute, maximum 30 minutes), depending
+     * on how many times they previously failed (the more failures, the later
+     * they will be retried). In case of failures all of the alive nodes (or
+     * dead nodes that deserve a retry) are retried until one responds or none
+     * of them does, in which case an {@link IOException} will be thrown.
      *
-     * @param method the http method
-     * @param endpoint the path of the request (without host and port)
-     * @param headers the optional request headers
+     * This method works by performing an asynchronous call and waiting
+     * for the result. If the asynchronous call throws an exception we wrap
+     * it and rethrow it so that the stack trace attached to the exception
+     * contains the call site. While we attempt to preserve the original
+     * exception this isn't always possible and likely haven't covered all of
+     * the cases. You can get the original exception from
+     * {@link Exception#getCause()}.
+     *
+     * @param request the request to perform
      * @return the response returned by Elasticsearch
      * @throws IOException in case of a problem or the connection was aborted
      * @throws ClientProtocolException in case of an http protocol error
      * @throws ResponseException in case Elasticsearch responded with a status code that indicated an error
      */
-    public Response performRequest(String method, String endpoint, Header... headers) throws IOException {
-        return performRequest(method, endpoint, Collections.<String, String>emptyMap(), (HttpEntity)null, headers);
+    public Response performRequest(Request request) throws IOException {
+        InternalRequest internalRequest = new InternalRequest(request);
+        return performRequest(nextNodes(), internalRequest, null);
+    }
+
+    private Response performRequest(final NodeTuple<Iterator<Node>> nodeTuple,
+                                    final InternalRequest request,
+                                    Exception previousException) throws IOException {
+        RequestContext context = request.createContextForNextAttempt(nodeTuple.nodes.next(), nodeTuple.authCache);
+        HttpResponse httpResponse;
+        try {
+            httpResponse = client.execute(context.requestProducer, context.asyncResponseConsumer, context.context, null).get();
+        } catch(Exception e) {
+            RequestLogger.logFailedRequest(logger, request.httpRequest, context.node, e);
+            onFailure(context.node);
+            Exception cause = extractAndWrapCause(e);
+            addSuppressedException(previousException, cause);
+            if (nodeTuple.nodes.hasNext()) {
+                return performRequest(nodeTuple, request, cause);
+            }
+            if (cause instanceof IOException) {
+                throw (IOException) cause;
+            }
+            if (cause instanceof RuntimeException) {
+                throw (RuntimeException) cause;
+            }
+            throw new IllegalStateException("unexpected exception type: must be either RuntimeException or IOException", cause);
+        }
+        ResponseOrResponseException responseOrResponseException = convertResponse(request, context.node, httpResponse);
+        if (responseOrResponseException.responseException == null) {
+            return responseOrResponseException.response;
+        }
+        addSuppressedException(previousException, responseOrResponseException.responseException);
+        if (nodeTuple.nodes.hasNext()) {
+            return performRequest(nodeTuple, request, responseOrResponseException.responseException);
+        }
+        throw responseOrResponseException.responseException;
+    }
+
+    private ResponseOrResponseException convertResponse(InternalRequest request, Node node, HttpResponse httpResponse) throws IOException {
+        RequestLogger.logResponse(logger, request.httpRequest, node.getHost(), httpResponse);
+        int statusCode = httpResponse.getStatusLine().getStatusCode();
+        Response response = new Response(request.httpRequest.getRequestLine(), node.getHost(), httpResponse);
+        if (isSuccessfulResponse(statusCode) || request.ignoreErrorCodes.contains(response.getStatusLine().getStatusCode())) {
+            onResponse(node);
+            if (request.warningsHandler.warningsShouldFailRequest(response.getWarnings())) {
+                throw new WarningFailureException(response);
+            }
+            return new ResponseOrResponseException(response);
+        }
+        ResponseException responseException = new ResponseException(response);
+        if (isRetryStatus(statusCode)) {
+            //mark host dead and retry against next one
+            onFailure(node);
+            return new ResponseOrResponseException(responseException);
+        }
+        //mark host alive and don't retry, as the error should be a request problem
+        onResponse(node);
+        throw responseException;
     }
 
     /**
-     * Sends a request to the Elasticsearch cluster that the client points to and waits for the corresponding response
-     * to be returned. Shortcut to {@link #performRequest(String, String, Map, HttpEntity, Header...)} but without request body.
+     * Sends a request to the Elasticsearch cluster that the client points to.
+     * The request is executed asynchronously and the provided
+     * {@link ResponseListener} gets notified upon request completion or
+     * failure. Selects a host out of the provided ones in a round-robin
+     * fashion. Failing hosts are marked dead and retried after a certain
+     * amount of time (minimum 1 minute, maximum 30 minutes), depending on how
+     * many times they previously failed (the more failures, the later they
+     * will be retried). In case of failures all of the alive nodes (or dead
+     * nodes that deserve a retry) are retried until one responds or none of
+     * them does, in which case an {@link IOException} will be thrown.
      *
-     * @param method the http method
-     * @param endpoint the path of the request (without host and port)
-     * @param params the query_string parameters
-     * @param headers the optional request headers
-     * @return the response returned by Elasticsearch
-     * @throws IOException in case of a problem or the connection was aborted
-     * @throws ClientProtocolException in case of an http protocol error
-     * @throws ResponseException in case Elasticsearch responded with a status code that indicated an error
+     * @param request the request to perform
+     * @param responseListener the {@link ResponseListener} to notify when the
+     *      request is completed or fails
      */
-    public Response performRequest(String method, String endpoint, Map<String, String> params, Header... headers) throws IOException {
-        return performRequest(method, endpoint, params, (HttpEntity)null, headers);
+    public void performRequestAsync(Request request, ResponseListener responseListener) {
+        try {
+            FailureTrackingResponseListener failureTrackingResponseListener = new FailureTrackingResponseListener(responseListener);
+            InternalRequest internalRequest = new InternalRequest(request);
+            performRequestAsync(nextNodes(), internalRequest, failureTrackingResponseListener);
+        } catch (Exception e) {
+            responseListener.onFailure(e);
+        }
     }
 
-    /**
-     * Sends a request to the Elasticsearch cluster that the client points to and waits for the corresponding response
-     * to be returned. Shortcut to {@link #performRequest(String, String, Map, HttpEntity, HttpAsyncResponseConsumer, Header...)}
-     * which doesn't require specifying an {@link HttpAsyncResponseConsumer} instance, {@link HeapBufferedAsyncResponseConsumer}
-     * will be used to consume the response body.
-     *
-     * @param method the http method
-     * @param endpoint the path of the request (without host and port)
-     * @param params the query_string parameters
-     * @param entity the body of the request, null if not applicable
-     * @param headers the optional request headers
-     * @return the response returned by Elasticsearch
-     * @throws IOException in case of a problem or the connection was aborted
-     * @throws ClientProtocolException in case of an http protocol error
-     * @throws ResponseException in case Elasticsearch responded with a status code that indicated an error
-     */
-    public Response performRequest(String method, String endpoint, Map<String, String> params,
-                                   HttpEntity entity, Header... headers) throws IOException {
-        HttpAsyncResponseConsumer<HttpResponse> responseConsumer = new HeapBufferedAsyncResponseConsumer();
-        return performRequest(method, endpoint, params, entity, responseConsumer, headers);
-    }
-
-    /**
-     * Sends a request to the Elasticsearch cluster that the client points to. Blocks until the request is completed and returns
-     * its response or fails by throwing an exception. Selects a host out of the provided ones in a round-robin fashion. Failing hosts
-     * are marked dead and retried after a certain amount of time (minimum 1 minute, maximum 30 minutes), depending on how many times
-     * they previously failed (the more failures, the later they will be retried). In case of failures all of the alive nodes (or dead
-     * nodes that deserve a retry) are retried until one responds or none of them does, in which case an {@link IOException} will be thrown.
-     *
-     * @param method the http method
-     * @param endpoint the path of the request (without host and port)
-     * @param params the query_string parameters
-     * @param entity the body of the request, null if not applicable
-     * @param responseConsumer the {@link HttpAsyncResponseConsumer} callback. Controls how the response
-     * body gets streamed from a non-blocking HTTP connection on the client side.
-     * @param headers the optional request headers
-     * @return the response returned by Elasticsearch
-     * @throws IOException in case of a problem or the connection was aborted
-     * @throws ClientProtocolException in case of an http protocol error
-     * @throws ResponseException in case Elasticsearch responded with a status code that indicated an error
-     */
-    public Response performRequest(String method, String endpoint, Map<String, String> params,
-                                   HttpEntity entity, HttpAsyncResponseConsumer<HttpResponse> responseConsumer,
-                                   Header... headers) throws IOException {
-        SyncResponseListener listener = new SyncResponseListener(maxRetryTimeoutMillis);
-        performRequestAsync(method, endpoint, params, entity, responseConsumer, listener, headers);
-        return listener.get();
-    }
-
-    /**
-     * Sends a request to the Elasticsearch cluster that the client points to. Doesn't wait for the response, instead
-     * the provided {@link ResponseListener} will be notified upon completion or failure. Shortcut to
-     * {@link #performRequestAsync(String, String, Map, HttpEntity, ResponseListener, Header...)} but without parameters and  request body.
-     *
-     * @param method the http method
-     * @param endpoint the path of the request (without host and port)
-     * @param responseListener the {@link ResponseListener} to notify when the request is completed or fails
-     * @param headers the optional request headers
-     */
-    public void performRequestAsync(String method, String endpoint, ResponseListener responseListener, Header... headers) {
-        performRequestAsync(method, endpoint, Collections.<String, String>emptyMap(), null, responseListener, headers);
-    }
-
-    /**
-     * Sends a request to the Elasticsearch cluster that the client points to. Doesn't wait for the response, instead
-     * the provided {@link ResponseListener} will be notified upon completion or failure. Shortcut to
-     * {@link #performRequestAsync(String, String, Map, HttpEntity, ResponseListener, Header...)} but without request body.
-     *
-     * @param method the http method
-     * @param endpoint the path of the request (without host and port)
-     * @param params the query_string parameters
-     * @param responseListener the {@link ResponseListener} to notify when the request is completed or fails
-     * @param headers the optional request headers
-     */
-    public void performRequestAsync(String method, String endpoint, Map<String, String> params,
-                                    ResponseListener responseListener, Header... headers) {
-        performRequestAsync(method, endpoint, params, null, responseListener, headers);
-    }
-
-    /**
-     * Sends a request to the Elasticsearch cluster that the client points to. Doesn't wait for the response, instead
-     * the provided {@link ResponseListener} will be notified upon completion or failure.
-     * Shortcut to {@link #performRequestAsync(String, String, Map, HttpEntity, HttpAsyncResponseConsumer, ResponseListener, Header...)}
-     * which doesn't require specifying an {@link HttpAsyncResponseConsumer} instance, {@link HeapBufferedAsyncResponseConsumer}
-     * will be used to consume the response body.
-     *
-     * @param method the http method
-     * @param endpoint the path of the request (without host and port)
-     * @param params the query_string parameters
-     * @param entity the body of the request, null if not applicable
-     * @param responseListener the {@link ResponseListener} to notify when the request is completed or fails
-     * @param headers the optional request headers
-     */
-    public void performRequestAsync(String method, String endpoint, Map<String, String> params,
-                                    HttpEntity entity, ResponseListener responseListener, Header... headers) {
-        HttpAsyncResponseConsumer<HttpResponse> responseConsumer = new HeapBufferedAsyncResponseConsumer();
-        performRequestAsync(method, endpoint, params, entity, responseConsumer, responseListener, headers);
-    }
-
-    /**
-     * Sends a request to the Elasticsearch cluster that the client points to. The request is executed asynchronously
-     * and the provided {@link ResponseListener} gets notified upon request completion or failure.
-     * Selects a host out of the provided ones in a round-robin fashion. Failing hosts are marked dead and retried after a certain
-     * amount of time (minimum 1 minute, maximum 30 minutes), depending on how many times they previously failed (the more failures,
-     * the later they will be retried). In case of failures all of the alive nodes (or dead nodes that deserve a retry) are retried
-     * until one responds or none of them does, in which case an {@link IOException} will be thrown.
-     *
-     * @param method the http method
-     * @param endpoint the path of the request (without host and port)
-     * @param params the query_string parameters
-     * @param entity the body of the request, null if not applicable
-     * @param responseConsumer the {@link HttpAsyncResponseConsumer} callback. Controls how the response
-     * body gets streamed from a non-blocking HTTP connection on the client side.
-     * @param responseListener the {@link ResponseListener} to notify when the request is completed or fails
-     * @param headers the optional request headers
-     */
-    public void performRequestAsync(String method, String endpoint, Map<String, String> params,
-                                    HttpEntity entity, HttpAsyncResponseConsumer<HttpResponse> responseConsumer,
-                                    ResponseListener responseListener, Header... headers) {
-        URI uri = buildUri(pathPrefix, endpoint, params);
-        HttpRequestBase request = createHttpRequest(method, uri, entity);
-        setHeaders(request, headers);
-        FailureTrackingResponseListener failureTrackingResponseListener = new FailureTrackingResponseListener(responseListener);
-        long startTime = System.nanoTime();
-        performRequestAsync(startTime, nextHost().iterator(), request, responseConsumer, failureTrackingResponseListener);
-    }
-
-    private void performRequestAsync(final long startTime, final Iterator<HttpHost> hosts, final HttpRequestBase request,
-                                     final HttpAsyncResponseConsumer<HttpResponse> responseConsumer,
+    private void performRequestAsync(final NodeTuple<Iterator<Node>> nodeTuple,
+                                     final InternalRequest request,
                                      final FailureTrackingResponseListener listener) {
-        final HttpHost host = hosts.next();
-        //we stream the request body if the entity allows for it
-        HttpAsyncRequestProducer requestProducer = HttpAsyncMethods.create(host, request);
-        client.execute(requestProducer, responseConsumer, new FutureCallback<HttpResponse>() {
+        final RequestContext context = request.createContextForNextAttempt(nodeTuple.nodes.next(), nodeTuple.authCache);
+        client.execute(context.requestProducer, context.asyncResponseConsumer, context.context, new FutureCallback<HttpResponse>() {
             @Override
             public void completed(HttpResponse httpResponse) {
                 try {
-                    RequestLogger.logResponse(logger, request, host, httpResponse);
-                    int statusCode = httpResponse.getStatusLine().getStatusCode();
-                    Response response = new Response(request.getRequestLine(), host, httpResponse);
-                    if (isSuccessfulResponse(request.getMethod(), statusCode)) {
-                        onResponse(host);
-                        listener.onSuccess(response);
+                    ResponseOrResponseException responseOrResponseException = convertResponse(request, context.node, httpResponse);
+                    if (responseOrResponseException.responseException == null) {
+                        listener.onSuccess(responseOrResponseException.response);
                     } else {
-                        ResponseException responseException = new ResponseException(response);
-                        if (isRetryStatus(statusCode)) {
-                            //mark host dead and retry against next one
-                            onFailure(host);
-                            retryIfPossible(responseException, hosts, request);
+                        if (nodeTuple.nodes.hasNext()) {
+                            listener.trackFailure(responseOrResponseException.responseException);
+                            performRequestAsync(nodeTuple, request, listener);
                         } else {
-                            //mark host alive and don't retry, as the error should be a request problem
-                            onResponse(host);
-                            listener.onDefinitiveFailure(responseException);
+                            listener.onDefinitiveFailure(responseOrResponseException.responseException);
                         }
                     }
                 } catch(Exception e) {
@@ -326,30 +314,16 @@ public class RestClient implements Closeable {
             @Override
             public void failed(Exception failure) {
                 try {
-                    RequestLogger.logFailedRequest(logger, request, host, failure);
-                    onFailure(host);
-                    retryIfPossible(failure, hosts, request);
+                    RequestLogger.logFailedRequest(logger, request.httpRequest, context.node, failure);
+                    onFailure(context.node);
+                    if (nodeTuple.nodes.hasNext()) {
+                        listener.trackFailure(failure);
+                        performRequestAsync(nodeTuple, request, listener);
+                    } else {
+                        listener.onDefinitiveFailure(failure);
+                    }
                 } catch(Exception e) {
                     listener.onDefinitiveFailure(e);
-                }
-            }
-
-            private void retryIfPossible(Exception exception, Iterator<HttpHost> hosts, HttpRequestBase request) {
-                if (hosts.hasNext()) {
-                    //in case we are retrying, check whether maxRetryTimeout has been reached
-                    long timeElapsedMillis = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startTime);
-                    long timeout = maxRetryTimeoutMillis - timeElapsedMillis;
-                    if (timeout <= 0) {
-                        IOException retryTimeoutException = new IOException(
-                                "request retries exceeded max retry timeout [" + maxRetryTimeoutMillis + "]");
-                        listener.onDefinitiveFailure(retryTimeoutException);
-                    } else {
-                        listener.trackFailure(exception);
-                        request.reset();
-                        performRequestAsync(startTime, hosts, request, responseConsumer, listener);
-                    }
-                } else {
-                    listener.onDefinitiveFailure(exception);
                 }
             }
 
@@ -360,70 +334,93 @@ public class RestClient implements Closeable {
         });
     }
 
-    private void setHeaders(HttpRequest httpRequest, Header[] requestHeaders) {
-        Objects.requireNonNull(requestHeaders, "request headers must not be null");
-        // request headers override default headers, so we don't add default headers if they exist as request headers
-        final Set<String> requestNames = new HashSet<>(requestHeaders.length);
-        for (Header requestHeader : requestHeaders) {
-            Objects.requireNonNull(requestHeader, "request header must not be null");
-            httpRequest.addHeader(requestHeader);
-            requestNames.add(requestHeader.getName());
-        }
-        for (Header defaultHeader : defaultHeaders) {
-            if (requestNames.contains(defaultHeader.getName()) == false) {
-                httpRequest.addHeader(defaultHeader);
-            }
-        }
+    /**
+     * Returns a non-empty {@link Iterator} of nodes to be used for a request
+     * that match the {@link NodeSelector}.
+     * <p>
+     * If there are no living nodes that match the {@link NodeSelector}
+     * this will return the dead node that matches the {@link NodeSelector}
+     * that is closest to being revived.
+     * @throws IOException if no nodes are available
+     */
+    private NodeTuple<Iterator<Node>> nextNodes() throws IOException {
+        NodeTuple<List<Node>> nodeTuple = this.nodeTuple;
+        Iterable<Node> hosts = selectNodes(nodeTuple, blacklist, lastNodeIndex, nodeSelector);
+        return new NodeTuple<>(hosts.iterator(), nodeTuple.authCache);
     }
 
     /**
-     * Returns an {@link Iterable} of hosts to be used for a request call.
-     * Ideally, the first host is retrieved from the iterable and used successfully for the request.
-     * Otherwise, after each failure the next host has to be retrieved from the iterator so that the request can be retried until
-     * there are no more hosts available to retry against. The maximum total of attempts is equal to the number of hosts in the iterable.
-     * The iterator returned will never be empty. In case there are no healthy hosts available, or dead ones to be be retried,
-     * one dead host gets returned so that it can be retried.
+     * Select nodes to try and sorts them so that the first one will be tried initially, then the following ones
+     * if the previous attempt failed and so on. Package private for testing.
      */
-    private Iterable<HttpHost> nextHost() {
-        Collection<HttpHost> nextHosts = Collections.emptySet();
-        do {
-            Set<HttpHost> filteredHosts = new HashSet<>(hosts);
-            for (Map.Entry<HttpHost, DeadHostState> entry : blacklist.entrySet()) {
-                if (System.nanoTime() - entry.getValue().getDeadUntilNanos() < 0) {
-                    filteredHosts.remove(entry.getKey());
-                }
-            }
-            if (filteredHosts.isEmpty()) {
-                //last resort: if there are no good hosts to use, return a single dead one, the one that's closest to being retried
-                List<Map.Entry<HttpHost, DeadHostState>> sortedHosts = new ArrayList<>(blacklist.entrySet());
-                if (sortedHosts.size() > 0) {
-                    Collections.sort(sortedHosts, new Comparator<Map.Entry<HttpHost, DeadHostState>>() {
-                        @Override
-                        public int compare(Map.Entry<HttpHost, DeadHostState> o1, Map.Entry<HttpHost, DeadHostState> o2) {
-                            return Long.compare(o1.getValue().getDeadUntilNanos(), o2.getValue().getDeadUntilNanos());
-                        }
-                    });
-                    HttpHost deadHost = sortedHosts.get(0).getKey();
-                    logger.trace("resurrecting host [" + deadHost + "]");
-                    nextHosts = Collections.singleton(deadHost);
-                }
+    static Iterable<Node> selectNodes(NodeTuple<List<Node>> nodeTuple, Map<HttpHost, DeadHostState> blacklist,
+                                      AtomicInteger lastNodeIndex, NodeSelector nodeSelector) throws IOException {
+        /*
+         * Sort the nodes into living and dead lists.
+         */
+        List<Node> livingNodes = new ArrayList<>(Math.max(0, nodeTuple.nodes.size() - blacklist.size()));
+        List<DeadNode> deadNodes = new ArrayList<>(blacklist.size());
+        for (Node node : nodeTuple.nodes) {
+            DeadHostState deadness = blacklist.get(node.getHost());
+            if (deadness == null || deadness.shallBeRetried()) {
+                livingNodes.add(node);
             } else {
-                List<HttpHost> rotatedHosts = new ArrayList<>(filteredHosts);
-                Collections.rotate(rotatedHosts, rotatedHosts.size() - lastHostIndex.getAndIncrement());
-                nextHosts = rotatedHosts;
+                deadNodes.add(new DeadNode(node, deadness));
             }
-        } while(nextHosts.isEmpty());
-        return nextHosts;
+        }
+
+        if (false == livingNodes.isEmpty()) {
+            /*
+             * Normal state: there is at least one living node. If the
+             * selector is ok with any over the living nodes then use them
+             * for the request.
+             */
+            List<Node> selectedLivingNodes = new ArrayList<>(livingNodes);
+            nodeSelector.select(selectedLivingNodes);
+            if (false == selectedLivingNodes.isEmpty()) {
+                /*
+                 * Rotate the list using a global counter as the distance so subsequent
+                 * requests will try the nodes in a different order.
+                 */
+                Collections.rotate(selectedLivingNodes, lastNodeIndex.getAndIncrement());
+                return selectedLivingNodes;
+            }
+        }
+
+        /*
+         * Last resort: there are no good nodes to use, either because
+         * the selector rejected all the living nodes or because there aren't
+         * any living ones. Either way, we want to revive a single dead node
+         * that the NodeSelectors are OK with. We do this by passing the dead
+         * nodes through the NodeSelector so it can have its say in which nodes
+         * are ok. If the selector is ok with any of the nodes then we will take
+         * the one in the list that has the lowest revival time and try it.
+         */
+        if (false == deadNodes.isEmpty()) {
+            final List<DeadNode> selectedDeadNodes = new ArrayList<>(deadNodes);
+            /*
+             * We'd like NodeSelectors to remove items directly from deadNodes
+             * so we can find the minimum after it is filtered without having
+             * to compare many things. This saves us a sort on the unfiltered
+             * list.
+             */
+            nodeSelector.select(() -> new DeadNodeIteratorAdapter(selectedDeadNodes.iterator()));
+            if (false == selectedDeadNodes.isEmpty()) {
+                return singletonList(Collections.min(selectedDeadNodes).node);
+            }
+        }
+        throw new IOException("NodeSelector [" + nodeSelector + "] rejected all nodes, "
+                + "living " + livingNodes + " and dead " + deadNodes);
     }
 
     /**
      * Called after each successful request call.
      * Receives as an argument the host that was used for the successful request.
      */
-    private void onResponse(HttpHost host) {
-        DeadHostState removedHost = this.blacklist.remove(host);
+    private void onResponse(Node node) {
+        DeadHostState removedHost = this.blacklist.remove(node.getHost());
         if (logger.isDebugEnabled() && removedHost != null) {
-            logger.debug("removed host [" + host + "] from blacklist");
+            logger.debug("removed [" + node + "] from blacklist");
         }
     }
 
@@ -431,19 +428,25 @@ public class RestClient implements Closeable {
      * Called after each failed attempt.
      * Receives as an argument the host that was used for the failed attempt.
      */
-    private void onFailure(HttpHost host) throws IOException {
+    private void onFailure(Node node) {
         while(true) {
-            DeadHostState previousDeadHostState = blacklist.putIfAbsent(host, DeadHostState.INITIAL_DEAD_STATE);
+            DeadHostState previousDeadHostState =
+                blacklist.putIfAbsent(node.getHost(), new DeadHostState(DeadHostState.DEFAULT_TIME_SUPPLIER));
             if (previousDeadHostState == null) {
-                logger.debug("added host [" + host + "] to blacklist");
+                if (logger.isDebugEnabled()) {
+                    logger.debug("added [" + node + "] to blacklist");
+                }
                 break;
             }
-            if (blacklist.replace(host, previousDeadHostState, new DeadHostState(previousDeadHostState))) {
-                logger.debug("updated host [" + host + "] already in blacklist");
+            if (blacklist.replace(node.getHost(), previousDeadHostState,
+                    new DeadHostState(previousDeadHostState))) {
+                if (logger.isDebugEnabled()) {
+                    logger.debug("updated [" + node + "] already in blacklist");
+                }
                 break;
             }
         }
-        failureListener.onFailure(host);
+        failureListener.onFailure(node);
     }
 
     @Override
@@ -451,8 +454,8 @@ public class RestClient implements Closeable {
         client.close();
     }
 
-    private static boolean isSuccessfulResponse(String method, int statusCode) {
-        return statusCode < 300 || (HttpHead.METHOD_NAME.equals(method) && statusCode == 404);
+    private static boolean isSuccessfulResponse(int statusCode) {
+        return statusCode < 300;
     }
 
     private static boolean isRetryStatus(int statusCode) {
@@ -465,11 +468,10 @@ public class RestClient implements Closeable {
         return false;
     }
 
-    private static Exception addSuppressedException(Exception suppressedException, Exception currentException) {
+    private static void addSuppressedException(Exception suppressedException, Exception currentException) {
         if (suppressedException != null) {
             currentException.addSuppressed(suppressedException);
         }
-        return currentException;
     }
 
     private static HttpRequestBase createHttpRequest(String method, URI uri, HttpEntity entity) {
@@ -508,13 +510,14 @@ public class RestClient implements Closeable {
         return httpRequest;
     }
 
-    private static URI buildUri(String pathPrefix, String path, Map<String, String> params) {
-        Objects.requireNonNull(params, "params must not be null");
+    static URI buildUri(String pathPrefix, String path, Map<String, String> params) {
         Objects.requireNonNull(path, "path must not be null");
         try {
             String fullPath;
-            if (pathPrefix != null) {
-                if (path.startsWith("/")) {
+            if (pathPrefix != null && pathPrefix.isEmpty() == false) {
+                if (pathPrefix.endsWith("/") && path.startsWith("/")) {
+                    fullPath = pathPrefix.substring(0, pathPrefix.length() - 1) + path;
+                } else if (pathPrefix.endsWith("/") || path.startsWith("/")) {
                     fullPath = pathPrefix + path;
                 } else {
                     fullPath = pathPrefix + "/" + path;
@@ -565,82 +568,8 @@ public class RestClient implements Closeable {
          * Tracks an exception, which caused a retry hence we should not return yet to the caller
          */
         void trackFailure(Exception exception) {
-            this.exception = addSuppressedException(this.exception, exception);
-        }
-    }
-
-    /**
-     * Listener used in any sync performRequest calls, it waits for a response or an exception back up to a timeout
-     */
-    static class SyncResponseListener implements ResponseListener {
-        private final CountDownLatch latch = new CountDownLatch(1);
-        private final AtomicReference<Response> response = new AtomicReference<>();
-        private final AtomicReference<Exception> exception = new AtomicReference<>();
-
-        private final long timeout;
-
-        SyncResponseListener(long timeout) {
-            assert timeout > 0;
-            this.timeout = timeout;
-        }
-
-        @Override
-        public void onSuccess(Response response) {
-            Objects.requireNonNull(response, "response must not be null");
-            boolean wasResponseNull = this.response.compareAndSet(null, response);
-            if (wasResponseNull == false) {
-                throw new IllegalStateException("response is already set");
-            }
-
-            latch.countDown();
-        }
-
-        @Override
-        public void onFailure(Exception exception) {
-            Objects.requireNonNull(exception, "exception must not be null");
-            boolean wasExceptionNull = this.exception.compareAndSet(null, exception);
-            if (wasExceptionNull == false) {
-                throw new IllegalStateException("exception is already set");
-            }
-            latch.countDown();
-        }
-
-        /**
-         * Waits (up to a timeout) for some result of the request: either a response, or an exception.
-         */
-        Response get() throws IOException {
-            try {
-                //providing timeout is just a safety measure to prevent everlasting waits
-                //the different client timeouts should already do their jobs
-                if (latch.await(timeout, TimeUnit.MILLISECONDS) == false) {
-                    throw new IOException("listener timeout after waiting for [" + timeout + "] ms");
-                }
-            } catch (InterruptedException e) {
-                throw new RuntimeException("thread waiting for the response was interrupted", e);
-            }
-
-            Exception exception = this.exception.get();
-            Response response = this.response.get();
-            if (exception != null) {
-                if (response != null) {
-                    IllegalStateException e = new IllegalStateException("response and exception are unexpectedly set at the same time");
-                    e.addSuppressed(exception);
-                    throw e;
-                }
-                //try and leave the exception untouched as much as possible but we don't want to just add throws Exception clause everywhere
-                if (exception instanceof IOException) {
-                    throw (IOException) exception;
-                }
-                if (exception instanceof RuntimeException){
-                    throw (RuntimeException) exception;
-                }
-                throw new RuntimeException("error while performing request", exception);
-            }
-
-            if (response == null) {
-                throw new IllegalStateException("response not set and no exception caught either");
-            }
-            return response;
+            addSuppressedException(this.exception, exception);
+            this.exception = exception;
         }
     }
 
@@ -650,10 +579,222 @@ public class RestClient implements Closeable {
      */
     public static class FailureListener {
         /**
-         * Notifies that the host provided as argument has just failed
+         * Notifies that the node provided as argument has just failed
          */
-        public void onFailure(HttpHost host) {
+        public void onFailure(Node node) {}
+    }
 
+    /**
+     * {@link NodeTuple} enables the {@linkplain Node}s and {@linkplain AuthCache}
+     * to be set together in a thread safe, volatile way.
+     */
+    static class NodeTuple<T> {
+        final T nodes;
+        final AuthCache authCache;
+
+        NodeTuple(final T nodes, final AuthCache authCache) {
+            this.nodes = nodes;
+            this.authCache = authCache;
         }
+    }
+
+    /**
+     * Contains a reference to a blacklisted node and the time until it is
+     * revived. We use this so we can do a single pass over the blacklist.
+     */
+    private static class DeadNode implements Comparable<DeadNode> {
+        final Node node;
+        final DeadHostState deadness;
+
+        DeadNode(Node node, DeadHostState deadness) {
+            this.node = node;
+            this.deadness = deadness;
+        }
+
+        @Override
+        public String toString() {
+            return node.toString();
+        }
+
+        @Override
+        public int compareTo(DeadNode rhs) {
+            return deadness.compareTo(rhs.deadness);
+        }
+    }
+
+    /**
+     * Adapts an <code>Iterator&lt;DeadNodeAndRevival&gt;</code> into an
+     * <code>Iterator&lt;Node&gt;</code>.
+     */
+    private static class DeadNodeIteratorAdapter implements Iterator<Node> {
+        private final Iterator<DeadNode> itr;
+
+        private DeadNodeIteratorAdapter(Iterator<DeadNode> itr) {
+            this.itr = itr;
+        }
+
+        @Override
+        public boolean hasNext() {
+            return itr.hasNext();
+        }
+
+        @Override
+        public Node next() {
+            return itr.next().node;
+        }
+
+        @Override
+        public void remove() {
+            itr.remove();
+        }
+    }
+
+    private class InternalRequest {
+        private final Request request;
+        private final Map<String, String> params;
+        private final Set<Integer> ignoreErrorCodes;
+        private final HttpRequestBase httpRequest;
+        private final WarningsHandler warningsHandler;
+
+        InternalRequest(Request request) {
+            this.request = request;
+            this.params = new HashMap<>(request.getParameters());
+            //ignore is a special parameter supported by the clients, shouldn't be sent to es
+            String ignoreString = params.remove("ignore");
+            this.ignoreErrorCodes = getIgnoreErrorCodes(ignoreString, request.getMethod());
+            URI uri = buildUri(pathPrefix, request.getEndpoint(), params);
+            this.httpRequest = createHttpRequest(request.getMethod(), uri, request.getEntity());
+            setHeaders(httpRequest, request.getOptions().getHeaders());
+            this.warningsHandler = request.getOptions().getWarningsHandler() == null ?
+                RestClient.this.warningsHandler : request.getOptions().getWarningsHandler();
+        }
+
+        private void setHeaders(HttpRequest httpRequest, Collection<Header> requestHeaders) {
+            // request headers override default headers, so we don't add default headers if they exist as request headers
+            final Set<String> requestNames = new HashSet<>(requestHeaders.size());
+            for (Header requestHeader : requestHeaders) {
+                httpRequest.addHeader(requestHeader);
+                requestNames.add(requestHeader.getName());
+            }
+            for (Header defaultHeader : defaultHeaders) {
+                if (requestNames.contains(defaultHeader.getName()) == false) {
+                    httpRequest.addHeader(defaultHeader);
+                }
+            }
+        }
+
+        RequestContext createContextForNextAttempt(Node node, AuthCache authCache) {
+            this.httpRequest.reset();
+            return new RequestContext(this, node, authCache);
+        }
+    }
+
+    private static class RequestContext {
+        private final Node node;
+        private final HttpAsyncRequestProducer requestProducer;
+        private final HttpAsyncResponseConsumer<HttpResponse> asyncResponseConsumer;
+        private final HttpClientContext context;
+
+        RequestContext(InternalRequest request, Node node, AuthCache authCache) {
+            this.node = node;
+            //we stream the request body if the entity allows for it
+            this.requestProducer = HttpAsyncMethods.create(node.getHost(), request.httpRequest);
+            this.asyncResponseConsumer =
+                request.request.getOptions().getHttpAsyncResponseConsumerFactory().createHttpAsyncResponseConsumer();
+            this.context = HttpClientContext.create();
+            context.setAuthCache(authCache);
+        }
+    }
+
+    private static Set<Integer> getIgnoreErrorCodes(String ignoreString, String requestMethod) {
+        Set<Integer> ignoreErrorCodes;
+        if (ignoreString == null) {
+            if (HttpHead.METHOD_NAME.equals(requestMethod)) {
+                //404 never causes error if returned for a HEAD request
+                ignoreErrorCodes = Collections.singleton(404);
+            } else {
+                ignoreErrorCodes = Collections.emptySet();
+            }
+        } else {
+            String[] ignoresArray = ignoreString.split(",");
+            ignoreErrorCodes = new HashSet<>();
+            if (HttpHead.METHOD_NAME.equals(requestMethod)) {
+                //404 never causes error if returned for a HEAD request
+                ignoreErrorCodes.add(404);
+            }
+            for (String ignoreCode : ignoresArray) {
+                try {
+                    ignoreErrorCodes.add(Integer.valueOf(ignoreCode));
+                } catch (NumberFormatException e) {
+                    throw new IllegalArgumentException("ignore value should be a number, found [" + ignoreString + "] instead", e);
+                }
+            }
+        }
+        return ignoreErrorCodes;
+    }
+
+    private static class ResponseOrResponseException {
+        private final Response response;
+        private final ResponseException responseException;
+
+        ResponseOrResponseException(Response response) {
+            this.response = Objects.requireNonNull(response);
+            this.responseException = null;
+        }
+
+        ResponseOrResponseException(ResponseException responseException) {
+            this.responseException = Objects.requireNonNull(responseException);
+            this.response = null;
+        }
+    }
+
+    /**
+     * Wrap the exception so the caller's signature shows up in the stack trace, taking care to copy the original type and message
+     * where possible so async and sync code don't have to check different exceptions.
+     */
+    private static Exception extractAndWrapCause(Exception exception) {
+        if (exception instanceof InterruptedException) {
+            throw new RuntimeException("thread waiting for the response was interrupted", exception);
+        }
+        if (exception instanceof ExecutionException) {
+            ExecutionException executionException = (ExecutionException)exception;
+            Throwable t = executionException.getCause() == null ? executionException : executionException.getCause();
+            if (t instanceof Error) {
+                throw (Error)t;
+            }
+            exception = (Exception)t;
+        }
+        if (exception instanceof ConnectTimeoutException) {
+            ConnectTimeoutException e = new ConnectTimeoutException(exception.getMessage());
+            e.initCause(exception);
+            return e;
+        }
+        if (exception instanceof SocketTimeoutException) {
+            SocketTimeoutException e = new SocketTimeoutException(exception.getMessage());
+            e.initCause(exception);
+            return e;
+        }
+        if (exception instanceof ConnectionClosedException) {
+            ConnectionClosedException e = new ConnectionClosedException(exception.getMessage());
+            e.initCause(exception);
+            return e;
+        }
+        if (exception instanceof SSLHandshakeException) {
+            SSLHandshakeException e = new SSLHandshakeException(exception.getMessage());
+            e.initCause(exception);
+            return e;
+        }
+        if (exception instanceof ConnectException) {
+            ConnectException e = new ConnectException(exception.getMessage());
+            e.initCause(exception);
+            return e;
+        }
+        if (exception instanceof IOException) {
+            return new IOException(exception.getMessage(), exception);
+        }
+        if (exception instanceof RuntimeException){
+            return new RuntimeException(exception.getMessage(), exception);
+        }
+        return new RuntimeException("error while performing request", exception);
     }
 }

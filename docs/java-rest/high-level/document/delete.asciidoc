@@ -1,0 +1,90 @@
+--
+:api: delete
+:request: DeleteRequest
+:response: DeleteResponse
+--
+
+[id="{upid}-{api}"]
+=== Delete API
+
+[id="{upid}-{api}-request"]
+==== Delete Request
+
+A +{request}+ has two required arguments:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request]
+--------------------------------------------------
+<1> Index
+<2> Document id
+
+==== Optional arguments
+The following arguments can optionally be provided:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-routing]
+--------------------------------------------------
+<1> Routing value
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-timeout]
+--------------------------------------------------
+<1> Timeout to wait for primary shard to become available as a `TimeValue`
+<2> Timeout to wait for primary shard to become available as a `String`
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-refresh]
+--------------------------------------------------
+<1> Refresh policy as a `WriteRequest.RefreshPolicy` instance
+<2> Refresh policy as a `String`
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-version]
+--------------------------------------------------
+<1> Version
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-version-type]
+--------------------------------------------------
+<1> Version type
+
+include::../execution.asciidoc[]
+
+[id="{upid}-{api}-response"]
+==== Delete Response
+
+The returned +{response}+ allows to retrieve information about the executed
+ operation as follows:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-response]
+--------------------------------------------------
+<1> Handle the situation where number of successful shards is less than
+total shards
+<2> Handle the potential failures
+
+
+It is also possible to check whether the document was found or not:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-notfound]
+--------------------------------------------------
+<1> Do something if the document to be deleted was not found
+
+If there is a version conflict, an `ElasticsearchException` will
+be thrown:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-conflict]
+--------------------------------------------------
+<1> The raised exception indicates that a version conflict error was returned
+

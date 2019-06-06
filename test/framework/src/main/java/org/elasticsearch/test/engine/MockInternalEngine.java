@@ -19,8 +19,6 @@
 package org.elasticsearch.test.engine;
 
 import org.apache.lucene.index.FilterDirectoryReader;
-import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.SearcherManager;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineException;
 import org.elasticsearch.index.engine.InternalEngine;
@@ -29,12 +27,10 @@ import java.io.IOException;
 
 final class MockInternalEngine extends InternalEngine {
     private MockEngineSupport support;
-    private final boolean randomizeFlushOnClose;
     private Class<? extends FilterDirectoryReader> wrapperClass;
 
     MockInternalEngine(EngineConfig config,  Class<? extends FilterDirectoryReader> wrapper) throws EngineException {
         super(config);
-        randomizeFlushOnClose = config.getIndexSettings().isOnSharedFilesystem() == false;
         wrapperClass = wrapper;
 
     }
@@ -61,17 +57,13 @@ final class MockInternalEngine extends InternalEngine {
 
     @Override
     public void flushAndClose() throws IOException {
-        if (randomizeFlushOnClose) {
-            switch (support().flushOrClose(MockEngineSupport.CloseAction.FLUSH_AND_CLOSE)) {
-                case FLUSH_AND_CLOSE:
-                    flushAndCloseInternal();
-                    break;
-                case CLOSE:
-                    super.close();
-                    break;
-            }
-        } else {
-            flushAndCloseInternal();
+        switch (support().flushOrClose(MockEngineSupport.CloseAction.FLUSH_AND_CLOSE)) {
+            case FLUSH_AND_CLOSE:
+                flushAndCloseInternal();
+                break;
+            case CLOSE:
+                super.close();
+                break;
         }
     }
 
@@ -84,8 +76,8 @@ final class MockInternalEngine extends InternalEngine {
     }
 
     @Override
-    protected Searcher newSearcher(String source, IndexSearcher searcher, SearcherManager manager) throws EngineException {
-        final Searcher engineSearcher = super.newSearcher(source, searcher, manager);
-        return support().wrapSearcher(source, engineSearcher, searcher, manager);
+    public Searcher acquireSearcher(String source, SearcherScope scope) {
+        final Searcher engineSearcher = super.acquireSearcher(source, scope);
+        return support().wrapSearcher(engineSearcher);
     }
 }

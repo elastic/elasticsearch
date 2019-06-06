@@ -45,7 +45,7 @@ public class KuromojiTokenizerFactory extends AbstractTokenizerFactory {
     private boolean discartPunctuation;
 
     public KuromojiTokenizerFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {
-        super(indexSettings, name, settings);
+        super(indexSettings, settings);
         mode = getMode(settings);
         userDictionary = getUserDictionary(env, settings);
         discartPunctuation = settings.getAsBoolean("discard_punctuation", true);

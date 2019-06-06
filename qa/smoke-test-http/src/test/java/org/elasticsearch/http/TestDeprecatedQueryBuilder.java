@@ -19,21 +19,19 @@
 
 package org.elasticsearch.http;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
-import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryShardContext;
 
 import java.io.IOException;
-import java.util.Optional;
 
 /**
  * A query that performs a <code>match_all</code> query, but with each <em>index</em> touched getting a unique deprecation warning.
@@ -43,7 +41,8 @@ import java.util.Optional;
 public class TestDeprecatedQueryBuilder extends AbstractQueryBuilder<TestDeprecatedQueryBuilder> {
     public static final String NAME = "deprecated_match_all";
 
-    private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(Loggers.getLogger(TestDeprecatedQueryBuilder.class));
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(
+        LogManager.getLogger(TestDeprecatedQueryBuilder.class));
 
     public TestDeprecatedQueryBuilder() {
         // nothing to do
@@ -66,14 +65,12 @@ public class TestDeprecatedQueryBuilder extends AbstractQueryBuilder<TestDepreca
         builder.startObject(NAME).endObject();
     }
 
-    public static Optional<TestDeprecatedQueryBuilder> fromXContent(QueryParseContext parseContext) throws IOException, ParsingException {
-        XContentParser parser = parseContext.parser();
-
+    public static TestDeprecatedQueryBuilder fromXContent(XContentParser parser) throws IOException, ParsingException {
         if (parser.nextToken() != XContentParser.Token.END_OBJECT) {
             throw new ParsingException(parser.getTokenLocation(), "[{}] query does not have any fields", NAME);
         }
 
-        return Optional.of(new TestDeprecatedQueryBuilder());
+        return new TestDeprecatedQueryBuilder();
     }
 
     @Override
@@ -83,7 +80,7 @@ public class TestDeprecatedQueryBuilder extends AbstractQueryBuilder<TestDepreca
 
     @Override
     protected Query doToQuery(QueryShardContext context) throws IOException {
-        DEPRECATION_LOGGER.deprecated("[{}] query is deprecated, but used on [{}] index", NAME, context.index().getName());
+        deprecationLogger.deprecated("[{}] query is deprecated, but used on [{}] index", NAME, context.index().getName());
 
         return Queries.newMatchAllQuery();
     }

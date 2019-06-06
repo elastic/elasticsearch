@@ -18,8 +18,7 @@
  */
 package org.elasticsearch.test.disruption;
 
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateUpdateTask;
+import org.apache.logging.log4j.core.util.Throwables;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.unit.TimeValue;
@@ -31,12 +30,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 public class BlockClusterStateProcessing extends SingleNodeDisruption {
 
-    AtomicReference<CountDownLatch> disruptionLatch = new AtomicReference<>();
-
-
-    public BlockClusterStateProcessing(Random random) {
-        this(null, random);
-    }
+    private final AtomicReference<CountDownLatch> disruptionLatch = new AtomicReference<>();
 
     public BlockClusterStateProcessing(String disruptedNode, Random random) {
         super(random);
@@ -58,28 +52,19 @@ public class BlockClusterStateProcessing extends SingleNodeDisruption {
         boolean success = disruptionLatch.compareAndSet(null, new CountDownLatch(1));
         assert success : "startDisrupting called without waiting on stopDisrupting to complete";
         final CountDownLatch started = new CountDownLatch(1);
-        clusterService.submitStateUpdateTask("service_disruption_block", new ClusterStateUpdateTask(Priority.IMMEDIATE) {
-
-            @Override
-            public boolean runOnlyOnMaster() {
-                return false;
-            }
-
-            @Override
-            public ClusterState execute(ClusterState currentState) throws Exception {
+        clusterService.getClusterApplierService().runOnApplierThread("service_disruption_block",
+            currentState -> {
                 started.countDown();
                 CountDownLatch latch = disruptionLatch.get();
                 if (latch != null) {
-                    latch.await();
+                    try {
+                        latch.await();
+                    } catch (InterruptedException e) {
+                        Throwables.rethrow(e);
+                    }
                 }
-                return currentState;
-            }
-
-            @Override
-            public void onFailure(String source, Exception e) {
-                logger.error("unexpected error during disruption", e);
-            }
-        });
+            }, (source, e) -> logger.error("unexpected error during disruption", e),
+            Priority.IMMEDIATE);
         try {
             started.await();
         } catch (InterruptedException e) {

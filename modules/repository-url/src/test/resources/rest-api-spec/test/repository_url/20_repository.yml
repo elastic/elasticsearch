@@ -1,0 +1,32 @@
+"Repository can be registered":
+
+  - do:
+      snapshot.create_repository:
+        repository: test_repo1
+        verify: false
+        body:
+          type: url
+          settings:
+            url: "http://snapshot.test1"
+  - is_true: acknowledged
+
+  - do:
+      snapshot.get_repository:
+        repository: test_repo1
+
+  - is_true : test_repo1
+
+---
+"Repository cannot be be registered":
+
+  - do:
+      catch: /doesn't match any of the locations specified by path.repo or repositories.url.allowed_urls/
+      snapshot.create_repository:
+        repository: test_repo2
+        body:
+          type: url
+          settings:
+            url: "http://snapshot.unknown"
+
+
+    

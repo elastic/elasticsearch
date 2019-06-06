@@ -1,0 +1,37 @@
+--
+:api: exists
+:request: GetRequest
+:response: boolean
+--
+
+[id="{upid}-{api}"]
+=== Exists API
+
+The exists API returns `true` if a document exists, and `false` otherwise.
+
+[id="{upid}-{api}-request"]
+==== Exists Request
+
+It uses +{request}+ just like the <<java-rest-high-document-get>>.
+All of its <<java-rest-high-document-get-request-optional-arguments, optional arguments>>
+are supported. Since `exists()` only returns `true` or `false`, we recommend
+turning off fetching `_source` and any stored fields so the request is
+slightly lighter:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request]
+--------------------------------------------------
+<1> Index
+<2> Document id
+<3> Disable fetching `_source`.
+<4> Disable fetching stored fields.
+
+include::../execution.asciidoc[]
+
+
+==== Source exists request
+A variant of the exists request is `existsSource` method which has the additional check
+that the document in question has stored the `source`. If the mapping for the index has opted
+to remove support for storing JSON source in documents then this method will return false
+for documents in this index.

@@ -1,0 +1,62 @@
+--
+:api: flush-synced
+:request: SyncedFlushRequest
+:response: SyncedFlushResponse
+--
+
+[id="{upid}-{api}"]
+=== Flush Synced API
+
+[id="{upid}-{api}-request"]
+==== Flush Synced Request
+
+A +{request}+ can be applied to one or more indices, or even on `_all` the indices:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request]
+--------------------------------------------------
+<1> Flush synced one index
+<2> Flush synced multiple indices
+<3> Flush synced all the indices
+
+==== Optional arguments
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-indicesOptions]
+--------------------------------------------------
+<1> Setting `IndicesOptions` controls how unavailable indices are resolved and
+how wildcard expressions are expanded
+
+include::../execution.asciidoc[]
+
+[id="{upid}-{api}-response"]
+==== Flush Synced Response
+
+The returned +{response}+ allows to retrieve information about the
+executed operation as follows:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-response]
+--------------------------------------------------
+<1> Total number of shards hit by the flush request
+<2> Number of shards where the flush has succeeded
+<3> Number of shards where the flush has failed
+<4> Name of the index whose results we are about to calculate.
+<5> Total number of shards for index mentioned in 4.
+<6> Successful shards for index mentioned in 4.
+<7> Failed shards for index mentioned in 4.
+<8> One of the failed shard ids of the failed index mentioned in 4.
+<9> Reason for failure of copies of the shard mentioned in 8.
+<10> JSON represented by a Map<String, Object>. Contains shard related information like id, state, version etc.
+for the failed shard copies. If the entire shard failed then this returns an empty map.
+
+By default, if the indices were not found, an `ElasticsearchException` will be thrown:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-notfound]
+--------------------------------------------------
+<1> Do something if the indices to be flushed were not found

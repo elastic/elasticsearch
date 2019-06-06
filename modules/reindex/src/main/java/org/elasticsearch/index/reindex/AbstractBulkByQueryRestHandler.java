@@ -19,52 +19,43 @@
 
 package org.elasticsearch.index.reindex;
 
-import java.io.IOException;
-import java.util.Map;
-import java.util.function.Consumer;
-
-import org.elasticsearch.action.GenericAction;
+import org.elasticsearch.action.Action;
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.action.RestActions;
 import org.elasticsearch.rest.action.search.RestSearchAction;
-import org.elasticsearch.search.SearchRequestParsers;
 
-import static org.elasticsearch.index.reindex.AbstractBulkByScrollRequest.SIZE_ALL_MATCHES;
+import java.io.IOException;
+import java.util.Map;
+import java.util.function.Consumer;
 
 /**
  * Rest handler for reindex actions that accepts a search request like Update-By-Query or Delete-By-Query
  */
 public abstract class AbstractBulkByQueryRestHandler<
         Request extends AbstractBulkByScrollRequest<Request>,
-        A extends GenericAction<Request, BulkIndexByScrollResponse>> extends AbstractBaseReindexRestHandler<Request, A> {
+        A extends Action<BulkByScrollResponse>> extends AbstractBaseReindexRestHandler<Request, A> {
 
-    protected AbstractBulkByQueryRestHandler(Settings settings, SearchRequestParsers searchRequestParsers,
-                                             ClusterService clusterService, A action) {
-        super(settings, searchRequestParsers, clusterService, action);
+    protected AbstractBulkByQueryRestHandler(Settings settings, A action) {
+        super(settings, action);
     }
 
     protected void parseInternalRequest(Request internal, RestRequest restRequest,
-                                        Map<String, Consumer<Object>> consumers) throws IOException {
+                                        Map<String, Consumer<Object>> bodyConsumers) throws IOException {
         assert internal != null : "Request should not be null";
         assert restRequest != null : "RestRequest should not be null";
 
         SearchRequest searchRequest = internal.getSearchRequest();
-        int scrollSize = searchRequest.source().size();
-        searchRequest.source().size(SIZE_ALL_MATCHES);
 
-        parseSearchRequest(searchRequest, restRequest, consumers);
+        try (XContentParser parser = extractRequestSpecificFields(restRequest, bodyConsumers)) {
+            RestSearchAction.parseSearchRequest(searchRequest, restRequest, parser, internal::setSize);
+        }
 
-        internal.setSize(searchRequest.source().size());
-        searchRequest.source().size(restRequest.paramAsInt("scroll_size", scrollSize));
+        searchRequest.source().size(restRequest.paramAsInt("scroll_size", searchRequest.source().size()));
 
         String conflicts = restRequest.param("conflicts");
         if (conflicts != null) {
@@ -77,37 +68,30 @@ public abstract class AbstractBulkByQueryRestHandler<
         }
     }
 
-    protected void parseSearchRequest(SearchRequest searchRequest, RestRequest restRequest,
-                                      Map<String, Consumer<Object>> consumers) throws IOException {
-        assert searchRequest != null : "SearchRequest should not be null";
-        assert restRequest != null : "RestRequest should not be null";
+    /**
+     * We can't send parseSearchRequest REST content that it doesn't support
+     * so we will have to remove the content that is valid in addition to
+     * what it supports from the content first. This is a temporary hack and
+     * should get better when SearchRequest has full ObjectParser support
+     * then we can delegate and stuff.
+     */
+    private XContentParser extractRequestSpecificFields(RestRequest restRequest,
+                                                        Map<String, Consumer<Object>> bodyConsumers) throws IOException {
+        if (restRequest.hasContentOrSourceParam() == false) {
+            return null; // body is optional
+        }
+        try (XContentParser parser = restRequest.contentOrSourceParamParser();
+             XContentBuilder builder = XContentFactory.contentBuilder(parser.contentType())) {
+            Map<String, Object> body = parser.map();
 
-        /*
-         * We can't send parseSearchRequest REST content that it doesn't support
-         * so we will have to remove the content that is valid in addition to
-         * what it supports from the content first. This is a temporary hack and
-         * should get better when SearchRequest has full ObjectParser support
-         * then we can delegate and stuff.
-         */
-        BytesReference content = RestActions.hasBodyContent(restRequest) ? RestActions.getRestContent(restRequest) : null;
-        if ((content != null) && (consumers != null && consumers.size() > 0)) {
-            Tuple<XContentType, Map<String, Object>> body = XContentHelper.convertToMap(content, false);
-            boolean modified = false;
-            for (Map.Entry<String, Consumer<Object>> consumer : consumers.entrySet()) {
-                Object value = body.v2().remove(consumer.getKey());
+            for (Map.Entry<String, Consumer<Object>> consumer : bodyConsumers.entrySet()) {
+                Object value = body.remove(consumer.getKey());
                 if (value != null) {
                     consumer.getValue().accept(value);
-                    modified = true;
                 }
             }
-
-            if (modified) {
-                try (XContentBuilder builder = XContentFactory.contentBuilder(body.v1())) {
-                    content = builder.map(body.v2()).bytes();
-                }
-            }
+            return parser.contentType().xContent().createParser(parser.getXContentRegistry(),
+                parser.getDeprecationHandler(), BytesReference.bytes(builder.map(body)).streamInput());
         }
-
-        RestSearchAction.parseSearchRequest(searchRequest, restRequest, searchRequestParsers, parseFieldMatcher, content);
     }
 }

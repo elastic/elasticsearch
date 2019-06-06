@@ -6,7 +6,7 @@ objects which, in turn, may contain inner objects themselves:
 
 [source,js]
 --------------------------------------------------
-PUT my_index/my_type/1
+PUT my_index/_doc/1
 { <1>
   "region": "US",
   "manager": { <2>
@@ -35,6 +35,7 @@ pairs, something like this:
   "manager.name.last":  "Smith"
 }
 --------------------------------------------------
+// NOTCONSOLE
 
 An explicit mapping for the above document could look like this:
 
@@ -43,19 +44,17 @@ An explicit mapping for the above document could look like this:
 PUT my_index
 {
   "mappings": {
-    "my_type": { <1>
-      "properties": {
-        "region": {
-          "type": "keyword"
-        },
-        "manager": { <2>
-          "properties": {
-            "age":  { "type": "integer" },
-            "name": { <3>
-              "properties": {
-                "first": { "type": "text" },
-                "last":  { "type": "text" }
-              }
+    "properties": { <1>
+      "region": {
+        "type": "keyword"
+      },
+      "manager": { <2>
+        "properties": {
+          "age":  { "type": "integer" },
+          "name": { <3>
+            "properties": {
+              "first": { "type": "text" },
+              "last":  { "type": "text" }
             }
           }
         }
@@ -65,7 +64,7 @@ PUT my_index
 }
 --------------------------------------------------
 // CONSOLE
-<1> The mapping type is a type of object, and has a `properties` field.
+<1> Properties in the top-level mappings definition.
 <2> The `manager` field is an inner `object` field.
 <3> The `manager.name` field is an inner `object` field within the `manager` field.
 
@@ -88,11 +87,6 @@ The following parameters are accepted by `object` fields:
     Whether the JSON value given for the object field should be
     parsed and indexed (`true`, default) or completely ignored (`false`).
 
-<<include-in-all,`include_in_all`>>::
-
-    Sets the default `include_in_all` value for all the `properties` within
-    the object. The object itself is not added to the `_all` field.
-
 <<properties,`properties`>>::
 
     The fields within the object, which can be of any
@@ -101,4 +95,3 @@ The following parameters are accepted by `object` fields:
 
 IMPORTANT: If you need to index arrays of objects instead of single objects,
 read <<nested>> first.
-

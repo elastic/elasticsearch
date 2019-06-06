@@ -88,7 +88,7 @@ public class ReindexVersioningTests extends ReindexTestCase {
     /**
      * Perform a reindex with EXTERNAL versioning which has "refresh" semantics.
      */
-    private BulkIndexByScrollResponse reindexExternal() {
+    private BulkByScrollResponse reindexExternal() {
         ReindexRequestBuilder reindex =  reindex().source("source").destination("dest").abortOnVersionConflict(false);
         reindex.destination().setVersionType(EXTERNAL);
         return reindex.get();
@@ -97,7 +97,7 @@ public class ReindexVersioningTests extends ReindexTestCase {
     /**
      * Perform a reindex with INTERNAL versioning which has "overwrite" semantics.
      */
-    private BulkIndexByScrollResponse reindexInternal() {
+    private BulkByScrollResponse reindexInternal() {
         ReindexRequestBuilder reindex =  reindex().source("source").destination("dest").abortOnVersionConflict(false);
         reindex.destination().setVersionType(INTERNAL);
         return reindex.get();
@@ -106,25 +106,25 @@ public class ReindexVersioningTests extends ReindexTestCase {
     /**
      * Perform a reindex with CREATE OpType which has "create" semantics.
      */
-    private BulkIndexByScrollResponse reindexCreate() {
+    private BulkByScrollResponse reindexCreate() {
         ReindexRequestBuilder reindex =  reindex().source("source").destination("dest").abortOnVersionConflict(false);
         reindex.destination().setOpType(CREATE);
         return reindex.get();
     }
 
     private void setupSourceAbsent() throws Exception {
-        indexRandom(true, client().prepareIndex("source", "test", "test").setVersionType(EXTERNAL)
+        indexRandom(true, client().prepareIndex("source", "_doc", "test").setVersionType(EXTERNAL)
                 .setVersion(SOURCE_VERSION).setSource("foo", "source"));
 
-        assertEquals(SOURCE_VERSION, client().prepareGet("source", "test", "test").get().getVersion());
+        assertEquals(SOURCE_VERSION, client().prepareGet("source", "_doc", "test").get().getVersion());
     }
 
     private void setupDest(int version) throws Exception {
         setupSourceAbsent();
-        indexRandom(true, client().prepareIndex("dest", "test", "test").setVersionType(EXTERNAL)
+        indexRandom(true, client().prepareIndex("dest", "_doc", "test").setVersionType(EXTERNAL)
                 .setVersion(version).setSource("foo", "dest"));
 
-        assertEquals(version, client().prepareGet("dest", "test", "test").get().getVersion());
+        assertEquals(version, client().prepareGet("dest", "_doc", "test").get().getVersion());
     }
 
     private void setupDestOlder() throws Exception {
@@ -136,7 +136,7 @@ public class ReindexVersioningTests extends ReindexTestCase {
     }
 
     private void assertDest(String fooValue, int version) {
-        GetResponse get = client().prepareGet("dest", "test", "test").get();
+        GetResponse get = client().prepareGet("dest", "_doc", "test").get();
         assertEquals(fooValue, get.getSource().get("foo"));
         assertEquals(version, get.getVersion());
     }

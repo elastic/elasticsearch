@@ -36,8 +36,6 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.gateway.GatewayAllocator;
 
 import java.lang.reflect.InvocationTargetException;
-import java.net.InetAddress;
-import java.net.UnknownHostException;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -47,10 +45,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 public final class Allocators {
     private static class NoopGatewayAllocator extends GatewayAllocator {
         public static final NoopGatewayAllocator INSTANCE = new NoopGatewayAllocator();
-
-        protected NoopGatewayAllocator() {
-            super(Settings.EMPTY, null, null);
-        }
 
         @Override
         public void applyStartedShards(RoutingAllocation allocation, List<ShardRouting> startedShards) {
@@ -81,7 +75,7 @@ public final class Allocators {
 
     public static AllocationService createAllocationService(Settings settings, ClusterSettings clusterSettings) throws
         InvocationTargetException, NoSuchMethodException, InstantiationException, IllegalAccessException {
-        return new AllocationService(settings,
+        return new AllocationService(
             defaultAllocationDeciders(settings, clusterSettings),
             NoopGatewayAllocator.INSTANCE, new BalancedShardsAllocator(settings), EmptyClusterInfoService.INSTANCE);
     }
@@ -90,7 +84,7 @@ public final class Allocators {
         IllegalAccessException, InvocationTargetException, InstantiationException, NoSuchMethodException {
         Collection<AllocationDecider> deciders =
             ClusterModule.createAllocationDeciders(settings, clusterSettings, Collections.emptyList());
-        return new AllocationDeciders(settings, deciders);
+        return new AllocationDeciders(deciders);
 
     }
 

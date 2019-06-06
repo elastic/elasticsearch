@@ -20,8 +20,12 @@
 package org.elasticsearch.test.disruption;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
+
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.NodeConnectionsService;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.test.InternalTestCluster;
@@ -34,6 +38,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.Random;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
 import java.util.function.BiConsumer;
 
 import static org.junit.Assert.assertFalse;
@@ -45,7 +50,7 @@ import static org.junit.Assert.assertFalse;
  */
 public class NetworkDisruption implements ServiceDisruptionScheme {
 
-    private final Logger logger = Loggers.getLogger(NetworkDisruption.class);
+    private static final Logger logger = LogManager.getLogger(NetworkDisruption.class);
 
     private final DisruptedLinks disruptedLinks;
     private final NetworkLinkDisruptionType networkLinkDisruptionType;
@@ -79,12 +84,43 @@ public class NetworkDisruption implements ServiceDisruptionScheme {
     @Override
     public void removeAndEnsureHealthy(InternalTestCluster cluster) {
         removeFromCluster(cluster);
+        ensureHealthy(cluster);
+    }
+
+    /**
+     * ensures the cluster is healthy after the disruption
+     */
+    public void ensureHealthy(InternalTestCluster cluster) {
+        assert activeDisruption == false;
         ensureNodeCount(cluster);
+        ensureFullyConnectedCluster(cluster);
+    }
+
+    /**
+     * Ensures that all nodes in the cluster are connected to each other.
+     *
+     * Some network disruptions may leave nodes that are not the master disconnected from each other.
+     * {@link org.elasticsearch.cluster.NodeConnectionsService} will eventually reconnect but it's
+     * handy to be able to ensure this happens faster
+     */
+    public static void ensureFullyConnectedCluster(InternalTestCluster cluster) {
+        final String[] nodeNames = cluster.getNodeNames();
+        final CountDownLatch countDownLatch = new CountDownLatch(nodeNames.length);
+        for (String node : nodeNames) {
+            ClusterState stateOnNode = cluster.getInstance(ClusterService.class, node).state();
+            cluster.getInstance(NodeConnectionsService.class, node).reconnectToNodes(stateOnNode.nodes(), countDownLatch::countDown);
+        }
+
+        try {
+            countDownLatch.await();
+        } catch (InterruptedException e) {
+            throw new AssertionError(e);
+        }
     }
 
     protected void ensureNodeCount(InternalTestCluster cluster) {
         assertFalse("cluster failed to form after disruption was healed", cluster.client().admin().cluster().prepareHealth()
-            .setWaitForNodes("" + cluster.size())
+            .setWaitForNodes(String.valueOf(cluster.size()))
             .setWaitForNoRelocatingShards(true)
             .get().isTimedOut());
     }
@@ -384,6 +420,7 @@ public class NetworkDisruption implements ServiceDisruptionScheme {
         public TimeValue expectedTimeToHeal() {
             return TimeValue.timeValueMillis(0);
         }
+
     }
 
     /**
@@ -475,4 +512,5 @@ public class NetworkDisruption implements ServiceDisruptionScheme {
             return "network delays for [" + delay + "]";
         }
     }
+
 }

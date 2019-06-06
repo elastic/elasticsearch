@@ -1,0 +1,64 @@
+[[cluster-nodes-usage]]
+== Nodes Feature Usage
+
+[float]
+=== Nodes usage
+
+The cluster nodes usage API allows to retrieve information on the usage
+of features for each node.
+
+[source,js]
+--------------------------------------------------
+GET _nodes/usage
+GET _nodes/nodeId1,nodeId2/usage
+--------------------------------------------------
+// CONSOLE
+// TEST[setup:node]
+// TEST[s/nodeId1,nodeId2/*/]
+
+The first command retrieves usage of all the nodes in the cluster. The
+second command selectively retrieves nodes usage of only `nodeId1` and
+`nodeId2`. All the nodes selective options are explained
+<<cluster-nodes,here>>.
+
+[float]
+[[rest-usage]]
+==== REST actions usage information
+
+The `rest_actions` field in the response contains a map of the REST
+actions classname with a count of the number of times that action has
+been called on the node:
+
+[source,js]
+--------------------------------------------------
+{
+  "_nodes": {
+    "total": 1,
+    "successful": 1,
+    "failed": 0
+  },
+  "cluster_name": "my_cluster",
+  "nodes": {
+    "pQHNt5rXTTWNvUgOrdynKg": {
+      "timestamp": 1492553961812, <1>
+      "since": 1492553906606, <2>
+      "rest_actions": {
+        "org.elasticsearch.rest.action.admin.cluster.RestNodesUsageAction": 1,
+        "org.elasticsearch.rest.action.admin.indices.RestCreateIndexAction": 1,
+        "org.elasticsearch.rest.action.document.RestGetAction": 1,
+        "org.elasticsearch.rest.action.search.RestSearchAction": 19, <3>
+        "org.elasticsearch.rest.action.admin.cluster.RestNodesInfoAction": 36
+      }
+    }
+  }
+}
+--------------------------------------------------
+// TESTRESPONSE[s/"my_cluster"/$body.cluster_name/]
+// TESTRESPONSE[s/"pQHNt5rXTTWNvUgOrdynKg"/\$node_name/]
+// TESTRESPONSE[s/1492553961812/$body.$_path/]
+// TESTRESPONSE[s/1492553906606/$body.$_path/]
+// TESTRESPONSE[s/"rest_actions": [^}]+}/"rest_actions": $body.$_path/]
+<1> Timestamp for when this nodes usage request was performed.
+<2> Timestamp for when the usage information recording was started. This is
+equivalent to the time that the node was started.
+<3> Search action has been called 19 times for this node.

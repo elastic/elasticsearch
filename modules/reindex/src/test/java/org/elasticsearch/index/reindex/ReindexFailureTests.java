@@ -19,9 +19,9 @@
 
 package org.elasticsearch.index.reindex;
 
-import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.bulk.BulkItemResponse.Failure;
 import org.elasticsearch.action.index.IndexRequestBuilder;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -38,6 +38,7 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 /**
  * Tests failure capturing and abort-on-failure behavior of reindex.
  */
+@TestLogging("_root:DEBUG")
 public class ReindexFailureTests extends ReindexTestCase {
     public void testFailuresCauseAbortDefault() throws Exception {
         /*
@@ -45,7 +46,7 @@ public class ReindexFailureTests extends ReindexTestCase {
          * conflict on every request.
          */
         indexRandom(true,
-                client().prepareIndex("dest", "test", "test").setSource("test", 10) /* Its a string in the source! */);
+                client().prepareIndex("dest", "_doc", "test").setSource("test", 10) /* Its a string in the source! */);
 
         indexDocs(100);
 
@@ -57,19 +58,19 @@ public class ReindexFailureTests extends ReindexTestCase {
          */
         copy.source().setSize(1);
 
-        BulkIndexByScrollResponse response = copy.get();
+        BulkByScrollResponse response = copy.get();
         assertThat(response, matcher()
                 .batches(1)
                 .failures(both(greaterThan(0)).and(lessThanOrEqualTo(maximumNumberOfShards()))));
         for (Failure failure: response.getBulkFailures()) {
-            assertThat(failure.getMessage(), containsString("NumberFormatException[For input string: \"words words\"]"));
+            assertThat(failure.getMessage(), containsString("IllegalArgumentException[For input string: \"words words\"]"));
         }
     }
 
     public void testAbortOnVersionConflict() throws Exception {
         // Just put something in the way of the copy.
         indexRandom(true,
-                client().prepareIndex("dest", "test", "1").setSource("test", "test"));
+                client().prepareIndex("dest", "_doc", "1").setSource("test", "test"));
 
         indexDocs(100);
 
@@ -77,10 +78,10 @@ public class ReindexFailureTests extends ReindexTestCase {
         // CREATE will cause the conflict to prevent the write.
         copy.destination().setOpType(CREATE);
 
-        BulkIndexByScrollResponse response = copy.get();
+        BulkByScrollResponse response = copy.get();
         assertThat(response, matcher().batches(1).versionConflicts(1).failures(1).created(99));
         for (Failure failure: response.getBulkFailures()) {
-            assertThat(failure.getMessage(), containsString("VersionConflictEngineException[[test]["));
+            assertThat(failure.getMessage(), containsString("VersionConflictEngineException[["));
         }
     }
 
@@ -99,19 +100,27 @@ public class ReindexFailureTests extends ReindexTestCase {
             indexDocs(100);
             ReindexRequestBuilder copy = reindex().source("source").destination("dest");
             copy.source().setSize(10);
-            Future<BulkIndexByScrollResponse> response = copy.execute();
+            Future<BulkByScrollResponse> response = copy.execute();
             client().admin().indices().prepareDelete("source").get();
 
             try {
                 response.get();
                 logger.info("Didn't trigger a reindex failure on the {} attempt", attempt);
                 attempt++;
+                /*
+                 * In the past we've seen the delete of the source index
+                 * actually take effect *during* the `indexDocs` call in
+                 * the next step. This breaks things pretty disasterously
+                 * so we *try* and wait for the delete to be fully
+                 * complete here.
+                 */
+                assertBusy(() -> assertFalse(client().admin().indices().prepareExists("source").get().isExists()));
             } catch (ExecutionException e) {
-                logger.info("Triggered a reindex failure on the {} attempt", attempt);
+                logger.info("Triggered a reindex failure on the {} attempt: {}", attempt, e.getMessage());
                 assertThat(e.getMessage(),
                         either(containsString("all shards failed"))
                         .or(containsString("No search context found"))
-                        .or(containsString("no such index"))
+                        .or(containsString("no such index [source]"))
                         );
                 return;
             }
@@ -119,32 +128,10 @@ public class ReindexFailureTests extends ReindexTestCase {
         assumeFalse("Wasn't able to trigger a reindex failure in " + attempt + " attempts.", true);
     }
 
-    public void testSettingTtlIsValidationFailure() throws Exception {
-        indexDocs(1);
-        ReindexRequestBuilder copy = reindex().source("source").destination("dest");
-        copy.destination().setTTL(123);
-        try {
-            copy.get();
-        } catch (ActionRequestValidationException e) {
-            assertThat(e.getMessage(), containsString("setting ttl on destination isn't supported. use scripts instead."));
-        }
-    }
-
-    public void testSettingTimestampIsValidationFailure() throws Exception {
-        indexDocs(1);
-        ReindexRequestBuilder copy = reindex().source("source").destination("dest");
-        copy.destination().setTimestamp("now");
-        try {
-            copy.get();
-        } catch (ActionRequestValidationException e) {
-            assertThat(e.getMessage(), containsString("setting timestamp on destination isn't supported. use scripts instead."));
-        }
-    }
-
     private void indexDocs(int count) throws Exception {
-        List<IndexRequestBuilder> docs = new ArrayList<IndexRequestBuilder>(count);
+        List<IndexRequestBuilder> docs = new ArrayList<>(count);
         for (int i = 0; i < count; i++) {
-            docs.add(client().prepareIndex("source", "test", Integer.toString(i)).setSource("test", "words words"));
+            docs.add(client().prepareIndex("source", "_doc", Integer.toString(i)).setSource("test", "words words"));
         }
         indexRandom(true, docs);
     }

@@ -19,31 +19,40 @@
 
 package org.elasticsearch.http.netty4;
 
+import io.netty.handler.codec.http.DefaultFullHttpRequest;
+import io.netty.handler.codec.http.DefaultHttpHeaders;
 import io.netty.handler.codec.http.FullHttpRequest;
-import io.netty.handler.codec.http.HttpRequest;
+import io.netty.handler.codec.http.HttpHeaderNames;
+import io.netty.handler.codec.http.HttpHeaders;
+import io.netty.handler.codec.http.HttpMethod;
+import io.netty.handler.codec.http.cookie.Cookie;
+import io.netty.handler.codec.http.cookie.ServerCookieDecoder;
+import io.netty.handler.codec.http.cookie.ServerCookieEncoder;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.transport.netty4.Netty4Utils;
+import org.elasticsearch.http.HttpRequest;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.RestUtils;
+import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.transport.netty4.Netty4Utils;
 
-import io.netty.channel.Channel;
-import io.netty.handler.codec.http.HttpMethod;
-
-import java.net.SocketAddress;
-import java.util.HashMap;
+import java.util.AbstractMap;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 
-public class Netty4HttpRequest extends RestRequest {
-
+public class Netty4HttpRequest implements HttpRequest {
     private final FullHttpRequest request;
-    private final Channel channel;
     private final BytesReference content;
+    private final HttpHeadersMap headers;
+    private final int sequence;
 
-    Netty4HttpRequest(FullHttpRequest request, Channel channel) {
-        super(request.uri());
+    Netty4HttpRequest(FullHttpRequest request, int sequence) {
         this.request = request;
-        this.channel = channel;
+        headers = new HttpHeadersMap(request.headers());
+        this.sequence = sequence;
         if (request.content().isReadable()) {
             this.content = Netty4Utils.toBytesReference(request.content());
         } else {
@@ -51,34 +60,42 @@ public class Netty4HttpRequest extends RestRequest {
         }
     }
 
-    public FullHttpRequest request() {
-        return this.request;
-    }
-
     @Override
-    public Method method() {
+    public RestRequest.Method method() {
         HttpMethod httpMethod = request.method();
         if (httpMethod == HttpMethod.GET)
-            return Method.GET;
+            return RestRequest.Method.GET;
 
         if (httpMethod == HttpMethod.POST)
-            return Method.POST;
+            return RestRequest.Method.POST;
 
         if (httpMethod == HttpMethod.PUT)
-            return Method.PUT;
+            return RestRequest.Method.PUT;
 
         if (httpMethod == HttpMethod.DELETE)
-            return Method.DELETE;
+            return RestRequest.Method.DELETE;
 
         if (httpMethod == HttpMethod.HEAD) {
-            return Method.HEAD;
+            return RestRequest.Method.HEAD;
         }
 
         if (httpMethod == HttpMethod.OPTIONS) {
-            return Method.OPTIONS;
+            return RestRequest.Method.OPTIONS;
         }
 
-        return Method.GET;
+        if (httpMethod == HttpMethod.PATCH) {
+            return RestRequest.Method.PATCH;
+        }
+
+        if (httpMethod == HttpMethod.TRACE) {
+            return RestRequest.Method.TRACE;
+        }
+
+        if (httpMethod == HttpMethod.CONNECT) {
+            return RestRequest.Method.CONNECT;
+        }
+
+        throw new IllegalArgumentException("Unexpected http method: " + httpMethod);
     }
 
     @Override
@@ -87,49 +104,140 @@ public class Netty4HttpRequest extends RestRequest {
     }
 
     @Override
-    public boolean hasContent() {
-        return content.length() > 0;
-    }
-
-    @Override
     public BytesReference content() {
         return content;
     }
 
+
+    @Override
+    public final Map<String, List<String>> getHeaders() {
+        return headers;
+    }
+
+    @Override
+    public List<String> strictCookies() {
+        String cookieString = request.headers().get(HttpHeaderNames.COOKIE);
+        if (cookieString != null) {
+            Set<Cookie> cookies = ServerCookieDecoder.STRICT.decode(cookieString);
+            if (!cookies.isEmpty()) {
+                return ServerCookieEncoder.STRICT.encode(cookies);
+            }
+        }
+        return Collections.emptyList();
+    }
+
+    @Override
+    public HttpVersion protocolVersion() {
+        if (request.protocolVersion().equals(io.netty.handler.codec.http.HttpVersion.HTTP_1_0)) {
+            return HttpRequest.HttpVersion.HTTP_1_0;
+        } else if (request.protocolVersion().equals(io.netty.handler.codec.http.HttpVersion.HTTP_1_1)) {
+            return HttpRequest.HttpVersion.HTTP_1_1;
+        } else {
+            throw new IllegalArgumentException("Unexpected http protocol version: " + request.protocolVersion());
+        }
+    }
+
+    @Override
+    public HttpRequest removeHeader(String header) {
+        HttpHeaders headersWithoutContentTypeHeader = new DefaultHttpHeaders();
+        headersWithoutContentTypeHeader.add(request.headers());
+        headersWithoutContentTypeHeader.remove(header);
+        HttpHeaders trailingHeaders = new DefaultHttpHeaders();
+        trailingHeaders.add(request.trailingHeaders());
+        trailingHeaders.remove(header);
+        FullHttpRequest requestWithoutHeader = new DefaultFullHttpRequest(request.protocolVersion(), request.method(), request.uri(),
+            request.content(), headersWithoutContentTypeHeader, trailingHeaders);
+        return new Netty4HttpRequest(requestWithoutHeader, sequence);
+    }
+
+    @Override
+    public Netty4HttpResponse createResponse(RestStatus status, BytesReference content) {
+        return new Netty4HttpResponse(this, status, content);
+    }
+
+    public FullHttpRequest nettyRequest() {
+        return request;
+    }
+
+    int sequence() {
+        return sequence;
+    }
+
     /**
-     * Returns the remote address where this rest request channel is "connected to".  The
-     * returned {@link SocketAddress} is supposed to be down-cast into more
-     * concrete type such as {@link java.net.InetSocketAddress} to retrieve
-     * the detailed information.
+     * A wrapper of {@link HttpHeaders} that implements a map to prevent copying unnecessarily. This class does not support modifications
+     * and due to the underlying implementation, it performs case insensitive lookups of key to values.
+     *
+     * It is important to note that this implementation does have some downsides in that each invocation of the
+     * {@link #values()} and {@link #entrySet()} methods will perform a copy of the values in the HttpHeaders rather than returning a
+     * view of the underlying values.
      */
-    @Override
-    public SocketAddress getRemoteAddress() {
-        return channel.remoteAddress();
-    }
+    private static class HttpHeadersMap implements Map<String, List<String>> {
 
-    /**
-     * Returns the local address where this request channel is bound to.  The returned
-     * {@link SocketAddress} is supposed to be down-cast into more concrete
-     * type such as {@link java.net.InetSocketAddress} to retrieve the detailed
-     * information.
-     */
-    @Override
-    public SocketAddress getLocalAddress() {
-        return channel.localAddress();
-    }
+        private final HttpHeaders httpHeaders;
 
-    public Channel getChannel() {
-        return channel;
-    }
+        private HttpHeadersMap(HttpHeaders httpHeaders) {
+            this.httpHeaders = httpHeaders;
+        }
 
-    @Override
-    public String header(String name) {
-        return request.headers().get(name);
-    }
+        @Override
+        public int size() {
+            return httpHeaders.size();
+        }
 
-    @Override
-    public Iterable<Map.Entry<String, String>> headers() {
-        return request.headers().entries();
-    }
+        @Override
+        public boolean isEmpty() {
+            return httpHeaders.isEmpty();
+        }
 
+        @Override
+        public boolean containsKey(Object key) {
+            return key instanceof String && httpHeaders.contains((String) key);
+        }
+
+        @Override
+        public boolean containsValue(Object value) {
+            return value instanceof List && httpHeaders.names().stream().map(httpHeaders::getAll).anyMatch(value::equals);
+        }
+
+        @Override
+        public List<String> get(Object key) {
+            return key instanceof String ? httpHeaders.getAll((String) key) : null;
+        }
+
+        @Override
+        public List<String> put(String key, List<String> value) {
+            throw new UnsupportedOperationException("modifications are not supported");
+        }
+
+        @Override
+        public List<String> remove(Object key) {
+            throw new UnsupportedOperationException("modifications are not supported");
+        }
+
+        @Override
+        public void putAll(Map<? extends String, ? extends List<String>> m) {
+            throw new UnsupportedOperationException("modifications are not supported");
+        }
+
+        @Override
+        public void clear() {
+            throw new UnsupportedOperationException("modifications are not supported");
+        }
+
+        @Override
+        public Set<String> keySet() {
+            return httpHeaders.names();
+        }
+
+        @Override
+        public Collection<List<String>> values() {
+            return httpHeaders.names().stream().map(k -> Collections.unmodifiableList(httpHeaders.getAll(k))).collect(Collectors.toList());
+        }
+
+        @Override
+        public Set<Entry<String, List<String>>> entrySet() {
+            return httpHeaders.names().stream().map(k -> new AbstractMap.SimpleImmutableEntry<>(k, httpHeaders.getAll(k)))
+                .collect(Collectors.toSet());
+        }
+    }
 }

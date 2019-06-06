@@ -1,0 +1,136 @@
+[[sniffer]]
+== Sniffer
+
+Minimal library that allows to automatically discover nodes from a running
+Elasticsearch cluster and set them to an existing `RestClient` instance.
+It retrieves by default the nodes that belong to the cluster using the
+Nodes Info api and uses jackson to parse the obtained json response.
+
+Compatible with Elasticsearch 2.x and onwards.
+
+[[java-rest-sniffer-javadoc]]
+=== Javadoc
+
+The javadoc for the REST client sniffer can be found at {rest-client-sniffer-javadoc}/index.html.
+
+=== Maven Repository
+
+The REST client sniffer is subject to the same release cycle as
+Elasticsearch. Replace the version with the desired sniffer version, first
+released with `5.0.0-alpha4`. There is no relation between the sniffer version
+and the Elasticsearch version that the client can communicate with. Sniffer
+supports fetching the nodes list from Elasticsearch 2.x and onwards.
+
+If you are looking for a SNAPSHOT version, the Elastic Maven Snapshot repository is available
+at https://snapshots.elastic.co/maven/.
+
+==== Maven configuration
+
+Here is how you can configure the dependency using maven as a dependency manager.
+Add the following to your `pom.xml` file:
+
+["source","xml",subs="attributes"]
+--------------------------------------------------
+<dependency>
+    <groupId>org.elasticsearch.client</groupId>
+    <artifactId>elasticsearch-rest-client-sniffer</artifactId>
+    <version>{version}</version>
+</dependency>
+--------------------------------------------------
+
+==== Gradle configuration
+
+Here is how you can configure the dependency using gradle as a dependency manager.
+Add the following to your `build.gradle` file:
+
+["source","groovy",subs="attributes"]
+--------------------------------------------------
+dependencies {
+    compile 'org.elasticsearch.client:elasticsearch-rest-client-sniffer:{version}'
+}
+--------------------------------------------------
+
+=== Usage
+
+Once a `RestClient` instance has been created as shown in <<java-rest-low-usage-initialization>>,
+a `Sniffer` can be associated to it. The `Sniffer` will make use of the provided `RestClient`
+to periodically (every 5 minutes by default) fetch the list of current nodes from the cluster
+and update them by calling `RestClient#setNodes`.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SnifferDocumentation.java[sniffer-init]
+--------------------------------------------------
+
+It is important to close the `Sniffer` so that its background thread gets
+properly shutdown and all of its resources are released. The `Sniffer`
+object should have the same lifecycle as the `RestClient` and get closed
+right before the client:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SnifferDocumentation.java[sniffer-close]
+--------------------------------------------------
+
+The `Sniffer` updates the nodes by default every 5 minutes. This interval can
+be customized by providing it (in milliseconds) as follows:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SnifferDocumentation.java[sniffer-interval]
+--------------------------------------------------
+
+It is also possible to enable sniffing on failure, meaning that after each
+failure the nodes list gets updated straightaway rather than at the following
+ordinary sniffing round. In this case a `SniffOnFailureListener` needs to
+be created at first and provided at `RestClient` creation. Also once the
+`Sniffer` is later created, it needs to be associated with that same
+`SniffOnFailureListener` instance, which will be notified at each failure
+and use the `Sniffer` to perform the additional sniffing round as described.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SnifferDocumentation.java[sniff-on-failure]
+--------------------------------------------------
+<1> Set the failure listener to the `RestClient` instance
+<2> When sniffing on failure, not only do the nodes get updated after each
+failure, but an additional sniffing round is also scheduled sooner than usual,
+by default one minute after the failure, assuming that things will go back to
+normal and we want to detect that as soon as possible. Said interval can be
+customized  at `Sniffer` creation time through the `setSniffAfterFailureDelayMillis`
+method. Note that this last configuration parameter has no effect in case sniffing
+on failure is not enabled like explained above.
+<3> Set the `Sniffer` instance to the failure listener
+
+The Elasticsearch Nodes Info api doesn't return the protocol to use when
+connecting to the nodes but only their `host:port` key-pair, hence `http`
+is used by default. In case `https` should be used instead, the
+`ElasticsearchNodesSniffer` instance has to be manually created and provided
+as follows:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SnifferDocumentation.java[sniffer-https]
+--------------------------------------------------
+
+In the same way it is also possible to customize the `sniffRequestTimeout`,
+which defaults to one second. That is the `timeout` parameter provided as a
+querystring parameter when calling the Nodes Info api, so that when the
+timeout expires on the server side, a valid response is still returned
+although it may contain only a subset of the nodes that are part of the
+cluster, the ones that have responded until then.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SnifferDocumentation.java[sniff-request-timeout]
+--------------------------------------------------
+
+Also, a custom `NodesSniffer` implementation can be provided for advanced
+use-cases that may require fetching the `Node`s from external sources rather
+than from Elasticsearch:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SnifferDocumentation.java[custom-nodes-sniffer]
+--------------------------------------------------
+<1> Fetch the hosts from the external source

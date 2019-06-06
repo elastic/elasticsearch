@@ -1,0 +1,96 @@
+[role="xpack"]
+[[auditing-settings]]
+=== Auditing security settings
+++++
+<titleabbrev>Auditing settings</titleabbrev>
+++++
+
+All of these settings can be added to the `elasticsearch.yml` configuration
+file. For more information, see
+{stack-ov}/auditing.html[Auditing Security Events].
+
+[[general-audit-settings]]
+==== General Auditing Settings
+
+`xpack.security.audit.enabled`::
+Set to `true` to enable auditing on the node. The default value is `false`.
+This puts the auditing events in a dedicated file named `<clustername>_audit.json`
+on each node. For more information, see <<configuring-logging-levels>>.
+
+[[event-audit-settings]]
+==== Audited Event Settings
+
+The events and some other information about what gets logged can be controlled
+by using the following settings:
+
+`xpack.security.audit.logfile.events.include`::
+Specifies which events to include in the auditing output. The default value is:
+`access_denied, access_granted, anonymous_access_denied, authentication_failed,
+connection_denied, tampered_request, run_as_denied, run_as_granted`.
+
+`xpack.security.audit.logfile.events.exclude`::
+Excludes the specified events from the output. By default, no events are
+excluded.
+
+`xpack.security.audit.logfile.events.emit_request_body`::
+Specifies whether to include the request body from REST requests on certain
+event types such as `authentication_failed`. The default value is `false`.
++
+--
+IMPORTANT: No filtering is performed when auditing, so sensitive data may be
+audited in plain text when including the request body in audit events.
+--
+
+[[node-audit-settings]]
+==== Local Node Info Settings
+
+`xpack.security.audit.logfile.emit_node_name`::
+Specifies whether to include the <<node.name,node name>> as a field in
+each audit event.
+The default value is `true`.
+
+`xpack.security.audit.logfile.emit_node_host_address`::
+Specifies whether to include the node's IP address as a field in each audit event.
+The default value is `false`.
+
+`xpack.security.audit.logfile.emit_node_host_name`::
+Specifies whether to include the node's host name as a field in each audit event.
+The default value is `false`.
+
+`xpack.security.audit.logfile.emit_node_id`::
+Specifies whether to include the node id as a field in each audit event.
+This is available for the new format only. That is to say, this information
+does not exist in the `<clustername>_access.log` file.
+Unlike <<node.name,node name>>, whose value might change if the administrator
+changes the setting in the config file, the node id will persist across cluster
+restarts and the administrator cannot change it.
+The default value is `true`.
+
+[[audit-event-ignore-policies]]
+==== Audit Logfile Event Ignore Policies
+
+These settings affect the {stack-ov}/audit-log-output.html#audit-log-ignore-policy[ignore policies]
+that enable fine-grained control over which audit events are printed to the log file.
+All of the settings with the same policy name combine to form a single policy.
+If an event matches all of the conditions for a specific policy, it is ignored 
+and not printed.
+
+`xpack.security.audit.logfile.events.ignore_filters.<policy_name>.users`::
+A list of user names or wildcards. The specified policy will
+not print audit events for users matching these values.
+
+`xpack.security.audit.logfile.events.ignore_filters.<policy_name>.realms`::
+A list of authentication realm names or wildcards. The specified policy will
+not print audit events for users in these realms.
+
+`xpack.security.audit.logfile.events.ignore_filters.<policy_name>.roles`::
+A list of role names or wildcards. The specified policy will
+not print audit events for users that have these roles. If the user has several
+roles, some of which are *not* covered by the policy, the policy will
+*not* cover this event.
+
+`xpack.security.audit.logfile.events.ignore_filters.<policy_name>.indices`::
+A list of index names or wildcards. The specified policy will
+not print audit events when all the indices in the event match
+these values. If the event concerns several indices, some of which are
+*not* covered by the policy, the policy will *not* cover this event.

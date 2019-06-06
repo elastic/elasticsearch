@@ -1,0 +1,217 @@
+setup:
+  - skip:
+      version: "all"
+      reason:  "AwaitsFix https://github.com/elastic/elasticsearch/issues/42258"
+
+  - do:
+     cluster.health:
+        wait_for_status: green
+        wait_for_nodes: 3
+        # wait for long enough that we give delayed unassigned shards to stop being delayed
+        timeout: 70s
+ 
+---
+"Test old and mixed cluster datafeeds without aggs":
+  - do:
+      indices.create:
+        index: airline-data
+        body:
+          mappings:
+            properties:
+              time:
+                type: date
+
+  - do:
+      ml.get_datafeeds:
+        datafeed_id: old-cluster-datafeed-without-aggs
+  - match: { datafeeds.0.datafeed_id: "old-cluster-datafeed-without-aggs"}
+  - length: { datafeeds.0.indices: 1 }
+  - gte: { datafeeds.0.scroll_size: 2000 }
+  - match: { datafeeds.0.script_fields.double_responsetime.script.lang: painless }
+  - is_false: datafeeds.0.aggregations
+
+  - do:
+      ml.get_datafeed_stats:
+        datafeed_id: old-cluster-datafeed-without-aggs
+  - match: { datafeeds.0.state: "stopped"}
+  - is_false: datafeeds.0.node
+
+  - do:
+      ml.get_datafeeds:
+        datafeed_id: mixed-cluster-datafeed-without-aggs
+  - match: { datafeeds.0.datafeed_id: "mixed-cluster-datafeed-without-aggs"}
+  - length: { datafeeds.0.indices: 1 }
+  - gte: { datafeeds.0.scroll_size: 2000 }
+  - match: { datafeeds.0.script_fields.double_responsetime.script.lang: painless }
+  - is_false: datafeeds.0.aggregations
+
+  - do:
+      ml.get_datafeed_stats:
+        datafeed_id: mixed-cluster-datafeed-without-aggs
+  - match: { datafeeds.0.state: "stopped"}
+  - is_false: datafeeds.0.node
+
+  - do:
+      ml.open_job:
+        job_id: old-cluster-datafeed-job-without-aggs
+
+  - do:
+      ml.start_datafeed:
+        datafeed_id: old-cluster-datafeed-without-aggs
+        start: 0
+
+  - do:
+      ml.stop_datafeed:
+        datafeed_id: old-cluster-datafeed-without-aggs
+
+  - do:
+      ml.close_job:
+        job_id: old-cluster-datafeed-job-without-aggs
+
+  - do:
+      ml.delete_datafeed:
+        datafeed_id: old-cluster-datafeed-without-aggs
+
+  - do:
+      ml.delete_job:
+        job_id: old-cluster-datafeed-job-without-aggs
+  - match: { acknowledged: true }
+
+  - do:
+      ml.open_job:
+        job_id: mixed-cluster-datafeed-job-without-aggs
+
+  - do:
+      ml.start_datafeed:
+        datafeed_id: mixed-cluster-datafeed-without-aggs
+        start: 0
+
+  - do:
+      ml.stop_datafeed:
+        datafeed_id: mixed-cluster-datafeed-without-aggs
+
+  - do:
+      ml.close_job:
+        job_id: mixed-cluster-datafeed-job-without-aggs
+
+  - do:
+      ml.delete_datafeed:
+        datafeed_id: mixed-cluster-datafeed-without-aggs
+
+  - do:
+      ml.delete_job:
+        job_id: mixed-cluster-datafeed-job-without-aggs
+  - match: { acknowledged: true }
+
+  - do:
+      indices.delete:
+        index: airline-data
+
+---
+"Test old and mixed cluster datafeeds with aggs":
+  - skip:
+      features: "warnings"
+  - do:
+      indices.create:
+        index: airline-data
+        body:
+          mappings:
+            properties:
+              time:
+                type: date
+
+  - do:
+      warnings:
+        - '[interval] on [date_histogram] is deprecated, use [fixed_interval] or [calendar_interval] in the future.'
+      ml.get_datafeeds:
+        datafeed_id: old-cluster-datafeed-with-aggs
+  - match: { datafeeds.0.datafeed_id: "old-cluster-datafeed-with-aggs"}
+  - length: { datafeeds.0.indices: 1 }
+  - gte: { datafeeds.0.scroll_size: 2000 }
+  - is_false: datafeeds.0.script_fields
+  - match: { datafeeds.0.aggregations.buckets.date_histogram.field: time }
+  - match: { datafeeds.0.aggregations.buckets.aggregations.time.max.field: time }
+
+  - do:
+      ml.get_datafeed_stats:
+        datafeed_id: old-cluster-datafeed-with-aggs
+  - match: { datafeeds.0.state: "stopped"}
+  - is_false: datafeeds.0.node
+
+  - do:
+      warnings:
+        - '[interval] on [date_histogram] is deprecated, use [fixed_interval] or [calendar_interval] in the future.'
+      ml.get_datafeeds:
+        datafeed_id: mixed-cluster-datafeed-with-aggs
+  - match: { datafeeds.0.datafeed_id: "mixed-cluster-datafeed-with-aggs"}
+  - length: { datafeeds.0.indices: 1 }
+  - gte: { datafeeds.0.scroll_size: 2000 }
+  - is_false: datafeeds.0.script_fields
+  - match: { datafeeds.0.aggregations.buckets.date_histogram.field: time }
+  - match: { datafeeds.0.aggregations.buckets.aggregations.time.max.field: time }
+
+  - do:
+      ml.get_datafeed_stats:
+        datafeed_id: mixed-cluster-datafeed-with-aggs
+  - match: { datafeeds.0.state: "stopped"}
+  - is_false: datafeeds.0.node
+
+  - do:
+      ml.open_job:
+        job_id: old-cluster-datafeed-job-with-aggs
+
+  - do:
+      warnings:
+        - '[interval] on [date_histogram] is deprecated, use [fixed_interval] or [calendar_interval] in the future.'
+      ml.start_datafeed:
+        datafeed_id: old-cluster-datafeed-with-aggs
+        start: 0
+
+  - do:
+      ml.stop_datafeed:
+        datafeed_id: old-cluster-datafeed-with-aggs
+
+  - do:
+      ml.close_job:
+        job_id: old-cluster-datafeed-job-with-aggs
+
+  - do:
+      ml.delete_datafeed:
+        datafeed_id: old-cluster-datafeed-with-aggs
+
+  - do:
+      ml.delete_job:
+        job_id: old-cluster-datafeed-job-with-aggs
+  - match: { acknowledged: true }
+
+  - do:
+      ml.open_job:
+        job_id: mixed-cluster-datafeed-job-with-aggs
+
+  - do:
+      warnings:
+        - '[interval] on [date_histogram] is deprecated, use [fixed_interval] or [calendar_interval] in the future.'
+      ml.start_datafeed:
+        datafeed_id: mixed-cluster-datafeed-with-aggs
+        start: 0
+
+  - do:
+      ml.stop_datafeed:
+        datafeed_id: mixed-cluster-datafeed-with-aggs
+
+  - do:
+      ml.close_job:
+        job_id: mixed-cluster-datafeed-job-with-aggs
+
+  - do:
+      ml.delete_datafeed:
+        datafeed_id: mixed-cluster-datafeed-with-aggs
+
+  - do:
+      ml.delete_job:
+        job_id: mixed-cluster-datafeed-job-with-aggs
+  - match: { acknowledged: true }
+
+  - do:
+      indices.delete:
+        index: airline-data

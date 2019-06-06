@@ -19,9 +19,10 @@
 package org.elasticsearch.index.mapper.size;
 
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
-import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
 import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.plugin.mapper.MapperSizePlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -61,7 +62,7 @@ public class SizeMappingIT extends ESIntegTestCase {
         XContentBuilder updateMappingBuilder =
             jsonBuilder().startObject().startObject("properties").startObject("otherField").field("type", "text")
                 .endObject().endObject().endObject();
-        PutMappingResponse putMappingResponse =
+        AcknowledgedResponse putMappingResponse =
             client().admin().indices().preparePutMapping(index).setType(type).setSource(updateMappingBuilder).get();
         assertAcked(putMappingResponse);
 
@@ -83,7 +84,7 @@ public class SizeMappingIT extends ESIntegTestCase {
         // update some field in the mapping
         XContentBuilder updateMappingBuilder =
             jsonBuilder().startObject().startObject("_size").field("enabled", false).endObject().endObject();
-        PutMappingResponse putMappingResponse =
+        AcknowledgedResponse putMappingResponse =
             client().admin().indices().preparePutMapping(index).setType(type).setSource(updateMappingBuilder).get();
         assertAcked(putMappingResponse);
 
@@ -107,9 +108,9 @@ public class SizeMappingIT extends ESIntegTestCase {
         assertAcked(prepareCreate("test").addMapping("type", "_size", "enabled=true"));
         final String source = "{\"f\":10}";
         indexRandom(true,
-                client().prepareIndex("test", "type", "1").setSource(source));
+                client().prepareIndex("test", "type", "1").setSource(source, XContentType.JSON));
         GetResponse getResponse = client().prepareGet("test", "type", "1").setStoredFields("_size").get();
         assertNotNull(getResponse.getField("_size"));
-        assertEquals(source.length(), getResponse.getField("_size").getValue());
+        assertEquals(source.length(), (int) getResponse.getField("_size").getValue());
     }
 }

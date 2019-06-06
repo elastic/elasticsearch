@@ -1,0 +1,126 @@
+--
+:api: get
+:request: GetRequest
+:response: GetResponse
+--
+
+[id="{upid}-{api}"]
+=== Get API
+
+[id="{upid}-{api}-request"]
+==== Get Request
+
+A +{request}+ requires the following arguments:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request]
+--------------------------------------------------
+<1> Index
+<2> Document id
+
+[id="{upid}-{api}-request-optional-arguments"]
+==== Optional arguments
+The following arguments can optionally be provided:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-no-source]
+--------------------------------------------------
+<1> Disable source retrieval, enabled by default
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-source-include]
+--------------------------------------------------
+<1> Configure source inclusion for specific fields
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-source-exclude]
+--------------------------------------------------
+<1> Configure source exclusion for specific fields
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-stored]
+--------------------------------------------------
+<1> Configure retrieval for specific stored fields (requires fields to be
+stored separately in the mappings)
+<2> Retrieve the `message` stored field (requires the field to be stored
+separately in the mappings)
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-routing]
+--------------------------------------------------
+<1> Routing value
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-preference]
+--------------------------------------------------
+<1> Preference value
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-realtime]
+--------------------------------------------------
+<1> Set realtime flag to `false` (`true` by default)
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-refresh]
+--------------------------------------------------
+<1> Perform a refresh before retrieving the document (`false` by default)
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-version]
+--------------------------------------------------
+<1> Version
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-version-type]
+--------------------------------------------------
+<1> Version type
+
+include::../execution.asciidoc[]
+
+[id="{upid}-{api}-response"]
+==== Get Response
+
+The returned +{response}+ allows to retrieve the requested document along with
+its metadata and eventually stored fields.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-response]
+--------------------------------------------------
+<1> Retrieve the document as a `String`
+<2> Retrieve the document as a `Map<String, Object>`
+<3> Retrieve the document as a `byte[]`
+<4> Handle the scenario where the document was not found. Note that although
+the returned response has `404` status code, a valid +{response}+ is
+returned rather than an exception thrown. Such response does not hold any
+source document and its `isExists` method returns `false`.
+
+When a get request is performed against an index that does not exist, the
+response has `404` status code, an `ElasticsearchException` gets thrown
+which needs to be handled as follows:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-indexnotfound]
+--------------------------------------------------
+<1> Handle the exception thrown because the index does not exist
+
+In case a specific document version has been requested, and the existing
+document has a different version number, a version conflict is raised:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-conflict]
+--------------------------------------------------
+<1> The raised exception indicates that a version conflict error was returned

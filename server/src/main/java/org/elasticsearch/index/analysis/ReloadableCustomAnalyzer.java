@@ -64,6 +64,10 @@ public final class ReloadableCustomAnalyzer extends Analyzer implements Analyzer
 
     ReloadableCustomAnalyzer(AnalyzerComponents components, int positionIncrementGap, int offsetGap) {
         super(UPDATE_STRATEGY);
+        if (components.analysisMode().equals(AnalysisMode.SEARCH_TIME) == false) {
+            throw new IllegalArgumentException(
+                    "ReloadableCustomAnalyzer must only be initialized with analysis components in AnalysisMode.SEARCH_TIME mode");
+        }
         this.components = components;
         this.positionIncrementGap = positionIncrementGap;
         this.offsetGap = offsetGap;

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.common.geo;
 
-import org.apache.lucene.geo.Rectangle;
 import org.apache.lucene.spatial.prefix.tree.GeohashPrefixTree;
 import org.apache.lucene.spatial.prefix.tree.QuadPrefixTree;
 import org.apache.lucene.util.SloppyMath;
@@ -31,8 +30,11 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
+import org.elasticsearch.common.xcontent.XContentSubParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.geo.geometry.Rectangle;
+import org.elasticsearch.geo.utils.Geohash;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.GeoPointValues;
 import org.elasticsearch.index.fielddata.MultiGeoPointValues;
@@ -233,7 +235,11 @@ public class GeoUtils {
      * @return The normalized longitude.
      */
     public static double normalizeLon(double lon) {
-        return centeredModulus(lon, 360);
+        if (lon > 180d || lon <= -180d) {
+            lon = centeredModulus(lon, 360);
+        }
+        // avoid -0.0
+        return lon + 0d;
     }
 
     /**
@@ -250,13 +256,16 @@ public class GeoUtils {
      * @see #normalizePoint(GeoPoint)
      */
     public static double normalizeLat(double lat) {
-        lat = centeredModulus(lat, 360);
-        if (lat < -90) {
-            lat = -180 - lat;
-        } else if (lat > 90) {
-            lat = 180 - lat;
+        if (lat > 90d || lat < -90d) {
+            lat = centeredModulus(lat, 360);
+            if (lat < -90) {
+                lat = -180 - lat;
+            } else if (lat > 90) {
+                lat = 180 - lat;
+            }
         }
-        return lat;
+        // avoid -0.0
+        return lat + 0d;
     }
 
     /**
@@ -428,51 +437,52 @@ public class GeoUtils {
         NumberFormatException numberFormatException = null;
 
         if(parser.currentToken() == Token.START_OBJECT) {
-            while(parser.nextToken() != Token.END_OBJECT) {
-                if(parser.currentToken() == Token.FIELD_NAME) {
-                    String field = parser.currentName();
-                    if(LATITUDE.equals(field)) {
-                        parser.nextToken();
-                        switch (parser.currentToken()) {
-                            case VALUE_NUMBER:
-                            case VALUE_STRING:
-                                try {
-                                    lat = parser.doubleValue(true);
-                                } catch (NumberFormatException e) {
-                                    numberFormatException = e;
-                                }
-                                break;
-                            default:
-                                throw new ElasticsearchParseException("latitude must be a number");
-                        }
-                    } else if (LONGITUDE.equals(field)) {
-                        parser.nextToken();
-                        switch (parser.currentToken()) {
-                            case VALUE_NUMBER:
-                            case VALUE_STRING:
-                                try {
-                                    lon = parser.doubleValue(true);
-                                } catch (NumberFormatException e) {
-                                    numberFormatException = e;
-                                }
-                                break;
-                            default:
-                                throw new ElasticsearchParseException("longitude must be a number");
-                        }
-                    } else if (GEOHASH.equals(field)) {
-                        if(parser.nextToken() == Token.VALUE_STRING) {
-                            geohash = parser.text();
+            try (XContentSubParser subParser = new XContentSubParser(parser)) {
+                while (subParser.nextToken() != Token.END_OBJECT) {
+                    if (subParser.currentToken() == Token.FIELD_NAME) {
+                        String field = subParser.currentName();
+                        if (LATITUDE.equals(field)) {
+                            subParser.nextToken();
+                            switch (subParser.currentToken()) {
+                                case VALUE_NUMBER:
+                                case VALUE_STRING:
+                                    try {
+                                        lat = subParser.doubleValue(true);
+                                    } catch (NumberFormatException e) {
+                                        numberFormatException = e;
+                                    }
+                                    break;
+                                default:
+                                    throw new ElasticsearchParseException("latitude must be a number");
+                            }
+                        } else if (LONGITUDE.equals(field)) {
+                            subParser.nextToken();
+                            switch (subParser.currentToken()) {
+                                case VALUE_NUMBER:
+                                case VALUE_STRING:
+                                    try {
+                                        lon = subParser.doubleValue(true);
+                                    } catch (NumberFormatException e) {
+                                        numberFormatException = e;
+                                    }
+                                    break;
+                                default:
+                                    throw new ElasticsearchParseException("longitude must be a number");
+                            }
+                        } else if (GEOHASH.equals(field)) {
+                            if (subParser.nextToken() == Token.VALUE_STRING) {
+                                geohash = subParser.text();
+                            } else {
+                                throw new ElasticsearchParseException("geohash must be a string");
+                            }
                         } else {
-                            throw new ElasticsearchParseException("geohash must be a string");
+                            throw new ElasticsearchParseException("field must be either [{}], [{}] or [{}]", LATITUDE, LONGITUDE, GEOHASH);
                         }
                     } else {
-                        throw new ElasticsearchParseException("field must be either [{}], [{}] or [{}]", LATITUDE, LONGITUDE, GEOHASH);
+                        throw new ElasticsearchParseException("token [{}] not allowed", subParser.currentToken());
                     }
-                } else {
-                    throw new ElasticsearchParseException("token [{}] not allowed", parser.currentToken());
                 }
             }
-
             if (geohash != null) {
                 if(!Double.isNaN(lat) || !Double.isNaN(lon)) {
                     throw new ElasticsearchParseException("field must be either lat/lon or geohash");
@@ -491,19 +501,21 @@ public class GeoUtils {
             }
 
         } else if(parser.currentToken() == Token.START_ARRAY) {
-            int element = 0;
-            while(parser.nextToken() != Token.END_ARRAY) {
-                if(parser.currentToken() == Token.VALUE_NUMBER) {
-                    element++;
-                    if(element == 1) {
-                        lon = parser.doubleValue();
-                    } else if(element == 2) {
-                        lat = parser.doubleValue();
+            try (XContentSubParser subParser = new XContentSubParser(parser)) {
+                int element = 0;
+                while (subParser.nextToken() != Token.END_ARRAY) {
+                    if (subParser.currentToken() == Token.VALUE_NUMBER) {
+                        element++;
+                        if (element == 1) {
+                            lon = subParser.doubleValue();
+                        } else if (element == 2) {
+                            lat = subParser.doubleValue();
+                        } else {
+                            GeoPoint.assertZValue(ignoreZValue, subParser.doubleValue());
+                        }
                     } else {
-                        GeoPoint.assertZValue(ignoreZValue, parser.doubleValue());
+                        throw new ElasticsearchParseException("numeric value expected");
                     }
-                } else {
-                    throw new ElasticsearchParseException("numeric value expected");
                 }
             }
             return point.reset(lat, lon);
@@ -524,17 +536,38 @@ public class GeoUtils {
         if (effectivePoint == EffectivePoint.BOTTOM_LEFT) {
             return point.resetFromGeoHash(geohash);
         } else {
-            Rectangle rectangle = GeoHashUtils.bbox(geohash);
+            Rectangle rectangle = Geohash.toBoundingBox(geohash);
             switch (effectivePoint) {
                 case TOP_LEFT:
-                    return point.reset(rectangle.maxLat, rectangle.minLon);
+                    return point.reset(rectangle.getMaxLat(), rectangle.getMinLon());
                 case TOP_RIGHT:
-                    return point.reset(rectangle.maxLat, rectangle.maxLon);
+                    return point.reset(rectangle.getMaxLat(), rectangle.getMaxLon());
                 case BOTTOM_RIGHT:
-                    return point.reset(rectangle.minLat, rectangle.maxLon);
+                    return point.reset(rectangle.getMinLat(), rectangle.getMaxLon());
                 default:
                     throw new IllegalArgumentException("Unsupported effective point " + effectivePoint);
             }
+        }
+    }
+
+    /**
+     * Parse a {@link GeoPoint} from a string. The string must have one of the following forms:
+     *
+     * <ul>
+     *     <li>Latitude, Longitude form: <pre>&quot;<i>&lt;latitude&gt;</i>,<i>&lt;longitude&gt;</i>&quot;</pre></li>
+     *     <li>Geohash form:: <pre>&quot;<i>&lt;geohash&gt;</i>&quot;</pre></li>
+     * </ul>
+     *
+     * @param val a String to parse the value from
+     * @return new parsed {@link GeoPoint}
+     */
+    public static GeoPoint parseFromString(String val) {
+        GeoPoint point = new GeoPoint();
+        boolean ignoreZValue = false;
+        if (val.contains(",")) {
+            return point.resetFromString(val, ignoreZValue);
+        } else {
+            return parseGeoHash(point, val, EffectivePoint.BOTTOM_LEFT);
         }
     }
 
@@ -605,17 +638,6 @@ public class GeoUtils {
         double x = (lon2 - lon1) * SloppyMath.TO_RADIANS * Math.cos((lat2 + lat1) / 2.0 * SloppyMath.TO_RADIANS);
         double y = (lat2 - lat1) * SloppyMath.TO_RADIANS;
         return Math.sqrt(x * x + y * y) * EARTH_MEAN_RADIUS;
-    }
-
-    /** check if point is within a rectangle
-     * todo: move this to lucene Rectangle class
-     */
-    public static boolean rectangleContainsPoint(Rectangle r, double lat, double lon) {
-        if (lat >= r.minLat && lat <= r.maxLat) {
-            // if rectangle crosses the dateline we only check if the lon is >= min or max
-            return r.crossesDateline() ? lon >= r.minLon || lon <= r.maxLon : lon >= r.minLon && lon <= r.maxLon;
-        }
-        return false;
     }
 
     /**

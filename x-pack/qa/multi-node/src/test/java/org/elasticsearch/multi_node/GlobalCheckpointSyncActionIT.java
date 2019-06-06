@@ -16,7 +16,7 @@ import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.yaml.ObjectPath;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
+import static org.elasticsearch.xpack.test.SecuritySettingsSourceField.basicAuthHeaderValue;
 import static org.hamcrest.Matchers.equalTo;
 
 public class GlobalCheckpointSyncActionIT extends ESRestTestCase {
@@ -73,7 +73,7 @@ public class GlobalCheckpointSyncActionIT extends ESRestTestCase {
                     builder.field("foo", i);
                 }
                 builder.endObject();
-                Request indexRequest = new Request("PUT", "/test-index/test-type/" + i);
+                Request indexRequest = new Request("PUT", "/test-index/_doc/" + i);
                 indexRequest.setJsonEntity(Strings.toString(builder));
                 client().performRequest(indexRequest);
             }

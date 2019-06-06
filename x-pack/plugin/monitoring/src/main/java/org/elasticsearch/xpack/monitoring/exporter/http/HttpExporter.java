@@ -16,6 +16,7 @@ import org.apache.http.nio.conn.ssl.SSLIOSessionStrategy;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientBuilder;
 import org.elasticsearch.client.sniff.ElasticsearchNodesSniffer;
@@ -24,12 +25,13 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -38,10 +40,11 @@ import org.elasticsearch.xpack.core.ssl.SSLConfiguration;
 import org.elasticsearch.xpack.core.ssl.SSLConfigurationSettings;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.monitoring.exporter.ClusterAlertsUtil;
+import org.elasticsearch.xpack.monitoring.exporter.ExportBulk;
 import org.elasticsearch.xpack.monitoring.exporter.Exporter;
-import org.joda.time.format.DateTimeFormatter;
 
 import javax.net.ssl.SSLContext;
+
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -53,6 +56,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
+
+import static java.util.Map.entry;
 
 /**
  * {@code HttpExporter} uses the low-level {@link RestClient} to connect to a user-specified set of nodes for exporting Monitoring
@@ -191,7 +196,7 @@ public class HttpExporter extends Exporter {
     private final AtomicBoolean clusterAlertsAllowed = new AtomicBoolean(false);
 
     private final ThreadContext threadContext;
-    private final DateTimeFormatter dateTimeFormatter;
+    private final DateFormatter dateTimeFormatter;
 
     /**
      * Create an {@link HttpExporter}.
@@ -552,21 +557,21 @@ public class HttpExporter extends Exporter {
     static Map<String, String> createDefaultParams(final Config config) {
         final TimeValue bulkTimeout = BULK_TIMEOUT_SETTING.getConcreteSettingForNamespace(config.name()).get(config.settings());
 
-        final MapBuilder<String, String> params = new MapBuilder<>();
+        final var entries = new ArrayList<Map.Entry<String, String>>(3);
 
         if (TimeValue.MINUS_ONE.equals(bulkTimeout) == false) {
-            params.put("timeout", bulkTimeout.toString());
+            entries.add(entry("timeout", bulkTimeout.toString()));
         }
 
         // allow the use of ingest pipelines to be completely optional
         if (USE_INGEST_PIPELINE_SETTING.getConcreteSettingForNamespace(config.name()).get(config.settings())) {
-            params.put("pipeline", MonitoringTemplateUtils.pipelineName(MonitoringTemplateUtils.TEMPLATE_VERSION));
+            entries.add(entry("pipeline", MonitoringTemplateUtils.pipelineName(MonitoringTemplateUtils.TEMPLATE_VERSION)));
         }
 
         // widdle down the response to just what we care to check
-        params.put("filter_path", "errors,items.*.error");
+        entries.add(entry("filter_path", "errors,items.*.error"));
 
-        return params.immutableMap();
+        return Maps.ofEntries(entries);
     }
 
     /**
@@ -590,7 +595,8 @@ public class HttpExporter extends Exporter {
             resources.add(new TemplateHttpResource(resourceOwnerName, templateTimeout, templateName, templateLoader));
         }
 
-        // add old templates, like ".monitoring-data-2" and ".monitoring-es-2" so that other versions can continue to work
+        // Add dummy templates (e.g. ".monitoring-es-6") to enable the ability to check which version of the actual
+        // index template (e.g. ".monitoring-es") should be applied.
         boolean createLegacyTemplates =
                 TEMPLATE_CREATE_LEGACY_VERSIONS_SETTING.getConcreteSettingForNamespace(config.name()).get(config.settings());
         if (createLegacyTemplates) {
@@ -661,12 +667,8 @@ public class HttpExporter extends Exporter {
         }
     }
 
-    /**
-     * Determine if this {@link HttpExporter} is ready to use.
-     *
-     * @return {@code true} if it is ready. {@code false} if not.
-     */
-    boolean isExporterReady() {
+    @Override
+    public void openBulk(final ActionListener<ExportBulk> listener) {
         final boolean canUseClusterAlerts = config.licenseState().isMonitoringClusterAlertsAllowed();
 
         // if this changes between updates, then we need to add OR remove the watches
@@ -674,19 +676,16 @@ public class HttpExporter extends Exporter {
             resource.markDirty();
         }
 
-        // block until all resources are verified to exist
-        return resource.checkAndPublishIfDirty(client);
-    }
+        resource.checkAndPublishIfDirty(client, ActionListener.wrap((success) -> {
+            if (success) {
+                final String name = "xpack.monitoring.exporters." + config.name();
 
-    @Override
-    public HttpExportBulk openBulk() {
-        // block until all resources are verified to exist
-        if (isExporterReady()) {
-            String name = "xpack.monitoring.exporters." + config.name();
-            return new HttpExportBulk(name, client, defaultParams, dateTimeFormatter, threadContext);
-        }
-
-        return null;
+                listener.onResponse(new HttpExportBulk(name, client, defaultParams, dateTimeFormatter, threadContext));
+            } else {
+                // we're not ready yet, so keep waiting
+                listener.onResponse(null);
+            }
+        }, listener::onFailure));
     }
 
     @Override

@@ -6,29 +6,31 @@ index/type.
 
 [source,js]
 --------------------------------------------------
-GET /twitter/_mapping/_doc
+GET /twitter/_mapping
 --------------------------------------------------
 // CONSOLE
 // TEST[setup:twitter]
 
-[float]
-=== Multiple Indices and Types
+NOTE: Before 7.0.0, the 'mappings' definition used to include a type name. Although mappings
+in responses no longer contain a type name by default, you can still request the old format
+through the parameter include_type_name. For more details, please see <<removal-of-types>>.
 
-The get mapping API can be used to get more than one index or type
-mapping with a single call. General usage of the API follows the
-following syntax: `host:port/{index}/_mapping/{type}` where both
-`{index}` and `{type}` can accept a comma-separated list of names. To
-get mappings for all indices you can use `_all` for `{index}`. The
-following are some examples:
+[float]
+=== Multiple Indices
+
+The get mapping API can be used to get more than one index with a
+single call. General usage of the API follows the following syntax:
+`host:port/{index}/_mapping` where  `{index}` can accept a comma-separated
+list of names. To get mappings for all indices you can use `_all` for `{index}`.
+The following are some examples:
 
 [source,js]
 --------------------------------------------------
-GET /_mapping/_doc
-
-GET /_all/_mapping/_doc
+GET /twitter,kimchy/_mapping
 --------------------------------------------------
 // CONSOLE
 // TEST[setup:twitter]
+// TEST[s/^/PUT kimchy\nPUT book\n/]
 
 If you want to get mappings of all indices and types then the following
 two examples are equivalent:
@@ -41,48 +43,3 @@ GET /_mapping
 --------------------------------------------------
 // CONSOLE
 // TEST[setup:twitter]
-
-[float]
-=== Skipping types
-
-Types are scheduled to be fully removed in Elasticsearch 8.0 and will not appear
-in requests or responses anymore. You can opt in for this future behaviour by
-setting `include_type_name=false` in the request, which will return mappings
-directly under `mappings` without keying by the type name.
-
-Here is an example:
-
-[source,js]
---------------------------------------------------
-PUT test?include_type_name=false
-{
-  "mappings": {
-    "properties": {
-      "foo": {
-        "type": "keyword"
-      }
-    }
-  }
-}
-
-GET test/_mappings?include_type_name=false
---------------------------------------------------
-// CONSOLE
-
-which returns
-
-[source,js]
---------------------------------------------------
-{
-  "test": {
-    "mappings": {
-      "properties": {
-        "foo": {
-          "type": "keyword"
-        }
-      }
-    }
-  }
-}
---------------------------------------------------
-// TESTRESPONSE

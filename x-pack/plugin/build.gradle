@@ -11,6 +11,9 @@ archivesBaseName = 'x-pack'
 
 dependencies {
   testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
+  if (isEclipse) {
+    testCompile project(path: xpackModule('core-tests'), configuration: 'testArtifacts')
+  }
 }
 
 subprojects {
@@ -19,9 +22,7 @@ subprojects {
       // see the root Gradle file for additional logic regarding this configuration
       project.configurations.create('featureAwarePlugin')
       project.dependencies.add('featureAwarePlugin', project.configurations.compileClasspath)
-      project.dependencies.add(
-              'featureAwarePlugin',
-              "org.elasticsearch.xpack.test:feature-aware:${org.elasticsearch.gradle.VersionProperties.elasticsearch}")
+      project.dependencies.add('featureAwarePlugin', project(':x-pack:test:feature-aware'))
       project.dependencies.add('featureAwarePlugin', project.sourceSets.main.output.getClassesDirs())
 
       final Task featureAwareTask = project.tasks.create("featureAwareCheck", LoggedExec) {
@@ -133,6 +134,7 @@ integTestCluster {
   setting 'xpack.monitoring.exporters._local.type', 'local'
   setting 'xpack.monitoring.exporters._local.enabled', 'false'
   setting 'xpack.security.authc.token.enabled', 'true'
+  setting 'xpack.security.authc.api_key.enabled', 'true'
   setting 'xpack.security.transport.ssl.enabled', 'true'
   setting 'xpack.security.transport.ssl.key', nodeKey.name
   setting 'xpack.security.transport.ssl.certificate', nodeCert.name
@@ -141,7 +143,7 @@ integTestCluster {
   setting 'xpack.license.self_generated.type', 'trial'
   keystoreSetting 'bootstrap.password', 'x-pack-test-password'
   keystoreSetting 'xpack.security.transport.ssl.secure_key_passphrase', 'testnode'
-  distribution = 'zip' // this is important since we use the reindex module in ML
+  distribution = 'default' // this is important since we use the reindex module in ML
 
   setupCommand 'setupTestUser', 'bin/elasticsearch-users', 'useradd', 'x_pack_rest_user', '-p', 'x-pack-test-password', '-r', 'superuser'
 
@@ -186,4 +188,3 @@ integTestCluster {
 if (integTestCluster.distribution.startsWith("oss-")) {
   integTest.enabled = false
 }
-

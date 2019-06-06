@@ -1,13 +1,16 @@
 [role="xpack"]
 [[security-api-delete-privilege]]
 === Delete application privileges API
+++++
+<titleabbrev>Delete application privileges</titleabbrev>
+++++
 
 Removes 
 {stack-ov}/security-privileges.html#application-privileges[application privileges].
 
 ==== Request
 
-`DELETE /_xpack/security/privilege/<application>/<privilege>` 
+`DELETE /_security/privilege/<application>/<privilege>` 
 
 //==== Description
 
@@ -37,7 +40,7 @@ The following example deletes the `read` application privilege from the
 
 [source,js]
 --------------------------------------------------
-DELETE /_xpack/security/privilege/myapp/read
+DELETE /_security/privilege/myapp/read
 --------------------------------------------------
 // CONSOLE
 // TEST[setup:app0102_privileges] 

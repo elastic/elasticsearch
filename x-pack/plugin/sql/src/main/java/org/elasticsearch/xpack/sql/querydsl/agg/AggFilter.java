@@ -11,7 +11,6 @@ import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
 import org.elasticsearch.xpack.sql.expression.gen.script.Scripts;
 import org.elasticsearch.xpack.sql.util.Check;
 
-import java.util.Collection;
 import java.util.Map;
 import java.util.Objects;
 
@@ -30,14 +29,6 @@ public class AggFilter extends PipelineAgg {
         // make script null safe
         this.scriptTemplate = Scripts.nullSafeFilter(scriptTemplate);
         this.aggPaths = scriptTemplate.aggPaths();
-    }
-
-    public Map<String, String> aggPaths() {
-        return aggPaths;
-    }
-
-    public Collection<String> aggRefs() {
-        return scriptTemplate.aggRefs();
     }
 
     public ScriptTemplate scriptTemplate() {

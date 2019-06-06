@@ -5,11 +5,12 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.test.AbstractStreamableTestCase;
+import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCountsTests;
 
-public class PostDataActionResponseTests extends AbstractStreamableTestCase<PostDataAction.Response> {
+public class PostDataActionResponseTests extends AbstractWireSerializingTestCase<PostDataAction.Response> {
 
     @Override
     protected PostDataAction.Response createTestInstance() {
@@ -18,7 +19,7 @@ public class PostDataActionResponseTests extends AbstractStreamableTestCase<Post
     }
 
     @Override
-    protected PostDataAction.Response createBlankInstance() {
-        return new PostDataAction.Response("foo") ;
+    protected Writeable.Reader<PostDataAction.Response> instanceReader() {
+        return PostDataAction.Response::new;
     }
 }

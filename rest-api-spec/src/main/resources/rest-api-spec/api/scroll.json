@@ -4,7 +4,14 @@
     "methods": ["GET", "POST"],
     "url": {
       "path": "/_search/scroll",
-      "paths": ["/_search/scroll", "/_search/scroll/{scroll_id}"],
+      "paths": ["/_search/scroll"],
+      "deprecated_paths" : [
+        {
+          "version" : "7.0.0",
+          "path" : "/_search/scroll/{scroll_id}",
+          "description" : "A scroll id can be quite large and should be specified as part of the body"
+        }
+      ],
       "parts": {
         "scroll_id": {
           "type" : "string",
@@ -19,6 +26,11 @@
         "scroll_id": {
           "type" : "string",
           "description" : "The scroll ID for scrolled search"
+        },
+        "rest_total_hits_as_int" : {
+          "type" : "boolean",
+          "description" : "Indicates whether hits.total should be rendered as an integer or an object in the rest search response",
+          "default" : false
         }
       }
     },

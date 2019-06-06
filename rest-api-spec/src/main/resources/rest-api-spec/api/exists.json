@@ -3,8 +3,15 @@
     "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/docs-get.html",
     "methods": ["HEAD"],
     "url": {
-      "path": "/{index}/{type}/{id}",
-      "paths": ["/{index}/{type}/{id}"],
+      "path": "/{index}/_doc/{id}",
+      "paths": ["/{index}/_doc/{id}"],
+      "deprecated_paths" : [
+        {
+          "version" : "7.0.0",
+          "path" : "/{index}/{type}/{id}",
+          "description" : "Specifying types in urls has been deprecated"
+        }
+      ],
       "parts": {
         "id": {
           "type" : "string",
@@ -18,7 +25,6 @@
         },
         "type": {
           "type" : "string",
-          "required" : true,
           "description" : "The type of the document (use `_all` to fetch the first document matching the ID across all types)"
         }
       },
@@ -26,10 +32,6 @@
         "stored_fields": {
           "type": "list",
           "description" : "A comma-separated list of stored fields to return in the response"
-        },
-        "parent": {
-          "type" : "string",
-          "description" : "The ID of the parent document"
         },
         "preference": {
           "type" : "string",

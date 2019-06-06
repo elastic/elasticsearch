@@ -5,9 +5,11 @@
  */
 package org.elasticsearch.xpack.security.authc.saml;
 
+import com.sun.net.httpserver.HttpsServer;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.bootstrap.JavaVersion;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -19,6 +21,7 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.watcher.ResourceWatcherService;
+import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.Realm;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
@@ -30,6 +33,7 @@ import org.elasticsearch.xpack.core.ssl.CertParsingUtils;
 import org.elasticsearch.xpack.core.ssl.PemUtils;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.core.ssl.TestsSSLService;
+import org.elasticsearch.xpack.security.authc.Realms;
 import org.elasticsearch.xpack.security.authc.support.MockLookupRealm;
 import org.elasticsearch.xpack.security.authc.support.UserRoleMapper;
 import org.hamcrest.Matchers;
@@ -51,8 +55,10 @@ import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.AccessController;
 import java.security.KeyStore;
 import java.security.PrivateKey;
+import java.security.PrivilegedAction;
 import java.security.PrivilegedActionException;
 import java.security.PublicKey;
 import java.security.cert.Certificate;
@@ -64,6 +70,7 @@ import java.util.Locale;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.core.security.authc.RealmSettings.getFullSettingKey;
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
@@ -121,19 +128,21 @@ public class SamlRealmTests extends SamlTestCase {
         final Path path = getDataPath("idp1.xml");
         final String body = new String(Files.readAllBytes(path), StandardCharsets.UTF_8);
         final MockSecureSettings mockSecureSettings = new MockSecureSettings();
-        mockSecureSettings.setString("xpack.ssl.secure_key_passphrase", "testnode");
+        mockSecureSettings.setString("xpack.security.http.ssl.secure_key_passphrase", "testnode");
         final Settings settings = Settings.builder()
-            .put("xpack.ssl.key",
+            .put("xpack.security.http.ssl.key",
                 getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.pem"))
-            .put("xpack.ssl.certificate",
+            .put("xpack.security.http.ssl.certificate",
                 getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt"))
-            .put("xpack.ssl.certificate_authorities",
+            .put("xpack.security.http.ssl.certificate_authorities",
                 getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt"))
+            .putList("xpack.security.http.ssl.supported_protocols", getProtocols())
             .put("path.home", createTempDir())
             .setSecureSettings(mockSecureSettings)
             .build();
         TestsSSLService sslService = new TestsSSLService(settings, TestEnvironment.newEnvironment(settings));
-        try (MockWebServer proxyServer = new MockWebServer(sslService.sslContext(Settings.EMPTY), false)) {
+        try (MockWebServer proxyServer =
+                     new MockWebServer(sslService.sslContext("xpack.security.http.ssl"), false)) {
             proxyServer.start();
             proxyServer.enqueue(new MockResponse().setResponseCode(200).setBody(body).addHeader("Content-Type", "application/xml"));
             proxyServer.enqueue(new MockResponse().setResponseCode(200).setBody(body).addHeader("Content-Type", "application/xml"));
@@ -630,6 +639,35 @@ public class SamlRealmTests extends SamlTestCase {
         }
     }
 
+    public void testCorrectRealmSelected() throws Exception {
+        final String acsUrl = "https://idp.test/saml/login";
+        final UserRoleMapper roleMapper = mock(UserRoleMapper.class);
+        final EntityDescriptor idp = mockIdp();
+        final SpConfiguration sp = new SpConfiguration("<sp>", acsUrl, null, null, null, Collections.emptyList());
+        final SamlAuthenticator authenticator = mock(SamlAuthenticator.class);
+        final SamlLogoutRequestHandler logoutHandler = mock(SamlLogoutRequestHandler.class);
+        final Settings.Builder realmSettings = Settings.builder()
+            .put(getFullSettingKey(REALM_NAME, SamlRealmSettings.PRINCIPAL_ATTRIBUTE.getAttribute()), "uid")
+            .put(getFullSettingKey(REALM_NAME, SamlRealmSettings.IDP_METADATA_PATH), "http://url.to/metadata")
+            .put(getFullSettingKey(REALM_NAME, SamlRealmSettings.IDP_ENTITY_ID), TEST_IDP_ENTITY_ID)
+            .put(getFullSettingKey(REALM_NAME, SamlRealmSettings.SP_ACS), acsUrl);
+        final RealmConfig config = buildConfig(realmSettings.build());
+        final SamlRealm realm = buildRealm(config, roleMapper, authenticator, logoutHandler, idp, sp);
+        final Realms realms = mock(Realms.class);
+        when(realms.realm(REALM_NAME)).thenReturn(realm);
+        when(realms.stream()).thenAnswer(i -> Stream.of(realm));
+        final String emptyRealmName = randomBoolean() ? null : "";
+        assertThat(SamlRealm.findSamlRealms(realms, emptyRealmName, acsUrl).size(), equalTo(1));
+        assertThat(SamlRealm.findSamlRealms(realms, emptyRealmName, acsUrl).get(0), equalTo(realm));
+        assertThat(SamlRealm.findSamlRealms(realms, "my-saml", acsUrl).size(), equalTo(1));
+        assertThat(SamlRealm.findSamlRealms(realms, "my-saml", acsUrl).get(0), equalTo(realm));
+        assertThat(SamlRealm.findSamlRealms(realms, "my-saml", null).size(), equalTo(1));
+        assertThat(SamlRealm.findSamlRealms(realms, "my-saml", null).get(0), equalTo(realm));
+        assertThat(SamlRealm.findSamlRealms(realms, "my-saml", "https://idp.test:443/saml/login").size(), equalTo(0));
+        assertThat(SamlRealm.findSamlRealms(realms, "incorrect", acsUrl).size(), equalTo(0));
+        assertThat(SamlRealm.findSamlRealms(realms, "incorrect", "https://idp.test:443/saml/login").size(), equalTo(0));
+    }
+
     private EntityDescriptor mockIdp() {
         final EntityDescriptor descriptor = mock(EntityDescriptor.class);
         when(descriptor.getEntityID()).thenReturn("https://idp.saml/");
@@ -682,5 +720,23 @@ public class SamlRealmTests extends SamlTestCase {
         assertEquals(2, ssoServices.size());
         assertEquals(SAMLConstants.SAML2_POST_BINDING_URI, ssoServices.get(0).getBinding());
         assertEquals(SAMLConstants.SAML2_REDIRECT_BINDING_URI, ssoServices.get(1).getBinding());
+    }
+
+    /**
+     * The {@link HttpsServer} in the JDK has issues with TLSv1.3 when running in a JDK prior to
+     * 12.0.1 so we pin to TLSv1.2 when running on an earlier JDK
+     */
+    private static List<String> getProtocols() {
+        if (JavaVersion.current().compareTo(JavaVersion.parse("12")) < 0) {
+            return List.of("TLSv1.2");
+        } else {
+            JavaVersion full =
+                AccessController.doPrivileged(
+                        (PrivilegedAction<JavaVersion>) () -> JavaVersion.parse(System.getProperty("java.specification.version")));
+            if (full.compareTo(JavaVersion.parse("12.0.1")) < 0) {
+                return List.of("TLSv1.2");
+            }
+        }
+        return XPackSettings.DEFAULT_SUPPORTED_PROTOCOLS;
     }
 }

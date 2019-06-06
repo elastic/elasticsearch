@@ -15,7 +15,6 @@ import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
@@ -36,10 +35,15 @@ public class StartRollupJobAction extends Action<StartRollupJobAction.Response> 
 
     @Override
     public Response newResponse() {
-        return new Response();
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
-    public static class Request extends BaseTasksRequest<Request> implements ToXContent {
+    @Override
+    public Writeable.Reader<Response> getResponseReader() {
+        return Response::new;
+    }
+
+    public static class Request extends BaseTasksRequest<Request> implements ToXContentObject {
         private String id;
 
         public Request(String id) {
@@ -48,13 +52,8 @@ public class StartRollupJobAction extends Action<StartRollupJobAction.Response> 
 
         public Request() {}
 
-        public String getId() {
-            return id;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
+        public Request(StreamInput in) throws IOException {
+            super(in);
             id = in.readString();
         }
 
@@ -64,6 +63,10 @@ public class StartRollupJobAction extends Action<StartRollupJobAction.Response> 
             out.writeString(id);
         }
 
+        public String getId() {
+            return id;
+        }
+
         @Override
         public ActionRequestValidationException validate() {
             return null;
@@ -71,7 +74,9 @@ public class StartRollupJobAction extends Action<StartRollupJobAction.Response> 
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
             builder.field(RollupField.ID.getPreferredName(), id);
+            builder.endObject();
             return builder;
         }
 
@@ -102,30 +107,15 @@ public class StartRollupJobAction extends Action<StartRollupJobAction.Response> 
 
     public static class Response extends BaseTasksResponse implements Writeable, ToXContentObject {
 
-        private boolean started;
-
-        public Response() {
-            super(Collections.emptyList(), Collections.emptyList());
-        }
-
-        public Response(StreamInput in) throws IOException {
-            super(Collections.emptyList(), Collections.emptyList());
-            readFrom(in);
-        }
+        private final boolean started;
 
         public Response(boolean started) {
             super(Collections.emptyList(), Collections.emptyList());
             this.started = started;
         }
 
-        public boolean isStarted() {
-            return started;
-        }
-
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
+        public Response(StreamInput in) throws IOException {
+            super(in);
             started = in.readBoolean();
         }
 
@@ -133,6 +123,10 @@ public class StartRollupJobAction extends Action<StartRollupJobAction.Response> 
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeBoolean(started);
+        }
+
+        public boolean isStarted() {
+            return started;
         }
 
         @Override

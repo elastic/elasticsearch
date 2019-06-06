@@ -11,28 +11,24 @@ setup:
   - do:
       index:
         index:  test_sliced_scroll
-        type:   test
         id:     1
         body:   { foo: 1 }
 
   - do:
       index:
         index:  test_sliced_scroll
-        type:   test
         id:     2
         body:   { foo: 2 }
 
   - do:
       index:
         index:  test_sliced_scroll
-        type:   test
         id:     3
         body:   { foo: 3 }
 
   - do:
       index:
         index:  test_sliced_scroll
-        type:   test
         id:     4
         body:   { foo: 4 }
 
@@ -43,6 +39,7 @@ setup:
 "Sliced scroll":
   - do:
       search:
+        rest_total_hits_as_int: true
         index: test_sliced_scroll
         scroll: 1m
         sort: foo
@@ -62,6 +59,7 @@ setup:
 
   - do:
       scroll:
+        rest_total_hits_as_int: true
         scroll_id: $scroll_id
         scroll: 1m
 
@@ -74,6 +72,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: test_sliced_scroll
         scroll: 1m
         sort: foo
@@ -91,6 +90,7 @@ setup:
 
   - do:
       scroll:
+        rest_total_hits_as_int: true
         scroll_id: $scroll_id
         scroll: 1m
 
@@ -103,13 +103,11 @@ setup:
 
 ---
 "Sliced scroll with invalid arguments":
-  - skip:
-      version: " - 6.99.99"
-      reason: Prior versions return 500 rather than 404
 
   - do:
         catch: bad_request
         search:
+          rest_total_hits_as_int: true
           index: test_sliced_scroll
           size: 1
           scroll: 1m
@@ -128,6 +126,7 @@ setup:
 
   - do:
         search:
+          rest_total_hits_as_int: true
           index: test_sliced_scroll
           size: 1
           scroll: 1m
@@ -143,4 +142,3 @@ setup:
   - do:
         clear_scroll:
           scroll_id: $scroll_id
-

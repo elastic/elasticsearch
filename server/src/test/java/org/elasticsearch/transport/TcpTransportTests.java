@@ -20,30 +20,25 @@
 package org.elasticsearch.transport;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.network.NetworkService;
+import org.elasticsearch.common.network.NetworkUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.common.util.MockPageCacheRecycler;
+import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.threadpool.TestThreadPool;
-import org.elasticsearch.threadpool.ThreadPool;
+import org.hamcrest.Matcher;
 
 import java.io.IOException;
 import java.io.StreamCorruptedException;
 import java.net.InetSocketAddress;
-import java.util.ArrayList;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicReference;
+import java.util.Collections;
 
-import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.core.IsInstanceOf.instanceOf;
 
 /** Unit tests for {@link TcpTransport} */
@@ -51,50 +46,26 @@ public class TcpTransportTests extends ESTestCase {
 
     /** Test ipv4 host with a default port works */
     public void testParseV4DefaultPort() throws Exception {
-        TransportAddress[] addresses = TcpTransport.parse("127.0.0.1", "1234", Integer.MAX_VALUE);
+        TransportAddress[] addresses = TcpTransport.parse("127.0.0.1", 1234);
         assertEquals(1, addresses.length);
 
         assertEquals("127.0.0.1", addresses[0].getAddress());
         assertEquals(1234, addresses[0].getPort());
-    }
-
-    /** Test ipv4 host with a default port range works */
-    public void testParseV4DefaultRange() throws Exception {
-        TransportAddress[] addresses = TcpTransport.parse("127.0.0.1", "1234-1235", Integer.MAX_VALUE);
-        assertEquals(2, addresses.length);
-
-        assertEquals("127.0.0.1", addresses[0].getAddress());
-        assertEquals(1234, addresses[0].getPort());
-
-        assertEquals("127.0.0.1", addresses[1].getAddress());
-        assertEquals(1235, addresses[1].getPort());
     }
 
     /** Test ipv4 host with port works */
     public void testParseV4WithPort() throws Exception {
-        TransportAddress[] addresses = TcpTransport.parse("127.0.0.1:2345", "1234", Integer.MAX_VALUE);
+        TransportAddress[] addresses = TcpTransport.parse("127.0.0.1:2345", 1234);
         assertEquals(1, addresses.length);
 
         assertEquals("127.0.0.1", addresses[0].getAddress());
         assertEquals(2345, addresses[0].getPort());
-    }
-
-    /** Test ipv4 host with port range works */
-    public void testParseV4WithPortRange() throws Exception {
-        TransportAddress[] addresses = TcpTransport.parse("127.0.0.1:2345-2346", "1234", Integer.MAX_VALUE);
-        assertEquals(2, addresses.length);
-
-        assertEquals("127.0.0.1", addresses[0].getAddress());
-        assertEquals(2345, addresses[0].getPort());
-
-        assertEquals("127.0.0.1", addresses[1].getAddress());
-        assertEquals(2346, addresses[1].getPort());
     }
 
     /** Test unbracketed ipv6 hosts in configuration fail. Leave no ambiguity */
     public void testParseV6UnBracketed() throws Exception {
         try {
-            TcpTransport.parse("::1", "1234", Integer.MAX_VALUE);
+            TcpTransport.parse("::1", 1234);
             fail("should have gotten exception");
         } catch (IllegalArgumentException expected) {
             assertTrue(expected.getMessage().contains("must be bracketed"));
@@ -103,226 +74,116 @@ public class TcpTransportTests extends ESTestCase {
 
     /** Test ipv6 host with a default port works */
     public void testParseV6DefaultPort() throws Exception {
-        TransportAddress[] addresses = TcpTransport.parse("[::1]", "1234", Integer.MAX_VALUE);
+        TransportAddress[] addresses = TcpTransport.parse("[::1]", 1234);
         assertEquals(1, addresses.length);
 
         assertEquals("::1", addresses[0].getAddress());
         assertEquals(1234, addresses[0].getPort());
-    }
-
-    /** Test ipv6 host with a default port range works */
-    public void testParseV6DefaultRange() throws Exception {
-        TransportAddress[] addresses = TcpTransport.parse("[::1]", "1234-1235", Integer.MAX_VALUE);
-        assertEquals(2, addresses.length);
-
-        assertEquals("::1", addresses[0].getAddress());
-        assertEquals(1234, addresses[0].getPort());
-
-        assertEquals("::1", addresses[1].getAddress());
-        assertEquals(1235, addresses[1].getPort());
     }
 
     /** Test ipv6 host with port works */
     public void testParseV6WithPort() throws Exception {
-        TransportAddress[] addresses = TcpTransport.parse("[::1]:2345", "1234", Integer.MAX_VALUE);
+        TransportAddress[] addresses = TcpTransport.parse("[::1]:2345", 1234);
         assertEquals(1, addresses.length);
 
         assertEquals("::1", addresses[0].getAddress());
         assertEquals(2345, addresses[0].getPort());
     }
 
-    /** Test ipv6 host with port range works */
-    public void testParseV6WithPortRange() throws Exception {
-        TransportAddress[] addresses = TcpTransport.parse("[::1]:2345-2346", "1234", Integer.MAX_VALUE);
-        assertEquals(2, addresses.length);
-
-        assertEquals("::1", addresses[0].getAddress());
-        assertEquals(2345, addresses[0].getPort());
-
-        assertEquals("::1", addresses[1].getAddress());
-        assertEquals(2346, addresses[1].getPort());
+    public void testRejectsPortRanges() {
+        expectThrows(
+            NumberFormatException.class,
+            () -> TcpTransport.parse("[::1]:100-200", 1000)
+        );
     }
 
-    /** Test per-address limit */
-    public void testAddressLimit() throws Exception {
-        TransportAddress[] addresses = TcpTransport.parse("[::1]:100-200", "1000", 3);
-        assertEquals(3, addresses.length);
-        assertEquals(100, addresses[0].getPort());
-        assertEquals(101, addresses[1].getPort());
-        assertEquals(102, addresses[2].getPort());
+    public void testDefaultSeedAddressesWithDefaultPort() {
+        final Matcher<Iterable<? extends String>> seedAddressMatcher = NetworkUtils.SUPPORTS_V6 ?
+            containsInAnyOrder(
+                "[::1]:9300", "[::1]:9301", "[::1]:9302", "[::1]:9303", "[::1]:9304", "[::1]:9305",
+                "127.0.0.1:9300", "127.0.0.1:9301", "127.0.0.1:9302", "127.0.0.1:9303", "127.0.0.1:9304", "127.0.0.1:9305") :
+            containsInAnyOrder(
+                "127.0.0.1:9300", "127.0.0.1:9301", "127.0.0.1:9302", "127.0.0.1:9303", "127.0.0.1:9304", "127.0.0.1:9305");
+        testDefaultSeedAddresses(Settings.EMPTY, seedAddressMatcher);
     }
 
-    public void testEnsureVersionCompatibility() {
-        TcpTransport.ensureVersionCompatibility(VersionUtils.randomVersionBetween(random(), Version.CURRENT.minimumCompatibilityVersion(),
-            Version.CURRENT), Version.CURRENT, randomBoolean());
-
-        final Version version = Version.fromString("7.0.0");
-        TcpTransport.ensureVersionCompatibility(Version.fromString("6.0.0"), version, true);
-        IllegalStateException ise = expectThrows(IllegalStateException.class, () ->
-            TcpTransport.ensureVersionCompatibility(Version.fromString("6.0.0"), version, false));
-        assertEquals("Received message from unsupported version: [6.0.0] minimal compatible version is: ["
-            + version.minimumCompatibilityVersion() + "]", ise.getMessage());
-
-        // For handshake we are compatible with N-2
-        TcpTransport.ensureVersionCompatibility(Version.fromString("5.6.0"), version, true);
-        ise = expectThrows(IllegalStateException.class, () ->
-            TcpTransport.ensureVersionCompatibility(Version.fromString("5.6.0"), version, false));
-        assertEquals("Received message from unsupported version: [5.6.0] minimal compatible version is: ["
-                + version.minimumCompatibilityVersion() + "]", ise.getMessage());
-
-        ise = expectThrows(IllegalStateException.class, () ->
-            TcpTransport.ensureVersionCompatibility(Version.fromString("2.3.0"), version, true));
-        assertEquals("Received handshake message from unsupported version: [2.3.0] minimal compatible version is: ["
-            + version.minimumCompatibilityVersion() + "]", ise.getMessage());
-
-        ise = expectThrows(IllegalStateException.class, () ->
-            TcpTransport.ensureVersionCompatibility(Version.fromString("2.3.0"), version, false));
-        assertEquals("Received message from unsupported version: [2.3.0] minimal compatible version is: ["
-            + version.minimumCompatibilityVersion() + "]", ise.getMessage());
+    public void testDefaultSeedAddressesWithNonstandardGlobalPortRange() {
+        final Matcher<Iterable<? extends String>> seedAddressMatcher = NetworkUtils.SUPPORTS_V6 ?
+            containsInAnyOrder(
+                "[::1]:9500", "[::1]:9501", "[::1]:9502", "[::1]:9503", "[::1]:9504", "[::1]:9505",
+                "127.0.0.1:9500", "127.0.0.1:9501", "127.0.0.1:9502", "127.0.0.1:9503", "127.0.0.1:9504", "127.0.0.1:9505") :
+            containsInAnyOrder(
+                "127.0.0.1:9500", "127.0.0.1:9501", "127.0.0.1:9502", "127.0.0.1:9503", "127.0.0.1:9504", "127.0.0.1:9505");
+        testDefaultSeedAddresses(Settings.builder().put(TransportSettings.PORT.getKey(), "9500-9600").build(), seedAddressMatcher);
     }
 
-    public void testCompressRequest() throws IOException {
-        final boolean compressed = randomBoolean();
-        Req request = new Req(randomRealisticUnicodeOfLengthBetween(10, 100));
-        ThreadPool threadPool = new TestThreadPool(TcpTransportTests.class.getName());
-        AtomicReference<BytesReference> messageCaptor = new AtomicReference<>();
+    public void testDefaultSeedAddressesWithSmallGlobalPortRange() {
+        final Matcher<Iterable<? extends String>> seedAddressMatcher = NetworkUtils.SUPPORTS_V6 ?
+            containsInAnyOrder("[::1]:9300", "[::1]:9301", "[::1]:9302", "127.0.0.1:9300", "127.0.0.1:9301", "127.0.0.1:9302") :
+            containsInAnyOrder("127.0.0.1:9300", "127.0.0.1:9301", "127.0.0.1:9302");
+        testDefaultSeedAddresses(Settings.builder().put(TransportSettings.PORT.getKey(), "9300-9302").build(), seedAddressMatcher);
+    }
+
+    public void testDefaultSeedAddressesWithNonstandardProfilePortRange() {
+        final Matcher<Iterable<? extends String>> seedAddressMatcher = NetworkUtils.SUPPORTS_V6 ?
+            containsInAnyOrder("[::1]:9500", "[::1]:9501", "[::1]:9502", "[::1]:9503", "[::1]:9504", "[::1]:9505",
+                "127.0.0.1:9500", "127.0.0.1:9501", "127.0.0.1:9502", "127.0.0.1:9503", "127.0.0.1:9504", "127.0.0.1:9505") :
+            containsInAnyOrder("127.0.0.1:9500", "127.0.0.1:9501", "127.0.0.1:9502", "127.0.0.1:9503", "127.0.0.1:9504", "127.0.0.1:9505");
+        testDefaultSeedAddresses(Settings.builder()
+                .put(TransportSettings.PORT_PROFILE.getConcreteSettingForNamespace(TransportSettings.DEFAULT_PROFILE).getKey(), "9500-9600")
+                .build(), seedAddressMatcher);
+    }
+
+    public void testDefaultSeedAddressesWithSmallProfilePortRange() {
+        final Matcher<Iterable<? extends String>> seedAddressMatcher = NetworkUtils.SUPPORTS_V6 ?
+            containsInAnyOrder("[::1]:9300", "[::1]:9301", "[::1]:9302", "127.0.0.1:9300", "127.0.0.1:9301", "127.0.0.1:9302") :
+            containsInAnyOrder("127.0.0.1:9300", "127.0.0.1:9301", "127.0.0.1:9302");
+        testDefaultSeedAddresses(Settings.builder()
+                .put(TransportSettings.PORT_PROFILE.getConcreteSettingForNamespace(TransportSettings.DEFAULT_PROFILE).getKey(), "9300-9302")
+                .build(), seedAddressMatcher);
+    }
+
+    public void testDefaultSeedAddressesPrefersProfileSettingToGlobalSetting() {
+        final Matcher<Iterable<? extends String>> seedAddressMatcher = NetworkUtils.SUPPORTS_V6 ?
+            containsInAnyOrder("[::1]:9300", "[::1]:9301", "[::1]:9302", "127.0.0.1:9300", "127.0.0.1:9301", "127.0.0.1:9302") :
+            containsInAnyOrder("127.0.0.1:9300", "127.0.0.1:9301", "127.0.0.1:9302");
+        testDefaultSeedAddresses(Settings.builder()
+                .put(TransportSettings.PORT_PROFILE.getConcreteSettingForNamespace(TransportSettings.DEFAULT_PROFILE).getKey(), "9300-9302")
+                .put(TransportSettings.PORT.getKey(), "9500-9600")
+                .build(), seedAddressMatcher);
+    }
+
+    public void testDefaultSeedAddressesWithNonstandardSinglePort() {
+        testDefaultSeedAddresses(Settings.builder().put(TransportSettings.PORT.getKey(), "9500").build(),
+            NetworkUtils.SUPPORTS_V6 ? containsInAnyOrder("[::1]:9500", "127.0.0.1:9500") : containsInAnyOrder("127.0.0.1:9500"));
+    }
+
+    private void testDefaultSeedAddresses(final Settings settings, Matcher<Iterable<? extends String>> seedAddressesMatcher) {
+        final TestThreadPool testThreadPool = new TestThreadPool("test");
         try {
-            TcpTransport transport = new TcpTransport("test", Settings.EMPTY, Version.CURRENT, threadPool,
-                new BigArrays(new PageCacheRecycler(Settings.EMPTY), null), null, null, null) {
+            final TcpTransport tcpTransport = new TcpTransport(settings, Version.CURRENT, testThreadPool,
+                new MockPageCacheRecycler(settings),
+                new NoneCircuitBreakerService(), writableRegistry(), new NetworkService(Collections.emptyList())) {
 
                 @Override
-                protected FakeChannel bind(String name, InetSocketAddress address) throws IOException {
-                    return null;
+                protected TcpServerChannel bind(String name, InetSocketAddress address) {
+                    throw new UnsupportedOperationException();
                 }
 
                 @Override
-                protected FakeChannel initiateChannel(DiscoveryNode node) throws IOException {
-                    return new FakeChannel(messageCaptor);
+                protected TcpChannel initiateChannel(DiscoveryNode node) {
+                    throw new UnsupportedOperationException();
                 }
 
                 @Override
                 protected void stopInternal() {
-                }
-
-                @Override
-                public NodeChannels openConnection(DiscoveryNode node, ConnectionProfile connectionProfile) {
-                    if (compressed)  {
-                        assertTrue(connectionProfile.getCompressionEnabled());
-                    }
-                    int numConnections = connectionProfile.getNumConnections();
-                    ArrayList<TcpChannel> fakeChannels = new ArrayList<>(numConnections);
-                    for (int i = 0; i < numConnections; ++i) {
-                        fakeChannels.add(new FakeChannel(messageCaptor));
-                    }
-                    return new NodeChannels(node, fakeChannels, connectionProfile, Version.CURRENT);
+                    throw new UnsupportedOperationException();
                 }
             };
 
-            DiscoveryNode node = new DiscoveryNode("foo", buildNewFakeTransportAddress(), Version.CURRENT);
-            ConnectionProfile.Builder profileBuilder = new ConnectionProfile.Builder(MockTcpTransport.LIGHT_PROFILE);
-            if (compressed) {
-                profileBuilder.setCompressionEnabled(true);
-            } else {
-                profileBuilder.setCompressionEnabled(false);
-            }
-            Transport.Connection connection = transport.openConnection(node, profileBuilder.build());
-            connection.sendRequest(42, "foobar", request, TransportRequestOptions.EMPTY);
-
-            BytesReference reference = messageCaptor.get();
-            assertNotNull(reference);
-
-            StreamInput streamIn = reference.streamInput();
-            streamIn.skip(TcpHeader.MARKER_BYTES_SIZE);
-            @SuppressWarnings("unused")
-            int len = streamIn.readInt();
-            long requestId = streamIn.readLong();
-            assertEquals(42, requestId);
-            byte status = streamIn.readByte();
-            Version version = Version.fromId(streamIn.readInt());
-            assertEquals(Version.CURRENT, version);
-            assertEquals(compressed, TransportStatus.isCompress(status));
-            if (compressed) {
-                final int bytesConsumed = TcpHeader.HEADER_SIZE;
-                streamIn = CompressorFactory.compressor(reference.slice(bytesConsumed, reference.length() - bytesConsumed))
-                    .streamInput(streamIn);
-                }
-            threadPool.getThreadContext().readHeaders(streamIn);
-            assertThat(streamIn.readStringArray(), equalTo(new String[0])); // features
-            assertEquals("foobar", streamIn.readString());
-            Req readReq = new Req("");
-            readReq.readFrom(streamIn);
-            assertEquals(request.value, readReq.value);
-
+            assertThat(tcpTransport.getDefaultSeedAddresses(), seedAddressesMatcher);
         } finally {
-            ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS);
-        }
-    }
-
-    private static final class FakeChannel implements TcpChannel, TcpServerChannel {
-
-        private final AtomicReference<BytesReference> messageCaptor;
-
-        FakeChannel(AtomicReference<BytesReference> messageCaptor) {
-            this.messageCaptor = messageCaptor;
-        }
-
-        @Override
-        public void close() {
-        }
-
-        @Override
-        public String getProfile() {
-            return null;
-        }
-
-        @Override
-        public void addCloseListener(ActionListener<Void> listener) {
-        }
-
-        @Override
-        public void addConnectListener(ActionListener<Void> listener) {
-        }
-
-        @Override
-        public void setSoLinger(int value) throws IOException {
-        }
-
-        @Override
-        public boolean isOpen() {
-            return false;
-        }
-
-        @Override
-        public InetSocketAddress getLocalAddress() {
-            return null;
-        }
-
-        @Override
-        public InetSocketAddress getRemoteAddress() {
-            return null;
-        }
-
-        @Override
-        public void sendMessage(BytesReference reference, ActionListener<Void> listener) {
-            messageCaptor.set(reference);
-        }
-    }
-
-    private static final class Req extends TransportRequest {
-        public String value;
-
-        private Req(String value) {
-            this.value = value;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            value = in.readString();
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeString(value);
+            testThreadPool.shutdown();
         }
     }
 

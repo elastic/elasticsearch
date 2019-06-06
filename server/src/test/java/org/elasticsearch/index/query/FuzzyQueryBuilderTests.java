@@ -33,7 +33,6 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -93,15 +92,6 @@ public class FuzzyQueryBuilderTests extends AbstractQueryTestCase<FuzzyQueryBuil
 
         e = expectThrows(IllegalArgumentException.class, () -> new FuzzyQueryBuilder("field", null));
         assertEquals("query value cannot be null", e.getMessage());
-    }
-
-    public void testUnsupportedFuzzinessForStringType() throws IOException {
-        QueryShardContext context = createShardContext();
-        context.setAllowUnmappedFields(true);
-        FuzzyQueryBuilder fuzzyQueryBuilder = new FuzzyQueryBuilder(STRING_FIELD_NAME, "text");
-        fuzzyQueryBuilder.fuzziness(Fuzziness.build(randomFrom("a string which is not auto", "3h", "200s")));
-        NumberFormatException e = expectThrows(NumberFormatException.class, () -> fuzzyQueryBuilder.toQuery(context));
-        assertThat(e.getMessage(), containsString("For input string"));
     }
 
     public void testToQueryWithStringField() throws IOException {
@@ -175,7 +165,7 @@ public class FuzzyQueryBuilderTests extends AbstractQueryTestCase<FuzzyQueryBuil
             "    }\n" +
             "}";
         String msg2 = "fuzziness wrongly configured";
-        IllegalArgumentException e2 = expectThrows(IllegalArgumentException.class,
+        ElasticsearchParseException e2 = expectThrows(ElasticsearchParseException.class,
             () -> parseQuery(queryHavingNegativeFuzzinessLowLimit).toQuery(createShardContext()));
         assertTrue(e2.getMessage() + " didn't contain: " + msg2 + " but: " + e.getMessage(), e.getMessage().contains
             (msg));
@@ -215,7 +205,7 @@ public class FuzzyQueryBuilderTests extends AbstractQueryTestCase<FuzzyQueryBuil
                 "    \"fuzzy\":{\n" +
                 "        \"" + INT_FIELD_NAME + "\":{\n" +
                 "            \"value\":12,\n" +
-                "            \"fuzziness\":5\n" +
+                "            \"fuzziness\":2\n" +
                 "        }\n" +
                 "    }\n" +
                 "}\n";

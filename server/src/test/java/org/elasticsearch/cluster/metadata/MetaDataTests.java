@@ -22,6 +22,8 @@ package org.elasticsearch.cluster.metadata;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.elasticsearch.cluster.ClusterModule;
+import org.elasticsearch.cluster.coordination.CoordinationMetaData;
+import org.elasticsearch.cluster.coordination.CoordinationMetaData.VotingConfigExclusion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -31,6 +33,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -47,6 +50,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.startsWith;
@@ -406,6 +410,85 @@ public class MetaDataTests extends ESTestCase {
             final MetaData fromXContentMeta = MetaData.fromXContent(parser);
             assertThat(fromXContentMeta.indexGraveyard(), equalTo(originalMeta.indexGraveyard()));
         }
+    }
+
+    public void testXContentClusterUUID() throws IOException {
+        final MetaData originalMeta = MetaData.builder().clusterUUID(UUIDs.randomBase64UUID())
+            .clusterUUIDCommitted(randomBoolean()).build();
+        final XContentBuilder builder = JsonXContent.contentBuilder();
+        builder.startObject();
+        originalMeta.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        builder.endObject();
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder))) {
+            final MetaData fromXContentMeta = MetaData.fromXContent(parser);
+            assertThat(fromXContentMeta.clusterUUID(), equalTo(originalMeta.clusterUUID()));
+            assertThat(fromXContentMeta.clusterUUIDCommitted(), equalTo(originalMeta.clusterUUIDCommitted()));
+        }
+    }
+
+    public void testSerializationClusterUUID() throws IOException {
+        final MetaData originalMeta = MetaData.builder().clusterUUID(UUIDs.randomBase64UUID())
+            .clusterUUIDCommitted(randomBoolean()).build();
+        final BytesStreamOutput out = new BytesStreamOutput();
+        originalMeta.writeTo(out);
+        NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(ClusterModule.getNamedWriteables());
+        final MetaData fromStreamMeta = MetaData.readFrom(
+            new NamedWriteableAwareStreamInput(out.bytes().streamInput(), namedWriteableRegistry)
+        );
+        assertThat(fromStreamMeta.clusterUUID(), equalTo(originalMeta.clusterUUID()));
+        assertThat(fromStreamMeta.clusterUUIDCommitted(), equalTo(originalMeta.clusterUUIDCommitted()));
+    }
+
+    public void testMetaDataGlobalStateChangesOnClusterUUIDChanges() {
+        final MetaData metaData1 = MetaData.builder().clusterUUID(UUIDs.randomBase64UUID()).clusterUUIDCommitted(randomBoolean()).build();
+        final MetaData metaData2 = MetaData.builder(metaData1).clusterUUID(UUIDs.randomBase64UUID()).build();
+        final MetaData metaData3 = MetaData.builder(metaData1).clusterUUIDCommitted(!metaData1.clusterUUIDCommitted()).build();
+        assertFalse(MetaData.isGlobalStateEquals(metaData1, metaData2));
+        assertFalse(MetaData.isGlobalStateEquals(metaData1, metaData3));
+        final MetaData metaData4 = MetaData.builder(metaData2).clusterUUID(metaData1.clusterUUID()).build();
+        assertTrue(MetaData.isGlobalStateEquals(metaData1, metaData4));
+    }
+
+    private static CoordinationMetaData.VotingConfiguration randomVotingConfig() {
+        return new CoordinationMetaData.VotingConfiguration(Sets.newHashSet(generateRandomStringArray(randomInt(10), 20, false)));
+    }
+
+    private Set<VotingConfigExclusion> randomVotingConfigExclusions() {
+        final int size = randomIntBetween(0, 10);
+        final Set<VotingConfigExclusion> nodes = new HashSet<>(size);
+        while (nodes.size() < size) {
+            assertTrue(nodes.add(new VotingConfigExclusion(randomAlphaOfLength(10), randomAlphaOfLength(10))));
+        }
+        return nodes;
+    }
+
+    public void testXContentWithCoordinationMetaData() throws IOException {
+        CoordinationMetaData originalMeta = new CoordinationMetaData(randomNonNegativeLong(), randomVotingConfig(), randomVotingConfig(),
+                randomVotingConfigExclusions());
+
+        MetaData metaData = MetaData.builder().coordinationMetaData(originalMeta).build();
+
+        final XContentBuilder builder = JsonXContent.contentBuilder();
+        builder.startObject();
+        metaData.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        builder.endObject();
+
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder))) {
+            final CoordinationMetaData fromXContentMeta = MetaData.fromXContent(parser).coordinationMetaData();
+            assertThat(fromXContentMeta, equalTo(originalMeta));
+        }
+    }
+
+    public void testGlobalStateEqualsCoordinationMetaData() {
+        CoordinationMetaData coordinationMetaData1 = new CoordinationMetaData(randomNonNegativeLong(), randomVotingConfig(),
+                randomVotingConfig(), randomVotingConfigExclusions());
+        MetaData metaData1 = MetaData.builder().coordinationMetaData(coordinationMetaData1).build();
+        CoordinationMetaData coordinationMetaData2 = new CoordinationMetaData(randomNonNegativeLong(), randomVotingConfig(),
+                randomVotingConfig(), randomVotingConfigExclusions());
+        MetaData metaData2 = MetaData.builder().coordinationMetaData(coordinationMetaData2).build();
+
+        assertTrue(MetaData.isGlobalStateEquals(metaData1, metaData1));
+        assertFalse(MetaData.isGlobalStateEquals(metaData1, metaData2));
     }
 
     public void testSerializationWithIndexGraveyard() throws IOException {
@@ -808,5 +891,20 @@ public class MetaDataTests extends ESTestCase {
             .persistentSettings(Settings.builder().put(setting.getKey(), "persistent-value").build())
             .transientSettings(Settings.builder().put(setting.getKey(), "transient-value").build()).build();
         assertThat(setting.get(metaData.settings()), equalTo("transient-value"));
+    }
+
+    public void testBuilderRejectsNullCustom() {
+        final MetaData.Builder builder = MetaData.builder();
+        final String key = randomAlphaOfLength(10);
+        assertThat(expectThrows(NullPointerException.class, () -> builder.putCustom(key, null)).getMessage(), containsString(key));
+    }
+
+    public void testBuilderRejectsNullInCustoms() {
+        final MetaData.Builder builder = MetaData.builder();
+        final String key = randomAlphaOfLength(10);
+        final ImmutableOpenMap.Builder<String, MetaData.Custom> mapBuilder = ImmutableOpenMap.builder();
+        mapBuilder.put(key, null);
+        final ImmutableOpenMap<String, MetaData.Custom> map = mapBuilder.build();
+        assertThat(expectThrows(NullPointerException.class, () -> builder.customs(map)).getMessage(), containsString(key));
     }
 }

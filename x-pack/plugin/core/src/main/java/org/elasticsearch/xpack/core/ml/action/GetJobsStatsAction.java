@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
@@ -25,7 +24,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.xpack.core.ml.action.util.QueryPage;
+import org.elasticsearch.xpack.core.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
@@ -56,7 +55,12 @@ public class GetJobsStatsAction extends Action<GetJobsStatsAction.Response> {
 
     @Override
     public Response newResponse() {
-        return new Response();
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
+    }
+
+    @Override
+    public Writeable.Reader<Response> getResponseReader() {
+        return Response::new;
     }
 
     public static class Request extends BaseTasksRequest<Request> {
@@ -76,6 +80,21 @@ public class GetJobsStatsAction extends Action<GetJobsStatsAction.Response> {
 
         public Request() {}
 
+        public Request(StreamInput in) throws IOException {
+            super(in);
+            jobId = in.readString();
+            expandedJobsIds = in.readStringList();
+            allowNoJobs = in.readBoolean();
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
+            out.writeString(jobId);
+            out.writeStringCollection(expandedJobsIds);
+            out.writeBoolean(allowNoJobs);
+        }
+
         public List<String> getExpandedJobsIds() { return expandedJobsIds; }
 
         public void setExpandedJobsIds(List<String> expandedJobsIds) { this.expandedJobsIds = expandedJobsIds; }
@@ -94,32 +113,12 @@ public class GetJobsStatsAction extends Action<GetJobsStatsAction.Response> {
 
         @Override
         public boolean match(Task task) {
-            return OpenJobAction.JobTaskMatcher.match(task, jobId);
+            return expandedJobsIds.stream().anyMatch(jobId -> OpenJobAction.JobTaskMatcher.match(task, jobId));
         }
 
         @Override
         public ActionRequestValidationException validate() {
             return null;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            jobId = in.readString();
-            expandedJobsIds = in.readList(StreamInput::readString);
-            if (in.getVersion().onOrAfter(Version.V_6_1_0)) {
-                allowNoJobs = in.readBoolean();
-            }
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-            out.writeString(jobId);
-            out.writeStringList(expandedJobsIds);
-            if (out.getVersion().onOrAfter(Version.V_6_1_0)) {
-                out.writeBoolean(allowNoJobs);
-            }
         }
 
         @Override
@@ -185,9 +184,7 @@ public class GetJobsStatsAction extends Action<GetJobsStatsAction.Response> {
                 node = in.readOptionalWriteable(DiscoveryNode::new);
                 assignmentExplanation = in.readOptionalString();
                 openTime = in.readOptionalTimeValue();
-                if (in.getVersion().onOrAfter(Version.V_6_4_0)) {
-                    forecastStats = in.readOptionalWriteable(ForecastStats::new);
-                }
+                forecastStats = in.readOptionalWriteable(ForecastStats::new);
             }
 
             public String getJobId() {
@@ -275,9 +272,7 @@ public class GetJobsStatsAction extends Action<GetJobsStatsAction.Response> {
                 out.writeOptionalWriteable(node);
                 out.writeOptionalString(assignmentExplanation);
                 out.writeOptionalTimeValue(openTime);
-                if (out.getVersion().onOrAfter(Version.V_6_4_0)) {
-                    out.writeOptionalWriteable(forecastStats);
-                }
+                out.writeOptionalWriteable(forecastStats);
             }
 
             @Override
@@ -318,17 +313,8 @@ public class GetJobsStatsAction extends Action<GetJobsStatsAction.Response> {
             this.jobsStats = jobsStats;
         }
 
-        public Response() {
-            super(Collections.emptyList(), Collections.emptyList());
-        }
-
-        public QueryPage<JobStats> getResponse() {
-            return jobsStats;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
+        public Response(StreamInput in) throws IOException {
+            super(in);
             jobsStats = new QueryPage<>(in, JobStats::new);
         }
 
@@ -336,6 +322,10 @@ public class GetJobsStatsAction extends Action<GetJobsStatsAction.Response> {
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             jobsStats.writeTo(out);
+        }
+
+        public QueryPage<JobStats> getResponse() {
+            return jobsStats;
         }
 
         @Override

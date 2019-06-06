@@ -1,9 +1,7 @@
 [role="xpack"]
 [testenv="platinum"]
-[[ccr-overview-auto-follow]]
+[[ccr-auto-follow]]
 === Automatically following indices
-
-beta[]
 
 In time series use cases where you want to follow new indices that are
 periodically created (such as daily Beats indices), manually configuring follower

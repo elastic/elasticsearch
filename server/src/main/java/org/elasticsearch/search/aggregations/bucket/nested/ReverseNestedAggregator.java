@@ -54,7 +54,7 @@ public class ReverseNestedAggregator extends BucketsAggregator implements Single
             throws IOException {
         super(name, factories, context, parent, pipelineAggregators, metaData);
         if (objectMapper == null) {
-            parentFilter = Queries.newNonNestedFilter(context.mapperService().getIndexSettings().getIndexVersionCreated());
+            parentFilter = Queries.newNonNestedFilter();
         } else {
             parentFilter = objectMapper.nestedTypeFilter();
         }
@@ -94,8 +94,8 @@ public class ReverseNestedAggregator extends BucketsAggregator implements Single
 
     @Override
     public InternalAggregation buildAggregation(long owningBucketOrdinal) throws IOException {
-        return new InternalReverseNested(name, bucketDocCount(owningBucketOrdinal), bucketAggregations(owningBucketOrdinal), pipelineAggregators(),
-                metaData());
+        return new InternalReverseNested(name, bucketDocCount(owningBucketOrdinal), bucketAggregations(owningBucketOrdinal),
+                pipelineAggregators(), metaData());
     }
 
     @Override

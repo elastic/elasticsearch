@@ -1,13 +1,10 @@
 ---
 "Refresh":
 
- - skip:
-      version: " - 6.99.99"
-      reason: types are required in requests before 7.0.0
+
 
  - do:
       indices.create:
-          include_type_name: false
           index:    test_1
           body:
               settings:
@@ -22,6 +19,7 @@
 
  - do:
       search:
+          rest_total_hits_as_int: true
           index:   test_1
           body:
             query:   { term: { _id: 1 }}
@@ -38,6 +36,7 @@
 
  - do:
       search:
+          rest_total_hits_as_int: true
           index:   test_1
           body:
             query:   { term: { _id: 2 }}
@@ -47,9 +46,7 @@
 ---
 "When refresh url parameter is an empty string that means \"refresh immediately\"":
 
- - skip:
-      version: " - 6.99.99"
-      reason: types are required in requests before 7.0.0
+
 
  - do:
       index:
@@ -61,6 +58,7 @@
 
  - do:
       search:
+          rest_total_hits_as_int: true
           index:   test_1
           body:
             query:   { term: { _id: 1 }}
@@ -70,9 +68,7 @@
 ---
 "refresh=wait_for waits until changes are visible in search":
 
- - skip:
-      version: " - 6.99.99"
-      reason: types are required in requests before 7.0.0
+
 
  - do:
       index:
@@ -84,6 +80,7 @@
 
  - do:
       search:
+          rest_total_hits_as_int: true
           index:   index_60_refresh_1
           body:
             query:   { term: { _id: index_60_refresh_id1 }}

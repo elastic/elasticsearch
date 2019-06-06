@@ -109,13 +109,11 @@
   - do:
       index:
         index:  test
-        type:   testtype
         id:     1
         body:   { "text": "value1_foo" }
   - do:
       index:
         index:  test
-        type:   testtype
         id:     2
         body:   { "text": "value2_foo value3_foo" }
   - do:
@@ -129,5 +127,6 @@
 
   - do:
       search_template:
+        rest_total_hits_as_int: true
         body: {  "id" : "1", "params" : { "my_value" : "value1_foo", "my_size" : 1 } }
   - match: { hits.total: 1 }

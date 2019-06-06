@@ -9,7 +9,7 @@ import java.util.Map;
 import java.util.Objects;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 
 import static java.util.Collections.emptyList;
@@ -21,11 +21,11 @@ public class MultiMatchQueryPredicate extends FullTextPredicate {
     private final String fieldString;
     private final Map<String, Float> fields;
 
-    public MultiMatchQueryPredicate(Location location, String fieldString, String query, String options) {
-        super(location, query, options, emptyList());
+    public MultiMatchQueryPredicate(Source source, String fieldString, String query, String options) {
+        super(source, query, options, emptyList());
         this.fieldString = fieldString;
         // inferred
-        this.fields = FullTextUtils.parseFields(fieldString, location);
+        this.fields = FullTextUtils.parseFields(fieldString, source);
     }
 
     @Override

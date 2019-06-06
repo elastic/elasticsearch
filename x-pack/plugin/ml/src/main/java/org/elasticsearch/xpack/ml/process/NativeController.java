@@ -17,8 +17,6 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
-import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeoutException;
@@ -43,24 +41,19 @@ public class NativeController {
     private static final String START_COMMAND = "start";
     private static final String KILL_COMMAND = "kill";
 
-    public static final Map<String, Object> UNKNOWN_NATIVE_CODE_INFO;
+    public static final Map<String, Object> UNKNOWN_NATIVE_CODE_INFO = Map.of("version", "N/A", "build_hash", "N/A");
 
-    static {
-        Map<String, Object> unknownInfo = new HashMap<>(2);
-        unknownInfo.put("version", "N/A");
-        unknownInfo.put("build_hash", "N/A");
-        UNKNOWN_NATIVE_CODE_INFO = Collections.unmodifiableMap(unknownInfo);
-    }
-
+    private final String localNodeName;
     private final CppLogMessageHandler cppLogHandler;
     private final OutputStream commandStream;
 
-    NativeController(Environment env, NamedPipeHelper namedPipeHelper) throws IOException {
+    NativeController(String localNodeName, Environment env, NamedPipeHelper namedPipeHelper) throws IOException {
         ProcessPipes processPipes = new ProcessPipes(env, namedPipeHelper, CONTROLLER, null,
                 true, true, false, false, false, false);
         processPipes.connectStreams(CONTROLLER_CONNECT_TIMEOUT);
-        cppLogHandler = new CppLogMessageHandler(null, processPipes.getLogStream().get());
-        commandStream = new BufferedOutputStream(processPipes.getCommandStream().get());
+        this.localNodeName = localNodeName;
+        this.cppLogHandler = new CppLogMessageHandler(null, processPipes.getLogStream().get());
+        this.commandStream = new BufferedOutputStream(processPipes.getCommandStream().get());
     }
 
     void tailLogsInThread() {
@@ -107,7 +100,8 @@ public class NativeController {
         }
 
         if (cppLogHandler.hasLogStreamEnded()) {
-            String msg = "Cannot start process [" + command.get(0) + "]: native controller process has stopped";
+            String msg = "Cannot start process [" + command.get(0) + "]: native controller process has stopped on node ["
+                + localNodeName + "]";
             LOGGER.error(msg);
             throw new ElasticsearchException(msg);
         }
@@ -133,7 +127,8 @@ public class NativeController {
         }
 
         if (cppLogHandler.hasLogStreamEnded()) {
-            String msg = "Cannot kill process with PID [" + pid + "]: native controller process has stopped";
+            String msg = "Cannot kill process with PID [" + pid + "]: native controller process has stopped on node ["
+                + localNodeName + "]";
             LOGGER.error(msg);
             throw new ElasticsearchException(msg);
         }

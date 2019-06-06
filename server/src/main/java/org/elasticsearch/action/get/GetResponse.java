@@ -48,7 +48,9 @@ public class GetResponse extends ActionResponse implements Iterable<DocumentFiel
 
     GetResult getResult;
 
-    GetResponse() {
+    GetResponse(StreamInput in) throws IOException {
+        super(in);
+        getResult = GetResult.readGetResult(in);
     }
 
     public GetResponse(GetResult getResult) {
@@ -88,6 +90,20 @@ public class GetResponse extends ActionResponse implements Iterable<DocumentFiel
      */
     public long getVersion() {
         return getResult.getVersion();
+    }
+
+    /**
+     * The sequence number assigned to the last operation that has changed this document, if found.
+     */
+    public long getSeqNo() {
+        return getResult.getSeqNo();
+    }
+
+    /**
+     * The primary term of the last primary that has changed this document, if found.
+     */
+    public long getPrimaryTerm() {
+        return getResult.getPrimaryTerm();
     }
 
     /**
@@ -149,7 +165,6 @@ public class GetResponse extends ActionResponse implements Iterable<DocumentFiel
      * @deprecated Use {@link GetResponse#getSource()} instead
      */
     @Deprecated
-    @Override
     public Iterator<DocumentField> iterator() {
         return getResult.iterator();
     }
@@ -190,8 +205,7 @@ public class GetResponse extends ActionResponse implements Iterable<DocumentFiel
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        getResult = GetResult.readGetResult(in);
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override

@@ -23,7 +23,6 @@ import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
-@SuppressWarnings("unchecked")
 public class SearchGroupsResolverTests extends GroupsResolverTestCase {
 
     private static final String BRUCE_BANNER_DN = "uid=hulk,ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com";
@@ -181,6 +180,6 @@ public class SearchGroupsResolverTests extends GroupsResolverTestCase {
 
     @Override
     protected String trustPath() {
-        return "/idptrust.jks";
+        return "/ca.jks";
     }
 }

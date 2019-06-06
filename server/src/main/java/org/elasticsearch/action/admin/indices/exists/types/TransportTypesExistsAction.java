@@ -27,7 +27,6 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -77,14 +76,14 @@ public class TransportTypesExistsAction extends TransportMasterNodeReadAction<Ty
                 return;
             }
 
-            ImmutableOpenMap<String, MappingMetaData> mappings = state.metaData().getIndices().get(concreteIndex).getMappings();
-            if (mappings.isEmpty()) {
+            MappingMetaData mapping = state.metaData().getIndices().get(concreteIndex).mapping();
+            if (mapping == null) {
                 listener.onResponse(new TypesExistsResponse(false));
                 return;
             }
 
             for (String type : request.types()) {
-                if (!mappings.containsKey(type)) {
+                if (mapping.type().equals(type) == false) {
                     listener.onResponse(new TypesExistsResponse(false));
                     return;
                 }

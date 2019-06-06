@@ -24,16 +24,14 @@ PUT index
     }
   },
   "mappings": {
-    "_doc": {
-      "properties": {
-        "body": {
-          "type": "text",
-          "analyzer": "english",
-          "fields": {
-            "exact": {
-              "type": "text",
-              "analyzer": "english_exact"
-            }
+    "properties": {
+      "body": {
+        "type": "text",
+        "analyzer": "english",
+        "fields": {
+          "exact": {
+            "type": "text",
+            "analyzer": "english_exact"
           }
         }
       }
@@ -84,7 +82,10 @@ GET index/_search
     "failed": 0
   },
   "hits": {
-    "total": 2,
+    "total" : {
+        "value": 2,
+        "relation": "eq"
+    },
     "max_score": 0.18232156,
     "hits": [
       {
@@ -142,7 +143,10 @@ GET index/_search
     "failed": 0
   },
   "hits": {
-    "total": 1,
+    "total" : {
+        "value": 1,
+        "relation": "eq"
+    },
     "max_score": 0.8025915,
     "hits": [
       {
@@ -167,7 +171,7 @@ the query need to be matched exactly while other parts should still take
 stemming into account?
 
 Fortunately, the `query_string` and `simple_query_string` queries have a feature
-that solve this exact problem: `quote_field_suffix`. This tell Elasticsearch
+that solves this exact problem: `quote_field_suffix`. This tells Elasticsearch
 that the words that appear in between quotes are to be redirected to a different
 field, see below:
 
@@ -199,7 +203,10 @@ GET index/_search
     "failed": 0
   },
   "hits": {
-    "total": 1,
+    "total" : {
+        "value": 1,
+        "relation": "eq"
+    },
     "max_score": 0.8025915,
     "hits": [
       {

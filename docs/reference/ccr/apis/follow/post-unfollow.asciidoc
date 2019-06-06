@@ -6,8 +6,6 @@
 <titleabbrev>Unfollow</titleabbrev>
 ++++
 
-beta[]
-
 Converts a follower index to a regular index.
 
 ==== Description
@@ -27,7 +25,7 @@ irreversible operation.
 
 [source,js]
 --------------------------------------------------
-PUT /follower_index/_ccr/follow
+PUT /follower_index/_ccr/follow?wait_for_active_shards=1
 {
   "remote_cluster" : "remote_cluster",
   "leader_index" : "leader_index"
@@ -50,10 +48,16 @@ POST /<follower_index>/_ccr/unfollow
 // CONSOLE
 // TEST[s/<follower_index>/follower_index/]
 
-==== Path Parmeters
+==== Path Parameters
 
 `follower_index` (required)::
   (string) the name of the follower index
+  
+==== Authorization
+
+If the {es} {security-features} are enabled, you must have `manage_follow_index` 
+index privileges for the follower index. For more information, see
+{stack-ov}/security-privileges.html[Security privileges].  
 
 ==== Example
 

@@ -147,7 +147,7 @@ public class ChainInputTests extends ESTestCase {
         watchBuilder()
                 .trigger(schedule(interval("5s")))
                 .input(chainedInputBuilder)
-                .condition(new ScriptCondition(mockScript("ctx.payload.hits.total == 1")))
+                .condition(new ScriptCondition(mockScript("ctx.payload.hits.total.value == 1")))
                 .addAction("_id", loggingAction("watch [{{ctx.watch_id}}] matched"))
                 .toXContent(builder, ToXContent.EMPTY_PARAMS);
 

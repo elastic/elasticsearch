@@ -26,4 +26,8 @@ public interface CharFilterFactory {
     String name();
 
     Reader create(Reader reader);
+
+    default Reader normalize(Reader reader) {
+        return reader;
+    }
 }

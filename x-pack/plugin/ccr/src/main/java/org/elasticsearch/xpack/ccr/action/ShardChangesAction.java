@@ -6,8 +6,8 @@
 package org.elasticsearch.xpack.ccr.action;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
@@ -23,10 +23,13 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.engine.MissingHistoryOperationsException;
 import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardNotStartedException;
@@ -34,9 +37,9 @@ import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.IndicesService;
-import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.ccr.Ccr;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -60,7 +63,12 @@ public class ShardChangesAction extends Action<ShardChangesAction.Response> {
 
     @Override
     public Response newResponse() {
-        return new Response();
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
+    }
+
+    @Override
+    public Writeable.Reader<Response> getResponseReader() {
+        return Response::new;
     }
 
     public static class Request extends SingleShardRequest<Request> {
@@ -145,7 +153,7 @@ public class ShardChangesAction extends Action<ShardChangesAction.Response> {
             super.readFrom(in);
             fromSeqNo = in.readVLong();
             maxOperationCount = in.readVInt();
-            shardId = ShardId.readShardId(in);
+            shardId = new ShardId(in);
             expectedHistoryUUID = in.readString();
             pollTimeout = in.readTimeValue();
             maxBatchSize = new ByteSizeValue(in);
@@ -212,6 +220,12 @@ public class ShardChangesAction extends Action<ShardChangesAction.Response> {
             return settingsVersion;
         }
 
+        private long aliasesVersion;
+
+        public long getAliasesVersion() {
+            return aliasesVersion;
+        }
+
         private long globalCheckpoint;
 
         public long getGlobalCheckpoint() {
@@ -245,17 +259,34 @@ public class ShardChangesAction extends Action<ShardChangesAction.Response> {
         Response() {
         }
 
-        Response(
-            final long mappingVersion,
-            final long settingsVersion,
-            final long globalCheckpoint,
-            final long maxSeqNo,
-            final long maxSeqNoOfUpdatesOrDeletes,
-            final Translog.Operation[] operations,
-            final long tookInMillis) {
+        Response(StreamInput in) throws IOException {
+            super(in);
+            mappingVersion = in.readVLong();
+            settingsVersion = in.readVLong();
+            if (in.getVersion().onOrAfter(Version.V_7_3_0)) {
+                aliasesVersion = in.readVLong();
+            } else {
+                aliasesVersion = 0;
+            }
+            globalCheckpoint = in.readZLong();
+            maxSeqNo = in.readZLong();
+            maxSeqNoOfUpdatesOrDeletes = in.readZLong();
+            operations = in.readArray(Translog.Operation::readOperation, Translog.Operation[]::new);
+            tookInMillis = in.readVLong();
+        }
 
+        Response(
+                final long mappingVersion,
+                final long settingsVersion,
+                final long aliasesVersion,
+                final long globalCheckpoint,
+                final long maxSeqNo,
+                final long maxSeqNoOfUpdatesOrDeletes,
+                final Translog.Operation[] operations,
+                final long tookInMillis) {
             this.mappingVersion = mappingVersion;
             this.settingsVersion = settingsVersion;
+            this.aliasesVersion = aliasesVersion;
             this.globalCheckpoint = globalCheckpoint;
             this.maxSeqNo = maxSeqNo;
             this.maxSeqNoOfUpdatesOrDeletes = maxSeqNoOfUpdatesOrDeletes;
@@ -264,15 +295,8 @@ public class ShardChangesAction extends Action<ShardChangesAction.Response> {
         }
 
         @Override
-        public void readFrom(final StreamInput in) throws IOException {
-            super.readFrom(in);
-            mappingVersion = in.readVLong();
-            settingsVersion = in.readVLong();
-            globalCheckpoint = in.readZLong();
-            maxSeqNo = in.readZLong();
-            maxSeqNoOfUpdatesOrDeletes = in.readZLong();
-            operations = in.readArray(Translog.Operation::readOperation, Translog.Operation[]::new);
-            tookInMillis = in.readVLong();
+        public void readFrom(final StreamInput in) {
+            throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
         }
 
         @Override
@@ -280,6 +304,9 @@ public class ShardChangesAction extends Action<ShardChangesAction.Response> {
             super.writeTo(out);
             out.writeVLong(mappingVersion);
             out.writeVLong(settingsVersion);
+            if (out.getVersion().onOrAfter(Version.V_7_3_0)) {
+                out.writeVLong(aliasesVersion);
+            }
             out.writeZLong(globalCheckpoint);
             out.writeZLong(maxSeqNo);
             out.writeZLong(maxSeqNoOfUpdatesOrDeletes);
@@ -294,6 +321,7 @@ public class ShardChangesAction extends Action<ShardChangesAction.Response> {
             final Response that = (Response) o;
             return mappingVersion == that.mappingVersion &&
                     settingsVersion == that.settingsVersion &&
+                    aliasesVersion == that.aliasesVersion &&
                     globalCheckpoint == that.globalCheckpoint &&
                     maxSeqNo == that.maxSeqNo &&
                     maxSeqNoOfUpdatesOrDeletes == that.maxSeqNoOfUpdatesOrDeletes &&
@@ -306,6 +334,7 @@ public class ShardChangesAction extends Action<ShardChangesAction.Response> {
             return Objects.hash(
                     mappingVersion,
                     settingsVersion,
+                    aliasesVersion,
                     globalCheckpoint,
                     maxSeqNo,
                     maxSeqNoOfUpdatesOrDeletes,
@@ -335,10 +364,6 @@ public class ShardChangesAction extends Action<ShardChangesAction.Response> {
             final IndexService indexService = indicesService.indexServiceSafe(request.getShard().getIndex());
             final IndexShard indexShard = indexService.getShard(request.getShard().id());
             final SeqNoStats seqNoStats = indexShard.seqNoStats();
-            final IndexMetaData indexMetaData = clusterService.state().metaData().index(shardId.getIndex());
-            final long mappingVersion = indexMetaData.getMappingVersion();
-            final long settingsVersion = indexMetaData.getSettingsVersion();
-
             final Translog.Operation[] operations = getOperations(
                     indexShard,
                     seqNoStats.getGlobalCheckpoint(),
@@ -346,11 +371,19 @@ public class ShardChangesAction extends Action<ShardChangesAction.Response> {
                     request.getMaxOperationCount(),
                     request.getExpectedHistoryUUID(),
                     request.getMaxBatchSize());
-            // must capture after after snapshotting operations to ensure this MUS is at least the highest MUS of any of these operations.
+            // must capture after snapshotting operations to ensure this MUS is at least the highest MUS of any of these operations.
             final long maxSeqNoOfUpdatesOrDeletes = indexShard.getMaxSeqNoOfUpdatesOrDeletes();
+            // must capture IndexMetaData after snapshotting operations to ensure the returned mapping version is at least as up-to-date
+            // as the mapping version that these operations used. Here we must not use IndexMetaData from ClusterService for we expose
+            // a new cluster state to ClusterApplier(s) before exposing it in the ClusterService.
+            final IndexMetaData indexMetaData = indexService.getMetaData();
+            final long mappingVersion = indexMetaData.getMappingVersion();
+            final long settingsVersion = indexMetaData.getSettingsVersion();
+            final long aliasesVersion = indexMetaData.getAliasesVersion();
             return getResponse(
                     mappingVersion,
                     settingsVersion,
+                    aliasesVersion,
                     seqNoStats,
                     maxSeqNoOfUpdatesOrDeletes,
                     operations,
@@ -390,21 +423,6 @@ public class ShardChangesAction extends Action<ShardChangesAction.Response> {
             }
         }
 
-        @Override
-        protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
-            ActionListener<Response> wrappedListener = ActionListener.wrap(listener::onResponse, e -> {
-                Throwable cause = ExceptionsHelper.unwrapCause(e);
-                if (cause instanceof IllegalStateException && cause.getMessage().contains("Not all operations between from_seqno [")) {
-                    String message = "Operations are no longer available for replicating. Maybe increase the retention setting [" +
-                        IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING.getKey() + "]?";
-                    listener.onFailure(new ElasticsearchException(message, e));
-                } else {
-                    listener.onFailure(e);
-                }
-            });
-            super.doExecute(task, request, wrappedListener);
-        }
-
         private void globalCheckpointAdvanced(
                 final ShardId shardId,
                 final long globalCheckpoint,
@@ -431,14 +449,21 @@ public class ShardChangesAction extends Action<ShardChangesAction.Response> {
             if (e instanceof TimeoutException) {
                 try {
                     final IndexMetaData indexMetaData = clusterService.state().metaData().index(shardId.getIndex());
+                    if (indexMetaData == null) {
+                        listener.onFailure(new IndexNotFoundException(shardId.getIndex()));
+                        return;
+                    }
+
                     final long mappingVersion = indexMetaData.getMappingVersion();
                     final long settingsVersion = indexMetaData.getSettingsVersion();
+                    final long aliasesVersion = indexMetaData.getAliasesVersion();
                     final SeqNoStats latestSeqNoStats = indexShard.seqNoStats();
                     final long maxSeqNoOfUpdatesOrDeletes = indexShard.getMaxSeqNoOfUpdatesOrDeletes();
                     listener.onResponse(
                             getResponse(
                                     mappingVersion,
                                     settingsVersion,
+                                    aliasesVersion,
                                     latestSeqNoStats,
                                     maxSeqNoOfUpdatesOrDeletes,
                                     EMPTY_OPERATIONS_ARRAY,
@@ -466,8 +491,8 @@ public class ShardChangesAction extends Action<ShardChangesAction.Response> {
         }
 
         @Override
-        protected Response newResponse() {
-            return new Response();
+        protected Writeable.Reader<Response> getResponseReader() {
+            return Response::new;
         }
 
     }
@@ -523,6 +548,14 @@ public class ShardChangesAction extends Action<ShardChangesAction.Response> {
                     break;
                 }
             }
+        } catch (MissingHistoryOperationsException e) {
+            String message = "Operations are no longer available for replicating. Maybe increase the retention setting [" +
+                IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING.getKey() + "]?";
+            // Make it easy to detect this error in ShardFollowNodeTask:
+            // (adding a metadata header instead of introducing a new exception that extends ElasticsearchException)
+            ResourceNotFoundException wrapper = new ResourceNotFoundException(message, e);
+            wrapper.addMetadata(Ccr.REQUESTED_OPS_MISSING_METADATA_KEY, Long.toString(fromSeqNo), Long.toString(toSeqNo));
+            throw wrapper;
         }
         return operations.toArray(EMPTY_OPERATIONS_ARRAY);
     }
@@ -530,6 +563,7 @@ public class ShardChangesAction extends Action<ShardChangesAction.Response> {
     static Response getResponse(
             final long mappingVersion,
             final long settingsVersion,
+            final long aliasesVersion,
             final SeqNoStats seqNoStats,
             final long maxSeqNoOfUpdates,
             final Translog.Operation[] operations,
@@ -539,6 +573,7 @@ public class ShardChangesAction extends Action<ShardChangesAction.Response> {
         return new Response(
                 mappingVersion,
                 settingsVersion,
+                aliasesVersion,
                 seqNoStats.getGlobalCheckpoint(),
                 seqNoStats.getMaxSeqNo(),
                 maxSeqNoOfUpdates,

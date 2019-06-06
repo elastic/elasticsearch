@@ -1,13 +1,16 @@
 [role="xpack"]
 [[security-api-enable-user]]
 === Enable users API
+++++
+<titleabbrev>Enable users</titleabbrev>
+++++
 
 Enables users in the native realm. 
 
 
 ==== Request
 
-`PUT /_xpack/security/user/<username>/_enable` 
+`PUT /_security/user/<username>/_enable` 
 
 
 ==== Description
@@ -36,7 +39,7 @@ The following example enables the user `jacknich`:
 
 [source,js]
 --------------------------------------------------
-PUT /_xpack/security/user/jacknich/_enable
+PUT /_security/user/jacknich/_enable
 --------------------------------------------------
 // CONSOLE
 // TEST[setup:jacknich_user]

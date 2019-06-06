@@ -7,8 +7,10 @@ package org.elasticsearch.xpack.security.rest.action.saml;
 
 import java.io.IOException;
 
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -32,6 +34,8 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
  */
 public class RestSamlInvalidateSessionAction extends SamlBaseRestHandler {
 
+    private static final DeprecationLogger deprecationLogger =
+        new DeprecationLogger(LogManager.getLogger(RestSamlInvalidateSessionAction.class));
     static final ObjectParser<SamlInvalidateSessionRequest, RestSamlInvalidateSessionAction> PARSER =
             new ObjectParser<>("saml_invalidate_session", SamlInvalidateSessionRequest::new);
 
@@ -43,12 +47,15 @@ public class RestSamlInvalidateSessionAction extends SamlBaseRestHandler {
 
     public RestSamlInvalidateSessionAction(Settings settings, RestController controller, XPackLicenseState licenseState) {
         super(settings, licenseState);
-        controller.registerHandler(POST, "/_xpack/security/saml/invalidate", this);
+        // TODO: remove deprecated endpoint in 8.0.0
+        controller.registerWithDeprecatedHandler(
+            POST, "/_security/saml/invalidate", this,
+            POST, "/_xpack/security/saml/invalidate", deprecationLogger);
     }
 
     @Override
     public String getName() {
-        return "xpack_security_saml_invalidate_action";
+        return "security_saml_invalidate_action";
     }
 
     @Override

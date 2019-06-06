@@ -21,11 +21,14 @@ package org.elasticsearch.repositories.hdfs;
 import org.apache.hadoop.fs.CreateFlag;
 import org.apache.hadoop.fs.FSDataOutputStream;
 import org.apache.hadoop.fs.FileStatus;
+import org.apache.hadoop.fs.Options;
 import org.apache.hadoop.fs.Options.CreateOpts;
 import org.apache.hadoop.fs.Path;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.BlobPath;
+import org.elasticsearch.common.blobstore.fs.FsBlobContainer;
 import org.elasticsearch.common.blobstore.support.AbstractBlobContainer;
 import org.elasticsearch.common.blobstore.support.PlainBlobMetaData;
 import org.elasticsearch.repositories.hdfs.HdfsBlobStore.Operation;
@@ -95,19 +98,13 @@ final class HdfsBlobContainer extends AbstractBlobContainer {
         store.execute((Operation<Void>) fileContext -> {
             Path blob = new Path(path, blobName);
             // we pass CREATE, which means it fails if a blob already exists.
-            EnumSet<CreateFlag> flags = failIfAlreadyExists ? EnumSet.of(CreateFlag.CREATE, CreateFlag.SYNC_BLOCK) :
-                EnumSet.of(CreateFlag.CREATE, CreateFlag.OVERWRITE, CreateFlag.SYNC_BLOCK);
-            CreateOpts[] opts = {CreateOpts.bufferSize(bufferSize)};
-            try (FSDataOutputStream stream = fileContext.create(blob, flags, opts)) {
+            EnumSet<CreateFlag> flags = failIfAlreadyExists ? EnumSet.of(CreateFlag.CREATE, CreateFlag.SYNC_BLOCK)
+                : EnumSet.of(CreateFlag.CREATE, CreateFlag.OVERWRITE, CreateFlag.SYNC_BLOCK);
+            try (FSDataOutputStream stream = fileContext.create(blob, flags, CreateOpts.bufferSize(bufferSize))) {
                 int bytesRead;
                 byte[] buffer = new byte[bufferSize];
                 while ((bytesRead = inputStream.read(buffer)) != -1) {
                     stream.write(buffer, 0, bytesRead);
-                    //  For safety we also hsync each write as well, because of its docs:
-                    //  SYNC_BLOCK - to force closed blocks to the disk device
-                    // "In addition Syncable.hsync() should be called after each write,
-                    //  if true synchronous behavior is required"
-                    stream.hsync();
                 }
             } catch (org.apache.hadoop.fs.FileAlreadyExistsException faee) {
                 throw new FileAlreadyExistsException(blob.toString(), null, faee.getMessage());
@@ -117,12 +114,37 @@ final class HdfsBlobContainer extends AbstractBlobContainer {
     }
 
     @Override
+    public void writeBlobAtomic(String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists) throws IOException {
+        final String tempBlob = FsBlobContainer.tempBlobName(blobName);
+        store.execute((Operation<Void>) fileContext -> {
+            final Path tempBlobPath = new Path(path, tempBlob);
+            try (FSDataOutputStream stream = fileContext.create(
+                tempBlobPath, EnumSet.of(CreateFlag.CREATE, CreateFlag.SYNC_BLOCK),  CreateOpts.bufferSize(bufferSize))) {
+                int bytesRead;
+                byte[] buffer = new byte[bufferSize];
+                while ((bytesRead = inputStream.read(buffer)) != -1) {
+                    stream.write(buffer, 0, bytesRead);
+                }
+            }
+            final Path blob = new Path(path, blobName);
+            try {
+                fileContext.rename(tempBlobPath, blob, failIfAlreadyExists ? Options.Rename.NONE : Options.Rename.OVERWRITE);
+            } catch (org.apache.hadoop.fs.FileAlreadyExistsException faee) {
+                throw new FileAlreadyExistsException(blob.toString(), null, faee.getMessage());
+            }
+            return null;
+        });
+    }
+
+    @Override
     public Map<String, BlobMetaData> listBlobsByPrefix(@Nullable final String prefix) throws IOException {
-        FileStatus[] files = store.execute(fileContext -> (fileContext.util().listStatus(path,
-            path -> prefix == null || path.getName().startsWith(prefix))));
-        Map<String, BlobMetaData> map = new LinkedHashMap<String, BlobMetaData>();
+        FileStatus[] files = store.execute(fileContext -> fileContext.util().listStatus(path,
+            path -> prefix == null || path.getName().startsWith(prefix)));
+        Map<String, BlobMetaData> map = new LinkedHashMap<>();
         for (FileStatus file : files) {
-            map.put(file.getPath().getName(), new PlainBlobMetaData(file.getPath().getName(), file.getLen()));
+            if (file.isFile()) {
+                map.put(file.getPath().getName(), new PlainBlobMetaData(file.getPath().getName(), file.getLen()));
+            }
         }
         return Collections.unmodifiableMap(map);
     }
@@ -130,6 +152,19 @@ final class HdfsBlobContainer extends AbstractBlobContainer {
     @Override
     public Map<String, BlobMetaData> listBlobs() throws IOException {
         return listBlobsByPrefix(null);
+    }
+
+    @Override
+    public Map<String, BlobContainer> children() throws IOException {
+        FileStatus[] files = store.execute(fileContext -> fileContext.util().listStatus(path));
+        Map<String, BlobContainer> map = new LinkedHashMap<>();
+        for (FileStatus file : files) {
+            if (file.isDirectory()) {
+                final String name = file.getPath().getName();
+                map.put(name, new HdfsBlobContainer(path().add(name), store, new Path(path, name), bufferSize, securityContext));
+            }
+        }
+        return Collections.unmodifiableMap(map);
     }
 
     /**

@@ -11,15 +11,15 @@ import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.gen.processor.BucketExtractorProcessor;
 import org.elasticsearch.xpack.sql.expression.gen.processor.ChainingProcessor;
 import org.elasticsearch.xpack.sql.expression.gen.processor.Processor;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 
 public class AggExtractorInput extends LeafInput<BucketExtractor> {
 
     private final Processor chained;
 
-    public AggExtractorInput(Location location, Expression expression, Processor processor, BucketExtractor context) {
-        super(location, expression, context);
+    public AggExtractorInput(Source source, Expression expression, Processor processor, BucketExtractor context) {
+        super(source, expression, context);
         this.chained = processor;
     }
 

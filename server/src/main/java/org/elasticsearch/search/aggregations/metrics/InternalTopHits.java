@@ -65,8 +65,7 @@ public class InternalTopHits extends InternalAggregation implements TopHits {
         from = in.readVInt();
         size = in.readVInt();
         topDocs = Lucene.readTopDocs(in);
-        assert topDocs != null;
-        searchHits = SearchHits.readSearchHits(in);
+        searchHits = new SearchHits(in);
     }
 
     @Override
@@ -161,7 +160,7 @@ public class InternalTopHits extends InternalAggregation implements TopHits {
         assert reducedTopDocs.totalHits.relation == Relation.EQUAL_TO;
         return new InternalTopHits(name, this.from, this.size,
             new TopDocsAndMaxScore(reducedTopDocs, maxScore),
-            new SearchHits(hits, reducedTopDocs.totalHits.value, maxScore), pipelineAggregators(), getMetaData());
+            new SearchHits(hits, reducedTopDocs.totalHits, maxScore), pipelineAggregators(), getMetaData());
     }
 
     @Override

@@ -281,7 +281,7 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
         Query innerQuery;
         ObjectMapper objectMapper = context.nestedScope().getObjectMapper();
         if (objectMapper == null) {
-            parentFilter = context.bitsetFilter(Queries.newNonNestedFilter(context.indexVersionCreated()));
+            parentFilter = context.bitsetFilter(Queries.newNonNestedFilter());
         } else {
             parentFilter = context.bitsetFilter(objectMapper.nestedTypeFilter());
         }
@@ -317,10 +317,14 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
     @Override
     public void extractInnerHitBuilders(Map<String, InnerHitContextBuilder> innerHits) {
         if (innerHitBuilder != null) {
+            String name = innerHitBuilder.getName() != null ? innerHitBuilder.getName() : path;
+            if (innerHits.containsKey(name)) {
+                throw new IllegalArgumentException("[inner_hits] already contains an entry for key [" + name + "]");
+            }
+
             Map<String, InnerHitContextBuilder> children = new HashMap<>();
             InnerHitContextBuilder.extractInnerHits(query, children);
             InnerHitContextBuilder innerHitContextBuilder = new NestedInnerHitContextBuilder(path, query, innerHitBuilder, children);
-            String name = innerHitBuilder.getName() != null ? innerHitBuilder.getName() : path;
             innerHits.put(name, innerHitContextBuilder);
         }
     }
@@ -369,6 +373,14 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
         }
 
         @Override
+        public void seqNoAndPrimaryTerm(boolean seqNoAndPrimaryTerm) {
+            assert seqNoAndPrimaryTerm() == false;
+            if (seqNoAndPrimaryTerm) {
+                throw new UnsupportedOperationException("nested documents are not assigned sequence numbers");
+            }
+        }
+
+        @Override
         public TopDocsAndMaxScore[] topDocs(SearchHit[] hits) throws IOException {
             Weight innerHitQueryWeight = createInnerHitQueryWeight();
             TopDocsAndMaxScore[] result = new TopDocsAndMaxScore[hits.length];
@@ -376,7 +388,7 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
                 SearchHit hit = hits[i];
                 Query rawParentFilter;
                 if (parentObjectMapper == null) {
-                    rawParentFilter = Queries.newNonNestedFilter(context.indexShard().indexSettings().getIndexVersionCreated());
+                    rawParentFilter = Queries.newNonNestedFilter();
                 } else {
                     rawParentFilter = parentObjectMapper.nestedTypeFilter();
                 }

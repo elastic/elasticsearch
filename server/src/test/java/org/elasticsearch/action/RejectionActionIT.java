@@ -65,19 +65,17 @@ public class RejectionActionIT extends ESIntegTestCase {
             client().prepareSearch("test")
                     .setSearchType(SearchType.QUERY_THEN_FETCH)
                     .setQuery(QueryBuilders.matchQuery("field", "1"))
-                    .execute(new ActionListener<SearchResponse>() {
+                    .execute(new LatchedActionListener<>(new ActionListener<SearchResponse>() {
                         @Override
                         public void onResponse(SearchResponse searchResponse) {
                             responses.add(searchResponse);
-                            latch.countDown();
                         }
 
                         @Override
                         public void onFailure(Exception e) {
                             responses.add(e);
-                            latch.countDown();
                         }
-                    });
+                    }, latch));
         }
         latch.await();
 
@@ -87,7 +85,8 @@ public class RejectionActionIT extends ESIntegTestCase {
             if (response instanceof SearchResponse) {
                 SearchResponse searchResponse = (SearchResponse) response;
                 for (ShardSearchFailure failure : searchResponse.getShardFailures()) {
-                    assertTrue("got unexpected reason..." + failure.reason(), failure.reason().toLowerCase(Locale.ENGLISH).contains("rejected"));
+                    assertTrue("got unexpected reason..." + failure.reason(),
+                        failure.reason().toLowerCase(Locale.ENGLISH).contains("rejected"));
                 }
             } else {
                 Exception t = (Exception) response;
@@ -95,7 +94,8 @@ public class RejectionActionIT extends ESIntegTestCase {
                 if (unwrap instanceof SearchPhaseExecutionException) {
                     SearchPhaseExecutionException e = (SearchPhaseExecutionException) unwrap;
                     for (ShardSearchFailure failure : e.shardFailures()) {
-                        assertTrue("got unexpected reason..." + failure.reason(), failure.reason().toLowerCase(Locale.ENGLISH).contains("rejected"));
+                        assertTrue("got unexpected reason..." + failure.reason(),
+                            failure.reason().toLowerCase(Locale.ENGLISH).contains("rejected"));
                     }
                 } else if ((unwrap instanceof EsRejectedExecutionException) == false) {
                     throw new AssertionError("unexpected failure", (Throwable) response);

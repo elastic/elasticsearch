@@ -9,6 +9,7 @@ import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.AutodetectParams;
 
 import java.util.concurrent.ExecutorService;
+import java.util.function.Consumer;
 
 /**
  * Factory interface for creating implementations of {@link AutodetectProcess}
@@ -28,5 +29,5 @@ public interface AutodetectProcessFactory {
     AutodetectProcess createAutodetectProcess(Job job,
                                               AutodetectParams autodetectParams,
                                               ExecutorService executorService,
-                                              Runnable onProcessCrash);
+                                              Consumer<String> onProcessCrash);
 }

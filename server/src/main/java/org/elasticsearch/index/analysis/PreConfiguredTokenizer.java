@@ -21,7 +21,6 @@ package org.elasticsearch.index.analysis;
 
 import org.apache.lucene.analysis.Tokenizer;
 import org.elasticsearch.Version;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.indices.analysis.PreBuiltCacheFactory;
 import org.elasticsearch.indices.analysis.PreBuiltCacheFactory.CachingStrategy;
 
@@ -37,77 +36,40 @@ public final class PreConfiguredTokenizer extends PreConfiguredAnalysisComponent
      * 
      * @param name the name of the tokenizer in the api
      * @param create builds the tokenizer
-     * @param multiTermComponent null if this tokenizer shouldn't be used for multi-term queries, otherwise a supplier for the
-     *        {@link TokenFilterFactory} that stands in for this tokenizer in multi-term queries.
      */
-    public static PreConfiguredTokenizer singleton(String name, Supplier<Tokenizer> create,
-            @Nullable Supplier<TokenFilterFactory> multiTermComponent) {
-        return new PreConfiguredTokenizer(name, CachingStrategy.ONE, version -> create.get(),
-                multiTermComponent == null ? null : version -> multiTermComponent.get());
+    public static PreConfiguredTokenizer singleton(String name, Supplier<Tokenizer> create) {
+        return new PreConfiguredTokenizer(name, CachingStrategy.ONE, version -> create.get());
     }
 
     /**
      * Create a pre-configured tokenizer that may vary based on the Lucene version.
-     * 
+     *
      * @param name the name of the tokenizer in the api
      * @param create builds the tokenizer
-     * @param multiTermComponent null if this tokenizer shouldn't be used for multi-term queries, otherwise a supplier for the
-     *        {@link TokenFilterFactory} that stands in for this tokenizer in multi-term queries.
      */
-    public static PreConfiguredTokenizer luceneVersion(String name, Function<org.apache.lucene.util.Version, Tokenizer> create,
-            @Nullable Function<org.apache.lucene.util.Version, TokenFilterFactory> multiTermComponent) {
-        return new PreConfiguredTokenizer(name, CachingStrategy.LUCENE, version -> create.apply(version.luceneVersion),
-                multiTermComponent == null ? null : version -> multiTermComponent.apply(version.luceneVersion));
+    public static PreConfiguredTokenizer luceneVersion(String name, Function<org.apache.lucene.util.Version, Tokenizer> create) {
+        return new PreConfiguredTokenizer(name, CachingStrategy.LUCENE, version -> create.apply(version.luceneVersion));
     }
 
     /**
      * Create a pre-configured tokenizer that may vary based on the Elasticsearch version.
-     * 
+     *
      * @param name the name of the tokenizer in the api
      * @param create builds the tokenizer
-     * @param multiTermComponent null if this tokenizer shouldn't be used for multi-term queries, otherwise a supplier for the
-     *        {@link TokenFilterFactory} that stands in for this tokenizer in multi-term queries.
      */
-    public static PreConfiguredTokenizer elasticsearchVersion(String name, Function<org.elasticsearch.Version, Tokenizer> create,
-            @Nullable Function<Version, TokenFilterFactory> multiTermComponent) {
-        return new PreConfiguredTokenizer(name, CachingStrategy.ELASTICSEARCH, create, multiTermComponent);
+    public static PreConfiguredTokenizer elasticsearchVersion(String name, Function<org.elasticsearch.Version, Tokenizer> create) {
+        return new PreConfiguredTokenizer(name, CachingStrategy.ELASTICSEARCH, create);
     }
 
     private final Function<Version, Tokenizer> create;
-    private final Function<Version, TokenFilterFactory> multiTermComponent;
     
-    private PreConfiguredTokenizer(String name, PreBuiltCacheFactory.CachingStrategy cache, Function<Version, Tokenizer> create,
-            @Nullable Function<Version, TokenFilterFactory> multiTermComponent) {
+    private PreConfiguredTokenizer(String name, PreBuiltCacheFactory.CachingStrategy cache, Function<Version, Tokenizer> create) {
         super(name, cache);
         this.create = create;
-        this.multiTermComponent = multiTermComponent;
     }
-
-    /**
-     * Does this tokenizer has an equivalent component for analyzing multi-term queries?
-     */
-    public boolean hasMultiTermComponent() {
-        return multiTermComponent != null;
-    }
-
-    private interface MultiTermAwareTokenizerFactory extends TokenizerFactory, MultiTermAwareComponent {}
 
     @Override
     protected TokenizerFactory create(Version version) {
-        if (multiTermComponent != null) {
-            return new MultiTermAwareTokenizerFactory() {
-                @Override
-                public Tokenizer create() {
-                    return create.apply(version);
-                }
-
-                @Override
-                public Object getMultiTermComponent() {
-                    return multiTermComponent.apply(version);
-                }
-            };
-        } else {
-            return () -> create.apply(version);
-        }
+        return () -> create.apply(version);
     }
 }

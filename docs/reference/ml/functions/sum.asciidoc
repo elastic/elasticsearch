@@ -11,7 +11,7 @@ If want to look at drops in totals, use low-sided functions.
 If your data is sparse, use `non_null_sum` functions. Buckets without values are
 ignored; buckets with a zero value are analyzed.
 
-The {xpackml} features include the following sum functions:
+The {ml-features} include the following sum functions:
 
 * xref:ml-sum[`sum`, `high_sum`, `low_sum`]
 * xref:ml-nonnull-sum[`non_null_sum`, `high_non_null_sum`, `low_non_null_sum`]

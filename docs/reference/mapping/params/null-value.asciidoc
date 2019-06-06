@@ -13,12 +13,10 @@ the specified value so that it can be indexed and searched.  For instance:
 PUT my_index
 {
   "mappings": {
-    "_doc": {
-      "properties": {
-        "status_code": {
-          "type":       "keyword",
-          "null_value": "NULL" <1>
-        }
+    "properties": {
+      "status_code": {
+        "type":       "keyword",
+        "null_value": "NULL" <1>
       }
     }
   }

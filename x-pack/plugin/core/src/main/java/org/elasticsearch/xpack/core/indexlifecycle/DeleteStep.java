@@ -11,7 +11,10 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 
-public class DeleteStep extends AsyncActionStep {
+/**
+ * Deletes a single index.
+ */
+public class DeleteStep extends AsyncRetryDuringSnapshotActionStep {
     public static final String NAME = "delete";
 
     public DeleteStep(StepKey key, StepKey nextStepKey, Client client) {
@@ -19,10 +22,10 @@ public class DeleteStep extends AsyncActionStep {
     }
 
     @Override
-    public void performAction(IndexMetaData indexMetaData, ClusterState currentState, Listener listener) {
+    public void performDuringNoSnapshot(IndexMetaData indexMetaData, ClusterState currentState, Listener listener) {
         getClient().admin().indices()
             .delete(new DeleteIndexRequest(indexMetaData.getIndex().getName()),
-                ActionListener.wrap(response -> listener.onResponse(true) , listener::onFailure));
+                ActionListener.wrap(response -> listener.onResponse(true), listener::onFailure));
     }
 
     @Override

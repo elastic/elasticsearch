@@ -4,7 +4,19 @@
     "methods": ["GET"],
     "url": {
       "path": "/_mapping",
-      "paths": ["/_mapping", "/{index}/_mapping", "/_mapping/{type}", "/{index}/_mapping/{type}"],
+      "paths": ["/_mapping", "/{index}/_mapping"],
+      "deprecated_paths" : [
+        {
+          "version" : "7.0.0",
+          "path" : "/_mapping/{type}",
+          "description" : "Specifying types in urls has been deprecated"
+        },
+        {
+          "version" : "7.0.0",
+          "path" : "/{index}/_mapping/{type}",
+          "description" : "Specifying types in urls has been deprecated"
+        }
+      ],
       "parts": {
         "index": {
           "type" : "list",
@@ -17,8 +29,8 @@
       },
       "params": {
         "include_type_name": {
-          "type" : "string",
-          "description" : "Whether to add the type name to the response"
+          "type" : "boolean",
+          "description" : "Whether to add the type name to the response (default: false)"
         },
         "ignore_unavailable": {
             "type" : "boolean",

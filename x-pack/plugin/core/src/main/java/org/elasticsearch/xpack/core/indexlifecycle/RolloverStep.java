@@ -5,10 +5,13 @@
  */
 package org.elasticsearch.xpack.core.indexlifecycle;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Strings;
 
@@ -19,14 +22,24 @@ import java.util.Objects;
  * Unconditionally rolls over an index using the Rollover API.
  */
 public class RolloverStep extends AsyncActionStep {
-    public static final String NAME = "attempt_rollover";
+    private static final Logger logger = LogManager.getLogger(RolloverStep.class);
+
+    public static final String NAME = "attempt-rollover";
 
     public RolloverStep(StepKey key, StepKey nextStepKey, Client client) {
         super(key, nextStepKey, client);
     }
 
     @Override
-    public void performAction(IndexMetaData indexMetaData, ClusterState currentClusterState, Listener listener) {
+    public void performAction(IndexMetaData indexMetaData, ClusterState currentClusterState,
+                              ClusterStateObserver observer, Listener listener) {
+        boolean indexingComplete = LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE_SETTING.get(indexMetaData.getSettings());
+        if (indexingComplete) {
+            logger.trace(indexMetaData.getIndex() + " has lifecycle complete set, skipping " + RolloverStep.NAME);
+            listener.onResponse(true);
+            return;
+        }
+
         String rolloverAlias = RolloverAction.LIFECYCLE_ROLLOVER_ALIAS_SETTING.get(indexMetaData.getSettings());
 
         if (Strings.isNullOrEmpty(rolloverAlias)) {

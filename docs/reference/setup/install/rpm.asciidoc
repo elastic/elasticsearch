@@ -7,7 +7,7 @@ Elasticsearch on any RPM-based system such as OpenSuSE, SLES, Centos, Red Hat,
 and Oracle Enterprise.
 
 NOTE: RPM install is not supported on distributions with old versions of RPM,
-such as SLES 11 and CentOS 5.  Please see <<zip-targz>> instead.
+such as SLES 11 and CentOS 5.  Please see <<targz>> instead.
 
 include::license.asciidoc[]
 
@@ -15,9 +15,9 @@ The latest stable version of Elasticsearch can be found on the
 link:/downloads/elasticsearch[Download Elasticsearch] page. Other versions can
 be found on the link:/downloads/past-releases[Past Releases page].
 
-NOTE: Elasticsearch requires Java 8 or later. Use the
-http://www.oracle.com/technetwork/java/javase/downloads/index.html[official Oracle distribution]
-or an open-source distribution such as http://openjdk.java.net[OpenJDK].
+NOTE: Elasticsearch includes a bundled version of http://openjdk.java.net[OpenJDK]
+from the JDK maintainers (GPLv2+CE). To use your own version of Java,
+see the <<jvm-version, JVM version requirements>>
 
 [[rpm-key]]
 ==== Import the Elasticsearch PGP Key
@@ -90,6 +90,36 @@ sudo zypper install elasticsearch <3>
 
 endif::[]
 
+ifeval::["{release-state}"!="unreleased"]
+
+[NOTE]
+==================================================
+
+An alternative package which contains only features that are available under the
+Apache 2.0 license is also available. To install it, use the following `baseurl` in your `elasticsearch.repo` file:
+
+ifeval::["{release-state}"=="prerelease"]
+
+["source","sh",subs="attributes,callouts"]
+--------------------------------------------------
+baseurl=https://artifacts.elastic.co/packages/oss-{major-version}-prerelease/yum
+--------------------------------------------------
+
+endif::[]
+
+ifeval::["{release-state}"!="prerelease"]
+
+["source","sh",subs="attributes,callouts"]
+--------------------------------------------------
+baseurl=https://artifacts.elastic.co/packages/oss-{major-version}/yum
+--------------------------------------------------
+
+endif::[]
+
+==================================================
+
+endif::[]
+
 [[install-rpm]]
 ==== Download and install the RPM manually
 
@@ -105,17 +135,17 @@ The RPM for Elasticsearch v{version} can be downloaded from the website and inst
 
 ["source","sh",subs="attributes"]
 --------------------------------------------
-wget https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-{version}.rpm
-wget https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-{version}.rpm.sha512
-shasum -a 512 -c elasticsearch-{version}.rpm.sha512 <1>
-sudo rpm --install elasticsearch-{version}.rpm
+wget https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-{version}-x86_64.rpm
+wget https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-{version}-x86_64.rpm.sha512
+shasum -a 512 -c elasticsearch-{version}-x86_64.rpm.sha512 <1>
+sudo rpm --install elasticsearch-{version}-x86_64.rpm
 --------------------------------------------
 <1> Compares the SHA of the downloaded RPM and the published checksum, which should output
-    `elasticsearch-{version}.rpm: OK`.
+    `elasticsearch-{version}-x86_64.rpm: OK`.
     
 Alternatively, you can download the following package, which contains only 
 features that are available under the Apache 2.0 license: 
-https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-oss-{version}.rpm    
+https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-oss-{version}-x86_64.rpm    
 
 endif::[]
 
@@ -130,6 +160,7 @@ include::xpack-indices.asciidoc[]
 
 endif::include-xpack[]
 
+[[rpm-sysv-init-vs-systemd]]
 ==== SysV `init` vs `systemd`
 
 include::init-systemd.asciidoc[]

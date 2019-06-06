@@ -43,7 +43,7 @@ public class PercentilesBucketTests extends AbstractBucketMetricsTestCase<Percen
             for (int i = 0; i < numPercents; i++) {
                 percents[i] = randomDoubleBetween(0.0, 100.0, false);
             }
-            factory.percents(percents);
+            factory.setPercents(percents);
         }
         return factory;
     }
@@ -61,7 +61,7 @@ public class PercentilesBucketTests extends AbstractBucketMetricsTestCase<Percen
 
         PercentilesBucketPipelineAggregationBuilder builder = (PercentilesBucketPipelineAggregationBuilder) parse(createParser(content));
 
-        assertThat(builder.percents(), equalTo(new double[]{0.0, 20.0, 50.0, 75.99}));
+        assertThat(builder.getPercents(), equalTo(new double[]{0.0, 20.0, 50.0, 75.99}));
     }
 
     public void testValidate() {

@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.license;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -18,11 +20,10 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.component.Lifecycle;
-import org.elasticsearch.common.joda.FormatDateTimeFormatter;
-import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.env.Environment;
@@ -56,6 +57,7 @@ import java.util.concurrent.atomic.AtomicReference;
  * the license changes are detected in the cluster state.
  */
 public class LicenseService extends AbstractLifecycleComponent implements ClusterStateListener, SchedulerEngine.Listener {
+    private static final Logger logger = LogManager.getLogger(LicenseService.class);
 
     public static final Setting<String> SELF_GENERATED_LICENSE_TYPE = new Setting<>("xpack.license.self_generated.type",
             (s) -> "basic", (s) -> {
@@ -112,14 +114,13 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
 
     public static final String LICENSE_JOB = "licenseJob";
 
-    private static final FormatDateTimeFormatter DATE_FORMATTER = Joda.forPattern("EEEE, MMMMM dd, yyyy", Locale.ROOT);
+    private static final DateFormatter DATE_FORMATTER = DateFormatter.forPattern("EEEE, MMMM dd, yyyy");
 
     private static final String ACKNOWLEDGEMENT_HEADER = "This license update requires acknowledgement. To acknowledge the license, " +
             "please read the following messages and update the license again, this time with the \"acknowledge=true\" parameter:";
 
     public LicenseService(Settings settings, ClusterService clusterService, Clock clock, Environment env,
                           ResourceWatcherService resourceWatcherService, XPackLicenseState licenseState) {
-        super(settings);
         this.settings = settings;
         this.clusterService = clusterService;
         this.clock = clock;
@@ -133,11 +134,15 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
     }
 
     private void logExpirationWarning(long expirationMillis, boolean expired) {
+        logger.warn("{}", buildExpirationMessage(expirationMillis, expired));
+    }
+
+    static CharSequence buildExpirationMessage(long expirationMillis, boolean expired) {
         String expiredMsg = expired ? "expired" : "will expire";
         String general = LoggerMessageFormat.format(null, "License [{}] on [{}].\n" +
-                "# If you have a new license, please update it. Otherwise, please reach out to\n" +
-                "# your support contact.\n" +
-                "# ", expiredMsg, DATE_FORMATTER.printer().print(expirationMillis));
+            "# If you have a new license, please update it. Otherwise, please reach out to\n" +
+            "# your support contact.\n" +
+            "# ", expiredMsg, DATE_FORMATTER.formatMillis(expirationMillis));
         if (expired) {
             general = general.toUpperCase(Locale.ROOT);
         }
@@ -160,7 +165,7 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
                 }
             }
         });
-        logger.warn("{}", builder);
+        return builder;
     }
 
     private void populateExpirationCallbacks() {
@@ -213,10 +218,13 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
                 }
             }
 
+            // This check would be incorrect if "basic" licenses were allowed here
+            // because the defaults there mean that security can be "off", even if the setting is "on"
+            // BUT basic licenses are explicitly excluded earlier in this method, so we don't need to worry
             if (XPackSettings.SECURITY_ENABLED.get(settings)) {
                 // TODO we should really validate that all nodes have xpack installed and are consistently configured but this
                 // should happen on a different level and not in this code
-                if (newLicense.isProductionLicense()
+                if (XPackLicenseState.isTransportTlsRequired(newLicense, settings)
                     && XPackSettings.TRANSPORT_SSL_ENABLED.get(settings) == false
                     && isProductionMode(settings, clusterService.localNode())) {
                     // security is on but TLS is not configured we gonna fail the entire request and throw an exception

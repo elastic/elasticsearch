@@ -90,12 +90,10 @@ using `english` analyzer, and will be indexed without offsets or term vectors.
 PUT test_index
 {
     "mappings": {
-        "_doc": {
-            "properties": {
-                "content" : {
-                    "type" : "text",
-                    "analyzer" : "english"
-                }
+        "properties": {
+            "content" : {
+                "type" : "text",
+                "analyzer" : "english"
             }
         }
     }

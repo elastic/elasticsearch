@@ -147,7 +147,7 @@ Imagine a situation where you index the following documents into an index with 2
 
 [source,js]
 --------------------------------------------------
-PUT /transactions/_doc/_bulk?refresh
+PUT /transactions/_bulk?refresh
 {"index":{"_id":1}}
 {"type": "sale","amount": 80}
 {"index":{"_id":2}}

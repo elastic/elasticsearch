@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.index.shard;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
@@ -26,7 +27,6 @@ import org.elasticsearch.action.resync.ResyncReplicationRequest;
 import org.elasticsearch.action.resync.ResyncReplicationResponse;
 import org.elasticsearch.action.resync.TransportResyncReplicationAction;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -52,7 +52,9 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import static java.util.Objects.requireNonNull;
 
-public class PrimaryReplicaSyncer extends AbstractComponent {
+public class PrimaryReplicaSyncer {
+
+    private static final Logger logger = LogManager.getLogger(PrimaryReplicaSyncer.class);
 
     private final TaskManager taskManager;
     private final SyncAction syncAction;
@@ -244,11 +246,11 @@ public class PrimaryReplicaSyncer extends AbstractComponent {
             Translog.Operation operation;
             while ((operation = snapshot.next()) != null) {
                 final long seqNo = operation.seqNo();
-                if (startingSeqNo >= 0 &&
-                    (seqNo == SequenceNumbers.UNASSIGNED_SEQ_NO || seqNo < startingSeqNo)) {
+                if (seqNo == SequenceNumbers.UNASSIGNED_SEQ_NO || seqNo < startingSeqNo) {
                     totalSkippedOps.incrementAndGet();
                     continue;
                 }
+                assert operation.seqNo() >= 0 : "sending operation with unassigned sequence number [" + operation + "]";
                 operations.add(operation);
                 size += operation.estimateSize();
                 totalSentOps.incrementAndGet();
@@ -258,7 +260,6 @@ public class PrimaryReplicaSyncer extends AbstractComponent {
                     break;
                 }
             }
-
             final long trimmedAboveSeqNo = firstMessage.get() ? maxSeqNo : SequenceNumbers.UNASSIGNED_SEQ_NO;
             // have to send sync request even in case of there are no operations to sync - have to sync trimmedAboveSeqNo at least
             if (!operations.isEmpty() || trimmedAboveSeqNo != SequenceNumbers.UNASSIGNED_SEQ_NO) {

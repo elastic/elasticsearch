@@ -8,7 +8,9 @@ package org.elasticsearch.xpack.core.security.authc;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.file.FileRealmSettings;
+import org.elasticsearch.xpack.core.security.authc.kerberos.KerberosRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.ldap.LdapRealmSettings;
+import org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.pki.PkiRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings;
 
@@ -32,6 +34,8 @@ public final class InternalRealmsSettings {
         set.addAll(LdapRealmSettings.getSettings(LdapRealmSettings.LDAP_TYPE));
         set.addAll(PkiRealmSettings.getSettings());
         set.addAll(SamlRealmSettings.getSettings());
+        set.addAll(KerberosRealmSettings.getSettings());
+        set.addAll(OpenIdConnectRealmSettings.getSettings());
         return Collections.unmodifiableSet(set);
     }
 }

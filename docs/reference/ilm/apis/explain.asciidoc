@@ -1,9 +1,9 @@
 [role="xpack"]
 [testenv="basic"]
 [[ilm-explain-lifecycle]]
-=== Explain Lifecycle API
+=== Explain lifecycle API
 ++++
-<titleabbrev>Explain Lifecycle</titleabbrev>
+<titleabbrev>Explain lifecycle</titleabbrev>
 ++++
 
 Shows an index's current lifecycle status.
@@ -30,7 +30,9 @@ include::{docdir}/rest-api/timeoutparms.asciidoc[]
 
 ==== Authorization
 
-include::ilm-index-mgt-privilege.asciidoc[]
+You must have the `view_index_metadata` or `manage_ilm` or both privileges on the indices
+being managed to use this API.
+For more information, see {stack-ov}/security-privileges.html[Security Privileges].
 
 ==== Examples
 
@@ -137,7 +139,7 @@ phase completes.
       "action": "rollover",
       "action_time_millis": 1538475653317,
       "action_time": "2018-10-15T13:45:22.577Z",
-      "step": "attempt_rollover",
+      "step": "attempt-rollover",
       "step_time_millis": 1538475653317,
       "step_time": "2018-10-15T13:45:22.577Z",
       "phase_execution": {
@@ -166,7 +168,7 @@ entered this phase
 <3> The date the loaded policy was last modified
 <4> The epoch time when the loaded policy was last modified
 
-If {ILM} is waiting for a step to complete, the response includes status
+If {ilm-init} is waiting for a step to complete, the response includes status
 information for the step that's being performed on the index.
 
 [source,js]
@@ -225,7 +227,7 @@ information for the step that's being performed on the index.
 <1> Status of the step that's in progress.
 
 If the index is in the ERROR step, something went wrong while executing a
-step in the policy and and you will need to take action for the index to proceed
+step in the policy and you will need to take action for the index to proceed
 to the next step. To help you diagnose the problem, the explain response shows
 the step that failed and the step info provides information about the error.
 
@@ -248,7 +250,7 @@ the step that failed and the step info provides information about the error.
       "step": "ERROR",
       "step_time_millis": 1538475653317,
       "step_time": "2018-10-15T13:45:22.577Z",
-      "failed_step": "attempt_rollover", <1>
+      "failed_step": "attempt-rollover", <1>
       "step_info": { <2>
         "type": "resource_already_exists_exception",
         "reason": "index [test-000057/H7lF9n36Rzqa-KfKcnGQMg] already exists",

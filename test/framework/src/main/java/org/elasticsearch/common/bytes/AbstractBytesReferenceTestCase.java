@@ -22,22 +22,31 @@ package org.elasticsearch.common.bytes;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.BytesRefIterator;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.ByteArray;
+import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.EOFException;
 import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
+import java.nio.IntBuffer;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 public abstract class AbstractBytesReferenceTestCase extends ESTestCase {
 
-    protected static final int PAGE_SIZE = BigArrays.BYTE_PAGE_SIZE;
-    protected final BigArrays bigarrays = new BigArrays(null, new NoneCircuitBreakerService(), false);
+    protected static final int PAGE_SIZE = PageCacheRecycler.BYTE_PAGE_SIZE;
+    protected final BigArrays bigarrays = new BigArrays(null, new NoneCircuitBreakerService(), CircuitBreaker.REQUEST);
 
     public void testGet() throws IOException {
         int length = randomIntBetween(1, PAGE_SIZE * 3);
@@ -68,20 +77,21 @@ public abstract class AbstractBytesReferenceTestCase extends ESTestCase {
     }
 
     public void testSlice() throws IOException {
-        int length = randomInt(PAGE_SIZE * 3);
-        BytesReference pbr = newBytesReference(length);
-        int sliceOffset = randomIntBetween(0, length / 2);
-        int sliceLength = Math.max(0, length - sliceOffset - 1);
-        BytesReference slice = pbr.slice(sliceOffset, sliceLength);
-        assertEquals(sliceLength, slice.length());
-        for (int i = 0; i < sliceLength; i++) {
-            assertEquals(pbr.get(i+sliceOffset), slice.get(i));
-        }
-        BytesRef singlePageOrNull = getSinglePageOrNull(slice);
-        if (singlePageOrNull != null) {
-            // we can't assert the offset since if the length is smaller than the refercence
-            // the offset can be anywhere
-            assertEquals(sliceLength, singlePageOrNull.length);
+        for (int length : new int[] {0, 1, randomIntBetween(2, PAGE_SIZE), randomIntBetween(PAGE_SIZE + 1, 3 * PAGE_SIZE)}) {
+            BytesReference pbr = newBytesReference(length);
+            int sliceOffset = randomIntBetween(0, length / 2);
+            int sliceLength = Math.max(0, length - sliceOffset - 1);
+            BytesReference slice = pbr.slice(sliceOffset, sliceLength);
+            assertEquals(sliceLength, slice.length());
+            for (int i = 0; i < sliceLength; i++) {
+                assertEquals(pbr.get(i+sliceOffset), slice.get(i));
+            }
+            BytesRef singlePageOrNull = getSinglePageOrNull(slice);
+            if (singlePageOrNull != null) {
+                // we can't assert the offset since if the length is smaller than the refercence
+                // the offset can be anywhere
+                assertEquals(sliceLength, singlePageOrNull.length);
+            }
         }
     }
 
@@ -525,7 +535,7 @@ public abstract class AbstractBytesReferenceTestCase extends ESTestCase {
     public void testSliceEquals() {
         int length = randomIntBetween(100, PAGE_SIZE * randomIntBetween(2, 5));
         ByteArray ba1 = bigarrays.newByteArray(length, false);
-        BytesReference pbr = new PagedBytesReference(bigarrays, ba1, length);
+        BytesReference pbr = new PagedBytesReference(ba1, length);
 
         // test equality of slices
         int sliceFrom = randomIntBetween(0, pbr.length());
@@ -644,5 +654,35 @@ public abstract class AbstractBytesReferenceTestCase extends ESTestCase {
             array1[offset1 + randomInt(len - 1)] += 13;
             assertNotEquals(b1, b2);
         }
+    }
+
+    public void testGetInt() throws IOException {
+        final int count = randomIntBetween(1, 10);
+        final BytesReference bytesReference = newBytesReference(count * Integer.BYTES);
+        final BytesRef bytesRef = bytesReference.toBytesRef();
+        final IntBuffer intBuffer =
+            ByteBuffer.wrap(bytesRef.bytes, bytesRef.offset, bytesRef.length).order(ByteOrder.BIG_ENDIAN).asIntBuffer();
+        for (int i = 0; i < count; ++i) {
+            assertEquals(intBuffer.get(i), bytesReference.getInt(i * Integer.BYTES));
+        }
+    }
+
+    public void testIndexOf() throws IOException {
+        final int size = randomIntBetween(0, 100);
+        final BytesReference bytesReference = newBytesReference(size);
+        final Map<Byte, List<Integer>> map = new HashMap<>();
+        for (int i = 0; i < size; ++i) {
+            final byte value = bytesReference.get(i);
+            map.computeIfAbsent(value, v -> new ArrayList<>()).add(i);
+        }
+        map.forEach((value, positions) -> {
+            for (int i = 0; i < positions.size(); i++) {
+                final int pos = positions.get(i);
+                final int from = i == 0 ? randomIntBetween(0, pos) : positions.get(i - 1) + 1;
+                assertEquals(bytesReference.indexOf(value, from), pos);
+            }
+        });
+        final byte missing = randomValueOtherThanMany(map::containsKey, ESTestCase::randomByte);
+        assertEquals(-1, bytesReference.indexOf(missing, randomIntBetween(0, Math.max(0, size - 1))));
     }
 }

@@ -44,13 +44,17 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.metadata.AliasOrIndex;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.MetaDataIndexTemplateService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
@@ -77,6 +81,7 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.LongSupplier;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
@@ -112,7 +117,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                                TransportShardBulkAction shardBulkAction, NodeClient client,
                                ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
                                AutoCreateIndex autoCreateIndex, LongSupplier relativeTimeProvider) {
-        super(BulkAction.NAME, transportService, actionFilters, BulkRequest::new);
+        super(BulkAction.NAME, transportService, actionFilters, (Supplier<BulkRequest>) BulkRequest::new, ThreadPool.Names.WRITE);
         Objects.requireNonNull(relativeTimeProvider);
         this.threadPool = threadPool;
         this.clusterService = clusterService;
@@ -126,10 +131,102 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         clusterService.addStateApplier(this.ingestForwarder);
     }
 
+    /**
+     * Retrieves the {@link IndexRequest} from the provided {@link DocWriteRequest} for index or upsert actions.  Upserts are
+     * modeled as {@link IndexRequest} inside the {@link UpdateRequest}. Ignores {@link org.elasticsearch.action.delete.DeleteRequest}'s
+     *
+     * @param docWriteRequest The request to find the {@link IndexRequest}
+     * @return the found {@link IndexRequest} or {@code null} if one can not be found.
+     */
+    public static IndexRequest getIndexWriteRequest(DocWriteRequest docWriteRequest) {
+        IndexRequest indexRequest = null;
+        if (docWriteRequest instanceof IndexRequest) {
+            indexRequest = (IndexRequest) docWriteRequest;
+        } else if (docWriteRequest instanceof UpdateRequest) {
+            UpdateRequest updateRequest = (UpdateRequest) docWriteRequest;
+            indexRequest = updateRequest.docAsUpsert() ? updateRequest.doc() : updateRequest.upsertRequest();
+        }
+        return indexRequest;
+    }
+
     @Override
     protected void doExecute(Task task, BulkRequest bulkRequest, ActionListener<BulkResponse> listener) {
         final long startTime = relativeTime();
         final AtomicArray<BulkItemResponse> responses = new AtomicArray<>(bulkRequest.requests.size());
+
+        boolean hasIndexRequestsWithPipelines = false;
+        final MetaData metaData = clusterService.state().getMetaData();
+        ImmutableOpenMap<String, IndexMetaData> indicesMetaData = metaData.indices();
+        for (DocWriteRequest<?> actionRequest : bulkRequest.requests) {
+            IndexRequest indexRequest = getIndexWriteRequest(actionRequest);
+            if (indexRequest != null) {
+                // get pipeline from request
+                String pipeline = indexRequest.getPipeline();
+                if (pipeline == null) {
+                    // start to look for default pipeline via settings found in the index meta data
+                    IndexMetaData indexMetaData = indicesMetaData.get(actionRequest.index());
+                    // check the alias for the index request (this is how normal index requests are modeled)
+                    if (indexMetaData == null && indexRequest.index() != null) {
+                        AliasOrIndex indexOrAlias = metaData.getAliasAndIndexLookup().get(indexRequest.index());
+                        if (indexOrAlias != null && indexOrAlias.isAlias()) {
+                            AliasOrIndex.Alias alias = (AliasOrIndex.Alias) indexOrAlias;
+                            indexMetaData = alias.getWriteIndex();
+                        }
+                    }
+                    // check the alias for the action request (this is how upserts are modeled)
+                    if (indexMetaData == null && actionRequest.index() != null) {
+                        AliasOrIndex indexOrAlias = metaData.getAliasAndIndexLookup().get(actionRequest.index());
+                        if (indexOrAlias != null && indexOrAlias.isAlias()) {
+                            AliasOrIndex.Alias alias = (AliasOrIndex.Alias) indexOrAlias;
+                            indexMetaData = alias.getWriteIndex();
+                        }
+                    }
+                    if (indexMetaData != null) {
+                        // Find the the default pipeline if one is defined from and existing index.
+                        String defaultPipeline = IndexSettings.DEFAULT_PIPELINE.get(indexMetaData.getSettings());
+                        indexRequest.setPipeline(defaultPipeline);
+                        if (IngestService.NOOP_PIPELINE_NAME.equals(defaultPipeline) == false) {
+                            hasIndexRequestsWithPipelines = true;
+                        }
+                    } else if (indexRequest.index() != null) {
+                        // No index exists yet (and is valid request), so matching index templates to look for a default pipeline
+                        List<IndexTemplateMetaData> templates = MetaDataIndexTemplateService.findTemplates(metaData, indexRequest.index());
+                        assert (templates != null);
+                        String defaultPipeline = IngestService.NOOP_PIPELINE_NAME;
+                        // order of templates are highest order first, break if we find a default_pipeline
+                        for (IndexTemplateMetaData template : templates) {
+                            final Settings settings = template.settings();
+                            if (IndexSettings.DEFAULT_PIPELINE.exists(settings)) {
+                                defaultPipeline = IndexSettings.DEFAULT_PIPELINE.get(settings);
+                                break;
+                            }
+                        }
+                        indexRequest.setPipeline(defaultPipeline);
+                        if (IngestService.NOOP_PIPELINE_NAME.equals(defaultPipeline) == false) {
+                            hasIndexRequestsWithPipelines = true;
+                        }
+                    }
+                } else if (IngestService.NOOP_PIPELINE_NAME.equals(pipeline) == false) {
+                    hasIndexRequestsWithPipelines = true;
+                }
+            }
+        }
+
+        if (hasIndexRequestsWithPipelines) {
+            // this method (doExecute) will be called again, but with the bulk requests updated from the ingest node processing but
+            // also with IngestService.NOOP_PIPELINE_NAME on each request. This ensures that this on the second time through this method,
+            // this path is never taken.
+            try {
+                if (clusterService.localNode().isIngestNode()) {
+                    processBulkIndexIngestRequest(task, bulkRequest, listener);
+                } else {
+                    ingestForwarder.forwardIngestRequest(BulkAction.INSTANCE, bulkRequest, listener);
+                }
+            } catch (Exception e) {
+                listener.onFailure(e);
+            }
+            return;
+        }
 
         if (needToCheck()) {
             // Attempt to create all the indices that we're going to need during the bulk before we start.
@@ -161,7 +258,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             }
             // Step 3: create all the indices that are missing, if there are any missing. start the bulk after all the creates come back.
             if (autoCreateIndices.isEmpty()) {
-                executeIngestAndBulk(task, bulkRequest, startTime, listener, responses, indicesThatCannotBeCreated);
+                executeBulk(task, bulkRequest, startTime, listener, responses, indicesThatCannotBeCreated);
             } else {
                 final AtomicInteger counter = new AtomicInteger(autoCreateIndices.size());
                 for (String index : autoCreateIndices) {
@@ -169,7 +266,8 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                         @Override
                         public void onResponse(CreateIndexResponse result) {
                             if (counter.decrementAndGet() == 0) {
-                                executeIngestAndBulk(task, bulkRequest, startTime, listener, responses, indicesThatCannotBeCreated);
+                                threadPool.executor(ThreadPool.Names.WRITE).execute(
+                                    () -> executeBulk(task, bulkRequest, startTime, listener, responses, indicesThatCannotBeCreated));
                             }
                         }
 
@@ -185,7 +283,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                                 }
                             }
                             if (counter.decrementAndGet() == 0) {
-                                executeIngestAndBulk(task, bulkRequest, startTime, ActionListener.wrap(listener::onResponse, inner -> {
+                                executeBulk(task, bulkRequest, startTime, ActionListener.wrap(listener::onResponse, inner -> {
                                     inner.addSuppressed(e);
                                     listener.onFailure(inner);
                                 }), responses, indicesThatCannotBeCreated);
@@ -195,47 +293,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                 }
             }
         } else {
-            executeIngestAndBulk(task, bulkRequest, startTime, listener, responses, emptyMap());
-        }
-    }
-
-    private void executeIngestAndBulk(Task task, final BulkRequest bulkRequest, final long startTimeNanos,
-        final ActionListener<BulkResponse> listener, final AtomicArray<BulkItemResponse> responses,
-        Map<String, IndexNotFoundException> indicesThatCannotBeCreated) {
-        boolean hasIndexRequestsWithPipelines = false;
-        ImmutableOpenMap<String, IndexMetaData> indicesMetaData = clusterService.state().getMetaData().indices();
-        for (DocWriteRequest<?> actionRequest : bulkRequest.requests) {
-            if (actionRequest instanceof IndexRequest) {
-                IndexRequest indexRequest = (IndexRequest) actionRequest;
-                String pipeline = indexRequest.getPipeline();
-                if (pipeline == null) {
-                    IndexMetaData indexMetaData = indicesMetaData.get(indexRequest.index());
-                    if (indexMetaData == null) {
-                        indexRequest.setPipeline(IngestService.NOOP_PIPELINE_NAME);
-                    } else {
-                        String defaultPipeline = IndexSettings.DEFAULT_PIPELINE.get(indexMetaData.getSettings());
-                        indexRequest.setPipeline(defaultPipeline);
-                        if (IngestService.NOOP_PIPELINE_NAME.equals(defaultPipeline) == false) {
-                            hasIndexRequestsWithPipelines = true;
-                        }
-                    }
-                } else if (IngestService.NOOP_PIPELINE_NAME.equals(pipeline) == false) {
-                    hasIndexRequestsWithPipelines = true;
-                }
-            }
-        }
-        if (hasIndexRequestsWithPipelines) {
-            try {
-                if (clusterService.localNode().isIngestNode()) {
-                    processBulkIndexIngestRequest(task, bulkRequest, listener);
-                } else {
-                    ingestForwarder.forwardIngestRequest(BulkAction.INSTANCE, bulkRequest, listener);
-                }
-            } catch (Exception e) {
-                listener.onFailure(e);
-            }
-        } else {
-            executeBulk(task, bulkRequest, startTimeNanos, listener, responses, indicesThatCannotBeCreated);
+            executeBulk(task, bulkRequest, startTime, listener, responses, emptyMap());
         }
     }
 
@@ -322,7 +380,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                         case INDEX:
                             IndexRequest indexRequest = (IndexRequest) docWriteRequest;
                             final IndexMetaData indexMetaData = metaData.index(concreteIndex);
-                            MappingMetaData mappingMd = indexMetaData.mappingOrDefault(indexRequest.type());
+                            MappingMetaData mappingMd = indexMetaData.mappingOrDefault();
                             Version indexCreated = indexMetaData.getCreationVersion();
                             indexRequest.resolveRouting(metaData);
                             indexRequest.process(indexCreated, mappingMd, concreteIndex.getName());
@@ -334,8 +392,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                         case DELETE:
                             docWriteRequest.routing(metaData.resolveWriteIndexRouting(docWriteRequest.routing(), docWriteRequest.index()));
                             // check if routing is required, if so, throw error if routing wasn't specified
-                            if (docWriteRequest.routing() == null && metaData.routingRequired(concreteIndex.getName(),
-                                docWriteRequest.type())) {
+                            if (docWriteRequest.routing() == null && metaData.routingRequired(concreteIndex.getName())) {
                                 throw new RoutingMissingException(concreteIndex.getName(), docWriteRequest.type(), docWriteRequest.id());
                             }
                             break;
@@ -607,17 +664,23 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
 
         ActionListener<BulkResponse> wrapActionListenerIfNeeded(long ingestTookInMillis, ActionListener<BulkResponse> actionListener) {
             if (itemResponses.isEmpty()) {
-                return ActionListener.wrap(
-                        response -> actionListener.onResponse(new BulkResponse(response.getItems(),
-                                response.getTook().getMillis(), ingestTookInMillis)),
-                        actionListener::onFailure);
+                return ActionListener.map(actionListener,
+                    response -> new BulkResponse(response.getItems(), response.getTook().getMillis(), ingestTookInMillis));
             } else {
-                return new IngestBulkResponseListener(ingestTookInMillis, originalSlots, itemResponses, actionListener);
+                return ActionListener.delegateFailure(actionListener, (delegatedListener, response) -> {
+                    BulkItemResponse[] items = response.getItems();
+                    for (int i = 0; i < items.length; i++) {
+                        itemResponses.add(originalSlots[i], response.getItems()[i]);
+                    }
+                    delegatedListener.onResponse(
+                        new BulkResponse(
+                            itemResponses.toArray(new BulkItemResponse[0]), response.getTook().getMillis(), ingestTookInMillis));
+                });
             }
         }
 
         void markCurrentItemAsDropped() {
-            IndexRequest indexRequest = (IndexRequest) bulkRequest.requests().get(currentSlot);
+            IndexRequest indexRequest = getIndexWriteRequest(bulkRequest.requests().get(currentSlot));
             failedSlots.set(currentSlot);
             itemResponses.add(
                 new BulkItemResponse(currentSlot, indexRequest.opType(),
@@ -630,7 +693,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         }
 
         void markCurrentItemAsFailed(Exception e) {
-            IndexRequest indexRequest = (IndexRequest) bulkRequest.requests().get(currentSlot);
+            IndexRequest indexRequest = getIndexWriteRequest(bulkRequest.requests().get(currentSlot));
             // We hit a error during preprocessing a request, so we:
             // 1) Remember the request item slot from the bulk, so that we're done processing all requests we know what failed
             // 2) Add a bulk item failure for this request
@@ -641,37 +704,5 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             itemResponses.add(new BulkItemResponse(currentSlot, indexRequest.opType(), failure));
         }
 
-    }
-
-    static final class IngestBulkResponseListener implements ActionListener<BulkResponse> {
-
-        private final long ingestTookInMillis;
-        private final int[] originalSlots;
-        private final List<BulkItemResponse> itemResponses;
-        private final ActionListener<BulkResponse> actionListener;
-
-        IngestBulkResponseListener(long ingestTookInMillis, int[] originalSlots, List<BulkItemResponse> itemResponses,
-                                   ActionListener<BulkResponse> actionListener) {
-            this.ingestTookInMillis = ingestTookInMillis;
-            this.itemResponses = itemResponses;
-            this.actionListener = actionListener;
-            this.originalSlots = originalSlots;
-        }
-
-        @Override
-        public void onResponse(BulkResponse response) {
-            BulkItemResponse[] items = response.getItems();
-            for (int i = 0; i < items.length; i++) {
-                itemResponses.add(originalSlots[i], response.getItems()[i]);
-            }
-            actionListener.onResponse(new BulkResponse(
-                    itemResponses.toArray(new BulkItemResponse[itemResponses.size()]),
-                    response.getTook().getMillis(), ingestTookInMillis));
-        }
-
-        @Override
-        public void onFailure(Exception e) {
-            actionListener.onFailure(e);
-        }
     }
 }

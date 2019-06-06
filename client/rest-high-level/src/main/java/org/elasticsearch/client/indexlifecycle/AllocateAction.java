@@ -40,7 +40,7 @@ public class AllocateAction implements LifecycleAction, ToXContentObject {
     static final ParseField REQUIRE_FIELD = new ParseField("require");
 
     @SuppressWarnings("unchecked")
-    private static final ConstructingObjectParser<AllocateAction, Void> PARSER = new ConstructingObjectParser<>(NAME,
+    private static final ConstructingObjectParser<AllocateAction, Void> PARSER = new ConstructingObjectParser<>(NAME, true,
             a -> new AllocateAction((Integer) a[0], (Map<String, String>) a[1], (Map<String, String>) a[2], (Map<String, String>) a[3]));
 
     static {

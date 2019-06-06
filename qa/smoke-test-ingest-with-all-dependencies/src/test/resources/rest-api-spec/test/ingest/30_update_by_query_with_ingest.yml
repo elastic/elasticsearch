@@ -18,7 +18,7 @@
   - do:
       index:
         index:  twitter
-        type:   tweet
+        type:   _doc
         id:     1
         body:   { "user": "kimchy" }
   - do:
@@ -34,6 +34,7 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: twitter
         body:
           query:

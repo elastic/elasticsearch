@@ -3,7 +3,6 @@
   - do:
       index:
         index:  twitter
-        type:   tweet
         id:     1
         body:   { "user": "kimchy" }
   - do:
@@ -25,6 +24,7 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: new_twitter
         body:
           query:
@@ -37,13 +37,11 @@
   - do:
       index:
         index:  twitter
-        type:   tweet
         id:     1
         body:   { "user": "kimchy" }
   - do:
       index:
         index:  twitter
-        type:   tweet
         id:     2
         body:   { "user": "blort" }
   - do:
@@ -65,6 +63,7 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: new_twitter
         body:
           query:
@@ -74,6 +73,7 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: new_twitter
         body:
           query:
@@ -86,13 +86,11 @@
   - do:
       index:
         index:  twitter
-        type:   tweet
         id:     1
         body:   { "user": "kimchy" }
   - do:
       index:
         index:  twitter
-        type:   tweet
         id:     2
         body:   { "user": "foo" }
   - do:
@@ -115,7 +113,6 @@
   - do:
       get:
         index:   new_twitter
-        type:    tweet
         id:      1
         routing: kimchy
   - match: { _routing: kimchy }
@@ -123,7 +120,6 @@
   - do:
       get:
         index:   new_twitter
-        type:    tweet
         id:      2
         routing: foo
   - match: { _routing: foo }
@@ -133,13 +129,11 @@
   - do:
       index:
         index:  twitter
-        type:   tweet
         id:     1
         body:   { "user": "kimchy" }
   - do:
       index:
         index:  twitter
-        type:   tweet
         id:     2
         body:   { "user": "foo" }
   - do:
@@ -161,6 +155,7 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: new_twitter
         body:
           query:
@@ -170,6 +165,7 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: twitter
         body:
           query:
@@ -187,13 +183,11 @@
   - do:
       index:
         index:  twitter
-        type:   tweet
         id:     1
         body:   { "user": "kimchy" }
   - do:
       index:
         index:  twitter
-        type:   tweet
         id:     2
         body:   { "user": "foo" }
   - do:
@@ -222,7 +216,6 @@
   - do:
       index:
         index:        twitter
-        type:         tweet
         id:           1
         version:      1
         version_type: external
@@ -230,7 +223,6 @@
   - do:
       index:
         index:        new_twitter
-        type:         tweet
         id:           1
         version:      1
         version_type: external
@@ -255,6 +247,7 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: new_twitter
         body:
           query:
@@ -267,13 +260,11 @@
   - do:
       index:
         index:        twitter
-        type:         tweet
         id:           1
         body:         { "user": "kimchy" }
   - do:
       index:
         index:        new_twitter
-        type:         tweet
         id:           1
         body:         { "user": "kimchy" }
   - do:
@@ -295,6 +286,7 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: new_twitter
         body:
           query:
@@ -307,13 +299,11 @@
   - do:
       index:
         index:        twitter
-        type:         tweet
         id:           1
         body:         { "user": "kimchy" }
   - do:
       index:
         index:        twitter
-        type:         tweet
         id:           2
         body:         { "user": "another" }
   - do:
@@ -335,6 +325,7 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: other_new_twitter
         body:
           query:
@@ -344,6 +335,7 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: new_twitter
         body:
           query:
@@ -357,39 +349,34 @@
   - do:
       index:
         index:  index1
-        type:   type1
         id:     1
         body:   { "lang": "en", "id": 123 }
   - do:
       index:
         index:  index1
-        type:   type1
         id:     2
         body:   { "lang": "en", "id": 456 }
   - do:
       index:
         index:  index1
-        type:   type1
         id:     3
         body:   { "lang": "fr", "id": 789 }
   # Destination index
   - do:
       index:
         index:  index2
-        type:   type2
         id:     fr_789
         body:   { "lang": "fr", "id": 789 }
   - do:
       index:
         index:  index2
-        type:   type2
         id:     en_123
         body:   { "lang": "en", "id": 123 }
   - do:
       indices.refresh: {}
 
-  # Reindex all documents from "index1" into "index2", changing their type
-  # to "type2" and their id to the concatened lang+id fields,
+  # Reindex all documents from "index1" into "index2", changing
+  # their id to the concatenated lang+id fields,
   # trashing all non-english pre existing ones
   - do:
       reindex:
@@ -399,7 +386,6 @@
             index: index1
           dest:
             index: index2
-            type: type2
           script:
             lang: painless
             source: "ctx._id = ctx._source.lang + '_' + ctx._source.id;
@@ -413,25 +399,22 @@
       mget:
         body:
           docs:
-            - { _index: index2, _type: type2, _id: en_123}
-            - { _index: index2, _type: type2, _id: en_456}
-            - { _index: index2, _type: type2, _id: fr_789}
+            - { _index: index2, _type: _doc, _id: en_123}
+            - { _index: index2, _type: _doc, _id: en_456}
+            - { _index: index2, _type: _doc, _id: fr_789}
 
   - is_true: docs.0.found
   - match:  { docs.0._index:     index2      }
-  - match:  { docs.0._type:      type2       }
   - match:  { docs.0._id:        en_123      }
   - match:  { docs.0._version:   2           }
 
   - is_true: docs.1.found
   - match:  { docs.1._index:     index2      }
-  - match:  { docs.1._type:      type2       }
   - match:  { docs.1._id:        en_456      }
   - match:  { docs.1._version:   1           }
 
   - is_false: docs.2.found
   - match:  { docs.2._index:     index2      }
-  - match:  { docs.2._type:      type2       }
   - match:  { docs.2._id:        fr_789      }
 
 ---
@@ -439,7 +422,6 @@
   - do:
       index:
         index:  twitter
-        type:   tweet
         id:     1
         body:   { "user": "kimchy" }
   - do:

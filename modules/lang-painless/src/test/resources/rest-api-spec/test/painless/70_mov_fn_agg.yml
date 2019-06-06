@@ -1,20 +1,16 @@
 # Sanity integration test to make sure the custom context and whitelist work for moving_fn pipeline agg
 #
 setup:
-  - skip:
-        version: " - 6.3.99"
-        reason:  "moving_fn added in 6.4.0"
   - do:
       indices.create:
         index: test
         body:
             mappings:
-              _doc:
-                properties:
-                  value_field:
-                    type: integer
-                  date:
-                    type: date
+              properties:
+                value_field:
+                  type: integer
+                date:
+                  type: date
 
   - do:
        bulk:
@@ -22,37 +18,31 @@ setup:
          body:
            - index:
                _index: test
-               _type:  _doc
                _id:    1
            - date: "2017-01-01T00:00:00"
              value_field: 1
            - index:
                _index: test
-               _type:  _doc
                _id:    2
            - date: "2017-01-02T00:00:00"
              value_field: 2
            - index:
                _index: test
-               _type:  _doc
                _id:    3
            - date: "2017-01-03T00:00:00"
              value_field: 3
            - index:
                _index: test
-               _type:  _doc
                _id:    4
            - date: "2017-01-04T00:00:00"
              value_field: 4
            - index:
                _index: test
-               _type:  _doc
                _id:    5
            - date: "2017-01-05T00:00:00"
              value_field: 5
            - index:
                _index: test
-               _type:  _doc
                _id:    6
            - date: "2017-01-06T00:00:00"
              value_field: 6
@@ -66,13 +56,14 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body:
           size: 0
           aggs:
             the_histo:
               date_histogram:
                 field: "date"
-                interval: "1d"
+                calendar_interval: "1d"
               aggs:
                 the_avg:
                   avg:
@@ -97,13 +88,14 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body:
           size: 0
           aggs:
             the_histo:
               date_histogram:
                 field: "date"
-                interval: "1d"
+                calendar_interval: "1d"
               aggs:
                 the_avg:
                   avg:
@@ -128,13 +120,14 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body:
           size: 0
           aggs:
             the_histo:
               date_histogram:
                 field: "date"
-                interval: "1d"
+                calendar_interval: "1d"
               aggs:
                 the_avg:
                   avg:
@@ -159,13 +152,14 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body:
           size: 0
           aggs:
             the_histo:
               date_histogram:
                 field: "date"
-                interval: "1d"
+                calendar_interval: "1d"
               aggs:
                 the_avg:
                   avg:
@@ -185,13 +179,14 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body:
           size: 0
           aggs:
             the_histo:
               date_histogram:
                 field: "date"
-                interval: "1d"
+                calendar_interval: "1d"
               aggs:
                 the_avg:
                   avg:
@@ -211,13 +206,14 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body:
           size: 0
           aggs:
             the_histo:
               date_histogram:
                 field: "date"
-                interval: "1d"
+                calendar_interval: "1d"
               aggs:
                 the_avg:
                   avg:
@@ -237,13 +233,14 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body:
           size: 0
           aggs:
             the_histo:
               date_histogram:
                 field: "date"
-                interval: "1d"
+                calendar_interval: "1d"
               aggs:
                 the_avg:
                   avg:
@@ -263,13 +260,14 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body:
           size: 0
           aggs:
             the_histo:
               date_histogram:
                 field: "date"
-                interval: "1d"
+                calendar_interval: "1d"
               aggs:
                 the_avg:
                   avg:
@@ -288,13 +286,14 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body:
           size: 0
           aggs:
             the_histo:
               date_histogram:
                 field: "date"
-                interval: "1d"
+                calendar_interval: "1d"
               aggs:
                 the_avg:
                   avg:
@@ -307,9 +306,3 @@ setup:
 
   - match: { hits.total: 6 }
   - length: { hits.hits: 0 }
-
-
-
-
-
-

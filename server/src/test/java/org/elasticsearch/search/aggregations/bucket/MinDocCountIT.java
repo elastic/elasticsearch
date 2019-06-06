@@ -26,7 +26,7 @@ import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.common.time.DateFormatters;
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -81,22 +81,22 @@ public class MinDocCountIT extends AbstractTermsTestCase {
         protected Map<String, Function<Map<String, Object>, Object>> pluginScripts() {
             Map<String, Function<Map<String, Object>, Object>> scripts = new HashMap<>();
 
-            scripts.put("doc['d'].values", vars -> {
+            scripts.put("doc['d']", vars -> {
                 Map<?, ?> doc = (Map) vars.get("doc");
                 ScriptDocValues.Doubles value = (ScriptDocValues.Doubles) doc.get("d");
-                return value.getValues();
+                return value;
             });
 
-            scripts.put("doc['l'].values", vars -> {
+            scripts.put("doc['l']", vars -> {
                 Map<?, ?> doc = (Map) vars.get("doc");
                 ScriptDocValues.Longs value = (ScriptDocValues.Longs) doc.get("l");
-                return value.getValues();
+                return value;
             });
 
-            scripts.put("doc['s'].values", vars -> {
+            scripts.put("doc['s']", vars -> {
                 Map<?, ?> doc = (Map) vars.get("doc");
                 ScriptDocValues.Strings value = (ScriptDocValues.Strings) doc.get("s");
-                return value.getValues();
+                return value;
             });
 
             return scripts;
@@ -124,7 +124,7 @@ public class MinDocCountIT extends AbstractTermsTestCase {
             double doubleTerm = longTerm * Math.PI;
 
             ZonedDateTime time = ZonedDateTime.of(2014, 1, ((int) longTerm % 20) + 1, 0, 0, 0, 0, ZoneOffset.UTC);
-            String dateTerm = DateFormatters.forPattern("yyyy-MM-dd").format(time);
+            String dateTerm = DateFormatter.forPattern("yyyy-MM-dd").format(time);
             final int frequency = randomBoolean() ? 1 : randomIntBetween(2, 20);
             for (int j = 0; j < frequency; ++j) {
                 indexRequests.add(client().prepareIndex("idx", "type").setSource(jsonBuilder()
@@ -154,7 +154,7 @@ public class MinDocCountIT extends AbstractTermsTestCase {
             @Override
             TermsAggregationBuilder apply(TermsAggregationBuilder builder, String field) {
                 return builder.script(new org.elasticsearch.script.Script(ScriptType.INLINE,
-                    CustomScriptPlugin.NAME, "doc['" + field + "'].values", Collections.emptyMap()));
+                    CustomScriptPlugin.NAME, "doc['" + field + "']", Collections.emptyMap()));
             }
         };
         abstract TermsAggregationBuilder apply(TermsAggregationBuilder builder, String field);
@@ -309,7 +309,7 @@ public class MinDocCountIT extends AbstractTermsTestCase {
 
     private void testMinDocCountOnTerms(String field, Script script, BucketOrder order, String include, boolean retry) throws Exception {
         // all terms
-        final SearchResponse allTermsResponse = client().prepareSearch("idx").setTypes("type")
+        final SearchResponse allTermsResponse = client().prepareSearch("idx")
                 .setSize(0)
                 .setQuery(QUERY)
                 .addAggregation(script.apply(terms("terms"), field)
@@ -318,7 +318,7 @@ public class MinDocCountIT extends AbstractTermsTestCase {
                         .order(order)
                         .size(cardinality + randomInt(10))
                         .minDocCount(0))
-                .execute().actionGet();
+                .get();
         assertAllSuccessful(allTermsResponse);
 
         final Terms allTerms = allTermsResponse.getAggregations().get("terms");
@@ -326,7 +326,7 @@ public class MinDocCountIT extends AbstractTermsTestCase {
 
         for (long minDocCount = 0; minDocCount < 20; ++minDocCount) {
             final int size = randomIntBetween(1, cardinality + 2);
-            final SearchRequest request = client().prepareSearch("idx").setTypes("type")
+            final SearchRequest request = client().prepareSearch("idx")
                     .setSize(0)
                     .setQuery(QUERY)
                     .addAggregation(script.apply(terms("terms"), field)
@@ -377,26 +377,26 @@ public class MinDocCountIT extends AbstractTermsTestCase {
 
     private void testMinDocCountOnHistogram(BucketOrder order) throws Exception {
         final int interval = randomIntBetween(1, 3);
-        final SearchResponse allResponse = client().prepareSearch("idx").setTypes("type")
+        final SearchResponse allResponse = client().prepareSearch("idx")
                 .setSize(0)
                 .setQuery(QUERY)
                 .addAggregation(histogram("histo").field("d").interval(interval).order(order).minDocCount(0))
-                .execute().actionGet();
+                .get();
 
         final Histogram allHisto = allResponse.getAggregations().get("histo");
 
         for (long minDocCount = 0; minDocCount < 50; ++minDocCount) {
-            final SearchResponse response = client().prepareSearch("idx").setTypes("type")
+            final SearchResponse response = client().prepareSearch("idx")
                     .setSize(0)
                     .setQuery(QUERY)
                     .addAggregation(histogram("histo").field("d").interval(interval).order(order).minDocCount(minDocCount))
-                    .execute().actionGet();
+                    .get();
             assertSubset(allHisto, (Histogram) response.getAggregations().get("histo"), minDocCount);
         }
     }
 
     private void testMinDocCountOnDateHistogram(BucketOrder order) throws Exception {
-        final SearchResponse allResponse = client().prepareSearch("idx").setTypes("type")
+        final SearchResponse allResponse = client().prepareSearch("idx")
                 .setSize(0)
                 .setQuery(QUERY)
                 .addAggregation(
@@ -410,7 +410,7 @@ public class MinDocCountIT extends AbstractTermsTestCase {
         final Histogram allHisto = allResponse.getAggregations().get("histo");
 
         for (long minDocCount = 0; minDocCount < 50; ++minDocCount) {
-            final SearchResponse response = client().prepareSearch("idx").setTypes("type")
+            final SearchResponse response = client().prepareSearch("idx")
                     .setSize(0)
                     .setQuery(QUERY)
                     .addAggregation(

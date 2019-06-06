@@ -78,11 +78,6 @@ public class ReindexDocumentationIT extends ESIntegTestCase {
         return Arrays.asList(ReindexPlugin.class, ReindexCancellationPlugin.class);
     }
 
-    @Override
-    protected Collection<Class<? extends Plugin>> transportClientPlugins() {
-        return Collections.singletonList(ReindexPlugin.class);
-    }
-
     @Before
     public void setup() {
         client().admin().indices().prepareCreate(INDEX_NAME).get();
@@ -172,7 +167,7 @@ public class ReindexDocumentationIT extends ESIntegTestCase {
             // tag::update-by-query-multi-index
             UpdateByQueryRequestBuilder updateByQuery =
               new UpdateByQueryRequestBuilder(client, UpdateByQueryAction.INSTANCE);
-            updateByQuery.source("foo", "bar").source().setTypes("a", "b");
+            updateByQuery.source("foo", "bar");
             BulkByScrollResponse response = updateByQuery.get();
             // end::update-by-query-multi-index
         }

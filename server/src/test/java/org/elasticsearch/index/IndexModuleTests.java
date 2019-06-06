@@ -29,10 +29,12 @@ import org.apache.lucene.search.TermStatistics;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.search.similarities.BM25Similarity;
 import org.apache.lucene.search.similarities.Similarity;
+import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.SetOnce.AlreadySetException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
@@ -59,9 +61,10 @@ import org.elasticsearch.index.shard.IndexSearcherWrapper;
 import org.elasticsearch.index.shard.IndexingOperationListener;
 import org.elasticsearch.index.shard.SearchOperationListener;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.index.similarity.NonNegativeScoresSimilarity;
 import org.elasticsearch.index.similarity.SimilarityService;
-import org.elasticsearch.index.store.IndexStore;
+import org.elasticsearch.index.store.FsDirectoryFactory;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.IndicesQueryCache;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
@@ -69,6 +72,7 @@ import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.indices.mapper.MapperRegistry;
+import org.elasticsearch.plugins.IndexStorePlugin;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.ClusterServiceUtils;
@@ -85,9 +89,9 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.Function;
 
 import static java.util.Collections.emptyMap;
+import static org.elasticsearch.index.IndexService.IndexCreationContext.CREATE_INDEX;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.instanceOf;
@@ -132,7 +136,7 @@ public class IndexModuleTests extends ESTestCase {
         threadPool = new TestThreadPool("test");
         circuitBreakerService = new NoneCircuitBreakerService();
         PageCacheRecycler pageCacheRecycler = new PageCacheRecycler(settings);
-        bigArrays = new BigArrays(pageCacheRecycler, circuitBreakerService);
+        bigArrays = new BigArrays(pageCacheRecycler, circuitBreakerService, CircuitBreaker.REQUEST);
         scriptService = new ScriptService(settings, Collections.emptyMap(), Collections.emptyMap());
         clusterService = ClusterServiceUtils.createClusterService(threadPool);
         nodeEnvironment = new NodeEnvironment(settings, environment);
@@ -147,8 +151,8 @@ public class IndexModuleTests extends ESTestCase {
     }
 
     private IndexService newIndexService(IndexModule module) throws IOException {
-        return module.newIndexService(nodeEnvironment, xContentRegistry(), deleter, circuitBreakerService, bigArrays, threadPool,
-                scriptService, null, indicesQueryCache, mapperRegistry,
+        return module.newIndexService(CREATE_INDEX, nodeEnvironment, xContentRegistry(), deleter, circuitBreakerService, bigArrays,
+                threadPool, scriptService, null, indicesQueryCache, mapperRegistry,
                 new IndicesFieldDataCache(settings, listener), writableRegistry());
     }
 
@@ -172,11 +176,12 @@ public class IndexModuleTests extends ESTestCase {
             .put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), "foo_store")
             .build();
         final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(index, settings);
-        final Map<String, Function<IndexSettings, IndexStore>> indexStoreFactories = Collections.singletonMap("foo_store", FooStore::new);
+        final Map<String, IndexStorePlugin.DirectoryFactory> indexStoreFactories = Collections.singletonMap(
+            "foo_store", new FooFunction());
         final IndexModule module = new IndexModule(indexSettings, emptyAnalysisRegistry, new InternalEngineFactory(), indexStoreFactories);
 
         final IndexService indexService = newIndexService(module);
-        assertThat(indexService.getIndexStore(), instanceOf(FooStore.class));
+        assertThat(indexService.getDirectoryFactory(), instanceOf(FooFunction.class));
 
         indexService.close("simon says", false);
     }
@@ -382,19 +387,20 @@ public class IndexModuleTests extends ESTestCase {
         indexService.close("simon says", false);
     }
 
-    public void testMmapfsStoreTypeNotAllowed() {
+    public void testMmapNotAllowed() {
+        String storeType = randomFrom(IndexModule.Type.HYBRIDFS.getSettingsKey(), IndexModule.Type.MMAPFS.getSettingsKey());
         final Settings settings = Settings.builder()
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
-                .put("index.store.type", "mmapfs")
+                .put("index.store.type", storeType)
                 .build();
         final Settings nodeSettings = Settings.builder()
-                .put(IndexModule.NODE_STORE_ALLOW_MMAPFS.getKey(), false)
+                .put(IndexModule.NODE_STORE_ALLOW_MMAP.getKey(), false)
                 .build();
         final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(new Index("foo", "_na_"), settings, nodeSettings);
         final IndexModule module =
                 new IndexModule(indexSettings, emptyAnalysisRegistry, new InternalEngineFactory(), Collections.emptyMap());
         final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> newIndexService(module));
-        assertThat(e, hasToString(containsString("store type [mmapfs] is not allowed")));
+        assertThat(e, hasToString(containsString("store type [" + storeType + "] is not allowed")));
     }
 
     class CustomQueryCache implements QueryCache {
@@ -441,10 +447,11 @@ public class IndexModuleTests extends ESTestCase {
         }
     }
 
-    public static final class FooStore extends IndexStore {
+    public static final class FooFunction implements IndexStorePlugin.DirectoryFactory {
 
-        public FooStore(IndexSettings indexSettings) {
-            super(indexSettings);
+        @Override
+        public Directory newDirectory(IndexSettings indexSettings, ShardPath shardPath) throws IOException {
+            return new FsDirectoryFactory().newDirectory(indexSettings, shardPath);
         }
     }
 

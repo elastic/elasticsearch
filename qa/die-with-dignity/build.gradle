@@ -27,8 +27,8 @@ esplugin {
 integTestRunner {
     systemProperty 'tests.security.manager', 'false'
     systemProperty 'tests.system_call_filter', 'false'
-    systemProperty 'pidfile', "${-> integTest.getNodes().get(0).pidFile}"
-    systemProperty 'log', "${-> integTest.getNodes().get(0).homeDir}/logs/${-> integTest.getNodes().get(0).clusterName}.log"
+    nonInputProperties.systemProperty 'pidfile', "${-> integTest.getNodes().get(0).pidFile}"
+    nonInputProperties.systemProperty 'log', "${-> integTest.getNodes().get(0).homeDir}/logs/${-> integTest.getNodes().get(0).clusterName}_server.json"
     systemProperty 'runtime.java.home', "${project.runtimeJavaHome}"
 }
 

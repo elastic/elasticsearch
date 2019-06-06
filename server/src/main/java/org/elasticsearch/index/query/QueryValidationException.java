@@ -37,7 +37,8 @@ public class QueryValidationException extends ValidationException {
      * @param validationException an initial exception. Can be {@code null}, in which case a new exception is created.
      * @return a {@link QueryValidationException} with added validation error message
      */
-    public static QueryValidationException addValidationError(String queryId, String validationError, QueryValidationException validationException) {
+    public static QueryValidationException addValidationError(String queryId, String validationError,
+                                                                    QueryValidationException validationException) {
         if (validationException == null) {
             validationException = new QueryValidationException();
         }
@@ -52,7 +53,8 @@ public class QueryValidationException extends ValidationException {
      * @param validationException an initial exception. Can be {@code null}, in which case a new exception is created.
      * @return a {@link QueryValidationException} with added validation error message
      */
-    public static QueryValidationException addValidationErrors(List<String> validationErrors, QueryValidationException validationException) {
+    public static QueryValidationException addValidationErrors(List<String> validationErrors,
+                                                                    QueryValidationException validationException) {
         if (validationException == null) {
             validationException = new QueryValidationException();
         }

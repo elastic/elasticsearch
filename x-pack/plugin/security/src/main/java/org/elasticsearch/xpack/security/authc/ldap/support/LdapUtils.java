@@ -133,11 +133,13 @@ public final class LdapUtils {
             @SuppressForbidden(reason = "Bind allowed if forking of the LDAP Connection Reader Thread.")
             protected void doRun() throws Exception {
                 privilegedConnect(() -> ldapPool.bindAndRevertAuthentication(bind.duplicate()));
+                LOGGER.trace("LDAP bind [{}] succeeded for [{}]", bind, ldapPool);
                 runnable.run();
             }
 
             @Override
             public void onFailure(Exception e) {
+                LOGGER.debug("LDAP bind [{}] failed for [{}] - [{}]", bind, ldapPool, e.toString());
                 runnable.onFailure(e);
             }
 
@@ -178,11 +180,13 @@ public final class LdapUtils {
             @SuppressForbidden(reason = "Bind allowed if forking of the LDAP Connection Reader Thread.")
             protected void doRun() throws Exception {
                 privilegedConnect(() -> ldap.bind(bind.duplicate()));
+                LOGGER.trace("LDAP bind [{}] succeeded for [{}]", bind, ldap);
                 runnable.run();
             }
 
             @Override
             public void onFailure(Exception e) {
+                LOGGER.debug("LDAP bind [{}] failed for [{}] - [{}]", bind, ldap, e.toString());
                 runnable.onFailure(e);
             }
 

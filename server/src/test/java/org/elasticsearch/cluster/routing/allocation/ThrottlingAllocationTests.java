@@ -42,6 +42,7 @@ import org.elasticsearch.cluster.routing.allocation.command.AllocationCommands;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
@@ -335,6 +336,7 @@ public class ThrottlingAllocationTests extends ESAllocationTestCase {
         RoutingTable.Builder routingTableBuilder = RoutingTable.builder();
         Snapshot snapshot = new Snapshot("repo", new SnapshotId("snap", "randomId"));
         Set<String> snapshotIndices = new HashSet<>();
+        String restoreUUID = UUIDs.randomBase64UUID();
         for (ObjectCursor<IndexMetaData> cursor: metaData.indices().values()) {
             Index index = cursor.value.getIndex();
             IndexMetaData.Builder indexMetaDataBuilder = IndexMetaData.builder(cursor.value);
@@ -357,12 +359,14 @@ public class ThrottlingAllocationTests extends ESAllocationTestCase {
                 case 3:
                     snapshotIndices.add(index.getName());
                     routingTableBuilder.addAsNewRestore(indexMetaData,
-                        new SnapshotRecoverySource(snapshot, Version.CURRENT, indexMetaData.getIndex().getName()), new IntHashSet());
+                        new SnapshotRecoverySource(
+                            restoreUUID, snapshot, Version.CURRENT, indexMetaData.getIndex().getName()), new IntHashSet());
                     break;
                 case 4:
                     snapshotIndices.add(index.getName());
                     routingTableBuilder.addAsRestore(indexMetaData,
-                        new SnapshotRecoverySource(snapshot, Version.CURRENT, indexMetaData.getIndex().getName()));
+                        new SnapshotRecoverySource(
+                            restoreUUID, snapshot, Version.CURRENT, indexMetaData.getIndex().getName()));
                     break;
                 case 5:
                     routingTableBuilder.addAsNew(indexMetaData);
@@ -385,9 +389,9 @@ public class ThrottlingAllocationTests extends ESAllocationTestCase {
                 }
             }
 
-            RestoreInProgress.Entry restore = new RestoreInProgress.Entry(snapshot, RestoreInProgress.State.INIT,
+            RestoreInProgress.Entry restore = new RestoreInProgress.Entry(restoreUUID, snapshot, RestoreInProgress.State.INIT,
                 new ArrayList<>(snapshotIndices), restoreShards.build());
-            restores.put(RestoreInProgress.TYPE, new RestoreInProgress(restore));
+            restores.put(RestoreInProgress.TYPE, new RestoreInProgress.Builder().add(restore).build());
         }
 
         return ClusterState.builder(CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))

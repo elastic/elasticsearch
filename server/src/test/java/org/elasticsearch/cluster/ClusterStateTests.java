@@ -21,11 +21,13 @@ package org.elasticsearch.cluster;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class ClusterStateTests extends ESTestCase {
@@ -55,6 +57,20 @@ public class ClusterStateTests extends ESTestCase {
 
         // state from the same master compare by version
         assertThat(withMaster1a.supersedes(withMaster1b), equalTo(withMaster1a.version() > withMaster1b.version()));
+    }
 
+    public void testBuilderRejectsNullCustom() {
+        final ClusterState.Builder builder = ClusterState.builder(ClusterName.DEFAULT);
+        final String key = randomAlphaOfLength(10);
+        assertThat(expectThrows(NullPointerException.class, () -> builder.putCustom(key, null)).getMessage(), containsString(key));
+    }
+
+    public void testBuilderRejectsNullInCustoms() {
+        final ClusterState.Builder builder = ClusterState.builder(ClusterName.DEFAULT);
+        final String key = randomAlphaOfLength(10);
+        final ImmutableOpenMap.Builder<String, ClusterState.Custom> mapBuilder = ImmutableOpenMap.builder();
+        mapBuilder.put(key, null);
+        final ImmutableOpenMap<String, ClusterState.Custom> map = mapBuilder.build();
+        assertThat(expectThrows(NullPointerException.class, () -> builder.customs(map)).getMessage(), containsString(key));
     }
 }

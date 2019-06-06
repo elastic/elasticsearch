@@ -64,10 +64,10 @@ public class ValueCountIT extends ESIntegTestCase {
                     .field("value", i+1)
                     .startArray("values").value(i+2).value(i+3).endArray()
                     .endObject())
-                    .execute().actionGet();
+                    .get();
         }
-        client().admin().indices().prepareFlush().execute().actionGet();
-        client().admin().indices().prepareRefresh().execute().actionGet();
+        client().admin().indices().prepareFlush().get();
+        client().admin().indices().prepareRefresh().get();
         ensureSearchable();
     }
 
@@ -80,9 +80,9 @@ public class ValueCountIT extends ESIntegTestCase {
         SearchResponse searchResponse = client().prepareSearch("idx_unmapped")
                 .setQuery(matchAllQuery())
                 .addAggregation(count("count").field("value"))
-                .execute().actionGet();
+                .get();
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(0L));
+        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(0L));
 
         ValueCount valueCount = searchResponse.getAggregations().get("count");
         assertThat(valueCount, notNullValue());
@@ -94,7 +94,7 @@ public class ValueCountIT extends ESIntegTestCase {
         SearchResponse searchResponse = client().prepareSearch("idx")
                 .setQuery(matchAllQuery())
                 .addAggregation(count("count").field("value"))
-                .execute().actionGet();
+                .get();
 
         assertHitCount(searchResponse, 10);
 
@@ -106,7 +106,7 @@ public class ValueCountIT extends ESIntegTestCase {
 
     public void testSingleValuedFieldGetProperty() throws Exception {
         SearchResponse searchResponse = client().prepareSearch("idx").setQuery(matchAllQuery())
-                .addAggregation(global("global").subAggregation(count("count").field("value"))).execute().actionGet();
+                .addAggregation(global("global").subAggregation(count("count").field("value"))).get();
 
         assertHitCount(searchResponse, 10);
 
@@ -130,7 +130,7 @@ public class ValueCountIT extends ESIntegTestCase {
         SearchResponse searchResponse = client().prepareSearch("idx", "idx_unmapped")
                 .setQuery(matchAllQuery())
                 .addAggregation(count("count").field("value"))
-                .execute().actionGet();
+                .get();
 
         assertHitCount(searchResponse, 10);
 
@@ -144,7 +144,7 @@ public class ValueCountIT extends ESIntegTestCase {
         SearchResponse searchResponse = client().prepareSearch("idx")
                 .setQuery(matchAllQuery())
                 .addAggregation(count("count").field("values"))
-                .execute().actionGet();
+                .get();
 
         assertHitCount(searchResponse, 10);
 
@@ -158,7 +158,7 @@ public class ValueCountIT extends ESIntegTestCase {
         SearchResponse searchResponse = client().prepareSearch("idx").setQuery(matchAllQuery())
             .addAggregation(count("count").script(
                 new Script(ScriptType.INLINE, METRIC_SCRIPT_ENGINE, VALUE_FIELD_SCRIPT, Collections.emptyMap())))
-            .execute().actionGet();
+            .get();
 
         assertHitCount(searchResponse, 10);
 
@@ -172,7 +172,7 @@ public class ValueCountIT extends ESIntegTestCase {
         SearchResponse searchResponse = client().prepareSearch("idx").setQuery(matchAllQuery())
             .addAggregation(count("count").script(
                 new Script(ScriptType.INLINE, METRIC_SCRIPT_ENGINE, SUM_VALUES_FIELD_SCRIPT, Collections.emptyMap())))
-            .execute().actionGet();
+            .get();
 
         assertHitCount(searchResponse, 10);
 
@@ -186,7 +186,7 @@ public class ValueCountIT extends ESIntegTestCase {
         Map<String, Object> params = Collections.singletonMap("field", "value");
         SearchResponse searchResponse = client().prepareSearch("idx").setQuery(matchAllQuery())
             .addAggregation(count("count").script(new Script(ScriptType.INLINE, METRIC_SCRIPT_ENGINE, SUM_FIELD_PARAMS_SCRIPT, params)))
-            .execute().actionGet();
+            .get();
 
         assertHitCount(searchResponse, 10);
 
@@ -200,7 +200,7 @@ public class ValueCountIT extends ESIntegTestCase {
         Map<String, Object> params = Collections.singletonMap("field", "values");
         SearchResponse searchResponse = client().prepareSearch("idx").setQuery(matchAllQuery())
                 .addAggregation(count("count").script(
-                    new Script(ScriptType.INLINE, METRIC_SCRIPT_ENGINE, SUM_FIELD_PARAMS_SCRIPT, params))).execute().actionGet();
+                    new Script(ScriptType.INLINE, METRIC_SCRIPT_ENGINE, SUM_FIELD_PARAMS_SCRIPT, params))).get();
 
         assertHitCount(searchResponse, 10);
 

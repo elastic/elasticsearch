@@ -8,10 +8,11 @@ package org.elasticsearch.test;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestClient;
+import org.elasticsearch.client.RestHighLevelClient;
+import org.elasticsearch.client.security.ClearRealmCacheRequest;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
-import org.elasticsearch.xpack.core.security.client.SecurityClient;
 import org.elasticsearch.xpack.core.security.user.APMSystemUser;
 import org.elasticsearch.xpack.core.security.user.BeatsSystemUser;
 import org.elasticsearch.xpack.core.security.user.ElasticUser;
@@ -24,8 +25,11 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Set;
+
+import static org.elasticsearch.test.SecuritySettingsSource.SECURITY_REQUEST_OPTIONS;
 
 /**
  * Test case with method to handle the starting and stopping the stores for native users and roles
@@ -46,8 +50,9 @@ public abstract class NativeRealmIntegTestCase extends SecurityIntegTestCase {
 
         if (getCurrentClusterScope() == Scope.SUITE) {
             // Clear the realm cache for all realms since we use a SUITE scoped cluster
-            SecurityClient client = securityClient(internalCluster().transportClient());
-            client.prepareClearRealmCache().get();
+            RestHighLevelClient restClient = new TestRestHighLevelClient();
+            restClient.security()
+                .clearRealmCache(new ClearRealmCacheRequest(Collections.emptyList(), Collections.emptyList()), SECURITY_REQUEST_OPTIONS);
         }
     }
 
@@ -59,7 +64,7 @@ public abstract class NativeRealmIntegTestCase extends SecurityIntegTestCase {
     @Override
     public Set<String> excludeTemplates() {
         Set<String> templates = Sets.newHashSet(super.excludeTemplates());
-        templates.add(SecurityIndexManager.SECURITY_TEMPLATE_NAME); // don't remove the security index template
+        templates.add(SecurityIndexManager.SECURITY_MAIN_TEMPLATE_7); // don't remove the security index template
         return templates;
     }
 
@@ -80,7 +85,7 @@ public abstract class NativeRealmIntegTestCase extends SecurityIntegTestCase {
     public void setupReservedPasswords(RestClient restClient) throws IOException {
         logger.info("setting up reserved passwords for test");
         {
-            Request request = new Request("PUT", "/_xpack/security/user/elastic/_password");
+            Request request = new Request("PUT", "/_security/user/elastic/_password");
             request.setJsonEntity("{\"password\": \"" + new String(reservedPassword.getChars()) + "\"}");
             RequestOptions.Builder options = request.getOptions().toBuilder();
             options.addHeader("Authorization", UsernamePasswordToken.basicAuthHeaderValue(ElasticUser.NAME, BOOTSTRAP_PASSWORD));
@@ -94,7 +99,7 @@ public abstract class NativeRealmIntegTestCase extends SecurityIntegTestCase {
         final List<String> usernames = Arrays.asList(KibanaUser.NAME, LogstashSystemUser.NAME, BeatsSystemUser.NAME, APMSystemUser.NAME,
             RemoteMonitoringUser.NAME);
         for (String username : usernames) {
-            Request request = new Request("PUT", "/_xpack/security/user/" + username + "/_password");
+            Request request = new Request("PUT", "/_security/user/" + username + "/_password");
             request.setJsonEntity("{\"password\": \"" + new String(reservedPassword.getChars()) + "\"}");
             request.setOptions(options);
             restClient.performRequest(request);

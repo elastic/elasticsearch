@@ -72,7 +72,7 @@ still be available in its original form in `ctx.payload.first`.
       {
         "second" : {
           "transform" : {
-            "script" : "return [ 'path' : 'ctx.payload.first.path' + '/' ]"
+            "script" : "return [ 'path' : ctx.payload.first.path + '/' ]"
           }
         }
       },

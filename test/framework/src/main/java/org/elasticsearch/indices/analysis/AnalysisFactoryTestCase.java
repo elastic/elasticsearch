@@ -19,24 +19,16 @@
 
 package org.elasticsearch.indices.analysis;
 
-import org.apache.lucene.analysis.util.CharFilterFactory;
 import org.apache.lucene.analysis.util.TokenFilterFactory;
 import org.apache.lucene.analysis.util.TokenizerFactory;
-import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.index.analysis.HunspellTokenFilterFactory;
-import org.elasticsearch.index.analysis.MultiTermAwareComponent;
-import org.elasticsearch.index.analysis.PreConfiguredCharFilter;
-import org.elasticsearch.index.analysis.PreConfiguredTokenFilter;
-import org.elasticsearch.index.analysis.PreConfiguredTokenizer;
 import org.elasticsearch.index.analysis.ShingleTokenFilterFactory;
 import org.elasticsearch.index.analysis.StandardTokenizerFactory;
 import org.elasticsearch.index.analysis.StopTokenFilterFactory;
 import org.elasticsearch.plugins.AnalysisPlugin;
 import org.elasticsearch.test.ESTestCase;
 
-import java.util.Collection;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
@@ -46,9 +38,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import static java.util.Collections.emptyMap;
-import static java.util.Collections.singletonList;
-import static org.hamcrest.Matchers.empty;
-import static org.hamcrest.Matchers.typeCompatibleWith;
+import static java.util.Map.entry;
 
 /**
  * Alerts us if new analysis components are added to Lucene, so we don't miss them.
@@ -71,164 +61,156 @@ public abstract class AnalysisFactoryTestCase extends ESTestCase {
         return sb.toString();
     }
 
-    static final Map<String,Class<?>> KNOWN_TOKENIZERS = new MapBuilder<String,Class<?>>()
+    static final Map<String,Class<?>> KNOWN_TOKENIZERS = Map.ofEntries(
         // exposed in ES
-        .put("classic", MovedToAnalysisCommon.class)
-        .put("edgengram", MovedToAnalysisCommon.class)
-        .put("keyword", MovedToAnalysisCommon.class)
-        .put("letter", MovedToAnalysisCommon.class)
-        .put("ngram", MovedToAnalysisCommon.class)
-        .put("pathhierarchy", MovedToAnalysisCommon.class)
-        .put("pattern", MovedToAnalysisCommon.class)
-        .put("simplepattern", MovedToAnalysisCommon.class)
-        .put("simplepatternsplit", MovedToAnalysisCommon.class)
-        .put("standard", StandardTokenizerFactory.class)
-        .put("thai", MovedToAnalysisCommon.class)
-        .put("uax29urlemail", MovedToAnalysisCommon.class)
-        .put("whitespace", MovedToAnalysisCommon.class)
-
+        entry("classic", MovedToAnalysisCommon.class),
+        entry("edgengram", MovedToAnalysisCommon.class),
+        entry("keyword", MovedToAnalysisCommon.class),
+        entry("letter", MovedToAnalysisCommon.class),
+        entry("ngram", MovedToAnalysisCommon.class),
+        entry("pathhierarchy", MovedToAnalysisCommon.class),
+        entry("pattern", MovedToAnalysisCommon.class),
+        entry("simplepattern", MovedToAnalysisCommon.class),
+        entry("simplepatternsplit", MovedToAnalysisCommon.class),
+        entry("standard", StandardTokenizerFactory.class),
+        entry("thai", MovedToAnalysisCommon.class),
+        entry("uax29urlemail", MovedToAnalysisCommon.class),
+        entry("whitespace", MovedToAnalysisCommon.class),
         // this one "seems to mess up offsets". probably shouldn't be a tokenizer...
-        .put("wikipedia", Void.class)
-        .immutableMap();
+        entry("wikipedia", Void.class));
 
-    static final Map<String,Class<?>> KNOWN_TOKENFILTERS = new MapBuilder<String,Class<?>>()
+    static final Map<String,Class<?>> KNOWN_TOKENFILTERS = Map.ofEntries(
         // exposed in ES
-        .put("apostrophe",                MovedToAnalysisCommon.class)
-        .put("arabicnormalization",       MovedToAnalysisCommon.class)
-        .put("arabicstem",                MovedToAnalysisCommon.class)
-        .put("asciifolding",              MovedToAnalysisCommon.class)
-        .put("bengalinormalization",      MovedToAnalysisCommon.class)
-        .put("bengalistem",               MovedToAnalysisCommon.class)
-        .put("brazilianstem",             MovedToAnalysisCommon.class)
-        .put("bulgarianstem",             MovedToAnalysisCommon.class)
-        .put("cjkbigram",                 MovedToAnalysisCommon.class)
-        .put("cjkwidth",                  MovedToAnalysisCommon.class)
-        .put("classic",                   MovedToAnalysisCommon.class)
-        .put("commongrams",               MovedToAnalysisCommon.class)
-        .put("commongramsquery",          MovedToAnalysisCommon.class)
-        .put("czechstem",                 MovedToAnalysisCommon.class)
-        .put("decimaldigit",              MovedToAnalysisCommon.class)
-        .put("delimitedpayload",          MovedToAnalysisCommon.class)
-        .put("dictionarycompoundword",    MovedToAnalysisCommon.class)
-        .put("edgengram",                 MovedToAnalysisCommon.class)
-        .put("elision",                   MovedToAnalysisCommon.class)
-        .put("englishminimalstem",        MovedToAnalysisCommon.class)
-        .put("englishpossessive",         MovedToAnalysisCommon.class)
-        .put("finnishlightstem",          MovedToAnalysisCommon.class)
-        .put("fixedshingle",              MovedToAnalysisCommon.class)
-        .put("frenchlightstem",           MovedToAnalysisCommon.class)
-        .put("frenchminimalstem",         MovedToAnalysisCommon.class)
-        .put("galicianminimalstem",       MovedToAnalysisCommon.class)
-        .put("galicianstem",              MovedToAnalysisCommon.class)
-        .put("germanstem",                MovedToAnalysisCommon.class)
-        .put("germanlightstem",           MovedToAnalysisCommon.class)
-        .put("germanminimalstem",         MovedToAnalysisCommon.class)
-        .put("germannormalization",       MovedToAnalysisCommon.class)
-        .put("greeklowercase",            MovedToAnalysisCommon.class)
-        .put("greekstem",                 MovedToAnalysisCommon.class)
-        .put("hindinormalization",        MovedToAnalysisCommon.class)
-        .put("hindistem",                 MovedToAnalysisCommon.class)
-        .put("hungarianlightstem",        MovedToAnalysisCommon.class)
-        .put("hunspellstem",              HunspellTokenFilterFactory.class)
-        .put("hyphenationcompoundword",   MovedToAnalysisCommon.class)
-        .put("indicnormalization",        MovedToAnalysisCommon.class)
-        .put("irishlowercase",            MovedToAnalysisCommon.class)
-        .put("indonesianstem",            MovedToAnalysisCommon.class)
-        .put("italianlightstem",          MovedToAnalysisCommon.class)
-        .put("keepword",                  MovedToAnalysisCommon.class)
-        .put("keywordmarker",             MovedToAnalysisCommon.class)
-        .put("kstem",                     MovedToAnalysisCommon.class)
-        .put("latvianstem",               MovedToAnalysisCommon.class)
-        .put("length",                    MovedToAnalysisCommon.class)
-        .put("limittokencount",           MovedToAnalysisCommon.class)
-        .put("lowercase",                 MovedToAnalysisCommon.class)
-        .put("ngram",                     MovedToAnalysisCommon.class)
-        .put("norwegianlightstem",        MovedToAnalysisCommon.class)
-        .put("norwegianminimalstem",      MovedToAnalysisCommon.class)
-        .put("patterncapturegroup",       MovedToAnalysisCommon.class)
-        .put("patternreplace",            MovedToAnalysisCommon.class)
-        .put("persiannormalization",      MovedToAnalysisCommon.class)
-        .put("porterstem",                MovedToAnalysisCommon.class)
-        .put("portuguesestem",            MovedToAnalysisCommon.class)
-        .put("portugueselightstem",       MovedToAnalysisCommon.class)
-        .put("portugueseminimalstem",     MovedToAnalysisCommon.class)
-        .put("reversestring",             MovedToAnalysisCommon.class)
-        .put("russianlightstem",          MovedToAnalysisCommon.class)
-        .put("scandinavianfolding",       MovedToAnalysisCommon.class)
-        .put("scandinaviannormalization", MovedToAnalysisCommon.class)
-        .put("serbiannormalization",      MovedToAnalysisCommon.class)
-        .put("shingle",                   ShingleTokenFilterFactory.class)
-        .put("minhash",                   MovedToAnalysisCommon.class)
-        .put("snowballporter",            MovedToAnalysisCommon.class)
-        .put("soraninormalization",       MovedToAnalysisCommon.class)
-        .put("soranistem",                MovedToAnalysisCommon.class)
-        .put("spanishlightstem",          MovedToAnalysisCommon.class)
-        .put("stemmeroverride",           MovedToAnalysisCommon.class)
-        .put("stop",                      StopTokenFilterFactory.class)
-        .put("swedishlightstem",          MovedToAnalysisCommon.class)
-        .put("synonym",                   MovedToAnalysisCommon.class)
-        .put("synonymgraph",              MovedToAnalysisCommon.class)
-        .put("trim",                      MovedToAnalysisCommon.class)
-        .put("truncate",                  MovedToAnalysisCommon.class)
-        .put("turkishlowercase",          MovedToAnalysisCommon.class)
-        .put("type",                      MovedToAnalysisCommon.class)
-        .put("uppercase",                 MovedToAnalysisCommon.class)
-        .put("worddelimiter",             MovedToAnalysisCommon.class)
-        .put("worddelimitergraph",        MovedToAnalysisCommon.class)
-        .put("flattengraph",              MovedToAnalysisCommon.class)
-
+        entry("apostrophe", MovedToAnalysisCommon.class),
+        entry("arabicnormalization", MovedToAnalysisCommon.class),
+        entry("arabicstem", MovedToAnalysisCommon.class),
+        entry("asciifolding", MovedToAnalysisCommon.class),
+        entry("bengalinormalization", MovedToAnalysisCommon.class),
+        entry("bengalistem", MovedToAnalysisCommon.class),
+        entry("brazilianstem", MovedToAnalysisCommon.class),
+        entry("bulgarianstem", MovedToAnalysisCommon.class),
+        entry("cjkbigram", MovedToAnalysisCommon.class),
+        entry("cjkwidth", MovedToAnalysisCommon.class),
+        entry("classic", MovedToAnalysisCommon.class),
+        entry("commongrams", MovedToAnalysisCommon.class),
+        entry("commongramsquery", MovedToAnalysisCommon.class),
+        entry("czechstem", MovedToAnalysisCommon.class),
+        entry("decimaldigit", MovedToAnalysisCommon.class),
+        entry("delimitedpayload", MovedToAnalysisCommon.class),
+        entry("dictionarycompoundword", MovedToAnalysisCommon.class),
+        entry("edgengram", MovedToAnalysisCommon.class),
+        entry("elision", MovedToAnalysisCommon.class),
+        entry("englishminimalstem", MovedToAnalysisCommon.class),
+        entry("englishpossessive", MovedToAnalysisCommon.class),
+        entry("finnishlightstem", MovedToAnalysisCommon.class),
+        entry("fixedshingle", MovedToAnalysisCommon.class),
+        entry("frenchlightstem", MovedToAnalysisCommon.class),
+        entry("frenchminimalstem", MovedToAnalysisCommon.class),
+        entry("galicianminimalstem", MovedToAnalysisCommon.class),
+        entry("galicianstem", MovedToAnalysisCommon.class),
+        entry("germanstem", MovedToAnalysisCommon.class),
+        entry("germanlightstem", MovedToAnalysisCommon.class),
+        entry("germanminimalstem", MovedToAnalysisCommon.class),
+        entry("germannormalization", MovedToAnalysisCommon.class),
+        entry("greeklowercase", MovedToAnalysisCommon.class),
+        entry("greekstem", MovedToAnalysisCommon.class),
+        entry("hindinormalization", MovedToAnalysisCommon.class),
+        entry("hindistem", MovedToAnalysisCommon.class),
+        entry("hungarianlightstem", MovedToAnalysisCommon.class),
+        entry("hunspellstem", HunspellTokenFilterFactory.class),
+        entry("hyphenationcompoundword", MovedToAnalysisCommon.class),
+        entry("indicnormalization", MovedToAnalysisCommon.class),
+        entry("irishlowercase", MovedToAnalysisCommon.class),
+        entry("indonesianstem", MovedToAnalysisCommon.class),
+        entry("italianlightstem", MovedToAnalysisCommon.class),
+        entry("keepword", MovedToAnalysisCommon.class),
+        entry("keywordmarker", MovedToAnalysisCommon.class),
+        entry("kstem", MovedToAnalysisCommon.class),
+        entry("latvianstem", MovedToAnalysisCommon.class),
+        entry("length", MovedToAnalysisCommon.class),
+        entry("limittokencount", MovedToAnalysisCommon.class),
+        entry("lowercase", MovedToAnalysisCommon.class),
+        entry("ngram", MovedToAnalysisCommon.class),
+        entry("norwegianlightstem", MovedToAnalysisCommon.class),
+        entry("norwegianminimalstem", MovedToAnalysisCommon.class),
+        entry("patterncapturegroup", MovedToAnalysisCommon.class),
+        entry("patternreplace", MovedToAnalysisCommon.class),
+        entry("persiannormalization", MovedToAnalysisCommon.class),
+        entry("porterstem", MovedToAnalysisCommon.class),
+        entry("portuguesestem", MovedToAnalysisCommon.class),
+        entry("portugueselightstem", MovedToAnalysisCommon.class),
+        entry("portugueseminimalstem", MovedToAnalysisCommon.class),
+        entry("reversestring", MovedToAnalysisCommon.class),
+        entry("russianlightstem", MovedToAnalysisCommon.class),
+        entry("scandinavianfolding", MovedToAnalysisCommon.class),
+        entry("scandinaviannormalization", MovedToAnalysisCommon.class),
+        entry("serbiannormalization", MovedToAnalysisCommon.class),
+        entry("shingle", ShingleTokenFilterFactory.class),
+        entry("minhash", MovedToAnalysisCommon.class),
+        entry("snowballporter", MovedToAnalysisCommon.class),
+        entry("soraninormalization", MovedToAnalysisCommon.class),
+        entry("soranistem", MovedToAnalysisCommon.class),
+        entry("spanishlightstem", MovedToAnalysisCommon.class),
+        entry("stemmeroverride", MovedToAnalysisCommon.class),
+        entry("stop", StopTokenFilterFactory.class),
+        entry("swedishlightstem", MovedToAnalysisCommon.class),
+        entry("synonym", MovedToAnalysisCommon.class),
+        entry("synonymgraph", MovedToAnalysisCommon.class),
+        entry("trim", MovedToAnalysisCommon.class),
+        entry("truncate", MovedToAnalysisCommon.class),
+        entry("turkishlowercase", MovedToAnalysisCommon.class),
+        entry("type", MovedToAnalysisCommon.class),
+        entry("uppercase", MovedToAnalysisCommon.class),
+        entry("worddelimiter", MovedToAnalysisCommon.class),
+        entry("worddelimitergraph", MovedToAnalysisCommon.class),
+        entry("flattengraph", MovedToAnalysisCommon.class),
         // TODO: these tokenfilters are not yet exposed: useful?
         // suggest stop
-        .put("suggeststop",               Void.class)
+        entry("suggeststop", Void.class),
         // capitalizes tokens
-        .put("capitalization",            Void.class)
+        entry("capitalization", Void.class),
         // like length filter (but codepoints)
-        .put("codepointcount",            Void.class)
+        entry("codepointcount", Void.class),
         // puts hyphenated words back together
-        .put("hyphenatedwords",           Void.class)
+        entry("hyphenatedwords", Void.class),
         // repeats anything marked as keyword
-        .put("keywordrepeat",             Void.class)
+        entry("keywordrepeat", Void.class),
         // like limittokencount, but by offset
-        .put("limittokenoffset",          Void.class)
+        entry("limittokenoffset", Void.class),
         // like limittokencount, but by position
-        .put("limittokenposition",        Void.class)
+        entry("limittokenposition", Void.class),
         // ???
-        .put("numericpayload",            Void.class)
+        entry("numericpayload", Void.class),
         // removes duplicates at the same position (this should be used by the existing factory)
-        .put("removeduplicates",          Void.class)
+        entry("removeduplicates", Void.class),
         // ???
-        .put("tokenoffsetpayload",        Void.class)
+        entry("tokenoffsetpayload", Void.class),
         // puts the type into the payload
-        .put("typeaspayload",             Void.class)
+        entry("typeaspayload", Void.class),
         // puts the type as a synonym
-        .put("typeassynonym",             Void.class)
+        entry("typeassynonym", Void.class),
         // fingerprint
-        .put("fingerprint",               Void.class)
+        entry("fingerprint", Void.class),
         // for tee-sinks
-        .put("daterecognizer",            Void.class)
+        entry("daterecognizer", Void.class),
         // for token filters that generate bad offsets, which are now rejected since Lucene 7
-        .put("fixbrokenoffsets",          Void.class)
+        entry("fixbrokenoffsets", Void.class),
         // should we expose it, or maybe think about higher level integration of the
         // fake term frequency feature (LUCENE-7854)
-        .put("delimitedtermfrequency",    Void.class)
+        entry("delimitedtermfrequency", Void.class),
         // LUCENE-8273: ProtectedTermFilterFactory allows analysis chains to skip
         // particular token filters based on the attributes of the current token.
-        .put("protectedterm", Void.class)
+        entry("protectedterm", Void.class),
         // LUCENE-8332
-        .put("concatenategraph", Void.class)
+        entry("concatenategraph", Void.class));
 
-        .immutableMap();
-
-    static final Map<String,Class<?>> KNOWN_CHARFILTERS = new MapBuilder<String,Class<?>>()
-        // exposed in ES
-        .put("htmlstrip",      MovedToAnalysisCommon.class)
-        .put("mapping",        MovedToAnalysisCommon.class)
-        .put("patternreplace", MovedToAnalysisCommon.class)
-
-        // TODO: these charfilters are not yet exposed: useful?
-        // handling of zwnj for persian
-        .put("persian",        Void.class)
-        .immutableMap();
+    static final Map<String, Class<?>> KNOWN_CHARFILTERS = Map.of(
+            "htmlstrip", MovedToAnalysisCommon.class,
+            "mapping", MovedToAnalysisCommon.class,
+            "patternreplace", MovedToAnalysisCommon.class,
+            // TODO: these charfilters are not yet exposed: useful?
+            // handling of zwnj for persian
+            "persian", Void.class);
 
     /**
      * The plugin being tested. Core uses an "empty" plugin so we don't have to throw null checks all over the place.
@@ -306,142 +288,6 @@ public abstract class AnalysisFactoryTestCase extends ESTestCase {
         Set<String> missing = new TreeSet<String>(org.apache.lucene.analysis.util.TokenFilterFactory.availableTokenFilters());
         missing.removeAll(getTokenFilters().keySet());
         assertTrue("new tokenfilters found, please update KNOWN_TOKENFILTERS: " + missing.toString(), missing.isEmpty());
-    }
-
-    public void testMultiTermAware() {
-        Collection<Class<?>> expected = new HashSet<>();
-        for (Map.Entry<String, Class<?>> entry : getTokenizers().entrySet()) {
-            if (org.apache.lucene.analysis.util.MultiTermAwareComponent.class.isAssignableFrom(
-                    org.apache.lucene.analysis.util.TokenizerFactory.lookupClass(entry.getKey()))) {
-                expected.add(entry.getValue());
-            }
-        }
-        for (Map.Entry<String, Class<?>> entry : getTokenFilters().entrySet()) {
-            if (org.apache.lucene.analysis.util.MultiTermAwareComponent.class.isAssignableFrom(
-                    org.apache.lucene.analysis.util.TokenFilterFactory.lookupClass(entry.getKey()))) {
-                expected.add(entry.getValue());
-            }
-        }
-        for (Map.Entry<String, Class<?>> entry : getCharFilters().entrySet()) {
-            if (org.apache.lucene.analysis.util.MultiTermAwareComponent.class.isAssignableFrom(
-                    org.apache.lucene.analysis.util.CharFilterFactory.lookupClass(entry.getKey()))) {
-                expected.add(entry.getValue());
-            }
-        }
-        expected.remove(Void.class);
-        expected.remove(MovedToAnalysisCommon.class);
-        expected.remove(Deprecated.class);
-
-        Collection<Class<?>> actual = new HashSet<>();
-        for (Class<?> clazz : getTokenizers().values()) {
-            if (MultiTermAwareComponent.class.isAssignableFrom(clazz)) {
-                actual.add(clazz);
-            }
-        }
-        for (Class<?> clazz : getTokenFilters().values()) {
-            if (MultiTermAwareComponent.class.isAssignableFrom(clazz)) {
-                actual.add(clazz);
-            }
-        }
-        for (Class<?> clazz : getCharFilters().values()) {
-            if (MultiTermAwareComponent.class.isAssignableFrom(clazz)) {
-                actual.add(clazz);
-            }
-        }
-
-        Set<Class<?>> classesMissingMultiTermSupport = new HashSet<>(expected);
-        classesMissingMultiTermSupport.removeAll(actual);
-        assertTrue("Classes are missing multi-term support: " + classesMissingMultiTermSupport,
-                classesMissingMultiTermSupport.isEmpty());
-
-        Set<Class<?>> classesThatShouldNotHaveMultiTermSupport = new HashSet<>(actual);
-        classesThatShouldNotHaveMultiTermSupport.removeAll(expected);
-        assertTrue("Classes should not have multi-term support: " + classesThatShouldNotHaveMultiTermSupport,
-                classesThatShouldNotHaveMultiTermSupport.isEmpty());
-    }
-
-    public void testPreBuiltMultiTermAware() {
-        Collection<Object> expected = new HashSet<>();
-        Collection<Object> actual = new HashSet<>();
-
-        Map<String, PreConfiguredTokenFilter> preConfiguredTokenFilters =
-                new HashMap<>(AnalysisModule.setupPreConfiguredTokenFilters(singletonList(plugin)));
-        for (Map.Entry<String, Class<?>> entry : getPreConfiguredTokenFilters().entrySet()) {
-            String name = entry.getKey();
-            Class<?> luceneFactory = entry.getValue();
-            PreConfiguredTokenFilter filter = preConfiguredTokenFilters.remove(name);
-            assertNotNull("test claims pre built token filter [" + name + "] should be available but it wasn't", filter);
-            if (luceneFactory == Void.class) {
-                continue;
-            }
-            if (luceneFactory == null) {
-                luceneFactory = TokenFilterFactory.lookupClass(toCamelCase(name));
-            }
-            assertThat(luceneFactory, typeCompatibleWith(TokenFilterFactory.class));
-            if (filter.shouldUseFilterForMultitermQueries()) {
-                actual.add("token filter [" + name + "]");
-            }
-            if (org.apache.lucene.analysis.util.MultiTermAwareComponent.class.isAssignableFrom(luceneFactory)) {
-                expected.add("token filter [" + name + "]");
-            }
-        }
-        assertThat("pre configured token filter not registered with test", preConfiguredTokenFilters.keySet(), empty());
-
-        Map<String, PreConfiguredTokenizer> preConfiguredTokenizers = new HashMap<>(
-                AnalysisModule.setupPreConfiguredTokenizers(singletonList(plugin)));
-        for (Map.Entry<String, Class<?>> entry : getPreConfiguredTokenizers().entrySet()) {
-            String name = entry.getKey();
-            Class<?> luceneFactory = entry.getValue();
-            PreConfiguredTokenizer tokenizer = preConfiguredTokenizers.remove(name);
-            assertNotNull("test claims pre built tokenizer [" + name + "] should be available but it wasn't", tokenizer);
-            if (luceneFactory == Void.class) {
-                continue;
-            }
-            if (luceneFactory == null) {
-                luceneFactory = TokenizerFactory.lookupClass(toCamelCase(name));
-            }
-            assertThat(luceneFactory, typeCompatibleWith(TokenizerFactory.class));
-            if (tokenizer.hasMultiTermComponent()) {
-                actual.add(tokenizer);
-            }
-            if (org.apache.lucene.analysis.util.MultiTermAwareComponent.class.isAssignableFrom(luceneFactory)) {
-                expected.add(tokenizer);
-            }
-        }
-        assertThat("pre configured tokenizer not registered with test", preConfiguredTokenizers.keySet(), empty());
-
-        Map<String, PreConfiguredCharFilter> preConfiguredCharFilters = new HashMap<>(
-                AnalysisModule.setupPreConfiguredCharFilters(singletonList(plugin)));
-        for (Map.Entry<String, Class<?>> entry : getPreConfiguredCharFilters().entrySet()) {
-            String name = entry.getKey();
-            Class<?> luceneFactory = entry.getValue();
-            PreConfiguredCharFilter filter = preConfiguredCharFilters.remove(name);
-            assertNotNull("test claims pre built char filter [" + name + "] should be available but it wasn't", filter);
-            if (luceneFactory == Void.class) {
-                continue;
-            }
-            if (luceneFactory == null) {
-                luceneFactory = TokenFilterFactory.lookupClass(toCamelCase(name));
-            }
-            assertThat(luceneFactory, typeCompatibleWith(CharFilterFactory.class));
-            if (filter.shouldUseFilterForMultitermQueries()) {
-                actual.add(filter);
-            }
-            if (org.apache.lucene.analysis.util.MultiTermAwareComponent.class.isAssignableFrom(luceneFactory)) {
-                expected.add("token filter [" + name + "]");
-            }
-        }
-        assertThat("pre configured char filter not registered with test", preConfiguredCharFilters.keySet(), empty());
-
-        Set<Object> classesMissingMultiTermSupport = new HashSet<>(expected);
-        classesMissingMultiTermSupport.removeAll(actual);
-        assertTrue("Pre-built components are missing multi-term support: " + classesMissingMultiTermSupport,
-                classesMissingMultiTermSupport.isEmpty());
-
-        Set<Object> classesThatShouldNotHaveMultiTermSupport = new HashSet<>(actual);
-        classesThatShouldNotHaveMultiTermSupport.removeAll(expected);
-        assertTrue("Pre-built components should not have multi-term support: " + classesThatShouldNotHaveMultiTermSupport,
-                classesThatShouldNotHaveMultiTermSupport.isEmpty());
     }
 
     /**

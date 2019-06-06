@@ -5,13 +5,13 @@
  */
 package org.elasticsearch.xpack.sql.jdbc;
 
-public class JdbcException extends RuntimeException {
+class JdbcException extends RuntimeException {
     
-    public JdbcException(String message) {
+    JdbcException(String message) {
         super(message);
     }
 
-    public JdbcException(Throwable cause, String message) {
+    JdbcException(Throwable cause, String message) {
         super(message, cause);
     }
 }

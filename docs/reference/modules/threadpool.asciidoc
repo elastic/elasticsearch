@@ -19,6 +19,10 @@ There are several thread pools, but the important ones include:
     `int((# of available_processors * 3) / 2) + 1`, and initial queue_size of
     `1000`.
 
+[[search-throttled]]`search_throttled`::
+    For count/search/suggest/get operations on `search_throttled indices`. Thread pool type is
+    `fixed_auto_queue_size` with a size of `1`, and initial queue_size of `100`.
+
 `get`::
     For get operations. Thread pool type is `fixed`
     with a size of `# of available processors`,
@@ -48,13 +52,14 @@ There are several thread pools, but the important ones include:
     Mainly for java client executing of action when listener threaded is set to true.
     Thread pool type is `scaling` with a default max of `min(10, (# of available processors)/2)`.
 
-Changing a specific thread pool can be done by setting its type-specific parameters; for example, changing the `bulk`
-thread pool to have more threads:
+Changing a specific thread pool can be done by setting its type-specific
+parameters; for example, changing the number of threads in the `write` thread
+pool:
 
 [source,yaml]
 --------------------------------------------------
 thread_pool:
-    bulk:
+    write:
         size: 30
 --------------------------------------------------
 
@@ -65,6 +70,7 @@ thread_pool:
 The following are the types of thread pools and their respective parameters:
 
 [float]
+[[fixed]]
 ==== `fixed`
 
 The `fixed` thread pool holds a fixed size of threads to handle the
@@ -82,12 +88,13 @@ full, it will abort the request.
 [source,yaml]
 --------------------------------------------------
 thread_pool:
-    bulk:
+    write:
         size: 30
         queue_size: 1000
 --------------------------------------------------
 
 [float]
+[[fixed-auto-queue-size]]
 ==== `fixed_auto_queue_size`
 
 experimental[]
@@ -134,6 +141,7 @@ thread_pool:
 --------------------------------------------------
 
 [float]
+[[scaling]]
 ==== `scaling`
 
 The `scaling` thread pool holds a dynamic number of threads. This

@@ -4,6 +4,9 @@ apply plugin: 'elasticsearch.standalone-test'
 
 dependencies {
     testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
+    if (isEclipse) {
+      testCompile project(path: xpackModule('core-tests'), configuration: 'testArtifacts')
+    }
     testCompile project(path: xpackModule('ilm'), configuration: 'runtime')
 }
 
@@ -21,7 +24,7 @@ restTestRunner {
 }
 
 restTestCluster {
-    distribution 'zip'
+    distribution 'default'
     setting 'xpack.ilm.enabled', 'true'
     setting 'xpack.ml.enabled', 'false'
     setting 'xpack.monitoring.enabled', 'false'

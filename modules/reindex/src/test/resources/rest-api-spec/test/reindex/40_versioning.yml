@@ -7,7 +7,6 @@
   - do:
       index:
         index:        src
-        type:         test
         id:           1
         body:         { "company": "cat" }
         version:      2
@@ -15,13 +14,11 @@
   - do:
       index:
         index:        src
-        type:         test
         id:           2
         body:         { "company": "cow" }
   - do:
       index:
         index:        dest
-        type:         test
         id:           1
         body:         { "company": "dog" }
   - do:
@@ -38,11 +35,13 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: dest
         q:     company:cat
   - match: { hits.total: 1 }
   - do:
       search:
+        rest_total_hits_as_int: true
         index: dest
         q:     company:cow
   - match: { hits.total: 1 }
@@ -52,7 +51,6 @@
   - do:
       index:
         index:        src
-        type:         test
         id:           1
         body:         { "company": "cat" }
         version:      2
@@ -60,13 +58,11 @@
   - do:
       index:
         index:        src
-        type:         test
         id:           2
         body:         { "company": "cow" }
   - do:
       index:
         index:        dest
-        type:         test
         id:           1
         body:         { "company": "dog" }
   - do:
@@ -85,11 +81,13 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: dest
         q:     company:dog
   - match: { hits.total: 1 }
   - do:
       search:
+        rest_total_hits_as_int: true
         index: dest
         q:     company:cow
   - match: { hits.total: 1 }
@@ -99,7 +97,6 @@
   - do:
       index:
         index:        src
-        type:         test
         id:           1
         body:         { "company": "cat" }
         version:      2
@@ -107,13 +104,11 @@
   - do:
       index:
         index:        src
-        type:         test
         id:           2
         body:         { "company": "cow" }
   - do:
       index:
         index:        dest
-        type:         test
         id:           1
         body:         { "company": "dog" }
   - do:
@@ -131,11 +126,13 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: dest
         q:     company:cat
   - match: { hits.total: 1 }
   - do:
       search:
+        rest_total_hits_as_int: true
         index: dest
         q:     company:cow
   - match: { hits.total: 1 }
@@ -145,19 +142,16 @@
   - do:
       index:
         index:        src
-        type:         test
         id:           1
         body:         { "company": "cat" }
   - do:
       index:
         index:        src
-        type:         test
         id:           2
         body:         { "company": "cow" }
   - do:
       index:
         index:        dest
-        type:         test
         id:           1
         body:         { "company": "dog" }
   - do:
@@ -175,11 +169,13 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: dest
         q:     company:cat
   - match: { hits.total: 1 }
   - do:
       search:
+        rest_total_hits_as_int: true
         index: dest
         q:     company:cow
   - match: { hits.total: 1 }

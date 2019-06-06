@@ -1,0 +1,5 @@
+certtool -p --outfile ca_server.key
+certtool -s --load-privkey ca_server.key --template templates/ca_server.conf --outfile ca_server.pem
+certtool -p --sec-param high --outfile ldap_server.key
+certtool -c --load-privkey ldap_server.key --load-ca-certificate ca_server.pem --load-ca-privkey ca_server.key --template templates/ldap_server.conf --outfile ldap_server.pem
+keytool -importcert -file ca_server.pem -alias idp-fixture-ca  -keystore ca.jks -noprompt -storepass changeit

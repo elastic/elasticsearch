@@ -5,13 +5,17 @@
  */
 package org.elasticsearch.xpack.security.authc.ldap;
 
+import org.apache.lucene.util.LuceneTestCase;
+
 import java.io.IOException;
 
 /**
  * This tests the group to role mappings from LDAP sources provided by the super class - available from super.realmConfig.
  * The super class will provide appropriate group mappings via configGroupMappings()
  */
+@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/35738")
 public class GroupMappingIT extends AbstractAdLdapRealmTestCase {
+
     public void testAuthcAuthz() throws IOException {
         String avenger = realmConfig.loginWithCommonName ? "Natasha Romanoff" : "blackwidow";
         assertAccessAllowed(avenger, "avengers");

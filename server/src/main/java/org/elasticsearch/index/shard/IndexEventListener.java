@@ -81,7 +81,8 @@ public interface IndexEventListener {
      * @param currentState the new shard state
      * @param reason the reason for the state change if there is one, null otherwise
      */
-    default void indexShardStateChanged(IndexShard indexShard, @Nullable IndexShardState previousState, IndexShardState currentState, @Nullable String reason) {}
+    default void indexShardStateChanged(IndexShard indexShard, @Nullable IndexShardState previousState,
+                                            IndexShardState currentState, @Nullable String reason) {}
 
     /**
      * Called when a shard is marked as inactive
@@ -158,6 +159,13 @@ public interface IndexEventListener {
      */
     default void beforeIndexAddedToCluster(Index index, Settings indexSettings) {
     }
+
+    /**
+     * Called when the given shards store is created. The shard store is created before the shard is created.
+     *
+     * @param shardId the shard ID the store belongs to
+     */
+    default void onStoreCreated(ShardId shardId) {}
 
     /**
      * Called when the given shards store is closed. The store is closed once all resource have been released on the store.

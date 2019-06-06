@@ -16,12 +16,12 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSource;
 import org.elasticsearch.test.SecuritySettingsSourceField;
+import org.elasticsearch.xpack.core.security.action.realm.ClearRealmCacheAction;
 import org.elasticsearch.xpack.core.security.action.realm.ClearRealmCacheRequest;
 import org.elasticsearch.xpack.core.security.action.realm.ClearRealmCacheResponse;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.Realm;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
-import org.elasticsearch.xpack.core.security.client.SecurityClient;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authc.Realms;
 import org.junit.BeforeClass;
@@ -99,7 +99,7 @@ public class ClearRealmsCacheTests extends SecurityIntegTestCase {
 
             @Override
             public void executeRequest() throws Exception {
-                executeHttpRequest("/_xpack/security/realm/" + (randomBoolean() ? "*" : "_all") + "/_clear_cache",
+                executeHttpRequest("/_security/realm/" + (randomBoolean() ? "*" : "_all") + "/_clear_cache",
                         Collections.<String, String>emptyMap());
             }
         },
@@ -122,7 +122,7 @@ public class ClearRealmsCacheTests extends SecurityIntegTestCase {
 
             @Override
             public void executeRequest() throws Exception {
-                String path = "/_xpack/security/realm/" + (randomBoolean() ? "*" : "_all") + "/_clear_cache";
+                String path = "/_security/realm/" + (randomBoolean() ? "*" : "_all") + "/_clear_cache";
                 Map<String, String> params = Collections.singletonMap("usernames", String.join(",", evicted_usernames));
                 executeHttpRequest(path, params);
             }
@@ -133,11 +133,9 @@ public class ClearRealmsCacheTests extends SecurityIntegTestCase {
         public abstract void executeRequest() throws Exception;
 
         static void executeTransportRequest(ClearRealmCacheRequest request) throws Exception {
-            SecurityClient securityClient = securityClient(client());
-
             final CountDownLatch latch = new CountDownLatch(1);
             final AtomicReference<Throwable> error = new AtomicReference<>();
-            securityClient.clearRealmCache(request, new ActionListener<ClearRealmCacheResponse>() {
+            client().execute(ClearRealmCacheAction.INSTANCE, request, new ActionListener<>() {
                 @Override
                 public void onResponse(ClearRealmCacheResponse response) {
                     assertThat(response.getNodes().size(), equalTo(internalCluster().getNodeNames().length));

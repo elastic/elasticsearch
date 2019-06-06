@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.core.indexlifecycle;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.rollover.RolloverResponse;
 import org.elasticsearch.action.admin.indices.shrink.ResizeRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeResponse;
@@ -112,7 +111,7 @@ public class ShrinkStepTests extends AbstractStepTestCase<ShrinkStep> {
                 @SuppressWarnings("unchecked")
                 ActionListener<ResizeResponse> listener = (ActionListener<ResizeResponse>) invocation.getArguments()[1];
                 assertThat(request.getSourceIndex(), equalTo(sourceIndexMetaData.getIndex().getName()));
-                assertThat(request.getTargetIndexRequest().aliases(), equalTo(Collections.singleton(new Alias("my_alias"))));
+                assertThat(request.getTargetIndexRequest().aliases(), equalTo(Collections.emptySet()));
                 assertThat(request.getTargetIndexRequest().settings(), equalTo(Settings.builder()
                     .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, step.getNumberOfShards())
                     .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, sourceIndexMetaData.getNumberOfReplicas())
@@ -128,7 +127,7 @@ public class ShrinkStepTests extends AbstractStepTestCase<ShrinkStep> {
         }).when(indicesClient).resizeIndex(Mockito.any(), Mockito.any());
 
         SetOnce<Boolean> actionCompleted = new SetOnce<>();
-        step.performAction(sourceIndexMetaData, null, new Listener() {
+        step.performAction(sourceIndexMetaData, null, null, new Listener() {
 
             @Override
             public void onResponse(boolean complete) {
@@ -174,7 +173,7 @@ public class ShrinkStepTests extends AbstractStepTestCase<ShrinkStep> {
         }).when(indicesClient).resizeIndex(Mockito.any(), Mockito.any());
 
         SetOnce<Boolean> actionCompleted = new SetOnce<>();
-        step.performAction(indexMetaData, null, new Listener() {
+        step.performAction(indexMetaData, null, null, new Listener() {
 
             @Override
             public void onResponse(boolean complete) {
@@ -221,7 +220,7 @@ public class ShrinkStepTests extends AbstractStepTestCase<ShrinkStep> {
         }).when(indicesClient).resizeIndex(Mockito.any(), Mockito.any());
 
         SetOnce<Boolean> exceptionThrown = new SetOnce<>();
-        step.performAction(indexMetaData, null, new Listener() {
+        step.performAction(indexMetaData, null, null, new Listener() {
 
             @Override
             public void onResponse(boolean complete) {

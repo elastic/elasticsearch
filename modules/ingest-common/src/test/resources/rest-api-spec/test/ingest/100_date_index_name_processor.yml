@@ -27,7 +27,6 @@ teardown:
   - do:
       index:
         index: events
-        type: event
         id: 1
         pipeline: "1"
         body: {

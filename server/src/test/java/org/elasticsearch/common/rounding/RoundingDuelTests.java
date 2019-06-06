@@ -19,9 +19,9 @@
 
 package org.elasticsearch.common.rounding;
 
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESTestCase;
+import org.joda.time.DateTimeZone;
 
 import java.time.ZoneOffset;
 
@@ -32,25 +32,24 @@ public class RoundingDuelTests extends ESTestCase  {
     // dont include nano/micro seconds as rounding would become zero then and throw an exception
     private static final String[] ALLOWED_TIME_SUFFIXES = new String[]{"d", "h", "ms", "s", "m"};
 
-    public void testSerialization() throws Exception {
+    public void testDuellingImplementations() {
         org.elasticsearch.common.Rounding.DateTimeUnit randomDateTimeUnit =
             randomFrom(org.elasticsearch.common.Rounding.DateTimeUnit.values());
         org.elasticsearch.common.Rounding rounding;
+        Rounding roundingJoda;
+
         if (randomBoolean()) {
             rounding = org.elasticsearch.common.Rounding.builder(randomDateTimeUnit).timeZone(ZoneOffset.UTC).build();
+            DateTimeUnit dateTimeUnit = DateTimeUnit.resolve(randomDateTimeUnit.getId());
+            roundingJoda = Rounding.builder(dateTimeUnit).timeZone(DateTimeZone.UTC).build();
         } else {
-            rounding = org.elasticsearch.common.Rounding.builder(timeValue()).timeZone(ZoneOffset.UTC).build();
+            TimeValue interval = timeValue();
+            rounding = org.elasticsearch.common.Rounding.builder(interval).timeZone(ZoneOffset.UTC).build();
+            roundingJoda = Rounding.builder(interval).timeZone(DateTimeZone.UTC).build();
         }
-        BytesStreamOutput output = new BytesStreamOutput();
-        rounding.writeTo(output);
 
-        Rounding roundingJoda = Rounding.Streams.read(output.bytes().streamInput());
-        org.elasticsearch.common.Rounding roundingJavaTime =
-            org.elasticsearch.common.Rounding.read(output.bytes().streamInput());
-
-        int randomInt = randomIntBetween(1, 1_000_000_000);
-        assertThat(roundingJoda.round(randomInt), is(roundingJavaTime.round(randomInt)));
-        assertThat(roundingJoda.nextRoundingValue(randomInt), is(roundingJavaTime.nextRoundingValue(randomInt)));
+        long roundValue = randomLong();
+        assertThat(roundingJoda.round(roundValue), is(rounding.round(roundValue)));
     }
 
     static TimeValue timeValue() {

@@ -20,6 +20,7 @@
 package org.elasticsearch.repositories.gcs;
 
 import com.google.api.gax.paging.Page;
+import com.google.cloud.BatchResult;
 import com.google.cloud.Policy;
 import com.google.cloud.ReadChannel;
 import com.google.cloud.RestorableState;
@@ -34,11 +35,13 @@ import com.google.cloud.storage.CopyWriter;
 import com.google.cloud.storage.ServiceAccount;
 import com.google.cloud.storage.Storage;
 import com.google.cloud.storage.StorageBatch;
+import com.google.cloud.storage.StorageBatchResult;
 import com.google.cloud.storage.StorageException;
 import com.google.cloud.storage.StorageOptions;
 import com.google.cloud.storage.StorageRpcOptionUtils;
 import com.google.cloud.storage.StorageTestUtils;
 import org.elasticsearch.core.internal.io.IOUtils;
+import org.mockito.stubbing.Answer;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -56,6 +59,11 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+
+import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyVararg;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.mock;
 
 /**
  * {@link MockStorage} mocks a {@link Storage} client by storing all the blobs
@@ -78,6 +86,11 @@ class MockStorage implements Storage {
         } else {
             return null;
         }
+    }
+
+    @Override
+    public Bucket lockRetentionPolicy(final BucketInfo bucket, final BucketTargetOption... options) {
+        return null;
     }
 
     @Override
@@ -351,8 +364,25 @@ class MockStorage implements Storage {
     }
 
     @Override
+    @SuppressWarnings("unchecked")
     public StorageBatch batch() {
-        return null;
+        final Answer<?> throwOnMissingMock = invocationOnMock -> {
+            throw new AssertionError("Did not expect call to method [" + invocationOnMock.getMethod().getName() + ']');
+        };
+        final StorageBatch batch = mock(StorageBatch.class, throwOnMissingMock);
+        StorageBatchResult<Boolean> result = mock(StorageBatchResult.class, throwOnMissingMock);
+        doAnswer(answer -> {
+            BatchResult.Callback<Boolean, Exception> callback = (BatchResult.Callback<Boolean, Exception>) answer.getArguments()[0];
+            callback.success(true);
+            return null;
+        }).when(result).notify(any(BatchResult.Callback.class));
+        doAnswer(invocation -> {
+            final BlobId blobId = (BlobId) invocation.getArguments()[0];
+            delete(blobId);
+            return result;
+        }).when(batch).delete(any(BlobId.class), anyVararg());
+        doAnswer(invocation -> null).when(batch).submit();
+        return batch;
     }
 
     @Override

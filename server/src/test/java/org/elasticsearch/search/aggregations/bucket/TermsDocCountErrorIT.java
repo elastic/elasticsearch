@@ -25,10 +25,10 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
+import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms.Bucket;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregatorFactory.ExecutionMode;
-import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.util.ArrayList;
@@ -263,18 +263,18 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
     public void testStringValueField() throws Exception {
         int size = randomIntBetween(1, 20);
         int shardSize = randomIntBetween(size, size * 2);
-        SearchResponse accurateResponse = client().prepareSearch("idx").setTypes("type")
+        SearchResponse accurateResponse = client().prepareSearch("idx")
                 .addAggregation(terms("terms")
                         .executionHint(randomExecutionHint())
                         .field(STRING_FIELD_NAME)
                         .showTermDocCountError(true)
                         .size(10000).shardSize(10000)
                         .collectMode(randomFrom(SubAggCollectionMode.values())))
-                .execute().actionGet();
+                .get();
 
         assertSearchResponse(accurateResponse);
 
-        SearchResponse testResponse = client().prepareSearch("idx").setTypes("type")
+        SearchResponse testResponse = client().prepareSearch("idx")
                 .addAggregation(terms("terms")
                         .executionHint(randomExecutionHint())
                         .field(STRING_FIELD_NAME)
@@ -282,7 +282,7 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
                         .size(size)
                         .shardSize(shardSize)
                         .collectMode(randomFrom(SubAggCollectionMode.values())))
-                .execute().actionGet();
+                .get();
 
         assertSearchResponse(testResponse);
 
@@ -292,18 +292,18 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
     public void testStringValueFieldSingleShard() throws Exception {
         int size = randomIntBetween(1, 20);
         int shardSize = randomIntBetween(size, size * 2);
-        SearchResponse accurateResponse = client().prepareSearch("idx_single_shard").setTypes("type")
+        SearchResponse accurateResponse = client().prepareSearch("idx_single_shard")
                 .addAggregation(terms("terms")
                         .executionHint(randomExecutionHint())
                         .field(STRING_FIELD_NAME)
                         .showTermDocCountError(true)
                         .size(10000).shardSize(10000)
                         .collectMode(randomFrom(SubAggCollectionMode.values())))
-                .execute().actionGet();
+                .get();
 
         assertSearchResponse(accurateResponse);
 
-        SearchResponse testResponse = client().prepareSearch("idx_single_shard").setTypes("type")
+        SearchResponse testResponse = client().prepareSearch("idx_single_shard")
                 .addAggregation(terms("terms")
                         .executionHint(randomExecutionHint())
                         .field(STRING_FIELD_NAME)
@@ -311,7 +311,7 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
                         .size(size)
                         .shardSize(shardSize)
                         .collectMode(randomFrom(SubAggCollectionMode.values())))
-                .execute().actionGet();
+                .get();
 
         assertSearchResponse(testResponse);
 
@@ -322,7 +322,8 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
         int size = randomIntBetween(1, 20);
         int shardSize = randomIntBetween(size, size * 2);
 
-        SearchResponse testResponse = client().prepareSearch("idx_with_routing").setTypes("type").setRouting(String.valueOf(between(1, numRoutingValues)))
+        SearchResponse testResponse = client().prepareSearch("idx_with_routing")
+                .setRouting(String.valueOf(between(1, numRoutingValues)))
                 .addAggregation(terms("terms")
                         .executionHint(randomExecutionHint())
                         .field(STRING_FIELD_NAME)
@@ -330,7 +331,7 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
                         .size(size)
                         .shardSize(shardSize)
                         .collectMode(randomFrom(SubAggCollectionMode.values())))
-                .execute().actionGet();
+                .get();
 
         assertSearchResponse(testResponse);
 
@@ -340,7 +341,7 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
     public void testStringValueFieldDocCountAsc() throws Exception {
         int size = randomIntBetween(1, 20);
         int shardSize = randomIntBetween(size, size * 2);
-        SearchResponse accurateResponse = client().prepareSearch("idx_single_shard").setTypes("type")
+        SearchResponse accurateResponse = client().prepareSearch("idx_single_shard")
                 .addAggregation(terms("terms")
                         .executionHint(randomExecutionHint())
                         .field(STRING_FIELD_NAME)
@@ -348,11 +349,11 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
                         .size(10000).shardSize(10000)
                         .order(BucketOrder.count(true))
                         .collectMode(randomFrom(SubAggCollectionMode.values())))
-                .execute().actionGet();
+                .get();
 
         assertSearchResponse(accurateResponse);
 
-        SearchResponse testResponse = client().prepareSearch("idx_single_shard").setTypes("type")
+        SearchResponse testResponse = client().prepareSearch("idx_single_shard")
                 .addAggregation(terms("terms")
                         .executionHint(randomExecutionHint())
                         .field(STRING_FIELD_NAME)
@@ -361,7 +362,7 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
                         .shardSize(shardSize)
                         .order(BucketOrder.count(true))
                         .collectMode(randomFrom(SubAggCollectionMode.values())))
-                .execute().actionGet();
+                .get();
 
         assertSearchResponse(testResponse);
 
@@ -371,7 +372,7 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
     public void testStringValueFieldTermSortAsc() throws Exception {
         int size = randomIntBetween(1, 20);
         int shardSize = randomIntBetween(size, size * 2);
-        SearchResponse accurateResponse = client().prepareSearch("idx_single_shard").setTypes("type")
+        SearchResponse accurateResponse = client().prepareSearch("idx_single_shard")
                 .addAggregation(terms("terms")
                         .executionHint(randomExecutionHint())
                         .field(STRING_FIELD_NAME)
@@ -379,11 +380,11 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
                         .size(10000).shardSize(10000)
                         .order(BucketOrder.key(true))
                         .collectMode(randomFrom(SubAggCollectionMode.values())))
-                .execute().actionGet();
+                .get();
 
         assertSearchResponse(accurateResponse);
 
-        SearchResponse testResponse = client().prepareSearch("idx_single_shard").setTypes("type")
+        SearchResponse testResponse = client().prepareSearch("idx_single_shard")
                 .addAggregation(terms("terms")
                         .executionHint(randomExecutionHint())
                         .field(STRING_FIELD_NAME)
@@ -392,7 +393,7 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
                         .shardSize(shardSize)
                         .order(BucketOrder.key(true))
                         .collectMode(randomFrom(SubAggCollectionMode.values())))
-                .execute().actionGet();
+                .get();
 
         assertSearchResponse(testResponse);
 
@@ -402,7 +403,7 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
     public void testStringValueFieldTermSortDesc() throws Exception {
         int size = randomIntBetween(1, 20);
         int shardSize = randomIntBetween(size, size * 2);
-        SearchResponse accurateResponse = client().prepareSearch("idx_single_shard").setTypes("type")
+        SearchResponse accurateResponse = client().prepareSearch("idx_single_shard")
                 .addAggregation(terms("terms")
                         .executionHint(randomExecutionHint())
                         .field(STRING_FIELD_NAME)
@@ -410,11 +411,11 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
                         .size(10000).shardSize(10000)
                         .order(BucketOrder.key(false))
                         .collectMode(randomFrom(SubAggCollectionMode.values())))
-                .execute().actionGet();
+                .get();
 
         assertSearchResponse(accurateResponse);
 
-        SearchResponse testResponse = client().prepareSearch("idx_single_shard").setTypes("type")
+        SearchResponse testResponse = client().prepareSearch("idx_single_shard")
                 .addAggregation(terms("terms")
                         .executionHint(randomExecutionHint())
                         .field(STRING_FIELD_NAME)
@@ -423,7 +424,7 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
                         .shardSize(shardSize)
                         .order(BucketOrder.key(false))
                         .collectMode(randomFrom(SubAggCollectionMode.values())))
-                .execute().actionGet();
+                .get();
 
         assertSearchResponse(testResponse);
 
@@ -433,7 +434,7 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
     public void testStringValueFieldSubAggAsc() throws Exception {
         int size = randomIntBetween(1, 20);
         int shardSize = randomIntBetween(size, size * 2);
-        SearchResponse accurateResponse = client().prepareSearch("idx_single_shard").setTypes("type")
+        SearchResponse accurateResponse = client().prepareSearch("idx_single_shard")
                 .addAggregation(terms("terms")
                         .executionHint(randomExecutionHint())
                         .field(STRING_FIELD_NAME)
@@ -442,11 +443,11 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
                         .order(BucketOrder.aggregation("sortAgg", true))
                         .collectMode(randomFrom(SubAggCollectionMode.values()))
                         .subAggregation(sum("sortAgg").field(LONG_FIELD_NAME)))
-                .execute().actionGet();
+                .get();
 
         assertSearchResponse(accurateResponse);
 
-        SearchResponse testResponse = client().prepareSearch("idx_single_shard").setTypes("type")
+        SearchResponse testResponse = client().prepareSearch("idx_single_shard")
                 .addAggregation(terms("terms")
                         .executionHint(randomExecutionHint())
                         .field(STRING_FIELD_NAME)
@@ -456,7 +457,7 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
                         .order(BucketOrder.aggregation("sortAgg", true))
                         .collectMode(randomFrom(SubAggCollectionMode.values()))
                         .subAggregation(sum("sortAgg").field(LONG_FIELD_NAME)))
-                .execute().actionGet();
+                .get();
 
         assertSearchResponse(testResponse);
 
@@ -466,7 +467,7 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
     public void testStringValueFieldSubAggDesc() throws Exception {
         int size = randomIntBetween(1, 20);
         int shardSize = randomIntBetween(size, size * 2);
-        SearchResponse accurateResponse = client().prepareSearch("idx_single_shard").setTypes("type")
+        SearchResponse accurateResponse = client().prepareSearch("idx_single_shard")
                 .addAggregation(terms("terms")
                         .executionHint(randomExecutionHint())
                         .field(STRING_FIELD_NAME)
@@ -475,11 +476,11 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
                         .order(BucketOrder.aggregation("sortAgg", false))
                         .collectMode(randomFrom(SubAggCollectionMode.values()))
                         .subAggregation(sum("sortAgg").field(LONG_FIELD_NAME)))
-                .execute().actionGet();
+                .get();
 
         assertSearchResponse(accurateResponse);
 
-        SearchResponse testResponse = client().prepareSearch("idx_single_shard").setTypes("type")
+        SearchResponse testResponse = client().prepareSearch("idx_single_shard")
                 .addAggregation(terms("terms")
                         .executionHint(randomExecutionHint())
                         .field(STRING_FIELD_NAME)
@@ -489,7 +490,7 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
                         .order(BucketOrder.aggregation("sortAgg", false))
                         .collectMode(randomFrom(SubAggCollectionMode.values()))
                         .subAggregation(sum("sortAgg").field(LONG_FIELD_NAME)))
-                .execute().actionGet();
+                .get();
 
         assertSearchResponse(testResponse);
 
@@ -499,18 +500,18 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
     public void testLongValueField() throws Exception {
         int size = randomIntBetween(1, 20);
         int shardSize = randomIntBetween(size, size * 2);
-        SearchResponse accurateResponse = client().prepareSearch("idx").setTypes("type")
+        SearchResponse accurateResponse = client().prepareSearch("idx")
                 .addAggregation(terms("terms")
                         .executionHint(randomExecutionHint())
                         .field(LONG_FIELD_NAME)
                         .showTermDocCountError(true)
                         .size(10000).shardSize(10000)
                         .collectMode(randomFrom(SubAggCollectionMode.values())))
-                .execute().actionGet();
+                .get();
 
         assertSearchResponse(accurateResponse);
 
-        SearchResponse testResponse = client().prepareSearch("idx").setTypes("type")
+        SearchResponse testResponse = client().prepareSearch("idx")
                 .addAggregation(terms("terms")
                         .executionHint(randomExecutionHint())
                         .field(LONG_FIELD_NAME)
@@ -518,7 +519,7 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
                         .size(size)
                         .shardSize(shardSize)
                         .collectMode(randomFrom(SubAggCollectionMode.values())))
-                .execute().actionGet();
+                .get();
 
         assertSearchResponse(testResponse);
 
@@ -528,18 +529,18 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
     public void testLongValueFieldSingleShard() throws Exception {
         int size = randomIntBetween(1, 20);
         int shardSize = randomIntBetween(size, size * 2);
-        SearchResponse accurateResponse = client().prepareSearch("idx_single_shard").setTypes("type")
+        SearchResponse accurateResponse = client().prepareSearch("idx_single_shard")
                 .addAggregation(terms("terms")
                         .executionHint(randomExecutionHint())
                         .field(LONG_FIELD_NAME)
                         .showTermDocCountError(true)
                         .size(10000).shardSize(10000)
                         .collectMode(randomFrom(SubAggCollectionMode.values())))
-                .execute().actionGet();
+                .get();
 
         assertSearchResponse(accurateResponse);
 
-        SearchResponse testResponse = client().prepareSearch("idx_single_shard").setTypes("type")
+        SearchResponse testResponse = client().prepareSearch("idx_single_shard")
                 .addAggregation(terms("terms")
                         .executionHint(randomExecutionHint())
                         .field(LONG_FIELD_NAME)
@@ -547,7 +548,7 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
                         .size(size)
                         .shardSize(shardSize)
                         .collectMode(randomFrom(SubAggCollectionMode.values())))
-                .execute().actionGet();
+                .get();
 
         assertSearchResponse(testResponse);
 
@@ -558,7 +559,8 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
         int size = randomIntBetween(1, 20);
         int shardSize = randomIntBetween(size, size * 2);
 
-        SearchResponse testResponse = client().prepareSearch("idx_with_routing").setTypes("type").setRouting(String.valueOf(between(1, numRoutingValues)))
+        SearchResponse testResponse = client().prepareSearch("idx_with_routing")
+                .setRouting(String.valueOf(between(1, numRoutingValues)))
                 .addAggregation(terms("terms")
                         .executionHint(randomExecutionHint())
                         .field(LONG_FIELD_NAME)
@@ -566,7 +568,7 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
                         .size(size)
                         .shardSize(shardSize)
                         .collectMode(randomFrom(SubAggCollectionMode.values())))
-                .execute().actionGet();
+                .get();
 
         assertSearchResponse(testResponse);
 
@@ -576,7 +578,7 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
     public void testLongValueFieldDocCountAsc() throws Exception {
         int size = randomIntBetween(1, 20);
         int shardSize = randomIntBetween(size, size * 2);
-        SearchResponse accurateResponse = client().prepareSearch("idx_single_shard").setTypes("type")
+        SearchResponse accurateResponse = client().prepareSearch("idx_single_shard")
                 .addAggregation(terms("terms")
                         .executionHint(randomExecutionHint())
                         .field(LONG_FIELD_NAME)
@@ -584,11 +586,11 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
                         .size(10000).shardSize(10000)
                         .order(BucketOrder.count(true))
                         .collectMode(randomFrom(SubAggCollectionMode.values())))
-                .execute().actionGet();
+                .get();
 
         assertSearchResponse(accurateResponse);
 
-        SearchResponse testResponse = client().prepareSearch("idx_single_shard").setTypes("type")
+        SearchResponse testResponse = client().prepareSearch("idx_single_shard")
                 .addAggregation(terms("terms")
                         .executionHint(randomExecutionHint())
                         .field(LONG_FIELD_NAME)
@@ -597,7 +599,7 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
                         .shardSize(shardSize)
                         .order(BucketOrder.count(true))
                         .collectMode(randomFrom(SubAggCollectionMode.values())))
-                .execute().actionGet();
+                .get();
 
         assertSearchResponse(testResponse);
 
@@ -607,7 +609,7 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
     public void testLongValueFieldTermSortAsc() throws Exception {
         int size = randomIntBetween(1, 20);
         int shardSize = randomIntBetween(size, size * 2);
-        SearchResponse accurateResponse = client().prepareSearch("idx_single_shard").setTypes("type")
+        SearchResponse accurateResponse = client().prepareSearch("idx_single_shard")
                 .addAggregation(terms("terms")
                         .executionHint(randomExecutionHint())
                         .field(LONG_FIELD_NAME)
@@ -615,11 +617,11 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
                         .size(10000).shardSize(10000)
                         .order(BucketOrder.key(true))
                         .collectMode(randomFrom(SubAggCollectionMode.values())))
-                .execute().actionGet();
+                .get();
 
         assertSearchResponse(accurateResponse);
 
-        SearchResponse testResponse = client().prepareSearch("idx_single_shard").setTypes("type")
+        SearchResponse testResponse = client().prepareSearch("idx_single_shard")
                 .addAggregation(terms("terms")
                         .executionHint(randomExecutionHint())
                         .field(LONG_FIELD_NAME)
@@ -628,7 +630,7 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
                         .shardSize(shardSize)
                         .order(BucketOrder.key(true))
                         .collectMode(randomFrom(SubAggCollectionMode.values())))
-                .execute().actionGet();
+                .get();
 
         assertSearchResponse(testResponse);
 
@@ -638,7 +640,7 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
     public void testLongValueFieldTermSortDesc() throws Exception {
         int size = randomIntBetween(1, 20);
         int shardSize = randomIntBetween(size, size * 2);
-        SearchResponse accurateResponse = client().prepareSearch("idx_single_shard").setTypes("type")
+        SearchResponse accurateResponse = client().prepareSearch("idx_single_shard")
                 .addAggregation(terms("terms")
                         .executionHint(randomExecutionHint())
                         .field(LONG_FIELD_NAME)
@@ -646,11 +648,11 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
                         .size(10000).shardSize(10000)
                         .order(BucketOrder.key(false))
                         .collectMode(randomFrom(SubAggCollectionMode.values())))
-                .execute().actionGet();
+                .get();
 
         assertSearchResponse(accurateResponse);
 
-        SearchResponse testResponse = client().prepareSearch("idx_single_shard").setTypes("type")
+        SearchResponse testResponse = client().prepareSearch("idx_single_shard")
                 .addAggregation(terms("terms")
                         .executionHint(randomExecutionHint())
                         .field(LONG_FIELD_NAME)
@@ -659,7 +661,7 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
                         .shardSize(shardSize)
                         .order(BucketOrder.key(false))
                         .collectMode(randomFrom(SubAggCollectionMode.values())))
-                .execute().actionGet();
+                .get();
 
         assertSearchResponse(testResponse);
 
@@ -669,7 +671,7 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
     public void testLongValueFieldSubAggAsc() throws Exception {
         int size = randomIntBetween(1, 20);
         int shardSize = randomIntBetween(size, size * 2);
-        SearchResponse accurateResponse = client().prepareSearch("idx_single_shard").setTypes("type")
+        SearchResponse accurateResponse = client().prepareSearch("idx_single_shard")
                 .addAggregation(terms("terms")
                         .executionHint(randomExecutionHint())
                         .field(LONG_FIELD_NAME)
@@ -678,11 +680,11 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
                         .order(BucketOrder.aggregation("sortAgg", true))
                         .collectMode(randomFrom(SubAggCollectionMode.values()))
                         .subAggregation(sum("sortAgg").field(LONG_FIELD_NAME)))
-                .execute().actionGet();
+                .get();
 
         assertSearchResponse(accurateResponse);
 
-        SearchResponse testResponse = client().prepareSearch("idx_single_shard").setTypes("type")
+        SearchResponse testResponse = client().prepareSearch("idx_single_shard")
                 .addAggregation(terms("terms")
                         .executionHint(randomExecutionHint())
                         .field(LONG_FIELD_NAME)
@@ -692,7 +694,7 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
                         .order(BucketOrder.aggregation("sortAgg", true))
                         .collectMode(randomFrom(SubAggCollectionMode.values()))
                         .subAggregation(sum("sortAgg").field(LONG_FIELD_NAME)))
-                .execute().actionGet();
+                .get();
 
         assertSearchResponse(testResponse);
 
@@ -702,7 +704,7 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
     public void testLongValueFieldSubAggDesc() throws Exception {
         int size = randomIntBetween(1, 20);
         int shardSize = randomIntBetween(size, size * 2);
-        SearchResponse accurateResponse = client().prepareSearch("idx_single_shard").setTypes("type")
+        SearchResponse accurateResponse = client().prepareSearch("idx_single_shard")
                 .addAggregation(terms("terms")
                         .executionHint(randomExecutionHint())
                         .field(LONG_FIELD_NAME)
@@ -711,11 +713,11 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
                         .order(BucketOrder.aggregation("sortAgg", false))
                         .collectMode(randomFrom(SubAggCollectionMode.values()))
                         .subAggregation(sum("sortAgg").field(DOUBLE_FIELD_NAME)))
-                .execute().actionGet();
+                .get();
 
         assertSearchResponse(accurateResponse);
 
-        SearchResponse testResponse = client().prepareSearch("idx_single_shard").setTypes("type")
+        SearchResponse testResponse = client().prepareSearch("idx_single_shard")
                 .addAggregation(terms("terms")
                         .executionHint(randomExecutionHint())
                         .field(LONG_FIELD_NAME)
@@ -725,7 +727,7 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
                         .order(BucketOrder.aggregation("sortAgg", false))
                         .collectMode(randomFrom(SubAggCollectionMode.values()))
                         .subAggregation(sum("sortAgg").field(DOUBLE_FIELD_NAME)))
-                .execute().actionGet();
+                .get();
 
         assertSearchResponse(testResponse);
 
@@ -735,18 +737,18 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
     public void testDoubleValueField() throws Exception {
         int size = randomIntBetween(1, 20);
         int shardSize = randomIntBetween(size, size * 2);
-        SearchResponse accurateResponse = client().prepareSearch("idx").setTypes("type")
+        SearchResponse accurateResponse = client().prepareSearch("idx")
                 .addAggregation(terms("terms")
                         .executionHint(randomExecutionHint())
                         .field(DOUBLE_FIELD_NAME)
                         .showTermDocCountError(true)
                         .size(10000).shardSize(10000)
                         .collectMode(randomFrom(SubAggCollectionMode.values())))
-                .execute().actionGet();
+                .get();
 
         assertSearchResponse(accurateResponse);
 
-        SearchResponse testResponse = client().prepareSearch("idx").setTypes("type")
+        SearchResponse testResponse = client().prepareSearch("idx")
                 .addAggregation(terms("terms")
                         .executionHint(randomExecutionHint())
                         .field(DOUBLE_FIELD_NAME)
@@ -754,7 +756,7 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
                         .size(size)
                         .shardSize(shardSize)
                         .collectMode(randomFrom(SubAggCollectionMode.values())))
-                .execute().actionGet();
+                .get();
 
         assertSearchResponse(testResponse);
 
@@ -764,18 +766,18 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
     public void testDoubleValueFieldSingleShard() throws Exception {
         int size = randomIntBetween(1, 20);
         int shardSize = randomIntBetween(size, size * 2);
-        SearchResponse accurateResponse = client().prepareSearch("idx_single_shard").setTypes("type")
+        SearchResponse accurateResponse = client().prepareSearch("idx_single_shard")
                 .addAggregation(terms("terms")
                         .executionHint(randomExecutionHint())
                         .field(DOUBLE_FIELD_NAME)
                         .showTermDocCountError(true)
                         .size(10000).shardSize(10000)
                         .collectMode(randomFrom(SubAggCollectionMode.values())))
-                .execute().actionGet();
+                .get();
 
         assertSearchResponse(accurateResponse);
 
-        SearchResponse testResponse = client().prepareSearch("idx_single_shard").setTypes("type")
+        SearchResponse testResponse = client().prepareSearch("idx_single_shard")
                 .addAggregation(terms("terms")
                         .executionHint(randomExecutionHint())
                         .field(DOUBLE_FIELD_NAME)
@@ -783,7 +785,7 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
                         .size(size)
                         .shardSize(shardSize)
                         .collectMode(randomFrom(SubAggCollectionMode.values())))
-                .execute().actionGet();
+                .get();
 
         assertSearchResponse(testResponse);
 
@@ -794,7 +796,8 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
         int size = randomIntBetween(1, 20);
         int shardSize = randomIntBetween(size, size * 2);
 
-        SearchResponse testResponse = client().prepareSearch("idx_with_routing").setTypes("type").setRouting(String.valueOf(between(1, numRoutingValues)))
+        SearchResponse testResponse = client().prepareSearch("idx_with_routing")
+                .setRouting(String.valueOf(between(1, numRoutingValues)))
                 .addAggregation(terms("terms")
                         .executionHint(randomExecutionHint())
                         .field(DOUBLE_FIELD_NAME)
@@ -802,7 +805,7 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
                         .size(size)
                         .shardSize(shardSize)
                         .collectMode(randomFrom(SubAggCollectionMode.values())))
-                .execute().actionGet();
+                .get();
 
         assertSearchResponse(testResponse);
 
@@ -812,7 +815,7 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
     public void testDoubleValueFieldDocCountAsc() throws Exception {
         int size = randomIntBetween(1, 20);
         int shardSize = randomIntBetween(size, size * 2);
-        SearchResponse accurateResponse = client().prepareSearch("idx_single_shard").setTypes("type")
+        SearchResponse accurateResponse = client().prepareSearch("idx_single_shard")
                 .addAggregation(terms("terms")
                         .executionHint(randomExecutionHint())
                         .field(DOUBLE_FIELD_NAME)
@@ -820,11 +823,11 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
                         .size(10000).shardSize(10000)
                         .order(BucketOrder.count(true))
                         .collectMode(randomFrom(SubAggCollectionMode.values())))
-                .execute().actionGet();
+                .get();
 
         assertSearchResponse(accurateResponse);
 
-        SearchResponse testResponse = client().prepareSearch("idx_single_shard").setTypes("type")
+        SearchResponse testResponse = client().prepareSearch("idx_single_shard")
                 .addAggregation(terms("terms")
                         .executionHint(randomExecutionHint())
                         .field(DOUBLE_FIELD_NAME)
@@ -833,7 +836,7 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
                         .shardSize(shardSize)
                         .order(BucketOrder.count(true))
                         .collectMode(randomFrom(SubAggCollectionMode.values())))
-                .execute().actionGet();
+                .get();
 
         assertSearchResponse(testResponse);
 
@@ -843,7 +846,7 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
     public void testDoubleValueFieldTermSortAsc() throws Exception {
         int size = randomIntBetween(1, 20);
         int shardSize = randomIntBetween(size, size * 2);
-        SearchResponse accurateResponse = client().prepareSearch("idx_single_shard").setTypes("type")
+        SearchResponse accurateResponse = client().prepareSearch("idx_single_shard")
                 .addAggregation(terms("terms")
                         .executionHint(randomExecutionHint())
                         .field(DOUBLE_FIELD_NAME)
@@ -851,11 +854,11 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
                         .size(10000).shardSize(10000)
                         .order(BucketOrder.key(true))
                         .collectMode(randomFrom(SubAggCollectionMode.values())))
-                .execute().actionGet();
+                .get();
 
         assertSearchResponse(accurateResponse);
 
-        SearchResponse testResponse = client().prepareSearch("idx_single_shard").setTypes("type")
+        SearchResponse testResponse = client().prepareSearch("idx_single_shard")
                 .addAggregation(terms("terms")
                         .executionHint(randomExecutionHint())
                         .field(DOUBLE_FIELD_NAME)
@@ -864,7 +867,7 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
                         .shardSize(shardSize)
                         .order(BucketOrder.key(true))
                         .collectMode(randomFrom(SubAggCollectionMode.values())))
-                .execute().actionGet();
+                .get();
 
         assertSearchResponse(testResponse);
 
@@ -874,7 +877,7 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
     public void testDoubleValueFieldTermSortDesc() throws Exception {
         int size = randomIntBetween(1, 20);
         int shardSize = randomIntBetween(size, size * 2);
-        SearchResponse accurateResponse = client().prepareSearch("idx_single_shard").setTypes("type")
+        SearchResponse accurateResponse = client().prepareSearch("idx_single_shard")
                 .addAggregation(terms("terms")
                         .executionHint(randomExecutionHint())
                         .field(DOUBLE_FIELD_NAME)
@@ -882,11 +885,11 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
                         .size(10000).shardSize(10000)
                         .order(BucketOrder.key(false))
                         .collectMode(randomFrom(SubAggCollectionMode.values())))
-                .execute().actionGet();
+                .get();
 
         assertSearchResponse(accurateResponse);
 
-        SearchResponse testResponse = client().prepareSearch("idx_single_shard").setTypes("type")
+        SearchResponse testResponse = client().prepareSearch("idx_single_shard")
                 .addAggregation(terms("terms")
                         .executionHint(randomExecutionHint())
                         .field(DOUBLE_FIELD_NAME)
@@ -895,7 +898,7 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
                         .shardSize(shardSize)
                         .order(BucketOrder.key(false))
                         .collectMode(randomFrom(SubAggCollectionMode.values())))
-                .execute().actionGet();
+                .get();
 
         assertSearchResponse(testResponse);
 
@@ -905,7 +908,7 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
     public void testDoubleValueFieldSubAggAsc() throws Exception {
         int size = randomIntBetween(1, 20);
         int shardSize = randomIntBetween(size, size * 2);
-        SearchResponse accurateResponse = client().prepareSearch("idx_single_shard").setTypes("type")
+        SearchResponse accurateResponse = client().prepareSearch("idx_single_shard")
                 .addAggregation(terms("terms")
                         .executionHint(randomExecutionHint())
                         .field(DOUBLE_FIELD_NAME)
@@ -914,11 +917,11 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
                         .order(BucketOrder.aggregation("sortAgg", true))
                         .collectMode(randomFrom(SubAggCollectionMode.values()))
                         .subAggregation(sum("sortAgg").field(LONG_FIELD_NAME)))
-                .execute().actionGet();
+                .get();
 
         assertSearchResponse(accurateResponse);
 
-        SearchResponse testResponse = client().prepareSearch("idx_single_shard").setTypes("type")
+        SearchResponse testResponse = client().prepareSearch("idx_single_shard")
                 .addAggregation(terms("terms")
                         .executionHint(randomExecutionHint())
                         .field(DOUBLE_FIELD_NAME)
@@ -928,7 +931,7 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
                         .order(BucketOrder.aggregation("sortAgg", true))
                         .collectMode(randomFrom(SubAggCollectionMode.values()))
                         .subAggregation(sum("sortAgg").field(LONG_FIELD_NAME)))
-                .execute().actionGet();
+                .get();
 
         assertSearchResponse(testResponse);
 
@@ -938,7 +941,7 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
     public void testDoubleValueFieldSubAggDesc() throws Exception {
         int size = randomIntBetween(1, 20);
         int shardSize = randomIntBetween(size, size * 2);
-        SearchResponse accurateResponse = client().prepareSearch("idx_single_shard").setTypes("type")
+        SearchResponse accurateResponse = client().prepareSearch("idx_single_shard")
                 .addAggregation(terms("terms")
                         .executionHint(randomExecutionHint())
                         .field(DOUBLE_FIELD_NAME)
@@ -947,11 +950,11 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
                         .order(BucketOrder.aggregation("sortAgg", false))
                         .collectMode(randomFrom(SubAggCollectionMode.values()))
                         .subAggregation(sum("sortAgg").field(LONG_FIELD_NAME)))
-                .execute().actionGet();
+                .get();
 
         assertSearchResponse(accurateResponse);
 
-        SearchResponse testResponse = client().prepareSearch("idx_single_shard").setTypes("type")
+        SearchResponse testResponse = client().prepareSearch("idx_single_shard")
                 .addAggregation(terms("terms")
                         .executionHint(randomExecutionHint())
                         .field(DOUBLE_FIELD_NAME)
@@ -961,7 +964,7 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
                         .order(BucketOrder.aggregation("sortAgg", false))
                         .collectMode(randomFrom(SubAggCollectionMode.values()))
                         .subAggregation(sum("sortAgg").field(LONG_FIELD_NAME)))
-                .execute().actionGet();
+                .get();
 
         assertSearchResponse(testResponse);
 
@@ -974,14 +977,14 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
      * 3 one-shard indices.
      */
     public void testFixedDocs() throws Exception {
-        SearchResponse response = client().prepareSearch("idx_fixed_docs_0", "idx_fixed_docs_1", "idx_fixed_docs_2").setTypes("type")
+        SearchResponse response = client().prepareSearch("idx_fixed_docs_0", "idx_fixed_docs_1", "idx_fixed_docs_2")
                 .addAggregation(terms("terms")
                         .executionHint(randomExecutionHint())
                         .field(STRING_FIELD_NAME)
                         .showTermDocCountError(true)
                         .size(5).shardSize(5)
                         .collectMode(randomFrom(SubAggCollectionMode.values())))
-                .execute().actionGet();
+                .get();
         assertSearchResponse(response);
 
         Terms terms = response.getAggregations().get("terms");

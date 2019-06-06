@@ -23,8 +23,8 @@ import io.netty.bootstrap.ServerBootstrap;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelHandler;
-import io.netty.channel.ChannelHandlerAdapter;
 import io.netty.channel.ChannelHandlerContext;
+import io.netty.channel.ChannelInboundHandlerAdapter;
 import io.netty.channel.ChannelInitializer;
 import io.netty.channel.ChannelOption;
 import io.netty.channel.FixedRecvByteBufAllocator;
@@ -41,9 +41,10 @@ import io.netty.handler.codec.http.HttpResponseEncoder;
 import io.netty.handler.timeout.ReadTimeoutException;
 import io.netty.handler.timeout.ReadTimeoutHandler;
 import io.netty.util.AttributeKey;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.network.CloseableChannel;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -57,6 +58,7 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.http.AbstractHttpServerTransport;
 import org.elasticsearch.http.HttpChannel;
 import org.elasticsearch.http.HttpHandlingSettings;
+import org.elasticsearch.http.HttpReadTimeoutException;
 import org.elasticsearch.http.HttpServerChannel;
 import org.elasticsearch.http.netty4.cors.Netty4CorsConfig;
 import org.elasticsearch.http.netty4.cors.Netty4CorsConfigBuilder;
@@ -92,10 +94,7 @@ import static org.elasticsearch.http.HttpTransportSettings.SETTING_PIPELINING_MA
 import static org.elasticsearch.http.netty4.cors.Netty4CorsHandler.ANY_ORIGIN;
 
 public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
-
-    static {
-        Netty4Utils.setup();
-    }
+    private static final Logger logger = LogManager.getLogger(Netty4HttpServerTransport.class);
 
     /*
      * Size in bytes of an individual message received by io.netty.handler.codec.MessageAggregator which accumulates the content for an
@@ -286,12 +285,9 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
     }
 
     @Override
-    protected void onException(HttpChannel channel, Exception cause) {
+    public void onException(HttpChannel channel, Exception cause) {
         if (cause instanceof ReadTimeoutException) {
-            if (logger.isTraceEnabled()) {
-                logger.trace("Http read timeout {}", channel);
-            }
-            CloseableChannel.closeChannel(channel);
+            super.onException(channel, new HttpReadTimeoutException(readTimeoutMillis, cause));
         } else {
             super.onException(channel, cause);
         }
@@ -338,7 +334,7 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
             if (handlingSettings.isCorsEnabled()) {
                 ch.pipeline().addLast("cors", new Netty4CorsHandler(transport.corsConfig));
             }
-            ch.pipeline().addLast("pipelining", new Netty4HttpPipeliningHandler(transport.logger, transport.pipeliningMaxEvents));
+            ch.pipeline().addLast("pipelining", new Netty4HttpPipeliningHandler(logger, transport.pipeliningMaxEvents));
             ch.pipeline().addLast("handler", requestHandler);
             transport.serverAcceptedChannel(nettyHttpChannel);
         }
@@ -351,7 +347,7 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
     }
 
     @ChannelHandler.Sharable
-    private static class ServerChannelExceptionHandler extends ChannelHandlerAdapter {
+    private static class ServerChannelExceptionHandler extends ChannelInboundHandlerAdapter {
 
         private final Netty4HttpServerTransport transport;
 

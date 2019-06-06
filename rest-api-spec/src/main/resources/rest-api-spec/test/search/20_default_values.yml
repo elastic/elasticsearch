@@ -8,14 +8,12 @@ setup:
   - do:
       index:
           index:  test_1
-          type:   test
           id:     1
           body:   { foo: bar }
 
   - do:
       index:
           index:  test_2
-          type:   test
           id:     42
           body:   { foo: bar }
 
@@ -28,6 +26,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: _all
         body:
           query:
@@ -38,6 +37,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: test_1
         body:
           query:
@@ -46,11 +46,12 @@ setup:
 
   - match: {hits.total: 1}
   - match: {hits.hits.0._index: test_1 }
-  - match: {hits.hits.0._type:  test   }
+  - match: {hits.hits.0._type:  _doc   }
   - match: {hits.hits.0._id:    "1"    }
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: test_2
         body:
           query:
@@ -59,7 +60,7 @@ setup:
 
   - match: {hits.total: 1}
   - match: {hits.hits.0._index: test_2 }
-  - match: {hits.hits.0._type:  test   }
+  - match: {hits.hits.0._type:  _doc   }
   - match: {hits.hits.0._id:    "42"   }
 
 ---
@@ -68,7 +69,19 @@ setup:
     - do:
         catch: bad_request
         search:
+          rest_total_hits_as_int: true
           body:
             match:
               foo: bar
 
+---
+"Search with new response format":
+
+  - do:
+      search:
+        body:
+          query:
+            match_all: {}
+
+  - match: {hits.total.value: 2}
+  - match: {hits.total.relation: eq}

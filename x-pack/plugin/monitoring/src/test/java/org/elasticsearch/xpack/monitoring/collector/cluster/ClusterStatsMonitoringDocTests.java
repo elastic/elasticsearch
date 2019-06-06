@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.monitoring.collector.cluster;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
@@ -33,6 +34,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.license.License;
 import org.elasticsearch.monitor.fs.FsInfo;
@@ -200,7 +202,7 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                                                                 transportAddress,
                                                                 singletonMap("attr", "value"),
                                                                 singleton(DiscoveryNode.Role.MASTER),
-                                                                Version.V_6_0_0_beta1);
+                                                                Version.CURRENT);
 
         final ClusterState clusterState = ClusterState.builder(clusterName)
                                                         .metaData(MetaData.builder()
@@ -231,7 +233,8 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
         final List<XPackFeatureSet.Usage> usages = singletonList(new MonitoringFeatureSetUsage(false, true, false, null));
 
         final NodeInfo mockNodeInfo = mock(NodeInfo.class);
-        when(mockNodeInfo.getVersion()).thenReturn(Version.V_6_0_0_alpha2);
+        Version mockNodeVersion = Version.CURRENT.minimumIndexCompatibilityVersion();
+        when(mockNodeInfo.getVersion()).thenReturn(mockNodeVersion);
         when(mockNodeInfo.getNode()).thenReturn(discoveryNode);
 
         final TransportInfo mockTransportInfo = mock(TransportInfo.class);
@@ -242,6 +245,7 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
         when(mockNodeInfo.getSettings()).thenReturn(Settings.builder()
                                                             .put(NetworkModule.TRANSPORT_TYPE_KEY, "_transport")
                                                             .put(NetworkModule.HTTP_TYPE_KEY, "_http")
+                                                            .put(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(), "_disco")
                                                             .build());
 
         final PluginsAndModules mockPluginsAndModules = mock(PluginsAndModules.class);
@@ -263,6 +267,13 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
         when(mockJvmInfo.getVmName()).thenReturn("_jvm_vm_name");
         when(mockJvmInfo.getVmVersion()).thenReturn("_jvm_vm_version");
         when(mockJvmInfo.getVmVendor()).thenReturn("_jvm_vm_vendor");
+        when(mockJvmInfo.getBundledJdk()).thenReturn(true);
+        when(mockJvmInfo.getUsingBundledJdk()).thenReturn(true);
+
+        final Build mockBuild = mock(Build.class);
+        when(mockBuild.flavor()).thenReturn(Build.Flavor.DEFAULT);
+        when(mockBuild.type()).thenReturn(Build.Type.DOCKER);
+        when(mockNodeInfo.getBuild()).thenReturn(mockBuild);
 
         final NodeStats mockNodeStats = mock(NodeStats.class);
         when(mockNodeStats.getTimestamp()).thenReturn(0L);
@@ -436,7 +447,7 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                         + "\"ingest\":0"
                       + "},"
                       + "\"versions\":["
-                        + "\"6.0.0-alpha2\""
+                        + "\"" + mockNodeVersion + "\""
                       + "],"
                       + "\"os\":{"
                         + "\"available_processors\":32,"
@@ -479,6 +490,8 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                             + "\"vm_name\":\"_jvm_vm_name\","
                             + "\"vm_version\":\"_jvm_vm_version\","
                             + "\"vm_vendor\":\"_jvm_vm_vendor\","
+                            + "\"bundled_jdk\":true,"
+                            + "\"using_bundled_jdk\":true,"
                             + "\"count\":1"
                           + "}"
                         + "],"
@@ -512,7 +525,17 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                         + "\"http_types\":{"
                           + "\"_http\":1"
                         + "}"
-                      + "}"
+                      + "},"
+                      + "\"discovery_types\":{"
+                        + "\"_disco\":1"
+                      + "},"
+                      + "\"packaging_types\":["
+                        + "{"
+                          + "\"flavor\":\"default\","
+                          + "\"type\":\"docker\","
+                          + "\"count\":1"
+                        + "}"
+                      + "]"
                     + "}"
                   + "},"
                   + "\"cluster_state\":{"

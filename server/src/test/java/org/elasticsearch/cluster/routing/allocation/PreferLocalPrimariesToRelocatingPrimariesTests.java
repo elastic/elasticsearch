@@ -94,7 +94,7 @@ public class PreferLocalPrimariesToRelocatingPrimariesTests extends ESAllocation
                 .build();
         clusterState = ClusterState.builder(clusterState).metaData(metaData)
             .nodes(DiscoveryNodes.builder(clusterState.nodes()).remove("node1")).build();
-        clusterState = strategy.deassociateDeadNodes(clusterState, true, "reroute");
+        clusterState = strategy.disassociateDeadNodes(clusterState, true, "reroute");
 
         logger.info("[{}] primaries should be still started but [{}] other primaries should be unassigned",
             numberOfShards, numberOfShards);

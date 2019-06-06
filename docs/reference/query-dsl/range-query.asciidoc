@@ -138,7 +138,10 @@ GET _search
 --------------------------------------------------
 // CONSOLE
 <1> This date will be converted to `2014-12-31T23:00:00 UTC`.
-<2> `now` is not affected by the `time_zone` parameter (dates must be stored as UTC).
+<2> `now` is not affected by the `time_zone` parameter, its always the current system time (in UTC).
+However, when using <<date-math,date math rounding>> (e.g. down to the nearest day using `now/d`),
+the provided `time_zone` will be considered.
+
 
 [[querying-range-fields]]
 ==== Querying range fields

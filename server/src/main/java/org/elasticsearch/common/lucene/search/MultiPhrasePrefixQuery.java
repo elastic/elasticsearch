@@ -39,15 +39,20 @@ import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 import java.util.ListIterator;
+import java.util.Objects;
 
 public class MultiPhrasePrefixQuery extends Query {
 
-    private String field;
+    private final String field;
     private ArrayList<Term[]> termArrays = new ArrayList<>();
     private ArrayList<Integer> positions = new ArrayList<>();
     private int maxExpansions = Integer.MAX_VALUE;
 
     private int slop = 0;
+
+    public MultiPhrasePrefixQuery(String field) {
+        this.field = Objects.requireNonNull(field);
+    }
 
     /**
      * Sets the phrase slop for this query.
@@ -102,9 +107,6 @@ public class MultiPhrasePrefixQuery extends Query {
      * @see org.apache.lucene.search.PhraseQuery.Builder#add(Term, int)
      */
     public void add(Term[] terms, int position) {
-        if (termArrays.size() == 0)
-            field = terms[0].field();
-
         for (int i = 0; i < terms.length; i++) {
             if (terms[i].field() != field) {
                 throw new IllegalArgumentException(
@@ -212,7 +214,7 @@ public class MultiPhrasePrefixQuery extends Query {
     @Override
     public final String toString(String f) {
         StringBuilder buffer = new StringBuilder();
-        if (field == null || !field.equals(f)) {
+        if (field.equals(f) == false) {
             buffer.append(field);
             buffer.append(":");
         }

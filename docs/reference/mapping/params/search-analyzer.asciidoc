@@ -38,13 +38,11 @@ PUT my_index
     }
   },
   "mappings": {
-    "_doc": {
-      "properties": {
-        "text": {
-          "type": "text",
-          "analyzer": "autocomplete", <2>
-          "search_analyzer": "standard" <2>
-        }
+    "properties": {
+      "text": {
+        "type": "text",
+        "analyzer": "autocomplete", <2>
+        "search_analyzer": "standard" <2>
       }
     }
   }

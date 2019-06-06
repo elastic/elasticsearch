@@ -111,7 +111,7 @@ public class TermsSetQueryBuilderTests extends AbstractQueryTestCase<TermsSetQue
     }
 
     @Override
-    protected boolean isCachable(TermsSetQueryBuilder queryBuilder) {
+    protected boolean isCacheable(TermsSetQueryBuilder queryBuilder) {
         return queryBuilder.getMinimumShouldMatchField() != null ||
                 (queryBuilder.getMinimumShouldMatchScript() != null && queryBuilder.getValues().isEmpty());
     }

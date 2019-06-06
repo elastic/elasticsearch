@@ -5,12 +5,12 @@
  */
 package org.elasticsearch.xpack.rollup.action;
 
-
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
-import org.elasticsearch.test.AbstractStreamableTestCase;
+import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.core.rollup.ConfigTestHelpers;
 import org.elasticsearch.xpack.core.rollup.action.GetRollupJobsAction;
 import org.elasticsearch.xpack.core.rollup.action.GetRollupJobsAction.Request;
@@ -20,8 +20,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
-
-public class GetJobsActionRequestTests extends AbstractStreamableTestCase<Request> {
+public class GetJobsActionRequestTests extends AbstractWireSerializingTestCase<Request> {
 
     @Override
     protected Request createTestInstance() {
@@ -32,8 +31,8 @@ public class GetJobsActionRequestTests extends AbstractStreamableTestCase<Reques
     }
 
     @Override
-    protected Request createBlankInstance() {
-        return new Request();
+    protected Writeable.Reader<Request> instanceReader() {
+        return Request::new;
     }
 
     public void testStateCheckNoPersistentTasks() {

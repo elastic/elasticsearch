@@ -27,19 +27,19 @@ archivesBaseName = 'elasticsearch-benchmarks'
 test.enabled = false
 
 dependencies {
-    compile("org.elasticsearch:elasticsearch:${version}") {
+    compile(project(":server")) {
         // JMH ships with the conflicting version 4.6. This prevents us from using jopt-simple in benchmarks (which should be ok) but allows
         // us to invoke the JMH uberjar as usual.
         exclude group: 'net.sf.jopt-simple', module: 'jopt-simple'
     }
     compile "org.openjdk.jmh:jmh-core:$versions.jmh"
-    compile "org.openjdk.jmh:jmh-generator-annprocess:$versions.jmh"
+    annotationProcessor "org.openjdk.jmh:jmh-generator-annprocess:$versions.jmh"
     // Dependencies of JMH
     runtime 'net.sf.jopt-simple:jopt-simple:4.6'
     runtime 'org.apache.commons:commons-math3:3.2'
 }
 
-compileJava.options.compilerArgs << "-Xlint:-cast,-deprecation,-rawtypes,-try,-unchecked,-processing"
+compileJava.options.compilerArgs << "-Xlint:-cast,-rawtypes,-unchecked,-processing"
 // enable the JMH's BenchmarkProcessor to generate the final benchmark classes
 // needs to be added separately otherwise Gradle will quote it and javac will fail
 compileJava.options.compilerArgs.addAll(["-processor", "org.openjdk.jmh.generators.BenchmarkProcessor"])
@@ -53,7 +53,7 @@ forbiddenApisMain.enabled = false
 dependencyLicenses.enabled = false
 dependenciesInfo.enabled = false
 
-thirdPartyAudit.excludes = [
+thirdPartyAudit.ignoreViolations (
         // these classes intentionally use JDK internal API (and this is ok since the project is maintained by Oracle employees)
         'org.openjdk.jmh.profile.AbstractHotspotProfiler',
         'org.openjdk.jmh.profile.HotspotThreadProfiler',
@@ -62,4 +62,4 @@ thirdPartyAudit.excludes = [
         'org.openjdk.jmh.profile.HotspotMemoryProfiler',
         'org.openjdk.jmh.profile.HotspotRuntimeProfiler',
         'org.openjdk.jmh.util.Utils'
-]
+)

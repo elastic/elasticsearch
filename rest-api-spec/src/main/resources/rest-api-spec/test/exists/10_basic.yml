@@ -1,10 +1,10 @@
 ---
 "Basic":
 
+
   - do:
       exists:
         index: test_1
-        type:  test
         id:    1
 
   - is_false: ''
@@ -12,7 +12,6 @@
   - do:
       index:
         index: test_1
-        type:  test
         id:    1
         body:  { "foo": "bar" }
 
@@ -21,7 +20,6 @@
   - do:
       exists:
         index: test_1
-        type:  test
         id:    1
 
   - is_true: ''
@@ -29,7 +27,6 @@
   - do:
       exists:
         index: test_1
-        type: test
         id: 1
         version: 1
 

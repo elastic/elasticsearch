@@ -27,36 +27,33 @@ import java.util.Objects;
 public final class PainlessClass {
 
     public final Map<String, PainlessConstructor> constructors;
-
     public final Map<String, PainlessMethod> staticMethods;
     public final Map<String, PainlessMethod> methods;
-
     public final Map<String, PainlessField> staticFields;
     public final Map<String, PainlessField> fields;
+    public final PainlessMethod functionalInterfaceMethod;
 
+    public final Map<String, PainlessMethod> runtimeMethods;
     public final Map<String, MethodHandle> getterMethodHandles;
     public final Map<String, MethodHandle> setterMethodHandles;
-
-    public final PainlessMethod functionalInterfaceMethod;
 
     PainlessClass(Map<String, PainlessConstructor> constructors,
             Map<String, PainlessMethod> staticMethods, Map<String, PainlessMethod> methods,
             Map<String, PainlessField> staticFields, Map<String, PainlessField> fields,
-            Map<String, MethodHandle> getterMethodHandles, Map<String, MethodHandle> setterMethodHandles,
-            PainlessMethod functionalInterfaceMethod) {
+            PainlessMethod functionalInterfaceMethod,
+            Map<String, PainlessMethod> runtimeMethods,
+            Map<String, MethodHandle> getterMethodHandles, Map<String, MethodHandle> setterMethodHandles) {
 
         this.constructors = Collections.unmodifiableMap(constructors);
-
         this.staticMethods = Collections.unmodifiableMap(staticMethods);
         this.methods = Collections.unmodifiableMap(methods);
-
         this.staticFields = Collections.unmodifiableMap(staticFields);
         this.fields = Collections.unmodifiableMap(fields);
+        this.functionalInterfaceMethod = functionalInterfaceMethod;
 
         this.getterMethodHandles = Collections.unmodifiableMap(getterMethodHandles);
         this.setterMethodHandles = Collections.unmodifiableMap(setterMethodHandles);
-
-        this.functionalInterfaceMethod = functionalInterfaceMethod;
+        this.runtimeMethods = Collections.unmodifiableMap(runtimeMethods);
     }
 
     @Override

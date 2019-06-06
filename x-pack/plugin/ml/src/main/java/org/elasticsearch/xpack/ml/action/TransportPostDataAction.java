@@ -9,7 +9,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -18,7 +17,6 @@ import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManage
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.DataLoadParams;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.TimeRange;
 
-import java.io.IOException;
 import java.util.Optional;
 
 public class TransportPostDataAction extends TransportJobTaskAction<PostDataAction.Request, PostDataAction.Response> {
@@ -32,13 +30,6 @@ public class TransportPostDataAction extends TransportJobTaskAction<PostDataActi
             PostDataAction.Request::new, PostDataAction.Response::new, ThreadPool.Names.SAME, processManager);
         // ThreadPool.Names.SAME, because operations is executed by autodetect worker thread
         this.analysisRegistry = analysisRegistry;
-    }
-
-    @Override
-    protected PostDataAction.Response readTaskResponse(StreamInput in) throws IOException {
-        PostDataAction.Response response = new PostDataAction.Response();
-        response.readFrom(in);
-        return response;
     }
 
     @Override

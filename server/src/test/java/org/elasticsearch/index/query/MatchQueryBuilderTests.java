@@ -21,14 +21,14 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.CannedBinaryTokenStream;
+import org.apache.lucene.analysis.MockSynonymAnalyzer;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.queries.ExtendedCommonTermsQuery;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
-import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
+import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
@@ -45,7 +45,6 @@ import org.elasticsearch.index.search.MatchQuery;
 import org.elasticsearch.index.search.MatchQuery.Type;
 import org.elasticsearch.index.search.MatchQuery.ZeroTermsQuery;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.test.AbstractQueryTestCase;
 import org.hamcrest.Matcher;
 
 import java.io.IOException;
@@ -55,13 +54,20 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
+import static java.util.Collections.singletonList;
 import static org.hamcrest.CoreMatchers.either;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
-public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuilder> {
+public class MatchQueryBuilderTests extends FullTextQueryTestCase<MatchQueryBuilder> {
+    @Override
+    protected boolean isCacheable(MatchQueryBuilder queryBuilder) {
+        return queryBuilder.fuzziness() != null
+                ||  isCacheable(singletonList(queryBuilder.fieldName()), queryBuilder.value().toString());
+    }
+
     @Override
     protected MatchQueryBuilder doCreateTestQueryBuilder() {
         String fieldName = randomFrom(STRING_FIELD_NAME, STRING_ALIAS_FIELD_NAME, BOOLEAN_FIELD_NAME, INT_FIELD_NAME,
@@ -115,10 +121,6 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
 
         if (randomBoolean()) {
             matchQuery.zeroTermsQuery(randomFrom(ZeroTermsQuery.ALL, ZeroTermsQuery.NONE));
-        }
-
-        if (randomBoolean()) {
-            matchQuery.cutoffFrequency((float) 10 / randomIntBetween(1, 100));
         }
 
         if (randomBoolean()) {
@@ -176,18 +178,6 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
             if (queryBuilder.analyzer() == null && queryBuilder.value().toString().length() > 0) {
                 assertEquals(bq.clauses().size(), queryBuilder.value().toString().split(" ").length);
             }
-        }
-
-        if (query instanceof ExtendedCommonTermsQuery) {
-            assertTrue(queryBuilder.cutoffFrequency() != null);
-            ExtendedCommonTermsQuery ectq = (ExtendedCommonTermsQuery) query;
-            List<Term> terms = ectq.getTerms();
-            if (!terms.isEmpty()) {
-                Term term = terms.iterator().next();
-                String expectedFieldName = expectedFieldName(queryBuilder.fieldName());
-                assertThat(term.field(), equalTo(expectedFieldName));
-            }
-            assertEquals(queryBuilder.cutoffFrequency(), ectq.getMaxTermFrequency(), Float.MIN_VALUE);
         }
 
         if (query instanceof FuzzyQuery) {
@@ -370,13 +360,10 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
     public void testMatchPhrasePrefixWithBoost() throws Exception {
         QueryShardContext context = createShardContext();
         {
-            // field boost is applied on a single term query
+            // field boost is ignored on a single term query
             MatchPhrasePrefixQueryBuilder builder = new MatchPhrasePrefixQueryBuilder("string_boost", "foo");
             Query query = builder.toQuery(context);
-            assertThat(query, instanceOf(BoostQuery.class));
-            assertThat(((BoostQuery) query).getBoost(), equalTo(4f));
-            Query innerQuery = ((BoostQuery) query).getQuery();
-            assertThat(innerQuery, instanceOf(MultiPhrasePrefixQuery.class));
+            assertThat(query, instanceOf(MultiPhrasePrefixQuery.class));
         }
 
         {
@@ -397,6 +384,76 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
             containsString("field:[string_no_pos] was indexed without position data; cannot run PhraseQuery"));
     }
 
+    public void testAutoGenerateSynonymsPhraseQuery() throws Exception {
+        final MatchQuery matchQuery = new MatchQuery(createShardContext());
+        matchQuery.setAnalyzer(new MockSynonymAnalyzer());
+
+        {
+            matchQuery.setAutoGenerateSynonymsPhraseQuery(false);
+            final Query query = matchQuery.parse(Type.BOOLEAN, STRING_FIELD_NAME, "guinea pig");
+            final Query expectedQuery = new BooleanQuery.Builder()
+                .add(new BooleanQuery.Builder()
+                        .add(new BooleanQuery.Builder()
+                                .add(new TermQuery(new Term(STRING_FIELD_NAME, "guinea")), BooleanClause.Occur.MUST)
+                                .add(new TermQuery(new Term(STRING_FIELD_NAME, "pig")), BooleanClause.Occur.MUST)
+                                .build(),
+                            BooleanClause.Occur.SHOULD)
+                        .add(new TermQuery(new Term(STRING_FIELD_NAME, "cavy")), BooleanClause.Occur.SHOULD)
+                        .build(),
+                    BooleanClause.Occur.SHOULD).build();
+            assertThat(query, equalTo(expectedQuery));
+        }
+
+        {
+            matchQuery.setAutoGenerateSynonymsPhraseQuery(true);
+            final Query query = matchQuery.parse(Type.BOOLEAN, STRING_FIELD_NAME, "guinea pig");
+            final Query expectedQuery = new BooleanQuery.Builder()
+                .add(new BooleanQuery.Builder()
+                        .add(new PhraseQuery.Builder()
+                            .add(new Term(STRING_FIELD_NAME, "guinea"))
+                            .add(new Term(STRING_FIELD_NAME, "pig"))
+                            .build(),
+                            BooleanClause.Occur.SHOULD)
+                        .add(new TermQuery(new Term(STRING_FIELD_NAME, "cavy")), BooleanClause.Occur.SHOULD)
+                        .build(),
+                    BooleanClause.Occur.SHOULD).build();
+            assertThat(query, equalTo(expectedQuery));
+        }
+
+        {
+            matchQuery.setAutoGenerateSynonymsPhraseQuery(false);
+            final Query query = matchQuery.parse(Type.BOOLEAN_PREFIX, STRING_FIELD_NAME, "guinea pig");
+            final Query expectedQuery = new BooleanQuery.Builder()
+                .add(new BooleanQuery.Builder()
+                        .add(new BooleanQuery.Builder()
+                                .add(new TermQuery(new Term(STRING_FIELD_NAME, "guinea")), BooleanClause.Occur.MUST)
+                                .add(new TermQuery(new Term(STRING_FIELD_NAME, "pig")), BooleanClause.Occur.MUST)
+                                .build(),
+                            BooleanClause.Occur.SHOULD)
+                        .add(new TermQuery(new Term(STRING_FIELD_NAME, "cavy")), BooleanClause.Occur.SHOULD)
+                        .build(),
+                    BooleanClause.Occur.SHOULD).build();
+            assertThat(query, equalTo(expectedQuery));
+        }
+
+        {
+            matchQuery.setAutoGenerateSynonymsPhraseQuery(true);
+            final Query query = matchQuery.parse(Type.BOOLEAN_PREFIX, STRING_FIELD_NAME, "guinea pig");
+            final MultiPhrasePrefixQuery guineaPig = new MultiPhrasePrefixQuery(STRING_FIELD_NAME);
+            guineaPig.add(new Term(STRING_FIELD_NAME, "guinea"));
+            guineaPig.add(new Term(STRING_FIELD_NAME, "pig"));
+            final MultiPhrasePrefixQuery cavy = new MultiPhrasePrefixQuery(STRING_FIELD_NAME);
+            cavy.add(new Term(STRING_FIELD_NAME, "cavy"));
+            final Query expectedQuery = new BooleanQuery.Builder()
+                .add(new BooleanQuery.Builder()
+                        .add(guineaPig, BooleanClause.Occur.SHOULD)
+                        .add(cavy, BooleanClause.Occur.SHOULD)
+                        .build(),
+                    BooleanClause.Occur.SHOULD).build();
+            assertThat(query, equalTo(expectedQuery));
+        }
+    }
+
     public void testMaxBooleanClause() {
         MatchQuery query = new MatchQuery(createShardContext());
         query.setAnalyzer(new MockGraphAnalyzer(createGiantGraph(40)));
@@ -404,7 +461,7 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
         query.setAnalyzer(new MockGraphAnalyzer(createGiantGraphMultiTerms()));
         expectThrows(BooleanQuery.TooManyClauses.class, () -> query.parse(Type.PHRASE, STRING_FIELD_NAME, ""));
     }
-    
+
     private static class MockGraphAnalyzer extends Analyzer {
 
         CannedBinaryTokenStream tokenStream;

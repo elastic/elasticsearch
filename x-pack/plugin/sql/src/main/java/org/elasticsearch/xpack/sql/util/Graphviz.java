@@ -132,7 +132,7 @@ public abstract class Graphviz {
                 + "</b></td></th>\n");
         indent(nodeInfo, currentIndent + NODE_LABEL_INDENT);
 
-        List<Object> props = n.properties();
+        List<Object> props = n.nodeProperties();
         List<String> parsed = new ArrayList<>(props.size());
         List<Node<?>> subTrees = new ArrayList<>();
 

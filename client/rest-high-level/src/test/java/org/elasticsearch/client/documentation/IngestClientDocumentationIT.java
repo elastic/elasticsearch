@@ -296,8 +296,8 @@ public class IngestClientDocumentationIT extends ESRestHighLevelClientTestCase {
                         "\"processors\":[{\"set\":{\"field\":\"field2\",\"value\":\"_value\"}}]" +
                     "}," +
                     "\"docs\":[" +
-                        "{\"_index\":\"index\",\"_type\":\"_doc\",\"_id\":\"id\",\"_source\":{\"foo\":\"bar\"}}," +
-                        "{\"_index\":\"index\",\"_type\":\"_doc\",\"_id\":\"id\",\"_source\":{\"foo\":\"rab\"}}" +
+                        "{\"_index\":\"index\",\"_id\":\"id\",\"_source\":{\"foo\":\"bar\"}}," +
+                        "{\"_index\":\"index\",\"_id\":\"id\",\"_source\":{\"foo\":\"rab\"}}" +
                     "]" +
                 "}";
             SimulatePipelineRequest request = new SimulatePipelineRequest(
@@ -353,8 +353,8 @@ public class IngestClientDocumentationIT extends ESRestHighLevelClientTestCase {
                     "\"processors\":[{\"set\":{\"field\":\"field2\",\"value\":\"_value\"}}]" +
                     "}," +
                     "\"docs\":[" +
-                    "{\"_index\":\"index\",\"_type\":\"_doc\",\"_id\":\"id\",\"_source\":{\"foo\":\"bar\"}}," +
-                    "{\"_index\":\"index\",\"_type\":\"_doc\",\"_id\":\"id\",\"_source\":{\"foo\":\"rab\"}}" +
+                    "{\"_index\":\"index\",\"_id\":\"id\",\"_source\":{\"foo\":\"bar\"}}," +
+                    "{\"_index\":\"index\",\"_id\":\"id\",\"_source\":{\"foo\":\"rab\"}}" +
                     "]" +
                     "}";
             SimulatePipelineRequest request = new SimulatePipelineRequest(

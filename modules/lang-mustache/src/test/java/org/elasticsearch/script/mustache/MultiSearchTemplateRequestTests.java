@@ -56,13 +56,10 @@ public class MultiSearchTemplateRequestTests extends ESTestCase {
         assertThat(request.requests().get(0).getRequest().preference(), nullValue());
         assertThat(request.requests().get(1).getRequest().indices()[0], equalTo("test2"));
         assertThat(request.requests().get(1).getRequest().indices()[1], equalTo("test3"));
-        assertThat(request.requests().get(1).getRequest().types()[0], equalTo("type1"));
         assertThat(request.requests().get(1).getRequest().requestCache(), nullValue());
         assertThat(request.requests().get(1).getRequest().preference(), equalTo("_local"));
         assertThat(request.requests().get(2).getRequest().indices()[0], equalTo("test4"));
         assertThat(request.requests().get(2).getRequest().indices()[1], equalTo("test1"));
-        assertThat(request.requests().get(2).getRequest().types()[0], equalTo("type2"));
-        assertThat(request.requests().get(2).getRequest().types()[1], equalTo("type1"));
         assertThat(request.requests().get(2).getRequest().routing(), equalTo("123"));
         assertNotNull(request.requests().get(0).getScript());
         assertNotNull(request.requests().get(1).getScript());
@@ -105,10 +102,10 @@ public class MultiSearchTemplateRequestTests extends ESTestCase {
         expectThrows(IllegalArgumentException.class, () ->
                 request.maxConcurrentSearchRequests(randomIntBetween(Integer.MIN_VALUE, 0)));
     }
-    
+
     public void testMultiSearchTemplateToJson() throws Exception {
         final int numSearchRequests = randomIntBetween(1, 10);
-        MultiSearchTemplateRequest multiSearchTemplateRequest = new MultiSearchTemplateRequest();        
+        MultiSearchTemplateRequest multiSearchTemplateRequest = new MultiSearchTemplateRequest();
         for (int i = 0; i < numSearchRequests; i++) {
             // Create a random request.
             String[] indices = {"test"};
@@ -118,25 +115,25 @@ public class MultiSearchTemplateRequestTests extends ESTestCase {
             // batched reduce size is currently not set-able on a per-request basis as it is a query string parameter only
             searchRequest.setBatchedReduceSize(SearchRequest.DEFAULT_BATCHED_REDUCE_SIZE);
             SearchTemplateRequest searchTemplateRequest = new SearchTemplateRequest(searchRequest);
-    
+
             searchTemplateRequest.setScript("{\"query\": { \"match\" : { \"{{field}}\" : \"{{value}}\" }}}");
             searchTemplateRequest.setScriptType(ScriptType.INLINE);
             searchTemplateRequest.setProfile(randomBoolean());
-    
+
             Map<String, Object> scriptParams = new HashMap<>();
             scriptParams.put("field", "name");
             scriptParams.put("value", randomAlphaOfLengthBetween(2, 5));
             searchTemplateRequest.setScriptParams(scriptParams);
-    
-            multiSearchTemplateRequest.add(searchTemplateRequest);            
+
+            multiSearchTemplateRequest.add(searchTemplateRequest);
         }
 
         //Serialize the request
         String serialized = toJsonString(multiSearchTemplateRequest);
-        
+
         //Deserialize the request
         RestRequest restRequest = new FakeRestRequest.Builder(xContentRegistry())
-                .withContent(new BytesArray(serialized), XContentType.JSON).build();        
+                .withContent(new BytesArray(serialized), XContentType.JSON).build();
         MultiSearchTemplateRequest deser = RestMultiSearchTemplateAction.parseRequest(restRequest, true);
 
         // For object equality purposes need to set the search requests' source to non-null
@@ -145,10 +142,10 @@ public class MultiSearchTemplateRequestTests extends ESTestCase {
             if (sr.source() == null) {
                 sr.source(new SearchSourceBuilder());
             }
-        }        
+        }
         // Compare the deserialized request object with the original request object
         assertEquals(multiSearchTemplateRequest, deser);
-        
+
         // Finally, serialize the deserialized request to compare JSON equivalence (in case Object.equals() fails to reveal a discrepancy)
         assertEquals(serialized, toJsonString(deser));
     }
@@ -156,6 +153,6 @@ public class MultiSearchTemplateRequestTests extends ESTestCase {
     protected String toJsonString(MultiSearchTemplateRequest multiSearchTemplateRequest) throws IOException {
         byte[] bytes = MultiSearchTemplateRequest.writeMultiLineFormat(multiSearchTemplateRequest, XContentType.JSON.xContent());
         return new String(bytes, StandardCharsets.UTF_8);
-    }    
+    }
 
 }

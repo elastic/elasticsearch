@@ -8,8 +8,8 @@ package org.elasticsearch.xpack.sql.expression.function.scalar.string;
 import org.elasticsearch.xpack.sql.execution.search.SqlSourceBuilder;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
-import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
+import org.elasticsearch.xpack.sql.tree.Source;
 
 import java.util.Arrays;
 import java.util.List;
@@ -19,11 +19,11 @@ public class LocateFunctionPipe extends Pipe {
 
     private final Pipe pattern, source, start;
 
-    public LocateFunctionPipe(Location location, Expression expression, Pipe pattern,
-            Pipe source, Pipe start) {
-        super(location, expression, start == null ? Arrays.asList(pattern, source) : Arrays.asList(pattern, source, start));
+    public LocateFunctionPipe(Source source, Expression expression, Pipe pattern,
+            Pipe src, Pipe start) {
+        super(source, expression, start == null ? Arrays.asList(pattern, src) : Arrays.asList(pattern, src, start));
         this.pattern = pattern;
-        this.source = source;
+        this.source = src;
         this.start = start;
     }
 
@@ -60,7 +60,7 @@ public class LocateFunctionPipe extends Pipe {
 
     protected Pipe replaceChildren(Pipe newPattern, Pipe newSource,
             Pipe newStart) {
-        return new LocateFunctionPipe(location(), expression(), newPattern, newSource, newStart);
+        return new LocateFunctionPipe(source(), expression(), newPattern, newSource, newStart);
     }
 
     @Override
@@ -82,7 +82,7 @@ public class LocateFunctionPipe extends Pipe {
         return new LocateFunctionProcessor(pattern.asProcessor(), source.asProcessor(), start == null ? null : start.asProcessor());
     }
     
-    public Pipe source() {
+    public Pipe src() {
         return source;
     }
     

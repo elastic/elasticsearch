@@ -1,12 +1,12 @@
 ---
 "Test get old cluster job":
   - do:
-      xpack.ml.get_jobs:
+      ml.get_jobs:
         job_id: old-cluster-job
   - match: { count: 1 }
 
   - do:
-      xpack.ml.get_job_stats:
+      ml.get_job_stats:
         job_id: old-cluster-job
   - match: { jobs.0.state: "closed" }
   - match: { jobs.0.data_counts.processed_record_count: 2 }
@@ -14,11 +14,11 @@
   - is_false: node
 
   - do:
-      xpack.ml.open_job:
+      ml.open_job:
         job_id: old-cluster-job
 
   - do:
-      xpack.ml.get_job_stats:
+      ml.get_job_stats:
         job_id: old-cluster-job
   - match: { jobs.0.state: "opened" }
   - match: { jobs.0.data_counts.processed_record_count: 2 }
@@ -27,18 +27,18 @@
   - is_true: jobs.0.open_time
 
   - do:
-      xpack.ml.close_job:
+      ml.close_job:
         job_id: old-cluster-job
 
   - do:
-      xpack.ml.get_buckets:
+      ml.get_buckets:
         job_id: old-cluster-job
   - match: { count: 1 }
 
 ---
 "Create a job in the mixed cluster and write some data":
   - do:
-      xpack.ml.put_job:
+      ml.put_job:
         job_id: mixed-cluster-job
         body:  >
           {
@@ -59,11 +59,11 @@
   - match: { job_id: mixed-cluster-job }
 
   - do:
-      xpack.ml.open_job:
+      ml.open_job:
         job_id: mixed-cluster-job
 
   - do:
-      xpack.ml.post_data:
+      ml.post_data:
         job_id: mixed-cluster-job
         body:
           - airline: AAL
@@ -77,7 +77,7 @@
   - match: { processed_record_count: 2 }
 
   - do:
-      xpack.ml.close_job:
+      ml.close_job:
         job_id: mixed-cluster-job
 
 # Wait for indices to be fully allocated before
@@ -91,6 +91,6 @@
 "Test job with pre 6.4 rules":
 
   - do:
-      xpack.ml.get_jobs:
+      ml.get_jobs:
         job_id: job-with-old-rules
   - match: { count: 1 }

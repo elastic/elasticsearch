@@ -27,6 +27,8 @@ import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.index.query.MoreLikeThisQueryBuilder.Item;
 import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilder;
+import org.elasticsearch.index.query.functionscore.ScriptScoreFunctionBuilder;
+import org.elasticsearch.index.query.functionscore.ScriptScoreQueryBuilder;
 import org.elasticsearch.indices.TermsLookup;
 import org.elasticsearch.script.Script;
 
@@ -57,16 +59,6 @@ public final class QueryBuilders {
      */
     public static MatchQueryBuilder matchQuery(String name, Object text) {
         return new MatchQueryBuilder(name, text);
-    }
-
-    /**
-     * Creates a common query for the provided field name and text.
-     *
-     * @param fieldName The field name.
-     * @param text The query text (to be analyzed).
-     */
-    public static CommonTermsQueryBuilder commonTermsQuery(String fieldName, Object text) {
-        return new CommonTermsQueryBuilder(fieldName, text);
     }
 
     /**
@@ -113,15 +105,6 @@ public final class QueryBuilders {
      */
     public static IdsQueryBuilder idsQuery() {
         return new IdsQueryBuilder();
-    }
-
-    /**
-     * Constructs a query that will match only specific ids within types.
-     *
-     * @param types The mapping/doc type
-     */
-    public static IdsQueryBuilder idsQuery(String... types) {
-        return new IdsQueryBuilder().types(types);
     }
 
     /**
@@ -401,7 +384,8 @@ public final class QueryBuilders {
      * @param filterFunctionBuilders the filters and functions to execute
      * @return the function score query
      */
-    public static FunctionScoreQueryBuilder functionScoreQuery(QueryBuilder queryBuilder, FunctionScoreQueryBuilder.FilterFunctionBuilder[] filterFunctionBuilders) {
+    public static FunctionScoreQueryBuilder functionScoreQuery(QueryBuilder queryBuilder,
+                                                               FunctionScoreQueryBuilder.FilterFunctionBuilder[] filterFunctionBuilders) {
         return new FunctionScoreQueryBuilder(queryBuilder, filterFunctionBuilders);
     }
 
@@ -420,7 +404,7 @@ public final class QueryBuilders {
      *
      * @param function The function builder used to custom score
      */
-    public static FunctionScoreQueryBuilder functionScoreQuery(ScoreFunctionBuilder function) {
+    public static FunctionScoreQueryBuilder functionScoreQuery(ScoreFunctionBuilder<?> function) {
         return new FunctionScoreQueryBuilder(function);
     }
 
@@ -430,9 +414,20 @@ public final class QueryBuilders {
      * @param queryBuilder The query to custom score
      * @param function     The function builder used to custom score
      */
-    public static FunctionScoreQueryBuilder functionScoreQuery(QueryBuilder queryBuilder, ScoreFunctionBuilder function) {
+    public static FunctionScoreQueryBuilder functionScoreQuery(QueryBuilder queryBuilder, ScoreFunctionBuilder<?> function) {
         return (new FunctionScoreQueryBuilder(queryBuilder, function));
     }
+
+    /**
+     * A query that allows to define a custom scoring function through script.
+     *
+     * @param queryBuilder The query to custom score
+     * @param function     The script score function builder used to custom score
+     */
+    public static ScriptScoreQueryBuilder scriptScoreQuery(QueryBuilder queryBuilder, ScriptScoreFunctionBuilder function) {
+        return new ScriptScoreQueryBuilder(queryBuilder, function);
+    }
+
 
     /**
      * A more like this query that finds documents that are "like" the provided texts or documents
@@ -570,15 +565,6 @@ public final class QueryBuilders {
     }
 
     /**
-     * A filter based on doc/mapping type.
-     * @deprecated Types are going away, prefer filtering on a field.
-     */
-    @Deprecated
-    public static TypeQueryBuilder typeQuery(String type) {
-        return new TypeQueryBuilder(type);
-    }
-
-    /**
      * A terms query that can extract the terms from another doc in an index.
      */
     public static TermsQueryBuilder termsLookupQuery(String name, TermsLookup termsLookup) {
@@ -632,8 +618,8 @@ public final class QueryBuilders {
         return new GeoShapeQueryBuilder(name, shape);
     }
 
-    public static GeoShapeQueryBuilder geoShapeQuery(String name, String indexedShapeId, String indexedShapeType) {
-        return new GeoShapeQueryBuilder(name, indexedShapeId, indexedShapeType);
+    public static GeoShapeQueryBuilder geoShapeQuery(String name, String indexedShapeId) {
+        return new GeoShapeQueryBuilder(name, indexedShapeId);
     }
 
     /**
@@ -648,8 +634,8 @@ public final class QueryBuilders {
         return builder;
     }
 
-    public static GeoShapeQueryBuilder geoIntersectionQuery(String name, String indexedShapeId, String indexedShapeType) {
-        GeoShapeQueryBuilder builder = geoShapeQuery(name, indexedShapeId, indexedShapeType);
+    public static GeoShapeQueryBuilder geoIntersectionQuery(String name, String indexedShapeId) {
+        GeoShapeQueryBuilder builder = geoShapeQuery(name, indexedShapeId);
         builder.relation(ShapeRelation.INTERSECTS);
         return builder;
     }
@@ -666,8 +652,8 @@ public final class QueryBuilders {
         return builder;
     }
 
-    public static GeoShapeQueryBuilder geoWithinQuery(String name, String indexedShapeId, String indexedShapeType) {
-        GeoShapeQueryBuilder builder = geoShapeQuery(name, indexedShapeId, indexedShapeType);
+    public static GeoShapeQueryBuilder geoWithinQuery(String name, String indexedShapeId) {
+        GeoShapeQueryBuilder builder = geoShapeQuery(name, indexedShapeId);
         builder.relation(ShapeRelation.WITHIN);
         return builder;
     }
@@ -684,8 +670,8 @@ public final class QueryBuilders {
         return builder;
     }
 
-    public static GeoShapeQueryBuilder geoDisjointQuery(String name, String indexedShapeId, String indexedShapeType) {
-        GeoShapeQueryBuilder builder = geoShapeQuery(name, indexedShapeId, indexedShapeType);
+    public static GeoShapeQueryBuilder geoDisjointQuery(String name, String indexedShapeId) {
+        GeoShapeQueryBuilder builder = geoShapeQuery(name, indexedShapeId);
         builder.relation(ShapeRelation.DISJOINT);
         return builder;
     }

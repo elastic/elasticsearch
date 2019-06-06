@@ -21,7 +21,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.tasks.Task;
@@ -50,10 +49,15 @@ public class GetRollupJobsAction extends Action<GetRollupJobsAction.Response> {
 
     @Override
     public Response newResponse() {
-        return new Response();
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
-    public static class Request extends BaseTasksRequest<Request> implements ToXContent {
+    @Override
+    public Writeable.Reader<Response> getResponseReader() {
+        return Response::new;
+    }
+
+    public static class Request extends BaseTasksRequest<Request> implements ToXContentObject {
         private String id;
 
         public Request(String id) {
@@ -65,6 +69,20 @@ public class GetRollupJobsAction extends Action<GetRollupJobsAction.Response> {
         }
 
         public Request() {}
+
+        public Request(StreamInput in) throws IOException {
+            super(in);
+            id = in.readString();
+            if (Strings.isNullOrEmpty(id) || id.equals("*")) {
+                this.id = MetaData.ALL;
+            }
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
+            out.writeString(id);
+        }
 
         @Override
         public boolean match(Task task) {
@@ -82,28 +100,15 @@ public class GetRollupJobsAction extends Action<GetRollupJobsAction.Response> {
         }
 
         @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            id = in.readString();
-            if (Strings.isNullOrEmpty(id) || id.equals("*")) {
-                this.id = MetaData.ALL;
-            }
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-            out.writeString(id);
-        }
-
-        @Override
         public ActionRequestValidationException validate() {
             return null;
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
             builder.field(RollupField.ID.getPreferredName(), id);
+            builder.endObject();
             return builder;
         }
 
@@ -134,7 +139,7 @@ public class GetRollupJobsAction extends Action<GetRollupJobsAction.Response> {
 
     public static class Response extends BaseTasksResponse implements Writeable, ToXContentObject {
 
-        private List<JobWrapper> jobs;
+        private final List<JobWrapper> jobs;
 
         public Response(List<JobWrapper> jobs) {
             super(Collections.emptyList(), Collections.emptyList());
@@ -146,22 +151,8 @@ public class GetRollupJobsAction extends Action<GetRollupJobsAction.Response> {
             this.jobs = jobs;
         }
 
-        public Response() {
-            super(Collections.emptyList(), Collections.emptyList());
-        }
-
         public Response(StreamInput in) throws IOException {
-            super(Collections.emptyList(), Collections.emptyList());
-            readFrom(in);
-        }
-
-        public List<JobWrapper> getJobs() {
-            return jobs;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
+            super(in);
             jobs = in.readList(JobWrapper::new);
         }
 
@@ -169,6 +160,10 @@ public class GetRollupJobsAction extends Action<GetRollupJobsAction.Response> {
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeList(jobs);
+        }
+
+        public List<JobWrapper> getJobs() {
+            return jobs;
         }
 
         @Override

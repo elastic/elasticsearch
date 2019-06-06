@@ -17,6 +17,9 @@ import org.elasticsearch.index.Index;
 import java.io.IOException;
 import java.util.Objects;
 
+/**
+ * Checks whether all shards in a shrunken index have been successfully allocated.
+ */
 public class ShrunkShardsAllocatedStep extends ClusterStateWaitStep {
     public static final String NAME = "shrunk-shards-allocated";
     private String shrunkIndexPrefix;

@@ -20,6 +20,8 @@
 package org.elasticsearch.packaging.util;
 
 import org.elasticsearch.core.internal.io.IOUtils;
+import org.hamcrest.FeatureMatcher;
+import org.hamcrest.Matcher;
 
 import java.io.BufferedWriter;
 import java.io.IOException;
@@ -34,9 +36,11 @@ import java.nio.file.attribute.FileOwnerAttributeView;
 import java.nio.file.attribute.PosixFileAttributes;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.emptyIterable;
 import static org.hamcrest.core.IsNot.not;
 import static org.hamcrest.text.IsEmptyString.isEmptyOrNullString;
 import static org.junit.Assert.assertFalse;
@@ -68,6 +72,15 @@ public class FileUtils {
             throw new RuntimeException(e);
         }
     }
+
+    public static Path mktempDir(Path path) {
+        try {
+            return Files.createTempDirectory(path,"tmp");
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
 
     public static Path mkdir(Path path) {
         try {
@@ -174,6 +187,20 @@ public class FileUtils {
 
     public static void assertPathsExist(Path... paths) {
         Arrays.stream(paths).forEach(path -> assertTrue(path + " should exist", Files.exists(path)));
+    }
+
+    public static Matcher<Path> fileWithGlobExist(String glob) throws IOException {
+        return new FeatureMatcher<Path,Iterable<Path>>(not(emptyIterable()),"File with pattern exist", "file with pattern"){
+
+            @Override
+            protected Iterable<Path> featureValueOf(Path actual) {
+                try {
+                    return Files.newDirectoryStream(actual,glob);
+                } catch (IOException e) {
+                    return Collections.emptyList();
+                }
+            }
+        };
     }
 
     public static void assertPathsDontExist(Path... paths) {

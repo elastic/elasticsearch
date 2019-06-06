@@ -24,9 +24,9 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.watcher.support.WatcherUtils;
 import org.elasticsearch.xpack.watcher.support.search.WatcherSearchTemplateRequest;
-import org.joda.time.DateTime;
 
 import java.time.Clock;
+import java.time.ZonedDateTime;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Locale;
@@ -46,7 +46,7 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class WatcherUtilsTests extends ESTestCase {
     public void testFlattenModel() throws Exception {
-        DateTime now = new DateTime(Clock.systemUTC().millis());
+        ZonedDateTime now = ZonedDateTime.now(Clock.systemUTC());
         Map<String, Object> map = new HashMap<>();
         map.put("a", singletonMap("a1", new int[] { 0, 1, 2 }));
         map.put("b", new String[] { "b0", "b1", "b2" });
@@ -84,13 +84,13 @@ public class WatcherUtilsTests extends ESTestCase {
             builder.endObject();
             return builder;
         };
-        Map<String, Object> result = WatcherUtils.responseToData(content);
+        Map<String, Object> result = WatcherUtils.responseToData(content, ToXContent.EMPTY_PARAMS);
         assertThat(result, equalTo(expected));
     }
 
     public void testSerializeSearchRequest() throws Exception {
         String[] expectedIndices = generateRandomStringArray(5, 5, true);
-        String[] expectedTypes = generateRandomStringArray(2, 5, true);
+        String[] expectedTypes = generateRandomStringArray(2, 5, true, false);
         IndicesOptions expectedIndicesOptions = IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(),
                 randomBoolean(), WatcherSearchTemplateRequest.DEFAULT_INDICES_OPTIONS);
         SearchType expectedSearchType = getRandomSupportedSearchType();
@@ -129,7 +129,6 @@ public class WatcherUtilsTests extends ESTestCase {
         WatcherSearchTemplateRequest result = WatcherSearchTemplateRequest.fromXContent(parser, DEFAULT_SEARCH_TYPE);
 
         assertThat(result.getIndices(), arrayContainingInAnyOrder(expectedIndices != null ? expectedIndices : new String[0]));
-        assertThat(result.getTypes(), arrayContainingInAnyOrder(expectedTypes != null ? expectedTypes : new String[0]));
         assertThat(result.getIndicesOptions(), equalTo(expectedIndicesOptions));
         assertThat(result.getSearchType(), equalTo(expectedSearchType));
 
@@ -142,6 +141,12 @@ public class WatcherUtilsTests extends ESTestCase {
         } else {
             assertThat(result.getTemplate().getIdOrCode(), equalTo(expectedSource.utf8ToString()));
             assertThat(result.getTemplate().getType(), equalTo(ScriptType.INLINE));
+        }
+        if (expectedTypes == null) {
+            assertNull(result.getTypes());
+        } else {
+            assertThat(result.getTypes(), arrayContainingInAnyOrder(expectedTypes));
+            assertWarnings(WatcherSearchTemplateRequest.TYPES_DEPRECATION_MESSAGE);
         }
     }
 
@@ -161,7 +166,7 @@ public class WatcherUtilsTests extends ESTestCase {
 
         String[] types = Strings.EMPTY_ARRAY;
         if (randomBoolean()) {
-            types = generateRandomStringArray(2, 5, false);
+            types = generateRandomStringArray(2, 5, false, false);
             if (randomBoolean()) {
                 builder.array("types", types);
             } else {
@@ -220,7 +225,6 @@ public class WatcherUtilsTests extends ESTestCase {
         WatcherSearchTemplateRequest result = WatcherSearchTemplateRequest.fromXContent(parser, DEFAULT_SEARCH_TYPE);
 
         assertThat(result.getIndices(), arrayContainingInAnyOrder(indices));
-        assertThat(result.getTypes(), arrayContainingInAnyOrder(types));
         assertThat(result.getIndicesOptions(), equalTo(indicesOptions));
         assertThat(result.getSearchType(), equalTo(searchType));
         if (source == null) {
@@ -235,6 +239,12 @@ public class WatcherUtilsTests extends ESTestCase {
             assertThat(result.getTemplate().getType(), equalTo(template.getType()));
             assertThat(result.getTemplate().getParams(), equalTo(template.getParams()));
             assertThat(result.getTemplate().getLang(), equalTo(stored ? null : "mustache"));
+        }
+        if (types == Strings.EMPTY_ARRAY) {
+            assertNull(result.getTypes());
+        } else {
+            assertThat(result.getTypes(), arrayContainingInAnyOrder(types));
+            assertWarnings(WatcherSearchTemplateRequest.TYPES_DEPRECATION_MESSAGE);
         }
     }
 

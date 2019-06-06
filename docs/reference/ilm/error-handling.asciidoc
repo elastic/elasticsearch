@@ -1,7 +1,7 @@
 [role="xpack"]
 [testenv="basic"]
 [[index-lifecycle-error-handling]]
-== Index Lifecycle Error Handling
+== Index lifecycle error handling
 
 During Index Lifecycle Management's execution of the policy for an index, it's
 possible for a step to encounter an error during its execution. When this
@@ -117,7 +117,7 @@ Which returns the following information:
 <9> the definition of the phase (in this case, the "warm" phase) that the index is currently on
 
 The index here has been moved to the error step because the shrink definition in
-the policy is using an incorrect number of shards. So rectifing that in the
+the policy is using an incorrect number of shards. So rectifying that in the
 policy entails updating the existing policy to use one instead of four for
 the targeted number of shards.
 
@@ -142,6 +142,7 @@ PUT _ilm/policy/shrink-the-index
 // CONSOLE
 // TEST[continued]
 
+[float]
 === Retrying failed index lifecycle management steps
 
 Once the underlying issue that caused an index to move to the error step has

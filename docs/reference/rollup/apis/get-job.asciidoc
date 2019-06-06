@@ -1,9 +1,9 @@
 [role="xpack"]
 [testenv="basic"]
 [[rollup-get-job]]
-=== Get Rollup Jobs API
+=== Get rollup jobs API
 ++++
-<titleabbrev>Get Job</titleabbrev>
+<titleabbrev>Get job</titleabbrev>
 ++++
 
 experimental[]
@@ -18,7 +18,7 @@ For details about a historical job, the <<rollup-get-rollup-caps,Rollup Capabili
 
 ==== Request
 
-`GET _xpack/rollup/job/<job_id>`
+`GET _rollup/job/<job_id>`
 
 //===== Description
 
@@ -44,7 +44,7 @@ If we have already created a rollup job named `sensor`, the details about the jo
 
 [source,js]
 --------------------------------------------------
-GET _xpack/rollup/job/sensor
+GET _rollup/job/sensor
 --------------------------------------------------
 // CONSOLE
 // TEST[setup:sensor_rollup_job]
@@ -63,7 +63,7 @@ Which will yield the following response:
             "cron" : "*/30 * * * * ?",
             "groups" : {
               "date_histogram" : {
-                "interval" : "1h",
+                "fixed_interval" : "1h",
                 "delay": "7d",
                 "field": "timestamp",
                 "time_zone": "UTC"
@@ -94,14 +94,19 @@ Which will yield the following response:
             "page_size" : 1000
           },
           "status" : {
-            "job_state" : "stopped",
-            "upgraded_doc_id": true
+            "job_state" : "stopped"
           },
           "stats" : {
             "pages_processed" : 0,
             "documents_processed" : 0,
             "rollups_indexed" : 0,
-            "trigger_count" : 0
+            "trigger_count" : 0,
+            "index_failures": 0,
+            "index_time_in_ms": 0,
+            "index_total": 0,
+            "search_failures": 0,
+            "search_time_in_ms": 0,
+            "search_total": 0
           }
         }
     ]
@@ -134,7 +139,7 @@ If we add another job, we can see how multi-job responses are handled:
 
 [source,js]
 --------------------------------------------------
-PUT _xpack/rollup/job/sensor2 <1>
+PUT _rollup/job/sensor2 <1>
 {
     "index_pattern": "sensor-*",
     "rollup_index": "sensor_rollup",
@@ -143,7 +148,7 @@ PUT _xpack/rollup/job/sensor2 <1>
     "groups" : {
       "date_histogram": {
         "field": "timestamp",
-        "interval": "1h",
+        "fixed_interval": "1h",
         "delay": "7d"
       },
       "terms": {
@@ -162,7 +167,7 @@ PUT _xpack/rollup/job/sensor2 <1>
     ]
 }
 
-GET _xpack/rollup/job/_all <2>
+GET _rollup/job/_all <2>
 --------------------------------------------------
 // CONSOLE
 // TEST[setup:sensor_rollup_job]
@@ -183,7 +188,7 @@ Which will yield the following response:
             "cron" : "*/30 * * * * ?",
             "groups" : {
               "date_histogram" : {
-                "interval" : "1h",
+                "fixed_interval" : "1h",
                 "delay": "7d",
                 "field": "timestamp",
                 "time_zone": "UTC"
@@ -214,14 +219,19 @@ Which will yield the following response:
             "page_size" : 1000
           },
           "status" : {
-            "job_state" : "stopped",
-            "upgraded_doc_id": true
+            "job_state" : "stopped"
           },
           "stats" : {
             "pages_processed" : 0,
             "documents_processed" : 0,
             "rollups_indexed" : 0,
-            "trigger_count" : 0
+            "trigger_count" : 0,
+            "index_failures": 0,
+            "index_time_in_ms": 0,
+            "index_total": 0,
+            "search_failures": 0,
+            "search_time_in_ms": 0,
+            "search_total": 0
           }
         },
         {
@@ -232,7 +242,7 @@ Which will yield the following response:
             "cron" : "*/30 * * * * ?",
             "groups" : {
               "date_histogram" : {
-                "interval" : "1h",
+                "fixed_interval" : "1h",
                 "delay": "7d",
                 "field": "timestamp",
                 "time_zone": "UTC"
@@ -263,14 +273,19 @@ Which will yield the following response:
             "page_size" : 1000
           },
           "status" : {
-            "job_state" : "stopped",
-            "upgraded_doc_id": true
+            "job_state" : "stopped"
           },
           "stats" : {
             "pages_processed" : 0,
             "documents_processed" : 0,
             "rollups_indexed" : 0,
-            "trigger_count" : 0
+            "trigger_count" : 0,
+            "index_failures": 0,
+            "index_time_in_ms": 0,
+            "index_total": 0,
+            "search_failures": 0,
+            "search_time_in_ms": 0,
+            "search_total": 0
           }
         }
     ]

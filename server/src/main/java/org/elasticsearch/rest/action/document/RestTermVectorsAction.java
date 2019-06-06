@@ -43,18 +43,15 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
  * TermVectorsRequest.
  */
 public class RestTermVectorsAction extends BaseRestHandler {
+    public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] " +
+            "Specifying types in term vector requests is deprecated.";
+
     public RestTermVectorsAction(Settings settings, RestController controller) {
         super(settings);
-        controller.registerHandler(GET, "/{index}/{type}/_termvectors", this);
-        controller.registerHandler(POST, "/{index}/{type}/_termvectors", this);
-        controller.registerHandler(GET, "/{index}/{type}/{id}/_termvectors", this);
-        controller.registerHandler(POST, "/{index}/{type}/{id}/_termvectors", this);
-
-        // we keep usage of _termvector as alias for now
-        controller.registerHandler(GET, "/{index}/{type}/_termvector", this);
-        controller.registerHandler(POST, "/{index}/{type}/_termvector", this);
-        controller.registerHandler(GET, "/{index}/{type}/{id}/_termvector", this);
-        controller.registerHandler(POST, "/{index}/{type}/{id}/_termvector", this);
+        controller.registerHandler(GET, "/{index}/_termvectors", this);
+        controller.registerHandler(POST, "/{index}/_termvectors", this);
+        controller.registerHandler(GET, "/{index}/_termvectors/{id}", this);
+        controller.registerHandler(POST, "/{index}/_termvectors/{id}", this);
     }
 
     @Override
@@ -64,7 +61,9 @@ public class RestTermVectorsAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        TermVectorsRequest termVectorsRequest = new TermVectorsRequest(request.param("index"), request.param("type"), request.param("id"));
+        TermVectorsRequest termVectorsRequest;
+        termVectorsRequest = new TermVectorsRequest(request.param("index"), request.param("id"));
+
         if (request.hasContentOrSourceParam()) {
             try (XContentParser parser = request.contentOrSourceParamParser()) {
                 TermVectorsRequest.parseRequest(termVectorsRequest, parser);

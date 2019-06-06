@@ -29,6 +29,7 @@ import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.VersionType;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.tasks.TaskId;
@@ -68,8 +69,7 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
 
     public ReindexRequest(StreamInput in) throws IOException {
         super.readFrom(in);
-        destination = new IndexRequest();
-        destination.readFrom(in);
+        destination = new IndexRequest(in);
         remoteInfo = in.readOptionalWriteable(RemoteInfo::new);
     }
 
@@ -134,16 +134,6 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
     public ReindexRequest setSourceIndices(String... sourceIndices) {
         if (sourceIndices != null) {
             this.getSearchRequest().indices(sourceIndices);
-        }
-        return this;
-    }
-
-    /**
-     * Set the document types which need to be copied from the source indices
-     */
-    public ReindexRequest setSourceDocTypes(String... docTypes) {
-        if (docTypes != null) {
-            this.getSearchRequest().types(docTypes);
         }
         return this;
     }
@@ -292,9 +282,9 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
             builder.startObject("source");
             if (remoteInfo != null) {
                 builder.field("remote", remoteInfo);
+                builder.rawField("query", remoteInfo.getQuery().streamInput(), builder.contentType());
             }
             builder.array("index", getSearchRequest().indices());
-            builder.array("type", getSearchRequest().types());
             getSearchRequest().source().innerToXContent(builder, params);
             builder.endObject();
         }
@@ -302,7 +292,8 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
             // build destination
             builder.startObject("dest");
             builder.field("index", getDestination().index());
-            if (getDestination().type() != null) {
+            String type = getDestination().type();
+            if (type != null && type.equals(MapperService.SINGLE_MAPPING_NAME) == false) {
                 builder.field("type", getDestination().type());
             }
             if (getDestination().routing() != null) {

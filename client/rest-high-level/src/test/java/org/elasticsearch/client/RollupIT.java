@@ -30,6 +30,7 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.core.AcknowledgedResponse;
+import org.elasticsearch.client.core.IndexerState;
 import org.elasticsearch.client.rollup.DeleteRollupJobRequest;
 import org.elasticsearch.client.rollup.GetRollupCapsRequest;
 import org.elasticsearch.client.rollup.GetRollupCapsResponse;
@@ -37,13 +38,12 @@ import org.elasticsearch.client.rollup.GetRollupIndexCapsRequest;
 import org.elasticsearch.client.rollup.GetRollupIndexCapsResponse;
 import org.elasticsearch.client.rollup.GetRollupJobRequest;
 import org.elasticsearch.client.rollup.GetRollupJobResponse;
-import org.elasticsearch.client.rollup.GetRollupJobResponse.IndexerState;
 import org.elasticsearch.client.rollup.GetRollupJobResponse.JobWrapper;
 import org.elasticsearch.client.rollup.PutRollupJobRequest;
-import org.elasticsearch.client.rollup.StartRollupJobRequest;
-import org.elasticsearch.client.rollup.StartRollupJobResponse;
 import org.elasticsearch.client.rollup.RollableIndexCaps;
 import org.elasticsearch.client.rollup.RollupJobCaps;
+import org.elasticsearch.client.rollup.StartRollupJobRequest;
+import org.elasticsearch.client.rollup.StartRollupJobResponse;
 import org.elasticsearch.client.rollup.StopRollupJobRequest;
 import org.elasticsearch.client.rollup.StopRollupJobResponse;
 import org.elasticsearch.client.rollup.job.config.DateHistogramGroupConfig;
@@ -57,8 +57,10 @@ import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInter
 import org.elasticsearch.search.aggregations.metrics.AvgAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.MinAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregation;
 import org.elasticsearch.search.aggregations.metrics.SumAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.ValueCountAggregationBuilder;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.junit.Before;
 
 import java.util.Arrays;
@@ -70,6 +72,7 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -111,7 +114,7 @@ public class RollupIT extends ESRestHighLevelClientTestCase {
             for (int second = 0; second < 60; second = second + 10) {
                 final int value = randomIntBetween(0, 100);
 
-                final IndexRequest indexRequest = new IndexRequest("docs", "doc");
+                final IndexRequest indexRequest = new IndexRequest("docs");
                 indexRequest.source(jsonBuilder()
                     .startObject()
                     .field("value", value)
@@ -149,7 +152,7 @@ public class RollupIT extends ESRestHighLevelClientTestCase {
 
 
     public void testDeleteRollupJob() throws Exception {
-        final GroupConfig groups = new GroupConfig(new DateHistogramGroupConfig("date", DateHistogramInterval.DAY));
+        final GroupConfig groups = new GroupConfig(new DateHistogramGroupConfig.CalendarInterval("date", DateHistogramInterval.DAY));
         final List<MetricConfig> metrics = Collections.singletonList(new MetricConfig("value", SUPPORTED_METRICS));
         final TimeValue timeout = TimeValue.timeValueSeconds(randomIntBetween(30, 600));
         PutRollupJobRequest putRollupJobRequest =
@@ -171,7 +174,7 @@ public class RollupIT extends ESRestHighLevelClientTestCase {
 
     public void testPutStartAndGetRollupJob() throws Exception {
         // TODO expand this to also test with histogram and terms?
-        final GroupConfig groups = new GroupConfig(new DateHistogramGroupConfig("date", DateHistogramInterval.DAY));
+        final GroupConfig groups = new GroupConfig(new DateHistogramGroupConfig.CalendarInterval("date", DateHistogramInterval.DAY));
         final List<MetricConfig> metrics = Collections.singletonList(new MetricConfig("value", SUPPORTED_METRICS));
         final TimeValue timeout = TimeValue.timeValueSeconds(randomIntBetween(30, 600));
 
@@ -189,7 +192,7 @@ public class RollupIT extends ESRestHighLevelClientTestCase {
         assertBusy(() -> {
             SearchResponse searchResponse = highLevelClient().search(new SearchRequest(rollupIndex), RequestOptions.DEFAULT);
             assertEquals(0, searchResponse.getFailedShards());
-            assertEquals(1L, searchResponse.getHits().getTotalHits());
+            assertEquals(1L, searchResponse.getHits().getTotalHits().value);
 
             SearchHit searchHit = searchResponse.getHits().getAt(0);
             Map<String, Object> source = searchHit.getSourceAsMap();
@@ -230,7 +233,6 @@ public class RollupIT extends ESRestHighLevelClientTestCase {
         assertEquals(1, job.getStats().getOutputDocuments());
         assertThat(job.getStatus().getState(), either(equalTo(IndexerState.STARTED)).or(equalTo(IndexerState.INDEXING)));
         assertThat(job.getStatus().getCurrentPosition(), hasKey("date.date_histogram"));
-        assertEquals(true, job.getStatus().getUpgradedDocumentId());
 
         // stop the job
         StopRollupJobRequest stopRequest = new StopRollupJobRequest(id);
@@ -242,6 +244,19 @@ public class RollupIT extends ESRestHighLevelClientTestCase {
             assertThat(getResponse.getJobs(), hasSize(1));
             assertThat(getResponse.getJobs().get(0).getStatus().getState(), equalTo(IndexerState.STOPPED));
         }
+    }
+
+    public void testSearch() throws Exception {
+        testPutStartAndGetRollupJob();
+        SearchRequest search = new SearchRequest(rollupIndex);
+        search.source(new SearchSourceBuilder()
+                .size(0)
+                .aggregation(new AvgAggregationBuilder("avg").field("value")));
+        SearchResponse response = highLevelClient().rollup().search(search, RequestOptions.DEFAULT);
+        assertEquals(0, response.getFailedShards());
+        assertEquals(0, response.getHits().getTotalHits().value);
+        NumericMetricsAggregation.SingleValue avg = response.getAggregations().get("avg");
+        assertThat(avg.value(), closeTo(sum / numDocs, 0.00000001));
     }
 
     public void testGetMissingRollupJob() throws Exception {
@@ -263,7 +278,7 @@ public class RollupIT extends ESRestHighLevelClientTestCase {
             for (int second = 0; second < 60; second = second + 10) {
                 final int value = randomIntBetween(0, 100);
 
-                final IndexRequest indexRequest = new IndexRequest("docs", "doc");
+                final IndexRequest indexRequest = new IndexRequest("docs");
                 indexRequest.source(jsonBuilder()
                     .startObject()
                     .field("value", value)
@@ -304,7 +319,7 @@ public class RollupIT extends ESRestHighLevelClientTestCase {
         final String cron = "*/1 * * * * ?";
         final int pageSize = randomIntBetween(numDocs, numDocs * 10);
         // TODO expand this to also test with histogram and terms?
-        final GroupConfig groups = new GroupConfig(new DateHistogramGroupConfig("date", DateHistogramInterval.DAY));
+        final GroupConfig groups = new GroupConfig(new DateHistogramGroupConfig.CalendarInterval("date", DateHistogramInterval.DAY));
         final List<MetricConfig> metrics = Collections.singletonList(new MetricConfig("value", SUPPORTED_METRICS));
         final TimeValue timeout = TimeValue.timeValueSeconds(randomIntBetween(30, 600));
 
@@ -348,7 +363,7 @@ public class RollupIT extends ESRestHighLevelClientTestCase {
                 case "delay":
                     assertThat(entry.getValue(), equalTo("foo"));
                     break;
-                case "interval":
+                case "calendar_interval":
                     assertThat(entry.getValue(), equalTo("1d"));
                     break;
                 case "time_zone":
@@ -375,7 +390,7 @@ public class RollupIT extends ESRestHighLevelClientTestCase {
             for (int second = 0; second < 60; second = second + 10) {
                 final int value = randomIntBetween(0, 100);
 
-                final IndexRequest indexRequest = new IndexRequest("docs", "doc");
+                final IndexRequest indexRequest = new IndexRequest("docs");
                 indexRequest.source(jsonBuilder()
                     .startObject()
                     .field("value", value)
@@ -416,7 +431,7 @@ public class RollupIT extends ESRestHighLevelClientTestCase {
         final String cron = "*/1 * * * * ?";
         final int pageSize = randomIntBetween(numDocs, numDocs * 10);
         // TODO expand this to also test with histogram and terms?
-        final GroupConfig groups = new GroupConfig(new DateHistogramGroupConfig("date", DateHistogramInterval.DAY));
+        final GroupConfig groups = new GroupConfig(new DateHistogramGroupConfig.CalendarInterval("date", DateHistogramInterval.DAY));
         final List<MetricConfig> metrics = Collections.singletonList(new MetricConfig("value", SUPPORTED_METRICS));
         final TimeValue timeout = TimeValue.timeValueSeconds(randomIntBetween(30, 600));
 
@@ -460,7 +475,7 @@ public class RollupIT extends ESRestHighLevelClientTestCase {
                 case "delay":
                     assertThat(entry.getValue(), equalTo("foo"));
                     break;
-                case "interval":
+                case "calendar_interval":
                     assertThat(entry.getValue(), equalTo("1d"));
                     break;
                 case "time_zone":

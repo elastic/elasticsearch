@@ -23,8 +23,6 @@ import io.netty.buffer.ByteBuf;
 import io.netty.buffer.CompositeByteBuf;
 import io.netty.buffer.Unpooled;
 import io.netty.util.NettyRuntime;
-import io.netty.util.internal.logging.InternalLogger;
-import io.netty.util.internal.logging.InternalLoggerFactory;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
 import org.elasticsearch.common.Booleans;
@@ -37,21 +35,6 @@ import java.util.Locale;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 public class Netty4Utils {
-
-    static {
-        InternalLoggerFactory.setDefaultFactory(new InternalLoggerFactory() {
-
-            @Override
-            public InternalLogger newInstance(final String name) {
-                return new Netty4InternalESLogger(name);
-            }
-
-        });
-    }
-
-    public static void setup() {
-
-    }
 
     private static AtomicBoolean isAvailableProcessorsSet = new AtomicBoolean();
 
@@ -107,9 +90,14 @@ public class Netty4Utils {
                 while ((slice = iterator.next()) != null) {
                     buffers.add(Unpooled.wrappedBuffer(slice.bytes, slice.offset, slice.length));
                 }
-                final CompositeByteBuf composite = Unpooled.compositeBuffer(buffers.size());
-                composite.addComponents(true, buffers);
-                return composite;
+
+                if (buffers.size() == 1) {
+                    return buffers.get(0);
+                } else {
+                    CompositeByteBuf composite = Unpooled.compositeBuffer(buffers.size());
+                    composite.addComponents(true, buffers);
+                    return composite;
+                }
             } catch (IOException ex) {
                 throw new AssertionError("no IO happens here", ex);
             }

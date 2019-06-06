@@ -27,7 +27,6 @@ import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -51,7 +50,6 @@ public class RestoreInfo implements ToXContentObject, Streamable {
     private int successfulShards;
 
     RestoreInfo() {
-
     }
 
     public RestoreInfo(String name, List<String> indices, int totalShards, int successfulShards) {
@@ -106,15 +104,6 @@ public class RestoreInfo implements ToXContentObject, Streamable {
         return successfulShards;
     }
 
-    /**
-     * REST status of the operation
-     *
-     * @return REST status
-     */
-    public RestStatus status() {
-        return RestStatus.OK;
-    }
-
     static final class Fields {
         static final String SNAPSHOT = "snapshot";
         static final String INDICES = "indices";
@@ -142,7 +131,8 @@ public class RestoreInfo implements ToXContentObject, Streamable {
         return builder;
     }
 
-    private static final ObjectParser<RestoreInfo, Void> PARSER = new ObjectParser<>(RestoreInfo.class.getName(), true, RestoreInfo::new);
+    private static final ObjectParser<RestoreInfo, Void> PARSER = new ObjectParser<>(RestoreInfo.class.getName(),
+        true, RestoreInfo::new);
 
     static {
         ObjectParser<RestoreInfo, Void> shardsParser = new ObjectParser<>("shards", true, null);
@@ -181,18 +171,6 @@ public class RestoreInfo implements ToXContentObject, Streamable {
         }
         out.writeVInt(totalShards);
         out.writeVInt(successfulShards);
-    }
-
-    /**
-     * Reads restore info from {@link StreamInput}
-     *
-     * @param in stream input
-     * @return restore info
-     */
-    public static RestoreInfo readRestoreInfo(StreamInput in) throws IOException {
-        RestoreInfo snapshotInfo = new RestoreInfo();
-        snapshotInfo.readFrom(in);
-        return snapshotInfo;
     }
 
     /**

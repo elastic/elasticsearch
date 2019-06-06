@@ -35,7 +35,6 @@ import org.elasticsearch.plugins.NetworkPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.netty4.Netty4Transport;
-import org.elasticsearch.transport.netty4.Netty4Utils;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -44,10 +43,6 @@ import java.util.Map;
 import java.util.function.Supplier;
 
 public class Netty4Plugin extends Plugin implements NetworkPlugin {
-
-    static {
-        Netty4Utils.setup();
-    }
 
     public static final String NETTY_TRANSPORT_NAME = "netty4";
     public static final String NETTY_HTTP_TRANSPORT_NAME = "netty4";
@@ -77,13 +72,11 @@ public class Netty4Plugin extends Plugin implements NetworkPlugin {
     }
 
     @Override
-    public Map<String, Supplier<Transport>> getTransports(Settings settings, ThreadPool threadPool, BigArrays bigArrays,
-                                                          PageCacheRecycler pageCacheRecycler,
+    public Map<String, Supplier<Transport>> getTransports(Settings settings, ThreadPool threadPool, PageCacheRecycler pageCacheRecycler,
                                                           CircuitBreakerService circuitBreakerService,
-                                                          NamedWriteableRegistry namedWriteableRegistry,
-                                                          NetworkService networkService) {
+                                                          NamedWriteableRegistry namedWriteableRegistry, NetworkService networkService) {
         return Collections.singletonMap(NETTY_TRANSPORT_NAME, () -> new Netty4Transport(settings, Version.CURRENT, threadPool,
-            networkService, bigArrays, namedWriteableRegistry, circuitBreakerService));
+            networkService, pageCacheRecycler, namedWriteableRegistry, circuitBreakerService));
     }
 
     @Override

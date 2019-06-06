@@ -40,7 +40,8 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
-@TestLogging("org.elasticsearch.xpack.watcher:DEBUG,org.elasticsearch.xpack.watcher.WatcherIndexingListener:TRACE")
+@TestLogging("org.elasticsearch.xpack.watcher:DEBUG,org.elasticsearch.xpack.core.watcher:DEBUG," +
+    "org.elasticsearch.xpack.watcher.WatcherIndexingListener:TRACE")
 public class ActivateWatchTests extends AbstractWatcherIntegrationTestCase {
 
     @Override
@@ -48,14 +49,13 @@ public class ActivateWatchTests extends AbstractWatcherIntegrationTestCase {
         return false;
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/30699")
     public void testDeactivateAndActivate() throws Exception {
         PutWatchResponse putWatchResponse = watcherClient().preparePutWatch()
                 .setId("_id")
                 .setSource(watchBuilder()
                         .trigger(schedule(interval("1s")))
                         .input(simpleInput("foo", "bar"))
-                        .addAction("_a1", indexAction("actions", "action1"))
+                        .addAction("_a1", indexAction("actions"))
                         .defaultThrottlePeriod(new TimeValue(0, TimeUnit.SECONDS)))
                 .get();
 
@@ -86,15 +86,11 @@ public class ActivateWatchTests extends AbstractWatcherIntegrationTestCase {
 
         logger.info("Ensured no more watches are being executed");
         refresh();
-        long count1 = docCount(".watcher-history*", "doc", matchAllQuery());
-
-        logger.info("Sleeping for 5 seconds, watch history count [{}]", count1);
-        Thread.sleep(5000);
+        long count1 = docCount(".watcher-history*", matchAllQuery());
 
         refresh();
-        long count2 = docCount(".watcher-history*", "doc", matchAllQuery());
-
-        assertThat(count2, is(count1));
+        //ensure no new watch history
+        awaitBusy(() -> count1 != docCount(".watcher-history*", matchAllQuery()), 5, TimeUnit.SECONDS);
 
         // lets activate it again
         logger.info("Activating watch again");
@@ -107,11 +103,11 @@ public class ActivateWatchTests extends AbstractWatcherIntegrationTestCase {
         assertThat(getWatchResponse, notNullValue());
         assertThat(getWatchResponse.getStatus().state().isActive(), is(true));
 
-        logger.info("Sleeping for another five seconds, ensuring that watch is executed");
-        Thread.sleep(5000);
         refresh();
-        long count3 = docCount(".watcher-history*", "doc", matchAllQuery());
-        assertThat(count3, greaterThan(count1));
+        assertBusy(() -> {
+            long count2 = docCount(".watcher-history*", matchAllQuery());
+            assertThat(count2, greaterThan(count1));
+        });
     }
 
     public void testLoadWatchWithoutAState() throws Exception {
@@ -122,7 +118,7 @@ public class ActivateWatchTests extends AbstractWatcherIntegrationTestCase {
                 .setSource(watchBuilder()
                         .trigger(schedule(cron("0 0 0 1 1 ? 2050"))) // some time in 2050
                         .input(simpleInput("foo", "bar"))
-                        .addAction("_a1", indexAction("actions", "action1"))
+                        .addAction("_a1", indexAction("actions"))
                         .defaultThrottlePeriod(new TimeValue(0, TimeUnit.SECONDS)))
                 .get();
 
@@ -132,7 +128,7 @@ public class ActivateWatchTests extends AbstractWatcherIntegrationTestCase {
         assertThat(getWatchResponse, notNullValue());
         assertThat(getWatchResponse.getStatus().state().isActive(), is(true));
 
-        GetResponse getResponse = client().prepareGet(".watches", "doc", "_id").get();
+        GetResponse getResponse = client().prepareGet().setIndex(".watches").setId("_id").get();
         XContentSource source = new XContentSource(getResponse.getSourceAsBytesRef(), XContentType.JSON);
 
         Set<String> filters = Sets.newHashSet(
@@ -152,7 +148,7 @@ public class ActivateWatchTests extends AbstractWatcherIntegrationTestCase {
         source.toXContent(builder, ToXContent.EMPTY_PARAMS);
 
         // now that we filtered out the watch status state, lets put it back in
-        IndexResponse indexResponse = client().prepareIndex(".watches", "doc", "_id")
+        IndexResponse indexResponse = client().prepareIndex().setIndex(".watches").setId("_id")
                 .setSource(BytesReference.bytes(builder), XContentType.JSON)
                 .get();
         assertThat(indexResponse.getId(), is("_id"));

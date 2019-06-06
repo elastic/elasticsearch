@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.admin.indices.rollover;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
@@ -39,14 +38,6 @@ public abstract class Condition<T> implements NamedWriteable, ToXContentFragment
     }
 
     public abstract Result evaluate(Stats stats);
-
-    /**
-     * Checks if this condition is available in a specific version.
-     * This makes sure BWC when introducing a new condition which is not recognized by older versions.
-     */
-    boolean includedInVersion(Version version) {
-        return true;
-    }
 
     @Override
     public boolean equals(Object o) {
@@ -73,6 +64,10 @@ public abstract class Condition<T> implements NamedWriteable, ToXContentFragment
 
     public T value() {
         return value;
+    }
+
+    public String name() {
+        return name;
     }
 
     /**

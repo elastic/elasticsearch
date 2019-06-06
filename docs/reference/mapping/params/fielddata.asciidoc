@@ -19,6 +19,7 @@ reading the entire inverted index for each segment from disk, inverting the
 term ↔︎ document relationship, and storing the result in memory, in the JVM
 heap.
 
+[[fielddata-disabled-text-fields]]
 ==== Fielddata is disabled on `text` fields by default
 
 Fielddata can consume a *lot* of heap space, especially when loading high
@@ -58,14 +59,12 @@ enabled for aggregations, as follows:
 PUT my_index
 {
   "mappings": {
-    "_doc": {
-      "properties": {
-        "my_field": { <1>
-          "type": "text",
-          "fields": {
-            "keyword": { <2>
-              "type": "keyword"
-            }
+    "properties": {
+      "my_field": { <1>
+        "type": "text",
+        "fields": {
+          "keyword": { <2>
+            "type": "keyword"
           }
         }
       }
@@ -77,6 +76,7 @@ PUT my_index
 <1> Use the `my_field` field for searches.
 <2> Use the `my_field.keyword` field for aggregations, sorting, or in scripts.
 
+[[enable-fielddata-text-fields]]
 ==== Enabling fielddata on `text` fields
 
 You can enable fielddata on an existing `text` field using the
@@ -84,7 +84,7 @@ You can enable fielddata on an existing `text` field using the
 
 [source,js]
 -----------------------------------
-PUT my_index/_mapping/_doc
+PUT my_index/_mapping
 {
   "properties": {
     "my_field": { <1>
@@ -121,16 +121,14 @@ number of docs that the segment should contain with `min_segment_size`:
 PUT my_index
 {
   "mappings": {
-    "_doc": {
-      "properties": {
-        "tag": {
-          "type": "text",
-          "fielddata": true,
-          "fielddata_frequency_filter": {
-            "min": 0.001,
-            "max": 0.1,
-            "min_segment_size": 500
-          }
+    "properties": {
+      "tag": {
+        "type": "text",
+        "fielddata": true,
+        "fielddata_frequency_filter": {
+          "min": 0.001,
+          "max": 0.1,
+          "min_segment_size": 500
         }
       }
     }

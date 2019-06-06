@@ -3,18 +3,13 @@
     "documentation" : "http://www.elastic.co/guide/en/elasticsearch/reference/master/docs-termvectors.html",
     "methods" : ["GET", "POST"],
     "url" : {
-      "path" : "/{index}/{type}/_termvectors",
-      "paths" : ["/{index}/{type}/_termvectors", "/{index}/{type}/{id}/_termvectors"],
+      "path" : "/{index}/_termvectors/{id}",
+      "paths" : ["/{index}/_termvectors/{id}", "/{index}/_termvectors"],
       "parts" : {
         "index" : {
          "type" : "string",
          "description" : "The index in which the document resides.",
          "required" : true
-        },
-        "type" : {
-          "type" : "string",
-          "description" : "The type of the document.",
-          "required" : true
         },
         "id" : {
            "type" : "string",
@@ -65,11 +60,6 @@
         "routing" : {
           "type" : "string",
           "description" : "Specific routing value.",
-          "required" : false
-        },
-        "parent": {
-          "type" : "string",
-          "description" : "Parent id of documents.",
           "required" : false
         },
         "realtime": {

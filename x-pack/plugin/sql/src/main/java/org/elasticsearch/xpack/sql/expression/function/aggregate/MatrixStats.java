@@ -7,13 +7,13 @@ package org.elasticsearch.xpack.sql.expression.function.aggregate;
 
 import java.util.List;
 import org.elasticsearch.xpack.sql.expression.Expression;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 
 public class MatrixStats extends CompoundNumericAggregate {
 
-    public MatrixStats(Location location, Expression field) {
-        super(location, field);
+    public MatrixStats(Source source, Expression field) {
+        super(source, field);
     }
 
     @Override
@@ -26,6 +26,6 @@ public class MatrixStats extends CompoundNumericAggregate {
         if (newChildren.size() != 1) {
             throw new IllegalArgumentException("expected [1] child but received [" + newChildren.size() + "]");
         }
-        return new MatrixStats(location(), newChildren.get(0));
+        return new MatrixStats(source(), newChildren.get(0));
     }
 }

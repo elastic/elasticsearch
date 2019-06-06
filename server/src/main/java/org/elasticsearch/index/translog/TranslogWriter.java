@@ -128,7 +128,8 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
                 writerGlobalCheckpointSupplier, minTranslogGenerationSupplier, header, tragedy);
         } catch (Exception exception) {
             // if we fail to bake the file-generation into the checkpoint we stick with the file and once we recover and that
-            // file exists we remove it. We only apply this logic to the checkpoint.generation+1 any other file with a higher generation is an error condition
+            // file exists we remove it. We only apply this logic to the checkpoint.generation+1 any other file with a higher generation
+            // is an error condition
             IOUtils.closeWhileHandlingException(channel);
             throw exception;
         }

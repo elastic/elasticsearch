@@ -69,7 +69,7 @@ public class DelayedAllocationServiceTests extends ESAllocationTestCase {
         threadPool = new TestThreadPool(getTestName());
         clusterService = mock(ClusterService.class);
         allocationService = createAllocationService(Settings.EMPTY, new DelayedShardsMockGatewayAllocator());
-        delayedAllocationService = new TestDelayAllocationService(Settings.EMPTY, threadPool, clusterService, allocationService);
+        delayedAllocationService = new TestDelayAllocationService(threadPool, clusterService, allocationService);
         verify(clusterService).addListener(delayedAllocationService);
     }
 
@@ -104,7 +104,7 @@ public class DelayedAllocationServiceTests extends ESAllocationTestCase {
             nodes.add(newNode("node3"));
         }
         clusterState = ClusterState.builder(clusterState).nodes(nodes).build();
-        clusterState = allocationService.deassociateDeadNodes(clusterState, true, "reroute");
+        clusterState = allocationService.disassociateDeadNodes(clusterState, true, "reroute");
         ClusterState newState = clusterState;
         List<ShardRouting> unassignedShards = newState.getRoutingTable().shardsWithState(ShardRoutingState.UNASSIGNED);
         if (nodeAvailableForAllocation) {
@@ -153,7 +153,7 @@ public class DelayedAllocationServiceTests extends ESAllocationTestCase {
 
         // remove node that has replica and reroute
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes()).remove(nodeId)).build();
-        clusterState = allocationService.deassociateDeadNodes(clusterState, true, "reroute");
+        clusterState = allocationService.disassociateDeadNodes(clusterState, true, "reroute");
         ClusterState stateWithDelayedShard = clusterState;
         // make sure the replica is marked as delayed (i.e. not reallocated)
         assertEquals(1, UnassignedInfo.getNumberOfDelayedUnassigned(stateWithDelayedShard));
@@ -264,7 +264,7 @@ public class DelayedAllocationServiceTests extends ESAllocationTestCase {
             .build();
         // make sure both replicas are marked as delayed (i.e. not reallocated)
         allocationService.setNanoTimeOverride(baseTimestampNanos);
-        clusterState = allocationService.deassociateDeadNodes(clusterState, true, "reroute");
+        clusterState = allocationService.disassociateDeadNodes(clusterState, true, "reroute");
         final ClusterState stateWithDelayedShards = clusterState;
         assertEquals(2, UnassignedInfo.getNumberOfDelayedUnassigned(stateWithDelayedShards));
         RoutingNodes.UnassignedShards.UnassignedIterator iter = stateWithDelayedShards.getRoutingNodes().unassigned().iterator();
@@ -401,7 +401,7 @@ public class DelayedAllocationServiceTests extends ESAllocationTestCase {
         // remove node that has replica and reroute
         clusterState = ClusterState.builder(clusterState).nodes(
             DiscoveryNodes.builder(clusterState.nodes()).remove(nodeIdOfFooReplica)).build();
-        clusterState = allocationService.deassociateDeadNodes(clusterState, true, "fake node left");
+        clusterState = allocationService.disassociateDeadNodes(clusterState, true, "fake node left");
         ClusterState stateWithDelayedShard = clusterState;
         // make sure the replica is marked as delayed (i.e. not reallocated)
         assertEquals(1, UnassignedInfo.getNumberOfDelayedUnassigned(stateWithDelayedShard));
@@ -444,7 +444,7 @@ public class DelayedAllocationServiceTests extends ESAllocationTestCase {
             // remove node that has replica and reroute
             clusterState = ClusterState.builder(stateWithDelayedShard).nodes(
                 DiscoveryNodes.builder(stateWithDelayedShard.nodes()).remove(nodeIdOfBarReplica)).build();
-            ClusterState stateWithShorterDelay = allocationService.deassociateDeadNodes(clusterState, true, "fake node left");
+            ClusterState stateWithShorterDelay = allocationService.disassociateDeadNodes(clusterState, true, "fake node left");
             delayedAllocationService.setNanoTimeOverride(clusterChangeEventTimestampNanos);
             delayedAllocationService.clusterChanged(
                 new ClusterChangedEvent("fake node left", stateWithShorterDelay, stateWithDelayedShard));
@@ -464,9 +464,9 @@ public class DelayedAllocationServiceTests extends ESAllocationTestCase {
     private static class TestDelayAllocationService extends DelayedAllocationService {
         private volatile long nanoTimeOverride = -1L;
 
-        TestDelayAllocationService(Settings settings, ThreadPool threadPool, ClusterService clusterService,
-                                   AllocationService allocationService) {
-            super(settings, threadPool, clusterService, allocationService);
+        private TestDelayAllocationService(ThreadPool threadPool, ClusterService clusterService,
+                                           AllocationService allocationService) {
+            super(threadPool, clusterService, allocationService);
         }
 
         @Override

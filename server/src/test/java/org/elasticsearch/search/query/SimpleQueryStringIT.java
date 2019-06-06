@@ -22,9 +22,9 @@ package org.elasticsearch.search.query;
 import org.apache.lucene.analysis.TokenFilter;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.index.IndexRequestBuilder;
+import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
@@ -233,7 +233,7 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
         assertHitCount(searchResponse, 1L);
         assertSearchHits(searchResponse, "1");
 
-        searchResponse = client().prepareSearch().setTypes("type1").setQuery(
+        searchResponse = client().prepareSearch().setQuery(
                 simpleQueryStringQuery("foo bar baz").field("body")).get();
         assertHitCount(searchResponse, 1L);
         assertSearchHits(searchResponse, "1");
@@ -243,7 +243,7 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
         assertHitCount(searchResponse, 1L);
         assertSearchHits(searchResponse, "1");
 
-        searchResponse = client().prepareSearch().setTypes("type1").setQuery(
+        searchResponse = client().prepareSearch().setQuery(
                 simpleQueryStringQuery("foo bar baz").field("body.sub")).get();
         assertHitCount(searchResponse, 1L);
         assertSearchHits(searchResponse, "1");
@@ -348,7 +348,7 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
 
         CreateIndexRequestBuilder mappingRequest = client().admin().indices().prepareCreate("test1")
             .addMapping("type1", mapping, XContentType.JSON);
-        mappingRequest.execute().actionGet();
+        mappingRequest.get();
         indexRandom(true, client().prepareIndex("test1", "type1", "1").setSource("location", "Köln"));
         refresh();
 
@@ -399,7 +399,7 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
         CreateIndexRequestBuilder mappingRequest = client().admin().indices()
                 .prepareCreate("test1")
                 .addMapping("type1", mapping, XContentType.JSON);
-        mappingRequest.execute().actionGet();
+        mappingRequest.get();
         indexRandom(true, client().prepareIndex("test1", "type1", "1").setSource("body", "Some Text"));
         refresh();
 
@@ -564,11 +564,10 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
         prepareCreate("test").setSource(indexBody, XContentType.JSON).get();
         ensureGreen("test");
 
-        Exception e = expectThrows(Exception.class, () ->
+        SearchPhaseExecutionException e = expectThrows(SearchPhaseExecutionException.class, () ->
                 client().prepareSearch("test").setQuery(
                         simpleQueryStringQuery("foo123").lenient(false)).get());
-        assertThat(ExceptionsHelper.detailedMessage(e),
-                containsString("NumberFormatException[For input string: \"foo123\"]"));
+        assertThat(e.getDetailedMessage(), containsString("NumberFormatException[For input string: \"foo123\"]"));
     }
 
     public void testLimitOnExpandedFields() throws Exception {
@@ -591,15 +590,15 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
         client().prepareIndex("toomanyfields", "type1", "1").setSource("field1", "foo bar baz").get();
         refresh();
 
-        Exception e = expectThrows(Exception.class, () -> {
+        SearchPhaseExecutionException e = expectThrows(SearchPhaseExecutionException.class, () -> {
                 SimpleQueryStringBuilder qb = simpleQueryStringQuery("bar");
                 if (randomBoolean()) {
-                    qb.useAllFields(true);
+                    qb.field("*");
                 }
                 client().prepareSearch("toomanyfields").setQuery(qb).get();
                 });
-        assertThat(ExceptionsHelper.detailedMessage(e),
-                containsString("field expansion matches too many fields, limit: " + CLUSTER_MAX_CLAUSE_COUNT + ", got: "
+        assertThat(e.getDetailedMessage(),
+            containsString("field expansion matches too many fields, limit: " + CLUSTER_MAX_CLAUSE_COUNT + ", got: "
                         + (CLUSTER_MAX_CLAUSE_COUNT + 1)));
     }
 
@@ -616,7 +615,7 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
 
         SearchResponse response = client().prepareSearch("test")
             .setQuery(simpleQueryStringQuery("value").field("f3_alias"))
-            .execute().actionGet();
+            .get();
 
         assertNoFailures(response);
         assertHitCount(response, 2);
@@ -636,7 +635,7 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
 
         SearchResponse response = client().prepareSearch("test")
             .setQuery(simpleQueryStringQuery("value").field("f3_*"))
-            .execute().actionGet();
+            .get();
 
         assertNoFailures(response);
         assertHitCount(response, 2);
@@ -657,7 +656,7 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
         // By default, the boolean field should be ignored when building the query.
         SearchResponse response = client().prepareSearch("test")
             .setQuery(queryStringQuery("text").field("f*_alias"))
-            .execute().actionGet();
+            .get();
 
         assertNoFailures(response);
         assertHitCount(response, 1);
@@ -665,7 +664,7 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
     }
 
     private void assertHits(SearchHits hits, String... ids) {
-        assertThat(hits.getTotalHits(), equalTo((long) ids.length));
+        assertThat(hits.getTotalHits().value, equalTo((long) ids.length));
         Set<String> hitIds = new HashSet<>();
         for (SearchHit hit : hits.getHits()) {
             hitIds.add(hit.getId());

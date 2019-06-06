@@ -84,16 +84,6 @@ public class UpdateByQueryRequest extends AbstractBulkIndexByScrollRequest<Updat
     }
 
     /**
-     * Set the document types for the update
-     */
-    public UpdateByQueryRequest setDocTypes(String... types) {
-        if (types != null) {
-            getSearchRequest().types(types);
-        }
-        return this;
-    }
-
-    /**
      * Set routing limiting the process to the shards that match that routing value
      */
     public UpdateByQueryRequest setRouting(String routing) {
@@ -131,18 +121,6 @@ public class UpdateByQueryRequest extends AbstractBulkIndexByScrollRequest<Updat
      */
     public String getRouting() {
         return getSearchRequest().routing();
-    }
-
-    /**
-     * Gets the document types on which this request would be executed. Returns an empty array if all
-     * types are to be processed.
-     */
-    public String[] getDocTypes() {
-        if (getSearchRequest().types() != null) {
-            return getSearchRequest().types();
-        } else {
-            return new String[0];
-        }
     }
 
     /**

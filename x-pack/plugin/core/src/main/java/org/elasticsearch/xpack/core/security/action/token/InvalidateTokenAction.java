@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.core.security.action.token;
 import org.elasticsearch.action.Action;
 
 /**
- * Action for invalidating a given token
+ * Action for invalidating one or more tokens
  */
 public final class InvalidateTokenAction extends Action<InvalidateTokenResponse> {
 

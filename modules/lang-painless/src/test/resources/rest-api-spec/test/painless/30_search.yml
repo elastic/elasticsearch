@@ -4,19 +4,16 @@
     - do:
         index:
             index: test
-            type: test
             id: 1
             body: { "test": "value beck", "num1": 1.0, "bool": true }
     - do:
         index:
             index: test
-            type: test
             id: 2
             body: { "test": "value beck", "num1": 2.0, "bool": false }
     - do:
         index:
             index: test
-            type: test
             id: 3
             body: { "test": "value beck", "num1": 3.0, "bool": true }
     - do:
@@ -24,6 +21,7 @@
 
     - do:
         search:
+            rest_total_hits_as_int: true
             index: test
             body:
                 query:
@@ -33,7 +31,7 @@
                             lang: painless
                 script_fields:
                     sNum1:
-                        script: 
+                        script:
                             source: "doc['num1'].value;"
                             lang: painless
                 sort:
@@ -46,6 +44,7 @@
 
     - do:
         search:
+            rest_total_hits_as_int: true
             index: test
             body:
                 query:
@@ -71,6 +70,7 @@
 
     - do:
         search:
+            rest_total_hits_as_int: true
             index: test
             body:
                 query:
@@ -83,7 +83,7 @@
 
                 script_fields:
                     sNum1:
-                        script: 
+                        script:
                             source: "doc['num1'].value;"
                             lang: painless
                 sort:
@@ -97,6 +97,7 @@
 
     - do:
         search:
+            rest_total_hits_as_int: true
             index: test
             body:
                 query:
@@ -114,13 +115,11 @@
     - do:
         index:
             index: test
-            type: test
             id: 1
             body: { "test": "value beck", "num1": 1.0 }
     - do:
         index:
             index: test
-            type: test
             id: 2
             body: { "test": "value beck", "num1": 2.0 }
     - do:
@@ -128,6 +127,7 @@
 
     - do:
         search:
+            rest_total_hits_as_int: true
             index: test
             body:
                 query:
@@ -150,6 +150,7 @@
 
     - do:
         search:
+            rest_total_hits_as_int: true
             index: test
             body:
                 query:
@@ -172,6 +173,7 @@
 
     - do:
         search:
+            rest_total_hits_as_int: true
             index: test
             body:
                 query:
@@ -194,6 +196,7 @@
 
     - do:
         search:
+            rest_total_hits_as_int: true
             index: test
             body:
                 query:
@@ -216,6 +219,7 @@
 
     - do:
         search:
+            rest_total_hits_as_int: true
             index: test
             body:
                 query:
@@ -238,6 +242,7 @@
 
     - do:
         search:
+            rest_total_hits_as_int: true
             index: test
             body:
                 query:
@@ -267,7 +272,6 @@
     - do:
         index:
             index: test
-            type: test
             id: 1
             body: { "dummy_field": 1 }
     - do:
@@ -275,6 +279,7 @@
 
     - do:
         search:
+            rest_total_hits_as_int: true
             index: test
             body:
                 query:
@@ -317,7 +322,6 @@
     - do:
         index:
             index: test
-            type: test
             id: 1
             body: { "dummy_field": 1 }
     - do:
@@ -326,6 +330,7 @@
 
     - do:
         search:
+            rest_total_hits_as_int: true
             index: test
             body:
                 query:
@@ -356,7 +361,6 @@
     - do:
         index:
             index: test
-            type: test
             id: 1
             body: { "f": 42 }
     - do:
@@ -365,12 +369,13 @@
 
     - do:
         search:
+            rest_total_hits_as_int: true
             index: test
             body:
                 script_fields:
                     foobar:
-                        script: 
-                            source: "doc['f'].values.size()"
+                        script:
+                            source: "doc['f'].size()"
                             lang: painless
 
 
@@ -383,7 +388,6 @@
     - do:
         index:
             index: test
-            type: test
             id: 1
             body: { "dummy_field": 1 }
     - do:
@@ -392,6 +396,7 @@
 
     - do:
         search:
+            rest_total_hits_as_int: true
             index: test
             body:
                 aggs:
@@ -419,7 +424,6 @@
     - do:
         index:
             index: test
-            type: test
             id: 1
             body: { "genre": 1 }
 
@@ -429,6 +433,7 @@
     - do:
         catch: bad_request
         search:
+            rest_total_hits_as_int: true
             index: test
             body:
                 aggs:
@@ -442,3 +447,38 @@
     - match: { error.root_cause.0.reason: "Iterable object is self-referencing itself (ScriptBytesValues value)" }
     - match: { error.type: "search_phase_execution_exception" }
     - match: { error.reason: "all shards failed" }
+
+
+---
+
+"Exception on negative score":
+    - do:
+        index:
+            index: test
+            id: 1
+            body: { "test": "value beck", "num1": 1.0 }
+    - do:
+        indices.refresh: {}
+
+    - do:
+        catch: bad_request
+        search:
+            rest_total_hits_as_int: true
+            index: test
+            allow_partial_search_results: false
+            body:
+                query:
+                    function_score:
+                        query:
+                            term:
+                                test: value
+                        "functions": [{
+                            "script_score": {
+                                "script": {
+                                    "lang": "painless",
+                                    "source": "doc['num1'].value - 10.0"
+                                }
+                            }
+                        }]
+    - match: { error.root_cause.0.type: "illegal_argument_exception" }
+    - match: { error.root_cause.0.reason: "script score function must not produce negative scores, but got: [-9.0]"}

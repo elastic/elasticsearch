@@ -1,23 +1,23 @@
 ---
 setup:
+
   - do:
         indices.create:
           index: test_index
           body:
               mappings:
-                test_type:
-                  properties:
-                    text:
-                      type:     text
+                properties:
+                  text:
+                    type:     text
 
 ---
-"Get field mapping with no index and type":
+"Get field mapping with no index":
 
   - do:
       indices.get_field_mapping:
         fields: text
 
-  - match: {test_index.mappings.test_type.text.mapping.text.type:     text}
+  - match: {test_index.mappings.text.mapping.text.type:     text}
 
 ---
 "Get field mapping by index only":
@@ -26,29 +26,17 @@ setup:
         index: test_index
         fields: text
 
-  - match: {test_index.mappings.test_type.text.mapping.text.type:     text}
+  - match: {test_index.mappings.text.mapping.text.type:     text}
 
 ---
-"Get field mapping by type & field":
+"Get field mapping by field, with another field that doesn't exist":
 
   - do:
       indices.get_field_mapping:
         index: test_index
-        type: test_type
-        fields: text
-
-  - match: {test_index.mappings.test_type.text.mapping.text.type:     text}
-
----
-"Get field mapping by type & field, with another field that doesn't exist":
-
-  - do:
-      indices.get_field_mapping:
-        index: test_index
-        type: test_type
         fields: [ text , text1 ]
 
-  - match: {test_index.mappings.test_type.text.mapping.text.type:     text}
+  - match: {test_index.mappings.text.mapping.text.type:     text}
   - is_false: test_index.mappings.test_type.text1
 
 ---
@@ -57,20 +45,8 @@ setup:
   - do:
       indices.get_field_mapping:
         index: test_index
-        type: test_type
         fields: text
         include_defaults: true
 
-  - match: {test_index.mappings.test_type.text.mapping.text.type:     text}
-  - match: {test_index.mappings.test_type.text.mapping.text.analyzer: default}
-
----
-"Get field mapping should work without index specifying type and fields":
-
-  - do:
-      indices.get_field_mapping:
-        type: test_type
-        fields: text
-
-  - match: {test_index.mappings.test_type.text.mapping.text.type:     text}
-
+  - match: {test_index.mappings.text.mapping.text.type:     text}
+  - match: {test_index.mappings.text.mapping.text.analyzer: default}

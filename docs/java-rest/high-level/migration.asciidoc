@@ -45,6 +45,8 @@ The <<java-rest-high-getting-started,Getting Started>> page shows
  <<java-rest-high-getting-started-dependencies, dependencies>> brought by the
  high-level client.
 
+// This ID is bad but it is the one we've had forever.
+[[_changing_the_client_8217_s_initialization_code]]
 === Changing the client's initialization code
 
 The `TransportClient` is typically initialized as follows:
@@ -94,6 +96,8 @@ must be replaced with:
 include-tagged::{doc-tests}/MiscellaneousDocumentationIT.java[rest-high-level-client-close]
 --------------------------------------------------
 
+// This ID is bad but it is the one we've had forever.
+[[_changing_the_application_8217_s_code]]
 === Changing the application's code
 
 The `RestHighLevelClient` supports the same request and response objects
@@ -124,7 +128,7 @@ When request constructors are used, like in the following example:
 --------------------------------------------------
 include-tagged::{doc-tests}/MigrationDocumentationIT.java[migration-request-ctor]
 --------------------------------------------------
-<1> Create an `IndexRequest` using its constructor
+<1> Create an `IndexRequest` using its constructor and id() setter.
 
 The migration is very simple. The execution using the `TransportClient`:
 

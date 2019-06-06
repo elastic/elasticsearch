@@ -162,8 +162,10 @@ public class UpdateResponse extends DocWriteResponse {
                 update = new UpdateResponse(shardId, type, id, version, result);
             }
             if (getResult != null) {
-                update.setGetResult(new GetResult(update.getIndex(), update.getType(), update.getId(), update.getVersion(),
-                        getResult.isExists(),getResult.internalSourceRef(), getResult.getFields()));
+                update.setGetResult(new GetResult(update.getIndex(), update.getType(), update.getId(),
+                    getResult.getSeqNo(), getResult.getPrimaryTerm(), update.getVersion(),
+                    getResult.isExists(), getResult.internalSourceRef(), getResult.getDocumentFields(),
+                    getResult.getMetadataFields()));
             }
             update.setForcedRefresh(forcedRefresh);
             return update;

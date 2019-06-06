@@ -22,6 +22,7 @@ package org.elasticsearch.index.merge;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
@@ -29,7 +30,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
-public class MergeStats implements Streamable, ToXContentFragment {
+public class MergeStats implements Streamable, Writeable, ToXContentFragment {
 
     private long total;
     private long totalTimeInMillis;
@@ -51,8 +52,23 @@ public class MergeStats implements Streamable, ToXContentFragment {
 
     }
 
-    public void add(long totalMerges, long totalMergeTime, long totalNumDocs, long totalSizeInBytes, long currentMerges, long currentNumDocs, long currentSizeInBytes,
-                    long stoppedTimeMillis, long throttledTimeMillis, double mbPerSecAutoThrottle) {
+    public MergeStats(StreamInput in) throws IOException {
+        total = in.readVLong();
+        totalTimeInMillis = in.readVLong();
+        totalNumDocs = in.readVLong();
+        totalSizeInBytes = in.readVLong();
+        current = in.readVLong();
+        currentNumDocs = in.readVLong();
+        currentSizeInBytes = in.readVLong();
+        // Added in 2.0:
+        totalStoppedTimeInMillis = in.readVLong();
+        totalThrottledTimeInMillis = in.readVLong();
+        totalBytesPerSecAutoThrottle = in.readVLong();
+    }
+
+    public void add(long totalMerges, long totalMergeTime, long totalNumDocs, long totalSizeInBytes,
+                        long currentMerges, long currentNumDocs, long currentSizeInBytes,
+                        long stoppedTimeMillis, long throttledTimeMillis, double mbPerSecAutoThrottle) {
         this.total += totalMerges;
         this.totalTimeInMillis += totalMergeTime;
         this.totalNumDocs += totalNumDocs;
@@ -224,17 +240,7 @@ public class MergeStats implements Streamable, ToXContentFragment {
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        total = in.readVLong();
-        totalTimeInMillis = in.readVLong();
-        totalNumDocs = in.readVLong();
-        totalSizeInBytes = in.readVLong();
-        current = in.readVLong();
-        currentNumDocs = in.readVLong();
-        currentSizeInBytes = in.readVLong();
-        // Added in 2.0:
-        totalStoppedTimeInMillis = in.readVLong();
-        totalThrottledTimeInMillis = in.readVLong();
-        totalBytesPerSecAutoThrottle = in.readVLong();
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override

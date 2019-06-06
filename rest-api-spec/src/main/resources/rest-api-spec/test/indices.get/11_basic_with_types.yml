@@ -1,0 +1,73 @@
+---
+setup:
+
+  - do:
+      indices.create:
+        include_type_name: true
+        index: test_index
+        body:
+          aliases:
+            test_alias: {}
+            test_blias: {}
+          mappings:
+            type_1: {}
+          settings:
+            number_of_shards:   1
+            number_of_replicas: 1
+
+  - do:
+      indices.create:
+        index: test_index_2
+        body:
+          settings:
+            number_of_shards:   1
+            number_of_replicas: 2
+          aliases:
+            test_alias: {}
+            test_blias: {}
+
+  - do:
+      indices.create:
+        index: test_index_3
+        body:
+          aliases:
+            test_alias: {}
+            test_blias: {}
+
+  - do:
+      indices.close:
+        index: test_index_3
+
+  - do:
+      cluster.health:
+        wait_for_status: yellow
+
+---
+"Test include_type_name":
+
+
+  - do:
+      indices.get:
+        include_type_name: true
+        index: test_index
+
+  - is_true: test_index.mappings
+  - is_true: test_index.mappings.type_1
+
+  - do:
+      indices.get:
+        include_type_name: false
+        index: test_index
+
+  - is_true: test_index.mappings
+  - is_false: test_index.mappings.type_1
+
+---
+"Test include_type_name dafaults to false":
+
+  - do:
+      indices.get:
+        index: test_index
+
+  - is_true: test_index.mappings
+  - is_false: test_index.mappings.type_1

@@ -28,6 +28,7 @@ import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
@@ -51,6 +52,7 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 
+import static org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskAction.TASKS_ORIGIN;
 import static org.elasticsearch.action.admin.cluster.node.tasks.list.TransportListTasksAction.waitForCompletionTimeout;
 
 /**
@@ -77,7 +79,7 @@ public class TransportGetTaskAction extends HandledTransportAction<GetTaskReques
         this.threadPool = threadPool;
         this.clusterService = clusterService;
         this.transportService = transportService;
-        this.client = client;
+        this.client = new OriginSettingClient(client, TASKS_ORIGIN);
         this.xContentRegistry = xContentRegistry;
     }
 
@@ -100,7 +102,6 @@ public class TransportGetTaskAction extends HandledTransportAction<GetTaskReques
         if (request.getTimeout() != null) {
             builder.withTimeout(request.getTimeout());
         }
-        builder.withCompress(false);
         DiscoveryNode node = clusterService.state().nodes().get(request.getTaskId().getNodeId());
         if (node == null) {
             // Node is no longer part of the cluster! Try and look the task up from the results index.
@@ -156,7 +157,7 @@ public class TransportGetTaskAction extends HandledTransportAction<GetTaskReques
                 // Shift to the generic thread pool and let it wait for the task to complete so we don't block any important threads.
                 threadPool.generic().execute(new AbstractRunnable() {
                     @Override
-                    protected void doRun() throws Exception {
+                    protected void doRun() {
                         taskManager.waitForTaskCompletion(runningTask, waitForCompletionTimeout(request.getTimeout()));
                         waitedForCompletion(thisTask, request, runningTask.taskInfo(clusterService.localNode().getId(), true), listener);
                     }
@@ -179,26 +180,17 @@ public class TransportGetTaskAction extends HandledTransportAction<GetTaskReques
      */
     void waitedForCompletion(Task thisTask, GetTaskRequest request, TaskInfo snapshotOfRunningTask,
             ActionListener<GetTaskResponse> listener) {
-        getFinishedTaskFromIndex(thisTask, request, new ActionListener<GetTaskResponse>() {
-            @Override
-            public void onResponse(GetTaskResponse response) {
-                // We were able to load the task from the task index. Let's send that back.
-                listener.onResponse(response);
-            }
-
-            @Override
-            public void onFailure(Exception e) {
+        getFinishedTaskFromIndex(thisTask, request, ActionListener.delegateResponse(listener, (delegatedListener, e) -> {
                 /*
                  * We couldn't load the task from the task index. Instead of 404 we should use the snapshot we took after it finished. If
                  * the error isn't a 404 then we'll just throw it back to the user.
                  */
                 if (ExceptionsHelper.unwrap(e, ResourceNotFoundException.class) != null) {
-                    listener.onResponse(new GetTaskResponse(new TaskResult(true, snapshotOfRunningTask)));
+                    delegatedListener.onResponse(new GetTaskResponse(new TaskResult(true, snapshotOfRunningTask)));
                 } else {
-                    listener.onFailure(e);
+                    delegatedListener.onFailure(e);
                 }
-            }
-        });
+        }));
     }
 
     /**
@@ -210,27 +202,16 @@ public class TransportGetTaskAction extends HandledTransportAction<GetTaskReques
         GetRequest get = new GetRequest(TaskResultsService.TASK_INDEX, TaskResultsService.TASK_TYPE,
                 request.getTaskId().toString());
         get.setParentTask(clusterService.localNode().getId(), thisTask.getId());
-        client.get(get, new ActionListener<GetResponse>() {
-            @Override
-            public void onResponse(GetResponse getResponse) {
-                try {
-                    onGetFinishedTaskFromIndex(getResponse, listener);
-                } catch (Exception e) {
-                    listener.onFailure(e);
-                }
-            }
 
-            @Override
-            public void onFailure(Exception e) {
-                if (ExceptionsHelper.unwrap(e, IndexNotFoundException.class) != null) {
-                    // We haven't yet created the index for the task results so it can't be found.
-                    listener.onFailure(new ResourceNotFoundException("task [{}] isn't running and hasn't stored its results", e,
-                        request.getTaskId()));
-                } else {
-                    listener.onFailure(e);
-                }
+        client.get(get, ActionListener.wrap(r -> onGetFinishedTaskFromIndex(r, listener), e -> {
+            if (ExceptionsHelper.unwrap(e, IndexNotFoundException.class) != null) {
+                // We haven't yet created the index for the task results so it can't be found.
+                listener.onFailure(new ResourceNotFoundException("task [{}] isn't running and hasn't stored its results", e,
+                    request.getTaskId()));
+            } else {
+                listener.onFailure(e);
             }
-        });
+        }));
     }
 
     /**

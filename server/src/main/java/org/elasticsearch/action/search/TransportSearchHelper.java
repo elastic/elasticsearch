@@ -44,8 +44,8 @@ final class TransportSearchHelper {
                 out.writeLong(searchPhaseResult.getRequestId());
                 SearchShardTarget searchShardTarget = searchPhaseResult.getSearchShardTarget();
                 if (searchShardTarget.getClusterAlias() != null) {
-                    out.writeString(RemoteClusterAware.buildRemoteIndexName(searchShardTarget.getClusterAlias(),
-                        searchShardTarget.getNodeId()));
+                    out.writeString(
+                        RemoteClusterAware.buildRemoteIndexName(searchShardTarget.getClusterAlias(), searchShardTarget.getNodeId()));
                 } else {
                     out.writeString(searchShardTarget.getNodeId());
                 }

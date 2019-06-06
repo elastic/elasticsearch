@@ -20,9 +20,11 @@
 package org.elasticsearch.cluster;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlocks;
+import org.elasticsearch.cluster.coordination.CoordinationMetaData;
+import org.elasticsearch.cluster.coordination.CoordinationMetaData.VotingConfigExclusion;
+import org.elasticsearch.cluster.coordination.NoMasterBlockService;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.IndexGraveyard;
 import org.elasticsearch.cluster.metadata.IndexGraveyardTests;
@@ -30,11 +32,6 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.RepositoriesMetaData;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
@@ -45,16 +42,21 @@ import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.discovery.DiscoverySettings;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.snapshots.Snapshot;
+import org.elasticsearch.snapshots.SnapshotId;
+import org.elasticsearch.snapshots.SnapshotInfoTests;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.util.Collections;
@@ -78,10 +80,8 @@ import static org.hamcrest.Matchers.is;
 public class ClusterStateDiffIT extends ESIntegTestCase {
     public void testClusterStateDiffSerialization() throws Exception {
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(ClusterModule.getNamedWriteables());
-        DiscoveryNode masterNode = new DiscoveryNode("master", buildNewFakeTransportAddress(),
-                emptyMap(), emptySet(), Version.CURRENT);
-        DiscoveryNode otherNode = new DiscoveryNode("other", buildNewFakeTransportAddress(),
-                emptyMap(), emptySet(), Version.CURRENT);
+        DiscoveryNode masterNode = randomNode("master");
+        DiscoveryNode otherNode = randomNode("other");
         DiscoveryNodes discoveryNodes = DiscoveryNodes.builder().add(masterNode).add(otherNode).localNodeId(masterNode.getId()).build();
         ClusterState clusterState = ClusterState.builder(new ClusterName("test")).nodes(discoveryNodes).build();
         ClusterState clusterStateFromDiffs =
@@ -97,7 +97,7 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
                 if (i > 0) {
                     clusterState = builder.build();
                 }
-                switch (randomInt(4)) {
+                switch (randomInt(5)) {
                     case 0:
                         builder = randomNodes(clusterState);
                         break;
@@ -112,6 +112,9 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
                         break;
                     case 4:
                         builder = randomMetaDataChanges(clusterState);
+                        break;
+                    case 5:
+                        builder = randomCoordinationMetaData(clusterState);
                         break;
                     default:
                         throw new IllegalArgumentException("Shouldn't be here");
@@ -141,7 +144,7 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
             try {
                 // Check non-diffable elements
                 assertThat(clusterStateFromDiffs.version(), equalTo(clusterState.version()));
-                assertThat(clusterStateFromDiffs.stateUUID(), equalTo(clusterState.stateUUID()));
+                assertThat(clusterStateFromDiffs.coordinationMetaData(), equalTo(clusterState.coordinationMetaData()));
 
                 // Check nodes
                 assertThat(clusterStateFromDiffs.nodes().getNodes(), equalTo(clusterState.nodes().getNodes()));
@@ -193,6 +196,28 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
 
     }
 
+    private ClusterState.Builder randomCoordinationMetaData(ClusterState clusterState) {
+        ClusterState.Builder builder = ClusterState.builder(clusterState);
+        CoordinationMetaData.Builder metaBuilder = CoordinationMetaData.builder(clusterState.coordinationMetaData());
+        metaBuilder.term(randomNonNegativeLong());
+        if (randomBoolean()) {
+            metaBuilder.lastCommittedConfiguration(
+                new CoordinationMetaData.VotingConfiguration(Sets.newHashSet(generateRandomStringArray(10, 10, false))));
+        }
+        if (randomBoolean()) {
+            metaBuilder.lastAcceptedConfiguration(
+                new CoordinationMetaData.VotingConfiguration(Sets.newHashSet(generateRandomStringArray(10, 10, false))));
+        }
+        if (randomBoolean()) {
+            metaBuilder.addVotingConfigExclusion(new VotingConfigExclusion(randomNode("node-" + randomAlphaOfLength(10))));
+        }
+        return builder;
+    }
+
+    private DiscoveryNode randomNode(String nodeId) {
+        return new DiscoveryNode(nodeId, buildNewFakeTransportAddress(), emptyMap(), emptySet(), randomVersion(random()));
+    }
+
     /**
      * Randomly updates nodes in the cluster state
      */
@@ -204,15 +229,13 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
             if (nodeId.startsWith("node-")) {
                 nodes.remove(nodeId);
                 if (randomBoolean()) {
-                    nodes.add(new DiscoveryNode(nodeId, buildNewFakeTransportAddress(), emptyMap(),
-                            emptySet(), randomVersion(random())));
+                    nodes.add(randomNode(nodeId));
                 }
             }
         }
         int additionalNodeCount = randomIntBetween(1, 20);
         for (int i = 0; i < additionalNodeCount; i++) {
-            nodes.add(new DiscoveryNode("node-" + randomAlphaOfLength(10), buildNewFakeTransportAddress(),
-                    emptyMap(), emptySet(), randomVersion(random())));
+            nodes.add(randomNode("node-" + randomAlphaOfLength(10)));
         }
         return ClusterState.builder(clusterState).nodes(nodes);
     }
@@ -325,9 +348,9 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
     private ClusterBlock randomGlobalBlock() {
         switch (randomInt(2)) {
             case 0:
-                return DiscoverySettings.NO_MASTER_BLOCK_ALL;
+                return NoMasterBlockService.NO_MASTER_BLOCK_ALL;
             case 1:
-                return DiscoverySettings.NO_MASTER_BLOCK_WRITES;
+                return NoMasterBlockService.NO_MASTER_BLOCK_WRITES;
             default:
                 return GatewayService.STATE_NOT_RECOVERED_BLOCK;
         }
@@ -697,13 +720,16 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
                                 Collections.emptyList(),
                                 Math.abs(randomLong()),
                                 (long) randomIntBetween(0, 1000),
-                                ImmutableOpenMap.of()));
+                                ImmutableOpenMap.of(),
+                                SnapshotInfoTests.randomUserMetadata()));
                     case 1:
-                        return new RestoreInProgress(new RestoreInProgress.Entry(
+                        return new RestoreInProgress.Builder().add(
+                            new RestoreInProgress.Entry(
+                                UUIDs.randomBase64UUID(),
                                 new Snapshot(randomName("repo"), new SnapshotId(randomName("snap"), UUIDs.randomBase64UUID())),
                                 RestoreInProgress.State.fromValue((byte) randomIntBetween(0, 3)),
                                 emptyList(),
-                                ImmutableOpenMap.of()));
+                                ImmutableOpenMap.of())).build();
                     default:
                         throw new IllegalArgumentException("Shouldn't be here");
                 }

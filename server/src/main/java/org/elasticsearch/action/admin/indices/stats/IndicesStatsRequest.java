@@ -271,6 +271,11 @@ public class IndicesStatsRequest extends BroadcastRequest<IndicesStatsRequest> {
         return this;
     }
 
+    public IndicesStatsRequest includeUnloadedSegments(boolean includeUnloadedSegments) {
+        flags.includeUnloadedSegments(includeUnloadedSegments);
+        return this;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);

@@ -22,6 +22,7 @@ import org.apache.lucene.search.similarities.BM25Similarity;
 import org.apache.lucene.search.similarities.Similarity;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.admin.indices.stats.IndexShardStats;
 import org.elasticsearch.cluster.ClusterName;
@@ -36,7 +37,6 @@ import org.elasticsearch.cluster.shards.ClusterShardLimitIT;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.FileSystemUtils;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -69,6 +69,7 @@ import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
+import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.hamcrest.RegexMatcher;
 
 import java.io.IOException;
@@ -80,7 +81,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -232,12 +232,12 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         }
 
         GatewayMetaState gwMetaState = getInstanceFromNode(GatewayMetaState.class);
-        MetaData meta = gwMetaState.loadMetaState();
+        MetaData meta = gwMetaState.getMetaData();
         assertNotNull(meta);
         assertNotNull(meta.index("test"));
         assertAcked(client().admin().indices().prepareDelete("test"));
 
-        meta = gwMetaState.loadMetaState();
+        meta = gwMetaState.getMetaData();
         assertNotNull(meta);
         assertNull(meta.index("test"));
 
@@ -272,57 +272,66 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
     }
 
     public void testPendingTasks() throws Exception {
-        IndicesService indicesService = getIndicesService();
-        IndexService test = createIndex("test");
+        final IndexService indexService = createIndex("test");
+        final Index index = indexService.index();
+        final IndexSettings indexSettings = indexService.getIndexSettings();
 
-        assertTrue(test.hasShard(0));
-        ShardPath path = test.getShardOrNull(0).shardPath();
-        assertTrue(test.getShardOrNull(0).routingEntry().started());
-        ShardPath shardPath = ShardPath.loadShardPath(logger, getNodeEnvironment(), new ShardId(test.index(), 0), test.getIndexSettings());
-        assertEquals(shardPath, path);
-        try {
-            indicesService.processPendingDeletes(test.index(), test.getIndexSettings(), new TimeValue(0, TimeUnit.MILLISECONDS));
-            fail("can't get lock");
-        } catch (ShardLockObtainFailedException ex) {
+        final IndexShard indexShard = indexService.getShardOrNull(0);
+        assertNotNull(indexShard);
+        assertTrue(indexShard.routingEntry().started());
 
-        }
-        assertTrue(path.exists());
+        final ShardPath shardPath = indexShard.shardPath();
+        assertEquals(ShardPath.loadShardPath(logger, getNodeEnvironment(), indexShard.shardId(), indexSettings), shardPath);
+
+        final IndicesService indicesService = getIndicesService();
+        expectThrows(ShardLockObtainFailedException.class, () ->
+            indicesService.processPendingDeletes(index, indexSettings, TimeValue.timeValueMillis(0)));
+        assertTrue(shardPath.exists());
 
         int numPending = 1;
         if (randomBoolean()) {
-            indicesService.addPendingDelete(new ShardId(test.index(), 0), test.getIndexSettings());
+            indicesService.addPendingDelete(indexShard.shardId(), indexSettings);
         } else {
             if (randomBoolean()) {
                 numPending++;
-                indicesService.addPendingDelete(new ShardId(test.index(), 0), test.getIndexSettings());
+                indicesService.addPendingDelete(indexShard.shardId(), indexSettings);
             }
-            indicesService.addPendingDelete(test.index(), test.getIndexSettings());
+            indicesService.addPendingDelete(index, indexSettings);
         }
-        assertAcked(client().admin().indices().prepareClose("test"));
-        assertTrue(path.exists());
 
-        assertEquals(indicesService.numPendingDeletes(test.index()), numPending);
+        assertAcked(client().admin().indices().prepareClose("test"));
+        assertTrue(shardPath.exists());
+        ensureGreen("test");
+
+        assertEquals(indicesService.numPendingDeletes(index), numPending);
         assertTrue(indicesService.hasUncompletedPendingDeletes());
 
-        // shard lock released... we can now delete
-        indicesService.processPendingDeletes(test.index(), test.getIndexSettings(), new TimeValue(0, TimeUnit.MILLISECONDS));
-        assertEquals(indicesService.numPendingDeletes(test.index()), 0);
-        assertFalse(indicesService.hasUncompletedPendingDeletes());
-        assertFalse(path.exists());
+        expectThrows(ShardLockObtainFailedException.class, () ->
+            indicesService.processPendingDeletes(index, indexSettings, TimeValue.timeValueMillis(0)));
 
-        if (randomBoolean()) {
-            indicesService.addPendingDelete(new ShardId(test.index(), 0), test.getIndexSettings());
-            indicesService.addPendingDelete(new ShardId(test.index(), 1), test.getIndexSettings());
-            indicesService.addPendingDelete(new ShardId("bogus", "_na_", 1), test.getIndexSettings());
-            assertEquals(indicesService.numPendingDeletes(test.index()), 2);
+        assertEquals(indicesService.numPendingDeletes(index), numPending);
+        assertTrue(indicesService.hasUncompletedPendingDeletes());
+
+        final boolean hasBogus = randomBoolean();
+        if (hasBogus) {
+            indicesService.addPendingDelete(new ShardId(index, 0), indexSettings);
+            indicesService.addPendingDelete(new ShardId(index, 1), indexSettings);
+            indicesService.addPendingDelete(new ShardId("bogus", "_na_", 1), indexSettings);
+            assertEquals(indicesService.numPendingDeletes(index), numPending + 2);
             assertTrue(indicesService.hasUncompletedPendingDeletes());
-            // shard lock released... we can now delete
-            indicesService.processPendingDeletes(test.index(), test.getIndexSettings(), new TimeValue(0, TimeUnit.MILLISECONDS));
-            assertEquals(indicesService.numPendingDeletes(test.index()), 0);
-            assertTrue(indicesService.hasUncompletedPendingDeletes()); // "bogus" index has not been removed
         }
-        assertAcked(client().admin().indices().prepareOpen("test").setTimeout(TimeValue.timeValueSeconds(1)));
 
+        assertAcked(client().admin().indices().prepareDelete("test"));
+        assertBusy(() -> {
+            try {
+                indicesService.processPendingDeletes(index, indexSettings, TimeValue.timeValueMillis(0));
+                assertEquals(indicesService.numPendingDeletes(index), 0);
+            } catch (final Exception e) {
+                fail(e.getMessage());
+            }
+        });
+        assertThat(indicesService.hasUncompletedPendingDeletes(), equalTo(hasBogus)); // "bogus" index has not been removed
+        assertFalse(shardPath.exists());
     }
 
     public void testVerifyIfIndexContentDeleted() throws Exception {
@@ -377,18 +386,18 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
                                                              .numberOfShards(1)
                                                              .numberOfReplicas(0)
                                                              .build();
-        DanglingListener listener = new DanglingListener();
-        dangling.allocateDangled(Arrays.asList(indexMetaData), listener);
-        listener.latch.await();
+        CountDownLatch latch = new CountDownLatch(1);
+        dangling.allocateDangled(Arrays.asList(indexMetaData), ActionListener.wrap(latch::countDown));
+        latch.await();
         assertThat(clusterService.state(), equalTo(originalState));
 
         // remove the alias
         client().admin().indices().prepareAliases().removeAlias(indexName, alias).get();
 
         // now try importing a dangling index with the same name as the alias, it should succeed.
-        listener = new DanglingListener();
-        dangling.allocateDangled(Arrays.asList(indexMetaData), listener);
-        listener.latch.await();
+        latch = new CountDownLatch(1);
+        dangling.allocateDangled(Arrays.asList(indexMetaData), ActionListener.wrap(latch::countDown));
+        latch.await();
         assertThat(clusterService.state(), not(originalState));
         assertNotNull(clusterService.state().getMetaData().index(alias));
     }
@@ -421,20 +430,6 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         final ClusterState clusterState = new ClusterState.Builder(new ClusterName("testCluster")).metaData(metaData).build();
         // if all goes well, this won't throw an exception, otherwise, it will throw an IllegalStateException
         indicesService.verifyIndexIsDeleted(tombstonedIndex, clusterState);
-    }
-
-    private static class DanglingListener implements LocalAllocateDangledIndices.Listener {
-        final CountDownLatch latch = new CountDownLatch(1);
-
-        @Override
-        public void onResponse(LocalAllocateDangledIndices.AllocateDangledResponse response) {
-            latch.countDown();
-        }
-
-        @Override
-        public void onFailure(Throwable e) {
-            latch.countDown();
-        }
     }
 
     /**
@@ -516,9 +511,10 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
 
     public void testIsMetaDataField() {
         IndicesService indicesService = getIndicesService();
-        assertFalse(indicesService.isMetaDataField(randomAlphaOfLengthBetween(10, 15)));
+        final Version randVersion = VersionUtils.randomIndexCompatibleVersion(random());
+        assertFalse(indicesService.isMetaDataField(randVersion, randomAlphaOfLengthBetween(10, 15)));
         for (String builtIn : IndicesModule.getBuiltInMetaDataFields()) {
-            assertTrue(indicesService.isMetaDataField(builtIn));
+            assertTrue(indicesService.isMetaDataField(randVersion, builtIn));
         }
     }
 
@@ -550,7 +546,7 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         }
     }
 
-    public void testConflictingEngineFactories() throws IOException {
+    public void testConflictingEngineFactories() {
         final String indexName = "foobar";
         final Index index = new Index(indexName, UUIDs.randomBase64UUID());
         final Settings settings = Settings.builder()
@@ -585,16 +581,14 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
             clusterSettings);
 
         int shardsToAdd = counts.getFailingIndexShards() * (1 + counts.getFailingIndexReplicas());
-        DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
-        Optional<String> errorMessage = IndicesService.checkShardLimit(shardsToAdd, state, deprecationLogger);
+        Optional<String> errorMessage = IndicesService.checkShardLimit(shardsToAdd, state);
 
         int totalShards = counts.getFailingIndexShards() * (1 + counts.getFailingIndexReplicas());
         int currentShards = counts.getFirstIndexShards() * (1 + counts.getFirstIndexReplicas());
         int maxShards = counts.getShardsPerNode() * nodesInCluster;
-        assertWarnings("In a future major version, this request will fail because this action would add [" +
-            totalShards + "] total shards, but this cluster currently has [" + currentShards + "]/[" + maxShards + "] maximum shards open."+
-            " Before upgrading, reduce the number of shards in your cluster or adjust the cluster setting [cluster.max_shards_per_node].");
-        assertFalse(errorMessage.isPresent());
+        assertTrue(errorMessage.isPresent());
+        assertEquals("this action would add [" + totalShards + "] total shards, but this cluster currently has [" + currentShards
+            + "]/[" + maxShards + "] maximum shards open", errorMessage.get());
     }
 
     public void testUnderShardLimit() {
@@ -611,8 +605,7 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
 
         int existingShards = counts.getFirstIndexShards() * (1 + counts.getFirstIndexReplicas());
         int shardsToAdd = randomIntBetween(1, (counts.getShardsPerNode() * nodesInCluster) - existingShards);
-        DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
-        Optional<String> errorMessage = IndicesService.checkShardLimit(shardsToAdd, state, deprecationLogger);
+        Optional<String> errorMessage = IndicesService.checkShardLimit(shardsToAdd, state);
 
         assertFalse(errorMessage.isPresent());
     }
@@ -643,6 +636,5 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
             .nodes(nodes)
             .build();
     }
-
 
 }

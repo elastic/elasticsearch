@@ -63,8 +63,8 @@ public class Murmur3FieldMapperTests extends ESSingleNodeTestCase {
         Supplier<QueryShardContext> queryShardContext = () -> {
             return indexService.newQueryShardContext(0, null, () -> { throw new UnsupportedOperationException(); }, null);
         };
-        parser = new DocumentMapperParser(indexService.getIndexSettings(), indexService.mapperService(), indexService.getIndexAnalyzers(),
-                indexService.xContentRegistry(), indexService.similarityService(), mapperRegistry, queryShardContext);
+        parser = new DocumentMapperParser(indexService.getIndexSettings(), indexService.mapperService(), indexService.xContentRegistry(),
+                indexService.similarityService(), mapperRegistry, queryShardContext);
     }
 
     @Override
@@ -78,7 +78,7 @@ public class Murmur3FieldMapperTests extends ESSingleNodeTestCase {
                     .field("type", "murmur3")
                 .endObject().endObject().endObject().endObject());
         DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
-        ParsedDocument parsedDoc = mapper.parse(SourceToParse.source("test", "type", "1", BytesReference.bytes(XContentFactory.jsonBuilder()
+        ParsedDocument parsedDoc = mapper.parse(new SourceToParse("test", "type", "1", BytesReference.bytes(XContentFactory.jsonBuilder()
                 .startObject()
                 .field("field", "value")
                 .endObject()),

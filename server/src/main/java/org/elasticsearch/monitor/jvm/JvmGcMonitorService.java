@@ -19,6 +19,7 @@
 
 package org.elasticsearch.monitor.jvm;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.Setting;
@@ -41,6 +42,7 @@ import java.util.function.BiFunction;
 import static java.util.Collections.unmodifiableMap;
 
 public class JvmGcMonitorService extends AbstractLifecycleComponent {
+    private static final Logger logger = LogManager.getLogger(JvmGcMonitorService.class);
 
     private final ThreadPool threadPool;
     private final boolean enabled;
@@ -105,7 +107,6 @@ public class JvmGcMonitorService extends AbstractLifecycleComponent {
     }
 
     public JvmGcMonitorService(Settings settings, ThreadPool threadPool) {
-        super(settings);
         this.threadPool = threadPool;
 
         this.enabled = ENABLED_SETTING.get(settings);

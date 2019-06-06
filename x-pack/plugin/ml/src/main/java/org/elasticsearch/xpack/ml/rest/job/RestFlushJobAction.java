@@ -5,7 +5,9 @@
  */
 package org.elasticsearch.xpack.ml.rest.job;
 
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -18,23 +20,30 @@ import org.elasticsearch.xpack.core.ml.job.config.Job;
 
 import java.io.IOException;
 
+import static org.elasticsearch.rest.RestRequest.Method.POST;
+
 public class RestFlushJobAction extends BaseRestHandler {
 
-    private final boolean DEFAULT_CALC_INTERIM = false;
-    private final String DEFAULT_START = "";
-    private final String DEFAULT_END = "";
-    private final String DEFAULT_ADVANCE_TIME = "";
-    private final String DEFAULT_SKIP_TIME = "";
+    private static final boolean DEFAULT_CALC_INTERIM = false;
+    private static final String DEFAULT_START = "";
+    private static final String DEFAULT_END = "";
+    private static final String DEFAULT_ADVANCE_TIME = "";
+    private static final String DEFAULT_SKIP_TIME = "";
+
+    private static final DeprecationLogger deprecationLogger =
+        new DeprecationLogger(LogManager.getLogger(RestFlushJobAction.class));
 
     public RestFlushJobAction(Settings settings, RestController controller) {
         super(settings);
-        controller.registerHandler(RestRequest.Method.POST, MachineLearning.BASE_PATH
-                + "anomaly_detectors/{" + Job.ID.getPreferredName() + "}/_flush", this);
+        // TODO: remove deprecated endpoint in 8.0.0
+        controller.registerWithDeprecatedHandler(
+            POST, MachineLearning.BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName() + "}/_flush", this,
+            POST, MachineLearning.PRE_V7_BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName() + "}/_flush", deprecationLogger);
     }
 
     @Override
     public String getName() {
-        return "xpack_ml_flush_job_action";
+        return "ml_flush_job_action";
     }
 
     @Override

@@ -21,8 +21,11 @@ package org.elasticsearch.plugin.analysis.icu;
 
 import static java.util.Collections.singletonMap;
 
+import org.apache.lucene.analysis.Analyzer;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.index.analysis.AnalyzerProvider;
 import org.elasticsearch.index.analysis.CharFilterFactory;
+import org.elasticsearch.index.analysis.IcuAnalyzerProvider;
 import org.elasticsearch.index.analysis.IcuCollationTokenFilterFactory;
 import org.elasticsearch.index.analysis.IcuFoldingTokenFilterFactory;
 import org.elasticsearch.index.analysis.IcuNormalizerCharFilterFactory;
@@ -58,6 +61,11 @@ public class AnalysisICUPlugin extends Plugin implements AnalysisPlugin, MapperP
         extra.put("icu_collation", IcuCollationTokenFilterFactory::new);
         extra.put("icu_transform", IcuTransformTokenFilterFactory::new);
         return extra;
+    }
+
+    @Override
+    public Map<String, AnalysisProvider<AnalyzerProvider<? extends Analyzer>>> getAnalyzers() {
+        return singletonMap("icu_analyzer", IcuAnalyzerProvider::new);
     }
 
     @Override

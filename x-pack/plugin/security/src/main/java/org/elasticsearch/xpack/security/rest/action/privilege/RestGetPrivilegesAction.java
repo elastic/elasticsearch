@@ -5,8 +5,10 @@
  */
 package org.elasticsearch.xpack.security.rest.action.privilege;
 
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -17,9 +19,9 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestBuilderListener;
+import org.elasticsearch.xpack.core.security.action.privilege.GetPrivilegesRequestBuilder;
 import org.elasticsearch.xpack.core.security.action.privilege.GetPrivilegesResponse;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
-import org.elasticsearch.xpack.core.security.client.SecurityClient;
 import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;
 
 import java.io.IOException;
@@ -36,16 +38,25 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
  */
 public class RestGetPrivilegesAction extends SecurityBaseRestHandler {
 
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(RestGetPrivilegesAction.class));
+
     public RestGetPrivilegesAction(Settings settings, RestController controller, XPackLicenseState licenseState) {
         super(settings, licenseState);
-        controller.registerHandler(GET, "/_xpack/security/privilege/", this);
-        controller.registerHandler(GET, "/_xpack/security/privilege/{application}", this);
-        controller.registerHandler(GET, "/_xpack/security/privilege/{application}/{privilege}", this);
+        // TODO: remove deprecated endpoint in 8.0.0
+        controller.registerWithDeprecatedHandler(
+            GET, "/_security/privilege/", this,
+            GET, "/_xpack/security/privilege/", deprecationLogger);
+        controller.registerWithDeprecatedHandler(
+            GET, "/_security/privilege/{application}", this,
+            GET, "/_xpack/security/privilege/{application}", deprecationLogger);
+        controller.registerWithDeprecatedHandler(
+            GET, "/_security/privilege/{application}/{privilege}", this,
+            GET, "/_xpack/security/privilege/{application}/{privilege}", deprecationLogger);
     }
 
     @Override
     public String getName() {
-        return "xpack_security_get_privileges_action";
+        return "security_get_privileges_action";
     }
 
     @Override
@@ -53,32 +64,34 @@ public class RestGetPrivilegesAction extends SecurityBaseRestHandler {
         final String application = request.param("application");
         final String[] privileges = request.paramAsStringArray("privilege", Strings.EMPTY_ARRAY);
 
-        return channel -> new SecurityClient(client).prepareGetPrivileges(application, privileges)
-                .execute(new RestBuilderListener<GetPrivilegesResponse>(channel) {
-                    @Override
-                    public RestResponse buildResponse(GetPrivilegesResponse response, XContentBuilder builder) throws Exception {
-                        final Map<String, Set<ApplicationPrivilegeDescriptor>> privsByApp = groupByApplicationName(response.privileges());
-                        builder.startObject();
-                        for (String app : privsByApp.keySet()) {
-                            builder.startObject(app);
-                            for (ApplicationPrivilegeDescriptor privilege : privsByApp.get(app)) {
-                                builder.field(privilege.getName(), privilege);
-                            }
-                            builder.endObject();
+        return channel -> new GetPrivilegesRequestBuilder(client)
+            .application(application)
+            .privileges(privileges)
+            .execute(new RestBuilderListener<>(channel) {
+                @Override
+                public RestResponse buildResponse(GetPrivilegesResponse response, XContentBuilder builder) throws Exception {
+                    final Map<String, Set<ApplicationPrivilegeDescriptor>> privsByApp = groupByApplicationName(response.privileges());
+                    builder.startObject();
+                    for (String app : privsByApp.keySet()) {
+                        builder.startObject(app);
+                        for (ApplicationPrivilegeDescriptor privilege : privsByApp.get(app)) {
+                            builder.field(privilege.getName(), privilege);
                         }
                         builder.endObject();
-
-                        // if the user asked for specific privileges, but none of them were found
-                        // we'll return an empty result and 404 status code
-                        if (privileges.length != 0 && response.privileges().length == 0) {
-                            return new BytesRestResponse(RestStatus.NOT_FOUND, builder);
-                        }
-
-                        // either the user asked for all privileges, or at least one of the privileges
-                        // was found
-                        return new BytesRestResponse(RestStatus.OK, builder);
                     }
-                });
+                    builder.endObject();
+
+                    // if the user asked for specific privileges, but none of them were found
+                    // we'll return an empty result and 404 status code
+                    if (privileges.length != 0 && response.privileges().length == 0) {
+                        return new BytesRestResponse(RestStatus.NOT_FOUND, builder);
+                    }
+
+                    // either the user asked for all privileges, or at least one of the privileges
+                    // was found
+                    return new BytesRestResponse(RestStatus.OK, builder);
+                }
+            });
     }
 
     static Map<String, Set<ApplicationPrivilegeDescriptor>> groupByApplicationName(ApplicationPrivilegeDescriptor[] privileges) {

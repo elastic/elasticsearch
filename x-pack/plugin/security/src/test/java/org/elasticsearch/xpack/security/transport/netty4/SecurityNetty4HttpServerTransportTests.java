@@ -42,15 +42,15 @@ public class SecurityNetty4HttpServerTransportTests extends ESTestCase {
     private Path testnodeCert;
     private Path testnodeKey;
     @Before
-    public void createSSLService() throws Exception {
+    public void createSSLService() {
         testnodeCert = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt");
         testnodeKey = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.pem");
 
         MockSecureSettings secureSettings = new MockSecureSettings();
-        secureSettings.setString("xpack.ssl.secure_key_passphrase", "testnode");
+        secureSettings.setString("xpack.security.http.ssl.secure_key_passphrase", "testnode");
         Settings settings = Settings.builder()
-            .put("xpack.ssl.key", testnodeKey)
-            .put("xpack.ssl.certificate", testnodeCert)
+            .put("xpack.security.http.ssl.key", testnodeKey)
+            .put("xpack.security.http.ssl.certificate", testnodeCert)
             .put("path.home", createTempDir())
             .setSecureSettings(secureSettings)
             .build();
@@ -149,7 +149,7 @@ public class SecurityNetty4HttpServerTransportTests extends ESTestCase {
 
     public void testThatExceptionIsThrownWhenConfiguredWithoutSslKey() throws Exception {
         Settings settings = Settings.builder()
-            .put("xpack.ssl.certificate_authorities", testnodeCert)
+            .put("xpack.security.http.ssl.certificate_authorities", testnodeCert)
             .put(XPackSettings.HTTP_SSL_ENABLED.getKey(), true)
             .put("path.home", createTempDir())
             .build();
@@ -163,10 +163,10 @@ public class SecurityNetty4HttpServerTransportTests extends ESTestCase {
 
     public void testNoExceptionWhenConfiguredWithoutSslKeySSLDisabled() throws Exception {
         MockSecureSettings secureSettings = new MockSecureSettings();
-        secureSettings.setString("xpack.ssl.secure_key_passphrase", "testnode");
+        secureSettings.setString("xpack.security.http.ssl.secure_key_passphrase", "testnode");
         Settings settings = Settings.builder()
-            .put("xpack.ssl.key", testnodeKey)
-            .put("xpack.ssl.certificate", testnodeCert)
+            .put("xpack.security.http.ssl.key", testnodeKey)
+            .put("xpack.security.http.ssl.certificate", testnodeCert)
             .setSecureSettings(secureSettings)
             .put("path.home", createTempDir())
             .build();

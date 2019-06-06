@@ -5,27 +5,42 @@
         index: queries_index
         body:
           mappings:
-            doc:
-              properties:
-                query:
-                  type: percolator
-                foo:
-                  type: keyword
+            properties:
+              query:
+                type: percolator
+              foo:
+                type: keyword
+
+  - do:
+      indices.create:
+        index: documents_index
+        body:
+          mappings:
+            properties:
+              foo:
+                type: keyword
 
   - do:
       index:
         index: queries_index
-        type: doc
         id:   test_percolator
         body:
           query:
             match_all: {}
 
   - do:
+      index:
+        index: documents_index
+        id: some_id
+        body:
+          foo: bar
+
+  - do:
         indices.refresh: {}
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body:
           - query:
               percolate:
@@ -36,6 +51,7 @@
 
   - do:
       msearch:
+        rest_total_hits_as_int: true
         body:
           - index: queries_index
           - query:
@@ -43,4 +59,27 @@
                 field: query
                 document:
                   foo: bar
+  - match:  { responses.0.hits.total:     1  }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          - query:
+              percolate:
+                field: query
+                index: documents_index
+                id: some_id 
+  - match:  { hits.total:     1  }
+
+  - do:
+      msearch:
+        rest_total_hits_as_int: true
+        body:
+          - index: queries_index
+          - query:
+              percolate:
+                field: query
+                index: documents_index
+                id: some_id
   - match:  { responses.0.hits.total:     1  }

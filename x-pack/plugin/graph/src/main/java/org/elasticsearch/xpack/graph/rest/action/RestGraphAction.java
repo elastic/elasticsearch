@@ -3,12 +3,13 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
+
 package org.elasticsearch.xpack.graph.rest.action;
 
-import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.DeprecationLogger;
@@ -16,14 +17,13 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.protocol.xpack.graph.GraphExploreRequest;
+import org.elasticsearch.protocol.xpack.graph.GraphExploreRequest.TermBoost;
 import org.elasticsearch.protocol.xpack.graph.Hop;
 import org.elasticsearch.protocol.xpack.graph.VertexRequest;
-import org.elasticsearch.protocol.xpack.graph.GraphExploreRequest.TermBoost;
+import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
-import org.elasticsearch.xpack.core.XPackClient;
-import org.elasticsearch.xpack.core.rest.XPackRestHandler;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -38,9 +38,11 @@ import static org.elasticsearch.xpack.core.graph.action.GraphExploreAction.INSTA
 /**
  * @see GraphExploreRequest
  */
-public class RestGraphAction extends XPackRestHandler {
-    private static final Logger logger = LogManager.getLogger(RestGraphAction.class);
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
+public class RestGraphAction extends BaseRestHandler {
+
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(RestGraphAction.class));
+    public static final String TYPES_DEPRECATION_MESSAGE = "[types removal]" +
+            " Specifying types in graph requests is deprecated.";
 
     public static final ParseField TIMEOUT_FIELD = new ParseField("timeout");
     public static final ParseField SIGNIFICANCE_FIELD = new ParseField("use_significance");
@@ -63,25 +65,31 @@ public class RestGraphAction extends XPackRestHandler {
 
     public RestGraphAction(Settings settings, RestController controller) {
         super(settings);
-
-        // @deprecated Remove in 7.0
-        controller.registerWithDeprecatedHandler(GET, "/{index}" + URI_BASE + "/graph/_explore", this,
-                                                 GET, "/{index}" + URI_BASE + "/_graph/_explore", deprecationLogger);
-        controller.registerWithDeprecatedHandler(POST, "/{index}" + URI_BASE + "/graph/_explore", this,
-                                                 POST, "/{index}" + URI_BASE + "/_graph/_explore", deprecationLogger);
-        controller.registerWithDeprecatedHandler(GET, "/{index}/{type}" + URI_BASE + "/graph/_explore", this,
-                                                 GET, "/{index}/{type}" + URI_BASE + "/_graph/_explore", deprecationLogger);
-        controller.registerWithDeprecatedHandler(POST, "/{index}/{type}" + URI_BASE + "/graph/_explore", this,
-                                                 POST, "/{index}/{type}" + URI_BASE + "/_graph/_explore", deprecationLogger);
+        // TODO: remove deprecated endpoint in 8.0.0
+        controller.registerWithDeprecatedHandler(
+                GET, "/{index}/_graph/explore", this,
+                GET, "/{index}/_xpack/graph/_explore", deprecationLogger);
+        // TODO: remove deprecated endpoint in 8.0.0
+        controller.registerWithDeprecatedHandler(
+                POST, "/{index}/_graph/explore", this,
+                POST, "/{index}/_xpack/graph/_explore", deprecationLogger);
+        // TODO: remove deprecated endpoint in 8.0.0
+        controller.registerWithDeprecatedHandler(
+                GET, "/{index}/{type}/_graph/explore", this,
+                GET, "/{index}/{type}/_xpack/graph/_explore", deprecationLogger);
+        // TODO: remove deprecated endpoint in 8.0.0
+        controller.registerWithDeprecatedHandler(
+                POST, "/{index}/{type}/_graph/explore", this,
+                POST, "/{index}/{type}/_xpack/graph/_explore", deprecationLogger);
     }
 
     @Override
     public String getName() {
-        return "xpack_graph_action";
+        return "graph";
     }
 
     @Override
-    public RestChannelConsumer doPrepareRequest(final RestRequest request, final XPackClient client) throws IOException {
+    public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         GraphExploreRequest graphRequest = new GraphExploreRequest(Strings.splitStringByCommaToArray(request.param("index")));
         graphRequest.indicesOptions(IndicesOptions.fromRequest(request, graphRequest.indicesOptions()));
         graphRequest.routing(request.param("routing"));
@@ -105,8 +113,11 @@ public class RestGraphAction extends XPackRestHandler {
             parseHop(parser, currentHop, graphRequest);
         }
 
-        graphRequest.types(Strings.splitStringByCommaToArray(request.param("type")));
-        return channel -> client.es().execute(INSTANCE, graphRequest, new RestToXContentListener<>(channel));
+        if (request.hasParam("type")) {
+            deprecationLogger.deprecatedAndMaybeLog("graph_with_types", TYPES_DEPRECATION_MESSAGE);
+            graphRequest.types(Strings.splitStringByCommaToArray(request.param("type")));
+        }
+        return channel -> client.execute(INSTANCE, graphRequest, new RestToXContentListener<>(channel));
     }
 
     private void parseHop(XContentParser parser, Hop currentHop, GraphExploreRequest graphRequest) throws IOException {
@@ -330,4 +341,5 @@ public class RestGraphAction extends XPackRestHandler {
             }
         }
     }
+
 }

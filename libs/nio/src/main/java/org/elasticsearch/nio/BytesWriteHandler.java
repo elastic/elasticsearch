@@ -34,14 +34,20 @@ public abstract class BytesWriteHandler implements ReadWriteHandler {
         return new FlushReadyWrite(context, (ByteBuffer[]) message, listener);
     }
 
+    @Override
+    public void channelRegistered() {}
+
+    @Override
     public List<FlushOperation> writeToBytes(WriteOperation writeOperation) {
         assert writeOperation instanceof FlushReadyWrite : "Write operation must be flush ready";
         return Collections.singletonList((FlushReadyWrite) writeOperation);
     }
 
+    @Override
     public List<FlushOperation> pollFlushOperations() {
         return EMPTY_LIST;
     }
 
+    @Override
     public void close() {}
 }

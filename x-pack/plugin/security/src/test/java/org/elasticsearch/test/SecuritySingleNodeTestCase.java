@@ -179,12 +179,6 @@ public abstract class SecuritySingleNodeTestCase extends ESSingleNodeTestCase {
         return builder.build();
     }
 
-    protected Settings transportClientSettings() {
-        return Settings.builder()
-                .put(customSecuritySettingsSource.transportClientSettings())
-                .build();
-    }
-
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
         return customSecuritySettingsSource.nodePlugins();
@@ -265,14 +259,14 @@ public abstract class SecuritySingleNodeTestCase extends ESSingleNodeTestCase {
     }
 
     @Override
-    public Client client() {
+    public Client wrapClient(final Client client) {
         Map<String, String> headers = Collections.singletonMap("Authorization",
-                basicAuthHeaderValue(nodeClientUsername(), nodeClientPassword()));
+            basicAuthHeaderValue(nodeClientUsername(), nodeClientPassword()));
         // we need to wrap node clients because we do not specify a user for nodes and all requests will use the system
         // user. This is ok for internal n2n stuff but the test framework does other things like wiping indices, repositories, etc
         // that the system user cannot do. so we wrap the node client with a user that can do these things since the client() calls
         // are all using a node client
-        return super.client().filterWithHeader(headers);
+        return client.filterWithHeader(headers);
     }
 
     protected boolean isTransportSSLEnabled() {

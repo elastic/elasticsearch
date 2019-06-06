@@ -11,7 +11,6 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.xpack.sql.jdbc.jdbc.JdbcConfiguration;
 import org.junit.AfterClass;
 import org.junit.Before;
 
@@ -20,6 +19,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.net.URL;
+import java.net.URLConnection;
 import java.nio.charset.StandardCharsets;
 import java.sql.Connection;
 import java.sql.ResultSet;
@@ -31,6 +31,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Properties;
+
+import static java.util.Collections.emptyList;
+import static org.elasticsearch.xpack.sql.qa.jdbc.JdbcTestUtils.JDBC_TIMEZONE;
 
 /**
  * Tests that compare the Elasticsearch JDBC client to some other JDBC client
@@ -108,14 +111,14 @@ public abstract class SpecBaseIntegrationTestCase extends JdbcIntegrationTestCas
     }
 
     protected int fetchSize() {
-        return between(1, 500);
+        return between(1, 150);
     }
 
     // TODO: use UTC for now until deciding on a strategy for handling date extraction
     @Override
     protected Properties connectionProperties() {
         Properties connectionProperties = new Properties();
-        connectionProperties.setProperty(JdbcConfiguration.TIME_ZONE, "UTC");
+        connectionProperties.setProperty(JDBC_TIMEZONE, "UTC");
         return connectionProperties;
     }
 
@@ -147,8 +150,26 @@ public abstract class SpecBaseIntegrationTestCase extends JdbcIntegrationTestCas
         URL source = SpecBaseIntegrationTestCase.class.getResource(url);
         Objects.requireNonNull(source, "Cannot find resource " + url);
 
-        String fileName = source.getFile().substring(source.getFile().lastIndexOf("/") + 1);
-        String groupName = fileName.substring(fileName.lastIndexOf('/') + 1, fileName.lastIndexOf("."));
+        return readURLSpec(source, parser);
+    }
+
+    protected static List<Object[]> readScriptSpec(List<URL> urls, Parser parser) throws Exception {
+        List<Object[]> results = emptyList();
+        for (URL url : urls) {
+            List<Object[]> specs = readURLSpec(url, parser);
+            if (results.isEmpty()) {
+                results = specs;
+            } else {
+                results.addAll(specs);
+            }
+        }
+
+        return results;
+    }
+
+    private static List<Object[]> readURLSpec(URL source, Parser parser) throws Exception {
+        String fileName = JdbcTestUtils.pathAndName(source.getFile()).v2();
+        String groupName = fileName.substring(0, fileName.lastIndexOf("."));
 
         Map<String, Integer> testNames = new LinkedHashMap<>();
         List<Object[]> testCases = new ArrayList<>();
@@ -196,6 +217,9 @@ public abstract class SpecBaseIntegrationTestCase extends JdbcIntegrationTestCas
 
     @SuppressForbidden(reason = "test reads from jar")
     public static InputStream readFromJarUrl(URL source) throws IOException {
-        return source.openStream();
+        URLConnection con = source.openConnection();
+        // do not to cache files (to avoid keeping file handles around)
+        con.setUseCaches(false);
+        return con.getInputStream();
     }
 }

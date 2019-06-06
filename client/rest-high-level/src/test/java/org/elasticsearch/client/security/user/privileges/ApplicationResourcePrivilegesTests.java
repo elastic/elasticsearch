@@ -24,18 +24,22 @@ import org.elasticsearch.test.AbstractXContentTestCase;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 
 import static org.hamcrest.Matchers.is;
 
 public class ApplicationResourcePrivilegesTests extends AbstractXContentTestCase<ApplicationResourcePrivileges> {
 
-    @Override
-    protected ApplicationResourcePrivileges createTestInstance() {
-        return new ApplicationResourcePrivileges(randomAlphaOfLengthBetween(1, 8),
+    public static ApplicationResourcePrivileges createNewRandom(String name) {
+        return new ApplicationResourcePrivileges(name,
                 Arrays.asList(randomArray(1, 8, size -> new String[size], () -> randomAlphaOfLengthBetween(1, 8))),
                 Arrays.asList(randomArray(1, 8, size -> new String[size], () -> randomAlphaOfLengthBetween(1, 8))));
+    }
+
+    @Override
+    protected ApplicationResourcePrivileges createTestInstance() {
+        return createNewRandom(randomAlphaOfLengthBetween(1, 8));
     }
 
     @Override
@@ -58,7 +62,7 @@ public class ApplicationResourcePrivilegesTests extends AbstractXContentTestCase
     }
 
     public void testEmptyPrivileges() {
-        final Collection<String> emptyPrivileges = randomBoolean() ? Collections.emptyList() : null;
+        final List<String> emptyPrivileges = randomBoolean() ? Collections.emptyList() : null;
         final IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
                 () -> new ApplicationResourcePrivileges(randomAlphaOfLengthBetween(1, 8),
                         emptyPrivileges,
@@ -67,7 +71,7 @@ public class ApplicationResourcePrivilegesTests extends AbstractXContentTestCase
     }
 
     public void testEmptyResources() {
-        final Collection<String> emptyResources = randomBoolean() ? Collections.emptyList() : null;
+        final List<String> emptyResources = randomBoolean() ? Collections.emptyList() : null;
         final IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
                 () -> new ApplicationResourcePrivileges(randomAlphaOfLengthBetween(1, 8),
                         Arrays.asList(randomArray(1, 8, size -> new String[size], () -> randomAlphaOfLengthBetween(1, 8))),

@@ -89,12 +89,6 @@ public class AnalysisConfigTests extends AbstractXContentTestCase<AnalysisConfig
         if (randomBoolean()) {
             builder.setMultivariateByFields(randomBoolean());
         }
-        if (randomBoolean()) {
-            builder.setOverlappingBuckets(randomBoolean());
-        }
-        if (randomBoolean()) {
-            builder.setResultFinalizationWindow(randomNonNegativeLong());
-        }
 
         builder.setInfluencers(Arrays.asList(generateRandomStringArray(10, 10, false)));
         return builder;
@@ -262,7 +256,7 @@ public class AnalysisConfigTests extends AbstractXContentTestCase<AnalysisConfig
 
     @Override
     protected NamedXContentRegistry xContentRegistry() {
-        SearchModule searchModule = new SearchModule(Settings.EMPTY, false, Collections.emptyList());
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, Collections.emptyList());
         return new NamedXContentRegistry(searchModule.getNamedXContents());
     }
 }

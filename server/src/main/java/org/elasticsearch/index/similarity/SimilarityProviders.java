@@ -23,7 +23,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.search.similarities.AfterEffect;
 import org.apache.lucene.search.similarities.AfterEffectB;
 import org.apache.lucene.search.similarities.AfterEffectL;
-import org.apache.lucene.search.similarities.BM25Similarity;
 import org.apache.lucene.search.similarities.BasicModel;
 import org.apache.lucene.search.similarities.BasicModelG;
 import org.apache.lucene.search.similarities.BasicModelIF;
@@ -51,17 +50,15 @@ import org.apache.lucene.search.similarities.NormalizationH1;
 import org.apache.lucene.search.similarities.NormalizationH2;
 import org.apache.lucene.search.similarities.NormalizationH3;
 import org.apache.lucene.search.similarities.NormalizationZ;
+import org.apache.lucene.search.similarity.LegacyBM25Similarity;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
-
-import static java.util.Collections.unmodifiableMap;
 
 final class SimilarityProviders {
 
@@ -70,61 +67,37 @@ final class SimilarityProviders {
     private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(SimilarityProviders.class));
     static final String DISCOUNT_OVERLAPS = "discount_overlaps";
 
-    private static final Map<String, BasicModel> BASIC_MODELS;
-    private static final Map<String, String> LEGACY_BASIC_MODELS;
-    private static final Map<String, AfterEffect> AFTER_EFFECTS;
-    private static final Map<String, String> LEGACY_AFTER_EFFECTS;
+    private static final Map<String, BasicModel> BASIC_MODELS = Map.of(
+            "g", new BasicModelG(),
+            "if", new BasicModelIF(),
+            "in", new BasicModelIn(),
+            "ine", new BasicModelIne());
 
-    static {
-        Map<String, BasicModel> models = new HashMap<>();
-        models.put("g", new BasicModelG());
-        models.put("if", new BasicModelIF());
-        models.put("in", new BasicModelIn());
-        models.put("ine", new BasicModelIne());
-        BASIC_MODELS = unmodifiableMap(models);
+    // TODO: be and g and both based on the bose-einstein model.
+    // Is there a better replacement for d and p which use the binomial model?
+    private static final Map<String, String> LEGACY_BASIC_MODELS = Map.of(
+            "be", "g",
+            "d", "ine",
+            "p", "ine");
 
-        Map<String, String> legacyModels = new HashMap<>();
-        // TODO: be and g and both based on the bose-einstein model.
-        // Is there a better replacement for d and p which use the binomial model?
-        legacyModels.put("be", "g");
-        legacyModels.put("d", "ine");
-        legacyModels.put("p", "ine");
-        LEGACY_BASIC_MODELS = unmodifiableMap(legacyModels);
+    private static final Map<String, AfterEffect> AFTER_EFFECTS = Map.of(
+            "b", new AfterEffectB(),
+            "l", new AfterEffectL());
+    // l is simpler than b, so this should be a better replacement for "no"
+    private static final Map<String, String> LEGACY_AFTER_EFFECTS = Map.of("no", "l");
 
-        Map<String, AfterEffect> effects = new HashMap<>();
-        effects.put("b", new AfterEffectB());
-        effects.put("l", new AfterEffectL());
-        AFTER_EFFECTS = unmodifiableMap(effects);
+    private static final Map<String, Independence> INDEPENDENCE_MEASURES =  Map.of(
+            "standardized", new IndependenceStandardized(),
+            "saturated", new IndependenceSaturated(),
+            "chisquared", new IndependenceChiSquared());
 
-        Map<String, String> legacyEffects = new HashMap<>();
-        // l is simpler than b, so this should be a better replacement for "no"
-        legacyEffects.put("no", "l");
-        LEGACY_AFTER_EFFECTS = unmodifiableMap(legacyEffects);
-    }
+    private static final Map<String, Distribution> DISTRIBUTIONS = Map.of(
+            "ll", new DistributionLL(),
+            "spl", new DistributionSPL());
 
-    private static final Map<String, Independence> INDEPENDENCE_MEASURES;
-    static {
-        Map<String, Independence> measures = new HashMap<>();
-        measures.put("standardized", new IndependenceStandardized());
-        measures.put("saturated", new IndependenceSaturated());
-        measures.put("chisquared", new IndependenceChiSquared());
-        INDEPENDENCE_MEASURES = unmodifiableMap(measures);
-    }
-
-    private static final Map<String, Distribution> DISTRIBUTIONS;
-    private static final Map<String, Lambda> LAMBDAS;
-
-    static {
-        Map<String, Distribution> distributions = new HashMap<>();
-        distributions.put("ll", new DistributionLL());
-        distributions.put("spl", new DistributionSPL());
-        DISTRIBUTIONS = unmodifiableMap(distributions);
-
-        Map<String, Lambda> lamdas = new HashMap<>();
-        lamdas.put("df", new LambdaDF());
-        lamdas.put("ttf", new LambdaTTF());
-        LAMBDAS = unmodifiableMap(lamdas);
-    }
+    private static final Map<String, Lambda> LAMBDAS = Map.of(
+            "df", new LambdaDF(),
+            "ttf", new LambdaTTF());
 
     /**
      * Parses the given Settings and creates the appropriate {@link BasicModel}
@@ -269,14 +242,14 @@ final class SimilarityProviders {
         }
     }
 
-    public static BM25Similarity createBM25Similarity(Settings settings, Version indexCreatedVersion) {
+    public static LegacyBM25Similarity createBM25Similarity(Settings settings, Version indexCreatedVersion) {
         assertSettingsIsSubsetOf("BM25", indexCreatedVersion, settings, "k1", "b", DISCOUNT_OVERLAPS);
 
         float k1 = settings.getAsFloat("k1", 1.2f);
         float b = settings.getAsFloat("b", 0.75f);
         boolean discountOverlaps = settings.getAsBoolean(DISCOUNT_OVERLAPS, true);
 
-        BM25Similarity similarity = new BM25Similarity(k1, b);
+        LegacyBM25Similarity similarity = new LegacyBM25Similarity(k1, b);
         similarity.setDiscountOverlaps(discountOverlaps);
         return similarity;
     }

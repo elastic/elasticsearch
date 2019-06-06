@@ -26,7 +26,8 @@ import java.util.Map;
 
 public class FieldLookup {
 
-    // we can cached fieldType completely per name, since its on an index/shard level (the lookup, and it does not change within the scope of a search request)
+    // we can cached fieldType completely per name, since its on an index/shard level (the lookup, and it does not change within the scope
+    // of a search request)
     private final MappedFieldType fieldType;
 
     private Map<String, List<Object>> fields;

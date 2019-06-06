@@ -8,33 +8,34 @@ package org.elasticsearch.xpack.core.security.action.user;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.xpack.core.security.user.User;
+import org.elasticsearch.xpack.core.security.authc.Authentication;
 
 import java.io.IOException;
 
 public class AuthenticateResponse extends ActionResponse {
 
-    private User user;
+    private Authentication authentication;
 
     public AuthenticateResponse() {}
 
-    public AuthenticateResponse(User user) {
-        this.user = user;
+    public AuthenticateResponse(Authentication authentication){
+        this.authentication = authentication;
     }
 
-    public User user() {
-        return user;
+    public Authentication authentication() {
+        return authentication;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        User.writeTo(user, out);
+        authentication.writeTo(out);
     }
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        user = User.readFrom(in);
+        authentication = new Authentication(in);
     }
+
 }

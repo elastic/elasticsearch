@@ -7,7 +7,7 @@ setup:
       cluster.health:
         wait_for_status: yellow
   - do:
-      xpack.security.put_user:
+      security.put_user:
         username: "joe"
         body:  >
             {
@@ -15,7 +15,7 @@ setup:
               "roles" : [ "x_cluster_role" ]
             }
   - do:
-      xpack.security.put_role:
+      security.put_role:
         name: "x_cluster_role"
         body:  >
             {
@@ -30,11 +30,11 @@ setup:
 ---
 teardown:
   - do:
-      xpack.security.delete_user:
+      security.delete_user:
         username: "joe"
         ignore: 404
   - do:
-      xpack.security.delete_role:
+      security.delete_role:
         name: "x_cluster_role"
         ignore: 404
 ---
@@ -49,23 +49,24 @@ teardown:
               number_of_shards: 1
               number_of_replicas: 0
           mappings:
-            test_type:
-              properties:
-                created_at:
-                   type: date
-                   format: "yyyy-MM-dd"
+            properties:
+              created_at:
+                 type: date
+                 format: "yyyy-MM-dd"
 
   - do:
       bulk:
         refresh: true
         body:
-            - '{"index": {"_index": "skip_shards_index", "_type": "test_type"}}'
+            - '{"index": {"_index": "skip_shards_index"}}'
             - '{"f1": "local_cluster", "sort_field": 0, "created_at" : "2017-01-01"}'
 
   # check that we skip the remote shard
   - do:
      headers: { Authorization: "Basic am9lOnMza3JpdA==" }
      search:
+       ccs_minimize_roundtrips: false
+       rest_total_hits_as_int: true
        index: "skip_shards_index,my_remote_cluster:single_doc_index"
        pre_filter_shard_size: 1
        body: { "size" : 10, "query" : { "range" : { "created_at" : { "gte" : "2016-02-01", "lt": "2018-02-01"} } } }
@@ -82,6 +83,8 @@ teardown:
   - do:
      headers: { Authorization: "Basic am9lOnMza3JpdA==" }
      search:
+       ccs_minimize_roundtrips: false
+       rest_total_hits_as_int: true
        index: "skip_shards_index,my_remote_cluster:single_doc_index"
        pre_filter_shard_size: 1
        body: { "size" : 10, "query" : { "range" : { "created_at" : { "gte" : "2015-02-01", "lt": "2016-02-01"} } } }

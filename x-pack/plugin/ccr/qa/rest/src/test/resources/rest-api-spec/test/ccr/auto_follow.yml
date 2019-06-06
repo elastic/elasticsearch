@@ -31,15 +31,17 @@
   - do:
       ccr.get_auto_follow_pattern:
         name: my_pattern
-  - match: { my_pattern.remote_cluster: 'local' }
-  - match: { my_pattern.leader_index_patterns: ['logs-*'] }
-  - match: { my_pattern.max_outstanding_read_requests: 2 }
+  - match: { patterns.0.name: 'my_pattern' }
+  - match: { patterns.0.pattern.remote_cluster: 'local' }
+  - match: { patterns.0.pattern.leader_index_patterns: ['logs-*'] }
+  - match: { patterns.0.pattern.max_outstanding_read_requests: 2 }
 
   - do:
       ccr.get_auto_follow_pattern: {}
-  - match: { my_pattern.remote_cluster: 'local' }
-  - match: { my_pattern.leader_index_patterns: ['logs-*'] }
-  - match: { my_pattern.max_outstanding_read_requests: 2 }
+  - match: { patterns.0.name: 'my_pattern' }
+  - match: { patterns.0.pattern.remote_cluster: 'local' }
+  - match: { patterns.0.pattern.leader_index_patterns: ['logs-*'] }
+  - match: { patterns.0.pattern.max_outstanding_read_requests: 2 }
 
   - do:
       ccr.delete_auto_follow_pattern:

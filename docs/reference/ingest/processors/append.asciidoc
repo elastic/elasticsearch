@@ -1,0 +1,27 @@
+[[append-processor]]
+=== Append Processor
+Appends one or more values to an existing array if the field already exists and it is an array.
+Converts a scalar to an array and appends one or more values to it if the field exists and it is a scalar.
+Creates an array containing the provided values if the field doesn't exist.
+Accepts a single value or an array of values.
+
+[[append-options]]
+.Append Options
+[options="header"]
+|======
+| Name      | Required  | Default  | Description
+| `field`  | yes       | -        | The field to be appended to. Supports <<accessing-template-fields,template snippets>>.
+| `value`  | yes       | -        | The value to be appended. Supports <<accessing-template-fields,template snippets>>.
+include::common-options.asciidoc[]
+|======
+
+[source,js]
+--------------------------------------------------
+{
+  "append": {
+    "field": "tags",
+    "value": ["production", "{{app}}", "{{owner}}"]
+  }
+}
+--------------------------------------------------
+// NOTCONSOLE

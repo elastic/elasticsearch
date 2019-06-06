@@ -125,9 +125,6 @@ public class JobTests extends AbstractXContentTestCase<Job> {
         if (randomBoolean()) {
             builder.setFinishedTime(new Date(randomNonNegativeLong()));
         }
-        if (randomBoolean()) {
-            builder.setEstablishedModelMemory(randomNonNegativeLong());
-        }
         builder.setAnalysisConfig(AnalysisConfigTests.createRandomized());
         builder.setAnalysisLimits(AnalysisLimitsTests.createRandomized());
 
@@ -171,7 +168,7 @@ public class JobTests extends AbstractXContentTestCase<Job> {
 
     @Override
     protected NamedXContentRegistry xContentRegistry() {
-        SearchModule searchModule = new SearchModule(Settings.EMPTY, false, Collections.emptyList());
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, Collections.emptyList());
         return new NamedXContentRegistry(searchModule.getNamedXContents());
     }
 }

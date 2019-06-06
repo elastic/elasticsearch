@@ -5,7 +5,6 @@ setup:
   - do:
       index:
           index:  test
-          type:   test
           id:     1
           body:   { foo: bar }
 
@@ -18,7 +17,6 @@ setup:
   - do:
       count:
         index: test
-        type: test
         body:
           query:
             match:
@@ -29,7 +27,6 @@ setup:
   - do:
       count:
         index: test
-        type: test
         body:
           query:
             match:
@@ -43,7 +40,6 @@ setup:
   - do:
       count:
         index: test
-        type: test
         body: { }
 
   - match: {count : 1}
@@ -51,7 +47,6 @@ setup:
   - do:
       count:
         index: test
-        type: test
 
   - match: {count : 1}
 

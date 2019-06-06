@@ -18,11 +18,6 @@
  */
 package org.elasticsearch.index.mapper;
 
-import org.apache.lucene.document.Document;
-import org.apache.lucene.document.Field.Store;
-import org.apache.lucene.document.StringField;
-import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
@@ -36,8 +31,6 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.test.VersionUtils;
 import org.mockito.Mockito;
 
-import java.io.IOException;
-
 public class TypeFieldTypeTests extends FieldTypeTestCase {
     @Override
     protected MappedFieldType createDefaultFieldType() {
@@ -46,7 +39,7 @@ public class TypeFieldTypeTests extends FieldTypeTestCase {
 
     public void testTermsQuery() throws Exception {
         QueryShardContext context = Mockito.mock(QueryShardContext.class);
-        Version indexVersionCreated = VersionUtils.randomVersionBetween(random(), Version.V_6_0_0, Version.CURRENT);
+        Version indexVersionCreated = VersionUtils.randomIndexCompatibleVersion(random());
         Settings indexSettings = Settings.builder()
                 .put(IndexMetaData.SETTING_VERSION_CREATED, indexVersionCreated)
                 .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
@@ -74,21 +67,12 @@ public class TypeFieldTypeTests extends FieldTypeTestCase {
 
         Mockito.when(mapperService.hasNested()).thenReturn(true);
         query = ft.termQuery("my_type", context);
-        assertEquals(Queries.newNonNestedFilter(context.indexVersionCreated()), query);
+        assertEquals(Queries.newNonNestedFilter(), query);
 
         mapper = Mockito.mock(DocumentMapper.class);
         Mockito.when(mapper.type()).thenReturn("other_type");
         Mockito.when(mapperService.documentMapper()).thenReturn(mapper);
         query = ft.termQuery("my_type", context);
         assertEquals(new MatchNoDocsQuery(), query);
-    }
-
-
-    static DirectoryReader openReaderWithNewType(String type, IndexWriter writer) throws IOException {
-        Document doc = new Document();
-        StringField typeField = new StringField(TypeFieldMapper.NAME, type, Store.NO);
-        doc.add(typeField);
-        writer.addDocument(doc);
-        return DirectoryReader.open(writer);
     }
 }

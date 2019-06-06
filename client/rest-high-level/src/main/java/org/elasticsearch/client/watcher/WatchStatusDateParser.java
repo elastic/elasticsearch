@@ -20,30 +20,32 @@
 package org.elasticsearch.client.watcher;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.joda.FormatDateTimeFormatter;
+import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.DateFieldMapper;
-import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
+import java.time.Instant;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 
 public final class WatchStatusDateParser {
 
-    private static final FormatDateTimeFormatter FORMATTER = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER;
+    private static final DateFormatter FORMATTER = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER;
 
     private WatchStatusDateParser() {
         // Prevent instantiation.
     }
 
-    public static DateTime parseDate(String fieldName, XContentParser parser) throws IOException {
+    public static ZonedDateTime parseDate(String fieldName, XContentParser parser) throws IOException {
         XContentParser.Token token = parser.currentToken();
         if (token == XContentParser.Token.VALUE_NUMBER) {
-            return new DateTime(parser.longValue(), DateTimeZone.UTC);
+            return Instant.ofEpochMilli(parser.longValue()).atZone(ZoneOffset.UTC);
         }
         if (token == XContentParser.Token.VALUE_STRING) {
-            DateTime dateTime = parseDate(parser.text());
-            return dateTime.toDateTime(DateTimeZone.UTC);
+            ZonedDateTime dateTime = parseDate(parser.text());
+            return dateTime.withZoneSameInstant(ZoneOffset.UTC);
         }
         if (token == XContentParser.Token.VALUE_NULL) {
             return null;
@@ -52,7 +54,7 @@ public final class WatchStatusDateParser {
             "to be either a number or a string but found [{}] instead", fieldName, token);
     }
 
-    public static DateTime parseDate(String text) {
-        return FORMATTER.parser().parseDateTime(text);
+    public static ZonedDateTime parseDate(String text) {
+        return DateFormatters.from(FORMATTER.parse(text));
     }
 }

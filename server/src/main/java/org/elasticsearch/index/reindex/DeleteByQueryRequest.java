@@ -88,16 +88,6 @@ public class DeleteByQueryRequest extends AbstractBulkByScrollRequest<DeleteByQu
     }
 
     /**
-     * Set the document types for the delete
-     */
-    public DeleteByQueryRequest setDocTypes(String... types) {
-        if (types != null) {
-            getSearchRequest().types(types);
-        }
-        return this;
-    }
-
-    /**
      * Set routing limiting the process to the shards that match that routing value
      */
     public DeleteByQueryRequest setRouting(String routing) {
@@ -135,18 +125,6 @@ public class DeleteByQueryRequest extends AbstractBulkByScrollRequest<DeleteByQu
      */
     public String getRouting() {
         return getSearchRequest().routing();
-    }
-
-    /**
-     * Gets the document types on which this request would be executed. Returns an empty array if all
-     * types are to be processed.
-     */
-    public String[] getDocTypes() {
-        if (getSearchRequest().types() != null) {
-            return getSearchRequest().types();
-        } else {
-            return new String[0];
-        }
     }
 
     @Override
@@ -200,17 +178,6 @@ public class DeleteByQueryRequest extends AbstractBulkByScrollRequest<DeleteByQu
     public IndicesOptions indicesOptions() {
         assert getSearchRequest() != null;
         return getSearchRequest().indicesOptions();
-    }
-
-    public String[] types() {
-        assert getSearchRequest() != null;
-        return getSearchRequest().types();
-    }
-
-    public DeleteByQueryRequest types(String... types) {
-        assert getSearchRequest() != null;
-        getSearchRequest().types(types);
-        return this;
     }
 
     @Override

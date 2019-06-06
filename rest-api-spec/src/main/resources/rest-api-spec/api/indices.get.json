@@ -13,6 +13,10 @@
         }
       },
       "params":{
+        "include_type_name": {
+          "type" : "boolean",
+          "description" : "Whether to add the type name to the response (default: false)"
+        },
         "local":{
           "type":"boolean",
           "description":"Return local information, do not retrieve the state from master node (default: false)"

@@ -23,32 +23,37 @@ import de.thetaphi.forbiddenapis.gradle.CheckForbiddenApis
 import de.thetaphi.forbiddenapis.gradle.ForbiddenApisPlugin
 import org.elasticsearch.gradle.ExportElasticsearchBuildResourcesTask
 import org.elasticsearch.gradle.VersionProperties
+import org.elasticsearch.gradle.tool.ClasspathUtils
 import org.gradle.api.JavaVersion
 import org.gradle.api.Project
 import org.gradle.api.Task
 import org.gradle.api.plugins.JavaBasePlugin
 import org.gradle.api.plugins.quality.Checkstyle
+
 /**
  * Validation tasks which should be run before committing. These run before tests.
  */
 class PrecommitTasks {
 
     /** Adds a precommit task, which depends on non-test verification tasks. */
+
+    public static final String CHECKSTYLE_VERSION = '8.20'
+
     public static Task create(Project project, boolean includeDependencyLicenses) {
         project.configurations.create("forbiddenApisCliJar")
         project.dependencies {
-            forbiddenApisCliJar ('de.thetaphi:forbiddenapis:2.6')
+            forbiddenApisCliJar('de.thetaphi:forbiddenapis:2.6')
         }
 
         List<Task> precommitTasks = [
-            configureCheckstyle(project),
-            configureForbiddenApisCli(project),
-            configureNamingConventions(project),
-            project.tasks.create('forbiddenPatterns', ForbiddenPatternsTask.class),
-            project.tasks.create('licenseHeaders', LicenseHeadersTask.class),
-            project.tasks.create('filepermissions', FilePermissionsTask.class),
-            configureJarHell(project),
-            configureThirdPartyAudit(project)
+                configureCheckstyle(project),
+                configureForbiddenApisCli(project),
+                project.tasks.create('forbiddenPatterns', ForbiddenPatternsTask.class),
+                project.tasks.create('licenseHeaders', LicenseHeadersTask.class),
+                project.tasks.create('filepermissions', FilePermissionsTask.class),
+                configureJarHell(project),
+                configureThirdPartyAudit(project),
+                configureTestingConventions(project)
         ]
 
         // tasks with just tests don't need dependency licenses, so this flag makes adding
@@ -82,34 +87,44 @@ class PrecommitTasks {
         }
 
         return project.tasks.create([
-            name: 'precommit',
-            group: JavaBasePlugin.VERIFICATION_GROUP,
-            description: 'Runs all non-test checks.',
-            dependsOn: precommitTasks
+                name       : 'precommit',
+                group      : JavaBasePlugin.VERIFICATION_GROUP,
+                description: 'Runs all non-test checks.',
+                dependsOn  : precommitTasks
         ])
     }
 
-    private static Task configureJarHell(Project project) {
-        Task task = project.tasks.create('jarHell', JarHellTask.class)
-        task.classpath = project.sourceSets.test.runtimeClasspath
-        if (project.plugins.hasPlugin(ShadowPlugin)) {
-            task.classpath += project.configurations.bundle
+    static Task configureTestingConventions(Project project) {
+        TestingConventionsTasks task = project.getTasks().create("testingConventions", TestingConventionsTasks.class)
+        task.naming {
+            Tests {
+                baseClass "org.apache.lucene.util.LuceneTestCase"
+            }
+            IT {
+                baseClass "org.elasticsearch.test.ESIntegTestCase"
+                baseClass 'org.elasticsearch.test.rest.ESRestTestCase'
+            }
         }
-        task.dependsOn(project.sourceSets.test.classesTaskName)
-        task.javaHome = project.runtimeJavaHome
         return task
     }
 
-    private static Task configureThirdPartyAudit(Project project) {
-        ThirdPartyAuditTask thirdPartyAuditTask = project.tasks.create('thirdPartyAudit', ThirdPartyAuditTask.class)
-        ExportElasticsearchBuildResourcesTask buildResources = project.tasks.getByName('buildResources')
-        thirdPartyAuditTask.configure {
-            dependsOn(buildResources)
-            signatureFile = buildResources.copy("forbidden/third-party-audit.txt")
-            javaHome = project.runtimeJavaHome
-            targetCompatibility = project.runtimeJavaVersion
+    private static Task configureJarHell(Project project) {
+        return project.tasks.create('jarHell', JarHellTask) { task ->
+            task.classpath = project.sourceSets.test.runtimeClasspath
+            if (project.plugins.hasPlugin(ShadowPlugin)) {
+                task.classpath += project.configurations.bundle
+            }
         }
-        return thirdPartyAuditTask
+    }
+
+    private static Task configureThirdPartyAudit(Project project) {
+        ExportElasticsearchBuildResourcesTask buildResources = project.tasks.getByName('buildResources')
+        return project.tasks.create('thirdPartyAudit', ThirdPartyAuditTask.class) { task ->
+            task.dependsOn(buildResources)
+            task.signatureFile = buildResources.copy("forbidden/third-party-audit.txt")
+            task.javaHome = project.runtimeJavaHome
+            task.targetCompatibility.set(project.provider({ project.runtimeJavaVersion }))
+        }
     }
 
     private static Task configureForbiddenApisCli(Project project) {
@@ -117,9 +132,17 @@ class PrecommitTasks {
         ExportElasticsearchBuildResourcesTask buildResources = project.tasks.getByName('buildResources')
         project.tasks.withType(CheckForbiddenApis) {
             dependsOn(buildResources)
-            targetCompatibility = project.runtimeJavaVersion >= JavaVersion.VERSION_1_9 ?
-                    project.runtimeJavaVersion.getMajorVersion() :
-                    project.runtimeJavaVersion
+            doFirst {
+                // we need to defer this configuration since we don't know the runtime java version until execution time
+                targetCompatibility = project.runtimeJavaVersion.getMajorVersion()
+                if (project.runtimeJavaVersion > JavaVersion.VERSION_11) {
+                    project.logger.info(
+                            "Forbidden APIs does not support java version past 11. Will use the signatures from 11 for ",
+                            project.runtimeJavaVersion
+                    )
+                    targetCompatibility = JavaVersion.VERSION_11.getMajorVersion()
+                }
+            }
             bundledSignatures = [
                     "jdk-unsafe", "jdk-deprecated", "jdk-non-portable", "jdk-system-out"
             ]
@@ -147,7 +170,7 @@ class PrecommitTasks {
                 )
             }
         }
-        Task forbiddenApis =  project.tasks.getByName("forbiddenApis")
+        Task forbiddenApis = project.tasks.getByName("forbiddenApis")
         forbiddenApis.group = ""
         return forbiddenApis
     }
@@ -185,19 +208,17 @@ class PrecommitTasks {
         Task checkstyleTask = project.tasks.create('checkstyle')
         // Apply the checkstyle plugin to create `checkstyleMain` and `checkstyleTest`. It only
         // creates them if there is main or test code to check and it makes `check` depend
-        // on them. But we want `precommit` to depend on `checkstyle` which depends on them so
-        // we have to swap them.
+        // on them. We also want `precommit` to depend on `checkstyle`.
         project.pluginManager.apply('checkstyle')
         project.checkstyle {
             config = project.resources.text.fromFile(checkstyleConf, 'UTF-8')
             configProperties = [
-                suppressions: checkstyleSuppressions
+                    suppressions: checkstyleSuppressions
             ]
-            toolVersion = '8.10.1'
+            toolVersion = CHECKSTYLE_VERSION
         }
 
         project.tasks.withType(Checkstyle) { task ->
-            project.tasks[JavaBasePlugin.CHECK_TASK_NAME].dependsOn.remove(task)
             checkstyleTask.dependsOn(task)
             task.dependsOn(copyCheckstyleConf)
             task.inputs.file(checkstyleSuppressions)
@@ -209,22 +230,14 @@ class PrecommitTasks {
         return checkstyleTask
     }
 
-    private static Task configureNamingConventions(Project project) {
-        if (project.sourceSets.findByName("test")) {
-            Task namingConventionsTask = project.tasks.create('namingConventions', NamingConventionsTask)
-            namingConventionsTask.javaHome = project.runtimeJavaHome
-            return namingConventionsTask
-        }
-        return null
-    }
-
     private static Task configureLoggerUsage(Project project) {
+        Object dependency = ClasspathUtils.isElasticsearchProject() ? project.project(':test:logger-usage') :
+                "org.elasticsearch.test:logger-usage:${VersionProperties.elasticsearch}"
+
         project.configurations.create('loggerUsagePlugin')
-        project.dependencies.add('loggerUsagePlugin',
-                "org.elasticsearch.test:logger-usage:${VersionProperties.elasticsearch}")
+        project.dependencies.add('loggerUsagePlugin', dependency)
         return project.tasks.create('loggerUsageCheck', LoggerUsageTask.class) {
             classpath = project.configurations.loggerUsagePlugin
-            javaHome = project.runtimeJavaHome
         }
     }
 }

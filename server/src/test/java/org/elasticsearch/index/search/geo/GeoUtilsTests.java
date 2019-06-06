@@ -23,12 +23,12 @@ import org.apache.lucene.spatial.prefix.tree.Cell;
 import org.apache.lucene.spatial.prefix.tree.GeohashPrefixTree;
 import org.apache.lucene.spatial.prefix.tree.QuadPrefixTree;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.geo.GeoHashUtils;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
+import org.elasticsearch.geo.utils.Geohash;
 import org.elasticsearch.test.ESTestCase;
 import org.locationtech.spatial4j.context.SpatialContext;
 import org.locationtech.spatial4j.distance.DistanceUtils;
@@ -89,8 +89,10 @@ public class GeoUtilsTests extends ESTestCase {
         double equatorialDistance = 2 * Math.PI * 6378137.0;
         double polarDistance = Math.PI * 6356752.314245;
         assertThat(GeoUtils.geoHashCellSize(0), equalTo(Math.sqrt(Math.pow(polarDistance, 2) + Math.pow(equatorialDistance, 2))));
-        assertThat(GeoUtils.geoHashCellSize(1), equalTo(Math.sqrt(Math.pow(polarDistance / 4, 2) + Math.pow(equatorialDistance / 8, 2))));
-        assertThat(GeoUtils.geoHashCellSize(2), equalTo(Math.sqrt(Math.pow(polarDistance / 32, 2) + Math.pow(equatorialDistance / 32, 2))));
+        assertThat(GeoUtils.geoHashCellSize(1),
+            equalTo(Math.sqrt(Math.pow(polarDistance / 4, 2) + Math.pow(equatorialDistance / 8, 2))));
+        assertThat(GeoUtils.geoHashCellSize(2),
+            equalTo(Math.sqrt(Math.pow(polarDistance / 32, 2) + Math.pow(equatorialDistance / 32, 2))));
         assertThat(GeoUtils.geoHashCellSize(3),
                 equalTo(Math.sqrt(Math.pow(polarDistance / 128, 2) + Math.pow(equatorialDistance / 256, 2))));
         assertThat(GeoUtils.geoHashCellSize(4),
@@ -167,13 +169,20 @@ public class GeoUtilsTests extends ESTestCase {
     public void testQuadTreeCellSize() {
         double equatorialDistance = 2 * Math.PI * 6378137.0;
         double polarDistance = Math.PI * 6356752.314245;
-        assertThat(GeoUtils.quadTreeCellSize(0), equalTo(Math.sqrt(Math.pow(polarDistance, 2) + Math.pow(equatorialDistance, 2))));
-        assertThat(GeoUtils.quadTreeCellSize(1), equalTo(Math.sqrt(Math.pow(polarDistance / 2, 2) + Math.pow(equatorialDistance / 2, 2))));
-        assertThat(GeoUtils.quadTreeCellSize(2), equalTo(Math.sqrt(Math.pow(polarDistance / 4, 2) + Math.pow(equatorialDistance / 4, 2))));
-        assertThat(GeoUtils.quadTreeCellSize(3), equalTo(Math.sqrt(Math.pow(polarDistance / 8, 2) + Math.pow(equatorialDistance / 8, 2))));
-        assertThat(GeoUtils.quadTreeCellSize(4), equalTo(Math.sqrt(Math.pow(polarDistance / 16, 2) + Math.pow(equatorialDistance / 16, 2))));
-        assertThat(GeoUtils.quadTreeCellSize(5), equalTo(Math.sqrt(Math.pow(polarDistance / 32, 2) + Math.pow(equatorialDistance / 32, 2))));
-        assertThat(GeoUtils.quadTreeCellSize(6), equalTo(Math.sqrt(Math.pow(polarDistance / 64, 2) + Math.pow(equatorialDistance / 64, 2))));
+        assertThat(GeoUtils.quadTreeCellSize(0),
+            equalTo(Math.sqrt(Math.pow(polarDistance, 2) + Math.pow(equatorialDistance, 2))));
+        assertThat(GeoUtils.quadTreeCellSize(1),
+            equalTo(Math.sqrt(Math.pow(polarDistance / 2, 2) + Math.pow(equatorialDistance / 2, 2))));
+        assertThat(GeoUtils.quadTreeCellSize(2),
+            equalTo(Math.sqrt(Math.pow(polarDistance / 4, 2) + Math.pow(equatorialDistance / 4, 2))));
+        assertThat(GeoUtils.quadTreeCellSize(3),
+            equalTo(Math.sqrt(Math.pow(polarDistance / 8, 2) + Math.pow(equatorialDistance / 8, 2))));
+        assertThat(GeoUtils.quadTreeCellSize(4),
+            equalTo(Math.sqrt(Math.pow(polarDistance / 16, 2) + Math.pow(equatorialDistance / 16, 2))));
+        assertThat(GeoUtils.quadTreeCellSize(5),
+            equalTo(Math.sqrt(Math.pow(polarDistance / 32, 2) + Math.pow(equatorialDistance / 32, 2))));
+        assertThat(GeoUtils.quadTreeCellSize(6),
+            equalTo(Math.sqrt(Math.pow(polarDistance / 64, 2) + Math.pow(equatorialDistance / 64, 2))));
         assertThat(GeoUtils.quadTreeCellSize(7),
                 equalTo(Math.sqrt(Math.pow(polarDistance / 128, 2) + Math.pow(equatorialDistance / 128, 2))));
         assertThat(GeoUtils.quadTreeCellSize(8),
@@ -388,6 +397,8 @@ public class GeoUtilsTests extends ESTestCase {
                 parser.nextToken();
                 GeoPoint point = GeoUtils.parseGeoPoint(parser);
                 assertThat(point, equalTo(new GeoPoint(lat, lon)));
+                assertThat(parser.currentToken(), is(Token.END_OBJECT));
+                assertNull(parser.nextToken());
             }
             json = jsonBuilder().startObject().field("lat", String.valueOf(lat)).field("lon", String.valueOf(lon)).endObject();
             try (XContentParser parser = createParser(json)) {
@@ -423,14 +434,30 @@ public class GeoUtilsTests extends ESTestCase {
             while (parser.currentToken() != Token.VALUE_STRING) {
                 parser.nextToken();
             }
-            Exception e = expectThrows(ElasticsearchParseException.class, () -> GeoUtils.parseGeoPoint(parser, new GeoPoint(), false));
+            Exception e = expectThrows(ElasticsearchParseException.class,
+                () -> GeoUtils.parseGeoPoint(parser, new GeoPoint(), false));
             assertThat(e.getMessage(), containsString("but [ignore_z_value] parameter is [false]"));
+        }
+    }
+
+    public void testParseGeoPointArrayZValueError() throws IOException {
+        double lat = randomDouble() * 180 - 90 + randomIntBetween(-1000, 1000) * 180;
+        double lon = randomDouble() * 360 - 180 + randomIntBetween(-1000, 1000) * 360;
+        double alt = randomDouble() * 1000;
+        XContentBuilder json = jsonBuilder().startArray().value(lat).value(lon).value(alt).endArray();
+        try (XContentParser parser = createParser(json)) {
+            parser.nextToken();
+            Exception e = expectThrows(ElasticsearchParseException.class,
+                () -> GeoUtils.parseGeoPoint(parser, new GeoPoint(), false));
+            assertThat(e.getMessage(), containsString("but [ignore_z_value] parameter is [false]"));
+            assertThat(parser.currentToken(), is(Token.END_ARRAY));
+            assertNull(parser.nextToken());
         }
     }
 
     public void testParseGeoPointGeohash() throws IOException {
         for (int i = 0; i < 100; i++) {
-            int geoHashLength = randomIntBetween(1, GeoHashUtils.PRECISION);
+            int geoHashLength = randomIntBetween(1, Geohash.PRECISION);
             StringBuilder geohashBuilder = new StringBuilder(geoHashLength);
             for (int j = 0; j < geoHashLength; j++) {
                 geohashBuilder.append(BASE_32[randomInt(BASE_32.length - 1)]);
@@ -441,6 +468,8 @@ public class GeoUtilsTests extends ESTestCase {
                 GeoPoint point = GeoUtils.parseGeoPoint(parser);
                 assertThat(point.lat(), allOf(lessThanOrEqualTo(90.0), greaterThanOrEqualTo(-90.0)));
                 assertThat(point.lon(), allOf(lessThanOrEqualTo(180.0), greaterThanOrEqualTo(-180.0)));
+                assertThat(parser.currentToken(), is(Token.END_OBJECT));
+                assertNull(parser.nextToken());
             }
             json = jsonBuilder().startObject().field("geohash", geohashBuilder.toString()).endObject();
             try (XContentParser parser = createParser(json)) {
@@ -460,6 +489,8 @@ public class GeoUtilsTests extends ESTestCase {
             parser.nextToken();
             Exception e = expectThrows(ElasticsearchParseException.class, () -> GeoUtils.parseGeoPoint(parser));
             assertThat(e.getMessage(), containsString("geohash must be a string"));
+            assertThat(parser.currentToken(), is(Token.END_OBJECT));
+            assertNull(parser.nextToken());
         }
     }
 
@@ -470,6 +501,8 @@ public class GeoUtilsTests extends ESTestCase {
             parser.nextToken();
             Exception e = expectThrows(ElasticsearchParseException.class, () -> GeoUtils.parseGeoPoint(parser));
             assertThat(e.getMessage(), is("field [lon] missing"));
+            assertThat(parser.currentToken(), is(Token.END_OBJECT));
+            assertNull(parser.nextToken());
         }
     }
 
@@ -480,6 +513,8 @@ public class GeoUtilsTests extends ESTestCase {
             parser.nextToken();
             Exception e = expectThrows(ElasticsearchParseException.class, () -> GeoUtils.parseGeoPoint(parser));
             assertThat(e.getMessage(), is("field [lat] missing"));
+            assertThat(parser.currentToken(), is(Token.END_OBJECT));
+            assertNull(parser.nextToken());
         }
     }
 
@@ -490,6 +525,8 @@ public class GeoUtilsTests extends ESTestCase {
             parser.nextToken();
             Exception e = expectThrows(ElasticsearchParseException.class, () -> GeoUtils.parseGeoPoint(parser));
             assertThat(e.getMessage(), is("longitude must be a number"));
+            assertThat(parser.currentToken(), is(Token.END_OBJECT));
+            assertNull(parser.nextToken());
         }
     }
 
@@ -500,13 +537,16 @@ public class GeoUtilsTests extends ESTestCase {
             parser.nextToken();
             Exception e = expectThrows(ElasticsearchParseException.class, () -> GeoUtils.parseGeoPoint(parser));
             assertThat(e.getMessage(), is("latitude must be a number"));
+            assertThat(parser.currentToken(), is(Token.END_OBJECT));
+            assertNull(parser.nextToken());
         }
     }
 
     public void testParseGeoPointExtraField() throws IOException {
         double lat = 0.0;
         double lon = 0.0;
-        XContentBuilder json = jsonBuilder().startObject().field("lat", lat).field("lon", lon).field("foo", true).endObject();
+        XContentBuilder json = jsonBuilder().startObject()
+            .field("lat", lat).field("lon", lon).field("foo", true).endObject();
         try (XContentParser parser = createParser(json)) {
             parser.nextToken();
             Exception e = expectThrows(ElasticsearchParseException.class, () -> GeoUtils.parseGeoPoint(parser));
@@ -518,7 +558,8 @@ public class GeoUtilsTests extends ESTestCase {
         double lat = 0.0;
         double lon = 0.0;
         String geohash = "abcd";
-        XContentBuilder json = jsonBuilder().startObject().field("lat", lat).field("lon", lon).field("geohash", geohash).endObject();
+        XContentBuilder json = jsonBuilder().startObject()
+            .field("lat", lat).field("lon", lon).field("geohash", geohash).endObject();
         try (XContentParser parser = createParser(json)) {
             parser.nextToken();
             Exception e = expectThrows(ElasticsearchParseException.class, () -> GeoUtils.parseGeoPoint(parser));
@@ -536,7 +577,8 @@ public class GeoUtilsTests extends ESTestCase {
                 parser.nextToken();
             }
             Exception e = expectThrows(ElasticsearchParseException.class, () -> GeoUtils.parseGeoPoint(parser));
-            assertThat(e.getMessage(), is("Exception parsing coordinates: found Z value [0.0] but [ignore_z_value] parameter is [false]"));
+            assertThat(e.getMessage(),
+                is("Exception parsing coordinates: found Z value [0.0] but [ignore_z_value] parameter is [false]"));
         }
     }
 
@@ -565,6 +607,9 @@ public class GeoUtilsTests extends ESTestCase {
             }
             Exception e = expectThrows(ElasticsearchParseException.class, () -> GeoUtils.parseGeoPoint(parser));
             assertThat(e.getMessage(), is("numeric value expected"));
+            assertThat(parser.currentToken(), is(Token.END_ARRAY));
+            assertThat(parser.nextToken(), is(Token.END_OBJECT));
+            assertNull(parser.nextToken());
         }
     }
 
@@ -599,7 +644,8 @@ public class GeoUtilsTests extends ESTestCase {
             assertThat(GeoUtils.quadTreeCellHeight(level), lessThanOrEqualTo(height));
             assertThat(GeoUtils.geoHashLevelsForPrecision(size), equalTo(geohashPrefixTree.getLevelForDistance(degrees)));
 
-            assertThat("width at level " + i, gNode.getShape().getBoundingBox().getWidth(), equalTo(360.d * width / GeoUtils.EARTH_EQUATOR));
+            assertThat("width at level " + i,
+                gNode.getShape().getBoundingBox().getWidth(), equalTo(360.d * width / GeoUtils.EARTH_EQUATOR));
             assertThat("height at level " + i, gNode.getShape().getBoundingBox().getHeight(), equalTo(180.d * height
                     / GeoUtils.EARTH_POLAR_DISTANCE));
 
@@ -620,7 +666,8 @@ public class GeoUtilsTests extends ESTestCase {
             assertThat(GeoUtils.quadTreeCellHeight(level), lessThanOrEqualTo(height));
             assertThat(GeoUtils.quadTreeLevelsForPrecision(size), equalTo(quadPrefixTree.getLevelForDistance(degrees)));
 
-            assertThat("width at level " + i, qNode.getShape().getBoundingBox().getWidth(), equalTo(360.d * width / GeoUtils.EARTH_EQUATOR));
+            assertThat("width at level " + i,
+                qNode.getShape().getBoundingBox().getWidth(), equalTo(360.d * width / GeoUtils.EARTH_EQUATOR));
             assertThat("height at level " + i, qNode.getShape().getBoundingBox().getHeight(), equalTo(180.d * height
                     / GeoUtils.EARTH_POLAR_DISTANCE));
 
@@ -629,11 +676,16 @@ public class GeoUtilsTests extends ESTestCase {
     }
 
     public void testParseGeoPointGeohashPositions() throws IOException {
-        assertNormalizedPoint(parseGeohash("drt5", GeoUtils.EffectivePoint.TOP_LEFT), new GeoPoint(42.890625, -71.71875));
-        assertNormalizedPoint(parseGeohash("drt5", GeoUtils.EffectivePoint.TOP_RIGHT), new GeoPoint(42.890625, -71.3671875));
-        assertNormalizedPoint(parseGeohash("drt5", GeoUtils.EffectivePoint.BOTTOM_LEFT), new GeoPoint(42.71484375, -71.71875));
-        assertNormalizedPoint(parseGeohash("drt5", GeoUtils.EffectivePoint.BOTTOM_RIGHT), new GeoPoint(42.71484375, -71.3671875));
-        assertNormalizedPoint(parseGeohash("drtk", GeoUtils.EffectivePoint.BOTTOM_LEFT), new GeoPoint(42.890625, -71.3671875));
+        assertNormalizedPoint(parseGeohash("drt5",
+            GeoUtils.EffectivePoint.TOP_LEFT), new GeoPoint(42.890625, -71.71875));
+        assertNormalizedPoint(parseGeohash("drt5",
+            GeoUtils.EffectivePoint.TOP_RIGHT), new GeoPoint(42.890625, -71.3671875));
+        assertNormalizedPoint(parseGeohash("drt5",
+            GeoUtils.EffectivePoint.BOTTOM_LEFT), new GeoPoint(42.71484375, -71.71875));
+        assertNormalizedPoint(parseGeohash("drt5",
+            GeoUtils.EffectivePoint.BOTTOM_RIGHT), new GeoPoint(42.71484375, -71.3671875));
+        assertNormalizedPoint(parseGeohash("drtk",
+            GeoUtils.EffectivePoint.BOTTOM_LEFT), new GeoPoint(42.890625, -71.3671875));
     }
 
     private GeoPoint parseGeohash(String geohash, GeoUtils.EffectivePoint effectivePoint) throws IOException {

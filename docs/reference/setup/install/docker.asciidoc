@@ -5,8 +5,9 @@
 The images use https://hub.docker.com/_/centos/[centos:7] as the base image.
 
 A list of all published Docker images and tags is available at
-https://www.docker.elastic.co[www.docker.elastic.co]. The source code is in
-https://github.com/elastic/elasticsearch-docker/tree/{branch}[GitHub].
+https://www.docker.elastic.co[www.docker.elastic.co]. The source files
+are in
+https://github.com/elastic/elasticsearch/blob/{branch}/distribution/docker[Github].
 
 These images are free to use under the Elastic license. They contain open source 
 and free commercial features and access to paid commercial features.  
@@ -61,6 +62,9 @@ ifeval::["{release-state}"!="unreleased"]
 docker run -p 9200:9200 -p 9300:9300 -e "discovery.type=single-node" {docker-image}
 --------------------------------------------
 
+Note the use of <<single-node-discovery,single-node discovery>> that allows bypassing
+the <<bootstrap-checks,bootstrap checks>> in a single-node development cluster.
+
 endif::[]
 
 [[docker-cli-run-prod-mode]]
@@ -81,7 +85,7 @@ The `vm.max_map_count` setting should be set permanently in `/etc/sysctl.conf`:
 --------------------------------------------
 $ grep vm.max_map_count /etc/sysctl.conf
 vm.max_map_count=262144
-----------------------------------
+--------------------------------------------
 
 To apply the setting on a live system type: `sysctl -w vm.max_map_count=262144`
 --
@@ -93,11 +97,10 @@ The `vm.max_map_count` setting must be set within the xhyve virtual machine:
 
 ["source","sh"]
 --------------------------------------------
-$ screen ~/Library/Containers/com.docker.docker/Data/com.docker.driver.amd64-linux/tty
+$ screen ~/Library/Containers/com.docker.docker/Data/vms/0/tty
 --------------------------------------------
 
-Log in with 'root' and no password.
-Then configure the `sysctl` setting as you would for Linux:
+Just press enter and configure the `sysctl` setting as you would for Linux:
 
 ["source","sh"]
 --------------------------------------------
@@ -143,12 +146,12 @@ endif::[]
 Instructions for installing it can be found on the
 https://docs.docker.com/compose/install/#install-using-pip[Docker Compose webpage].
 
-The node `elasticsearch` listens on `localhost:9200` while `elasticsearch2`
-talks to `elasticsearch` over a Docker network.
+The node `es01` listens on `localhost:9200` while `es02`
+talks to `es01` over a Docker network.
 
 This example also uses
 https://docs.docker.com/engine/tutorials/dockervolumes[Docker named volumes],
-called `esdata1` and `esdata2` which will be created if not already present.
+called `esdata01` and `esdata02` which will be created if not already present.
 
 [[docker-prod-cluster-composefile]]
 `docker-compose.yml`:
@@ -164,10 +167,13 @@ ifeval::["{release-state}"!="unreleased"]
 --------------------------------------------
 version: '2.2'
 services:
-  elasticsearch:
+  es01:
     image: {docker-image}
-    container_name: elasticsearch
+    container_name: es01
     environment:
+      - node.name=es01
+      - discovery.seed_hosts=es02
+      - cluster.initial_master_nodes=es01,es02
       - cluster.name=docker-cluster
       - bootstrap.memory_lock=true
       - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
@@ -176,32 +182,34 @@ services:
         soft: -1
         hard: -1
     volumes:
-      - esdata1:/usr/share/elasticsearch/data
+      - esdata01:/usr/share/elasticsearch/data
     ports:
       - 9200:9200
     networks:
       - esnet
-  elasticsearch2:
+  es02:
     image: {docker-image}
-    container_name: elasticsearch2
+    container_name: es02
     environment:
+      - node.name=es02
+      - discovery.seed_hosts=es01
+      - cluster.initial_master_nodes=es01,es02
       - cluster.name=docker-cluster
       - bootstrap.memory_lock=true
       - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
-      - "discovery.zen.ping.unicast.hosts=elasticsearch"
     ulimits:
       memlock:
         soft: -1
         hard: -1
     volumes:
-      - esdata2:/usr/share/elasticsearch/data
+      - esdata02:/usr/share/elasticsearch/data
     networks:
       - esnet
 
 volumes:
-  esdata1:
+  esdata01:
     driver: local
-  esdata2:
+  esdata02:
     driver: local
 
 networks:
@@ -282,6 +290,7 @@ comfortable with them adding the `--batch` flag to the plugin install command.
 See {plugins}/_other_command_line_parameters.html[Plugin Management documentation]
 for more details.
 
+[[override-image-default]]
 ===== D. Override the image's default https://docs.docker.com/engine/reference/run/#cmd-default-command-or-options[CMD]
 
 Options can be passed as command-line options to the {es} process by
@@ -323,7 +332,7 @@ data through a bind-mount:
 
 As a last resort, you can also force the container to mutate the ownership of
 any bind-mounts used for the <<path-settings,data and log dirs>> through the
-environment variable `TAKE_FILE_OWNERSHIP`. Inn this case, they will be owned by
+environment variable `TAKE_FILE_OWNERSHIP`. In this case, they will be owned by
 uid:gid `1000:0` providing read/write access to the {es} process as required.
 --
 
@@ -335,7 +344,7 @@ needed, adjust them in the Daemon, or override them per container, for example
 using `docker run`:
 +
 --
-  --ulimit nofile=65536:65536
+  --ulimit nofile=65535:65535
 
 NOTE: One way of checking the Docker daemon defaults for the aforementioned
 ulimits is by running:
@@ -363,6 +372,12 @@ published ports with `--publish-all`, unless you are pinning one container per h
 
 . Use the `ES_JAVA_OPTS` environment variable to set heap size. For example, to
 use 16GB, use `-e ES_JAVA_OPTS="-Xms16g -Xmx16g"` with `docker run`.
++
+--
+NOTE: You still need to <<heap-size,configure the heap size>> even if you are
+https://docs.docker.com/config/containers/resource_constraints/#limit-a-containers-access-to-memory[limiting
+memory access] to the container.
+--
 
 . Pin your deployments to a specific version of the {es} Docker image, for
 example +docker.elastic.co/elasticsearch/elasticsearch:{version}+.

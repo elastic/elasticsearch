@@ -26,9 +26,6 @@ import org.elasticsearch.rest.RestRequest;
 
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
 
@@ -51,7 +48,7 @@ public final class SettingsFilter {
                 throw new IllegalArgumentException("invalid pattern: " + pattern);
             }
         }
-        this.patterns = Collections.unmodifiableSet(new HashSet<>(patterns));
+        this.patterns = Set.copyOf(patterns);
         patternString = Strings.collectionToDelimitedString(patterns, ",");
     }
 
@@ -104,13 +101,7 @@ public final class SettingsFilter {
         }
         if (!simpleMatchPatternList.isEmpty()) {
             String[] simpleMatchPatterns = simpleMatchPatternList.toArray(new String[simpleMatchPatternList.size()]);
-            Iterator<String> iterator = builder.keys().iterator();
-            while (iterator.hasNext()) {
-                String key = iterator.next();
-                if (Regex.simpleMatch(simpleMatchPatterns, key)) {
-                    iterator.remove();
-                }
-            }
+            builder.keys().removeIf(key -> Regex.simpleMatch(simpleMatchPatterns, key));
         }
         return builder.build();
     }

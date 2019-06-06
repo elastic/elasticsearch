@@ -1,9 +1,9 @@
 [role="xpack"]
 [testenv="basic"]
 [[ml-find-file-structure]]
-=== Find File Structure API
+=== Find file structure API
 ++++
-<titleabbrev>Find File Structure</titleabbrev>
+<titleabbrev>Find file structure</titleabbrev>
 ++++
 
 experimental[]
@@ -13,7 +13,7 @@ suitable to be ingested into {es}.
 
 ==== Request
 
-`POST _xpack/ml/find_file_structure`
+`POST _ml/find_file_structure`
 
 
 ==== Description
@@ -92,6 +92,13 @@ chosen.
   parameter is not specified, the structure finder guesses based on the similarity of
   the first row of the file to other rows.
 
+`line_merge_size_limit`::
+  (unsigned integer) The maximum number of characters in a message when lines are
+  merged to form messages while analyzing semi-structured files. The default
+  is 10000. If you have extremely long messages you may need to increase this, but
+  be aware that this may lead to very long processing times if the way to group
+  lines into messages is misdetected.
+
 `lines_to_sample`::
   (unsigned integer) The number of lines to include in the structural analysis,
   starting from the beginning of the file. The minimum is 2; the default
@@ -147,54 +154,46 @@ is not compulsory to have a timestamp in the file.
 --
 
 `timestamp_format`::
-  (string) The time format of the timestamp field in the file. +
+  (string) The Java time format of the timestamp field in the file. +
 +
 --
-NOTE: Currently there is a limitation that this format must be one that the
-structure finder might choose by itself. The reason for this restriction is that
-to consistently set all the fields in the response the structure finder needs a
-corresponding Grok pattern name and simple regular expression for each timestamp
-format. Therefore, there is little value in specifying this parameter for
-structured file formats. If you know which field contains your primary timestamp,
-it is as good and less error-prone to just specify `timestamp_field`.
+NOTE: Only a subset of Java time format letter groups are supported:
 
-The valuable use case for this parameter is when the format is semi-structured
+* `a`
+* `d`
+* `dd`
+* `EEE`
+* `EEEE`
+* `H`
+* `HH`
+* `h`
+* `M`
+* `MM`
+* `MMM`
+* `MMMM`
+* `mm`
+* `ss`
+* `XX`
+* `XXX`
+* `yy`
+* `yyyy`
+* `zzz`
+
+Additionally `S` letter groups (fractional seconds) of length one to nine are
+supported providing they occur after `ss` and separated from the `ss` by a `.`,
+`,` or `:`. Spacing and punctuation is also permitted with the exception of `?`,
+newline and carriage return, together with literal text enclosed in single
+quotes. For example, `MM/dd HH.mm.ss,SSSSSS 'in' yyyy` is a valid override
+format.
+
+One valuable use case for this parameter is when the format is semi-structured
 text, there are multiple timestamp formats in the file, and you know which
 format corresponds to the primary timestamp, but you do not want to specify the
-full `grok_pattern`.
+full `grok_pattern`. Another is when the timestamp format is one that the
+structure finder does not consider by default.
 
-If this parameter is not specified, the structure finder chooses the best format from
-the formats it knows, which are these Joda formats and their Java time equivalents:
-
-* `dd/MMM/YYYY:HH:mm:ss Z`
-* `EEE MMM dd HH:mm zzz YYYY`
-* `EEE MMM dd HH:mm:ss YYYY`
-* `EEE MMM dd HH:mm:ss zzz YYYY`
-* `EEE MMM dd YYYY HH:mm zzz`
-* `EEE MMM dd YYYY HH:mm:ss zzz`
-* `EEE, dd MMM YYYY HH:mm Z`
-* `EEE, dd MMM YYYY HH:mm ZZ`
-* `EEE, dd MMM YYYY HH:mm:ss Z`
-* `EEE, dd MMM YYYY HH:mm:ss ZZ`
-* `ISO8601`
-* `MMM  d HH:mm:ss`
-* `MMM  d HH:mm:ss,SSS`
-* `MMM  d YYYY HH:mm:ss`
-* `MMM dd HH:mm:ss`
-* `MMM dd HH:mm:ss,SSS`
-* `MMM dd YYYY HH:mm:ss`
-* `MMM dd, YYYY h:mm:ss a`
-* `TAI64N`
-* `UNIX`
-* `UNIX_MS`
-* `YYYY-MM-dd HH:mm:ss`
-* `YYYY-MM-dd HH:mm:ss,SSS`
-* `YYYY-MM-dd HH:mm:ss,SSS Z`
-* `YYYY-MM-dd HH:mm:ss,SSSZ`
-* `YYYY-MM-dd HH:mm:ss,SSSZZ`
-* `YYYY-MM-dd HH:mm:ssZ`
-* `YYYY-MM-dd HH:mm:ssZZ`
-* `YYYYMMddHHmmss`
+If this parameter is not specified, the structure finder chooses the best
+format from a built-in set.
 
 --
 
@@ -220,7 +219,7 @@ some books. You can send the contents to the `find_file_structure` endpoint:
 
 [source,js]
 ----
-POST _xpack/ml/find_file_structure
+POST _ml/find_file_structure
 {"name": "Leviathan Wakes", "author": "James S.A. Corey", "release_date": "2011-06-02", "page_count": 561}
 {"name": "Hyperion", "author": "Dan Simmons", "release_date": "1989-05-26", "page_count": 482}
 {"name": "Dune", "author": "Frank Herbert", "release_date": "1965-06-01", "page_count": 604}
@@ -260,8 +259,18 @@ If the request does not encounter errors, you receive the following result:
   "charset" : "UTF-8", <4>
   "has_byte_order_marker" : false, <5>
   "format" : "ndjson", <6>
-  "need_client_timezone" : false, <7>
-  "mappings" : { <8>
+  "timestamp_field" : "release_date", <7>
+  "joda_timestamp_formats" : [ <8>
+    "ISO8601"
+  ],
+  "java_timestamp_formats" : [ <9>
+    "ISO8601"
+  ],
+  "need_client_timezone" : true, <10>
+  "mappings" : { <11>
+    "@timestamp" : {
+      "type" : "date"
+    },
     "author" : {
       "type" : "keyword"
     },
@@ -272,10 +281,25 @@ If the request does not encounter errors, you receive the following result:
       "type" : "long"
     },
     "release_date" : {
-      "type" : "keyword"
+      "type" : "date",
+      "format" : "iso8601"
     }
   },
-  "field_stats" : { <9>
+  "ingest_pipeline" : {
+    "description" : "Ingest pipeline created by file structure finder",
+    "processors" : [
+      {
+        "date" : {
+          "field" : "release_date",
+          "timezone" : "{{ beat.timezone }}",
+          "formats" : [
+            "ISO8601"
+          ]
+        }
+      }
+    ]
+  },
+  "field_stats" : { <12>
     "author" : {
       "count" : 24,
       "cardinality" : 20,
@@ -421,6 +445,8 @@ If the request does not encounter errors, you receive the following result:
     "release_date" : {
       "count" : 24,
       "cardinality" : 20,
+      "earliest" : "1932-06-01",
+      "latest" : "2011-06-02",
       "top_hits" : [
         {
           "value" : "1985-06-01",
@@ -481,17 +507,22 @@ If the request does not encounter errors, you receive the following result:
 <5> For UTF character encodings, `has_byte_order_marker` indicates whether the
     file begins with a byte order marker.
 <6> `format` is one of `ndjson`, `xml`, `delimited` or `semi_structured_text`.
-<7> If a timestamp format is detected that does not include a timezone,
-    `need_client_timezone` will be `true`. The server that parses the file must
-    therefore be told the correct timezone by the client.
-<8> `mappings` contains some suitable mappings for an index into which the data
-    could be ingested. In this case, the `release_date` field has been given a
-    `keyword` type as it is not considered specific enough to convert to the
-    `date` type.
-<9> `field_stats` contains the most common values of each field, plus basic
-    numeric statistics for the numeric `page_count` field. This information
-    may provide clues that the data needs to be cleaned or transformed prior
-    to use by other {ml} functionality.
+<7> The `timestamp_field` names the field considered most likely to be the
+    primary timestamp of each document.
+<8> `joda_timestamp_formats` are used to tell Logstash how to parse timestamps.
+<9> `java_timestamp_formats` are the Java time formats recognized in the time
+    fields. Elasticsearch mappings and Ingest pipeline use this format.
+<10> If a timestamp format is detected that does not include a timezone,
+     `need_client_timezone` will be `true`. The server that parses the file must
+     therefore be told the correct timezone by the client.
+<11> `mappings` contains some suitable mappings for an index into which the data
+     could be ingested. In this case, the `release_date` field has been given a
+     `keyword` type as it is not considered specific enough to convert to the
+     `date` type.
+<12> `field_stats` contains the most common values of each field, plus basic
+     numeric statistics for the numeric `page_count` field. This information
+     may provide clues that the data needs to be cleaned or transformed prior
+     to use by other {ml} functionality.
 
 The next example shows how it's possible to find the structure of some New York
 City yellow cab trip data. The first `curl` command downloads the data, the
@@ -501,7 +532,7 @@ to match what is specified in the `head` command.
 
 [source,js]
 ----
-curl -s "s3.amazonaws.com/nyc-tlc/trip+data/yellow_tripdata_2018-06.csv" | head -20000 | curl -s -H "Content-Type: application/json" -XPOST "localhost:9200/_xpack/ml/find_file_structure?pretty&lines_to_sample=20000" -T -
+curl -s "s3.amazonaws.com/nyc-tlc/trip+data/yellow_tripdata_2018-06.csv" | head -20000 | curl -s -H "Content-Type: application/json" -XPOST "localhost:9200/_ml/find_file_structure?pretty&lines_to_sample=20000" -T -
 ----
 // NOTCONSOLE
 // Not converting to console because this shows how curl can be used
@@ -523,7 +554,7 @@ If the request does not encounter errors, you receive the following result:
   "charset" : "UTF-8",
   "has_byte_order_marker" : false,
   "format" : "delimited", <2>
-  "multiline_start_pattern" : "^.*?,\"?\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2}",
+  "multiline_start_pattern" : "^.*?,\"?\\d{4}-\\d{2}-\\d{2}[T ]\\d{2}:\\d{2}",
   "exclude_lines_pattern" : "^\"?VendorID\"?,\"?tpep_pickup_datetime\"?,\"?tpep_dropoff_datetime\"?,\"?passenger_count\"?,\"?trip_distance\"?,\"?RatecodeID\"?,\"?store_and_fwd_flag\"?,\"?PULocationID\"?,\"?DOLocationID\"?,\"?payment_type\"?,\"?fare_amount\"?,\"?extra\"?,\"?mta_tax\"?,\"?tip_amount\"?,\"?tolls_amount\"?,\"?improvement_surcharge\"?,\"?total_amount\"?",
   "column_names" : [ <3>
     "VendorID",
@@ -603,11 +634,11 @@ If the request does not encounter errors, you receive the following result:
     },
     "tpep_dropoff_datetime" : {
       "type" : "date",
-      "format" : "YYYY-MM-dd HH:mm:ss"
+      "format" : "yyyy-MM-dd HH:mm:ss"
     },
     "tpep_pickup_datetime" : {
       "type" : "date",
-      "format" : "YYYY-MM-dd HH:mm:ss"
+      "format" : "yyyy-MM-dd HH:mm:ss"
     },
     "trip_distance" : {
       "type" : "double"
@@ -621,7 +652,7 @@ If the request does not encounter errors, you receive the following result:
           "field" : "tpep_pickup_datetime",
           "timezone" : "{{ beat.timezone }}",
           "formats" : [
-            "YYYY-MM-dd HH:mm:ss"
+            "yyyy-MM-dd HH:mm:ss"
           ]
         }
       }
@@ -1123,6 +1154,8 @@ If the request does not encounter errors, you receive the following result:
     "tpep_dropoff_datetime" : {
       "count" : 19998,
       "cardinality" : 9066,
+      "earliest" : "2018-05-31 06:18:15",
+      "latest" : "2018-06-02 02:25:44",
       "top_hits" : [
         {
           "value" : "2018-06-01 01:12:12",
@@ -1169,6 +1202,8 @@ If the request does not encounter errors, you receive the following result:
     "tpep_pickup_datetime" : {
       "count" : 19998,
       "cardinality" : 8760,
+      "earliest" : "2018-05-31 06:08:31",
+      "latest" : "2018-06-02 01:21:21",
       "top_hits" : [
         {
           "value" : "2018-06-01 00:01:23",
@@ -1287,10 +1322,9 @@ If the request does not encounter errors, you receive the following result:
     was chosen because it comes first in the column order. If you prefer
     `tpep_dropoff_datetime` then force it to be chosen using the
     `timestamp_field` query parameter.
-<8> `joda_timestamp_formats` are used to tell Logstash and Ingest pipeline how
-    to parse timestamps.
+<8> `joda_timestamp_formats` are used to tell Logstash how to parse timestamps.
 <9> `java_timestamp_formats` are the Java time formats recognized in the time
-    fields. In future Ingest pipeline will switch to use this format.
+    fields. Elasticsearch mappings and Ingest pipeline use this format.
 <10> The timestamp format in this sample doesn't specify a timezone, so to
      accurately convert them to UTC timestamps to store in Elasticsearch it's
      necessary to supply the timezone they relate to. `need_client_timezone`
@@ -1305,7 +1339,7 @@ analysis:
 
 [source,js]
 ----
-curl -s "s3.amazonaws.com/nyc-tlc/trip+data/yellow_tripdata_2018-06.csv" | head -200000 | curl -s -H "Content-Type: application/json" -XPOST "localhost:9200/_xpack/ml/find_file_structure?pretty&lines_to_sample=200000&timeout=1s" -T -
+curl -s "s3.amazonaws.com/nyc-tlc/trip+data/yellow_tripdata_2018-06.csv" | head -200000 | curl -s -H "Content-Type: application/json" -XPOST "localhost:9200/_ml/find_file_structure?pretty&lines_to_sample=200000&timeout=1s" -T -
 ----
 // NOTCONSOLE
 // Not converting to console because this shows how curl can be used
@@ -1342,7 +1376,7 @@ This is an example of analyzing {es}'s own log file:
 
 [source,js]
 ----
-curl -s -H "Content-Type: application/json" -XPOST "localhost:9200/_xpack/ml/find_file_structure?pretty" -T "$ES_HOME/logs/elasticsearch.log"
+curl -s -H "Content-Type: application/json" -XPOST "localhost:9200/_ml/find_file_structure?pretty" -T "$ES_HOME/logs/elasticsearch.log"
 ----
 // NOTCONSOLE
 // Not converting to console because this shows how curl can be used
@@ -1359,14 +1393,14 @@ this:
   "charset" : "UTF-8",
   "has_byte_order_marker" : false,
   "format" : "semi_structured_text", <1>
-  "multiline_start_pattern" : "^\\[\\b\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2},\\d{3}", <2>
+  "multiline_start_pattern" : "^\\[\\b\\d{4}-\\d{2}-\\d{2}[T ]\\d{2}:\\d{2}", <2>
   "grok_pattern" : "\\[%{TIMESTAMP_ISO8601:timestamp}\\]\\[%{LOGLEVEL:loglevel}.*", <3>
   "timestamp_field" : "timestamp",
   "joda_timestamp_formats" : [
     "ISO8601"
   ],
   "java_timestamp_formats" : [
-    "yyyy-MM-dd'T'HH:mm:ss,SSS"
+    "ISO8601"
   ],
   "need_client_timezone" : true,
   "mappings" : {
@@ -1429,6 +1463,8 @@ this:
     "timestamp" : {
       "count" : 53,
       "cardinality" : 28,
+      "earliest" : "2018-09-27T14:39:28,518",
+      "latest" : "2018-09-27T14:39:37,012",
       "top_hits" : [
         {
           "value" : "2018-09-27T14:39:29,859",
@@ -1496,7 +1532,7 @@ query parameter (appropriately URL escaped):
 
 [source,js]
 ----
-curl -s -H "Content-Type: application/json" -XPOST "localhost:9200/_xpack/ml/find_file_structure?pretty&format=semi_structured_text&grok_pattern=%5C%5B%25%7BTIMESTAMP_ISO8601:timestamp%7D%5C%5D%5C%5B%25%7BLOGLEVEL:loglevel%7D%20*%5C%5D%5C%5B%25%7BJAVACLASS:class%7D%20*%5C%5D%20%5C%5B%25%7BHOSTNAME:node%7D%5C%5D%20%25%7BJAVALOGMESSAGE:message%7D" -T "$ES_HOME/logs/elasticsearch.log"
+curl -s -H "Content-Type: application/json" -XPOST "localhost:9200/_ml/find_file_structure?pretty&format=semi_structured_text&grok_pattern=%5C%5B%25%7BTIMESTAMP_ISO8601:timestamp%7D%5C%5D%5C%5B%25%7BLOGLEVEL:loglevel%7D%20*%5C%5D%5C%5B%25%7BJAVACLASS:class%7D%20*%5C%5D%20%5C%5B%25%7BHOSTNAME:node%7D%5C%5D%20%25%7BJAVALOGMESSAGE:message%7D" -T "$ES_HOME/logs/elasticsearch.log"
 ----
 // NOTCONSOLE
 // Not converting to console because this shows how curl can be used
@@ -1513,14 +1549,14 @@ this:
   "charset" : "UTF-8",
   "has_byte_order_marker" : false,
   "format" : "semi_structured_text",
-  "multiline_start_pattern" : "^\\[\\b\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2},\\d{3}",
+  "multiline_start_pattern" : "^\\[\\b\\d{4}-\\d{2}-\\d{2}[T ]\\d{2}:\\d{2}",
   "grok_pattern" : "\\[%{TIMESTAMP_ISO8601:timestamp}\\]\\[%{LOGLEVEL:loglevel} *\\]\\[%{JAVACLASS:class} *\\] \\[%{HOSTNAME:node}\\] %{JAVALOGMESSAGE:message}", <1>
   "timestamp_field" : "timestamp",
   "joda_timestamp_formats" : [
     "ISO8601"
   ],
   "java_timestamp_formats" : [
-    "yyyy-MM-dd'T'HH:mm:ss,SSS"
+    "ISO8601"
   ],
   "need_client_timezone" : true,
   "mappings" : {
@@ -1691,6 +1727,8 @@ this:
     "timestamp" : {
       "count" : 53,
       "cardinality" : 28,
+      "earliest" : "2018-09-27T14:39:28,518",
+      "latest" : "2018-09-27T14:39:37,012",
       "top_hits" : [
         {
           "value" : "2018-09-27T14:39:29,859",

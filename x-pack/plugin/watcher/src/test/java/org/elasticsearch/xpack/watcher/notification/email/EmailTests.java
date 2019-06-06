@@ -10,9 +10,10 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.ESTestCase;
-import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
 
+import java.time.Instant;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -30,7 +31,7 @@ public class EmailTests extends ESTestCase {
         Email.AddressList possibleList = new Email.AddressList(addresses);
         Email.AddressList replyTo = randomFrom(possibleList, null);
         Email.Priority priority = randomFrom(Email.Priority.values());
-        DateTime sentDate = new DateTime(randomInt(), DateTimeZone.UTC);
+        ZonedDateTime sentDate = Instant.ofEpochMilli(randomInt()).atZone(ZoneOffset.UTC);
         Email.AddressList to = randomFrom(possibleList, null);
         Email.AddressList cc = randomFrom(possibleList, null);
         Email.AddressList bcc = randomFrom(possibleList, null);

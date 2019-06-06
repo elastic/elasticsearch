@@ -7,7 +7,7 @@ package org.elasticsearch.xpack.sql.querydsl.query;
 
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.sort.NestedSortBuilder;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 
 import java.util.Objects;
 
@@ -16,8 +16,8 @@ import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 public class NotQuery extends Query {
     private final Query child;
 
-    public NotQuery(Location location, Query child) {
-        super(location);
+    public NotQuery(Source source, Query child) {
+        super(source);
         if (child == null) {
             throw new IllegalArgumentException("child is required");
         }
@@ -34,12 +34,12 @@ public class NotQuery extends Query {
     }
 
     @Override
-    public Query addNestedField(String path, String field, boolean hasDocValues) {
-        Query rewrittenChild = child.addNestedField(path, field, hasDocValues);
+    public Query addNestedField(String path, String field, String format, boolean hasDocValues) {
+        Query rewrittenChild = child.addNestedField(path, field, format, hasDocValues);
         if (child == rewrittenChild) {
             return this;
         }
-        return new NotQuery(location(), child);
+        return new NotQuery(source(), child);
     }
 
     @Override

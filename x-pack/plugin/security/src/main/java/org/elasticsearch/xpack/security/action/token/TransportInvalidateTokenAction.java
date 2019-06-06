@@ -8,12 +8,14 @@ package org.elasticsearch.xpack.security.action.token;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.action.token.InvalidateTokenAction;
 import org.elasticsearch.xpack.core.security.action.token.InvalidateTokenRequest;
 import org.elasticsearch.xpack.core.security.action.token.InvalidateTokenResponse;
+import org.elasticsearch.xpack.core.security.authc.support.TokensInvalidationResult;
 import org.elasticsearch.xpack.security.authc.TokenService;
 
 /**
@@ -31,9 +33,12 @@ public final class TransportInvalidateTokenAction extends HandledTransportAction
 
     @Override
     protected void doExecute(Task task, InvalidateTokenRequest request, ActionListener<InvalidateTokenResponse> listener) {
-        final ActionListener<Boolean> invalidateListener =
-                ActionListener.wrap(created -> listener.onResponse(new InvalidateTokenResponse(created)), listener::onFailure);
-        if (request.getTokenType() == InvalidateTokenRequest.Type.ACCESS_TOKEN) {
+        final ActionListener<TokensInvalidationResult> invalidateListener =
+            ActionListener.wrap(tokensInvalidationResult ->
+                listener.onResponse(new InvalidateTokenResponse(tokensInvalidationResult)), listener::onFailure);
+        if (Strings.hasText(request.getUserName()) || Strings.hasText(request.getRealmName())) {
+            tokenService.invalidateActiveTokensForRealmAndUser(request.getRealmName(), request.getUserName(), invalidateListener);
+        } else if (request.getTokenType() == InvalidateTokenRequest.Type.ACCESS_TOKEN) {
             tokenService.invalidateAccessToken(request.getTokenString(), invalidateListener);
         } else {
             assert request.getTokenType() == InvalidateTokenRequest.Type.REFRESH_TOKEN;

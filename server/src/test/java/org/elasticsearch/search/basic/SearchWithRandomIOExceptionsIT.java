@@ -37,8 +37,9 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.store.MockFSDirectoryService;
+import org.elasticsearch.test.store.MockFSDirectoryFactory;
 import org.elasticsearch.test.store.MockFSIndexStore;
+
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
@@ -52,6 +53,9 @@ public class SearchWithRandomIOExceptionsIT extends ESIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Arrays.asList(MockFSIndexStore.TestPlugin.class);
+    }
+
+    public void testRemoveWhenAwaitsFixIsResolved() {
     }
 
     public void testRandomDirectoryIOExceptions() throws IOException, InterruptedException, ExecutionException {
@@ -94,7 +98,7 @@ public class SearchWithRandomIOExceptionsIT extends ESIntegTestCase {
             logger.info("creating index: [test] using settings: [{}]", settings.build());
             client().admin().indices().prepareCreate("test")
                 .setSettings(settings)
-                .addMapping("type", mapping, XContentType.JSON).execute().actionGet();
+                .addMapping("type", mapping, XContentType.JSON).get();
             numInitialDocs = between(10, 100);
             ensureGreen();
             for (int i = 0; i < numInitialDocs; i++) {
@@ -104,22 +108,24 @@ public class SearchWithRandomIOExceptionsIT extends ESIntegTestCase {
             client().admin().indices().prepareFlush("test").execute().get();
             client().admin().indices().prepareClose("test").execute().get();
             client().admin().indices().prepareUpdateSettings("test").setSettings(Settings.builder()
-                .put(MockFSDirectoryService.RANDOM_IO_EXCEPTION_RATE_SETTING.getKey(), exceptionRate)
-                .put(MockFSDirectoryService.RANDOM_IO_EXCEPTION_RATE_ON_OPEN_SETTING.getKey(), exceptionOnOpenRate));
+                .put(MockFSDirectoryFactory.RANDOM_IO_EXCEPTION_RATE_SETTING.getKey(), exceptionRate)
+                .put(MockFSDirectoryFactory.RANDOM_IO_EXCEPTION_RATE_ON_OPEN_SETTING.getKey(), exceptionOnOpenRate));
             client().admin().indices().prepareOpen("test").execute().get();
         } else {
             Settings.Builder settings = Settings.builder()
                 .put("index.number_of_replicas", randomIntBetween(0, 1))
                 .put(MockFSIndexStore.INDEX_CHECK_INDEX_ON_CLOSE_SETTING.getKey(), false)
-                .put(MockFSDirectoryService.RANDOM_IO_EXCEPTION_RATE_SETTING.getKey(), exceptionRate)
-                .put(MockFSDirectoryService.RANDOM_IO_EXCEPTION_RATE_ON_OPEN_SETTING.getKey(), exceptionOnOpenRate); // we cannot expect that the index will be valid
+                .put(MockFSDirectoryFactory.RANDOM_IO_EXCEPTION_RATE_SETTING.getKey(), exceptionRate)
+                // we cannot expect that the index will be valid
+                .put(MockFSDirectoryFactory.RANDOM_IO_EXCEPTION_RATE_ON_OPEN_SETTING.getKey(), exceptionOnOpenRate);
             logger.info("creating index: [test] using settings: [{}]", settings.build());
             client().admin().indices().prepareCreate("test")
                 .setSettings(settings)
-                .addMapping("type", mapping, XContentType.JSON).execute().actionGet();
+                .addMapping("type", mapping, XContentType.JSON).get();
         }
         ClusterHealthResponse clusterHealthResponse = client().admin().cluster()
-            .health(Requests.clusterHealthRequest().waitForYellowStatus().timeout(TimeValue.timeValueSeconds(5))).get(); // it's OK to timeout here
+            // it's OK to timeout here
+            .health(Requests.clusterHealthRequest().waitForYellowStatus().timeout(TimeValue.timeValueSeconds(5))).get();
         final int numDocs;
         final boolean expectAllShardsFailed;
         if (clusterHealthResponse.isTimedOut()) {
@@ -139,7 +145,8 @@ public class SearchWithRandomIOExceptionsIT extends ESIntegTestCase {
         for (int i = 0; i < numDocs; i++) {
             added[i] = false;
             try {
-                IndexResponse indexResponse = client().prepareIndex("test", "type", Integer.toString(i)).setTimeout(TimeValue.timeValueSeconds(1)).setSource("test", English.intToEnglish(i)).get();
+                IndexResponse indexResponse = client().prepareIndex("test", "type", Integer.toString(i))
+                        .setTimeout(TimeValue.timeValueSeconds(1)).setSource("test", English.intToEnglish(i)).get();
                 if (indexResponse.getResult() == DocWriteResponse.Result.CREATED) {
                     numCreated++;
                     added[i] = true;
@@ -150,9 +157,12 @@ public class SearchWithRandomIOExceptionsIT extends ESIntegTestCase {
         }
         ESIntegTestCase.NumShards numShards = getNumShards("test");
         logger.info("Start Refresh");
-        final RefreshResponse refreshResponse = client().admin().indices().prepareRefresh("test").execute().get(); // don't assert on failures here
+        // don't assert on failures here
+        final RefreshResponse refreshResponse = client().admin().indices().prepareRefresh("test").execute().get();
         final boolean refreshFailed = refreshResponse.getShardFailures().length != 0 || refreshResponse.getFailedShards() != 0;
-        logger.info("Refresh failed [{}] numShardsFailed: [{}], shardFailuresLength: [{}], successfulShards: [{}], totalShards: [{}] ", refreshFailed, refreshResponse.getFailedShards(), refreshResponse.getShardFailures().length, refreshResponse.getSuccessfulShards(), refreshResponse.getTotalShards());
+        logger.info("Refresh failed [{}] numShardsFailed: [{}], shardFailuresLength: [{}], successfulShards: [{}], totalShards: [{}] ",
+                refreshFailed, refreshResponse.getFailedShards(), refreshResponse.getShardFailures().length,
+                refreshResponse.getSuccessfulShards(), refreshResponse.getTotalShards());
         final int numSearches = scaledRandomIntBetween(10, 20);
         // we don't check anything here really just making sure we don't leave any open files or a broken index behind.
         for (int i = 0; i < numSearches; i++) {
@@ -160,23 +170,26 @@ public class SearchWithRandomIOExceptionsIT extends ESIntegTestCase {
                 int docToQuery = between(0, numDocs - 1);
                 int expectedResults = added[docToQuery] ? 1 : 0;
                 logger.info("Searching for [test:{}]", English.intToEnglish(docToQuery));
-                SearchResponse searchResponse = client().prepareSearch().setTypes("type").setQuery(QueryBuilders.matchQuery("test", English.intToEnglish(docToQuery)))
+                SearchResponse searchResponse = client().prepareSearch()
+                    .setQuery(QueryBuilders.matchQuery("test", English.intToEnglish(docToQuery)))
                     .setSize(expectedResults).get();
                 logger.info("Successful shards: [{}]  numShards: [{}]", searchResponse.getSuccessfulShards(), numShards.numPrimaries);
                 if (searchResponse.getSuccessfulShards() == numShards.numPrimaries && !refreshFailed) {
                     assertResultsAndLogOnFailure(expectedResults, searchResponse);
                 }
                 // check match all
-                searchResponse = client().prepareSearch().setTypes("type").setQuery(QueryBuilders.matchAllQuery())
+                searchResponse = client().prepareSearch().setQuery(QueryBuilders.matchAllQuery())
                     .setSize(numCreated + numInitialDocs).addSort("_uid", SortOrder.ASC).get();
-                logger.info("Match all Successful shards: [{}]  numShards: [{}]", searchResponse.getSuccessfulShards(), numShards.numPrimaries);
+                logger.info("Match all Successful shards: [{}]  numShards: [{}]", searchResponse.getSuccessfulShards(),
+                        numShards.numPrimaries);
                 if (searchResponse.getSuccessfulShards() == numShards.numPrimaries && !refreshFailed) {
                     assertResultsAndLogOnFailure(numCreated + numInitialDocs, searchResponse);
                 }
             } catch (SearchPhaseExecutionException ex) {
                 logger.info("SearchPhaseException: [{}]", ex.getMessage());
                 // if a scheduled refresh or flush fails all shards we see all shards failed here
-                if (!(expectAllShardsFailed || refreshResponse.getSuccessfulShards() == 0 || ex.getMessage().contains("all shards failed"))) {
+                if (!(expectAllShardsFailed || refreshResponse.getSuccessfulShards() == 0 ||
+                        ex.getMessage().contains("all shards failed"))) {
                     throw ex;
                 }
             }
@@ -186,11 +199,12 @@ public class SearchWithRandomIOExceptionsIT extends ESIntegTestCase {
             // check the index still contains the records that we indexed without errors
             client().admin().indices().prepareClose("test").execute().get();
             client().admin().indices().prepareUpdateSettings("test").setSettings(Settings.builder()
-                .put(MockFSDirectoryService.RANDOM_IO_EXCEPTION_RATE_SETTING.getKey(), 0)
-                .put(MockFSDirectoryService.RANDOM_IO_EXCEPTION_RATE_ON_OPEN_SETTING.getKey(), 0));
+                .put(MockFSDirectoryFactory.RANDOM_IO_EXCEPTION_RATE_SETTING.getKey(), 0)
+                .put(MockFSDirectoryFactory.RANDOM_IO_EXCEPTION_RATE_ON_OPEN_SETTING.getKey(), 0));
             client().admin().indices().prepareOpen("test").execute().get();
             ensureGreen();
-            SearchResponse searchResponse = client().prepareSearch().setTypes("type").setQuery(QueryBuilders.matchQuery("test", "init")).get();
+            SearchResponse searchResponse = client().prepareSearch()
+                    .setQuery(QueryBuilders.matchQuery("test", "init")).get();
             assertNoFailures(searchResponse);
             assertHitCount(searchResponse, numInitialDocs);
         }

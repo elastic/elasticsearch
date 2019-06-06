@@ -16,15 +16,13 @@ Create an index with two fields:
 PUT /my-index
 {
     "mappings": {
-        "_doc": {
-            "properties": {
-                "message": {
-                    "type": "text"
-                },
-                "query": {
-                    "type": "percolator"
-                }
-            }
+        "properties": {
+             "message": {
+                 "type": "text"
+             },
+             "query": {
+                 "type": "percolator"
+             }
         }
     }
 }
@@ -89,14 +87,17 @@ The above request will yield the following response:
     "failed": 0
   },
   "hits": {
-    "total": 1,
-    "max_score": 0.5753642,
+    "total" : {
+        "value": 1,
+        "relation": "eq"
+    },
+    "max_score": 0.26152915,
     "hits": [
       { <1>
         "_index": "my-index",
         "_type": "_doc",
         "_id": "1",
-        "_score": 0.5753642,
+        "_score": 0.26152915,
         "_source": {
           "query": {
             "match": {
@@ -133,7 +134,7 @@ The following parameters are required when percolating a document:
          This is an optional parameter.
 `document`:: The source of the document being percolated.
 `documents`:: Like the `document` parameter, but accepts multiple documents via a json array.
-`document_type`:: The type / mapping of the document being percolated. This setting is deprecated and only required for indices created before 6.0
+`document_type`:: The type / mapping of the document being percolated. This parameter is deprecated and will be removed in Elasticsearch 8.0.
 
 Instead of specifying the source of the document being percolated, the source can also be retrieved from an already
 stored document. The `percolate` query will then internally execute a get request to fetch that document.
@@ -142,7 +143,7 @@ In that case the `document` parameter can be substituted with the following para
 
 [horizontal]
 `index`:: The index the document resides in. This is a required parameter.
-`type`:: The type of the document to fetch. This is a required parameter.
+`type`:: The type of the document to fetch. This parameter is deprecated and will be removed in Elasticsearch 8.0.
 `id`:: The id of the document to fetch. This is a required parameter.
 `routing`:: Optionally, routing to be used to fetch document to percolate.
 `preference`:: Optionally, preference to be used to fetch document to percolate.
@@ -237,14 +238,17 @@ GET /my-index/_search
     "failed": 0
   },
   "hits": {
-    "total": 1,
-    "max_score": 1.5606477,
+    "total" : {
+        "value": 1,
+        "relation": "eq"
+    },
+    "max_score": 0.7093853,
     "hits": [
       {
         "_index": "my-index",
         "_type": "_doc",
         "_id": "1",
-        "_score": 1.5606477,
+        "_score": 0.7093853,
         "_source": {
           "query": {
             "match": {
@@ -319,7 +323,6 @@ GET /my-index/_search
         "percolate" : {
             "field": "query",
             "index" : "my-index",
-            "type" : "_doc",
             "id" : "2",
             "version" : 1 <1>
         }
@@ -417,14 +420,17 @@ This will yield the following response.
     "failed": 0
   },
   "hits": {
-    "total": 2,
-    "max_score": 0.5753642,
+    "total" : {
+        "value": 2,
+        "relation": "eq"
+    },
+    "max_score": 0.26152915,
     "hits": [
       {
         "_index": "my-index",
         "_type": "_doc",
         "_id": "3",
-        "_score": 0.5753642,
+        "_score": 0.26152915,
         "_source": {
           "query": {
             "match": {
@@ -445,7 +451,7 @@ This will yield the following response.
         "_index": "my-index",
         "_type": "_doc",
         "_id": "4",
-        "_score": 0.5753642,
+        "_score": 0.26152915,
         "_source": {
           "query": {
             "match": {
@@ -522,14 +528,17 @@ The slightly different response:
     "failed": 0
   },
   "hits": {
-    "total": 1,
-    "max_score": 1.5606477,
+    "total" : {
+        "value": 1,
+        "relation": "eq"
+    },
+    "max_score": 0.7093853,
     "hits": [
       {
         "_index": "my-index",
         "_type": "_doc",
         "_id": "1",
-        "_score": 1.5606477,
+        "_score": 0.7093853,
         "_source": {
           "query": {
             "match": {
@@ -618,14 +627,17 @@ The above search request returns a response similar to this:
     "failed": 0
   },
   "hits": {
-    "total": 1,
-    "max_score": 0.5753642,
+    "total" : {
+        "value": 1,
+        "relation": "eq"
+    },
+    "max_score": 0.26152915,
     "hits": [
       {
         "_index": "my-index",
         "_type": "_doc",
         "_id": "1",
-        "_score": 0.5753642,
+        "_score": 0.26152915,
         "_source": {
           "query": {
             "match": {

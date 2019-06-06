@@ -26,10 +26,8 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -49,7 +47,7 @@ public final class GlobalPrivileges implements ToXContentObject {
 
     // When categories change, adapting this field should suffice. Categories are NOT
     // opaque "named_objects", we wish to maintain control over these namespaces
-    static final List<String> CATEGORIES = Collections.unmodifiableList(Arrays.asList("application"));
+    public static final List<String> CATEGORIES = Collections.singletonList("application");
 
     @SuppressWarnings("unchecked")
     static final ConstructingObjectParser<GlobalPrivileges, Void> PARSER = new ConstructingObjectParser<>("global_category_privileges",
@@ -83,7 +81,7 @@ public final class GlobalPrivileges implements ToXContentObject {
             throw new IllegalArgumentException("Privileges cannot be empty or null");
         }
         // duplicates are just ignored
-        this.privileges = Collections.unmodifiableSet(new HashSet<>(Objects.requireNonNull(privileges)));
+        this.privileges = Set.copyOf(Objects.requireNonNull(privileges));
         this.privilegesByCategoryMap = Collections
                 .unmodifiableMap(this.privileges.stream().collect(Collectors.groupingBy(GlobalOperationPrivilege::getCategory)));
         for (final Map.Entry<String, List<GlobalOperationPrivilege>> privilegesByCategory : privilegesByCategoryMap.entrySet()) {

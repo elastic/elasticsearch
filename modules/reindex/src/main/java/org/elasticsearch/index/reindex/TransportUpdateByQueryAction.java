@@ -30,7 +30,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.IndexFieldMapper;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
@@ -71,7 +70,7 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
                 ClusterState state = clusterService.state();
                 ParentTaskAssigningClient assigningClient = new ParentTaskAssigningClient(client, clusterService.localNode(),
                     bulkByScrollTask);
-                new AsyncIndexBySearchAction(bulkByScrollTask, logger, assigningClient, threadPool, request, scriptService, state,
+                new AsyncIndexBySearchAction(bulkByScrollTask, logger, assigningClient, threadPool, this, request, state,
                     listener).start();
             }
         );
@@ -80,27 +79,22 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
     /**
      * Simple implementation of update-by-query using scrolling and bulk.
      */
-    static class AsyncIndexBySearchAction extends AbstractAsyncBulkByScrollAction<UpdateByQueryRequest> {
-        AsyncIndexBySearchAction(BulkByScrollTask task, Logger logger, ParentTaskAssigningClient client,
-                ThreadPool threadPool, UpdateByQueryRequest request, ScriptService scriptService, ClusterState clusterState,
-                ActionListener<BulkByScrollResponse> listener) {
-            super(task, logger, client, threadPool, request, scriptService, clusterState, listener);
-        }
+    static class AsyncIndexBySearchAction extends AbstractAsyncBulkByScrollAction<UpdateByQueryRequest, TransportUpdateByQueryAction> {
 
-        @Override
-        protected boolean needsSourceDocumentVersions() {
-            /*
-             * We always need the version of the source document so we can report a version conflict if we try to delete it and it has been
-             * changed.
-             */
-            return true;
+        AsyncIndexBySearchAction(BulkByScrollTask task, Logger logger, ParentTaskAssigningClient client,
+                ThreadPool threadPool, TransportUpdateByQueryAction action, UpdateByQueryRequest request, ClusterState clusterState,
+                ActionListener<BulkByScrollResponse> listener) {
+            super(task,
+                // use sequence number powered optimistic concurrency control
+                false, true,
+                logger, client, threadPool, action, request, listener);
         }
 
         @Override
         public BiFunction<RequestWrapper<?>, ScrollableHitSource.Hit, RequestWrapper<?>> buildScriptApplier() {
             Script script = mainRequest.getScript();
             if (script != null) {
-                return new UpdateByQueryScriptApplier(worker, scriptService, script, script.getParams());
+                return new UpdateByQueryScriptApplier(worker, mainAction.scriptService, script, script.getParams());
             }
             return super.buildScriptApplier();
         }
@@ -112,8 +106,8 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
             index.type(doc.getType());
             index.id(doc.getId());
             index.source(doc.getSource(), doc.getXContentType());
-            index.versionType(VersionType.INTERNAL);
-            index.version(doc.getVersion());
+            index.setIfSeqNo(doc.getSeqNo());
+            index.setIfPrimaryTerm(doc.getPrimaryTerm());
             index.setPipeline(mainRequest.getPipeline());
             return wrap(index);
         }

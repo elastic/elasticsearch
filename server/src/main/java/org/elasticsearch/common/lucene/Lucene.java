@@ -128,6 +128,9 @@ public class Lucene {
 
     public static final TopDocs EMPTY_TOP_DOCS = new TopDocs(new TotalHits(0, TotalHits.Relation.EQUAL_TO), EMPTY_SCORE_DOCS);
 
+    private Lucene() {
+    }
+
     public static Version parseVersion(@Nullable String version, Version defaultVersion, Logger logger) {
         if (version == null) {
             return defaultVersion;
@@ -201,7 +204,7 @@ public class Lucene {
         try (Lock writeLock = directory.obtainLock(IndexWriter.WRITE_LOCK_NAME)) {
             int foundSegmentFiles = 0;
             for (final String file : directory.listAll()) {
-                /**
+                /*
                  * we could also use a deletion policy here but in the case of snapshot and restore
                  * sometimes we restore an index and override files that were referenced by a "future"
                  * commit. If such a commit is opened by the IW it would likely throw a corrupted index exception
@@ -227,7 +230,7 @@ public class Lucene {
                 .setCommitOnClose(false)
                 .setMergePolicy(NoMergePolicy.INSTANCE)
                 .setOpenMode(IndexWriterConfig.OpenMode.APPEND))) {
-            // do nothing and close this will kick of IndexFileDeleter which will remove all pending files
+            // do nothing and close this will kick off IndexFileDeleter which will remove all pending files
         }
         return si;
     }
@@ -298,12 +301,9 @@ public class Lucene {
         return false;
     }
 
-    private static TotalHits readTotalHits(StreamInput in) throws IOException {
+    public static TotalHits readTotalHits(StreamInput in) throws IOException {
         long totalHits = in.readVLong();
-        TotalHits.Relation totalHitsRelation = TotalHits.Relation.EQUAL_TO;
-        if (in.getVersion().onOrAfter(org.elasticsearch.Version.V_7_0_0)) {
-            totalHitsRelation = in.readEnum(TotalHits.Relation.class);
-        }
+        TotalHits.Relation totalHitsRelation = in.readEnum(TotalHits.Relation.class);
         return new TotalHits(totalHits, totalHitsRelation);
     }
 
@@ -321,12 +321,7 @@ public class Lucene {
         } else if (type == 1) {
             TotalHits totalHits = readTotalHits(in);
             float maxScore = in.readFloat();
-
-            SortField[] fields = new SortField[in.readVInt()];
-            for (int i = 0; i < fields.length; i++) {
-                fields[i] = readSortField(in);
-            }
-
+            SortField[] fields = in.readArray(Lucene::readSortField, SortField[]::new);
             FieldDoc[] fieldDocs = new FieldDoc[in.readVInt()];
             for (int i = 0; i < fieldDocs.length; i++) {
                 fieldDocs[i] = readFieldDoc(in);
@@ -337,10 +332,7 @@ public class Lucene {
             float maxScore = in.readFloat();
 
             String field = in.readString();
-            SortField[] fields = new SortField[in.readVInt()];
-            for (int i = 0; i < fields.length; i++) {
-               fields[i] = readSortField(in);
-            }
+            SortField[] fields = in.readArray(Lucene::readSortField, SortField[]::new);
             int size = in.readVInt();
             Object[] collapseValues = new Object[size];
             FieldDoc[] fieldDocs = new FieldDoc[size];
@@ -385,7 +377,7 @@ public class Lucene {
         return new FieldDoc(in.readVInt(), in.readFloat(), cFields);
     }
 
-    private static Comparable readSortValue(StreamInput in) throws IOException {
+    public static Comparable readSortValue(StreamInput in) throws IOException {
         byte type = in.readByte();
         if (type == 0) {
             return null;
@@ -418,13 +410,9 @@ public class Lucene {
 
     private static final Class<?> GEO_DISTANCE_SORT_TYPE_CLASS = LatLonDocValuesField.newDistanceSort("some_geo_field", 0, 0).getClass();
 
-    private static void writeTotalHits(StreamOutput out, TotalHits totalHits) throws IOException {
+    public static void writeTotalHits(StreamOutput out, TotalHits totalHits) throws IOException {
         out.writeVLong(totalHits.value);
-        if (out.getVersion().onOrAfter(org.elasticsearch.Version.V_7_0_0)) {
-            out.writeEnum(totalHits.relation);
-        } else if (totalHits.value > 0 && totalHits.relation != TotalHits.Relation.EQUAL_TO) {
-            throw new IllegalArgumentException("Cannot serialize approximate total hit counts to nodes that are on a version < 7.0.0");
-        }
+        out.writeEnum(totalHits.relation);
     }
 
     public static void writeTopDocs(StreamOutput out, TopDocsAndMaxScore topDocs) throws IOException {
@@ -436,11 +424,7 @@ public class Lucene {
             out.writeFloat(topDocs.maxScore);
 
             out.writeString(collapseDocs.field);
-
-            out.writeVInt(collapseDocs.fields.length);
-            for (SortField sortField : collapseDocs.fields) {
-               writeSortField(out, sortField);
-            }
+            out.writeArray(Lucene::writeSortField, collapseDocs.fields);
 
             out.writeVInt(topDocs.topDocs.scoreDocs.length);
             for (int i = 0; i < topDocs.topDocs.scoreDocs.length; i++) {
@@ -455,10 +439,7 @@ public class Lucene {
             writeTotalHits(out, topDocs.topDocs.totalHits);
             out.writeFloat(topDocs.maxScore);
 
-            out.writeVInt(topFieldDocs.fields.length);
-            for (SortField sortField : topFieldDocs.fields) {
-              writeSortField(out, sortField);
-            }
+            out.writeArray(Lucene::writeSortField, topFieldDocs.fields);
 
             out.writeVInt(topDocs.topDocs.scoreDocs.length);
             for (ScoreDoc doc : topFieldDocs.scoreDocs) {
@@ -501,8 +482,7 @@ public class Lucene {
         }
     }
 
-
-    private static void writeSortValue(StreamOutput out, Object field) throws IOException {
+    public static void writeSortValue(StreamOutput out, Object field) throws IOException {
         if (field == null) {
             out.writeByte((byte) 0);
         } else {
@@ -626,9 +606,8 @@ public class Lucene {
     }
 
     private static Number readExplanationValue(StreamInput in) throws IOException {
-        if (in.getVersion().onOrAfter(org.elasticsearch.Version.V_7_0_0)) {
-            final int numberType = in.readByte();
-            switch (numberType) {
+        final int numberType = in.readByte();
+        switch (numberType) {
             case 0:
                 return in.readFloat();
             case 1:
@@ -637,9 +616,6 @@ public class Lucene {
                 return in.readZLong();
             default:
                 throw new IOException("Unexpected number type: " + numberType);
-            }
-        } else {
-            return in.readFloat();
         }
     }
 
@@ -658,19 +634,15 @@ public class Lucene {
     }
 
     private static void writeExplanationValue(StreamOutput out, Number value) throws IOException {
-        if (out.getVersion().onOrAfter(org.elasticsearch.Version.V_7_0_0)) {
-            if (value instanceof Float) {
-                out.writeByte((byte) 0);
-                out.writeFloat(value.floatValue());
-            } else if (value instanceof Double) {
-                out.writeByte((byte) 1);
-                out.writeDouble(value.doubleValue());
-            } else {
-                out.writeByte((byte) 2);
-                out.writeZLong(value.longValue());
-            }
-        } else {
+        if (value instanceof Float) {
+            out.writeByte((byte) 0);
             out.writeFloat(value.floatValue());
+        } else if (value instanceof Double) {
+            out.writeByte((byte) 1);
+            out.writeDouble(value.doubleValue());
+        } else {
+            out.writeByte((byte) 2);
+            out.writeZLong(value.longValue());
         }
     }
 
@@ -687,11 +659,7 @@ public class Lucene {
         }
     }
 
-    private Lucene() {
-
-    }
-
-    public static final boolean indexExists(final Directory directory) throws IOException {
+    public static boolean indexExists(final Directory directory) throws IOException {
         return DirectoryReader.indexExists(directory);
     }
 
@@ -701,7 +669,7 @@ public class Lucene {
      *
      * Will retry the directory every second for at least {@code timeLimitMillis}
      */
-    public static final boolean waitForIndex(final Directory directory, final long timeLimitMillis)
+    public static boolean waitForIndex(final Directory directory, final long timeLimitMillis)
             throws IOException {
         final long DELAY = 1000;
         long waited = 0;
@@ -956,18 +924,17 @@ public class Lucene {
             super(in, new SubReaderWrapper() {
                 @Override
                 public LeafReader wrap(LeafReader leaf) {
-                    SegmentReader segmentReader = segmentReader(leaf);
-                    Bits hardLiveDocs = segmentReader.getHardLiveDocs();
+                    final SegmentReader segmentReader = segmentReader(leaf);
+                    final Bits hardLiveDocs = segmentReader.getHardLiveDocs();
                     if (hardLiveDocs == null) {
                         return new LeafReaderWithLiveDocs(leaf, null, leaf.maxDoc());
                     }
-                    // TODO: Can we avoid calculate numDocs by using SegmentReader#getSegmentInfo with LUCENE-8458?
-                    int numDocs = 0;
-                    for (int i = 0; i < hardLiveDocs.length(); i++) {
-                        if (hardLiveDocs.get(i)) {
-                            numDocs++;
-                        }
-                    }
+                    // Once soft-deletes is enabled, we no longer hard-update or hard-delete documents directly.
+                    // Two scenarios that we have hard-deletes: (1) from old segments where soft-deletes was disabled,
+                    // (2) when IndexWriter hits non-aborted exceptions. These two cases, IW flushes SegmentInfos
+                    // before exposing the hard-deletes, thus we can use the hard-delete count of SegmentInfos.
+                    final int numDocs = segmentReader.maxDoc() - segmentReader.getSegmentInfo().getDelCount();
+                    assert numDocs == popCount(hardLiveDocs) : numDocs + " != " + popCount(hardLiveDocs);
                     return new LeafReaderWithLiveDocs(segmentReader, hardLiveDocs, numDocs);
                 }
             });
@@ -982,6 +949,17 @@ public class Lucene {
         public CacheHelper getReaderCacheHelper() {
             return null; // Modifying liveDocs
         }
+    }
+
+    private static int popCount(Bits bits) {
+        assert bits != null;
+        int onBits = 0;
+        for (int i = 0; i < bits.length(); i++) {
+            if (bits.get(i)) {
+                onBits++;
+            }
+        }
+        return onBits;
     }
 
     /**
@@ -1060,7 +1038,7 @@ public class Lucene {
             }
 
             public LeafMetaData getMetaData() {
-                return new LeafMetaData(Version.LATEST.major, Version.LATEST, (Sort)null);
+                return new LeafMetaData(Version.LATEST.major, Version.LATEST, null);
             }
 
             public CacheHelper getCoreCacheHelper() {

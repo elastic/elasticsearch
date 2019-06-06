@@ -6,28 +6,17 @@
 
 package org.elasticsearch.xpack.security.authc.kerberos;
 
-import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.settings.SecureString;
-import org.elasticsearch.xpack.security.authc.kerberos.KerberosTicketValidator;
 import org.ietf.jgss.GSSContext;
 import org.ietf.jgss.GSSCredential;
 import org.ietf.jgss.GSSException;
 import org.ietf.jgss.GSSManager;
 import org.ietf.jgss.GSSName;
-
-import java.io.IOException;
-import java.security.AccessController;
-import java.security.Principal;
-import java.security.PrivilegedActionException;
-import java.security.PrivilegedExceptionAction;
-import java.util.Base64;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Set;
+import org.ietf.jgss.Oid;
 
 import javax.security.auth.Subject;
 import javax.security.auth.callback.Callback;
@@ -40,9 +29,20 @@ import javax.security.auth.login.Configuration;
 import javax.security.auth.login.LoginContext;
 import javax.security.auth.login.LoginException;
 
+import java.io.IOException;
+import java.security.AccessController;
+import java.security.Principal;
+import java.security.PrivilegedActionException;
+import java.security.PrivilegedExceptionAction;
+import java.util.Base64;
+import java.util.Collections;
+import java.util.Map;
+import java.util.Set;
+
 /**
  * This class is used as a Spnego client during testing and handles SPNEGO
  * interactions using GSS context negotiation.<br>
+ * It supports Kerberos V5 and Spnego mechanism.<br>
  * It is not advisable to share a SpnegoClient between threads as there is no
  * synchronization in place, internally this depends on {@link GSSContext} for
  * context negotiation which maintains sequencing for replay detections.<br>
@@ -62,14 +62,17 @@ class SpnegoClient implements AutoCloseable {
      * Creates SpengoClient to interact with given service principal<br>
      * Use {@link #close()} to logout {@link LoginContext} and dispose
      * {@link GSSContext} after usage.
+     *
      * @param userPrincipalName User principal name for login as client
      * @param password password for client
      * @param servicePrincipalName Service principal name with whom this client
-     *            interacts with.
+     * interacts with.
+     * @param mechanism the Oid of the desired mechanism. Use (Oid) null to request
+     * the default mechanism.
      * @throws PrivilegedActionException when privileged action threw exception
      * @throws GSSException thrown when GSS API error occurs
      */
-    SpnegoClient(final String userPrincipalName, final SecureString password, final String servicePrincipalName)
+    SpnegoClient(final String userPrincipalName, final SecureString password, final String servicePrincipalName, final Oid mechanism)
             throws PrivilegedActionException, GSSException {
         String oldUseSubjectCredsOnlyFlag = null;
         try {
@@ -81,9 +84,9 @@ class SpnegoClient implements AutoCloseable {
                     .doPrivileged((PrivilegedExceptionAction<LoginContext>) () -> loginUsingPassword(userPrincipalName, password));
             final GSSCredential userCreds = KerberosTestCase.doAsWrapper(loginContext.getSubject(),
                     (PrivilegedExceptionAction<GSSCredential>) () -> gssManager.createCredential(gssUserPrincipalName,
-                            GSSCredential.DEFAULT_LIFETIME, KerberosTicketValidator.SPNEGO_OID, GSSCredential.INITIATE_ONLY));
-            gssContext = gssManager.createContext(gssServicePrincipalName.canonicalize(KerberosTicketValidator.SPNEGO_OID),
-                    KerberosTicketValidator.SPNEGO_OID, userCreds, GSSCredential.DEFAULT_LIFETIME);
+                            GSSCredential.DEFAULT_LIFETIME, mechanism, GSSCredential.INITIATE_ONLY));
+            gssContext = gssManager.createContext(gssServicePrincipalName.canonicalize(mechanism),
+                    mechanism, userCreds, GSSCredential.DEFAULT_LIFETIME);
             gssContext.requestMutualAuth(true);
         } catch (PrivilegedActionException pve) {
             LOGGER.error("privileged action exception, with root cause", pve.getException());
@@ -192,16 +195,17 @@ class SpnegoClient implements AutoCloseable {
 
         @Override
         public AppConfigurationEntry[] getAppConfigurationEntry(final String name) {
-            final Map<String, String> options = new HashMap<>();
-            options.put("principal", principal);
-            options.put("storeKey", Boolean.TRUE.toString());
-            options.put("isInitiator", Boolean.TRUE.toString());
-            options.put("debug", Boolean.TRUE.toString());
-            // Refresh Krb5 config during tests as the port keeps changing for kdc server
-            options.put("refreshKrb5Config", Boolean.TRUE.toString());
 
-            return new AppConfigurationEntry[] { new AppConfigurationEntry(SUN_KRB5_LOGIN_MODULE,
-                    AppConfigurationEntry.LoginModuleControlFlag.REQUIRED, Collections.unmodifiableMap(options)) };
+            return new AppConfigurationEntry[]{new AppConfigurationEntry(
+                    SUN_KRB5_LOGIN_MODULE,
+                    AppConfigurationEntry.LoginModuleControlFlag.REQUIRED,
+                    Map.of(
+                            "principal", principal,
+                            "storeKey", Boolean.TRUE.toString(),
+                            "isInitiator", Boolean.TRUE.toString(),
+                            "debug", Boolean.TRUE.toString(),
+                            // refresh Krb5 config during tests as the port keeps changing for kdc server
+                            "refreshKrb5Config", Boolean.TRUE.toString()))};
         }
     }
 

@@ -23,7 +23,7 @@ esplugin {
 }
 
 versions << [
-  'aws': '1.11.187'
+  'aws': '1.11.505'
 ]
 
 dependencies {
@@ -32,9 +32,10 @@ dependencies {
   compile "org.apache.httpcomponents:httpclient:${versions.httpclient}"
   compile "org.apache.httpcomponents:httpcore:${versions.httpcore}"
   compile "commons-logging:commons-logging:${versions.commonslogging}"
+  compile "org.apache.logging.log4j:log4j-1.2-api:${versions.log4j}"
   compile "commons-codec:commons-codec:${versions.commonscodec}"
-  compile 'com.fasterxml.jackson.core:jackson-databind:2.6.7.1'
-  compile 'com.fasterxml.jackson.core:jackson-annotations:2.6.0'
+  compile 'com.fasterxml.jackson.core:jackson-databind:2.8.11.3'
+  compile "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}"
 }
 
 dependencyLicenses {
@@ -79,7 +80,7 @@ check {
   dependsOn 'qa:amazon-ec2:check'
 }
 
-thirdPartyAudit.excludes = [
+thirdPartyAudit.ignoreMissingClasses (
   // classes are missing
   'com.amazonaws.jmespath.JmesPathEvaluationVisitor',
   'com.amazonaws.jmespath.JmesPathExpression',
@@ -105,12 +106,10 @@ thirdPartyAudit.excludes = [
   'javax.servlet.ServletContextListener', 
   'org.apache.avalon.framework.logger.Logger', 
   'org.apache.log.Hierarchy', 
-  'org.apache.log.Logger',
-]
+  'org.apache.log.Logger'
+)
 
-if (project.runtimeJavaVersion > JavaVersion.VERSION_1_8) {
-  thirdPartyAudit.excludes += [
-    'javax.xml.bind.DatatypeConverter',
-    'javax.xml.bind.JAXBContext'
-  ]
-}
+thirdPartyAudit.ignoreMissingClasses (
+  'javax.xml.bind.DatatypeConverter',
+  'javax.xml.bind.JAXBContext'
+)

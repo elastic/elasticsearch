@@ -87,6 +87,18 @@ public final class PainlessLookup {
         return classesToPainlessClasses.keySet();
     }
 
+    public Set<String> getImportedPainlessMethodsKeys() {
+        return painlessMethodKeysToImportedPainlessMethods.keySet();
+    }
+
+    public Set<String> getPainlessClassBindingsKeys() {
+        return painlessMethodKeysToPainlessClassBindings.keySet();
+    }
+
+    public Set<String> getPainlessInstanceBindingsKeys() {
+        return painlessMethodKeysToPainlessInstanceBindings.keySet();
+    }
+
     public PainlessClass lookupPainlessClass(Class<?> targetClass) {
         return classesToPainlessClasses.get(targetClass);
     }
@@ -227,7 +239,8 @@ public final class PainlessLookup {
         Objects.requireNonNull(methodName);
 
         String painlessMethodKey = buildPainlessMethodKey(methodName, methodArity);
-        Function<PainlessClass, PainlessMethod> objectLookup = targetPainlessClass -> targetPainlessClass.methods.get(painlessMethodKey);
+        Function<PainlessClass, PainlessMethod> objectLookup =
+                targetPainlessClass -> targetPainlessClass.runtimeMethods.get(painlessMethodKey);
 
         return lookupRuntimePainlessObject(originalTargetClass, objectLookup);
     }

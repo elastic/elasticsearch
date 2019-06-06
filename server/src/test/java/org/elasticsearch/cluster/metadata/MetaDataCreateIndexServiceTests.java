@@ -50,8 +50,8 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
-import java.util.HashSet;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
@@ -99,21 +99,6 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
         return source * x == target;
     }
 
-    public void testNumberOfShards() {
-        {
-            final Version versionCreated = VersionUtils.randomVersionBetween(
-                    random(),
-                    Version.V_6_0_0_alpha1, VersionUtils.getPreviousVersion(Version.V_7_0_0));
-            final Settings.Builder indexSettingsBuilder = Settings.builder().put(SETTING_VERSION_CREATED, versionCreated);
-            assertThat(MetaDataCreateIndexService.IndexCreationTask.getNumberOfShards(indexSettingsBuilder), equalTo(5));
-        }
-        {
-            final Version versionCreated = VersionUtils.randomVersionBetween(random(), Version.V_7_0_0, Version.CURRENT);
-            final Settings.Builder indexSettingsBuilder = Settings.builder().put(SETTING_VERSION_CREATED, versionCreated);
-            assertThat(MetaDataCreateIndexService.IndexCreationTask.getNumberOfShards(indexSettingsBuilder), equalTo(1));
-        }
-    }
-
     public void testValidateShrinkIndex() {
         int numShards = randomIntBetween(2, 42);
         ClusterState state = createClusterState("source", numShards, randomIntBetween(0, 10),
@@ -153,7 +138,7 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
                 MetaDataCreateIndexService.validateShrinkIndex(state, "source", Collections.emptySet(), "target", targetSettings)
 
             ).getMessage());
-        assertEquals("the number of source shards [8] must be a must be a multiple of [3]",
+        assertEquals("the number of source shards [8] must be a multiple of [3]",
             expectThrows(IllegalArgumentException.class, () ->
                     MetaDataCreateIndexService.validateShrinkIndex(createClusterState("source", 8, randomIntBetween(0, 10),
                         Settings.builder().put("index.blocks.write", true).build()), "source", Collections.emptySet(), "target",
@@ -220,7 +205,7 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
             ).getMessage());
 
 
-        assertEquals("the number of source shards [3] must be a must be a factor of [4]",
+        assertEquals("the number of source shards [3] must be a factor of [4]",
             expectThrows(IllegalArgumentException.class, () ->
                 MetaDataCreateIndexService.validateSplitIndex(createClusterState("source", 3, randomIntBetween(0, 10),
                     Settings.builder().put("index.blocks.write", true).build()), "source", Collections.emptySet(), "target",
@@ -408,8 +393,11 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
     }
 
     private DiscoveryNode newNode(String nodeId) {
-        return new DiscoveryNode(nodeId, buildNewFakeTransportAddress(), emptyMap(),
-            Collections.unmodifiableSet(new HashSet<>(Arrays.asList(DiscoveryNode.Role.MASTER, DiscoveryNode.Role.DATA))), Version.CURRENT);
+        return new DiscoveryNode(
+                nodeId,
+                buildNewFakeTransportAddress(),
+                emptyMap(),
+                Set.of(DiscoveryNode.Role.MASTER, DiscoveryNode.Role.DATA), Version.CURRENT);
     }
 
     public void testValidateIndexName() throws Exception {
@@ -445,12 +433,6 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
         assertEquals(2048, MetaDataCreateIndexService.calculateNumRoutingShards(1024, Version.CURRENT));
         assertEquals(4096, MetaDataCreateIndexService.calculateNumRoutingShards(2048, Version.CURRENT));
 
-        Version latestV6 = VersionUtils.getPreviousVersion(Version.V_7_0_0);
-        int numShards = randomIntBetween(1, 1000);
-        assertEquals(numShards, MetaDataCreateIndexService.calculateNumRoutingShards(numShards, latestV6));
-        assertEquals(numShards, MetaDataCreateIndexService.calculateNumRoutingShards(numShards,
-            VersionUtils.randomVersionBetween(random(), VersionUtils.getFirstVersion(), latestV6)));
-
         for (int i = 0; i < 1000; i++) {
             int randomNumShards = randomIntBetween(1, 10000);
             int numRoutingShards = MetaDataCreateIndexService.calculateNumRoutingShards(randomNumShards, Version.CURRENT);
@@ -463,7 +445,7 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
 
             double ratio = numRoutingShards / randomNumShards;
             int intRatio = (int) ratio;
-            assertEquals(ratio, (double)(intRatio), 0.0d);
+            assertEquals(ratio, intRatio, 0.0d);
             assertTrue(1 < ratio);
             assertTrue(ratio <= 1024);
             assertEquals(0, intRatio % 2);
@@ -471,7 +453,7 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
         }
     }
 
-    public void testShardLimitDeprecationWarning() {
+    public void testShardLimit() {
         int nodesInCluster = randomIntBetween(2,100);
         ClusterShardLimitIT.ShardCounts counts = forDataNodeCount(nodesInCluster);
         Settings clusterSettings = Settings.builder()
@@ -487,13 +469,13 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
             .build();
 
         DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
-        MetaDataCreateIndexService.checkShardLimit(indexSettings, state, deprecationLogger);
+        Optional<String> errorMessage = MetaDataCreateIndexService.checkShardLimit(indexSettings, state);
         int totalShards = counts.getFailingIndexShards() * (1 + counts.getFailingIndexReplicas());
         int currentShards = counts.getFirstIndexShards() * (1 + counts.getFirstIndexReplicas());
         int maxShards = counts.getShardsPerNode() * nodesInCluster;
-        assertWarnings("In a future major version, this request will fail because this action would add [" +
-            totalShards + "] total shards, but this cluster currently has [" + currentShards + "]/[" + maxShards + "] maximum shards open."+
-            " Before upgrading, reduce the number of shards in your cluster or adjust the cluster setting [cluster.max_shards_per_node].");
+        assertTrue(errorMessage.isPresent());
+        assertEquals("this action would add [" + totalShards + "] total shards, but this cluster currently has [" + currentShards
+            + "]/[" + maxShards + "] maximum shards open", errorMessage.get());
     }
 
 }

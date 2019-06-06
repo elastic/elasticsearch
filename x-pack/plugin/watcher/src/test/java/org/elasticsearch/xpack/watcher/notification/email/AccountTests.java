@@ -116,8 +116,9 @@ public class AccountTests extends ESTestCase {
         String password = null;
         if (randomBoolean()) {
             password = randomAlphaOfLength(8);
-            smtpBuilder.put("password", password);
-            smtpProps.put("mail.smtp.password", password);
+            final MockSecureSettings secureSettings = new MockSecureSettings();
+            secureSettings.setString("smtp." + Account.SECURE_PASSWORD_SETTING.getKey(), password);
+            builder.setSecureSettings(secureSettings);
         }
         for (int i = 0; i < 5; i++) {
             String name = randomAlphaOfLength(5);
@@ -157,11 +158,13 @@ public class AccountTests extends ESTestCase {
     }
 
     public void testSend() throws Exception {
+        final MockSecureSettings secureSettings = new MockSecureSettings();
+        secureSettings.setString("smtp." + Account.SECURE_PASSWORD_SETTING.getKey(), EmailServer.PASSWORD);
         Account account = new Account(new Account.Config("default", Settings.builder()
                 .put("smtp.host", "localhost")
                 .put("smtp.port", server.port())
                 .put("smtp.user", EmailServer.USERNAME)
-                .put("smtp.password", EmailServer.PASSWORD)
+                .setSecureSettings(secureSettings)
                 .build()), null, logger);
 
         Email email = Email.builder()
@@ -192,11 +195,13 @@ public class AccountTests extends ESTestCase {
     }
 
     public void testSendCCAndBCC() throws Exception {
+        final MockSecureSettings secureSettings = new MockSecureSettings();
+        secureSettings.setString("smtp." + Account.SECURE_PASSWORD_SETTING.getKey(), EmailServer.PASSWORD);
         Account account = new Account(new Account.Config("default", Settings.builder()
                 .put("smtp.host", "localhost")
                 .put("smtp.port", server.port())
                 .put("smtp.user", EmailServer.USERNAME)
-                .put("smtp.password", EmailServer.PASSWORD)
+                .setSecureSettings(secureSettings)
                 .build()), null, logger);
 
         Email email = Email.builder()
@@ -293,29 +298,4 @@ public class AccountTests extends ESTestCase {
         });
     }
 
-    public void testEnsurePasswordSetAsSecureSetting() {
-        String password = "password";
-        MockSecureSettings secureSettings = new MockSecureSettings();
-        secureSettings.setString("smtp.secure_password", password);
-
-        Settings settings = Settings.builder()
-            .put("smtp.host", "localhost")
-            .put("smtp.port", server.port())
-            .put("smtp.connection_timeout", TimeValue.timeValueMinutes(4))
-            .setSecureSettings(secureSettings)
-            .build();
-
-        Account.Config config = new Account.Config("default", settings);
-        assertThat(config.smtp.password.getChars(), equalTo(password.toCharArray()));
-
-        settings = Settings.builder()
-            .put("smtp.host", "localhost")
-            .put("smtp.port", server.port())
-            .put("smtp.connection_timeout", TimeValue.timeValueMinutes(4))
-            .put("smtp.password", password)
-            .build();
-
-        config = new Account.Config("default", settings);
-        assertThat(config.smtp.password.getChars(), equalTo(password.toCharArray()));
-    }
 }

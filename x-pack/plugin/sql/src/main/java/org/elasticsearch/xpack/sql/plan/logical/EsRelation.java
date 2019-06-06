@@ -8,8 +8,8 @@ package org.elasticsearch.xpack.sql.plan.logical;
 import org.elasticsearch.xpack.sql.analysis.index.EsIndex;
 import org.elasticsearch.xpack.sql.expression.Attribute;
 import org.elasticsearch.xpack.sql.expression.FieldAttribute;
-import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.type.EsField;
 
 import java.util.ArrayList;
@@ -24,23 +24,25 @@ public class EsRelation extends LeafPlan {
 
     private final EsIndex index;
     private final List<Attribute> attrs;
+    private final boolean frozen;
 
-    public EsRelation(Location location, EsIndex index) {
-        super(location);
+    public EsRelation(Source source, EsIndex index, boolean frozen) {
+        super(source);
         this.index = index;
-        attrs = flatten(location, index.mapping());
+        this.attrs = flatten(source, index.mapping());
+        this.frozen = frozen;
     }
 
     @Override
     protected NodeInfo<EsRelation> info() {
-        return NodeInfo.create(this, EsRelation::new, index);
+        return NodeInfo.create(this, EsRelation::new, index, frozen);
     }
 
-    private static List<Attribute> flatten(Location location, Map<String, EsField> mapping) {
-        return flatten(location, mapping, null);
+    private static List<Attribute> flatten(Source source, Map<String, EsField> mapping) {
+        return flatten(source, mapping, null);
     }
 
-    private static List<Attribute> flatten(Location location, Map<String, EsField> mapping, FieldAttribute parent) {
+    private static List<Attribute> flatten(Source source, Map<String, EsField> mapping, FieldAttribute parent) {
         List<Attribute> list = new ArrayList<>();
 
         for (Entry<String, EsField> entry : mapping.entrySet()) {
@@ -48,11 +50,11 @@ public class EsRelation extends LeafPlan {
             EsField t = entry.getValue();
 
             if (t != null) {
-                FieldAttribute f = new FieldAttribute(location, parent, parent != null ? parent.name() + "." + name : name, t);
+                FieldAttribute f = new FieldAttribute(source, parent, parent != null ? parent.name() + "." + name : name, t);
                 list.add(f);
                 // object or nested
                 if (t.getProperties().isEmpty() == false) {
-                    list.addAll(flatten(location, t.getProperties(), f));
+                    list.addAll(flatten(source, t.getProperties(), f));
                 }
             }
         }
@@ -61,6 +63,10 @@ public class EsRelation extends LeafPlan {
 
     public EsIndex index() {
         return index;
+    }
+
+    public boolean frozen() {
+        return frozen;
     }
 
     @Override
@@ -75,7 +81,7 @@ public class EsRelation extends LeafPlan {
 
     @Override
     public int hashCode() {
-        return Objects.hash(index);
+        return Objects.hash(index, frozen);
     }
 
     @Override
@@ -89,7 +95,8 @@ public class EsRelation extends LeafPlan {
         }
 
         EsRelation other = (EsRelation) obj;
-        return Objects.equals(index, other.index);
+        return Objects.equals(index, other.index)
+                && frozen == other.frozen;
     }
 
     private static final int TO_STRING_LIMIT = 52;

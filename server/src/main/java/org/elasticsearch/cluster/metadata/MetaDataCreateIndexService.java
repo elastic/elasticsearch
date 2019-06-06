@@ -20,8 +20,8 @@
 package org.elasticsearch.cluster.metadata;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ResourceAlreadyExistsException;
@@ -51,10 +51,8 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.ValidationException;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.PathUtils;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -100,9 +98,8 @@ import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF
 /**
  * Service responsible for submitting create index requests
  */
-public class MetaDataCreateIndexService extends AbstractComponent {
+public class MetaDataCreateIndexService {
     private static final Logger logger = LogManager.getLogger(MetaDataCreateIndexService.class);
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
 
     public static final int MAX_INDEX_NAME_BYTES = 255;
 
@@ -321,6 +318,28 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                             if (mappings.containsKey(cursor.key)) {
                                 XContentHelper.mergeDefaults(mappings.get(cursor.key),
                                     MapperService.parseMapping(xContentRegistry, mappingString));
+                            } else if (mappings.size() == 1 && cursor.key.equals(MapperService.SINGLE_MAPPING_NAME)) {
+                                // Typeless template with typed mapping
+                                Map<String, Object> templateMapping = MapperService.parseMapping(xContentRegistry, mappingString);
+                                assert templateMapping.size() == 1 : templateMapping;
+                                assert cursor.key.equals(templateMapping.keySet().iterator().next()) :
+                                    cursor.key + " != " + templateMapping;
+                                Map.Entry<String, Map<String, Object>> mappingEntry = mappings.entrySet().iterator().next();
+                                templateMapping = Collections.singletonMap(
+                                        mappingEntry.getKey(),                       // reuse type name from the mapping
+                                        templateMapping.values().iterator().next()); // but actual mappings from the template
+                                XContentHelper.mergeDefaults(mappingEntry.getValue(), templateMapping);
+                            } else if (template.mappings().size() == 1 && mappings.containsKey(MapperService.SINGLE_MAPPING_NAME)) {
+                                // Typed template with typeless mapping
+                                Map<String, Object> templateMapping = MapperService.parseMapping(xContentRegistry, mappingString);
+                                assert templateMapping.size() == 1 : templateMapping;
+                                assert cursor.key.equals(templateMapping.keySet().iterator().next()) :
+                                    cursor.key + " != " + templateMapping;
+                                Map<String, Object> mapping = mappings.get(MapperService.SINGLE_MAPPING_NAME);
+                                templateMapping = Collections.singletonMap(
+                                        MapperService.SINGLE_MAPPING_NAME,           // make template mapping typeless
+                                        templateMapping.values().iterator().next());
+                                XContentHelper.mergeDefaults(mapping, templateMapping);
                             } else {
                                 mappings.put(cursor.key,
                                     MapperService.parseMapping(xContentRegistry, mappingString));
@@ -366,8 +385,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                     indexSettingsBuilder.put(IndexMetaData.SETTING_INDEX_VERSION_CREATED.getKey(), createdVersion);
                 }
                 if (indexSettingsBuilder.get(SETTING_NUMBER_OF_SHARDS) == null) {
-                    final int numberOfShards = getNumberOfShards(indexSettingsBuilder);
-                    indexSettingsBuilder.put(SETTING_NUMBER_OF_SHARDS, settings.getAsInt(SETTING_NUMBER_OF_SHARDS, numberOfShards));
+                    indexSettingsBuilder.put(SETTING_NUMBER_OF_SHARDS, settings.getAsInt(SETTING_NUMBER_OF_SHARDS, 1));
                 }
                 if (indexSettingsBuilder.get(SETTING_NUMBER_OF_REPLICAS) == null) {
                     indexSettingsBuilder.put(SETTING_NUMBER_OF_REPLICAS, settings.getAsInt(SETTING_NUMBER_OF_REPLICAS, 1));
@@ -569,20 +587,6 @@ public class MetaDataCreateIndexService extends AbstractComponent {
             }
         }
 
-        static int getNumberOfShards(final Settings.Builder indexSettingsBuilder) {
-            // TODO: this logic can be removed when the current major version is 8
-            assert Version.CURRENT.major == 7;
-            final int numberOfShards;
-            final Version indexVersionCreated =
-                    Version.fromId(Integer.parseInt(indexSettingsBuilder.get(IndexMetaData.SETTING_INDEX_VERSION_CREATED.getKey())));
-            if (indexVersionCreated.before(Version.V_7_0_0)) {
-                numberOfShards = 5;
-            } else {
-                numberOfShards = 1;
-            }
-            return numberOfShards;
-        }
-
         @Override
         public void onFailure(String source, Exception e) {
             if (e instanceof ResourceAlreadyExistsException) {
@@ -603,7 +607,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                                       final boolean forbidPrivateIndexSettings) throws IndexCreationException {
         List<String> validationErrors = getIndexSettingsValidationErrors(settings, forbidPrivateIndexSettings);
 
-        Optional<String> shardAllocation = checkShardLimit(settings, clusterState, deprecationLogger);
+        Optional<String> shardAllocation = checkShardLimit(settings, clusterState);
         shardAllocation.ifPresent(validationErrors::add);
 
         if (validationErrors.isEmpty() == false) {
@@ -618,14 +622,13 @@ public class MetaDataCreateIndexService extends AbstractComponent {
      *
      * @param settings The settings of the index to be created.
      * @param clusterState The current cluster state.
-     * @param deprecationLogger The logger to use to emit a deprecation warning, if appropriate.
      * @return If present, an error message to be used to reject index creation. If empty, a signal that this operation may be carried out.
      */
-    static Optional<String> checkShardLimit(Settings settings, ClusterState clusterState, DeprecationLogger deprecationLogger) {
+    static Optional<String> checkShardLimit(Settings settings, ClusterState clusterState) {
         int shardsToCreate = IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.get(settings)
             * (1 + IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.get(settings));
 
-        return IndicesService.checkShardLimit(shardsToCreate, clusterState, deprecationLogger);
+        return IndicesService.checkShardLimit(shardsToCreate, clusterState);
     }
 
     List<String> getIndexSettingsValidationErrors(final Settings settings, final boolean forbidPrivateIndexSettings) {
@@ -695,13 +698,6 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                                    Settings targetIndexSettings) {
         IndexMetaData sourceMetaData = validateResize(state, sourceIndex, targetIndexMappingsTypes, targetIndexName, targetIndexSettings);
         IndexMetaData.selectSplitShard(0, sourceMetaData, IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.get(targetIndexSettings));
-        if (sourceMetaData.getCreationVersion().before(Version.V_6_0_0_alpha1)) {
-            // ensure we have a single type since this would make the splitting code considerably more complex
-            // and a 5.x index would not be splittable unless it has been shrunk before so rather opt out of the complexity
-            // since in 5.x we don't have a setting to artificially set the number of routing shards
-            throw new IllegalStateException("source index created version is too old to apply a split operation");
-        }
-
     }
 
     static IndexMetaData validateResize(ClusterState state, String sourceIndex,

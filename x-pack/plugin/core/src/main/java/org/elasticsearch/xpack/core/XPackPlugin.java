@@ -5,17 +5,15 @@
  */
 package org.elasticsearch.xpack.core;
 
-import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.SpecialPermission;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -26,7 +24,6 @@ import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.inject.Binder;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.inject.multibindings.Multibinder;
-import org.elasticsearch.common.inject.util.Providers;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -49,7 +46,6 @@ import org.elasticsearch.persistent.PersistentTaskParams;
 import org.elasticsearch.plugins.EnginePlugin;
 import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.RepositoryPlugin;
-import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
@@ -63,6 +59,7 @@ import org.elasticsearch.xpack.core.action.TransportXPackUsageAction;
 import org.elasticsearch.xpack.core.action.XPackInfoAction;
 import org.elasticsearch.xpack.core.action.XPackUsageAction;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
+import org.elasticsearch.xpack.core.rest.action.RestFreezeIndexAction;
 import org.elasticsearch.xpack.core.rest.action.RestXPackInfoAction;
 import org.elasticsearch.xpack.core.rest.action.RestXPackUsageAction;
 import org.elasticsearch.xpack.core.security.authc.TokenMetaData;
@@ -85,7 +82,7 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
-public class XPackPlugin extends XPackClientPlugin implements ScriptPlugin, ExtensiblePlugin, RepositoryPlugin, EnginePlugin {
+public class XPackPlugin extends XPackClientPlugin implements ExtensiblePlugin, RepositoryPlugin, EnginePlugin {
 
     private static Logger logger = LogManager.getLogger(XPackPlugin.class);
     private static DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
@@ -125,7 +122,6 @@ public class XPackPlugin extends XPackClientPlugin implements ScriptPlugin, Exte
 
     protected final Settings settings;
     //private final Environment env;
-    protected boolean transportClientMode;
     protected final Licensing licensing;
     // These should not be directly accessed as they cannot be overridden in tests. Please use the getters so they can be overridden.
     private static final SetOnce<XPackLicenseState> licenseState = new SetOnce<>();
@@ -137,8 +133,7 @@ public class XPackPlugin extends XPackClientPlugin implements ScriptPlugin, Exte
             final Path configPath) {
         super(settings);
         this.settings = settings;
-        this.transportClientMode = transportClientMode(settings);
-        Environment env = transportClientMode ? null : new Environment(settings, configPath);
+        Environment env = new Environment(settings, configPath);
 
         setSslService(new SSLService(settings, env));
         setLicenseState(new XPackLicenseState(settings));
@@ -197,11 +192,7 @@ public class XPackPlugin extends XPackClientPlugin implements ScriptPlugin, Exte
         // check that all nodes would be capable of deserializing newly added x-pack metadata
         final List<DiscoveryNode> notReadyNodes = StreamSupport.stream(clusterState.nodes().spliterator(), false).filter(node -> {
             final String xpackInstalledAttr = node.getAttributes().getOrDefault(XPACK_INSTALLED_NODE_ATTR, "false");
-
-            // The node attribute XPACK_INSTALLED_NODE_ATTR was only introduced in 6.3.0, so when
-            // we have an older node in this mixed-version cluster without any x-pack metadata,
-            // we want to prevent x-pack from adding custom metadata
-            return node.getVersion().before(Version.V_6_3_0) || Booleans.parseBoolean(xpackInstalledAttr) == false;
+            return Booleans.parseBoolean(xpackInstalledAttr) == false;
         }).collect(Collectors.toList());
 
         return notReadyNodes;
@@ -222,12 +213,7 @@ public class XPackPlugin extends XPackClientPlugin implements ScriptPlugin, Exte
         if (settings.get(xpackInstalledNodeAttrSetting) != null) {
             throw new IllegalArgumentException("Directly setting [" + xpackInstalledNodeAttrSetting + "] is not permitted");
         }
-
-        if (transportClientMode) {
-            return super.additionalSettings();
-        } else {
-            return Settings.builder().put(super.additionalSettings()).put(xpackInstalledNodeAttrSetting, "true").build();
-        }
+        return Settings.builder().put(super.additionalSettings()).put(xpackInstalledNodeAttrSetting, "true").build();
     }
 
     @Override
@@ -236,10 +222,6 @@ public class XPackPlugin extends XPackClientPlugin implements ScriptPlugin, Exte
         //modules.add(b -> b.bind(Clock.class).toInstance(getClock()));
         // used to get core up and running, we do not bind the actual feature set here
         modules.add(b -> XPackPlugin.createFeatureSetMultiBinder(b, EmptyXPackFeatureSet.class));
-
-        if (transportClientMode) {
-            modules.add(b -> b.bind(XPackLicenseState.class).toProvider(Providers.of(null)));
-        }
         return modules;
     }
 
@@ -297,6 +279,7 @@ public class XPackPlugin extends XPackClientPlugin implements ScriptPlugin, Exte
         List<RestHandler> handlers = new ArrayList<>();
         handlers.add(new RestXPackInfoAction(settings, restController));
         handlers.add(new RestXPackUsageAction(settings, restController));
+        handlers.add(new RestFreezeIndexAction(settings, restController));
         handlers.addAll(licensing.getRestHandlers(settings, restController, clusterSettings, indexScopedSettings, settingsFilter,
                 indexNameExpressionResolver, nodesInCluster));
         return handlers;
@@ -310,10 +293,6 @@ public class XPackPlugin extends XPackClientPlugin implements ScriptPlugin, Exte
     public static Multibinder<XPackFeatureSet> createFeatureSetMultiBinder(Binder binder, Class<? extends XPackFeatureSet> featureSet) {
         binder.bind(featureSet).asEagerSingleton();
         return Multibinder.newSetBinder(binder, XPackFeatureSet.class);
-    }
-
-    public static boolean transportClientMode(Settings settings) {
-        return TransportClient.CLIENT_TYPE.equals(settings.get(Client.CLIENT_TYPE_SETTING_S.getKey()));
     }
 
     public static Path resolveConfigFile(Environment env, String name) {
@@ -356,7 +335,8 @@ public class XPackPlugin extends XPackClientPlugin implements ScriptPlugin, Exte
     }
 
     @Override
-    public Map<String, Repository.Factory> getRepositories(Environment env, NamedXContentRegistry namedXContentRegistry) {
+    public Map<String, Repository.Factory> getRepositories(Environment env, NamedXContentRegistry namedXContentRegistry,
+                                                           ThreadPool threadPool) {
         return Collections.singletonMap("source", SourceOnlySnapshotRepository.newRepositoryFactory());
     }
 

@@ -2,11 +2,12 @@
 == Flush
 
 The flush API allows to flush one or more indices through an API. The
-flush process of an index basically frees memory from the index by
-flushing data to the index storage and clearing the internal
-<<index-modules-translog,transaction log>>. By
-default, Elasticsearch uses memory heuristics in order to automatically
-trigger flush operations as required in order to clear memory.
+flush process of an index makes sure that any data that is currently only
+persisted in the <<index-modules-translog,transaction log>> is also permanently
+persisted in Lucene. This reduces recovery times as that data doesn't need to be
+reindexed from the transaction logs after the Lucene indexed is opened. By
+default, Elasticsearch uses heuristics in order to automatically
+trigger flushes as required. It is rare for users to need to call the API directly.
 
 [source,js]
 --------------------------------------------------
@@ -22,12 +23,10 @@ POST twitter/_flush
 The flush API accepts the following request parameters:
 
 [horizontal]
-`wait_if_ongoing`::  If set to `true` the flush operation will block until the
-flush can be executed if another flush operation is already executing.
-The default is `false` and will cause an exception to be thrown on
-the shard level if another flush operation is already running.
+`wait_if_ongoing`::  If set to `true`(the default value) the flush operation will
+block until the flush can be executed if another flush operation is already executing.
 
-`force`:: Whether a flush should be forced even if it is not necessarily needed ie.
+`force`:: Whether a flush should be forced even if it is not necessarily needed i.e.
 if no changes will be committed to the index. This is useful if transaction log IDs
 should be incremented even if no uncommitted changes are present.
 (This setting can be considered as internal)
@@ -101,7 +100,8 @@ which returns something similar to:
                      "translog_generation" : "2",
                      "max_seq_no" : "-1",
                      "sync_id" : "AVvFY-071siAOuFGEO9P", <1>
-                     "max_unsafe_auto_id_timestamp" : "-1"
+                     "max_unsafe_auto_id_timestamp" : "-1",
+                     "min_retained_seq_no" : "0"
                    },
                    "num_docs" : 0
                  }

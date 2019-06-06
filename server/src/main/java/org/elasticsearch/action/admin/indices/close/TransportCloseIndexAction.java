@@ -23,10 +23,8 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.DestructiveOperations;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -42,10 +40,12 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.Collections;
+
 /**
  * Close index action
  */
-public class TransportCloseIndexAction extends TransportMasterNodeAction<CloseIndexRequest, AcknowledgedResponse> {
+public class TransportCloseIndexAction extends TransportMasterNodeAction<CloseIndexRequest, CloseIndexResponse> {
 
     private final MetaDataIndexStateService indexStateService;
     private final DestructiveOperations destructiveOperations;
@@ -77,12 +77,12 @@ public class TransportCloseIndexAction extends TransportMasterNodeAction<CloseIn
     }
 
     @Override
-    protected AcknowledgedResponse newResponse() {
-        return new AcknowledgedResponse();
+    protected CloseIndexResponse newResponse() {
+        return new CloseIndexResponse();
     }
 
     @Override
-    protected void doExecute(Task task, CloseIndexRequest request, ActionListener<AcknowledgedResponse> listener) {
+    protected void doExecute(Task task, CloseIndexRequest request, ActionListener<CloseIndexResponse> listener) {
         destructiveOperations.failDestructive(request.indices());
         if (closeIndexEnabled == false) {
             throw new IllegalStateException("closing indices is disabled - set [" + CLUSTER_INDICES_CLOSE_ENABLE_SETTING.getKey() +
@@ -98,29 +98,31 @@ public class TransportCloseIndexAction extends TransportMasterNodeAction<CloseIn
     }
 
     @Override
-    protected void masterOperation(final CloseIndexRequest request, final ClusterState state,
-                                   final ActionListener<AcknowledgedResponse> listener) {
+    protected void masterOperation(final CloseIndexRequest request,
+                                   final ClusterState state,
+                                   final ActionListener<CloseIndexResponse> listener) {
+        throw new UnsupportedOperationException("The task parameter is required");
+    }
+
+    @Override
+    protected void masterOperation(final Task task,
+                                   final CloseIndexRequest request,
+                                   final ClusterState state,
+                                   final ActionListener<CloseIndexResponse> listener) throws Exception {
         final Index[] concreteIndices = indexNameExpressionResolver.concreteIndices(state, request);
         if (concreteIndices == null || concreteIndices.length == 0) {
-            listener.onResponse(new AcknowledgedResponse(true));
+            listener.onResponse(new CloseIndexResponse(true, false, Collections.emptyList()));
             return;
         }
-        CloseIndexClusterStateUpdateRequest updateRequest = new CloseIndexClusterStateUpdateRequest()
-                .ackTimeout(request.timeout()).masterNodeTimeout(request.masterNodeTimeout())
-                .indices(concreteIndices);
 
-        indexStateService.closeIndex(updateRequest, new ActionListener<ClusterStateUpdateResponse>() {
-
-            @Override
-            public void onResponse(ClusterStateUpdateResponse response) {
-                listener.onResponse(new AcknowledgedResponse(response.isAcknowledged()));
-            }
-
-            @Override
-            public void onFailure(Exception t) {
-                logger.debug(() -> new ParameterizedMessage("failed to close indices [{}]", (Object) concreteIndices), t);
-                listener.onFailure(t);
-            }
-        });
+        final CloseIndexClusterStateUpdateRequest closeRequest = new CloseIndexClusterStateUpdateRequest(task.getId())
+            .ackTimeout(request.timeout())
+            .masterNodeTimeout(request.masterNodeTimeout())
+            .waitForActiveShards(request.waitForActiveShards())
+            .indices(concreteIndices);
+        indexStateService.closeIndices(closeRequest, ActionListener.delegateResponse(listener, (delegatedListener, t) -> {
+            logger.debug(() -> new ParameterizedMessage("failed to close indices [{}]", (Object) concreteIndices), t);
+            delegatedListener.onFailure(t);
+        }));
     }
 }

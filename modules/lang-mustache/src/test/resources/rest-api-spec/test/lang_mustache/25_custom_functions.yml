@@ -8,17 +8,16 @@
             "source": {
               "query": {
                 "match": {
-                  "url": "https://localhost:9200/{{#url}}{{index}}{{/url}}/{{#url}}{{type}}{{/url}}/_search"
+                  "url": "https://localhost:9200/{{#url}}{{index}}{{/url}}/_search"
                 }
               }
             },
             "params": {
-              "index": "<logstash-{now/d-2d}>",
-              "type" : "métriques"
+              "index": "<logstash-{now/d-2d}>"
             }
           }
 
-  - match: { template_output.query.match.url: "https://localhost:9200/%3Clogstash-%7Bnow%2Fd-2d%7D%3E/m%C3%A9triques/_search" }
+  - match: { template_output.query.match.url: "https://localhost:9200/%3Clogstash-%7Bnow%2Fd-2d%7D%3E/_search" }
 
 ---
 "Rendering using {{url}} and {{join}} functions":

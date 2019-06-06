@@ -35,7 +35,7 @@ import org.elasticsearch.test.transport.MockTransportService;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 
-@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, transportClientRatio = 0)
+@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class ClusterDisruptionCleanSettingsIT extends ESIntegTestCase {
 
     @Override
@@ -71,6 +71,6 @@ public class ClusterDisruptionCleanSettingsIT extends ESIntegTestCase {
 
         IndicesStoreIntegrationIT.relocateAndBlockCompletion(logger, "test", 0, node_1, node_2);
         // now search for the documents and see if we get a reply
-        assertThat(client().prepareSearch().setSize(0).get().getHits().getTotalHits(), equalTo(100L));
+        assertThat(client().prepareSearch().setSize(0).get().getHits().getTotalHits().value, equalTo(100L));
     }
 }

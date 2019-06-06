@@ -1,4 +1,3 @@
----
 "Realtime Term Vectors":
 
  - do:
@@ -17,14 +16,12 @@
  - do:
       index:
           index:   test_1
-          type:    test
           id:      1
           body:    { foo: bar }
 
  - do:
       termvectors:
           index:    test_1
-          type:     test
           id:       1
           realtime: false
 
@@ -33,7 +30,6 @@
  - do:
       termvectors:
           index:    test_1
-          type:     test
           id:       1
           realtime: true
 

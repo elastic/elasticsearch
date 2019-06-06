@@ -10,6 +10,7 @@ import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.elasticsearch.xpack.core.ssl.SSLService;
+import org.elasticsearch.xpack.indexlifecycle.IndexLifecycle;
 import org.elasticsearch.xpack.watcher.Watcher;
 
 import java.nio.file.Path;
@@ -47,5 +48,6 @@ public class LocalStateMonitoring extends LocalStateCompositeXPackPlugin {
                 return thisVar.getLicenseState();
             }
         });
+        plugins.add(new IndexLifecycle(settings));
     }
 }

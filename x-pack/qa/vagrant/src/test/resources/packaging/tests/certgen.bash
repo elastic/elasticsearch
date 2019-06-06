@@ -248,14 +248,18 @@ cat >> $ESCONFIG/elasticsearch.yml <<- EOF
 node.name: "node-master"
 node.master: true
 node.data: false
-discovery.zen.ping.unicast.hosts: ["127.0.0.1:9301"]
+discovery.seed_hosts: ["127.0.0.1:9301"]
+cluster.initial_master_nodes: ["node-master"]
 
-xpack.ssl.key: $ESCONFIG/certs/node-master/node-master.key
-xpack.ssl.certificate: $ESCONFIG/certs/node-master/node-master.crt
-xpack.ssl.certificate_authorities: ["$ESCONFIG/certs/ca/ca.crt"]
+xpack.security.transport.ssl.key: $ESCONFIG/certs/node-master/node-master.key
+xpack.security.transport.ssl.certificate: $ESCONFIG/certs/node-master/node-master.crt
+xpack.security.transport.ssl.certificate_authorities: ["$ESCONFIG/certs/ca/ca.crt"]
+xpack.security.http.ssl.key: $ESCONFIG/certs/node-master/node-master.key
+xpack.security.http.ssl.certificate: $ESCONFIG/certs/node-master/node-master.crt
+xpack.security.http.ssl.certificate_authorities: ["$ESCONFIG/certs/ca/ca.crt"]
 
 xpack.security.transport.ssl.enabled: true
-transport.tcp.port: 9300
+transport.port: 9300
 
 xpack.security.http.ssl.enabled: true
 http.port: 9200
@@ -331,14 +335,17 @@ cat >> $ESCONFIG/elasticsearch.yml <<- EOF
 node.name: "node-data"
 node.master: false
 node.data: true
-discovery.zen.ping.unicast.hosts: ["127.0.0.1:9300"]
+discovery.seed_hosts: ["127.0.0.1:9300"]
 
-xpack.ssl.key: $ESCONFIG/certs/node-data/node-data.key
-xpack.ssl.certificate: $ESCONFIG/certs/node-data/node-data.crt
-xpack.ssl.certificate_authorities: ["$ESCONFIG/certs/ca/ca.crt"]
+xpack.security.transport.ssl.key: $ESCONFIG/certs/node-data/node-data.key
+xpack.security.transport.ssl.certificate: $ESCONFIG/certs/node-data/node-data.crt
+xpack.security.transport.ssl.certificate_authorities: ["$ESCONFIG/certs/ca/ca.crt"]
+xpack.security.http.ssl.key: $ESCONFIG/certs/node-data/node-data.key
+xpack.security.http.ssl.certificate: $ESCONFIG/certs//node-data/node-data.crt
+xpack.security.http.ssl.certificate_authorities: ["$ESCONFIG/certs/ca/ca.crt"]
 
 xpack.security.transport.ssl.enabled: true
-transport.tcp.port: 9301
+transport.port: 9301
 
 xpack.security.http.ssl.enabled: true
 http.port: 9201
@@ -361,7 +368,7 @@ DATA_SETTINGS
 	    echo "$output"
 	    false
     }
-    echo "$output" | grep "missing authentication token"
+    echo "$output" | grep "missing authentication credentials"
 }
 
 @test "[$GROUP] test node to node communication" {
@@ -409,4 +416,13 @@ DATA_SETTINGS
 
     echo "$testSearch" | grep '"_index":"books"'
     echo "$testSearch" | grep '"_id":"0"'
+}
+
+@test "[$GROUP] exit code on failure" {
+    run sudo -E -u $MASTER_USER "$MASTER_HOME/bin/elasticsearch-certgen" --not-a-valid-option
+    [ "$status" -ne 0 ] || {
+        echo "Expected elasticsearch-certgen tool exit code to be non-zero"
+        echo "$output"
+        false
+    }
 }

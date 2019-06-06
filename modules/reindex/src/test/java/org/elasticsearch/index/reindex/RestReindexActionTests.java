@@ -26,9 +26,10 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.rest.RestController;
-import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.test.rest.FakeRestRequest;
+import org.elasticsearch.test.rest.RestActionTestCase;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -36,9 +37,16 @@ import java.util.Map;
 
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
-import static org.mockito.Mockito.mock;
 
-public class RestReindexActionTests extends ESTestCase {
+public class RestReindexActionTests extends RestActionTestCase {
+
+    private RestReindexAction action;
+
+    @Before
+    public void setUpAction() {
+        action = new RestReindexAction(Settings.EMPTY, controller());
+    }
+
     public void testBuildRemoteInfoNoRemote() throws IOException {
         assertNull(RestReindexAction.buildRemoteInfo(new HashMap<>()));
     }
@@ -78,6 +86,8 @@ public class RestReindexActionTests extends ESTestCase {
 
     public void testBuildRemoteInfoWithoutAllParts() throws IOException {
         expectThrows(IllegalArgumentException.class, () -> buildRemoteInfoHostTestCase("example.com"));
+        expectThrows(IllegalArgumentException.class, () -> buildRemoteInfoHostTestCase(":9200"));
+        expectThrows(IllegalArgumentException.class, () -> buildRemoteInfoHostTestCase("http://:9200"));
         expectThrows(IllegalArgumentException.class, () -> buildRemoteInfoHostTestCase("example.com:9200"));
         expectThrows(IllegalArgumentException.class, () -> buildRemoteInfoHostTestCase("http://example.com"));
     }
@@ -94,6 +104,14 @@ public class RestReindexActionTests extends ESTestCase {
         info = buildRemoteInfoHostTestCase("https://other.example.com:9201");
         assertEquals("https", info.getScheme());
         assertEquals("other.example.com", info.getHost());
+        assertEquals(9201, info.getPort());
+        assertNull(info.getPathPrefix());
+        assertEquals(RemoteInfo.DEFAULT_SOCKET_TIMEOUT, info.getSocketTimeout());
+        assertEquals(RemoteInfo.DEFAULT_CONNECT_TIMEOUT, info.getConnectTimeout());
+
+        info = buildRemoteInfoHostTestCase("https://[::1]:9201");
+        assertEquals("https", info.getScheme());
+        assertEquals("[::1]", info.getHost());
         assertEquals(9201, info.getPort());
         assertNull(info.getPathPrefix());
         assertEquals(RemoteInfo.DEFAULT_SOCKET_TIMEOUT, info.getSocketTimeout());
@@ -150,8 +168,6 @@ public class RestReindexActionTests extends ESTestCase {
     }
 
     public void testPipelineQueryParameterIsError() throws IOException {
-        RestReindexAction action = new RestReindexAction(Settings.EMPTY, mock(RestController.class));
-
         FakeRestRequest.Builder request = new FakeRestRequest.Builder(xContentRegistry());
         try (XContentBuilder body = JsonXContent.contentBuilder().prettyPrint()) {
             body.startObject(); {
@@ -175,14 +191,12 @@ public class RestReindexActionTests extends ESTestCase {
 
     public void testSetScrollTimeout() throws IOException {
         {
-            RestReindexAction action = new RestReindexAction(Settings.EMPTY, mock(RestController.class));
             FakeRestRequest.Builder requestBuilder = new FakeRestRequest.Builder(xContentRegistry());
             requestBuilder.withContent(new BytesArray("{}"), XContentType.JSON);
             ReindexRequest request = action.buildRequest(requestBuilder.build());
             assertEquals(AbstractBulkByScrollRequest.DEFAULT_SCROLL_TIMEOUT, request.getScrollTime());
         }
         {
-            RestReindexAction action = new RestReindexAction(Settings.EMPTY, mock(RestController.class));
             FakeRestRequest.Builder requestBuilder = new FakeRestRequest.Builder(xContentRegistry());
             requestBuilder.withParams(singletonMap("scroll", "10m"));
             requestBuilder.withContent(new BytesArray("{}"), XContentType.JSON);
@@ -199,5 +213,26 @@ public class RestReindexActionTests extends ESTestCase {
         source.put("remote", remote);
 
         return RestReindexAction.buildRemoteInfo(source);
+    }
+
+    /**
+     * test deprecation is logged if a type is used in the destination index request inside reindex
+     */
+    public void testTypeInDestination() throws IOException {
+        FakeRestRequest.Builder requestBuilder = new FakeRestRequest.Builder(xContentRegistry())
+                .withMethod(Method.POST)
+                .withPath("/_reindex");
+        XContentBuilder b = JsonXContent.contentBuilder().startObject();
+        {
+            b.startObject("dest");
+            {
+                b.field("type", (randomBoolean() ? "_doc" : randomAlphaOfLength(4)));
+            }
+            b.endObject();
+        }
+        b.endObject();
+        requestBuilder.withContent(new BytesArray(BytesReference.bytes(b).toBytesRef()), XContentType.JSON);
+        dispatchRequest(requestBuilder.build());
+        assertWarnings(RestReindexAction.TYPES_DEPRECATION_MESSAGE);
     }
 }

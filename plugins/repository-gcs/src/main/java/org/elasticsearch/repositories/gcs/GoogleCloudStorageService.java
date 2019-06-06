@@ -27,11 +27,11 @@ import com.google.auth.oauth2.ServiceAccountCredentials;
 import com.google.cloud.http.HttpTransportOptions;
 import com.google.cloud.storage.Storage;
 import com.google.cloud.storage.StorageOptions;
-
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.MapBuilder;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.LazyInitializable;
 
@@ -42,10 +42,13 @@ import java.net.URISyntaxException;
 import java.net.URL;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
 
-public class GoogleCloudStorageService extends AbstractComponent {
+public class GoogleCloudStorageService {
+    
+    private static final Logger logger = LogManager.getLogger(GoogleCloudStorageService.class);
 
     /**
      * Dictionary of client instances. Client instances are built lazily from the
@@ -62,13 +65,15 @@ public class GoogleCloudStorageService extends AbstractComponent {
      */
     public synchronized void refreshAndClearCache(Map<String, GoogleCloudStorageClientSettings> clientsSettings) {
         // build the new lazy clients
-        final MapBuilder<String, LazyInitializable<Storage, IOException>> newClientsCache = MapBuilder.newMapBuilder();
-        for (final Map.Entry<String, GoogleCloudStorageClientSettings> entry : clientsSettings.entrySet()) {
-            newClientsCache.put(entry.getKey(),
-                    new LazyInitializable<Storage, IOException>(() -> createClient(entry.getKey(), entry.getValue())));
-        }
+        final Map<String, LazyInitializable<Storage, IOException>> newClientsCache =
+        clientsSettings.entrySet()
+                .stream()
+                .collect(Collectors.toUnmodifiableMap(
+                        Map.Entry::getKey,
+                        entry -> new LazyInitializable<>(() -> createClient(entry.getKey(), entry.getValue()))));
+
         // make the new clients available
-        final Map<String, LazyInitializable<Storage, IOException>> oldClientCache = clientsCache.getAndSet(newClientsCache.immutableMap());
+        final Map<String, LazyInitializable<Storage, IOException>> oldClientCache = clientsCache.getAndSet(newClientsCache);
         // release old clients
         oldClientCache.values().forEach(LazyInitializable::reset);
     }

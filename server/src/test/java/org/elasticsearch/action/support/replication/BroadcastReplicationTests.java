@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.action.support.replication;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.UnavailableShardsException;
@@ -36,9 +37,10 @@ import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.shard.ShardId;
@@ -49,8 +51,8 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.MockTcpTransport;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.transport.nio.MockNioTransport;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -92,9 +94,9 @@ public class BroadcastReplicationTests extends ESTestCase {
     @Before
     public void setUp() throws Exception {
         super.setUp();
-        MockTcpTransport transport = new MockTcpTransport(Settings.EMPTY,
-            threadPool, BigArrays.NON_RECYCLING_INSTANCE, circuitBreakerService, new NamedWriteableRegistry(Collections.emptyList()),
-            new NetworkService(Collections.emptyList()));
+        MockNioTransport transport = new MockNioTransport(Settings.EMPTY, Version.CURRENT,
+            threadPool, new NetworkService(Collections.emptyList()), PageCacheRecycler.NON_RECYCLING_INSTANCE,
+            new NamedWriteableRegistry(Collections.emptyList()), circuitBreakerService);
         clusterService = createClusterService(threadPool);
         transportService = new TransportService(clusterService.getSettings(), transport, threadPool,
                 TransportService.NOOP_TRANSPORT_INTERCEPTOR, x -> clusterService.localNode(), null, Collections.emptySet());
@@ -117,13 +119,13 @@ public class BroadcastReplicationTests extends ESTestCase {
         threadPool = null;
     }
 
-    public void testNotStartedPrimary() throws InterruptedException, ExecutionException, IOException {
+    public void testNotStartedPrimary() throws InterruptedException, ExecutionException {
         final String index = "test";
         setState(clusterService, state(index, randomBoolean(),
                 randomBoolean() ? ShardRoutingState.INITIALIZING : ShardRoutingState.UNASSIGNED, ShardRoutingState.UNASSIGNED));
         logger.debug("--> using initial state:\n{}", clusterService.state());
         PlainActionFuture<BroadcastResponse> response = PlainActionFuture.newFuture();
-        broadcastReplicationAction.execute(new DummyBroadcastRequest().indices(index), response);
+        broadcastReplicationAction.execute(new DummyBroadcastRequest(index), response);
         for (Tuple<ShardId, ActionListener<ReplicationResponse>> shardRequests : broadcastReplicationAction.capturedShardRequests) {
             if (randomBoolean()) {
                 shardRequests.v2().onFailure(new NoShardAvailableActionException(shardRequests.v1()));
@@ -137,13 +139,13 @@ public class BroadcastReplicationTests extends ESTestCase {
         assertBroadcastResponse(2, 0, 0, response.get(), null);
     }
 
-    public void testStartedPrimary() throws InterruptedException, ExecutionException, IOException {
+    public void testStartedPrimary() throws InterruptedException, ExecutionException {
         final String index = "test";
         setState(clusterService, state(index, randomBoolean(),
                 ShardRoutingState.STARTED));
         logger.debug("--> using initial state:\n{}", clusterService.state());
         PlainActionFuture<BroadcastResponse> response = PlainActionFuture.newFuture();
-        broadcastReplicationAction.execute(new DummyBroadcastRequest().indices(index), response);
+        broadcastReplicationAction.execute(new DummyBroadcastRequest(index), response);
         for (Tuple<ShardId, ActionListener<ReplicationResponse>> shardRequests : broadcastReplicationAction.capturedShardRequests) {
             ReplicationResponse replicationResponse = new ReplicationResponse();
             replicationResponse.setShardInfo(new ReplicationResponse.ShardInfo(1, 1));
@@ -224,7 +226,7 @@ public class BroadcastReplicationTests extends ESTestCase {
 
         @Override
         protected BasicReplicationRequest newShardRequest(DummyBroadcastRequest request, ShardId shardId) {
-            return new BasicReplicationRequest().setShardId(shardId);
+            return new BasicReplicationRequest(shardId);
         }
 
         @Override
@@ -268,6 +270,12 @@ public class BroadcastReplicationTests extends ESTestCase {
     }
 
     public static class DummyBroadcastRequest extends BroadcastRequest<DummyBroadcastRequest> {
+        DummyBroadcastRequest(String... indices) {
+            super(indices);
+        }
 
+        DummyBroadcastRequest(StreamInput in) throws IOException {
+            super(in);
+        }
     }
 }

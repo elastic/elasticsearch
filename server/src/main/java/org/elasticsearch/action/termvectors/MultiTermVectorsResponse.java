@@ -20,6 +20,7 @@
 package org.elasticsearch.action.termvectors;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -38,7 +39,6 @@ public class MultiTermVectorsResponse extends ActionResponse implements Iterable
      */
     public static class Failure implements Streamable {
         private String index;
-        private String type;
         private String id;
         private Exception cause;
 
@@ -46,9 +46,8 @@ public class MultiTermVectorsResponse extends ActionResponse implements Iterable
 
         }
 
-        public Failure(String index, String type, String id, Exception cause) {
+        public Failure(String index, String id, Exception cause) {
             this.index = index;
-            this.type = type;
             this.id = id;
             this.cause = cause;
         }
@@ -58,13 +57,6 @@ public class MultiTermVectorsResponse extends ActionResponse implements Iterable
          */
         public String getIndex() {
             return this.index;
-        }
-
-        /**
-         * The type of the action.
-         */
-        public String getType() {
-            return type;
         }
 
         /**
@@ -90,7 +82,13 @@ public class MultiTermVectorsResponse extends ActionResponse implements Iterable
         @Override
         public void readFrom(StreamInput in) throws IOException {
             index = in.readString();
-            type = in.readOptionalString();
+            if (in.getVersion().before(Version.V_8_0_0)) {
+                // types no longer relevant so ignore
+                String type = in.readOptionalString();
+                if (type != null) {
+                    throw new IllegalStateException("types are no longer supported but found [" + type + "]");
+                }
+            }
             id = in.readString();
             cause = in.readException();
         }
@@ -98,7 +96,10 @@ public class MultiTermVectorsResponse extends ActionResponse implements Iterable
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(index);
-            out.writeOptionalString(type);
+            if (out.getVersion().before(Version.V_8_0_0)) {
+                // types not supported so send an empty array to previous versions
+                out.writeOptionalString(null);
+            }
             out.writeString(id);
             out.writeException(cause);
         }
@@ -131,7 +132,6 @@ public class MultiTermVectorsResponse extends ActionResponse implements Iterable
                 builder.startObject();
                 Failure failure = response.getFailure();
                 builder.field(Fields._INDEX, failure.getIndex());
-                builder.field(Fields._TYPE, failure.getType());
                 builder.field(Fields._ID, failure.getId());
                 ElasticsearchException.generateFailureXContent(builder, params, failure.getCause(), true);
                 builder.endObject();

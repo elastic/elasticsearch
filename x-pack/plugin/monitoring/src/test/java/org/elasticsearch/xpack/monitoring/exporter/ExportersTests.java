@@ -8,15 +8,18 @@ package org.elasticsearch.xpack.monitoring.exporter;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -28,11 +31,15 @@ import org.elasticsearch.xpack.monitoring.exporter.local.LocalExporter;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.time.Instant;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -45,11 +52,13 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class ExportersTests extends ESTestCase {
@@ -57,6 +66,7 @@ public class ExportersTests extends ESTestCase {
     private Map<String, Exporter.Factory> factories;
     private ClusterService clusterService;
     private ClusterState state;
+    private final ClusterBlocks blocks = mock(ClusterBlocks.class);
     private final MetaData metadata = mock(MetaData.class);
     private final XPackLicenseState licenseState = mock(XPackLicenseState.class);
     private ClusterSettings clusterSettings;
@@ -79,12 +89,28 @@ public class ExportersTests extends ESTestCase {
         clusterSettings = new ClusterSettings(Settings.EMPTY, settingsSet);
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
         when(clusterService.state()).thenReturn(state);
+        when(state.blocks()).thenReturn(blocks);
         when(state.metaData()).thenReturn(metadata);
 
         // we always need to have the local exporter as it serves as the default one
         factories.put(LocalExporter.TYPE, config -> new LocalExporter(config, client, mock(CleanerService.class)));
 
         exporters = new Exporters(Settings.EMPTY, factories, clusterService, licenseState, threadContext);
+    }
+
+    public void testExporterIndexPattern() {
+        Exporter.Config config = mock(Exporter.Config.class);
+        when(config.name()).thenReturn("anything");
+        when(config.settings()).thenReturn(Settings.EMPTY);
+        DateFormatter formatter = Exporter.dateTimeFormatter(config);
+        Instant instant = Instant.ofEpochSecond(randomLongBetween(0, 86400 * 365 * 130L));
+        ZonedDateTime zonedDateTime = instant.atZone(ZoneOffset.UTC);
+        int year = zonedDateTime.getYear();
+        int month = zonedDateTime.getMonthValue();
+        int day = zonedDateTime.getDayOfMonth();
+        String expecdateDate = String.format(Locale.ROOT, "%02d.%02d.%02d", year, month, day);
+        String formattedDate = formatter.format(instant);
+        assertThat("input date was " + instant, expecdateDate, is(formattedDate));
     }
 
     public void testInitExportersDefault() throws Exception {
@@ -210,6 +236,8 @@ public class ExportersTests extends ESTestCase {
     public void testExporterBlocksOnClusterState() {
         if (rarely()) {
             when(metadata.clusterUUID()).thenReturn(ClusterState.UNKNOWN_UUID);
+        } else if (rarely()) {
+            when(blocks.hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)).thenReturn(true);
         } else {
             when(state.version()).thenReturn(ClusterState.UNKNOWN_VERSION);
         }
@@ -223,7 +251,32 @@ public class ExportersTests extends ESTestCase {
 
         final Exporters exporters = new Exporters(settings.build(), factories, clusterService, licenseState, threadContext);
 
-        assertThat(exporters.openBulk(), nullValue());
+        // synchronously checks the cluster state
+        exporters.wrapExportBulk(ActionListener.wrap(
+            bulk -> assertThat(bulk, is(nullValue())),
+            e -> fail(e.getMessage())
+        ));
+
+        verify(state).blocks();
+    }
+
+    /**
+     * Verifies that, when no exporters are enabled, the {@code Exporters} will still return as expected.
+     */
+    public void testNoExporters() throws Exception {
+        Settings.Builder settings =
+            Settings.builder()
+                    .put("xpack.monitoring.exporters.explicitly_disabled.type", "local")
+                    .put("xpack.monitoring.exporters.explicitly_disabled.enabled", false);
+
+        Exporters exporters = new Exporters(settings.build(), factories, clusterService, licenseState, threadContext);
+        exporters.start();
+
+        assertThat(exporters.getEnabledExporters(), empty());
+
+        assertExporters(exporters);
+
+        exporters.close();
     }
 
     /**
@@ -243,18 +296,37 @@ public class ExportersTests extends ESTestCase {
         Exporters exporters = new Exporters(settings.build(), factories, clusterService, licenseState, threadContext);
         exporters.start();
 
+        assertThat(exporters.getEnabledExporters(), hasSize(nbExporters));
+
+        final int total = assertExporters(exporters);
+
+        for (Exporter exporter : exporters.getEnabledExporters()) {
+            assertThat(exporter, instanceOf(CountingExporter.class));
+            assertThat(((CountingExporter) exporter).getExportedCount(), equalTo(total));
+        }
+
+        exporters.close();
+    }
+
+    /**
+     * Attempt to export a random number of documents via {@code exporters} from multiple threads.
+     *
+     * @param exporters The setup / started exporters instance to use.
+     * @return The total number of documents sent to the {@code exporters}.
+     */
+    private int assertExporters(final Exporters exporters) throws InterruptedException {
         final Thread[] threads = new Thread[3 + randomInt(7)];
         final CyclicBarrier barrier = new CyclicBarrier(threads.length);
         final List<Throwable> exceptions = new CopyOnWriteArrayList<>();
+        final AtomicInteger counter = new AtomicInteger(threads.length);
 
         int total = 0;
 
         for (int i = 0; i < threads.length; i++) {
-            int nbDocs = randomIntBetween(10, 50);
-            total += nbDocs;
-
+            final int threadDocs = randomIntBetween(10, 50);
             final int threadNum = i;
-            final int threadDocs = nbDocs;
+
+            total += threadDocs;
 
             threads[i] = new Thread(new AbstractRunnable() {
                 @Override
@@ -264,18 +336,25 @@ public class ExportersTests extends ESTestCase {
 
                 @Override
                 protected void doRun() throws Exception {
-                    List<MonitoringDoc> docs = new ArrayList<>();
+                    final List<MonitoringDoc> docs = new ArrayList<>();
                     for (int n = 0; n < threadDocs; n++) {
                         docs.add(new TestMonitoringDoc(randomAlphaOfLength(5), randomNonNegativeLong(), randomNonNegativeLong(),
                                                        null, MonitoredSystem.ES, randomAlphaOfLength(5), null, String.valueOf(n)));
                     }
-                    barrier.await(10, TimeUnit.SECONDS);
                     exporters.export(docs, ActionListener.wrap(
-                            r -> logger.debug("--> thread [{}] successfully exported {} documents", threadNum, threadDocs),
-                            e -> logger.debug("--> thread [{}] failed to export {} documents", threadNum, threadDocs)));
-
+                        r -> {
+                            counter.decrementAndGet();
+                            logger.debug("--> thread [{}] successfully exported {} documents", threadNum, threadDocs);
+                        },
+                        e -> {
+                            exceptions.add(e);
+                            logger.debug("--> thread [{}] failed to export {} documents", threadNum, threadDocs);
+                        })
+                    );
+                    barrier.await(10, TimeUnit.SECONDS);
                 }
             }, "export_thread_" + i);
+
             threads[i].start();
         }
 
@@ -284,12 +363,9 @@ public class ExportersTests extends ESTestCase {
         }
 
         assertThat(exceptions, empty());
-        for (Exporter exporter : exporters) {
-            assertThat(exporter, instanceOf(CountingExporter.class));
-            assertThat(((CountingExporter) exporter).getExportedCount(), equalTo(total));
-        }
+        assertThat(counter.get(), is(0));
 
-        exporters.close();
+        return total;
     }
 
     static class TestExporter extends Exporter {
@@ -298,8 +374,8 @@ public class ExportersTests extends ESTestCase {
         }
 
         @Override
-        public ExportBulk openBulk() {
-            return mock(ExportBulk.class);
+        public void openBulk(final ActionListener<ExportBulk> listener) {
+            listener.onResponse(mock(ExportBulk.class));
         }
 
         @Override
@@ -318,19 +394,6 @@ public class ExportersTests extends ESTestCase {
         }
     }
 
-
-    static class MockFactory implements Exporter.Factory {
-
-        @Override
-        public Exporter create(Exporter.Config config) {
-            Exporter exporter = mock(Exporter.class);
-            when(exporter.name()).thenReturn(config.name());
-            when(exporter.openBulk()).thenReturn(mock(ExportBulk.class));
-            return exporter;
-        }
-
-    }
-
     static class CountingExporter extends Exporter {
 
         private static final AtomicInteger count = new AtomicInteger(0);
@@ -343,10 +406,11 @@ public class ExportersTests extends ESTestCase {
         }
 
         @Override
-        public ExportBulk openBulk() {
+        public void openBulk(final ActionListener<ExportBulk> listener) {
             CountingBulk bulk = new CountingBulk(config.type() + "#" + count.getAndIncrement(), threadContext);
             bulks.add(bulk);
-            return bulk;
+
+            listener.onResponse(bulk);
         }
 
         @Override
@@ -377,11 +441,6 @@ public class ExportersTests extends ESTestCase {
 
         @Override
         protected void doFlush(ActionListener<Void> listener) {
-            listener.onResponse(null);
-        }
-
-        @Override
-        protected void doClose(ActionListener<Void> listener) {
             listener.onResponse(null);
         }
 

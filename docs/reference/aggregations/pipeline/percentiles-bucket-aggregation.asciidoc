@@ -18,7 +18,9 @@ A `percentiles_bucket` aggregation looks like this in isolation:
 --------------------------------------------------
 // NOTCONSOLE
 
+[[percentiles-bucket-params]]
 .`percentiles_bucket` Parameters
+[options="header"]
 |===
 |Parameter Name |Description |Required |Default Value
 |`buckets_path` |The path to the buckets we wish to find the percentiles for (see <<buckets-path-syntax>> for more
@@ -27,6 +29,7 @@ A `percentiles_bucket` aggregation looks like this in isolation:
  details)|Optional | `skip`
 |`format` |format to apply to the output value of this aggregation |Optional | `null`
 |`percents` |The list of percentiles to calculate |Optional | `[ 1, 5, 25, 50, 75, 95, 99 ]`
+|`keyed` |Flag which returns the range as an hash instead of an array of key-value pairs |Optional | `true`
 |===
 
 The following snippet calculates the percentiles for the total monthly `sales` buckets:
@@ -40,7 +43,7 @@ POST /sales/_search
         "sales_per_month" : {
             "date_histogram" : {
                 "field" : "date",
-                "interval" : "month"
+                "calendar_interval" : "month"
             },
             "aggs": {
                 "sales": {

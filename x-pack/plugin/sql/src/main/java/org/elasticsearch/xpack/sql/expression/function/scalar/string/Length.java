@@ -7,7 +7,7 @@ package org.elasticsearch.xpack.sql.expression.function.scalar.string;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.StringProcessor.StringOperation;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.type.DataType;
 
@@ -16,8 +16,8 @@ import org.elasticsearch.xpack.sql.type.DataType;
  */
 public class Length extends UnaryStringFunction {
 
-    public Length(Location location, Expression field) {
-        super(location, field);
+    public Length(Source source, Expression field) {
+        super(source, field);
     }
 
     @Override
@@ -27,7 +27,7 @@ public class Length extends UnaryStringFunction {
 
     @Override
     protected Length replaceChild(Expression newChild) {
-        return new Length(location(), newChild);
+        return new Length(source(), newChild);
     }
 
     @Override

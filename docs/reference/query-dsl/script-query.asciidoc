@@ -11,7 +11,7 @@ GET /_search
 {
     "query": {
         "bool" : {
-            "must" : {
+            "filter" : {
                 "script" : {
                     "script" : {
                         "source": "doc['num1'].value > 1",
@@ -38,7 +38,7 @@ GET /_search
 {
     "query": {
         "bool" : {
-            "must" : {
+            "filter" : {
                 "script" : {
                     "script" : {
                         "source" : "doc['num1'].value > params.param1",

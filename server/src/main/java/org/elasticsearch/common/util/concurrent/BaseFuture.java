@@ -61,11 +61,7 @@ public abstract class BaseFuture<V> implements Future<V> {
     @Override
     public V get(long timeout, TimeUnit unit) throws InterruptedException,
             TimeoutException, ExecutionException {
-        assert timeout <= 0 ||
-            (Transports.assertNotTransportThread(BLOCKING_OP_REASON) &&
-                ThreadPool.assertNotScheduleThread(BLOCKING_OP_REASON) &&
-                ClusterApplierService.assertNotClusterStateUpdateThread(BLOCKING_OP_REASON) &&
-                MasterService.assertNotMasterUpdateThread(BLOCKING_OP_REASON));
+        assert timeout <= 0 || blockingAllowed();
         return sync.get(unit.toNanos(timeout));
     }
 
@@ -87,11 +83,16 @@ public abstract class BaseFuture<V> implements Future<V> {
      */
     @Override
     public V get() throws InterruptedException, ExecutionException {
-        assert Transports.assertNotTransportThread(BLOCKING_OP_REASON) &&
+        assert blockingAllowed();
+        return sync.get();
+    }
+
+    // protected so that it can be overridden in specific instances
+    protected boolean blockingAllowed() {
+        return Transports.assertNotTransportThread(BLOCKING_OP_REASON) &&
             ThreadPool.assertNotScheduleThread(BLOCKING_OP_REASON) &&
             ClusterApplierService.assertNotClusterStateUpdateThread(BLOCKING_OP_REASON) &&
             MasterService.assertNotMasterUpdateThread(BLOCKING_OP_REASON);
-        return sync.get();
     }
 
     @Override

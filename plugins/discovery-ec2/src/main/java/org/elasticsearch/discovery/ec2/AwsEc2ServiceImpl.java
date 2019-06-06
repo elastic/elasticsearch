@@ -22,23 +22,25 @@ package org.elasticsearch.discovery.ec2;
 import com.amazonaws.ClientConfiguration;
 import com.amazonaws.auth.AWSCredentials;
 import com.amazonaws.auth.AWSCredentialsProvider;
+import com.amazonaws.auth.AWSStaticCredentialsProvider;
 import com.amazonaws.auth.DefaultAWSCredentialsProviderChain;
 import com.amazonaws.http.IdleConnectionReaper;
-import com.amazonaws.internal.StaticCredentialsProvider;
 import com.amazonaws.retry.RetryPolicy;
 import com.amazonaws.services.ec2.AmazonEC2;
 import com.amazonaws.services.ec2.AmazonEC2Client;
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.util.LazyInitializable;
 
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicReference;
 
-class AwsEc2ServiceImpl extends AbstractComponent implements AwsEc2Service {
+class AwsEc2ServiceImpl implements AwsEc2Service {
+    
+    private static final Logger logger = LogManager.getLogger(AwsEc2ServiceImpl.class);
 
     private final AtomicReference<LazyInitializable<AmazonEc2Reference, ElasticsearchException>> lazyClientReference =
             new AtomicReference<>();
@@ -94,11 +96,11 @@ class AwsEc2ServiceImpl extends AbstractComponent implements AwsEc2Service {
     static AWSCredentialsProvider buildCredentials(Logger logger, Ec2ClientSettings clientSettings) {
         final AWSCredentials credentials = clientSettings.credentials;
         if (credentials == null) {
-            logger.debug("Using either environment variables, system properties or instance profile credentials");
-            return new DefaultAWSCredentialsProviderChain();
+            logger.debug("Using default provider chain");
+            return DefaultAWSCredentialsProviderChain.getInstance();
         } else {
             logger.debug("Using basic key/secret credentials");
-            return new StaticCredentialsProvider(credentials);
+            return new AWSStaticCredentialsProvider(credentials);
         }
     }
 

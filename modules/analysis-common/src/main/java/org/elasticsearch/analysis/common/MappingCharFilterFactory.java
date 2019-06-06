@@ -26,14 +26,14 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AbstractCharFilterFactory;
 import org.elasticsearch.index.analysis.Analysis;
-import org.elasticsearch.index.analysis.MultiTermAwareComponent;
+import org.elasticsearch.index.analysis.NormalizingCharFilterFactory;
 
 import java.io.Reader;
 import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-public class MappingCharFilterFactory extends AbstractCharFilterFactory implements MultiTermAwareComponent {
+public class MappingCharFilterFactory extends AbstractCharFilterFactory implements NormalizingCharFilterFactory {
 
     private final NormalizeCharMap normMap;
 
@@ -118,8 +118,4 @@ public class MappingCharFilterFactory extends AbstractCharFilterFactory implemen
         return new String(out, 0, writePos);
     }
 
-    @Override
-    public Object getMultiTermComponent() {
-        return this;
-    }
 }

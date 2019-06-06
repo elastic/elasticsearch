@@ -12,6 +12,8 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.ESTestCase;
 
 import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneOffset;
 
 import static org.hamcrest.Matchers.is;
 
@@ -29,7 +31,7 @@ public class ScheduleTriggerEventTests extends ESTestCase {
         parser.nextToken();
 
         ScheduleTriggerEvent scheduleTriggerEvent = ScheduleTriggerEvent.parse(parser, "_id", "_context", Clock.systemUTC());
-        assertThat(scheduleTriggerEvent.scheduledTime().isAfter(0), is(true));
-        assertThat(scheduleTriggerEvent.triggeredTime().isAfter(0), is(true));
+        assertThat(scheduleTriggerEvent.scheduledTime().isAfter(Instant.ofEpochMilli(0).atZone(ZoneOffset.UTC)), is(true));
+        assertThat(scheduleTriggerEvent.triggeredTime().isAfter(Instant.ofEpochMilli(0).atZone(ZoneOffset.UTC)), is(true));
     }
 }

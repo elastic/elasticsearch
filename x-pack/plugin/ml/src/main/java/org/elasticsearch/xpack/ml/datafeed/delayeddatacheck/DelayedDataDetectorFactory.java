@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.ml.datafeed.delayeddatacheck;
 
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DelayedDataCheckConfig;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
@@ -21,8 +22,8 @@ import java.util.Objects;
 public class DelayedDataDetectorFactory {
 
     // There are eight 15min buckets in a two hour span, so matching that number as the fallback for very long buckets
-    private static final int FALLBACK_NUMBER_OF_BUCKETS_TO_SPAN = 8;
-    private static final TimeValue DEFAULT_CHECK_WINDOW = TimeValue.timeValueHours(2);
+    private static final int DEFAULT_NUMBER_OF_BUCKETS_TO_SPAN = 8;
+    private static final long DEFAULT_CHECK_WINDOW_MS = 7_200_000L; // 2 hours in Milliseconds
 
     /**
      * This will build the appropriate detector given the parameters.
@@ -33,9 +34,13 @@ public class DelayedDataDetectorFactory {
      * @param job The {@link Job} object for the given `datafeedConfig`
      * @param datafeedConfig The {@link DatafeedConfig} for which to create the {@link DelayedDataDetector}
      * @param client The {@link Client} capable of taking action against the ES Cluster.
+     * @param xContentRegistry The current NamedXContentRegistry with which to parse the query
      * @return A new {@link DelayedDataDetector}
      */
-    public static DelayedDataDetector buildDetector(Job job, DatafeedConfig datafeedConfig, Client client) {
+    public static DelayedDataDetector buildDetector(Job job,
+                                                    DatafeedConfig datafeedConfig,
+                                                    Client client,
+                                                    NamedXContentRegistry xContentRegistry) {
         if (datafeedConfig.getDelayedDataCheckConfig().isEnabled()) {
             long window = validateAndCalculateWindowLength(job.getAnalysisConfig().getBucketSpan(),
                 datafeedConfig.getDelayedDataCheckConfig().getCheckWindow());
@@ -44,7 +49,7 @@ public class DelayedDataDetectorFactory {
                 window,
                 job.getId(),
                 job.getDataDescription().getTimeField(),
-                datafeedConfig.getQuery(),
+                datafeedConfig.getParsedQuery(xContentRegistry),
                 datafeedConfig.getIndices().toArray(new String[0]),
                 client);
         } else {
@@ -57,11 +62,7 @@ public class DelayedDataDetectorFactory {
             return 0;
         }
         if (currentWindow == null) { // we should provide a good default as the user did not specify a window
-            if(bucketSpan.compareTo(DEFAULT_CHECK_WINDOW) >= 0) {
-                return FALLBACK_NUMBER_OF_BUCKETS_TO_SPAN * bucketSpan.millis();
-            } else {
-                return DEFAULT_CHECK_WINDOW.millis();
-            }
+            return Math.max(DEFAULT_CHECK_WINDOW_MS, DEFAULT_NUMBER_OF_BUCKETS_TO_SPAN * bucketSpan.millis());
         }
         if (currentWindow.compareTo(bucketSpan) < 0) {
             throw new IllegalArgumentException(

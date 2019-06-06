@@ -33,6 +33,14 @@
           "type": "boolean",
           "description": "Return settings in flat format (default: false)"
         },
+        "wait_for_metadata_version": {
+          "type": "number",
+          "description": "Wait for the metadata version to be equal or greater than the specified metadata version"
+        },
+        "wait_for_timeout" : {
+          "type": "time",
+          "description": "The maximum time to wait for wait_for_metadata_version before timing out"
+        },
         "ignore_unavailable": {
             "type" : "boolean",
             "description" : "Whether specified concrete indices should be ignored when unavailable (missing or closed)"

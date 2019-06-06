@@ -28,7 +28,6 @@ import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.search.SearchTransportService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.discovery.Discovery;
@@ -44,8 +43,9 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.util.concurrent.TimeUnit;
 
-public class NodeService extends AbstractComponent implements Closeable {
+public class NodeService implements Closeable {
     private final Settings settings;
     private final ThreadPool threadPool;
     private final MonitorService monitorService;
@@ -134,6 +134,14 @@ public class NodeService extends AbstractComponent implements Closeable {
     @Override
     public void close() throws IOException {
         IOUtils.close(indicesService);
+    }
+
+    /**
+     * Wait for the node to be effectively closed.
+     * @see IndicesService#awaitClose(long, TimeUnit)
+     */
+    public boolean awaitClose(long timeout, TimeUnit timeUnit) throws InterruptedException {
+        return indicesService.awaitClose(timeout, timeUnit);
     }
 
 }

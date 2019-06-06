@@ -69,7 +69,12 @@ public class RestIndicesStatsAction extends BaseRestHandler {
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         IndicesStatsRequest indicesStatsRequest = new IndicesStatsRequest();
-        indicesStatsRequest.indicesOptions(IndicesOptions.fromRequest(request, indicesStatsRequest.indicesOptions()));
+        boolean forbidClosedIndices = request.paramAsBoolean("forbid_closed_indices", true);
+        IndicesOptions defaultIndicesOption = forbidClosedIndices ? indicesStatsRequest.indicesOptions()
+            : IndicesOptions.strictExpandOpen();
+        assert indicesStatsRequest.indicesOptions() == IndicesOptions.strictExpandOpenAndForbidClosed() : "IndicesStats default indices " +
+            "options changed";
+        indicesStatsRequest.indicesOptions(IndicesOptions.fromRequest(request, defaultIndicesOption));
         indicesStatsRequest.indices(Strings.splitStringByCommaToArray(request.param("index")));
         indicesStatsRequest.types(Strings.splitStringByCommaToArray(request.param("types")));
 
@@ -121,6 +126,7 @@ public class RestIndicesStatsAction extends BaseRestHandler {
 
         if (indicesStatsRequest.segments()) {
             indicesStatsRequest.includeSegmentFileSizes(request.paramAsBoolean("include_segment_file_sizes", false));
+            indicesStatsRequest.includeUnloadedSegments(request.paramAsBoolean("include_unloaded_segments", false));
         }
 
         return channel -> client.admin().indices().stats(indicesStatsRequest, new RestToXContentListener<>(channel));

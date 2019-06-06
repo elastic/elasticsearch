@@ -1,17 +1,20 @@
 [role="xpack"]
 [[security-api-get-privileges]]
 === Get application privileges API
+++++
+<titleabbrev>Get application privileges</titleabbrev>
+++++
 
 Retrieves 
 {stack-ov}/security-privileges.html#application-privileges[application privileges].
 
 ==== Request
 
-`GET /_xpack/security/privilege` +
+`GET /_security/privilege` +
 
-`GET /_xpack/security/privilege/<application>` +
+`GET /_security/privilege/<application>` +
 
-`GET /_xpack/security/privilege/<application>/<privilege>` 
+`GET /_security/privilege/<application>/<privilege>` 
 
 
 ==== Description
@@ -49,7 +52,7 @@ The following example retrieves information about the `read` privilege for the
 
 [source,js]
 --------------------------------------------------
-GET /_xpack/security/privilege/myapp/read
+GET /_security/privilege/myapp/read
 --------------------------------------------------
 // CONSOLE
 // TEST[setup:app0102_privileges]
@@ -81,7 +84,7 @@ To retrieve all privileges for an application, omit the privilege name:
 
 [source,js]
 --------------------------------------------------
-GET /_xpack/security/privilege/myapp/
+GET /_security/privilege/myapp/
 --------------------------------------------------
 // CONSOLE
 
@@ -89,6 +92,6 @@ To retrieve every privilege, omit both the application and privilege names:
 
 [source,js]
 --------------------------------------------------
-GET /_xpack/security/privilege/
+GET /_security/privilege/
 --------------------------------------------------
 // CONSOLE

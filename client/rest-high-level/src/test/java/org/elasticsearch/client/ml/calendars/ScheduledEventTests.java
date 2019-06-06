@@ -19,6 +19,7 @@
 
 package org.elasticsearch.client.ml.calendars;
 
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
 
@@ -26,12 +27,16 @@ import java.util.Date;
 
 public class ScheduledEventTests extends AbstractXContentTestCase<ScheduledEvent> {
 
-    public static ScheduledEvent testInstance() {
+    public static ScheduledEvent testInstance(String calendarId, @Nullable String eventId) {
         Date start = new Date(randomNonNegativeLong());
         Date end = new Date(start.getTime() + randomIntBetween(1, 10000) * 1000);
 
-        return new ScheduledEvent(randomAlphaOfLength(10), start, end, randomAlphaOfLengthBetween(1, 20),
-                randomBoolean() ? null : randomAlphaOfLength(7));
+        return new ScheduledEvent(randomAlphaOfLength(10), start, end, calendarId, eventId);
+    }
+
+    public static ScheduledEvent testInstance() {
+        return testInstance(randomAlphaOfLengthBetween(1, 20),
+            randomBoolean() ? null : randomAlphaOfLength(7));
     }
 
     @Override

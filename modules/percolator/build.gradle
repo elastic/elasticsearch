@@ -20,7 +20,6 @@
 esplugin {
     description 'Percolator module adds capability to index queries and query these queries by specifying documents'
     classname 'org.elasticsearch.percolator.PercolatorPlugin'
-    hasClientJar = true
 }
 
 dependencies {
@@ -33,6 +32,3 @@ dependencyLicenses {
     it.group.startsWith('org.elasticsearch') == false
   } - project.configurations.compileOnly
 }
-
-compileJava.options.compilerArgs << "-Xlint:-deprecation,-rawtypes"
-compileTestJava.options.compilerArgs << "-Xlint:-deprecation,-rawtypes"

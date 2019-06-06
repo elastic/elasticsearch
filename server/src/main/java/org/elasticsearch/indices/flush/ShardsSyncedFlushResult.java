@@ -29,7 +29,6 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static java.util.Collections.emptyMap;
-import static java.util.Collections.unmodifiableMap;
 
 /**
  * Result for all copies of a shard
@@ -63,9 +62,12 @@ public class ShardsSyncedFlushResult implements Streamable {
     /**
      * success constructor
      */
-    public ShardsSyncedFlushResult(ShardId shardId, String syncId, int totalShards, Map<ShardRouting, SyncedFlushService.ShardSyncedFlushResponse> shardResponses) {
+    public ShardsSyncedFlushResult(ShardId shardId,
+                                   String syncId,
+                                   int totalShards,
+                                   Map<ShardRouting, SyncedFlushService.ShardSyncedFlushResponse> shardResponses) {
         this.failureReason = null;
-        this.shardResponses = unmodifiableMap(new HashMap<>(shardResponses));
+        this.shardResponses = Map.copyOf(shardResponses);
         this.syncId = syncId;
         this.totalShards = totalShards;
         this.shardId = shardId;
@@ -146,7 +148,7 @@ public class ShardsSyncedFlushResult implements Streamable {
             shardResponses.put(shardRouting, response);
         }
         syncId = in.readOptionalString();
-        shardId = ShardId.readShardId(in);
+        shardId = new ShardId(in);
         totalShards = in.readInt();
     }
 

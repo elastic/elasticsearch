@@ -9,22 +9,22 @@ setup:
 ---
 teardown:
   - do:
-      xpack.security.delete_privileges:
+      security.delete_privileges:
         application: app
         name: "p1,p2,p3"
         ignore: 404
   - do:
-      xpack.security.delete_privileges:
+      security.delete_privileges:
         application: app2
         name: "p1"
         ignore: 404
   - do:
-      xpack.security.delete_privileges:
+      security.delete_privileges:
         application: app3
         name: "p1,p2,p3,p4"
         ignore: 404
   - do:
-      xpack.security.delete_privileges:
+      security.delete_privileges:
         application: app4
         name: "p1"
         ignore: 404
@@ -32,7 +32,7 @@ teardown:
 "Test put and get privileges":
   # Single privilege
   - do:
-      xpack.security.put_privileges:
+      security.put_privileges:
         body:  >
             {
               "app": {
@@ -51,7 +51,7 @@ teardown:
 
   # Multiple privileges
   - do:
-      xpack.security.put_privileges:
+      security.put_privileges:
         body: >
           {
             "app": {
@@ -88,7 +88,7 @@ teardown:
 
   # Update existing privilege
   - do:
-      xpack.security.put_privileges:
+      security.put_privileges:
         body:  >
             {
               "app": {
@@ -104,7 +104,7 @@ teardown:
 
   # Get the privilege back
   - do:
-      xpack.security.get_privileges:
+      security.get_privileges:
         application: app
         name: p1
 
@@ -121,7 +121,7 @@ teardown:
 
   # Get 2 privileges back
   - do:
-      xpack.security.get_privileges:
+      security.get_privileges:
         application: app
         name: p1,p2
 
@@ -149,7 +149,7 @@ teardown:
 
  # Get all (3) privileges back for "app"
   - do:
-      xpack.security.get_privileges:
+      security.get_privileges:
         application: "app"
         name: ""
 
@@ -188,7 +188,7 @@ teardown:
 
  # Get all (4) privileges back for all apps
   - do:
-      xpack.security.get_privileges:
+      security.get_privileges:
         application: ""
         name: ""
 
@@ -237,7 +237,7 @@ teardown:
 "Test put and delete privileges":
   # Store some privileges
   - do:
-      xpack.security.put_privileges:
+      security.put_privileges:
         body:  >
           {
             "app3": {
@@ -278,7 +278,7 @@ teardown:
 
   # Delete 1 privilege
   - do:
-      xpack.security.delete_privileges:
+      security.delete_privileges:
         application: app3
         name: p1
 
@@ -287,7 +287,7 @@ teardown:
   # Delete 2 more privileges (p2, p3)
   # and try to delete two that don't exist (p1, p0)
   - do:
-      xpack.security.delete_privileges:
+      security.delete_privileges:
         application: app3
         name: p1,p2,p3,p0
 
@@ -299,13 +299,13 @@ teardown:
   # Check the deleted privileges are gone
   - do:
       catch: missing
-      xpack.security.get_privileges:
+      security.get_privileges:
         application: app3
         name: p1,p2,p3
 
   # Check the non-deleted privileges are there
   - do:
-      xpack.security.get_privileges:
+      security.get_privileges:
         application: ""
         name: ""
   - match: {

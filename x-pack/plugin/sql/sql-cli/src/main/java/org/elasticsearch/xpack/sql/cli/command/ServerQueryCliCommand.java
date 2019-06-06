@@ -5,13 +5,16 @@
  */
 package org.elasticsearch.xpack.sql.cli.command;
 
+import org.elasticsearch.xpack.sql.action.BasicFormatter;
 import org.elasticsearch.xpack.sql.cli.CliTerminal;
 import org.elasticsearch.xpack.sql.client.HttpClient;
 import org.elasticsearch.xpack.sql.client.JreHttpUrlConnection;
-import org.elasticsearch.xpack.sql.action.CliFormatter;
+import org.elasticsearch.xpack.sql.proto.Mode;
 import org.elasticsearch.xpack.sql.proto.SqlQueryResponse;
 
 import java.sql.SQLException;
+
+import static org.elasticsearch.xpack.sql.action.BasicFormatter.FormatOption.CLI;
 
 public class ServerQueryCliCommand extends AbstractServerCliCommand {
 
@@ -19,12 +22,12 @@ public class ServerQueryCliCommand extends AbstractServerCliCommand {
     protected boolean doHandle(CliTerminal terminal, CliSession cliSession, String line) {
         SqlQueryResponse response = null;
         HttpClient cliClient = cliSession.getClient();
-        CliFormatter cliFormatter;
+        BasicFormatter formatter;
         String data;
         try {
-            response = cliClient.queryInit(line, cliSession.getFetchSize());
-            cliFormatter = new CliFormatter(response.columns(), response.rows());
-            data = cliFormatter.formatWithHeader(response.columns(), response.rows());
+            response = cliClient.basicQuery(line, cliSession.getFetchSize());
+            formatter = new BasicFormatter(response.columns(), response.rows(), CLI);
+            data = formatter.formatWithHeader(response.columns(), response.rows());
             while (true) {
                 handleText(terminal, data);
                 if (response.cursor().isEmpty()) {
@@ -36,7 +39,7 @@ public class ServerQueryCliCommand extends AbstractServerCliCommand {
                     terminal.println(cliSession.getFetchSeparator());
                 }
                 response = cliSession.getClient().nextPage(response.cursor());
-                data = cliFormatter.formatWithoutHeader(response.rows());
+                data = formatter.formatWithoutHeader(response.rows());
             }
         } catch (SQLException e) {
             if (JreHttpUrlConnection.SQL_STATE_BAD_SERVER.equals(e.getSQLState())) {
@@ -46,7 +49,7 @@ public class ServerQueryCliCommand extends AbstractServerCliCommand {
             }
             if (response != null) {
                 try {
-                    cliClient.queryClose(response.cursor());
+                    cliClient.queryClose(response.cursor(), Mode.CLI);
                 } catch (SQLException ex) {
                     terminal.error("Could not close cursor", ex.getMessage());
                 }

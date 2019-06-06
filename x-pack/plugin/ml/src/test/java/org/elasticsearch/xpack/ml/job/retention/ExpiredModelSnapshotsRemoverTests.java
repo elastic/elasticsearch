@@ -5,27 +5,18 @@
  */
 package org.elasticsearch.xpack.ml.job.retention;
 
+import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.mock.orig.Mockito;
-import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.action.DeleteModelSnapshotAction;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobTests;
@@ -40,26 +31,22 @@ import org.mockito.stubbing.Answer;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.xpack.ml.job.retention.AbstractExpiredJobDataRemoverTests.TestListener;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.same;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class ExpiredModelSnapshotsRemoverTests extends ESTestCase {
 
     private Client client;
     private ThreadPool threadPool;
-    private ClusterService clusterService;
-    private ClusterState clusterState;
     private List<SearchRequest> capturedSearchRequests;
     private List<DeleteModelSnapshotAction.Request> capturedDeleteModelSnapshotRequests;
     private List<SearchResponse> searchResponsesPerCall;
@@ -70,9 +57,6 @@ public class ExpiredModelSnapshotsRemoverTests extends ESTestCase {
         capturedSearchRequests = new ArrayList<>();
         capturedDeleteModelSnapshotRequests = new ArrayList<>();
         searchResponsesPerCall = new ArrayList<>();
-        clusterService = mock(ClusterService.class);
-        clusterState = mock(ClusterState.class);
-        when(clusterService.state()).thenReturn(clusterState);
         client = mock(Client.class);
         listener = new TestListener();
 
@@ -89,7 +73,7 @@ public class ExpiredModelSnapshotsRemoverTests extends ESTestCase {
         terminate(threadPool);
     }
 
-    public void testRemove_GivenJobsWithoutRetentionPolicy() {
+    public void testRemove_GivenJobsWithoutRetentionPolicy() throws IOException {
         givenClientRequestsSucceed();
         givenJobs(Arrays.asList(
                 JobTests.buildJobBuilder("foo").build(),
@@ -100,10 +84,11 @@ public class ExpiredModelSnapshotsRemoverTests extends ESTestCase {
 
         listener.waitToCompletion();
         assertThat(listener.success, is(true));
+        verify(client).search(any());
         Mockito.verifyNoMoreInteractions(client);
     }
 
-    public void testRemove_GivenJobWithoutActiveSnapshot() {
+    public void testRemove_GivenJobWithoutActiveSnapshot() throws IOException {
         givenClientRequestsSucceed();
         givenJobs(Arrays.asList(JobTests.buildJobBuilder("foo").setModelSnapshotRetentionDays(7L).build()));
 
@@ -111,6 +96,7 @@ public class ExpiredModelSnapshotsRemoverTests extends ESTestCase {
 
         listener.waitToCompletion();
         assertThat(listener.success, is(true));
+        verify(client).search(any());
         Mockito.verifyNoMoreInteractions(client);
     }
 
@@ -125,8 +111,8 @@ public class ExpiredModelSnapshotsRemoverTests extends ESTestCase {
         List<ModelSnapshot> snapshots1JobSnapshots = Arrays.asList(createModelSnapshot("snapshots-1", "snapshots-1_1"),
                 createModelSnapshot("snapshots-1", "snapshots-1_2"));
         List<ModelSnapshot> snapshots2JobSnapshots = Arrays.asList(createModelSnapshot("snapshots-2", "snapshots-2_1"));
-        searchResponsesPerCall.add(createSearchResponse(snapshots1JobSnapshots));
-        searchResponsesPerCall.add(createSearchResponse(snapshots2JobSnapshots));
+        searchResponsesPerCall.add(AbstractExpiredJobDataRemoverTests.createSearchResponse(snapshots1JobSnapshots));
+        searchResponsesPerCall.add(AbstractExpiredJobDataRemoverTests.createSearchResponse(snapshots2JobSnapshots));
 
         createExpiredModelSnapshotsRemover().remove(listener);
 
@@ -162,8 +148,8 @@ public class ExpiredModelSnapshotsRemoverTests extends ESTestCase {
         List<ModelSnapshot> snapshots1JobSnapshots = Arrays.asList(createModelSnapshot("snapshots-1", "snapshots-1_1"),
                 createModelSnapshot("snapshots-1", "snapshots-1_2"));
         List<ModelSnapshot> snapshots2JobSnapshots = Arrays.asList(createModelSnapshot("snapshots-2", "snapshots-2_1"));
-        searchResponsesPerCall.add(createSearchResponse(snapshots1JobSnapshots));
-        searchResponsesPerCall.add(createSearchResponse(snapshots2JobSnapshots));
+        searchResponsesPerCall.add(AbstractExpiredJobDataRemoverTests.createSearchResponse(snapshots1JobSnapshots));
+        searchResponsesPerCall.add(AbstractExpiredJobDataRemoverTests.createSearchResponse(snapshots2JobSnapshots));
 
         createExpiredModelSnapshotsRemover().remove(listener);
 
@@ -188,8 +174,8 @@ public class ExpiredModelSnapshotsRemoverTests extends ESTestCase {
         List<ModelSnapshot> snapshots1JobSnapshots = Arrays.asList(createModelSnapshot("snapshots-1", "snapshots-1_1"),
                 createModelSnapshot("snapshots-1", "snapshots-1_2"));
         List<ModelSnapshot> snapshots2JobSnapshots = Arrays.asList(createModelSnapshot("snapshots-2", "snapshots-2_1"));
-        searchResponsesPerCall.add(createSearchResponse(snapshots1JobSnapshots));
-        searchResponsesPerCall.add(createSearchResponse(snapshots2JobSnapshots));
+        searchResponsesPerCall.add(AbstractExpiredJobDataRemoverTests.createSearchResponse(snapshots1JobSnapshots));
+        searchResponsesPerCall.add(AbstractExpiredJobDataRemoverTests.createSearchResponse(snapshots2JobSnapshots));
 
         createExpiredModelSnapshotsRemover().remove(listener);
 
@@ -206,37 +192,35 @@ public class ExpiredModelSnapshotsRemoverTests extends ESTestCase {
         assertThat(deleteSnapshotRequest.getSnapshotId(), equalTo("snapshots-1_1"));
     }
 
-    private void givenJobs(List<Job> jobs) {
-        Map<String, Job> jobsMap = new HashMap<>();
-        jobs.stream().forEach(job -> jobsMap.put(job.getId(), job));
-        MlMetadata mlMetadata = mock(MlMetadata.class);
-        when(mlMetadata.getJobs()).thenReturn(jobsMap);
-        MetaData metadata = mock(MetaData.class);
-        when(metadata.custom(MlMetadata.TYPE)).thenReturn(mlMetadata);
-        when(clusterState.getMetaData()).thenReturn(metadata);
+    private void givenJobs(List<Job> jobs) throws IOException {
+        SearchResponse response = AbstractExpiredJobDataRemoverTests.createSearchResponse(jobs);
+
+        ActionFuture<SearchResponse> future = mock(ActionFuture.class);
+        when(future.actionGet()).thenReturn(response);
+        when(client.search(any())).thenReturn(future);
     }
 
     private ExpiredModelSnapshotsRemover createExpiredModelSnapshotsRemover() {
-        return new ExpiredModelSnapshotsRemover(client, threadPool, clusterService);
+        return new ExpiredModelSnapshotsRemover(client, threadPool);
     }
 
     private static ModelSnapshot createModelSnapshot(String jobId, String snapshotId) {
         return new ModelSnapshot.Builder(jobId).setSnapshotId(snapshotId).build();
     }
 
-    private static SearchResponse createSearchResponse(List<ModelSnapshot> modelSnapshots) throws IOException {
-        SearchHit[] hitsArray = new SearchHit[modelSnapshots.size()];
-        for (int i = 0; i < modelSnapshots.size(); i++) {
-            hitsArray[i] = new SearchHit(randomInt());
-            XContentBuilder jsonBuilder = JsonXContent.contentBuilder();
-            modelSnapshots.get(i).toXContent(jsonBuilder, ToXContent.EMPTY_PARAMS);
-            hitsArray[i].sourceRef(BytesReference.bytes(jsonBuilder));
-        }
-        SearchHits hits = new SearchHits(hitsArray, hitsArray.length, 1.0f);
-        SearchResponse searchResponse = mock(SearchResponse.class);
-        when(searchResponse.getHits()).thenReturn(hits);
-        return searchResponse;
-    }
+//    private static SearchResponse createSearchResponse(List<ModelSnapshot> modelSnapshots) throws IOException {
+//        SearchHit[] hitsArray = new SearchHit[modelSnapshots.size()];
+//        for (int i = 0; i < modelSnapshots.size(); i++) {
+//            hitsArray[i] = new SearchHit(randomInt());
+//            XContentBuilder jsonBuilder = JsonXContent.contentBuilder();
+//            modelSnapshots.get(i).toXContent(jsonBuilder, ToXContent.EMPTY_PARAMS);
+//            hitsArray[i].sourceRef(BytesReference.bytes(jsonBuilder));
+//        }
+//        SearchHits hits = new SearchHits(hitsArray, new TotalHits(hitsArray.length, TotalHits.Relation.EQUAL_TO), 1.0f);
+//        SearchResponse searchResponse = mock(SearchResponse.class);
+//        when(searchResponse.getHits()).thenReturn(hits);
+//        return searchResponse;
+//    }
 
     private void givenClientRequestsSucceed() {
         givenClientRequests(true, true);
@@ -281,31 +265,6 @@ public class ExpiredModelSnapshotsRemoverTests extends ESTestCase {
                 return null;
             }
         }).when(client).execute(same(DeleteModelSnapshotAction.INSTANCE), any(), any());
-    }
-
-    private class TestListener implements ActionListener<Boolean> {
-
-        private boolean success;
-        private final CountDownLatch latch = new CountDownLatch(1);
-
-        @Override
-        public void onResponse(Boolean aBoolean) {
-            success = aBoolean;
-            latch.countDown();
-        }
-
-        @Override
-        public void onFailure(Exception e) {
-            latch.countDown();
-        }
-
-        public void waitToCompletion() {
-            try {
-                latch.await(10, TimeUnit.SECONDS);
-            } catch (InterruptedException e) {
-                fail("listener timed out before completing");
-            }
-        }
     }
 
 }

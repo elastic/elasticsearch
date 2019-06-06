@@ -19,8 +19,10 @@
 
 package org.elasticsearch.nio;
 
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
+import org.mockito.ArgumentCaptor;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -31,12 +33,15 @@ import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
 
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyInt;
 import static org.mockito.Matchers.isNull;
 import static org.mockito.Matchers.same;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -82,6 +87,10 @@ public class NioSelectorTests extends ESTestCase {
         when(serverChannelContext.isOpen()).thenReturn(true);
         when(serverChannelContext.getSelector()).thenReturn(selector);
         when(serverChannelContext.getSelectionKey()).thenReturn(selectionKey);
+        doAnswer(invocationOnMock -> {
+            ((Runnable) invocationOnMock.getArguments()[0]).run();
+            return null;
+        }).when(eventHandler).handleTask(any());
     }
 
     @SuppressWarnings({"unchecked", "rawtypes"})
@@ -96,6 +105,75 @@ public class NioSelectorTests extends ESTestCase {
         selector.singleLoop();
 
         verify(eventHandler).handleClose(context);
+    }
+
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    public void testCloseException() throws IOException {
+        IOException ioException = new IOException();
+        NioChannel channel = mock(NioChannel.class);
+        ChannelContext context = mock(ChannelContext.class);
+        when(channel.getContext()).thenReturn(context);
+        when(context.getSelector()).thenReturn(selector);
+
+        selector.queueChannelClose(channel);
+
+        doThrow(ioException).when(eventHandler).handleClose(context);
+
+        selector.singleLoop();
+
+        verify(eventHandler).closeException(context, ioException);
+    }
+
+    public void testNioDelayedTasksAreExecuted() throws IOException {
+        AtomicBoolean isRun = new AtomicBoolean(false);
+        long nanoTime = System.nanoTime() - 1;
+        selector.getTaskScheduler().scheduleAtRelativeTime(() -> isRun.set(true), nanoTime);
+
+        assertFalse(isRun.get());
+        selector.singleLoop();
+        verify(rawSelector).selectNow();
+        assertTrue(isRun.get());
+    }
+
+    public void testTaskExceptionsAreHandled() {
+        RuntimeException taskException = new RuntimeException();
+        long nanoTime = System.nanoTime() - 1;
+        Runnable task = () -> {
+            throw taskException;
+        };
+        selector.getTaskScheduler().scheduleAtRelativeTime(task, nanoTime);
+
+        doAnswer((a) -> {
+            task.run();
+            return null;
+        }).when(eventHandler).handleTask(same(task));
+
+        selector.singleLoop();
+        verify(eventHandler).taskException(taskException);
+    }
+
+    public void testDefaultSelectorTimeoutIsUsedIfNoTaskSooner() throws IOException {
+        long delay = new TimeValue(15, TimeUnit.MINUTES).nanos();
+        selector.getTaskScheduler().scheduleAtRelativeTime(() -> {
+        }, System.nanoTime() + delay);
+
+        selector.singleLoop();
+        verify(rawSelector).select(300);
+    }
+
+    public void testSelectorTimeoutWillBeReducedIfTaskSooner() throws Exception {
+        // As this is a timing based test, we must assertBusy in the very small chance that the loop is
+        // delayed for 50 milliseconds (causing a selectNow())
+        assertBusy(() -> {
+            ArgumentCaptor<Long> captor = ArgumentCaptor.forClass(Long.class);
+            long delay = new TimeValue(50, TimeUnit.MILLISECONDS).nanos();
+            selector.getTaskScheduler().scheduleAtRelativeTime(() -> {
+            }, System.nanoTime() + delay);
+            selector.singleLoop();
+            verify(rawSelector).select(captor.capture());
+            assertTrue(captor.getValue() > 0);
+            assertTrue(captor.getValue() < 300);
+        });
     }
 
     public void testSelectorClosedExceptionIsNotCaughtWhileRunning() throws IOException {
@@ -417,24 +495,5 @@ public class NioSelectorTests extends ESTestCase {
         verify(listener).accept(isNull(Void.class), any(ClosedSelectorException.class));
         verify(eventHandler).handleClose(channelContext);
         verify(eventHandler).handleClose(unregisteredContext);
-    }
-
-    public void testExecuteListenerWillHandleException() throws Exception {
-        RuntimeException exception = new RuntimeException();
-        doThrow(exception).when(listener).accept(null, null);
-
-        selector.executeListener(listener, null);
-
-        verify(eventHandler).listenerException(exception);
-    }
-
-    public void testExecuteFailedListenerWillHandleException() throws Exception {
-        IOException ioException = new IOException();
-        RuntimeException exception = new RuntimeException();
-        doThrow(exception).when(listener).accept(null, ioException);
-
-        selector.executeFailedListener(listener, ioException);
-
-        verify(eventHandler).listenerException(exception);
     }
 }

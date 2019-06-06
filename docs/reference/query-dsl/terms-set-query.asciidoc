@@ -15,11 +15,9 @@ be a number field:
 PUT /my-index
 {
     "mappings": {
-        "_doc": {
-            "properties": {
-                "required_matches": {
-                    "type": "long"
-                }
+        "properties": {
+            "required_matches": {
+                "type": "long"
             }
         }
     }
@@ -72,7 +70,10 @@ Response:
     "failed": 0
   },
   "hits": {
-    "total": 1,
+    "total" : {
+        "value": 1,
+        "relation": "eq"
+    },
     "max_score": 0.87546873,
     "hits": [
       {

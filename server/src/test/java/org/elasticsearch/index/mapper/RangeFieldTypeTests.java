@@ -28,16 +28,16 @@ import org.apache.lucene.document.LongRange;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.queries.BinaryDocValuesRangeQuery;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.geo.ShapeRelation;
-import org.elasticsearch.common.joda.FormatDateTimeFormatter;
-import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.RangeFieldMapper.RangeFieldType;
 import org.elasticsearch.index.mapper.RangeFieldMapper.RangeType;
@@ -48,6 +48,9 @@ import org.junit.Before;
 
 import java.net.InetAddress;
 import java.util.Locale;
+
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.instanceOf;
 
 public class RangeFieldTypeTests extends FieldTypeTestCase {
     RangeType type;
@@ -63,13 +66,13 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
             addModifier(new Modifier("format", true) {
                 @Override
                 public void modify(MappedFieldType ft) {
-                    ((RangeFieldType) ft).setDateTimeFormatter(Joda.forPattern("basic_week_date", Locale.ROOT));
+                    ((RangeFieldType) ft).setDateTimeFormatter(DateFormatter.forPattern("basic_week_date"));
                 }
             });
             addModifier(new Modifier("locale", true) {
                 @Override
                 public void modify(MappedFieldType ft) {
-                    ((RangeFieldType) ft).setDateTimeFormatter(Joda.forPattern("date_optional_time", Locale.CANADA));
+                    ((RangeFieldType) ft).setDateTimeFormatter(DateFormatter.forPattern("date_optional_time").withLocale(Locale.CANADA));
                 }
             });
         }
@@ -91,9 +94,134 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
         boolean includeUpper = randomBoolean();
         Object from = nextFrom();
         Object to = nextTo(from);
+        if (includeLower == false && includeUpper == false) {
+            // need to increase once more, otherwise interval is empty because edge values are exclusive
+            to = nextTo(to);
+        }
 
         assertEquals(getExpectedRangeQuery(relation, from, to, includeLower, includeUpper),
             ft.rangeQuery(from, to, includeLower, includeUpper, relation, null, null, context));
+    }
+
+    /**
+     * test the queries are correct if from/to are adjacent and the range is exclusive of those values
+     */
+    public void testRangeQueryIntersectsAdjacentValues() throws Exception {
+        QueryShardContext context = createContext();
+        ShapeRelation relation = randomFrom(ShapeRelation.values());
+        RangeFieldType ft = new RangeFieldType(type);
+        ft.setName(FIELDNAME);
+        ft.setIndexOptions(IndexOptions.DOCS);
+
+        Object from = null;
+        Object to = null;
+        switch (type) {
+            case LONG: {
+                long fromValue = randomLong();
+                from = fromValue;
+                to = fromValue + 1;
+                break;
+            }
+            case DATE: {
+                long fromValue = randomInt();
+                from = new DateTime(fromValue);
+                to = new DateTime(fromValue + 1);
+                break;
+            }
+            case INTEGER: {
+                int fromValue = randomInt();
+                from = fromValue;
+                to = fromValue + 1;
+                break;
+            }
+            case DOUBLE: {
+                double fromValue = randomDoubleBetween(0, 100, true);
+                from = fromValue;
+                to = Math.nextUp(fromValue);
+                break;
+            }
+            case FLOAT: {
+                float fromValue = randomFloat();
+                from = fromValue;
+                to = Math.nextUp(fromValue);
+                break;
+            }
+            case IP: {
+                byte[] ipv4 = new byte[4];
+                random().nextBytes(ipv4);
+                InetAddress fromValue = InetAddress.getByAddress(ipv4);
+                from = fromValue;
+                to = InetAddressPoint.nextUp(fromValue);
+                break;
+            }
+            default:
+                from = nextFrom();
+                to = nextTo(from);
+        }
+        Query rangeQuery = ft.rangeQuery(from, to, false, false, relation, null, null, context);
+            assertThat(rangeQuery, instanceOf(IndexOrDocValuesQuery.class));
+            assertThat(((IndexOrDocValuesQuery) rangeQuery).getIndexQuery(), instanceOf(MatchNoDocsQuery.class));
+    }
+    
+    /**
+     * check that we catch cases where the user specifies larger "from" than "to" value, not counting the include upper/lower settings
+     */
+    public void testFromLargerToErrors() throws Exception {
+        QueryShardContext context = createContext();
+        RangeFieldType ft = new RangeFieldType(type);
+        ft.setName(FIELDNAME);
+        ft.setIndexOptions(IndexOptions.DOCS);
+
+        final Object from;
+        final Object to;
+        switch (type) {
+            case LONG: {
+                long fromValue = randomLong();
+                from = fromValue;
+                to = fromValue - 1L;
+                break;
+            }
+            case DATE: {
+                long fromValue = randomInt();
+                from = new DateTime(fromValue);
+                to = new DateTime(fromValue - 1);
+                break;
+            }
+            case INTEGER: {
+                int fromValue = randomInt();
+                from = fromValue;
+                to = fromValue - 1;
+                break;
+            }
+            case DOUBLE: {
+                double fromValue = randomDoubleBetween(0, 100, true);
+                from = fromValue;
+                to = fromValue - 1.0d;
+                break;
+            }
+            case FLOAT: {
+                float fromValue = randomFloat();
+                from = fromValue;
+                to = fromValue - 1.0f;
+                break;
+            }
+            case IP: {
+                byte[] ipv4 = new byte[4];
+                random().nextBytes(ipv4);
+                InetAddress fromValue = InetAddress.getByAddress(ipv4);
+                from = fromValue;
+                to = InetAddressPoint.nextDown(fromValue);
+                break;
+            }
+            default:
+                // quit test for other range types
+                return;
+        }
+        ShapeRelation relation = randomFrom(ShapeRelation.values());
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class,
+                () ->   ft.rangeQuery(from, to, true, true, relation, null, null, context));
+        assertTrue(ex.getMessage().contains("Range query `from` value"));
+        assertTrue(ex.getMessage().contains("is greater than `to` value"));
     }
 
     private QueryShardContext createContext() {
@@ -103,7 +231,7 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
         return new QueryShardContext(0, idxSettings, null, null, null, null, null, xContentRegistry(),
             writableRegistry(), null, null, () -> nowInMillis, null);
     }
-
+    
     public void testDateRangeQueryUsingMappingFormat() {
         QueryShardContext context = createContext();
         RangeFieldType fieldType = new RangeFieldType(RangeType.DATE);
@@ -112,19 +240,20 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
         fieldType.setHasDocValues(false);
         ShapeRelation relation = randomFrom(ShapeRelation.values());
 
-        // dates will break the default format
+        // dates will break the default format, month/day of month is turned around in the format
         final String from = "2016-15-06T15:29:50+08:00";
         final String to = "2016-16-06T15:29:50+08:00";
 
         ElasticsearchParseException ex = expectThrows(ElasticsearchParseException.class,
             () -> fieldType.rangeQuery(from, to, true, true, relation, null, null, context));
-        assertEquals("failed to parse date field [2016-15-06T15:29:50+08:00] with format [strict_date_optional_time||epoch_millis]",
-            ex.getMessage());
+        assertThat(ex.getMessage(),
+            containsString("failed to parse date field [2016-15-06T15:29:50+08:00] with format [strict_date_optional_time||epoch_millis]")
+        );
 
         // setting mapping format which is compatible with those dates
-        final FormatDateTimeFormatter formatter = Joda.forPattern("yyyy-dd-MM'T'HH:mm:ssZZ");
-        assertEquals(1465975790000L, formatter.parser().parseMillis(from));
-        assertEquals(1466062190000L, formatter.parser().parseMillis(to));
+        final DateFormatter formatter = DateFormatter.forPattern("yyyy-dd-MM'T'HH:mm:ssZZZZZ");
+        assertEquals(1465975790000L, formatter.parseMillis(from));
+        assertEquals(1466062190000L, formatter.parseMillis(to));
 
         fieldType.setDateTimeFormatter(formatter);
         final Query query = fieldType.rangeQuery(from, to, true, true, relation, null, null, context);

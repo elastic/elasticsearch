@@ -27,6 +27,8 @@ import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.ESRestHighLevelClientTestCase;
 import org.elasticsearch.client.RequestOptions;
@@ -60,6 +62,9 @@ import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
+import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregation;
+import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -72,6 +77,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.isOneOf;
@@ -83,13 +89,13 @@ public class RollupDocumentationIT extends ESRestHighLevelClientTestCase {
         final BulkRequest bulkRequest = new BulkRequest();
         bulkRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
         for (int i = 0; i < 50; i++) {
-            final IndexRequest indexRequest = new IndexRequest("docs", "doc");
+            final IndexRequest indexRequest = new IndexRequest("docs");
             indexRequest.source(jsonBuilder()
                 .startObject()
                 .field("timestamp", String.format(Locale.ROOT, "2018-01-01T00:%02d:00Z", i))
                 .field("hostname", 0)
                 .field("datacenter", 0)
-                .field("temperature", 0)
+                .field("temperature", i)
                 .field("voltage", 0)
                 .field("load", 0)
                 .field("net_in", 0)
@@ -97,7 +103,7 @@ public class RollupDocumentationIT extends ESRestHighLevelClientTestCase {
                 .endObject());
             bulkRequest.add(indexRequest);
         }
-        BulkResponse bulkResponse = highLevelClient().bulk(bulkRequest, RequestOptions.DEFAULT);
+        BulkResponse bulkResponse = highLevelClient().bulk(bulkRequest,  RequestOptions.DEFAULT);
         assertEquals(RestStatus.OK, bulkResponse.status());
         assertFalse(bulkResponse.hasFailures());
 
@@ -255,6 +261,14 @@ public class RollupDocumentationIT extends ESRestHighLevelClientTestCase {
         } catch (Exception e) {
             // Swallow any exception, this test does not test actually cancelling.
         }
+        // stop job to prevent spamming exceptions on next start request
+        StopRollupJobRequest stopRequest = new StopRollupJobRequest(id);
+        stopRequest.waitForCompletion();
+        stopRequest.timeout(TimeValue.timeValueSeconds(10));
+
+        StopRollupJobResponse response = client.rollup().stopRollupJob(stopRequest, RequestOptions.DEFAULT);
+        assertTrue(response.isAcknowledged());
+
         // tag::rollup-start-job-execute-listener
         ActionListener<StartRollupJobResponse> listener = new ActionListener<StartRollupJobResponse>() {
             @Override
@@ -276,7 +290,8 @@ public class RollupDocumentationIT extends ESRestHighLevelClientTestCase {
         assertTrue(latch.await(30L, TimeUnit.SECONDS));
 
         // stop job so it can correctly be deleted by the test teardown
-        rc.stopRollupJob(new StopRollupJobRequest(id), RequestOptions.DEFAULT);
+        response = rc.stopRollupJob(stopRequest, RequestOptions.DEFAULT);
+        assertTrue(response.isAcknowledged());
     }
 
     @SuppressWarnings("unused")
@@ -330,12 +345,62 @@ public class RollupDocumentationIT extends ESRestHighLevelClientTestCase {
         assertTrue(latch.await(30L, TimeUnit.SECONDS));
     }
 
+    public void testSearch() throws Exception {
+        // Setup a rollup index to query
+        testCreateRollupJob();
+
+        RestHighLevelClient client = highLevelClient();
+
+        // tag::search-request
+        SearchRequest request = new SearchRequest();
+        request.source(new SearchSourceBuilder()
+            .size(0)
+            .aggregation(new MaxAggregationBuilder("max_temperature")
+                .field("temperature")));
+        // end::search-request
+
+        // tag::search-execute
+        SearchResponse response =
+            client.rollup().search(request, RequestOptions.DEFAULT);
+        // end::search-execute
+
+        // tag::search-response
+        NumericMetricsAggregation.SingleValue maxTemperature =
+                response.getAggregations().get("max_temperature");
+        assertThat(maxTemperature.value(), closeTo(49.0, .00001));
+        // end::search-response
+
+        ActionListener<SearchResponse> listener;
+        // tag::search-execute-listener
+        listener = new ActionListener<SearchResponse>() {
+            @Override
+            public void onResponse(SearchResponse response) {
+                 // <1>
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                // <2>
+            }
+        };
+        // end::search-execute-listener
+
+        final CountDownLatch latch = new CountDownLatch(1);
+        listener = new LatchedActionListener<>(listener, latch);
+
+        // tag::search-execute-async
+        client.rollup().searchAsync(request, RequestOptions.DEFAULT, listener); // <1>
+        // end::search-execute-async
+
+        assertTrue(latch.await(30L, TimeUnit.SECONDS));
+    }
+
     @SuppressWarnings("unused")
     public void testGetRollupCaps() throws Exception {
         RestHighLevelClient client = highLevelClient();
 
-        DateHistogramGroupConfig dateHistogram =
-            new DateHistogramGroupConfig("timestamp", DateHistogramInterval.HOUR, new DateHistogramInterval("7d"), "UTC"); // <1>
+        DateHistogramGroupConfig dateHistogram = new DateHistogramGroupConfig.FixedInterval(
+            "timestamp", DateHistogramInterval.HOUR, new DateHistogramInterval("7d"), "UTC"); // <1>
         TermsGroupConfig terms = new TermsGroupConfig("hostname", "datacenter");
         HistogramGroupConfig histogram = new HistogramGroupConfig(5L, "load", "net_in", "net_out");
         GroupConfig groups = new GroupConfig(dateHistogram, histogram, terms);
@@ -408,7 +473,8 @@ public class RollupDocumentationIT extends ESRestHighLevelClientTestCase {
         // item represents a different aggregation that can be run against the "timestamp"
         // field, and any additional details specific to that agg (interval, etc)
         List<Map<String, Object>> timestampCaps = fieldCaps.get("timestamp").getAggs();
-        assert timestampCaps.get(0).toString().equals("{agg=date_histogram, delay=7d, interval=1h, time_zone=UTC}");
+        logger.error(timestampCaps.get(0).toString());
+        assert timestampCaps.get(0).toString().equals("{agg=date_histogram, fixed_interval=1h, delay=7d, time_zone=UTC}");
 
         // In contrast to the timestamp field, the temperature field has multiple aggs configured
         List<Map<String, Object>> temperatureCaps = fieldCaps.get("temperature").getAggs();
@@ -450,8 +516,8 @@ public class RollupDocumentationIT extends ESRestHighLevelClientTestCase {
     public void testGetRollupIndexCaps() throws Exception {
         RestHighLevelClient client = highLevelClient();
 
-        DateHistogramGroupConfig dateHistogram =
-            new DateHistogramGroupConfig("timestamp", DateHistogramInterval.HOUR, new DateHistogramInterval("7d"), "UTC"); // <1>
+        DateHistogramGroupConfig dateHistogram = new DateHistogramGroupConfig.FixedInterval(
+            "timestamp", DateHistogramInterval.HOUR, new DateHistogramInterval("7d"), "UTC"); // <1>
         TermsGroupConfig terms = new TermsGroupConfig("hostname", "datacenter");
         HistogramGroupConfig histogram = new HistogramGroupConfig(5L, "load", "net_in", "net_out");
         GroupConfig groups = new GroupConfig(dateHistogram, histogram, terms);
@@ -522,7 +588,8 @@ public class RollupDocumentationIT extends ESRestHighLevelClientTestCase {
         // item represents a different aggregation that can be run against the "timestamp"
         // field, and any additional details specific to that agg (interval, etc)
         List<Map<String, Object>> timestampCaps = fieldCaps.get("timestamp").getAggs();
-        assert timestampCaps.get(0).toString().equals("{agg=date_histogram, delay=7d, interval=1h, time_zone=UTC}");
+        logger.error(timestampCaps.get(0).toString());
+        assert timestampCaps.get(0).toString().equals("{agg=date_histogram, fixed_interval=1h, delay=7d, time_zone=UTC}");
 
         // In contrast to the timestamp field, the temperature field has multiple aggs configured
         List<Map<String, Object>> temperatureCaps = fieldCaps.get("temperature").getAggs();

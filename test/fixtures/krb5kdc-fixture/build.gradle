@@ -16,69 +16,41 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
-apply plugin: 'elasticsearch.build'
-
-Map<String, String> vagrantEnvVars = [
-        'VAGRANT_CWD'           : "${project.projectDir.absolutePath}",
-        'VAGRANT_VAGRANTFILE'   : 'Vagrantfile',
-        'VAGRANT_PROJECT_DIR'   : "${project.projectDir.absolutePath}"
-]
-
-String box = "krb5kdc"
-
-List<String> defaultPrincipals = [ "elasticsearch" ]
-
-task update(type: org.elasticsearch.gradle.vagrant.VagrantCommandTask) {
-    command 'box'
-    subcommand 'update'
-    boxName box
-    environmentVars vagrantEnvVars
-}
-
-task up(type: org.elasticsearch.gradle.vagrant.VagrantCommandTask) {
-    command 'up'
-    args '--provision', '--provider', 'virtualbox'
-    boxName box
-    environmentVars vagrantEnvVars
-    dependsOn update
-}
-
-task addDefaultPrincipals {
-    dependsOn up
-}
-
-for (String principal : defaultPrincipals) {
-    Task addTask = project.tasks.create("addPrincipal#${principal}", org.elasticsearch.gradle.vagrant.VagrantCommandTask) {
-        command 'ssh'
-        args '--command', "sudo bash /vagrant/src/main/resources/provision/addprinc.sh $principal"
-        boxName box
-        environmentVars vagrantEnvVars
-        dependsOn up
-    }
-    addDefaultPrincipals.dependsOn(addTask)
-}
-
-task halt(type: org.elasticsearch.gradle.vagrant.VagrantCommandTask) {
-    command 'halt'
-    boxName box
-    environmentVars vagrantEnvVars
-}
-
-task destroy(type: org.elasticsearch.gradle.vagrant.VagrantCommandTask) {
-    command 'destroy'
-    args '-f'
-    boxName box
-    environmentVars vagrantEnvVars
-    dependsOn halt
-}
-
-thirdPartyAudit.enabled = false
-licenseHeaders.enabled = false
-test.enabled = false
+apply plugin: 'elasticsearch.test.fixtures'
 
 // installKDC uses tabs in it for the Kerberos ACL file.
 // Ignore it for pattern checking.
 forbiddenPatterns {
     exclude "**/installkdc.sh"
 }
+
+List<String> services = ["peppa", "hdfs"]
+
+preProcessFixture.doLast {
+  // We need to create these up-front because if docker creates them they will be owned by root and we won't be
+  // able to clean them up
+  services.each { file("${buildDir}/shared/${it}").mkdirs() }
+}
+
+postProcessFixture {
+    inputs.dir("${buildDir}/shared")
+    services.each { service ->
+        File confTemplate = file("${buildDir}/shared/${service}/krb5.conf.template")
+        File confFile = file("${buildDir}/shared/${service}/krb5.conf")
+        outputs.file(confFile)
+        doLast {
+            assert confTemplate.exists()
+            String confContents = confTemplate.text
+                .replace("\${MAPPED_PORT}", "${ext."test.fixtures.${service}.udp.88"}")
+            confFile.text = confContents
+        }
+    }
+}
+
+// https://github.com/elastic/elasticsearch/issues/40624
+buildFixture.enabled = false
+
+project.ext.krb5Conf = { service -> file("$buildDir/shared/${service}/krb5.conf") }
+project.ext.krb5Keytabs = { service, fileName -> file("$buildDir/shared/${service}/keytabs/${fileName}") }
+
+test.enabled = false

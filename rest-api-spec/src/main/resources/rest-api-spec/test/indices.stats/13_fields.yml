@@ -13,20 +13,19 @@ setup:
                 index.number_of_shards: 3
                 index.number_of_replicas: 0
               mappings:
-                  bar:
-                      properties:
-                          bar:
-                              type: text
-                              fielddata: true
-                              fields:
-                                  completion:
-                                      type: completion
-                          baz:
-                              type: text
-                              fielddata: true
-                              fields:
-                                  completion:
-                                      type: completion
+                  properties:
+                      bar:
+                          type: text
+                          fielddata: true
+                          fields:
+                              completion:
+                                  type: completion
+                      baz:
+                          type: text
+                          fielddata: true
+                          fields:
+                              completion:
+                                  type: completion
 
   - do:
       cluster.health:
@@ -35,14 +34,12 @@ setup:
   - do:
       index:
           index: test1
-          type:  bar
           id:    1
           body:  { "bar": "bar", "baz": "baz" }
 
   - do:
       index:
           index: test1
-          type:  bar
           id:    2
           body:  { "bar": "foo", "baz": "foo" }
 
@@ -51,6 +48,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: test1
         body:
           suggest:
@@ -61,6 +59,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: test1
         body:
           suggest:
@@ -71,6 +70,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body:
           sort: [ "bar", "baz" ]
 

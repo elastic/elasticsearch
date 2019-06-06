@@ -42,7 +42,6 @@ public class RestUpdateByQueryAction extends AbstractBulkByQueryRestHandler<Upda
     public RestUpdateByQueryAction(Settings settings, RestController controller) {
         super(settings, UpdateByQueryAction.INSTANCE);
         controller.registerHandler(POST, "/{index}/_update_by_query", this);
-        controller.registerHandler(POST, "/{index}/{type}/_update_by_query", this);
     }
 
     @Override

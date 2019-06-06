@@ -1,8 +1,4 @@
----
-"top_hits aggregation with nested documents":
-  - skip:
-          version: " - 6.1.99"
-          reason: "<= 6.1 nodes don't always include index or id in nested top hits"
+setup:
   - do:
       indices.create:
         index: my-index
@@ -11,15 +7,13 @@
             number_of_shards: 1
             number_of_replicas: 0
           mappings:
-            doc:
-              properties:
-                users:
-                  type: nested
+            properties:
+              users:
+                type: nested
 
   - do:
       index:
         index:  my-index
-        type:   doc
         id:     1
         refresh: true
         body: |
@@ -40,7 +34,6 @@
   - do:
       index:
         index:  my-index
-        type:   doc
         id:     2
         refresh: true
         body: |
@@ -54,8 +47,11 @@
             ]
           }
 
+---
+"top_hits aggregation with nested documents":
   - do:
       search:
+        rest_total_hits_as_int: true
         body:
           aggs:
             to-users:
@@ -80,3 +76,32 @@
   - match: { aggregations.to-users.users.hits.hits.2._index: my-index }
   - match: { aggregations.to-users.users.hits.hits.2._nested.field: users }
   - match: { aggregations.to-users.users.hits.hits.2._nested.offset: 1 }
+
+
+---
+"top_hits aggregation with sequence numbers":
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          aggs:
+            groups:
+              terms:
+                field: group.keyword
+              aggs:
+                users:
+                  top_hits:
+                    sort: "users.last.keyword"
+                    seq_no_primary_term: true
+
+  - match: { hits.total: 2 }
+  - length: { aggregations.groups.buckets.0.users.hits.hits: 2 }
+  - match: { aggregations.groups.buckets.0.users.hits.hits.0._id: "1" }
+  - match: { aggregations.groups.buckets.0.users.hits.hits.0._index: my-index }
+  - gte: { aggregations.groups.buckets.0.users.hits.hits.0._seq_no: 0 }
+  - gte: { aggregations.groups.buckets.0.users.hits.hits.0._primary_term: 1 }
+  - match: { aggregations.groups.buckets.0.users.hits.hits.1._id: "2" }
+  - match: { aggregations.groups.buckets.0.users.hits.hits.1._index: my-index }
+  - gte: { aggregations.groups.buckets.0.users.hits.hits.1._seq_no: 0 }
+  - gte: { aggregations.groups.buckets.0.users.hits.hits.1._primary_term: 1 }

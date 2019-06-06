@@ -8,7 +8,7 @@ setup:
           wait_for_status: yellow
 
   - do:
-      xpack.security.put_role:
+      security.put_role:
         name: "mixed_role"
         body:  >
             {
@@ -21,7 +21,7 @@ setup:
             }
 
   - do:
-      xpack.security.put_user:
+      security.put_user:
         username: "test_user"
         body:  >
           {
@@ -39,10 +39,9 @@ setup:
               number_of_shards:   1
               number_of_replicas: 0
           mappings:
-            doc:
-              properties:
-                name:
-                  type: "keyword"
+            properties:
+              name:
+                type: "keyword"
 
   - do:
       indices.create:
@@ -53,10 +52,9 @@ setup:
               number_of_shards:   1
               number_of_replicas: 0
           mappings:
-            doc:
-              properties:
-                name:
-                  type: "keyword"
+            properties:
+              name:
+                type: "keyword"
   - do:
       indices.create:
         index: only_delete
@@ -66,10 +64,9 @@ setup:
               number_of_shards:   1
               number_of_replicas: 0
           mappings:
-            doc:
-              properties:
-                name:
-                  type: "keyword"
+            properties:
+              name:
+                type: "keyword"
 
   - do:
       indices.create:
@@ -80,19 +77,18 @@ setup:
               number_of_shards:   1
               number_of_replicas: 0
           mappings:
-            doc:
-              properties:
-                name:
-                  type: "keyword"
+            properties:
+              name:
+                type: "keyword"
 ---
 teardown:
   - do:
-      xpack.security.delete_user:
+      security.delete_user:
         username: "test_user"
         ignore: 404
 
   - do:
-      xpack.security.delete_role:
+      security.delete_role:
         name: "mixed_role"
         ignore: 404
 
@@ -104,7 +100,6 @@ teardown:
       create:
         id: 1
         index: only_index
-        type: doc
         body: >
           {
             "name" : "doc1"
@@ -115,7 +110,6 @@ teardown:
       create:
         id: 2
         index: everything
-        type: doc
         body: >
           {
             "name" : "doc2"
@@ -126,9 +120,9 @@ teardown:
       bulk:
         refresh: true
         body:
-            - '{"index": {"_index": "only_index", "_type": "doc", "_id": "3"}}'
+            - '{"index": {"_index": "only_index", "_id": "3"}}'
             - '{"name": "doc3"}'
-            - '{"index": {"_index": "everything", "_type": "doc", "_id": "4"}}'
+            - '{"index": {"_index": "everything", "_id": "4"}}'
             - '{"name": "doc4"}'
 
   - do:
@@ -136,7 +130,7 @@ teardown:
       bulk:
         refresh: true
         body:
-            - '{"index": {"_index": "only_index", "_type": "doc", "_id": "5"}}'
+            - '{"index": {"_index": "only_index", "_id": "5"}}'
             - '{"name": "doc5"}'
 
   - do:
@@ -144,17 +138,19 @@ teardown:
       bulk:
         refresh: true
         body:
-            - '{"index": {"_index": "everything", "_type": "doc", "_id": "6"}}'
+            - '{"index": {"_index": "everything", "_id": "6"}}'
             - '{"name": "doc6"}'
 
   - do: # superuser
       search:
+        rest_total_hits_as_int: true
         index: only_index
 
   - match: { hits.total: 3 }
 
   - do: # superuser
       search:
+        rest_total_hits_as_int: true
         index: everything
 
   - match: { hits.total: 3 }
@@ -168,7 +164,6 @@ teardown:
         refresh: true
         id: 7
         index: only_read
-        type: doc
         body: >
           {
             "name" : "doc7"
@@ -181,7 +176,6 @@ teardown:
         refresh: true
         id: 8
         index: only_delete
-        type: doc
         body: >
           {
             "name" : "doc8"
@@ -192,9 +186,9 @@ teardown:
       bulk:
         refresh: true
         body:
-            - '{"index": {"_index": "only_read", "_type": "doc", "_id": "9"}}'
+            - '{"index": {"_index": "only_read", "_id": "9"}}'
             - '{"name": "doc9"}'
-            - '{"index": {"_index": "only_delete", "_type": "doc", "_id": "10"}}'
+            - '{"index": {"_index": "only_delete", "_id": "10"}}'
             - '{"name": "doc10"}'
   - match: { errors: true }
   - match: { items.0.index.status: 403 }
@@ -207,7 +201,7 @@ teardown:
       bulk:
         refresh: true
         body:
-            - '{"index": {"_index": "only_read", "_type": "doc", "_id": "11"}}'
+            - '{"index": {"_index": "only_read", "_id": "11"}}'
             - '{"name": "doc11"}'
   - match: { errors: true }
   - match: { items.0.index.status: 403 }
@@ -218,7 +212,7 @@ teardown:
       bulk:
         refresh: true
         body:
-            - '{"index": {"_index": "only_delete", "_type": "doc", "_id": "12"}}'
+            - '{"index": {"_index": "only_delete", "_id": "12"}}'
             - '{"name": "doc12"}'
   - match: { errors: true }
   - match: { items.0.index.status: 403 }
@@ -226,11 +220,13 @@ teardown:
 
   - do: # superuser
       search:
+        rest_total_hits_as_int: true
         index: only_read
   - match: { hits.total: 0 }
 
   - do: # superuser
       search:
+        rest_total_hits_as_int: true
         index: only_delete
   - match: { hits.total: 0 }
 
@@ -241,9 +237,9 @@ teardown:
       bulk:
         refresh: true
         body:
-            - '{"index": {"_index": "only_read", "_type": "doc", "_id": "13"}}'
+            - '{"index": {"_index": "only_read", "_id": "13"}}'
             - '{"name": "doc13"}'
-            - '{"index": {"_index": "only_index", "_type": "doc", "_id": "14"}}'
+            - '{"index": {"_index": "only_index", "_id": "14"}}'
             - '{"name": "doc14"}'
   - match: { errors: true }
   - match: { items.0.index.status: 403 }
@@ -252,6 +248,7 @@ teardown:
 
   - do: # superuser
       search:
+        rest_total_hits_as_int: true
         index: only_index
         body: { "query": { "term": { "_id": "14" } } }
   - match: { hits.total: 1 }

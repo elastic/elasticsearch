@@ -1,7 +1,7 @@
 [role="xpack"]
 [testenv="platinum"]
 [[ml-snapshot-resource]]
-=== Model Snapshot Resources
+=== Model snapshot resources
 
 Model snapshots are saved to disk periodically.
 By default, this is occurs approximately every 3 hours to 4 hours and is

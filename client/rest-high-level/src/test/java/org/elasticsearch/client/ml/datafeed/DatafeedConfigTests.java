@@ -28,6 +28,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
+import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder.ScriptField;
 import org.elasticsearch.test.AbstractXContentTestCase;
@@ -51,7 +52,6 @@ public class DatafeedConfigTests extends AbstractXContentTestCase<DatafeedConfig
         long bucketSpanMillis = 3600000;
         DatafeedConfig.Builder builder = constructBuilder();
         builder.setIndices(randomStringList(1, 10));
-        builder.setTypes(randomStringList(0, 10));
         if (randomBoolean()) {
             try {
                 builder.setQuery(QueryBuilders.termQuery(randomAlphaOfLength(10), randomAlphaOfLength(10)));
@@ -80,7 +80,7 @@ public class DatafeedConfigTests extends AbstractXContentTestCase<DatafeedConfig
             aggHistogramInterval = aggHistogramInterval <= 0 ? 1 : aggHistogramInterval;
             MaxAggregationBuilder maxTime = AggregationBuilders.max("time").field("time");
             aggs.addAggregator(AggregationBuilders.dateHistogram("buckets")
-                .interval(aggHistogramInterval).subAggregation(maxTime).field("time"));
+                .fixedInterval(new DateHistogramInterval(aggHistogramInterval + "ms")).subAggregation(maxTime).field("time"));
             try {
                 builder.setAggregations(aggs);
             } catch (IOException e) {

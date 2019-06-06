@@ -51,10 +51,6 @@ public class SnapshotException extends ElasticsearchException {
         }
     }
 
-    public SnapshotException(final String repositoryName, final SnapshotId snapshotId, final String msg) {
-        this(repositoryName, snapshotId, msg, null);
-    }
-
     public SnapshotException(final String repositoryName, final SnapshotId snapshotId, final String msg, final Throwable cause) {
         super("[" + repositoryName + ":" + snapshotId + "] " + msg, cause);
         this.repositoryName = repositoryName;
@@ -62,11 +58,7 @@ public class SnapshotException extends ElasticsearchException {
     }
 
     public SnapshotException(final String repositoryName, final String snapshotName, final String msg) {
-        this(repositoryName, snapshotName, msg, null);
-    }
-
-    public SnapshotException(final String repositoryName, final String snapshotName, final String msg, final Throwable cause) {
-        super("[" + repositoryName + ":" + snapshotName + "] " + msg, cause);
+        super("[" + repositoryName + ":" + snapshotName + "] " + msg);
         this.repositoryName = repositoryName;
         this.snapshotName = snapshotName;
     }

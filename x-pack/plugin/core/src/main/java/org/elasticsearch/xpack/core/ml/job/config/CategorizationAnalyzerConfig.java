@@ -53,9 +53,9 @@ import java.util.Objects;
 public class CategorizationAnalyzerConfig implements ToXContentFragment, Writeable {
 
     public static final ParseField CATEGORIZATION_ANALYZER = new ParseField("categorization_analyzer");
-    private static final ParseField TOKENIZER = RestAnalyzeAction.Fields.TOKENIZER;
-    private static final ParseField TOKEN_FILTERS = RestAnalyzeAction.Fields.TOKEN_FILTERS;
-    private static final ParseField CHAR_FILTERS = RestAnalyzeAction.Fields.CHAR_FILTERS;
+    public static final ParseField TOKENIZER = RestAnalyzeAction.Fields.TOKENIZER;
+    public static final ParseField TOKEN_FILTERS = RestAnalyzeAction.Fields.TOKEN_FILTERS;
+    public static final ParseField CHAR_FILTERS = RestAnalyzeAction.Fields.CHAR_FILTERS;
 
     /**
      * This method is only used in the unit tests - in production code this config is always parsed as a fragment.

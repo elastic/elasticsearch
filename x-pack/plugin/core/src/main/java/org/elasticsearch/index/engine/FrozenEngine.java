@@ -20,6 +20,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.PointValues;
 import org.apache.lucene.index.SegmentCommitInfo;
+import org.apache.lucene.index.SegmentReader;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
@@ -32,6 +33,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.Bits;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.shard.SearchOperationListener;
@@ -67,6 +69,7 @@ import java.util.function.Function;
 public final class FrozenEngine extends ReadOnlyEngine {
     public static final Setting<Boolean> INDEX_FROZEN = Setting.boolSetting("index.frozen", false, Setting.Property.IndexScope,
         Setting.Property.PrivateIndex);
+    private final SegmentsStats stats;
     private volatile DirectoryReader lastOpenedReader;
     private final DirectoryReader canMatchReader;
 
@@ -75,8 +78,16 @@ public final class FrozenEngine extends ReadOnlyEngine {
 
         boolean success = false;
         Directory directory = store.directory();
-        try (DirectoryReader reader = DirectoryReader.open(directory)) {
-            canMatchReader = new RewriteCachingDirectoryReader(directory, reader.leaves());
+        try (DirectoryReader reader = DirectoryReader.open(directory, OFF_HEAP_READER_ATTRIBUTES)) {
+            canMatchReader = ElasticsearchDirectoryReader.wrap(new RewriteCachingDirectoryReader(directory, reader.leaves()),
+                config.getShardId());
+            // we record the segment stats here - that's what the reader needs when it's open and it give the user
+            // an idea of what it can save when it's closed
+            this.stats = new SegmentsStats();
+            for (LeafReaderContext ctx : reader.getContext().leaves()) {
+                SegmentReader segmentReader = Lucene.segmentReader(ctx.reader());
+                fillSegmentStats(segmentReader, true, stats);
+            }
             success = true;
         } catch (IOException e) {
             throw new UncheckedIOException(e);
@@ -157,8 +168,8 @@ public final class FrozenEngine extends ReadOnlyEngine {
                 for (ReferenceManager.RefreshListener listeners : config ().getInternalRefreshListener()) {
                     listeners.beforeRefresh();
                 }
-                reader = DirectoryReader.open(engineConfig.getStore().directory());
-                searcherFactory.processReaders(reader, null);
+                reader = DirectoryReader.open(engineConfig.getStore().directory(), OFF_HEAP_READER_ATTRIBUTES);
+                processReader(reader);
                 reader = lastOpenedReader = wrapReader(reader, Function.identity());
                 reader.getReaderCacheHelper().addClosedListener(this::onReaderClosed);
                 for (ReferenceManager.RefreshListener listeners : config ().getInternalRefreshListener()) {
@@ -175,20 +186,11 @@ public final class FrozenEngine extends ReadOnlyEngine {
     }
 
     @SuppressForbidden(reason = "we manage references explicitly here")
-    private synchronized DirectoryReader getReader() throws IOException {
-        DirectoryReader reader = null;
-        boolean success = false;
-        try {
-            if (lastOpenedReader != null && lastOpenedReader.tryIncRef()) {
-                reader = lastOpenedReader;
-            }
-            success = true;
-            return reader;
-        } finally {
-            if (success == false) {
-                IOUtils.close(reader);
-            }
+    private synchronized DirectoryReader getReader() {
+        if (lastOpenedReader != null && lastOpenedReader.tryIncRef()) {
+            return lastOpenedReader;
         }
+        return null;
     }
 
     @Override
@@ -205,10 +207,11 @@ public final class FrozenEngine extends ReadOnlyEngine {
                     assert false : "this is a read-only engine";
                 case "doc_stats":
                     assert false : "doc_stats are overwritten";
+                case "refresh_needed":
+                    assert false : "refresh_needed is always false";
                 case "segments":
                 case "segments_stats":
                 case "completion_stats":
-                case "refresh_needed":
                 case "can_match": // special case for can_match phase - we use the cached point values reader
                     maybeOpenReader = false;
                     break;
@@ -321,7 +324,7 @@ public final class FrozenEngine extends ReadOnlyEngine {
                 @Override
                 public LeafReader wrap(LeafReader reader) {
                     return new LazyLeafReader(reader);
-                };
+                }
             });
             this.delegate = reader;
             this.engine = engine;
@@ -580,6 +583,21 @@ public final class FrozenEngine extends ReadOnlyEngine {
         public LeafReader getDelegate() {
             return in;
         }
+    }
+
+    @Override
+    public SegmentsStats segmentsStats(boolean includeSegmentFileSizes, boolean includeUnloadedSegments) {
+        if (includeUnloadedSegments) {
+            final SegmentsStats stats = new SegmentsStats();
+            stats.add(this.stats);
+            if (includeSegmentFileSizes == false) {
+                stats.clearFileSizes();
+            }
+            return stats;
+        } else {
+            return super.segmentsStats(includeSegmentFileSizes, includeUnloadedSegments);
+        }
+
     }
 
     synchronized boolean isReaderOpen() {

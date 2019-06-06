@@ -1,9 +1,9 @@
 [role="xpack"]
 [testenv="platinum"]
 [[ml-get-overall-buckets]]
-=== Get Overall Buckets API
+=== Get overall buckets API
 ++++
-<titleabbrev>Get Overall Buckets</titleabbrev>
+<titleabbrev>Get overall buckets</titleabbrev>
 ++++
 
 Retrieves overall bucket results that summarize the
@@ -11,11 +11,11 @@ bucket results of multiple jobs.
 
 ==== Request
 
-`GET _xpack/ml/anomaly_detectors/<job_id>/results/overall_buckets` +
+`GET _ml/anomaly_detectors/<job_id>/results/overall_buckets` +
 
-`GET _xpack/ml/anomaly_detectors/<job_id>,<job_id>/results/overall_buckets` +
+`GET _ml/anomaly_detectors/<job_id>,<job_id>/results/overall_buckets` +
 
-`GET _xpack/ml/anomaly_detectors/_all/results/overall_buckets`
+`GET _ml/anomaly_detectors/_all/results/overall_buckets`
 
 ==== Description
 
@@ -102,7 +102,7 @@ The following example gets overall buckets for jobs with IDs matching `job-*`:
 
 [source,js]
 --------------------------------------------------
-GET _xpack/ml/anomaly_detectors/job-*/results/overall_buckets
+GET _ml/anomaly_detectors/job-*/results/overall_buckets
 {
   "overall_score": 80,
   "start": "1403532000000"
@@ -148,7 +148,7 @@ The next example is similar but this time `top_n` is set to `2`:
 
 [source,js]
 --------------------------------------------------
-GET _xpack/ml/anomaly_detectors/job-*/results/overall_buckets
+GET _ml/anomaly_detectors/job-*/results/overall_buckets
 {
   "top_n": 2,
   "overall_score": 50.0,

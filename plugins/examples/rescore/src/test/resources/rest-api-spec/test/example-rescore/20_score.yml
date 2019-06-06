@@ -11,13 +11,11 @@ setup:
   - do:
       index:
         index:  test
-        type:   test
         id:     1
         body:   { "test": 1 }
   - do:
       index:
         index:  test
-        type:   test
         id:     2
         body:   { "test": 2 }
   - do:
@@ -27,6 +25,7 @@ setup:
 "just factor":
   - do:
       search:
+        rest_total_hits_as_int: true
         index: test
         body:
           rescore:
@@ -38,6 +37,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: test
         body:
           rescore:
@@ -52,6 +52,7 @@ setup:
 "with factor field":
   - do:
       search:
+        rest_total_hits_as_int: true
         index: test
         body:
           rescore:

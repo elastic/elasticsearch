@@ -21,7 +21,7 @@
           }
 
   - do:
-      xpack.watcher.put_watch:
+      watcher.put_watch:
         id: "my_watch"
         body:  >
           {
@@ -50,7 +50,7 @@
   - match: { _id: "my_watch" }
 
   - do:
-      xpack.watcher.execute_watch:
+      watcher.execute_watch:
         id: "my_watch"
 
   - match: { "watch_record.watch_id": "my_watch" }
@@ -69,7 +69,7 @@
           }
 
   - do:
-      xpack.watcher.execute_watch:
+      watcher.execute_watch:
         id: "my_watch"
 
   - match: { "watch_record.watch_id": "my_watch" }
@@ -97,7 +97,7 @@
           }
 
   - do:
-      xpack.watcher.put_watch:
+      watcher.put_watch:
         id: "my_watch"
         body:  >
           {
@@ -126,7 +126,7 @@
   - match: { _id: "my_watch" }
 
   - do:
-      xpack.watcher.execute_watch:
+      watcher.execute_watch:
         id: "my_watch"
 
   - match: { "watch_record.watch_id": "my_watch" }
@@ -144,7 +144,7 @@
           }
 
   - do:
-      xpack.watcher.execute_watch:
+      watcher.execute_watch:
         id: "my_watch"
 
   - match: { "watch_record.watch_id": "my_watch" }

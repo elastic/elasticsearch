@@ -29,6 +29,7 @@ import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
@@ -79,13 +80,14 @@ public class TransportTermVectorsAction extends TransportSingleShardAction<TermV
         // update the routing (request#index here is possibly an alias or a parent)
         request.request().routing(state.metaData().resolveIndexRouting(request.request().routing(), request.request().index()));
         // Fail fast on the node that received the request.
-        if (request.request().routing() == null && state.getMetaData().routingRequired(request.concreteIndex(), request.request().type())) {
-            throw new RoutingMissingException(request.concreteIndex(), request.request().type(), request.request().id());
+        if (request.request().routing() == null && state.getMetaData().routingRequired(request.concreteIndex())) {
+            throw new RoutingMissingException(request.concreteIndex(), request.request().id());
         }
     }
 
     @Override
-    protected void asyncShardOperation(TermVectorsRequest request, ShardId shardId, ActionListener<TermVectorsResponse> listener) throws IOException {
+    protected void asyncShardOperation(TermVectorsRequest request, ShardId shardId,
+                                       ActionListener<TermVectorsResponse> listener) throws IOException {
         IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
         IndexShard indexShard = indexService.getShard(shardId.id());
         if (request.realtime()) { // it's a realtime request which is not subject to refresh cycles
@@ -109,8 +111,8 @@ public class TransportTermVectorsAction extends TransportSingleShardAction<TermV
     }
 
     @Override
-    protected TermVectorsResponse newResponse() {
-        return new TermVectorsResponse();
+    protected Writeable.Reader<TermVectorsResponse> getResponseReader() {
+        return TermVectorsResponse::new;
     }
 
     @Override

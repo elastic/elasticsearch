@@ -20,6 +20,7 @@
 package org.elasticsearch.action.explain;
 
 import org.elasticsearch.action.Action;
+import org.elasticsearch.common.io.stream.Writeable;
 
 /**
  * Entry point for the explain feature.
@@ -35,6 +36,11 @@ public class ExplainAction extends Action<ExplainResponse> {
 
     @Override
     public ExplainResponse newResponse() {
-        return new ExplainResponse();
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
+    }
+
+    @Override
+    public Writeable.Reader<ExplainResponse> getResponseReader() {
+        return ExplainResponse::new;
     }
 }

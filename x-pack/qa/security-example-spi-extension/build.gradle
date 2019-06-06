@@ -2,14 +2,14 @@ apply plugin: 'elasticsearch.esplugin'
 
 esplugin {
   name 'spi-extension'
-  description 'An example spi extension pluing for xpack security'
+  description 'An example spi extension plugin for security'
   classname 'org.elasticsearch.example.SpiExtensionPlugin'
   extendedPlugins = ['x-pack-security']
 }
 
 dependencies {
-  compileOnly "org.elasticsearch.plugin:x-pack-core:${version}"
-  testCompile project(path: xpackProject('transport-client').path, configuration: 'runtime')
+  compileOnly project(':x-pack:plugin:core')
+  testCompile project(':client:rest-high-level')
 }
 
 
@@ -32,7 +32,7 @@ integTestCluster {
   // This is important, so that all the modules are available too.
   // There are index templates that use token filters that are in analysis-module and
   // processors are being used that are in ingest-common module.
-  distribution = 'zip'
+  distribution = 'default'
 
   setupCommand 'setupDummyUser',
                'bin/elasticsearch-users', 'useradd', 'test_user', '-p', 'x-pack-test-password', '-r', 'superuser'

@@ -33,7 +33,6 @@ import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
 import org.elasticsearch.bootstrap.JarHell;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.io.FileSystemUtils;
@@ -42,7 +41,7 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.threadpool.ExecutorBuilder;
-import org.elasticsearch.transport.TcpTransport;
+import org.elasticsearch.transport.TransportSettings;
 
 import java.io.IOException;
 import java.lang.reflect.Constructor;
@@ -70,7 +69,9 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.io.FileSystemUtils.isAccessibleDirectory;
 
-public class PluginsService extends AbstractComponent {
+public class PluginsService {
+
+    private static final Logger logger = LogManager.getLogger(PluginsService.class);
 
     private final Settings settings;
     private final Path configPath;
@@ -99,7 +100,13 @@ public class PluginsService extends AbstractComponent {
      * @param pluginsDirectory The directory plugins exist in, or null if plugins should not be loaded from the filesystem
      * @param classpathPlugins Plugins that exist in the classpath which should be loaded
      */
-    public PluginsService(Settings settings, Path configPath, Path modulesDirectory, Path pluginsDirectory, Collection<Class<? extends Plugin>> classpathPlugins) {
+    public PluginsService(
+        Settings settings,
+        Path configPath,
+        Path modulesDirectory,
+        Path pluginsDirectory,
+        Collection<Class<? extends Plugin>> classpathPlugins
+    ) {
         this.settings = settings;
         this.configPath = configPath;
 
@@ -107,7 +114,7 @@ public class PluginsService extends AbstractComponent {
         List<PluginInfo> pluginsList = new ArrayList<>();
         // we need to build a List of plugins for checking mandatory plugins
         final List<String> pluginsNames = new ArrayList<>();
-        // first we load plugins that are on the classpath. this is for tests and transport clients
+        // first we load plugins that are on the classpath. this is for tests
         for (Class<? extends Plugin> pluginClass : classpathPlugins) {
             Plugin plugin = loadPlugin(pluginClass, settings, configPath);
             PluginInfo pluginInfo = new PluginInfo(pluginClass.getName(), "classpath plugin", "NA", Version.CURRENT, "1.8",
@@ -225,7 +232,7 @@ public class PluginsService extends AbstractComponent {
             }
         }
         for (final String feature : features.keySet()) {
-            builder.put(TcpTransport.FEATURE_PREFIX + "." + feature, true);
+            builder.put(TransportSettings.FEATURE_PREFIX + "." + feature, true);
         }
         return builder.put(this.settings).build();
     }

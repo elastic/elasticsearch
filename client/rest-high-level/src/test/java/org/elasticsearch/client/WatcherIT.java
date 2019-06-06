@@ -19,10 +19,6 @@
 package org.elasticsearch.client;
 
 import org.elasticsearch.ElasticsearchStatusException;
-import org.elasticsearch.client.watcher.DeactivateWatchRequest;
-import org.elasticsearch.client.watcher.DeactivateWatchResponse;
-import org.elasticsearch.client.watcher.ActivateWatchRequest;
-import org.elasticsearch.client.watcher.ActivateWatchResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.watcher.AckWatchRequest;
 import org.elasticsearch.client.watcher.AckWatchResponse;
@@ -30,6 +26,14 @@ import org.elasticsearch.client.watcher.ActionStatus;
 import org.elasticsearch.client.watcher.ActionStatus.AckStatus;
 import org.elasticsearch.client.watcher.ActivateWatchRequest;
 import org.elasticsearch.client.watcher.ActivateWatchResponse;
+import org.elasticsearch.client.watcher.DeactivateWatchRequest;
+import org.elasticsearch.client.watcher.DeactivateWatchResponse;
+import org.elasticsearch.client.watcher.DeleteWatchRequest;
+import org.elasticsearch.client.watcher.DeleteWatchResponse;
+import org.elasticsearch.client.watcher.ExecuteWatchRequest;
+import org.elasticsearch.client.watcher.ExecuteWatchResponse;
+import org.elasticsearch.client.watcher.PutWatchRequest;
+import org.elasticsearch.client.watcher.PutWatchResponse;
 import org.elasticsearch.client.watcher.StartWatchServiceRequest;
 import org.elasticsearch.client.watcher.StopWatchServiceRequest;
 import org.elasticsearch.client.watcher.WatcherState;
@@ -37,13 +41,13 @@ import org.elasticsearch.client.watcher.WatcherStatsRequest;
 import org.elasticsearch.client.watcher.WatcherStatsResponse;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.xcontent.ObjectPath;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.client.watcher.DeleteWatchRequest;
-import org.elasticsearch.client.watcher.DeleteWatchResponse;
-import org.elasticsearch.client.watcher.PutWatchRequest;
-import org.elasticsearch.client.watcher.PutWatchResponse;
 import org.elasticsearch.rest.RestStatus;
 
+import java.util.Map;
+
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
@@ -81,13 +85,14 @@ public class WatcherIT extends ESRestHighLevelClientTestCase {
         assertThat(putWatchResponse.getVersion(), is(1L));
     }
 
+    private static final String WATCH_JSON = "{ \n" +
+        "  \"trigger\": { \"schedule\": { \"interval\": \"10h\" } },\n" +
+        "  \"input\": { \"none\": {} },\n" +
+        "  \"actions\": { \"logme\": { \"logging\": { \"text\": \"{{ctx.payload}}\" } } }\n" +
+        "}";
+
     private PutWatchResponse createWatch(String watchId) throws Exception {
-        String json = "{ \n" +
-            "  \"trigger\": { \"schedule\": { \"interval\": \"10h\" } },\n" +
-            "  \"input\": { \"none\": {} },\n" +
-            "  \"actions\": { \"logme\": { \"logging\": { \"text\": \"{{ctx.payload}}\" } } }\n" +
-            "}";
-        BytesReference bytesReference = new BytesArray(json);
+        BytesReference bytesReference = new BytesArray(WATCH_JSON);
         PutWatchRequest putWatchRequest = new PutWatchRequest(watchId, bytesReference, XContentType.JSON);
         return highLevelClient().watcher().putWatch(putWatchRequest, RequestOptions.DEFAULT);
     }
@@ -146,7 +151,7 @@ public class WatcherIT extends ESRestHighLevelClientTestCase {
         assertEquals(AckStatus.State.AWAITS_SUCCESSFUL_EXECUTION, actionStatus.ackStatus().state());
 
         // TODO: use the high-level REST client here once it supports 'execute watch'.
-        Request executeWatchRequest = new Request("POST", "_xpack/watcher/watch/" + watchId + "/_execute");
+        Request executeWatchRequest = new Request("POST", "_watcher/watch/" + watchId + "/_execute");
         executeWatchRequest.setJsonEntity("{ \"record_execution\": true }");
         Response executeResponse = client().performRequest(executeWatchRequest);
         assertEquals(RestStatus.OK.getStatus(), executeResponse.getStatusLine().getStatusCode());
@@ -183,6 +188,37 @@ public class WatcherIT extends ESRestHighLevelClientTestCase {
         ElasticsearchStatusException exception =  expectThrows(ElasticsearchStatusException.class, () ->
             highLevelClient().watcher().activateWatch(new ActivateWatchRequest(watchId), RequestOptions.DEFAULT));
         assertEquals(RestStatus.NOT_FOUND, exception.status());
+    }
+
+
+    public void testExecuteWatchById() throws Exception {
+        String watchId = randomAlphaOfLength(10);
+        createWatch(watchId);
+
+        ExecuteWatchResponse response = highLevelClient().watcher()
+            .executeWatch(ExecuteWatchRequest.byId(watchId), RequestOptions.DEFAULT);
+        assertThat(response.getRecordId(), containsString(watchId));
+
+        Map<String, Object> source = response.getRecordAsMap();
+        assertThat(ObjectPath.eval("trigger_event.type", source), is("manual"));
+
+    }
+
+    public void testExecuteWatchThatDoesNotExist() throws Exception {
+        String watchId = randomAlphaOfLength(10);
+        // exception when activating a not existing watcher
+        ElasticsearchStatusException exception =  expectThrows(ElasticsearchStatusException.class, () ->
+            highLevelClient().watcher().executeWatch(ExecuteWatchRequest.byId(watchId), RequestOptions.DEFAULT));
+        assertEquals(RestStatus.NOT_FOUND, exception.status());
+    }
+
+    public void testExecuteInlineWatch() throws Exception {
+        ExecuteWatchResponse response = highLevelClient().watcher()
+            .executeWatch(ExecuteWatchRequest.inline(WATCH_JSON), RequestOptions.DEFAULT);
+        assertThat(response.getRecordId(), containsString("_inlined_"));
+
+        Map<String, Object> source = response.getRecordAsMap();
+        assertThat(ObjectPath.eval("trigger_event.type", source), is("manual"));
     }
 
     public void testWatcherStatsMetrics() throws Exception {

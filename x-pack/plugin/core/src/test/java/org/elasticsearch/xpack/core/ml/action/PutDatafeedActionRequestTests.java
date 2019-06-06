@@ -31,7 +31,6 @@ public class PutDatafeedActionRequestTests extends AbstractStreamableXContentTes
     protected Request createTestInstance() {
         DatafeedConfig.Builder datafeedConfig = new DatafeedConfig.Builder(datafeedId, randomAlphaOfLength(10));
         datafeedConfig.setIndices(Collections.singletonList(randomAlphaOfLength(10)));
-        datafeedConfig.setTypes(Collections.singletonList(randomAlphaOfLength(10)));
         return new Request(datafeedConfig.build());
     }
 
@@ -52,13 +51,13 @@ public class PutDatafeedActionRequestTests extends AbstractStreamableXContentTes
 
     @Override
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
-        SearchModule searchModule = new SearchModule(Settings.EMPTY, false, Collections.emptyList());
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, Collections.emptyList());
         return new NamedWriteableRegistry(searchModule.getNamedWriteables());
     }
 
     @Override
     protected NamedXContentRegistry xContentRegistry() {
-        SearchModule searchModule = new SearchModule(Settings.EMPTY, false, Collections.emptyList());
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, Collections.emptyList());
         return new NamedXContentRegistry(searchModule.getNamedXContents());
     }
 }

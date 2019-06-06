@@ -18,19 +18,20 @@
  */
 package org.elasticsearch.gradle.test
 
-import com.carrotsearch.gradle.junit4.RandomizedTestingTask
-import org.elasticsearch.gradle.BuildPlugin
 import org.elasticsearch.gradle.VersionProperties
+import org.elasticsearch.gradle.testclusters.ElasticsearchCluster
+import org.elasticsearch.gradle.testclusters.TestClustersPlugin
 import org.gradle.api.DefaultTask
-import org.gradle.api.Project
 import org.gradle.api.Task
 import org.gradle.api.execution.TaskExecutionAdapter
-import org.gradle.api.internal.tasks.options.Option
-import org.gradle.api.provider.Property
-import org.gradle.api.provider.Provider
+import org.gradle.api.logging.Logger
+import org.gradle.api.logging.Logging
+import org.gradle.api.specs.Specs
 import org.gradle.api.tasks.Copy
 import org.gradle.api.tasks.Input
 import org.gradle.api.tasks.TaskState
+import org.gradle.api.tasks.options.Option
+import org.gradle.api.tasks.testing.Test
 import org.gradle.plugins.ide.idea.IdeaPlugin
 
 import java.nio.charset.StandardCharsets
@@ -40,11 +41,13 @@ import java.util.stream.Stream
 /**
  * A wrapper task around setting up a cluster and running rest tests.
  */
-public class RestIntegTestTask extends DefaultTask {
+class RestIntegTestTask extends DefaultTask {
+
+    private static final Logger LOGGER = Logging.getLogger(RestIntegTestTask)
 
     protected ClusterConfiguration clusterConfig
 
-    protected RandomizedTestingTask runner
+    protected Test runner
 
     protected Task clusterInit
 
@@ -53,63 +56,86 @@ public class RestIntegTestTask extends DefaultTask {
 
     /** Flag indicating whether the rest tests in the rest spec should be run. */
     @Input
-    Property<Boolean> includePackaged = project.objects.property(Boolean)
+    Boolean includePackaged = false
 
-    public RestIntegTestTask() {
-        runner = project.tasks.create("${name}Runner", RandomizedTestingTask.class)
+    RestIntegTestTask() {
+        runner = project.tasks.create("${name}Runner", Test.class)
         super.dependsOn(runner)
         clusterInit = project.tasks.create(name: "${name}Cluster#init", dependsOn: project.testClasses)
         runner.dependsOn(clusterInit)
-        runner.classpath = project.sourceSets.test.runtimeClasspath
-        runner.testClassesDirs = project.sourceSets.test.output.classesDirs
-        clusterConfig = project.extensions.create("${name}Cluster", ClusterConfiguration.class, project)
+        boolean usesTestclusters = project.plugins.hasPlugin(TestClustersPlugin.class)
+        if (usesTestclusters == false) {
+            clusterConfig = project.extensions.create("${name}Cluster", ClusterConfiguration.class, project)
+        } else {
+            project.testClusters {
+                "$name" {
+                    distribution = 'INTEG_TEST'
+                    version = VersionProperties.elasticsearch
+                    javaHome = project.file(project.ext.runtimeJavaHome)
+                }
+            }
+            runner.useCluster project.testClusters."$name"
+        }
+
+        // disable the build cache for rest test tasks
+        // there are a number of inputs we aren't properly tracking here so we'll just not cache these for now
+        runner.getOutputs().doNotCacheIf("Caching is disabled for REST integration tests", Specs.SATISFIES_ALL)
 
         // override/add more for rest tests
-        runner.parallelism = '1'
+        runner.maxParallelForks = 1
         runner.include('**/*IT.class')
         runner.systemProperty('tests.rest.load_packaged', 'false')
 
         if (System.getProperty("tests.rest.cluster") == null) {
-            if (System.getProperty("tests.cluster") != null) {
-                throw new IllegalArgumentException("tests.rest.cluster and tests.cluster must both be null or non-null")
+            if (System.getProperty("tests.cluster") != null || System.getProperty("tests.clustername") != null) {
+                throw new IllegalArgumentException("tests.rest.cluster, tests.cluster, and tests.clustername must all be null or non-null")
             }
-            // we pass all nodes to the rest cluster to allow the clients to round-robin between them
-            // this is more realistic than just talking to a single node
-            runner.systemProperty('tests.rest.cluster', "${-> nodes.collect{it.httpUri()}.join(",")}")
-            runner.systemProperty('tests.config.dir', "${-> nodes[0].pathConf}")
-            // TODO: our "client" qa tests currently use the rest-test plugin. instead they should have their own plugin
-            // that sets up the test cluster and passes this transport uri instead of http uri. Until then, we pass
-            // both as separate sysprops
-            runner.systemProperty('tests.cluster', "${-> nodes[0].transportUri()}")
+            if (usesTestclusters == true) {
+                ElasticsearchCluster cluster = project.testClusters."${name}"
+                runner.nonInputProperties.systemProperty('tests.rest.cluster', "${-> cluster.allHttpSocketURI.join(",") }")
+                runner.nonInputProperties.systemProperty('tests.cluster', "${-> cluster.transportPortURI }")
+                runner.nonInputProperties.systemProperty('tests.clustername', "${-> cluster.getName() }")
+            } else {
+                // we pass all nodes to the rest cluster to allow the clients to round-robin between them
+                // this is more realistic than just talking to a single node
+                runner.nonInputProperties.systemProperty('tests.rest.cluster', "${-> nodes.collect { it.httpUri() }.join(",")}")
+                runner.nonInputProperties.systemProperty('tests.config.dir', "${-> nodes[0].pathConf}")
+                // TODO: our "client" qa tests currently use the rest-test plugin. instead they should have their own plugin
+                // that sets up the test cluster and passes this transport uri instead of http uri. Until then, we pass
+                // both as separate sysprops
+                runner.nonInputProperties.systemProperty('tests.cluster', "${-> nodes[0].transportUri()}")
+                runner.nonInputProperties.systemProperty('tests.clustername', "${-> nodes[0].clusterName}")
 
-            // dump errors and warnings from cluster log on failure
-            TaskExecutionAdapter logDumpListener = new TaskExecutionAdapter() {
-                @Override
-                void afterExecute(Task task, TaskState state) {
-                    if (state.failure != null) {
-                        for (NodeInfo nodeInfo : nodes) {
-                            printLogExcerpt(nodeInfo)
+                // dump errors and warnings from cluster log on failure
+                TaskExecutionAdapter logDumpListener = new TaskExecutionAdapter() {
+                    @Override
+                    void afterExecute(Task task, TaskState state) {
+                        if (task == runner && state.failure != null) {
+                            for (NodeInfo nodeInfo : nodes) {
+                                printLogExcerpt(nodeInfo)
+                            }
                         }
                     }
                 }
-            }
-            runner.doFirst {
-                project.gradle.addListener(logDumpListener)
-            }
-            runner.doLast {
-                project.gradle.removeListener(logDumpListener)
+                runner.doFirst {
+                    project.gradle.addListener(logDumpListener)
+                }
+                runner.doLast {
+                    project.gradle.removeListener(logDumpListener)
+                }
             }
         } else {
-            if (System.getProperty("tests.cluster") == null) {
-                throw new IllegalArgumentException("tests.rest.cluster and tests.cluster must both be null or non-null")
+            if (System.getProperty("tests.cluster") == null || System.getProperty("tests.clustername") == null) {
+                throw new IllegalArgumentException("tests.rest.cluster, tests.cluster, and tests.clustername must all be null or non-null")
             }
             // an external cluster was specified and all responsibility for cluster configuration is taken by the user
             runner.systemProperty('tests.rest.cluster', System.getProperty("tests.rest.cluster"))
             runner.systemProperty('test.cluster', System.getProperty("tests.cluster"))
+            runner.systemProperty('test.clustername', System.getProperty("tests.clustername"))
         }
 
         // copy the rest spec/tests into the test resources
-        Task copyRestSpec = createCopyRestSpecTask(project, includePackaged)
+        Task copyRestSpec = createCopyRestSpecTask()
         runner.dependsOn(copyRestSpec)
         
         // this must run after all projects have been configured, so we know any project
@@ -120,17 +146,19 @@ public class RestIntegTestTask extends DefaultTask {
                 clusterInit.enabled = false
                 return // no need to add cluster formation tasks if the task won't run!
             }
-            // only create the cluster if needed as otherwise an external cluster to use was specified
-            if (System.getProperty("tests.rest.cluster") == null) {
-                nodes = ClusterFormationTasks.setup(project, "${name}Cluster", runner, clusterConfig)
+            if (usesTestclusters == false) {
+                // only create the cluster if needed as otherwise an external cluster to use was specified
+                if (System.getProperty("tests.rest.cluster") == null) {
+                    nodes = ClusterFormationTasks.setup(project, "${name}Cluster", runner, clusterConfig)
+                }
+                super.dependsOn(runner.finalizedBy)
             }
-            super.dependsOn(runner.finalizedBy)
         }
     }
 
     /** Sets the includePackaged property */
     public void includePackaged(boolean include) {
-        includePackaged.set(include)
+        includePackaged = include
     }
 
     @Option(
@@ -171,12 +199,16 @@ public class RestIntegTestTask extends DefaultTask {
         clusterInit.mustRunAfter(tasks)
     }
 
+    public void runner(Closure configure) {
+        project.tasks.getByName("${name}Runner").configure(configure)
+    }
+
     /** Print out an excerpt of the log from the given node. */
     protected static void printLogExcerpt(NodeInfo nodeInfo) {
         File logFile = new File(nodeInfo.homeDir, "logs/${nodeInfo.clusterName}.log")
-        println("\nCluster ${nodeInfo.clusterName} - node ${nodeInfo.nodeNum} log excerpt:")
-        println("(full log at ${logFile})")
-        println('-----------------------------------------')
+        LOGGER.lifecycle("\nCluster ${nodeInfo.clusterName} - node ${nodeInfo.nodeNum} log excerpt:")
+        LOGGER.lifecycle("(full log at ${logFile})")
+        LOGGER.lifecycle('-----------------------------------------')
         Stream<String> stream = Files.lines(logFile.toPath(), StandardCharsets.UTF_8)
         try {
             boolean inStartup = true
@@ -191,9 +223,9 @@ public class RestIntegTestTask extends DefaultTask {
                 }
                 if (inStartup || inExcerpt) {
                     if (linesSkipped != 0) {
-                        println("... SKIPPED ${linesSkipped} LINES ...")
+                        LOGGER.lifecycle("... SKIPPED ${linesSkipped} LINES ...")
                     }
-                    println(line)
+                    LOGGER.lifecycle(line)
                     linesSkipped = 0
                 } else {
                     ++linesSkipped
@@ -205,7 +237,7 @@ public class RestIntegTestTask extends DefaultTask {
         } finally {
             stream.close()
         }
-        println('=========================================')
+        LOGGER.lifecycle('=========================================')
 
     }
 
@@ -215,12 +247,12 @@ public class RestIntegTestTask extends DefaultTask {
      * @param project The project to add the copy task to
      * @param includePackagedTests true if the packaged tests should be copied, false otherwise
      */
-    static Task createCopyRestSpecTask(Project project, Provider<Boolean> includePackagedTests) {
+    Task createCopyRestSpecTask() {
         project.configurations {
             restSpec
         }
         project.dependencies {
-            restSpec "org.elasticsearch:rest-api-spec:${VersionProperties.elasticsearch}"
+            restSpec project.project(':rest-api-spec')
         }
         Task copyRestSpec = project.tasks.findByName('copyRestSpec')
         if (copyRestSpec != null) {
@@ -237,7 +269,7 @@ public class RestIntegTestTask extends DefaultTask {
         project.afterEvaluate {
             copyRestSpec.from({ project.zipTree(project.configurations.restSpec.singleFile) }) {
                 include 'rest-api-spec/api/**'
-                if (includePackagedTests.get()) {
+                if (includePackaged) {
                     include 'rest-api-spec/test/**'
                 }
             }
@@ -253,4 +285,5 @@ public class RestIntegTestTask extends DefaultTask {
         }
         return copyRestSpec
     }
+
 }

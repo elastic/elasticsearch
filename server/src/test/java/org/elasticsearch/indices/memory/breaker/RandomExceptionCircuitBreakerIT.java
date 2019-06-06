@@ -146,12 +146,15 @@ public class RandomExceptionCircuitBreakerIT extends ESIntegTestCase {
         for (int i = 0; i < numDocs; i++) {
             try {
                 client().prepareIndex("test", "type", "" + i)
-                        .setTimeout(TimeValue.timeValueSeconds(1)).setSource("test-str", randomUnicodeOfLengthBetween(5, 25), "test-num", i).get();
+                    .setTimeout(TimeValue.timeValueSeconds(1))
+                    .setSource("test-str", randomUnicodeOfLengthBetween(5, 25), "test-num", i)
+                    .get();
             } catch (ElasticsearchException ex) {
             }
         }
         logger.info("Start Refresh");
-        RefreshResponse refreshResponse = client().admin().indices().prepareRefresh("test").execute().get(); // don't assert on failures here
+        // don't assert on failures here
+        RefreshResponse refreshResponse = client().admin().indices().prepareRefresh("test").execute().get();
         final boolean refreshFailed = refreshResponse.getShardFailures().length != 0 || refreshResponse.getFailedShards() != 0;
         logger.info("Refresh failed: [{}] numShardsFailed: [{}], shardFailuresLength: [{}], successfulShards: [{}], totalShards: [{}] ",
                 refreshFailed, refreshResponse.getFailedShards(), refreshResponse.getShardFailures().length,
@@ -188,7 +191,8 @@ public class RandomExceptionCircuitBreakerIT extends ESIntegTestCase {
 
                 // Since .cleanUp() is no longer called on cache clear, we need to call it on each node manually
                 for (String node : internalCluster().getNodeNames()) {
-                    final IndicesFieldDataCache fdCache = internalCluster().getInstance(IndicesService.class, node).getIndicesFieldDataCache();
+                    final IndicesFieldDataCache fdCache =
+                        internalCluster().getInstance(IndicesService.class, node).getIndicesFieldDataCache();
                     // Clean up the cache, ensuring that entries' listeners have been called
                     fdCache.getCache().refresh();
                 }

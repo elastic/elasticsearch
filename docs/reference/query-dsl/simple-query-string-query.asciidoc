@@ -46,8 +46,8 @@ with default operator of `AND`, the same query is translated to
 |`analyzer` |Force the analyzer to use to analyze each term of the query when
 creating composite queries.
 
-|`flags` |Flags specifying which features of the `simple_query_string` to
-enable. Defaults to `ALL`.
+|`flags` |A set of <<supported-flags,flags>> specifying which features of the 
+`simple_query_string` to enable. Defaults to `ALL`.
 
 |`analyze_wildcard` | Whether terms of prefix queries should be automatically
 analyzed or not. If `true` a best effort will be made to analyze the prefix. However,
@@ -153,6 +153,7 @@ GET /_search
 // CONSOLE
 
 [float]
+[[supported-flags]]
 ==== Flags
 `simple_query_string` support multiple flags to specify which parsing features
 should be enabled. It is specified as a `|`-delimited string with the
@@ -172,8 +173,25 @@ GET /_search
 --------------------------------------------------
 // CONSOLE
 
-The available flags are: `ALL`, `NONE`, `AND`, `OR`, `NOT`, `PREFIX`, `PHRASE`,
-`PRECEDENCE`, `ESCAPE`, `WHITESPACE`, `FUZZY`, `NEAR`, and `SLOP`.
+The available flags are:
+
+[cols="<,<",options="header",]
+|=======================================================================
+|Flag |Description
+|`ALL` |Enables all parsing features. This is the default.
+|`NONE` |Switches off all parsing features.
+|`AND` |Enables the `+` AND operator.
+|`OR` |Enables the `\|` OR operator.
+|`NOT` |Enables the `-` NOT operator.
+|`PREFIX` |Enables the `*` Prefix operator.
+|`PHRASE` |Enables the `"` quotes operator used to search for phrases.
+|`PRECEDENCE` |Enables the `(` and `)` operators to control operator precedence.
+|`ESCAPE` |Enables `\` as the escape character.
+|`WHITESPACE` |Enables whitespaces as split characters.
+|`FUZZY` |Enables the `~N` operator after a word where N is an integer denoting the allowed edit distance for matching (see <<fuzziness>>).
+|`SLOP` |Enables the `~N` operator after a phrase where N is an integer denoting the slop amount.
+|`NEAR` |Synonymous to `SLOP`.
+|=======================================================================
 
 [float]
 ==== Synonyms

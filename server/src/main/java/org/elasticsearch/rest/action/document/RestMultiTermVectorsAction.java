@@ -20,7 +20,6 @@
 package org.elasticsearch.rest.action.document;
 
 import org.elasticsearch.action.termvectors.MultiTermVectorsRequest;
-import org.elasticsearch.action.termvectors.MultiTermVectorsResponse;
 import org.elasticsearch.action.termvectors.TermVectorsRequest;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
@@ -36,14 +35,13 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class RestMultiTermVectorsAction extends BaseRestHandler {
+
     public RestMultiTermVectorsAction(Settings settings, RestController controller) {
         super(settings);
         controller.registerHandler(GET, "/_mtermvectors", this);
         controller.registerHandler(POST, "/_mtermvectors", this);
         controller.registerHandler(GET, "/{index}/_mtermvectors", this);
         controller.registerHandler(POST, "/{index}/_mtermvectors", this);
-        controller.registerHandler(GET, "/{index}/{type}/_mtermvectors", this);
-        controller.registerHandler(POST, "/{index}/{type}/_mtermvectors", this);
     }
 
     @Override
@@ -54,14 +52,14 @@ public class RestMultiTermVectorsAction extends BaseRestHandler {
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         MultiTermVectorsRequest multiTermVectorsRequest = new MultiTermVectorsRequest();
-        TermVectorsRequest template = new TermVectorsRequest();
-        template.index(request.param("index"));
-        template.type(request.param("type"));
+        TermVectorsRequest template = new TermVectorsRequest()
+            .index(request.param("index"));
+
         RestTermVectorsAction.readURIParameters(template, request);
         multiTermVectorsRequest.ids(Strings.commaDelimitedListToStringArray(request.param("ids")));
         request.withContentOrSourceParamParserOrNull(p -> multiTermVectorsRequest.add(template, p));
 
-        return channel -> client.multiTermVectors(multiTermVectorsRequest, new RestToXContentListener<MultiTermVectorsResponse>(channel));
+        return channel -> client.multiTermVectors(multiTermVectorsRequest, new RestToXContentListener<>(channel));
     }
 
 }

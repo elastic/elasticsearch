@@ -23,7 +23,6 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
@@ -38,13 +37,8 @@ import static org.elasticsearch.common.xcontent.ToXContent.EMPTY_PARAMS;
 public class PutMappingRequestTests extends ESTestCase {
 
     public void testValidation() {
-        PutMappingRequest r = new PutMappingRequest("myindex");
+        PutMappingRequest r = new PutMappingRequest("myindex").type("");
         ActionRequestValidationException ex = r.validate();
-        assertNotNull("type validation should fail", ex);
-        assertTrue(ex.getMessage().contains("type is missing"));
-
-        r.type("");
-        ex = r.validate();
         assertNotNull("type validation should fail", ex);
         assertTrue(ex.getMessage().contains("type is empty"));
 
@@ -140,20 +134,8 @@ public class PutMappingRequestTests extends ESTestCase {
 
         String type = randomAlphaOfLength(5);
         request.type(type);
-        request.source(randomMapping());
+        request.source(RandomCreateIndexGenerator.randomMapping(type));
 
         return request;
-    }
-
-    private static XContentBuilder randomMapping() throws IOException {
-        XContentBuilder builder = XContentFactory.jsonBuilder();
-        builder.startObject();
-
-        if (randomBoolean()) {
-            RandomCreateIndexGenerator.randomMappingFields(builder, true);
-        }
-
-        builder.endObject();
-        return builder;
     }
 }

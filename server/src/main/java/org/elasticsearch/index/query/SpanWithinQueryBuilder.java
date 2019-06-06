@@ -32,6 +32,8 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.Objects;
 
+import static org.elasticsearch.index.query.SpanQueryBuilder.SpanQueryBuilderUtil.checkNoBoost;
+
 /**
  * Builder for {@link org.apache.lucene.search.spans.SpanWithinQuery}.
  */
@@ -122,12 +124,14 @@ public class SpanWithinQueryBuilder extends AbstractQueryBuilder<SpanWithinQuery
                         throw new ParsingException(parser.getTokenLocation(), "span_within [big] must be of type span query");
                     }
                     big = (SpanQueryBuilder) query;
+                    checkNoBoost(NAME, currentFieldName, parser, big);
                 } else if (LITTLE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     QueryBuilder query = parseInnerQueryBuilder(parser);
                     if (query instanceof SpanQueryBuilder == false) {
                         throw new ParsingException(parser.getTokenLocation(), "span_within [little] must be of type span query");
                     }
                     little = (SpanQueryBuilder) query;
+                    checkNoBoost(NAME, currentFieldName, parser, little);
                 } else {
                     throw new ParsingException(parser.getTokenLocation(),
                             "[span_within] query does not support [" + currentFieldName + "]");

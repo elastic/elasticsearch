@@ -58,7 +58,7 @@ import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE, numDataNodes = 2,
-    supportsDedicatedMasters = false, numClientNodes = 1, transportClientRatio = 0.0)
+    supportsDedicatedMasters = false, numClientNodes = 1)
 public class ExceptionRetryIT extends ESIntegTestCase {
 
     @Override
@@ -130,7 +130,7 @@ public class ExceptionRetryIT extends ESIntegTestCase {
                 if (!found_duplicate_already) {
                     SearchResponse dupIdResponse = client().prepareSearch("index").setQuery(termQuery("_id",
                         searchResponse.getHits().getHits()[i].getId())).setExplain(true).get();
-                    assertThat(dupIdResponse.getHits().getTotalHits(), greaterThan(1L));
+                    assertThat(dupIdResponse.getHits().getTotalHits().value, greaterThan(1L));
                     logger.info("found a duplicate id:");
                     for (SearchHit hit : dupIdResponse.getHits()) {
                         logger.info("Doc {} was found on shard {}", hit.getId(), hit.getShard().getShardId());

@@ -18,12 +18,13 @@
  */
 package org.elasticsearch.cluster.metadata;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.search.similarities.Similarity;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.TriFunction;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -51,7 +52,9 @@ import java.util.function.UnaryOperator;
  * occurs during cluster upgrade, when dangling indices are imported into the cluster or indices
  * are restored from a repository.
  */
-public class MetaDataIndexUpgradeService extends AbstractComponent {
+public class MetaDataIndexUpgradeService {
+
+    private static final Logger logger = LogManager.getLogger(MetaDataIndexUpgradeService.class);
 
     private final Settings settings;
     private final NamedXContentRegistry xContentRegistry;
@@ -85,7 +88,11 @@ public class MetaDataIndexUpgradeService extends AbstractComponent {
     public IndexMetaData upgradeIndexMetaData(IndexMetaData indexMetaData, Version minimumIndexCompatibilityVersion) {
         // Throws an exception if there are too-old segments:
         if (isUpgraded(indexMetaData)) {
-            return indexMetaData;
+            /*
+             * We still need to check for broken index settings since it might be that a user removed a plugin that registers a setting
+             * needed by this index.
+             */
+            return archiveBrokenIndexSettings(indexMetaData);
         }
         checkSupportedVersion(indexMetaData, minimumIndexCompatibilityVersion);
         IndexMetaData newMetaData = indexMetaData;
@@ -188,7 +195,7 @@ public class MetaDataIndexUpgradeService extends AbstractComponent {
                 }
             };
             try (IndexAnalyzers fakeIndexAnalzyers =
-                     new IndexAnalyzers(indexSettings, fakeDefault, fakeDefault, fakeDefault, analyzerMap, analyzerMap, analyzerMap)) {
+                     new IndexAnalyzers(indexSettings, analyzerMap, analyzerMap, analyzerMap)) {
                 MapperService mapperService = new MapperService(indexSettings, fakeIndexAnalzyers, xContentRegistry, similarityService,
                         mapperRegistry, () -> null);
                 mapperService.merge(indexMetaData, MapperService.MergeReason.MAPPING_RECOVERY);

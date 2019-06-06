@@ -44,12 +44,10 @@ import org.elasticsearch.search.aggregations.bucket.significant.heuristics.Signi
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristicParser;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.AbstractPipelineAggregationBuilder;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.DerivativePipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.DerivativePipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.InternalDerivative;
-import org.elasticsearch.search.aggregations.pipeline.MovAvgModel;
-import org.elasticsearch.search.aggregations.pipeline.SimpleModel;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
@@ -126,14 +124,6 @@ public class SearchModuleTests extends ESTestCase {
         };
         expectThrows(IllegalArgumentException.class, registryForPlugin(registersDupeSignificanceHeuristic));
 
-        SearchPlugin registersDupeMovAvgModel = new SearchPlugin() {
-            @Override
-            public List<SearchExtensionSpec<MovAvgModel, MovAvgModel.AbstractModelParser>> getMovingAverageModels() {
-                return singletonList(new SearchExtensionSpec<>(SimpleModel.NAME, SimpleModel::new, SimpleModel.PARSER));
-            }
-        };
-        expectThrows(IllegalArgumentException.class, registryForPlugin(registersDupeMovAvgModel));
-
         SearchPlugin registersDupeFetchSubPhase = new SearchPlugin() {
             @Override
             public List<FetchSubPhase> getFetchSubPhases(FetchPhaseConstructionContext context) {
@@ -182,11 +172,11 @@ public class SearchModuleTests extends ESTestCase {
     }
 
     private ThrowingRunnable registryForPlugin(SearchPlugin plugin) {
-        return () -> new NamedXContentRegistry(new SearchModule(Settings.EMPTY, false, singletonList(plugin)).getNamedXContents());
+        return () -> new NamedXContentRegistry(new SearchModule(Settings.EMPTY, singletonList(plugin)).getNamedXContents());
     }
 
     public void testRegisterSuggester() {
-        SearchModule module = new SearchModule(Settings.EMPTY, false, singletonList(new SearchPlugin() {
+        SearchModule module = new SearchModule(Settings.EMPTY, singletonList(new SearchPlugin() {
             @Override
             public List<SuggesterSpec<?>> getSuggesters() {
                 return singletonList(
@@ -232,7 +222,7 @@ public class SearchModuleTests extends ESTestCase {
 
     public void testRegisterHighlighter() {
         CustomHighlighter customHighlighter = new CustomHighlighter();
-        SearchModule module = new SearchModule(Settings.EMPTY, false, singletonList(new SearchPlugin() {
+        SearchModule module = new SearchModule(Settings.EMPTY, singletonList(new SearchPlugin() {
             @Override
             public Map<String, Highlighter> getHighlighters() {
                 return singletonMap("custom", customHighlighter);
@@ -246,14 +236,15 @@ public class SearchModuleTests extends ESTestCase {
         assertSame(highlighters.get("custom"), customHighlighter);
     }
 
-    public void testRegisteredQueries() throws IOException {
+    public void testRegisteredQueries() {
         List<String> allSupportedQueries = new ArrayList<>();
         Collections.addAll(allSupportedQueries, NON_DEPRECATED_QUERIES);
         Collections.addAll(allSupportedQueries, DEPRECATED_QUERIES);
-        SearchModule module = new SearchModule(Settings.EMPTY, false, emptyList());
+        SearchModule module = new SearchModule(Settings.EMPTY, emptyList());
 
         Set<String> registeredNonDeprecated = module.getNamedXContents().stream()
                 .filter(e -> e.categoryClass.equals(QueryBuilder.class))
+                .filter(e -> e.name.getDeprecatedNames().length == 0)
                 .map(e -> e.name.getPreferredName())
                 .collect(toSet());
         Set<String> registeredAll = module.getNamedXContents().stream()
@@ -266,7 +257,7 @@ public class SearchModuleTests extends ESTestCase {
     }
 
     public void testRegisterAggregation() {
-        SearchModule module = new SearchModule(Settings.EMPTY, false, singletonList(new SearchPlugin() {
+        SearchModule module = new SearchModule(Settings.EMPTY, singletonList(new SearchPlugin() {
             @Override
             public List<AggregationSpec> getAggregations() {
                 return singletonList(new AggregationSpec("test", TestAggregationBuilder::new, TestAggregationBuilder::fromXContent));
@@ -282,7 +273,7 @@ public class SearchModuleTests extends ESTestCase {
     }
 
     public void testRegisterPipelineAggregation() {
-        SearchModule module = new SearchModule(Settings.EMPTY, false, singletonList(new SearchPlugin() {
+        SearchModule module = new SearchModule(Settings.EMPTY, singletonList(new SearchPlugin() {
             @Override
             public List<PipelineAggregationSpec> getPipelineAggregations() {
                 return singletonList(new PipelineAggregationSpec("test",
@@ -299,7 +290,7 @@ public class SearchModuleTests extends ESTestCase {
     }
 
     public void testRegisterRescorer() {
-        SearchModule module = new SearchModule(Settings.EMPTY, false, singletonList(new SearchPlugin() {
+        SearchModule module = new SearchModule(Settings.EMPTY, singletonList(new SearchPlugin() {
             @Override
             public List<RescorerSpec<?>> getRescorers() {
                 return singletonList(new RescorerSpec<>("test", TestRescorerBuilder::new, TestRescorerBuilder::fromXContent));
@@ -316,7 +307,6 @@ public class SearchModuleTests extends ESTestCase {
     private static final String[] NON_DEPRECATED_QUERIES = new String[] {
             "bool",
             "boosting",
-            "common",
             "constant_score",
             "dis_max",
             "exists",
@@ -328,8 +318,10 @@ public class SearchModuleTests extends ESTestCase {
             "geo_polygon",
             "geo_shape",
             "ids",
+            "intervals",
             "match",
             "match_all",
+            "match_bool_prefix",
             "match_none",
             "match_phrase",
             "match_phrase_prefix",
@@ -341,6 +333,7 @@ public class SearchModuleTests extends ESTestCase {
             "range",
             "regexp",
             "script",
+            "script_score",
             "simple_query_string",
             "span_containing",
             "span_first",
@@ -356,7 +349,8 @@ public class SearchModuleTests extends ESTestCase {
             "terms_set",
             "type",
             "wildcard",
-            "wrapper"
+            "wrapper",
+            "distance_feature"
     };
 
     //add here deprecated queries to make sure we log a deprecation warnings when they are used
@@ -438,7 +432,7 @@ public class SearchModuleTests extends ESTestCase {
         }
 
         @Override
-        protected PipelineAggregator createInternal(Map<String, Object> metaData) throws IOException {
+        protected PipelineAggregator createInternal(Map<String, Object> metaData) {
             return null;
         }
 
@@ -575,11 +569,6 @@ public class SearchModuleTests extends ESTestCase {
     private static class TestSuggestion extends Suggestion {
         TestSuggestion(StreamInput in) throws IOException {
             super(in);
-        }
-
-        @Override
-        protected Entry newEntry() {
-            return null;
         }
 
         @Override

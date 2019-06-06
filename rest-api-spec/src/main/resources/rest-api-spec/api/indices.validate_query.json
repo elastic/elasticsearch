@@ -4,7 +4,14 @@
     "methods": ["GET", "POST"],
     "url": {
       "path": "/_validate/query",
-      "paths": ["/_validate/query", "/{index}/_validate/query", "/{index}/{type}/_validate/query"],
+      "paths": ["/_validate/query", "/{index}/_validate/query"],
+      "deprecated_paths" : [
+        {
+          "version" : "7.0.0",
+          "path" : "/{index}/{type}/_validate/query",
+          "description" : "Specifying types in urls has been deprecated"
+        }
+      ],
       "parts": {
         "index": {
           "type" : "list",

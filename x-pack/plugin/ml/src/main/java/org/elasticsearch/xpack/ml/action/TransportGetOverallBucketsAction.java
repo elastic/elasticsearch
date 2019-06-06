@@ -17,6 +17,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.Aggregations;
+import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.metrics.Max;
 import org.elasticsearch.search.aggregations.metrics.Min;
@@ -25,7 +26,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.action.GetOverallBucketsAction;
-import org.elasticsearch.xpack.core.ml.action.util.QueryPage;
+import org.elasticsearch.xpack.core.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.job.results.Bucket;
@@ -75,21 +76,25 @@ public class TransportGetOverallBucketsAction extends HandledTransportAction<Get
     @Override
     protected void doExecute(Task task, GetOverallBucketsAction.Request request,
                              ActionListener<GetOverallBucketsAction.Response> listener) {
-        QueryPage<Job> jobsPage = jobManager.expandJobs(request.getJobId(), request.allowNoJobs(), clusterService.state());
-        if (jobsPage.count() == 0) {
-            listener.onResponse(new GetOverallBucketsAction.Response());
-            return;
-        }
+        jobManager.expandJobs(request.getJobId(), request.allowNoJobs(), ActionListener.wrap(
+                jobPage -> {
+                    if (jobPage.count() == 0) {
+                        listener.onResponse(new GetOverallBucketsAction.Response());
+                        return;
+                    }
 
-        // As computing and potentially aggregating overall buckets might take a while,
-        // we run in a different thread to avoid blocking the network thread.
-        threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME).execute(() -> {
-            try {
-                getOverallBuckets(request, jobsPage.results(), listener);
-            } catch (Exception e) {
-                listener.onFailure(e);
-            }
-        });
+                    // As computing and potentially aggregating overall buckets might take a while,
+                    // we run in a different thread to avoid blocking the network thread.
+                    threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME).execute(() -> {
+                        try {
+                            getOverallBuckets(request, jobPage.results(), listener);
+                        } catch (Exception e) {
+                            listener.onFailure(e);
+                        }
+                    });
+                },
+                listener::onFailure
+        ));
     }
 
     private void getOverallBuckets(GetOverallBucketsAction.Request request, List<Job> jobs,
@@ -138,7 +143,7 @@ public class TransportGetOverallBucketsAction extends HandledTransportAction<Get
         searchRequest.source().aggregation(AggregationBuilders.max(LATEST_TIME).field(Result.TIMESTAMP.getPreferredName()));
         executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, searchRequest,
                 ActionListener.<SearchResponse>wrap(searchResponse -> {
-                    long totalHits = searchResponse.getHits().getTotalHits();
+                    long totalHits = searchResponse.getHits().getTotalHits().value;
                     if (totalHits > 0) {
                         Aggregations aggregations = searchResponse.getAggregations();
                         Min min = aggregations.get(EARLIEST_TIME);
@@ -257,6 +262,7 @@ public class TransportGetOverallBucketsAction extends HandledTransportAction<Get
                 .start(startTime)
                 .end(endTime)
                 .build();
+        searchSourceBuilder.trackTotalHits(true);
 
         SearchRequest searchRequest = new SearchRequest(indices);
         searchRequest.indicesOptions(MlIndicesUtils.addIgnoreUnavailable(SearchRequest.DEFAULT_INDICES_OPTIONS));
@@ -273,7 +279,7 @@ public class TransportGetOverallBucketsAction extends HandledTransportAction<Get
                 .field(Result.IS_INTERIM.getPreferredName());
         return AggregationBuilders.dateHistogram(Result.TIMESTAMP.getPreferredName())
                 .field(Result.TIMESTAMP.getPreferredName())
-                .interval(maxBucketSpanMillis)
+                .fixedInterval(new DateHistogramInterval(maxBucketSpanMillis + "ms"))
                 .subAggregation(jobsAgg)
                 .subAggregation(interimAgg);
     }

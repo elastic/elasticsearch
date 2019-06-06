@@ -83,8 +83,7 @@ public class CumulativeSumPipelineAggregator extends PipelineAggregator {
                 sum += thisBucketValue;
             }
 
-            List<InternalAggregation> aggs = StreamSupport
-                .stream(bucket.getAggregations().spliterator(), false)
+            List<InternalAggregation> aggs = StreamSupport.stream(bucket.getAggregations().spliterator(), false)
                 .map((p) -> (InternalAggregation) p)
                 .collect(Collectors.toList());
             aggs.add(new InternalSimpleValue(name(), sum, formatter, new ArrayList<>(), metaData()));

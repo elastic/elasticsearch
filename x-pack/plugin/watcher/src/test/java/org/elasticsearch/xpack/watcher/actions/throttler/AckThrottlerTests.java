@@ -13,21 +13,20 @@ import org.elasticsearch.xpack.core.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.xpack.core.watcher.watch.Payload;
 import org.elasticsearch.xpack.core.watcher.watch.Watch;
 import org.elasticsearch.xpack.core.watcher.watch.WatchStatus;
-import org.joda.time.DateTime;
 
-import java.time.Clock;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 
 import static org.elasticsearch.xpack.core.watcher.support.WatcherDateTimeUtils.formatDate;
 import static org.elasticsearch.xpack.watcher.test.WatcherTestUtils.mockExecutionContext;
 import static org.hamcrest.CoreMatchers.nullValue;
 import static org.hamcrest.Matchers.is;
-import static org.joda.time.DateTimeZone.UTC;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class AckThrottlerTests extends ESTestCase {
     public void testWhenAcked() throws Exception {
-        DateTime timestamp = new DateTime(Clock.systemUTC().millis(), UTC);
+        ZonedDateTime timestamp = ZonedDateTime.now(ZoneOffset.UTC);
         WatchExecutionContext ctx = mockExecutionContext("_watch", Payload.EMPTY);
         Watch watch = ctx.watch();
         ActionStatus actionStatus = mock(ActionStatus.class);
@@ -43,7 +42,7 @@ public class AckThrottlerTests extends ESTestCase {
     }
 
     public void testThrottleWhenAwaitsSuccessfulExecution() throws Exception {
-        DateTime timestamp = new DateTime(Clock.systemUTC().millis(), UTC);
+        ZonedDateTime timestamp = ZonedDateTime.now(ZoneOffset.UTC);
         WatchExecutionContext ctx = mockExecutionContext("_watch", Payload.EMPTY);
         Watch watch = ctx.watch();
         ActionStatus actionStatus = mock(ActionStatus.class);
@@ -59,7 +58,7 @@ public class AckThrottlerTests extends ESTestCase {
     }
 
     public void testThrottleWhenAckable() throws Exception {
-        DateTime timestamp = new DateTime(Clock.systemUTC().millis(), UTC);
+        ZonedDateTime timestamp = ZonedDateTime.now(ZoneOffset.UTC);
         WatchExecutionContext ctx = mockExecutionContext("_watch", Payload.EMPTY);
         Watch watch = ctx.watch();
         ActionStatus actionStatus = mock(ActionStatus.class);

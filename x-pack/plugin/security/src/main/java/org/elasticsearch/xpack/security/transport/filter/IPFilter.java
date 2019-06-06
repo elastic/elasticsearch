@@ -7,10 +7,9 @@ package org.elasticsearch.xpack.security.transport.filter;
 
 
 import io.netty.handler.ipfilter.IpFilterRuleType;
-import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -18,7 +17,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.transport.TcpTransport;
+import org.elasticsearch.transport.TransportSettings;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
 
 import java.net.InetSocketAddress;
@@ -78,10 +77,9 @@ public class IPFilter {
     public static final Setting<List<String>> HTTP_FILTER_DENY_SETTING = Setting.listSetting(setting("http.filter.deny"),
             HTTP_FILTER_DENY_FALLBACK, Function.identity(), Property.Dynamic, Property.NodeScope);
 
-    public static final Map<String, Object> DISABLED_USAGE_STATS = new MapBuilder<String, Object>()
-            .put("http", false)
-            .put("transport", false)
-            .immutableMap();
+    public static final Map<String, Object> DISABLED_USAGE_STATS = Map.of(
+            "http", false,
+            "transport", false);
 
     public static final SecurityIpFilterRule DEFAULT_PROFILE_ACCEPT_ALL = new SecurityIpFilterRule(true, "default:accept_all") {
 
@@ -128,7 +126,7 @@ public class IPFilter {
         isHttpFilterEnabled = IP_FILTER_ENABLED_HTTP_SETTING.get(settings);
         isIpFilterEnabled = IP_FILTER_ENABLED_SETTING.get(settings);
 
-        this.profiles = settings.getGroups("transport.profiles.",true).keySet().stream().filter(k -> TcpTransport
+        this.profiles = settings.getGroups("transport.profiles.",true).keySet().stream().filter(k -> TransportSettings
                 .DEFAULT_PROFILE.equals(k) == false).collect(Collectors.toSet()); // exclude default profile -- it's handled differently
         for (String profile : profiles) {
             Setting<List<String>> allowSetting = PROFILE_FILTER_ALLOW_SETTING.getConcreteSettingForNamespace(profile);
@@ -237,7 +235,7 @@ public class IPFilter {
 
             if (isIpFilterEnabled && boundTransportAddress.get() != null) {
                 TransportAddress[] localAddresses = boundTransportAddress.get().boundAddresses();
-                profileRules.put(TcpTransport.DEFAULT_PROFILE, createRules(transportAllowFilter, transportDenyFilter, localAddresses));
+                profileRules.put(TransportSettings.DEFAULT_PROFILE, createRules(transportAllowFilter, transportDenyFilter, localAddresses));
                 for (String profile : profiles) {
                     BoundTransportAddress profileBoundTransportAddress = profileBoundAddress.get().get(profile);
                     if (profileBoundTransportAddress == null) {

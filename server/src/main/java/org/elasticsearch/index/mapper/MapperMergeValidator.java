@@ -19,13 +19,13 @@
 
 package org.elasticsearch.index.mapper;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.stream.Stream;
 
 /**
  * A utility class that helps validate certain aspects of a mappings update.
@@ -33,83 +33,96 @@ import java.util.stream.Stream;
 class MapperMergeValidator {
 
     /**
-     * Validates the overall structure of the mapping addition, including whether
-     * duplicate fields are present, and if the provided fields have already been
-     * defined with a different data type.
+     * Validates the new mapping addition, checking whether duplicate entries are present and if the
+     * provided fields are compatible with the mappings that are already defined.
      *
-     * @param type The mapping type, for use in error messages.
      * @param objectMappers The newly added object mappers.
      * @param fieldMappers The newly added field mappers.
      * @param fieldAliasMappers The newly added field alias mappers.
-     * @param fullPathObjectMappers All object mappers, indexed by their full path.
-     * @param fieldTypes All field and field alias mappers, collected into a lookup structure.
+     * @param fieldTypes Any existing field and field alias mappers, collected into a lookup structure.
      */
-    public static void validateMapperStructure(String type,
-                                               Collection<ObjectMapper> objectMappers,
-                                               Collection<FieldMapper> fieldMappers,
-                                               Collection<FieldAliasMapper> fieldAliasMappers,
-                                               Map<String, ObjectMapper> fullPathObjectMappers,
-                                               FieldTypeLookup fieldTypes) {
-        checkFieldUniqueness(type, objectMappers, fieldMappers,
-            fieldAliasMappers, fullPathObjectMappers, fieldTypes);
-        checkObjectsCompatibility(objectMappers, fullPathObjectMappers);
-    }
-
-    private static void checkFieldUniqueness(String type,
-                                             Collection<ObjectMapper> objectMappers,
-                                             Collection<FieldMapper> fieldMappers,
-                                             Collection<FieldAliasMapper> fieldAliasMappers,
-                                             Map<String, ObjectMapper> fullPathObjectMappers,
-                                             FieldTypeLookup fieldTypes) {
-
-        // first check within mapping
+    public static void validateNewMappers(Collection<ObjectMapper> objectMappers,
+                                          Collection<FieldMapper> fieldMappers,
+                                          Collection<FieldAliasMapper> fieldAliasMappers,
+                                          FieldTypeLookup fieldTypes) {
         Set<String> objectFullNames = new HashSet<>();
         for (ObjectMapper objectMapper : objectMappers) {
             String fullPath = objectMapper.fullPath();
             if (objectFullNames.add(fullPath) == false) {
-                throw new IllegalArgumentException("Object mapper [" + fullPath + "] is defined twice in mapping for type [" + type + "]");
+                throw new IllegalArgumentException("Object mapper [" + fullPath + "] is defined twice.");
             }
         }
 
         Set<String> fieldNames = new HashSet<>();
-        Stream.concat(fieldMappers.stream(), fieldAliasMappers.stream())
-            .forEach(mapper -> {
-                String name = mapper.name();
-                if (objectFullNames.contains(name)) {
-                    throw new IllegalArgumentException("Field [" + name + "] is defined both as an object and a field in [" + type + "]");
-                } else if (fieldNames.add(name) == false) {
-                    throw new IllegalArgumentException("Field [" + name + "] is defined twice in [" + type + "]");
-                }
-            });
-
-        // then check other types
-        for (String fieldName : fieldNames) {
-            if (fullPathObjectMappers.containsKey(fieldName)) {
-                throw new IllegalArgumentException("[" + fieldName + "] is defined as a field in mapping [" + type
-                    + "] but this name is already used for an object in other types");
+        for (FieldMapper fieldMapper : fieldMappers) {
+            String name = fieldMapper.name();
+            if (objectFullNames.contains(name)) {
+                throw new IllegalArgumentException("Field [" + name + "] is defined both as an object and a field.");
+            } else if (fieldNames.add(name) == false) {
+                throw new IllegalArgumentException("Field [" + name + "] is defined twice.");
             }
+
+            validateFieldMapper(fieldMapper, fieldTypes);
         }
 
-        for (String objectPath : objectFullNames) {
-            if (fieldTypes.get(objectPath) != null) {
-                throw new IllegalArgumentException("[" + objectPath + "] is defined as an object in mapping [" + type
-                    + "] but this name is already used for a field in other types");
+        Set<String> fieldAliasNames = new HashSet<>();
+        for (FieldAliasMapper fieldAliasMapper : fieldAliasMappers) {
+            String name = fieldAliasMapper.name();
+            if (objectFullNames.contains(name)) {
+                throw new IllegalArgumentException("Field [" + name + "] is defined both as an object and a field.");
+            } else if (fieldNames.contains(name)) {
+                throw new IllegalArgumentException("Field [" + name + "] is defined both as an alias and a concrete field.");
+            } else if (fieldAliasNames.add(name) == false) {
+                throw new IllegalArgumentException("Field [" + name + "] is defined twice.");
+            }
+
+            validateFieldAliasMapper(name, fieldAliasMapper.path(), fieldNames, fieldAliasNames);
+        }
+    }
+
+    /**
+     * Checks that the new field mapper does not conflict with existing mappings.
+     */
+    private static void validateFieldMapper(FieldMapper fieldMapper,
+                                            FieldTypeLookup fieldTypes) {
+        MappedFieldType newFieldType = fieldMapper.fieldType();
+        MappedFieldType existingFieldType = fieldTypes.get(newFieldType.name());
+
+        if (existingFieldType != null && Objects.equals(newFieldType, existingFieldType) == false) {
+            List<String> conflicts = new ArrayList<>();
+            existingFieldType.checkCompatibility(newFieldType, conflicts);
+            if (conflicts.isEmpty() == false) {
+                throw new IllegalArgumentException("Mapper for [" + newFieldType.name() +
+                    "] conflicts with existing mapping:\n" + conflicts.toString());
             }
         }
     }
 
-    private static void checkObjectsCompatibility(Collection<ObjectMapper> objectMappers,
-                                                  Map<String, ObjectMapper> fullPathObjectMappers) {
-        for (ObjectMapper newObjectMapper : objectMappers) {
-            ObjectMapper existingObjectMapper = fullPathObjectMappers.get(newObjectMapper.fullPath());
-            if (existingObjectMapper != null) {
-                // simulate a merge and ignore the result, we are just interested
-                // in exceptions here
-                existingObjectMapper.merge(newObjectMapper);
-            }
+    /**
+     * Checks that the new field alias is valid.
+     *
+     * Note that this method assumes that new concrete fields have already been processed, so that it
+     * can verify that an alias refers to an existing concrete field.
+     */
+    private static void validateFieldAliasMapper(String aliasName,
+                                                 String path,
+                                                 Set<String> fieldMappers,
+                                                 Set<String> fieldAliasMappers) {
+        if (path.equals(aliasName)) {
+            throw new IllegalArgumentException("Invalid [path] value [" + path + "] for field alias [" +
+                aliasName + "]: an alias cannot refer to itself.");
+        }
+
+        if (fieldAliasMappers.contains(path)) {
+            throw new IllegalArgumentException("Invalid [path] value [" + path + "] for field alias [" +
+                aliasName + "]: an alias cannot refer to another alias.");
+        }
+
+        if (fieldMappers.contains(path) == false) {
+            throw new IllegalArgumentException("Invalid [path] value [" + path + "] for field alias [" +
+                aliasName + "]: an alias must refer to an existing field in the mappings.");
         }
     }
-
     /**
      * Verifies that each field reference, e.g. the value of copy_to or the target
      * of a field alias, corresponds to a valid part of the mapping.

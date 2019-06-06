@@ -4,15 +4,13 @@ setup:
           index: testidx
           body:
             mappings:
-              testtype:
-                "properties":
-                  "text":
-                     "type" : "text"
-                     "term_vector" : "with_positions_offsets"
+              "properties":
+                "text":
+                   "type" : "text"
+                   "term_vector" : "with_positions_offsets"
   - do:
       index:
         index: testidx
-        type:  testtype
         id:    testing_document
         body:
             "text" : "The quick brown fox is brown."
@@ -25,7 +23,6 @@ setup:
   - do:
       termvectors:
         index: testidx
-        type:  testtype
         id:    testing_document
         "term_statistics" : true
 

@@ -19,12 +19,40 @@
 
 package org.elasticsearch.packaging.test;
 
+import junit.framework.TestCase;
 import org.elasticsearch.packaging.util.Distribution;
+import org.elasticsearch.packaging.util.Platforms;
+import org.elasticsearch.packaging.util.Shell;
+
+import java.util.regex.Pattern;
+
+import static org.elasticsearch.packaging.util.Distribution.DEFAULT_RPM;
+import static org.elasticsearch.packaging.util.Distribution.OSS_RPM;
+import static org.elasticsearch.packaging.util.FileUtils.getDistributionFile;
+import static org.junit.Assume.assumeTrue;
 
 public class OssRpmBasicTests extends PackageTestCase {
 
     @Override
     protected Distribution distribution() {
         return Distribution.OSS_RPM;
+    }
+
+    public void test11RpmDependencies() {
+        assumeTrue(Platforms.isRPM());
+
+        final Shell sh = new Shell();
+
+        final Shell.Result defaultDeps = sh.run("rpm -qpR " + getDistributionFile(DEFAULT_RPM));
+        final Shell.Result ossDeps = sh.run("rpm -qpR " + getDistributionFile(OSS_RPM));
+
+        TestCase.assertTrue(Pattern.compile("(?m)^/bin/bash\\s*$").matcher(defaultDeps.stdout).find());
+        TestCase.assertTrue(Pattern.compile("(?m)^/bin/bash\\s*$").matcher(ossDeps.stdout).find());
+
+        final Shell.Result defaultConflicts = sh.run("rpm -qp --conflicts " + getDistributionFile(DEFAULT_RPM));
+        final Shell.Result ossConflicts = sh.run("rpm -qp --conflicts " + getDistributionFile(OSS_RPM));
+
+        TestCase.assertTrue(Pattern.compile("(?m)^elasticsearch-oss\\s*$").matcher(defaultConflicts.stdout).find());
+        TestCase.assertTrue(Pattern.compile("(?m)^elasticsearch\\s*$").matcher(ossConflicts.stdout).find());
     }
 }

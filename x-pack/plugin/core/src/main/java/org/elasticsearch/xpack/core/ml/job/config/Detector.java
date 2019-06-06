@@ -185,25 +185,6 @@ public class Detector implements ToXContentObject, Writeable {
     );
 
     /**
-     * The set of functions that must not be used with overlapping buckets
-     */
-    public static final EnumSet<DetectorFunction> NO_OVERLAPPING_BUCKETS_FUNCTIONS = EnumSet.of(
-            DetectorFunction.RARE,
-            DetectorFunction.FREQ_RARE
-    );
-
-    /**
-     * The set of functions that should not be used with overlapping buckets
-     * as they gain no benefit but have overhead
-     */
-    public static final EnumSet<DetectorFunction> OVERLAPPING_BUCKETS_FUNCTIONS_NOT_NEEDED = EnumSet.of(
-            DetectorFunction.MIN,
-            DetectorFunction.MAX,
-            DetectorFunction.TIME_OF_DAY,
-            DetectorFunction.TIME_OF_WEEK
-    );
-
-    /**
      * Functions that do not support rule conditions:
      * <ul>
      * <li>lat_long - because it is a multivariate feature
@@ -265,11 +246,7 @@ public class Detector implements ToXContentObject, Writeable {
         } else {
             out.writeBoolean(false);
         }
-        if (out.getVersion().onOrAfter(DetectionRule.VERSION_INTRODUCED)) {
-            out.writeList(rules);
-        } else {
-            out.writeList(Collections.emptyList());
-        }
+        out.writeList(rules);
         out.writeInt(detectorIndex);
     }
 
@@ -302,7 +279,7 @@ public class Detector implements ToXContentObject, Writeable {
         // negative means "unknown", which should only happen for a 5.4 job
         if (detectorIndex >= 0
                 // no point writing this to cluster state, as the indexes will get reassigned on reload anyway
-                && params.paramAsBoolean(ToXContentParams.FOR_CLUSTER_STATE, false) == false) {
+                && params.paramAsBoolean(ToXContentParams.FOR_INTERNAL_STORAGE, false) == false) {
             builder.field(DETECTOR_INDEX.getPreferredName(), detectorIndex);
         }
         builder.endObject();
@@ -508,44 +485,54 @@ public class Detector implements ToXContentObject, Writeable {
             this.fieldName = fieldName;
         }
 
-        public void setDetectorDescription(String detectorDescription) {
+        public Builder setDetectorDescription(String detectorDescription) {
             this.detectorDescription = detectorDescription;
+            return this;
         }
 
-        public void setFunction(String function) {
+        public Builder setFunction(String function) {
             this.function = DetectorFunction.fromString(function);
+            return this;
         }
 
-        public void setFieldName(String fieldName) {
+        public Builder setFieldName(String fieldName) {
             this.fieldName = fieldName;
+            return this;
         }
 
-        public void setByFieldName(String byFieldName) {
+        public Builder setByFieldName(String byFieldName) {
             this.byFieldName = byFieldName;
+            return this;
         }
 
-        public void setOverFieldName(String overFieldName) {
+        public Builder setOverFieldName(String overFieldName) {
             this.overFieldName = overFieldName;
+            return this;
         }
 
-        public void setPartitionFieldName(String partitionFieldName) {
+        public Builder setPartitionFieldName(String partitionFieldName) {
             this.partitionFieldName = partitionFieldName;
+            return this;
         }
 
-        public void setUseNull(boolean useNull) {
+        public Builder setUseNull(boolean useNull) {
             this.useNull = useNull;
+            return this;
         }
 
-        public void setExcludeFrequent(ExcludeFrequent excludeFrequent) {
+        public Builder setExcludeFrequent(ExcludeFrequent excludeFrequent) {
             this.excludeFrequent = excludeFrequent;
+            return this;
         }
 
-        public void setRules(List<DetectionRule> rules) {
+        public Builder setRules(List<DetectionRule> rules) {
             this.rules = rules;
+            return this;
         }
 
-        public void setDetectorIndex(int detectorIndex) {
+        public Builder setDetectorIndex(int detectorIndex) {
             this.detectorIndex = detectorIndex;
+            return this;
         }
 
         public Detector build() {

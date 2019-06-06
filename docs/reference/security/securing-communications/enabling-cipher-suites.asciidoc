@@ -16,8 +16,8 @@ The _JCE Unlimited Strength Jurisdiction Policy Files`_ are required for
 encryption with key lengths greater than 128 bits, such as 256-bit AES encryption.
 
 After installation, all cipher suites in the JCE are available for use but requires
-configuration in order to use them. To enable the use of stronger cipher suites with
-{security}, configure the `cipher_suites` parameter. See the
+configuration in order to use them. To enable the use of stronger cipher suites
+with {es} {security-features}, configure the `cipher_suites` parameter. See the
 {ref}/security-settings.html#ssl-tls-settings[Configuration Parameters for TLS/SSL]
 section of this document for specific parameter information.
 

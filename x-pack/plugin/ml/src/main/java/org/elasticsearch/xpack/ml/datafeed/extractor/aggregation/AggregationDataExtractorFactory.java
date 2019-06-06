@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.ml.datafeed.extractor.aggregation;
 
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.extractor.DataExtractor;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
@@ -19,24 +20,25 @@ public class AggregationDataExtractorFactory implements DataExtractorFactory {
     private final Client client;
     private final DatafeedConfig datafeedConfig;
     private final Job job;
+    private final NamedXContentRegistry xContentRegistry;
 
-    public AggregationDataExtractorFactory(Client client, DatafeedConfig datafeedConfig, Job job) {
+    public AggregationDataExtractorFactory(Client client, DatafeedConfig datafeedConfig, Job job, NamedXContentRegistry xContentRegistry) {
         this.client = Objects.requireNonNull(client);
         this.datafeedConfig = Objects.requireNonNull(datafeedConfig);
         this.job = Objects.requireNonNull(job);
+        this.xContentRegistry = xContentRegistry;
     }
 
     @Override
     public DataExtractor newExtractor(long start, long end) {
-        long histogramInterval = datafeedConfig.getHistogramIntervalMillis();
+        long histogramInterval = datafeedConfig.getHistogramIntervalMillis(xContentRegistry);
         AggregationDataExtractorContext dataExtractorContext = new AggregationDataExtractorContext(
                 job.getId(),
                 job.getDataDescription().getTimeField(),
                 job.getAnalysisConfig().analysisFields(),
                 datafeedConfig.getIndices(),
-                datafeedConfig.getTypes(),
-                datafeedConfig.getQuery(),
-                datafeedConfig.getAggregations(),
+                datafeedConfig.getParsedQuery(xContentRegistry),
+                datafeedConfig.getParsedAggregations(xContentRegistry),
                 Intervals.alignToCeil(start, histogramInterval),
                 Intervals.alignToFloor(end, histogramInterval),
                 job.getAnalysisConfig().getSummaryCountFieldName().equals(DatafeedConfig.DOC_COUNT),

@@ -26,11 +26,9 @@
 esplugin {
     description 'Netty 4 based transport implementation'
     classname 'org.elasticsearch.transport.Netty4Plugin'
-    hasClientJar = true
 }
 
-compileJava.options.compilerArgs << "-Xlint:-try"
-compileTestJava.options.compilerArgs << "-Xlint:-cast,-deprecation,-rawtypes,-try,-unchecked"
+compileTestJava.options.compilerArgs << "-Xlint:-cast,-rawtypes,-unchecked"
 
 dependencies {
     // network stack
@@ -63,7 +61,8 @@ integTestRunner {
     systemProperty 'es.set.netty.runtime.available.processors', 'false'
 }
 
-thirdPartyAudit.excludes = [
+thirdPartyAudit {
+    ignoreMissingClasses (
         // classes are missing
 
         // from io.netty.handler.codec.protobuf.ProtobufDecoder (netty)
@@ -76,11 +75,16 @@ thirdPartyAudit.excludes = [
         'org.apache.commons.logging.Log',
         'org.apache.commons.logging.LogFactory',
 
+        // from Log4j (deliberate, Netty will fallback to Log4j 2)
+        'org.apache.log4j.Level',
+        'org.apache.log4j.Logger',
+
         // from io.netty.handler.ssl.OpenSslEngine (netty)
         'io.netty.internal.tcnative.Buffer',
         'io.netty.internal.tcnative.Library',
         'io.netty.internal.tcnative.SSL',
         'io.netty.internal.tcnative.SSLContext',
+        'io.netty.internal.tcnative.SSLPrivateKeyMethod',
 
         // from io.netty.handler.ssl.util.BouncyCastleSelfSignedCertGenerator (netty)
         'org.bouncycastle.cert.X509v3CertificateBuilder',
@@ -109,6 +113,8 @@ thirdPartyAudit.excludes = [
         'org.jboss.marshalling.Unmarshaller',
 
         // from io.netty.util.internal.logging.InternalLoggerFactory (netty) - it's optional
+        'org.slf4j.helpers.FormattingTuple',
+        'org.slf4j.helpers.MessageFormatter',
         'org.slf4j.Logger',
         'org.slf4j.LoggerFactory',
         'org.slf4j.spi.LocationAwareLogger',
@@ -133,7 +139,7 @@ thirdPartyAudit.excludes = [
         'net.jpountz.lz4.LZ4FastDecompressor',
         'net.jpountz.xxhash.StreamingXXHash32',
         'net.jpountz.xxhash.XXHashFactory',
-        'io.netty.internal.tcnative.CertificateRequestedCallback',
+        'io.netty.internal.tcnative.CertificateCallback',
         'io.netty.internal.tcnative.CertificateVerifier',
         'io.netty.internal.tcnative.SessionTicketKey',
         'io.netty.internal.tcnative.SniHostNameMatcher',
@@ -141,7 +147,14 @@ thirdPartyAudit.excludes = [
         'org.eclipse.jetty.alpn.ALPN$ServerProvider',
         'org.eclipse.jetty.alpn.ALPN',
 
-        'io.netty.handler.ssl.util.OpenJdkSelfSignedCertGenerator',
+
+        'org.conscrypt.AllocatedBuffer',
+        'org.conscrypt.BufferAllocator',
+        'org.conscrypt.Conscrypt',
+        'org.conscrypt.HandshakeListener'
+   )
+
+   ignoreViolations ( 
         'io.netty.util.internal.PlatformDependent0',
         'io.netty.util.internal.PlatformDependent0$1',
         'io.netty.util.internal.PlatformDependent0$2',
@@ -158,17 +171,16 @@ thirdPartyAudit.excludes = [
         'io.netty.util.internal.shaded.org.jctools.queues.MpscArrayQueueProducerLimitField',
         'io.netty.util.internal.shaded.org.jctools.util.UnsafeAccess',
         'io.netty.util.internal.shaded.org.jctools.util.UnsafeRefArrayAccess',
+        'io.netty.handler.ssl.util.OpenJdkSelfSignedCertGenerator'
+    )
+}
 
-        'org.conscrypt.AllocatedBuffer',
-        'org.conscrypt.BufferAllocator',
-        'org.conscrypt.Conscrypt',
-        'org.conscrypt.HandshakeListener'
-]
-
-if (project.inFipsJvm == false) {
-    // BouncyCastleFIPS provides this class, so the exclusion is invalid when running CI in
-    // a FIPS JVM with BouncyCastleFIPS Provider
-    thirdPartyAudit.excludes += [
-            'org.bouncycastle.asn1.x500.X500Name'
-    ]
+rootProject.globalInfo.ready {
+    if (project.inFipsJvm == false) {
+        // BouncyCastleFIPS provides this class, so the exclusion is invalid when running CI in
+        // a FIPS JVM with BouncyCastleFIPS Provider
+        thirdPartyAudit.ignoreMissingClasses(
+                'org.bouncycastle.asn1.x500.X500Name'
+        )
+    }
 }

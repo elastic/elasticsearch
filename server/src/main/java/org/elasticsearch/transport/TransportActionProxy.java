@@ -176,6 +176,14 @@ public final class TransportActionProxy {
     }
 
     /**
+     * Unwraps a proxy action and returns the underlying action
+     */
+    public static String unwrapAction(String action) {
+        assert isProxyAction(action) : "Attempted to unwrap non-proxy action: " + action;
+        return action.substring(PROXY_ACTION_PREFIX.length());
+    }
+
+    /**
      * Returns <code>true</code> iff the given action is a proxy action
      */
     public static boolean isProxyAction(String action) {

@@ -32,6 +32,8 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.Objects;
 
+import static org.elasticsearch.index.query.SpanQueryBuilder.SpanQueryBuilderUtil.checkNoBoost;
+
 public class SpanFirstQueryBuilder extends AbstractQueryBuilder<SpanFirstQueryBuilder> implements SpanQueryBuilder {
     public static final String NAME = "span_first";
 
@@ -115,9 +117,10 @@ public class SpanFirstQueryBuilder extends AbstractQueryBuilder<SpanFirstQueryBu
                 if (MATCH_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     QueryBuilder query = parseInnerQueryBuilder(parser);
                     if (query instanceof SpanQueryBuilder == false) {
-                        throw new ParsingException(parser.getTokenLocation(), "spanFirst [match] must be of type span query");
+                        throw new ParsingException(parser.getTokenLocation(), "span_first [match] must be of type span query");
                     }
                     match = (SpanQueryBuilder) query;
+                    checkNoBoost(NAME, currentFieldName, parser, match);
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "[span_first] query does not support [" + currentFieldName + "]");
                 }
@@ -134,10 +137,10 @@ public class SpanFirstQueryBuilder extends AbstractQueryBuilder<SpanFirstQueryBu
             }
         }
         if (match == null) {
-            throw new ParsingException(parser.getTokenLocation(), "spanFirst must have [match] span query clause");
+            throw new ParsingException(parser.getTokenLocation(), "span_first must have [match] span query clause");
         }
         if (end == null) {
-            throw new ParsingException(parser.getTokenLocation(), "spanFirst must have [end] set for it");
+            throw new ParsingException(parser.getTokenLocation(), "span_first must have [end] set for it");
         }
         SpanFirstQueryBuilder queryBuilder = new SpanFirstQueryBuilder(match, end);
         queryBuilder.boost(boost).queryName(queryName);

@@ -207,7 +207,9 @@ public abstract class MultiValuesSourceAggregationBuilder<VS extends ValuesSourc
     public final XContentBuilder internalXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         if (fields != null) {
-            builder.field(CommonFields.FIELDS.getPreferredName(), fields);
+            for (Map.Entry<String, MultiValuesSourceFieldConfig> fieldEntry : fields.entrySet()) {
+                builder.field(fieldEntry.getKey(), fieldEntry.getValue());
+            }
         }
         if (format != null) {
             builder.field(CommonFields.FORMAT.getPreferredName(), format);

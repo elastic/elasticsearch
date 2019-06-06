@@ -42,7 +42,6 @@ import java.util.Map;
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.boostingQuery;
-import static org.elasticsearch.index.query.QueryBuilders.commonTermsQuery;
 import static org.elasticsearch.index.query.QueryBuilders.constantScoreQuery;
 import static org.elasticsearch.index.query.QueryBuilders.disMaxQuery;
 import static org.elasticsearch.index.query.QueryBuilders.existsQuery;
@@ -74,7 +73,6 @@ import static org.elasticsearch.index.query.QueryBuilders.spanTermQuery;
 import static org.elasticsearch.index.query.QueryBuilders.spanWithinQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termsQuery;
-import static org.elasticsearch.index.query.QueryBuilders.typeQuery;
 import static org.elasticsearch.index.query.QueryBuilders.wildcardQuery;
 import static org.elasticsearch.index.query.QueryBuilders.wrapperQuery;
 import static org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders.exponentialDecayFunction;
@@ -105,13 +103,6 @@ public class QueryDSLDocumentationTests extends ESTestCase {
                     termQuery("name","dadoonet"))                    // <2>
                 .negativeBoost(0.2f);                                // <3>
         // end::boosting
-    }
-
-    public void testCommonTerms() {
-        // tag::common_terms
-        commonTermsQuery("name",                                     // <1>
-                         "kimchy");                                  // <2>
-        // end::common_terms
     }
 
     public void testConstantScore() {
@@ -207,11 +198,10 @@ public class QueryDSLDocumentationTests extends ESTestCase {
             // Using pre-indexed shapes
             GeoShapeQueryBuilder qb = geoShapeQuery(
                         "pin.location",                                  // <1>
-                        "DEU",                                           // <2>
-                        "countries");                                    // <3>
-            qb.relation(ShapeRelation.WITHIN)                            // <4>
-                .indexedShapeIndex("shapes")                             // <5>
-                .indexedShapePath("location");                           // <6>
+                        "DEU");                                  // <2>
+            qb.relation(ShapeRelation.WITHIN)                            // <3>
+                .indexedShapeIndex("shapes")                             // <4>
+                .indexedShapePath("location");                           // <5>
             // end::indexed_geo_shape
         }
     }
@@ -236,9 +226,6 @@ public class QueryDSLDocumentationTests extends ESTestCase {
 
     public void testIds() {
         // tag::ids
-        idsQuery("my_type", "type2")
-                .addIds("1", "4", "100");
-
         idsQuery()                                                   // <1>
                 .addIds("1", "4", "100");
         // end::ids
@@ -435,12 +422,6 @@ public class QueryDSLDocumentationTests extends ESTestCase {
         termsQuery("tags",                                           // <1>
                 "blue", "pill");                                     // <2>
         // end::terms
-    }
-
-    public void testType() {
-        // tag::type
-        typeQuery("my_type");                                        // <1>
-        // end::type
     }
 
     public void testWildcard() {

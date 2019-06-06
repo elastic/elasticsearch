@@ -14,14 +14,14 @@ import org.elasticsearch.xpack.core.watcher.condition.Condition;
 import org.elasticsearch.xpack.core.watcher.input.Input;
 import org.elasticsearch.xpack.core.watcher.support.WatcherDateTimeUtils;
 import org.elasticsearch.xpack.core.watcher.transform.Transform;
-import org.joda.time.DateTime;
 
 import java.io.IOException;
+import java.time.ZonedDateTime;
 import java.util.Map;
 
 public class WatchExecutionResult implements ToXContentObject {
 
-    private final DateTime executionTime;
+    private final ZonedDateTime executionTime;
     private final long executionDurationMs;
     @Nullable private final Input.Result inputResult;
     @Nullable private final Condition.Result conditionResult;
@@ -33,7 +33,7 @@ public class WatchExecutionResult implements ToXContentObject {
                 context.actionsResults());
     }
 
-    private WatchExecutionResult(DateTime executionTime, long executionDurationMs, Input.Result inputResult,
+    private WatchExecutionResult(ZonedDateTime executionTime, long executionDurationMs, Input.Result inputResult,
                                  Condition.Result conditionResult, @Nullable Transform.Result transformResult,
                                  Map<String, ActionWrapperResult> actionsResults) {
         this.executionTime = executionTime;
@@ -44,7 +44,7 @@ public class WatchExecutionResult implements ToXContentObject {
         this.executionDurationMs = executionDurationMs;
     }
 
-    public DateTime executionTime() {
+    public ZonedDateTime executionTime() {
         return executionTime;
     }
 

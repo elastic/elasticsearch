@@ -1,9 +1,9 @@
 [role="xpack"]
 [testenv="platinum"]
 [[ml-get-calendar-event]]
-=== Get Scheduled Events API
+=== Get scheduled events API
 ++++
-<titleabbrev>Get Scheduled Events</titleabbrev>
+<titleabbrev>Get scheduled events</titleabbrev>
 ++++
 
 Retrieves information about the scheduled events in
@@ -12,9 +12,9 @@ calendars.
 
 ==== Request
 
-`GET _xpack/ml/calendars/<calendar_id>/events` +
+`GET _ml/calendars/<calendar_id>/events` +
 
-`GET _xpack/ml/calendars/_all/events`
+`GET _ml/calendars/_all/events`
 
 
 ===== Description
@@ -64,7 +64,7 @@ The following example gets information about the scheduled events in the
 
 [source,js]
 --------------------------------------------------
-GET _xpack/ml/calendars/planned-outages/events
+GET _ml/calendars/planned-outages/events
 --------------------------------------------------
 // CONSOLE
 // TEST[skip:setup:calendar_outages_addevent]

@@ -33,6 +33,7 @@ import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_READ_ONLY
 
 @ClusterScope(scope = ESIntegTestCase.Scope.TEST)
 public class IndicesStatsBlocksIT extends ESIntegTestCase {
+
     public void testIndicesStatsWithBlocks() {
         createIndex("ro");
         ensureGreen("ro");

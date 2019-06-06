@@ -20,13 +20,15 @@
 package org.elasticsearch.gateway;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.metadata.IndexGraveyard;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.env.NodeEnvironment;
@@ -43,14 +45,15 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
-import static java.util.Collections.unmodifiableMap;
 
 /**
  * The dangling indices state is responsible for finding new dangling indices (indices that have
  * their state written on disk, but don't exists in the metadata of the cluster), and importing
  * them into the cluster.
  */
-public class DanglingIndicesState extends AbstractComponent implements ClusterStateListener {
+public class DanglingIndicesState implements ClusterStateListener {
+
+    private static final Logger logger = LogManager.getLogger(DanglingIndicesState.class);
 
     private final NodeEnvironment nodeEnv;
     private final MetaStateService metaStateService;
@@ -85,7 +88,7 @@ public class DanglingIndicesState extends AbstractComponent implements ClusterSt
      */
     Map<Index, IndexMetaData> getDanglingIndices() {
         // This might be a good use case for CopyOnWriteHashMap
-        return unmodifiableMap(new HashMap<>(danglingIndices));
+        return Map.copyOf(danglingIndices);
     }
 
     /**
@@ -160,14 +163,14 @@ public class DanglingIndicesState extends AbstractComponent implements ClusterSt
         }
         try {
             allocateDangledIndices.allocateDangled(Collections.unmodifiableCollection(new ArrayList<>(danglingIndices.values())),
-                new LocalAllocateDangledIndices.Listener() {
+                new ActionListener<>() {
                     @Override
                     public void onResponse(LocalAllocateDangledIndices.AllocateDangledResponse response) {
                         logger.trace("allocated dangled");
                     }
 
                     @Override
-                    public void onFailure(Throwable e) {
+                    public void onFailure(Exception e) {
                         logger.info("failed to send allocated dangled", e);
                     }
                 }

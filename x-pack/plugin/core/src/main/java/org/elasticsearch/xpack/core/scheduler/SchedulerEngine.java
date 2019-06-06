@@ -126,8 +126,12 @@ public class SchedulerEngine {
     public void stop() {
         scheduler.shutdownNow();
         try {
-            scheduler.awaitTermination(5, TimeUnit.SECONDS);
+            final boolean terminated = scheduler.awaitTermination(5L, TimeUnit.SECONDS);
+            if (terminated == false) {
+                logger.warn("scheduler engine was not terminated after waiting 5s");
+            }
         } catch (InterruptedException e) {
+            logger.warn("interrupted while waiting for scheduler engine termination");
             Thread.currentThread().interrupt();
         }
     }
@@ -193,7 +197,7 @@ public class SchedulerEngine {
             } catch (final Throwable t) {
                 /*
                  * Allowing the throwable to escape here will lead to be it being caught in FutureTask#run and set as the outcome of this
-                 * task; however, we never inspect the the outcomes of these scheduled tasks and so allowing the throwable to escape
+                 * task; however, we never inspect the outcomes of these scheduled tasks and so allowing the throwable to escape
                  * unhandled here could lead to us losing fatal errors. Instead, we rely on ExceptionsHelper#maybeDieOnAnotherThread to
                  * appropriately dispatch any error to the uncaught exception handler. We should never see an exception here as these do
                  * not escape from SchedulerEngine#notifyListeners.

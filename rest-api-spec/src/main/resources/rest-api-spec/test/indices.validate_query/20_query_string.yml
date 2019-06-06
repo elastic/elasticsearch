@@ -5,12 +5,11 @@
           index:  test
           body:
             mappings:
-              test:
-                properties:
-                  field:
-                    type: text
-                  number:
-                    type: integer
+              properties:
+                field:
+                  type: text
+                number:
+                  type: integer
 
   - do:
       indices.validate_query:

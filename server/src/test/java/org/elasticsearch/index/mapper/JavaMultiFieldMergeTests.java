@@ -45,7 +45,7 @@ public class JavaMultiFieldMergeTests extends ESSingleNodeTestCase {
 
         BytesReference json = BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field("name", "some name").endObject());
         Document doc = mapperService.documentMapper().parse(
-            SourceToParse.source("test", "person", "1", json, XContentType.JSON)).rootDoc();
+            new SourceToParse("test", "person", "1", json, XContentType.JSON)).rootDoc();
         IndexableField f = doc.getField("name");
         assertThat(f, notNullValue());
         f = doc.getField("name.indexed");
@@ -61,7 +61,7 @@ public class JavaMultiFieldMergeTests extends ESSingleNodeTestCase {
         assertThat(mapperService.fullName("name.not_indexed2"), nullValue());
         assertThat(mapperService.fullName("name.not_indexed3"), nullValue());
 
-        doc = mapperService.documentMapper().parse(SourceToParse.source("test", "person", "1", json, XContentType.JSON)).rootDoc();
+        doc = mapperService.documentMapper().parse(new SourceToParse("test", "person", "1", json, XContentType.JSON)).rootDoc();
         f = doc.getField("name");
         assertThat(f, notNullValue());
         f = doc.getField("name.indexed");
@@ -99,7 +99,7 @@ public class JavaMultiFieldMergeTests extends ESSingleNodeTestCase {
 
         BytesReference json = BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field("name", "some name").endObject());
         Document doc = mapperService.documentMapper().parse(
-            SourceToParse.source("test", "person", "1", json, XContentType.JSON)).rootDoc();
+            new SourceToParse("test", "person", "1", json, XContentType.JSON)).rootDoc();
         IndexableField f = doc.getField("name");
         assertThat(f, notNullValue());
         f = doc.getField("name.indexed");
@@ -117,7 +117,7 @@ public class JavaMultiFieldMergeTests extends ESSingleNodeTestCase {
         assertThat(mapperService.fullName("name.not_indexed3"), nullValue());
 
         doc = mapperService.documentMapper().parse(
-            SourceToParse.source("test", "person", "1", json, XContentType.JSON)).rootDoc();
+            new SourceToParse("test", "person", "1", json, XContentType.JSON)).rootDoc();
         f = doc.getField("name");
         assertThat(f, notNullValue());
         f = doc.getField("name.indexed");

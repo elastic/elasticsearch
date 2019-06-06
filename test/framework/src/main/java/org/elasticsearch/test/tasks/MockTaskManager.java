@@ -19,6 +19,8 @@
 
 package org.elasticsearch.test.tasks;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.common.settings.Setting;
@@ -37,6 +39,8 @@ import java.util.concurrent.CopyOnWriteArrayList;
  * A mock task manager that allows adding listeners for events
  */
 public class MockTaskManager extends TaskManager {
+
+    private static final Logger logger = LogManager.getLogger(MockTaskManager.class);
 
     public static final Setting<Boolean> USE_MOCK_TASK_MANAGER_SETTING =
         Setting.boolSetting("tests.mock.taskmanager.enabled", false, Property.NodeScope);

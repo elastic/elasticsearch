@@ -20,6 +20,7 @@
 
  - do:
       search:
+          rest_total_hits_as_int: true
           index:   test_1
           body:
             query:   { term: { _id: 1 }}
@@ -39,6 +40,7 @@
 
  - do:
       search:
+          rest_total_hits_as_int: true
           index:   test_1
           body:
             query:   { term: { _id: 2 }}
@@ -68,6 +70,7 @@
 
  - do:
       search:
+          rest_total_hits_as_int: true
           index:   test_1
           body:
             query:   { term: { cat: dog }}
@@ -87,6 +90,7 @@
 
  - do:
       search:
+          rest_total_hits_as_int: true
           index:   update_60_refresh_1
           body:
             query:   { term: { _id: update_60_refresh_id1 }}
@@ -104,6 +108,7 @@
 
  - do:
       search:
+          rest_total_hits_as_int: true
           index:   update_60_refresh_1
           body:
             query:   { match: { test: asdf } }

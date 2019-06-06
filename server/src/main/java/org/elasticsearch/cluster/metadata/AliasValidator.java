@@ -139,6 +139,6 @@ public class AliasValidator {
     private static void validateAliasFilter(XContentParser parser, QueryShardContext queryShardContext) throws IOException {
         QueryBuilder parseInnerQueryBuilder = parseInnerQueryBuilder(parser);
         QueryBuilder queryBuilder = Rewriteable.rewrite(parseInnerQueryBuilder, queryShardContext, true);
-        queryBuilder.toFilter(queryShardContext);
+        queryBuilder.toQuery(queryShardContext);
     }
 }

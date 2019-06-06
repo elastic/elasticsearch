@@ -1,12 +1,10 @@
 [role="xpack"]
 [testenv="platinum"]
 [[ccr-post-resume-follow]]
-=== Resume Follower API
+=== Resume follower API
 ++++
-<titleabbrev>Resume Follower</titleabbrev>
+<titleabbrev>Resume follower</titleabbrev>
 ++++
-
-beta[]
 
 Resumes a follower index.
 
@@ -23,7 +21,7 @@ returns, the follower index will resume fetching operations from the leader inde
 
 [source,js]
 --------------------------------------------------
-PUT /follower_index/_ccr/follow
+PUT /follower_index/_ccr/follow?wait_for_active_shards=1
 {
   "remote_cluster" : "remote_cluster",
   "leader_index" : "leader_index"
@@ -62,6 +60,14 @@ POST /<follower_index>/_ccr/resume_follow
 
 ==== Request Body
 include::../follow-request-body.asciidoc[]
+
+==== Authorization
+
+If the {es} {security-features} are enabled, you must have `write` and `monitor`
+index privileges for the follower index. You must have `read` and `monitor`
+index privileges for the leader index. You must also have `manage_ccr` cluster
+privileges on the cluster that contains the follower index. For more information,
+see {stack-ov}/security-privileges.html[Security privileges].
 
 ==== Example
 

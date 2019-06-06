@@ -17,6 +17,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Map;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
@@ -179,5 +180,19 @@ public class PutUserRequest extends ActionRequest implements UserRequest, WriteR
             charBytesRef = new BytesArray(CharArrays.toUtf8Bytes(chars));
         }
         out.writeBytesReference(charBytesRef);
+    }
+
+    @Override
+    public String toString() {
+        return "PutUserRequest{" +
+            "username='" + username + '\'' +
+            ", roles=" + Arrays.toString(roles) +
+            ", fullName='" + fullName + '\'' +
+            ", email='" + email + '\'' +
+            ", metadata=" + metadata +
+            ", passwordHash=" + (passwordHash == null ? "<null>" : "<not-null>") +
+            ", enabled=" + enabled +
+            ", refreshPolicy=" + refreshPolicy +
+            '}';
     }
 }

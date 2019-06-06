@@ -35,9 +35,9 @@ public class MlWithSecurityUserRoleIT extends MlWithSecurityIT {
             // role
             for (ExecutableSection section : testCandidate.getTestSection().getExecutableSections()) {
                 if (section instanceof DoSection) {
-                    if (((DoSection) section).getApiCallSection().getApi().startsWith("xpack.ml.") &&
-                            ((DoSection) section).getApiCallSection().getApi().startsWith("xpack.ml.get_") == false &&
-                            ((DoSection) section).getApiCallSection().getApi().equals("xpack.ml.find_file_structure") == false) {
+                    if (((DoSection) section).getApiCallSection().getApi().startsWith("ml.") &&
+                            ((DoSection) section).getApiCallSection().getApi().startsWith("ml.get_") == false &&
+                            ((DoSection) section).getApiCallSection().getApi().equals("ml.find_file_structure") == false) {
                         fail("should have failed because of missing role");
                     }
                 }

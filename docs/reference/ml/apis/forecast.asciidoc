@@ -1,16 +1,16 @@
 [role="xpack"]
 [testenv="platinum"]
 [[ml-forecast]]
-=== Forecast Jobs API
+=== Forecast jobs API
 ++++
-<titleabbrev>Forecast Jobs</titleabbrev>
+<titleabbrev>Forecast jobs</titleabbrev>
 ++++
 
 Predicts the future behavior of a time series by using its historical behavior. 
 
 ==== Request
 
-`POST _xpack/ml/anomaly_detectors/<job_id>/_forecast`
+`POST _ml/anomaly_detectors/<job_id>/_forecast`
 
 
 ==== Description
@@ -57,7 +57,7 @@ The following example requests a 10 day forecast for the `total-requests` job:
 
 [source,js]
 --------------------------------------------------
-POST _xpack/ml/anomaly_detectors/total-requests/_forecast
+POST _ml/anomaly_detectors/total-requests/_forecast
 {
   "duration": "10d"
 }

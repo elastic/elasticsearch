@@ -21,7 +21,6 @@ package org.elasticsearch.common.unit;
 
 import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -44,23 +43,14 @@ public class ByteSizeValue implements Writeable, Comparable<ByteSizeValue>, ToXC
     private final ByteSizeUnit unit;
 
     public ByteSizeValue(StreamInput in) throws IOException {
-        if (in.getVersion().before(Version.V_6_2_0)) {
-            size = in.readVLong();
-            unit = ByteSizeUnit.BYTES;
-        } else {
-            size = in.readZLong();
-            unit = ByteSizeUnit.readFrom(in);
-        }
+        size = in.readZLong();
+        unit = ByteSizeUnit.readFrom(in);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getVersion().before(Version.V_6_2_0)) {
-            out.writeVLong(getBytes());
-        } else {
-            out.writeZLong(size);
-            unit.writeTo(out);
-        }
+        out.writeZLong(size);
+        unit.writeTo(out);
     }
 
     public ByteSizeValue(long bytes) {

@@ -39,6 +39,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.IpFieldMapper;
@@ -57,12 +58,12 @@ import org.elasticsearch.search.aggregations.metrics.TopHits;
 import org.elasticsearch.search.aggregations.metrics.TopHitsAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.sort.SortOrder;
-import org.joda.time.DateTimeZone;
 import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
 import java.net.InetAddress;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -964,7 +965,7 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
                     Arrays.asList(
                         new TermsValuesSourceBuilder("keyword").field("keyword"),
                         new TermsValuesSourceBuilder("long").field("long"),
-                        new TermsValuesSourceBuilder("long").field("double")
+                        new TermsValuesSourceBuilder("double").field("double")
                     )
                 ).aggregateAfter(createAfterKey("keyword", "z", "long", 100L, "double", 0.4d))
             , (result) -> {
@@ -1032,6 +1033,8 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
                 assertEquals(2L, result.getBuckets().get(1).getDocCount());
             }
         );
+
+        assertWarnings("[interval] on [date_histogram] is deprecated, use [fixed_interval] or [calendar_interval] in the future.");
     }
 
     public void testWithDateTerms() throws IOException {
@@ -1125,6 +1128,8 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
                 assertEquals(2L, result.getBuckets().get(1).getDocCount());
             }
         );
+
+        assertWarnings("[interval] on [date_histogram] is deprecated, use [fixed_interval] or [calendar_interval] in the future.");
     }
 
     public void testThatDateHistogramFailsFormatAfter() throws IOException {
@@ -1155,8 +1160,8 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
                 },
                 (result) -> {}
             ));
-        assertThat(exc.getCause(), instanceOf(IllegalArgumentException.class));
-        assertThat(exc.getCause().getMessage(), containsString("Parse failure"));
+        assertThat(exc.getMessage(), containsString("failed to parse date field [1474329600000]"));
+        assertWarnings("[interval] on [date_histogram] is deprecated, use [fixed_interval] or [calendar_interval] in the future.");
     }
 
     public void testWithDateHistogramAndTimeZone() throws IOException {
@@ -1176,7 +1181,7 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
                 DateHistogramValuesSourceBuilder histo = new DateHistogramValuesSourceBuilder("date")
                     .field("date")
                     .dateHistogramInterval(DateHistogramInterval.days(1))
-                    .timeZone(DateTimeZone.forOffsetHours(1));
+                    .timeZone(ZoneOffset.ofHours(1));
                 return new CompositeAggregationBuilder("name", Collections.singletonList(histo));
             },
             (result) -> {
@@ -1196,7 +1201,7 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
                 DateHistogramValuesSourceBuilder histo = new DateHistogramValuesSourceBuilder("date")
                     .field("date")
                     .dateHistogramInterval(DateHistogramInterval.days(1))
-                    .timeZone(DateTimeZone.forOffsetHours(1));
+                    .timeZone(ZoneOffset.ofHours(1));
                 return new CompositeAggregationBuilder("name", Collections.singletonList(histo))
                     .aggregateAfter(createAfterKey("date", 1474326000000L));
 
@@ -1209,6 +1214,8 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
                 assertEquals(2L, result.getBuckets().get(1).getDocCount());
             }
         );
+
+        assertWarnings("[interval] on [date_histogram] is deprecated, use [fixed_interval] or [calendar_interval] in the future.");
     }
 
     public void testWithDateHistogramAndKeyword() throws IOException {
@@ -1286,6 +1293,8 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
                 assertEquals(1L, result.getBuckets().get(2).getDocCount());
             }
         );
+
+        assertWarnings("[interval] on [date_histogram] is deprecated, use [fixed_interval] or [calendar_interval] in the future.");
     }
 
     public void testWithKeywordAndHistogram() throws IOException {
@@ -1482,6 +1491,8 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
                 assertEquals(1L, result.getBuckets().get(3).getDocCount());
             }
         );
+
+        assertWarnings("[interval] on [date_histogram] is deprecated, use [fixed_interval] or [calendar_interval] in the future.");
     }
 
     public void testWithKeywordAndTopHits() throws Exception {
@@ -1508,19 +1519,19 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
                 TopHits topHits = result.getBuckets().get(0).getAggregations().get("top_hits");
                 assertNotNull(topHits);
                 assertEquals(topHits.getHits().getHits().length, 2);
-                assertEquals(topHits.getHits().getTotalHits(), 2L);
+                assertEquals(topHits.getHits().getTotalHits().value, 2L);
                 assertEquals("{keyword=c}", result.getBuckets().get(1).getKeyAsString());
                 assertEquals(2L, result.getBuckets().get(1).getDocCount());
                 topHits = result.getBuckets().get(1).getAggregations().get("top_hits");
                 assertNotNull(topHits);
                 assertEquals(topHits.getHits().getHits().length, 2);
-                assertEquals(topHits.getHits().getTotalHits(), 2L);
+                assertEquals(topHits.getHits().getTotalHits().value, 2L);
                 assertEquals("{keyword=d}", result.getBuckets().get(2).getKeyAsString());
                 assertEquals(1L, result.getBuckets().get(2).getDocCount());
                 topHits = result.getBuckets().get(2).getAggregations().get("top_hits");
                 assertNotNull(topHits);
                 assertEquals(topHits.getHits().getHits().length, 1);
-                assertEquals(topHits.getHits().getTotalHits(), 1L);
+                assertEquals(topHits.getHits().getTotalHits().value, 1L);
             }
         );
 
@@ -1538,13 +1549,13 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
                 TopHits topHits = result.getBuckets().get(0).getAggregations().get("top_hits");
                 assertNotNull(topHits);
                 assertEquals(topHits.getHits().getHits().length, 2);
-                assertEquals(topHits.getHits().getTotalHits(), 2L);
+                assertEquals(topHits.getHits().getTotalHits().value, 2L);
                 assertEquals("{keyword=d}", result.getBuckets().get(1).getKeyAsString());
                 assertEquals(1L, result.getBuckets().get(1).getDocCount());
                 topHits = result.getBuckets().get(1).getAggregations().get("top_hits");
                 assertNotNull(topHits);
                 assertEquals(topHits.getHits().getHits().length, 1);
-                assertEquals(topHits.getHits().getTotalHits(), 1L);
+                assertEquals(topHits.getHits().getTotalHits().value, 1L);
             }
         );
     }
@@ -1639,6 +1650,38 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
 
     public void testRandomInts() throws IOException {
         testRandomTerms("price", () -> randomInt(), (v) -> ((Number) v).intValue());
+    }
+
+    public void testDuplicateNames() {
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
+            List<CompositeValuesSourceBuilder<?>> builders = new ArrayList<>();
+            builders.add(new TermsValuesSourceBuilder("duplicate1").field("bar"));
+            builders.add(new TermsValuesSourceBuilder("duplicate1").field("baz"));
+            builders.add(new TermsValuesSourceBuilder("duplicate2").field("bar"));
+            builders.add(new TermsValuesSourceBuilder("duplicate2").field("baz"));
+           new CompositeAggregationBuilder("foo", builders);
+        });
+        assertThat(e.getMessage(), equalTo("Composite source names must be unique, found duplicates: [duplicate2, duplicate1]"));
+    }
+
+    public void testMissingSources() {
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
+            List<CompositeValuesSourceBuilder<?>> builders = new ArrayList<>();
+            new CompositeAggregationBuilder("foo", builders);
+        });
+        assertThat(e.getMessage(), equalTo("Composite [sources] cannot be null or empty"));
+
+        e = expectThrows(IllegalArgumentException.class, () -> new CompositeAggregationBuilder("foo", null));
+        assertThat(e.getMessage(), equalTo("Composite [sources] cannot be null or empty"));
+    }
+
+    public void testNullSourceNonNullCollection() {
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
+            List<CompositeValuesSourceBuilder<?>> builders = new ArrayList<>();
+            builders.add(null);
+            new CompositeAggregationBuilder("foo", builders);
+        });
+        assertThat(e.getMessage(), equalTo("Composite source cannot be null"));
     }
 
     private <T extends Comparable<T>, V extends Comparable<T>> void testRandomTerms(String field,
@@ -1835,6 +1878,6 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
     }
 
     private static long asLong(String dateTime) {
-        return DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parser().parseDateTime(dateTime).getMillis();
+        return DateFormatters.from(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parse(dateTime)).toInstant().toEpochMilli();
     }
 }

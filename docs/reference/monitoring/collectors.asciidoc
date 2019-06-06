@@ -24,66 +24,59 @@ avoid many unnecessary calls.
 |=======================
 | Collector       | Data Types | Description
 | Cluster Stats   | `cluster_stats`
-| Gathers details about the cluster state, including parts of
-the actual cluster state (for example `GET /_cluster/state`) and statistics
-about it (for example, `GET /_cluster/stats`). This produces a single document
-type. In versions prior to X-Pack 5.5, this was actually three separate collectors
-that resulted in three separate types: `cluster_stats`, `cluster_state`, and
-`cluster_info`. In 5.5 and later, all three are combined into `cluster_stats`.
-+
-This only runs on the _elected_ master node and the data collected
-(`cluster_stats`) largely controls the UI. When this data is not present, it
-indicates either a misconfiguration on the elected master node, timeouts related
-to the collection of the data, or issues with storing the data. Only a single
-document is produced per collection.
+| Gathers details about the cluster state, including parts of the actual cluster
+state (for example `GET /_cluster/state`) and statistics about it (for example,
+`GET /_cluster/stats`). This produces a single document type. In versions prior
+to X-Pack 5.5, this was actually three separate collectors that resulted in
+three separate types: `cluster_stats`, `cluster_state`, and `cluster_info`. In
+5.5 and later, all three are combined into `cluster_stats`. This only runs on
+the _elected_ master node and the data collected (`cluster_stats`) largely
+controls the UI. When this data is not present, it indicates either a
+misconfiguration on the elected master node, timeouts related to the collection
+of the data, or issues with storing the data. Only a single document is produced
+per collection.
 | Index Stats     | `indices_stats`, `index_stats`
 | Gathers details about the indices in the cluster, both in summary and
 individually. This creates many documents that represent parts of the index
-statistics output (for example, `GET /_stats`).
-+
-This information only needs to be collected once, so it is collected on the
-_elected_ master node. The most common failure for this collector relates to an
-extreme number of indices -- and therefore time to gather them -- resulting in
-timeouts. One summary `indices_stats` document is produced per collection and one
-`index_stats` document is produced per index, per collection.
+statistics output (for example, `GET /_stats`). This information only needs to
+be collected once, so it is collected on the _elected_ master node. The most
+common failure for this collector relates to an extreme number of indices -- and
+therefore time to gather them -- resulting in timeouts. One summary
+`indices_stats` document is produced per collection and one `index_stats`
+document is produced per index, per collection.
 | Index Recovery  | `index_recovery`
 | Gathers details about index recovery in the cluster. Index recovery represents
 the assignment of _shards_ at the cluster level. If an index is not recovered,
-it is not usable. This also corresponds to shard restoration via snapshots.
-+
-This information only needs to be collected once, so it is collected on the
-_elected_ master node. The most common failure for this collector relates to an
-extreme number of shards -- and therefore time to gather them -- resulting in
-timeouts. This creates a single document that contains all recoveries by default,
-which can be quite large, but it gives the most accurate picture of recovery in
-the production cluster.
+it is not usable. This also corresponds to shard restoration via snapshots. This
+information only needs to be collected once, so it is collected on the _elected_
+master node. The most common failure for this collector relates to an extreme
+number of shards -- and therefore time to gather them -- resulting in timeouts.
+This creates a single document that contains all recoveries by default, which
+can be quite large, but it gives the most accurate picture of recovery in the
+production cluster.
 | Shards          | `shards`
 | Gathers details about all _allocated_ shards for all indices, particularly
-including what node the shard is allocated to.
-+
-This information only needs to be collected once, so it is collected on the
-_elected_ master node. The collector uses the local cluster state to get the
-routing table without any network timeout issues unlike most other collectors.
-Each shard is represented by a separate monitoring document.
+including what node the shard is allocated to. This information only needs to be
+collected once, so it is collected on the _elected_ master node. The collector
+uses the local cluster state to get the routing table without any network
+timeout issues unlike most other collectors. Each shard is represented by a
+separate monitoring document.
 | Jobs            | `job_stats`
-| Gathers details about all machine learning job statistics (for example,
-`GET /_xpack/ml/anomaly_detectors/_stats`).
-+
-This information only needs to be collected once, so it is collected on the
-_elected_ master node. However, for the master node to be able to perform the
-collection, the master node must have `xpack.ml.enabled` set to true (default)
-and a license level that supports {ml}.
+| Gathers details about all machine learning job statistics (for example, `GET
+/_ml/anomaly_detectors/_stats`). This information only needs to be collected
+once, so it is collected on the _elected_ master node. However, for the master
+node to be able to perform the collection, the master node must have
+`xpack.ml.enabled` set to true (default) and a license level that supports {ml}.
 | Node Stats      | `node_stats`
 | Gathers details about the running node, such as memory utilization and CPU
-usage (for example, `GET /_nodes/_local/stats`).
-+
-This runs on _every_ node with {monitoring} enabled. One common failure
-results in the timeout of the node stats request due to too many segment files.
-As a result, the collector spends too much time waiting for the file system
-stats to be calculated until it finally times out. A single `node_stats`
-document is created per collection. This is collected per node to help to
-discover issues with nodes communicating with each other, but not with the
-monitoring cluster (for example, intermittent network issues or memory pressure).
+usage (for example, `GET /_nodes/_local/stats`). This runs on _every_ node with
+{monitoring} enabled. One common failure results in the timeout of the node
+stats request due to too many segment files. As a result, the collector spends
+too much time waiting for the file system stats to be calculated until it
+finally times out. A single `node_stats` document is created per collection.
+This is collected per node to help to discover issues with nodes communicating
+with each other, but not with the monitoring cluster (for example, intermittent
+network issues or memory pressure).
 |=======================
 
 {monitoring} uses a single threaded scheduler to run the collection of {es} 

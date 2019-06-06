@@ -41,12 +41,14 @@ import org.elasticsearch.test.rest.FakeRestRequest;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.search.RandomSearchRequestGenerator.randomSearchRequest;
 import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -59,14 +61,10 @@ public class MultiSearchRequestTests extends ESTestCase {
                 equalTo("test"));
         assertThat(request.requests().get(0).indicesOptions(),
                 equalTo(IndicesOptions.fromOptions(true, true, true, true, SearchRequest.DEFAULT_INDICES_OPTIONS)));
-        assertThat(request.requests().get(0).types().length,
-                equalTo(0));
         assertThat(request.requests().get(1).indices()[0],
                 equalTo("test"));
         assertThat(request.requests().get(1).indicesOptions(),
                 equalTo(IndicesOptions.fromOptions(false, true, true, true, SearchRequest.DEFAULT_INDICES_OPTIONS)));
-        assertThat(request.requests().get(1).types()[0],
-                equalTo("type1"));
         assertThat(request.requests().get(2).indices()[0],
                 equalTo("test"));
         assertThat(request.requests().get(2).indicesOptions(),
@@ -81,12 +79,19 @@ public class MultiSearchRequestTests extends ESTestCase {
                 equalTo(IndicesOptions.fromOptions(true, false, false, true, SearchRequest.DEFAULT_INDICES_OPTIONS)));
 
         assertThat(request.requests().get(5).indices(), is(Strings.EMPTY_ARRAY));
-        assertThat(request.requests().get(5).types().length, equalTo(0));
         assertThat(request.requests().get(6).indices(), is(Strings.EMPTY_ARRAY));
-        assertThat(request.requests().get(6).types().length, equalTo(0));
         assertThat(request.requests().get(6).searchType(), equalTo(SearchType.DFS_QUERY_THEN_FETCH));
         assertThat(request.requests().get(7).indices(), is(Strings.EMPTY_ARRAY));
-        assertThat(request.requests().get(7).types().length, equalTo(0));
+    }
+
+    public void testFailWithUnknownKey() {
+        final String requestContent = "{\"index\":\"test\", \"ignore_unavailable\" : true, \"unknown_key\" : \"open,closed\"}}\r\n" +
+            "{\"query\" : {\"match_all\" :{}}}\r\n";
+        FakeRestRequest restRequest = new FakeRestRequest.Builder(xContentRegistry())
+            .withContent(new BytesArray(requestContent), XContentType.JSON).build();
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class,
+            () -> RestMultiSearchAction.parseRequest(restRequest, true));
+        assertEquals("key [unknown_key] is not supported in the metadata section", ex.getMessage());
     }
 
     public void testSimpleAddWithCarriageReturn() throws Exception {
@@ -99,23 +104,31 @@ public class MultiSearchRequestTests extends ESTestCase {
         assertThat(request.requests().get(0).indices()[0], equalTo("test"));
         assertThat(request.requests().get(0).indicesOptions(),
             equalTo(IndicesOptions.fromOptions(true, true, true, true, SearchRequest.DEFAULT_INDICES_OPTIONS)));
-        assertThat(request.requests().get(0).types().length, equalTo(0));
+    }
+
+    public void testDefaultIndicesOptions() throws IOException {
+        final String requestContent = "{\"index\":\"test\", \"expand_wildcards\" : \"open,closed\"}}\r\n" +
+            "{\"query\" : {\"match_all\" :{}}}\r\n";
+        FakeRestRequest restRequest = new FakeRestRequest.Builder(xContentRegistry())
+            .withContent(new BytesArray(requestContent), XContentType.JSON)
+            .withParams(Collections.singletonMap("ignore_unavailable", "true"))
+            .build();
+        MultiSearchRequest request = RestMultiSearchAction.parseRequest(restRequest, true);
+        assertThat(request.requests().size(), equalTo(1));
+        assertThat(request.requests().get(0).indices()[0], equalTo("test"));
+        assertThat(request.requests().get(0).indicesOptions(),
+            equalTo(IndicesOptions.fromOptions(true, true, true, true, SearchRequest.DEFAULT_INDICES_OPTIONS)));
     }
 
     public void testSimpleAdd2() throws Exception {
         MultiSearchRequest request = parseMultiSearchRequest("/org/elasticsearch/action/search/simple-msearch2.json");
         assertThat(request.requests().size(), equalTo(5));
         assertThat(request.requests().get(0).indices()[0], equalTo("test"));
-        assertThat(request.requests().get(0).types().length, equalTo(0));
         assertThat(request.requests().get(1).indices()[0], equalTo("test"));
-        assertThat(request.requests().get(1).types()[0], equalTo("type1"));
         assertThat(request.requests().get(2).indices(), is(Strings.EMPTY_ARRAY));
-        assertThat(request.requests().get(2).types().length, equalTo(0));
         assertThat(request.requests().get(3).indices(), is(Strings.EMPTY_ARRAY));
-        assertThat(request.requests().get(3).types().length, equalTo(0));
         assertThat(request.requests().get(3).searchType(), equalTo(SearchType.DFS_QUERY_THEN_FETCH));
         assertThat(request.requests().get(4).indices(), is(Strings.EMPTY_ARRAY));
-        assertThat(request.requests().get(4).types().length, equalTo(0));
     }
 
     public void testSimpleAdd3() throws Exception {
@@ -125,13 +138,9 @@ public class MultiSearchRequestTests extends ESTestCase {
         assertThat(request.requests().get(0).indices()[1], equalTo("test1"));
         assertThat(request.requests().get(1).indices()[0], equalTo("test2"));
         assertThat(request.requests().get(1).indices()[1], equalTo("test3"));
-        assertThat(request.requests().get(1).types()[0], equalTo("type1"));
         assertThat(request.requests().get(2).indices()[0], equalTo("test4"));
         assertThat(request.requests().get(2).indices()[1], equalTo("test1"));
-        assertThat(request.requests().get(2).types()[0], equalTo("type2"));
-        assertThat(request.requests().get(2).types()[1], equalTo("type1"));
         assertThat(request.requests().get(3).indices(), is(Strings.EMPTY_ARRAY));
-        assertThat(request.requests().get(3).types().length, equalTo(0));
         assertThat(request.requests().get(3).searchType(), equalTo(SearchType.DFS_QUERY_THEN_FETCH));
     }
 
@@ -144,17 +153,23 @@ public class MultiSearchRequestTests extends ESTestCase {
         assertThat(request.requests().get(0).preference(), nullValue());
         assertThat(request.requests().get(1).indices()[0], equalTo("test2"));
         assertThat(request.requests().get(1).indices()[1], equalTo("test3"));
-        assertThat(request.requests().get(1).types()[0], equalTo("type1"));
         assertThat(request.requests().get(1).requestCache(), nullValue());
         assertThat(request.requests().get(1).preference(), equalTo("_local"));
         assertThat(request.requests().get(2).indices()[0], equalTo("test4"));
         assertThat(request.requests().get(2).indices()[1], equalTo("test1"));
-        assertThat(request.requests().get(2).types()[0], equalTo("type2"));
-        assertThat(request.requests().get(2).types()[1], equalTo("type1"));
         assertThat(request.requests().get(2).routing(), equalTo("123"));
     }
 
-    public void testResponseErrorToXContent() throws IOException {
+    public void testNoMetadata() throws Exception {
+        MultiSearchRequest request = parseMultiSearchRequest("/org/elasticsearch/action/search/msearch-no-metadata.json");
+        assertThat(request.requests().size(), equalTo(4));
+        for (SearchRequest searchRequest : request.requests()) {
+            assertThat(searchRequest.indices().length, equalTo(0));
+            assertThat(searchRequest.source().query(), instanceOf(MatchAllQueryBuilder.class));
+        }
+    }
+
+    public void testResponseErrorToXContent() {
         long tookInMillis = randomIntBetween(1, 1000);
         MultiSearchResponse response = new MultiSearchResponse(
                 new MultiSearchResponse.Item[] {
@@ -203,7 +218,14 @@ public class MultiSearchRequestTests extends ESTestCase {
         byte[] data = StreamsUtils.copyToBytesFromClasspath(sample);
         RestRequest restRequest = new FakeRestRequest.Builder(xContentRegistry())
             .withContent(new BytesArray(data), XContentType.JSON).build();
-        return RestMultiSearchAction.parseRequest(restRequest, true);
+
+        MultiSearchRequest request = new MultiSearchRequest();
+        RestMultiSearchAction.parseMultiLineRequest(restRequest, SearchRequest.DEFAULT_INDICES_OPTIONS, true,
+            (searchRequest, parser) -> {
+                searchRequest.source(SearchSourceBuilder.fromXContent(parser, false));
+                request.add(searchRequest);
+            });
+        return request;
     }
 
     @Override
@@ -234,7 +256,7 @@ public class MultiSearchRequestTests extends ESTestCase {
         }
     }
 
-    public void testEqualsAndHashcode() throws IOException {
+    public void testEqualsAndHashcode() {
         checkEqualsAndHashCode(createMultiSearchRequest(), MultiSearchRequestTests::copyRequest, MultiSearchRequestTests::mutate);
     }
 
@@ -249,7 +271,7 @@ public class MultiSearchRequestTests extends ESTestCase {
         return mutation;
     }
 
-    private static MultiSearchRequest copyRequest(MultiSearchRequest request) throws IOException {
+    private static MultiSearchRequest copyRequest(MultiSearchRequest request) {
         MultiSearchRequest copy = new MultiSearchRequest();
         if (request.maxConcurrentSearchRequests() > 0) {
             copy.maxConcurrentSearchRequests(request.maxConcurrentSearchRequests());
@@ -261,7 +283,7 @@ public class MultiSearchRequestTests extends ESTestCase {
         return copy;
     }
 
-    private static MultiSearchRequest createMultiSearchRequest() throws IOException {
+    private static MultiSearchRequest createMultiSearchRequest() {
         int numSearchRequest = randomIntBetween(1, 128);
         MultiSearchRequest request = new MultiSearchRequest();
         for (int j = 0; j < numSearchRequest; j++) {
@@ -288,7 +310,7 @@ public class MultiSearchRequestTests extends ESTestCase {
         return request;
     }
 
-    private static SearchRequest createSimpleSearchRequest() throws IOException {
+    private static SearchRequest createSimpleSearchRequest() {
         return randomSearchRequest(() -> {
             // No need to return a very complex SearchSourceBuilder here, that is tested elsewhere
             SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();

@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
@@ -49,7 +48,6 @@ public class UpdateJobAction extends Action<PutJobAction.Response> {
 
         /** Indicates an update that was not triggered by a user */
         private boolean isInternal;
-        private boolean waitForAck = true;
 
         public Request(String jobId, JobUpdate update) {
             this(jobId, update, false);
@@ -83,14 +81,6 @@ public class UpdateJobAction extends Action<PutJobAction.Response> {
             return isInternal;
         }
 
-        public boolean isWaitForAck() {
-            return waitForAck;
-        }
-
-        public void setWaitForAck(boolean waitForAck) {
-            this.waitForAck = waitForAck;
-        }
-
         @Override
         public ActionRequestValidationException validate() {
             return null;
@@ -101,16 +91,7 @@ public class UpdateJobAction extends Action<PutJobAction.Response> {
             super.readFrom(in);
             jobId = in.readString();
             update = new JobUpdate(in);
-            if (in.getVersion().onOrAfter(Version.V_6_2_2)) {
-                isInternal = in.readBoolean();
-            } else {
-                isInternal = false;
-            }
-            if (in.getVersion().onOrAfter(Version.V_6_3_0)) {
-                waitForAck = in.readBoolean();
-            } else {
-                waitForAck = true;
-            }
+            isInternal = in.readBoolean();
         }
 
         @Override
@@ -118,12 +99,7 @@ public class UpdateJobAction extends Action<PutJobAction.Response> {
             super.writeTo(out);
             out.writeString(jobId);
             update.writeTo(out);
-            if (out.getVersion().onOrAfter(Version.V_6_2_2)) {
-                out.writeBoolean(isInternal);
-            }
-            if (out.getVersion().onOrAfter(Version.V_6_3_0)) {
-                out.writeBoolean(waitForAck);
-            }
+            out.writeBoolean(isInternal);
         }
 
         @Override

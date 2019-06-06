@@ -15,7 +15,6 @@ import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.xpack.core.ml.MlMetaIndex;
 import org.elasticsearch.xpack.core.ml.job.config.DetectionRule;
 import org.elasticsearch.xpack.core.ml.job.config.Operator;
 import org.elasticsearch.xpack.core.ml.job.config.RuleAction;
@@ -23,12 +22,11 @@ import org.elasticsearch.xpack.core.ml.job.config.RuleCondition;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.ml.utils.Intervals;
+import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
 import org.elasticsearch.xpack.core.ml.utils.time.TimeUtils;
 
 import java.io.IOException;
 import java.time.Instant;
-import java.time.ZoneOffset;
-import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -55,18 +53,18 @@ public class ScheduledEvent implements ToXContentObject, Writeable {
         parser.declareString(ScheduledEvent.Builder::description, DESCRIPTION);
         parser.declareField(ScheduledEvent.Builder::startTime, p -> {
             if (p.currentToken() == XContentParser.Token.VALUE_NUMBER) {
-                return ZonedDateTime.ofInstant(Instant.ofEpochMilli(p.longValue()), ZoneOffset.UTC);
+                return Instant.ofEpochMilli(p.longValue());
             } else if (p.currentToken() == XContentParser.Token.VALUE_STRING) {
-                return ZonedDateTime.ofInstant(Instant.ofEpochMilli(TimeUtils.dateStringToEpoch(p.text())), ZoneOffset.UTC);
+                return Instant.ofEpochMilli(TimeUtils.dateStringToEpoch(p.text()));
             }
             throw new IllegalArgumentException(
                     "unexpected token [" + p.currentToken() + "] for [" + START_TIME.getPreferredName() + "]");
         }, START_TIME, ObjectParser.ValueType.VALUE);
         parser.declareField(ScheduledEvent.Builder::endTime, p -> {
             if (p.currentToken() == XContentParser.Token.VALUE_NUMBER) {
-                return ZonedDateTime.ofInstant(Instant.ofEpochMilli(p.longValue()), ZoneOffset.UTC);
+                return Instant.ofEpochMilli(p.longValue());
             } else if (p.currentToken() == XContentParser.Token.VALUE_STRING) {
-                return ZonedDateTime.ofInstant(Instant.ofEpochMilli(TimeUtils.dateStringToEpoch(p.text())), ZoneOffset.UTC);
+                return Instant.ofEpochMilli(TimeUtils.dateStringToEpoch(p.text()));
             }
             throw new IllegalArgumentException(
                     "unexpected token [" + p.currentToken() + "] for [" + END_TIME.getPreferredName() + "]");
@@ -83,12 +81,12 @@ public class ScheduledEvent implements ToXContentObject, Writeable {
     }
 
     private final String description;
-    private final ZonedDateTime startTime;
-    private final ZonedDateTime endTime;
+    private final Instant startTime;
+    private final Instant endTime;
     private final String calendarId;
     private final String eventId;
 
-    ScheduledEvent(String description, ZonedDateTime startTime, ZonedDateTime endTime, String calendarId, @Nullable String eventId) {
+    ScheduledEvent(String description, Instant startTime, Instant endTime, String calendarId, @Nullable String eventId) {
         this.description = Objects.requireNonNull(description);
         this.startTime = Objects.requireNonNull(startTime);
         this.endTime = Objects.requireNonNull(endTime);
@@ -98,8 +96,8 @@ public class ScheduledEvent implements ToXContentObject, Writeable {
 
     public ScheduledEvent(StreamInput in) throws IOException {
         description = in.readString();
-        startTime = ZonedDateTime.ofInstant(Instant.ofEpochMilli(in.readVLong()), ZoneOffset.UTC);
-        endTime = ZonedDateTime.ofInstant(Instant.ofEpochMilli(in.readVLong()), ZoneOffset.UTC);
+        startTime = Instant.ofEpochMilli(in.readVLong());
+        endTime = Instant.ofEpochMilli(in.readVLong());
         calendarId = in.readString();
         eventId = in.readOptionalString();
     }
@@ -108,11 +106,11 @@ public class ScheduledEvent implements ToXContentObject, Writeable {
         return description;
     }
 
-    public ZonedDateTime getStartTime() {
+    public Instant getStartTime() {
         return startTime;
     }
 
-    public ZonedDateTime getEndTime() {
+    public Instant getEndTime() {
         return endTime;
     }
 
@@ -141,9 +139,9 @@ public class ScheduledEvent implements ToXContentObject, Writeable {
 
         long bucketSpanSecs = bucketSpan.getSeconds();
 
-        long bucketStartTime = Intervals.alignToFloor(getStartTime().toEpochSecond(), bucketSpanSecs);
+        long bucketStartTime = Intervals.alignToFloor(getStartTime().getEpochSecond(), bucketSpanSecs);
         conditions.add(RuleCondition.createTime(Operator.GTE, bucketStartTime));
-        long bucketEndTime = Intervals.alignToCeil(getEndTime().toEpochSecond(), bucketSpanSecs);
+        long bucketEndTime = Intervals.alignToCeil(getEndTime().getEpochSecond(), bucketSpanSecs);
         conditions.add(RuleCondition.createTime(Operator.LT, bucketEndTime));
 
         DetectionRule.Builder builder = new DetectionRule.Builder(conditions);
@@ -154,8 +152,8 @@ public class ScheduledEvent implements ToXContentObject, Writeable {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(description);
-        out.writeVLong(startTime.toInstant().toEpochMilli());
-        out.writeVLong(endTime.toInstant().toEpochMilli());
+        out.writeVLong(startTime.toEpochMilli());
+        out.writeVLong(endTime.toEpochMilli());
         out.writeString(calendarId);
         out.writeOptionalString(eventId);
     }
@@ -164,13 +162,13 @@ public class ScheduledEvent implements ToXContentObject, Writeable {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(DESCRIPTION.getPreferredName(), description);
-        builder.timeField(START_TIME.getPreferredName(), START_TIME.getPreferredName() + "_string", startTime.toInstant().toEpochMilli());
-        builder.timeField(END_TIME.getPreferredName(), END_TIME.getPreferredName() + "_string", endTime.toInstant().toEpochMilli());
+        builder.timeField(START_TIME.getPreferredName(), START_TIME.getPreferredName() + "_string", startTime.toEpochMilli());
+        builder.timeField(END_TIME.getPreferredName(), END_TIME.getPreferredName() + "_string", endTime.toEpochMilli());
         builder.field(Calendar.ID.getPreferredName(), calendarId);
         if (eventId != null) {
             builder.field(EVENT_ID.getPreferredName(), eventId);
         }
-        if (params.paramAsBoolean(MlMetaIndex.INCLUDE_TYPE_KEY, false)) {
+        if (params.paramAsBoolean(ToXContentParams.INCLUDE_TYPE, false)) {
             builder.field(TYPE.getPreferredName(), SCHEDULED_EVENT_TYPE);
         }
         builder.endObject();
@@ -197,8 +195,8 @@ public class ScheduledEvent implements ToXContentObject, Writeable {
         // Note ZonedDataTime.equals() fails because the time zone and date-time must be the same
         // which isn't the case in tests where the time zone is randomised.
         return description.equals(other.description)
-                && Objects.equals(startTime.toInstant().getEpochSecond(), other.startTime.toInstant().getEpochSecond())
-                && Objects.equals(endTime.toInstant().getEpochSecond(), other.endTime.toInstant().getEpochSecond())
+                && Objects.equals(startTime.getEpochSecond(), other.startTime.getEpochSecond())
+                && Objects.equals(endTime.getEpochSecond(), other.endTime.getEpochSecond())
                 && calendarId.equals(other.calendarId);
     }
 
@@ -209,8 +207,8 @@ public class ScheduledEvent implements ToXContentObject, Writeable {
 
     public static class Builder {
         private String description;
-        private ZonedDateTime startTime;
-        private ZonedDateTime endTime;
+        private Instant startTime;
+        private Instant endTime;
         private String calendarId;
         private String eventId;
 
@@ -219,12 +217,12 @@ public class ScheduledEvent implements ToXContentObject, Writeable {
             return this;
         }
 
-        public Builder startTime(ZonedDateTime startTime) {
+        public Builder startTime(Instant startTime) {
             this.startTime = startTime;
             return this;
         }
 
-        public Builder endTime(ZonedDateTime endTime) {
+        public Builder endTime(Instant endTime) {
             this.endTime = endTime;
             return this;
         }

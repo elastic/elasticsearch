@@ -22,10 +22,10 @@ package org.elasticsearch.test.rest;
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.ResponseListener;
-import org.elasticsearch.client.Request;
 import org.junit.After;
 import org.junit.Before;
 
@@ -67,7 +67,7 @@ public class WaitForRefreshAndCloseIT extends ESRestTestCase {
         Request createDoc = new Request("PUT", docPath());
         createDoc.setJsonEntity("{\"test\":\"test\"}");
         client().performRequest(createDoc);
-        Request updateDoc = new Request("POST", docPath() + "/_update");
+        Request updateDoc = new Request("POST", "test/_update/1");
         updateDoc.setJsonEntity("{\"doc\":{\"name\":\"test\"}}");
         closeWhileListenerEngaged(start(updateDoc));
     }

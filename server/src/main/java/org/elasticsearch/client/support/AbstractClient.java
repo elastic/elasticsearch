@@ -19,6 +19,8 @@
 
 package org.elasticsearch.client.support;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
@@ -140,9 +142,7 @@ import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequestBuilder;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesResponse;
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeAction;
-import org.elasticsearch.action.admin.indices.analyze.AnalyzeRequest;
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeRequestBuilder;
-import org.elasticsearch.action.admin.indices.analyze.AnalyzeResponse;
 import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheAction;
 import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheRequest;
 import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheRequestBuilder;
@@ -150,6 +150,7 @@ import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheRespo
 import org.elasticsearch.action.admin.indices.close.CloseIndexAction;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequestBuilder;
+import org.elasticsearch.action.admin.indices.close.CloseIndexResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
@@ -311,7 +312,6 @@ import org.elasticsearch.action.search.SearchScrollAction;
 import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.action.search.SearchScrollRequestBuilder;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.termvectors.MultiTermVectorsAction;
 import org.elasticsearch.action.termvectors.MultiTermVectorsRequest;
@@ -333,7 +333,6 @@ import org.elasticsearch.client.FilterClient;
 import org.elasticsearch.client.IndicesAdminClient;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -342,18 +341,19 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Map;
 
-public abstract class AbstractClient extends AbstractComponent implements Client {
+public abstract class AbstractClient implements Client {
+
+    protected final Logger logger;
 
     protected final Settings settings;
     private final ThreadPool threadPool;
     private final Admin admin;
-    private final ThreadedActionListener.Wrapper threadedWrapper;
 
     public AbstractClient(Settings settings, ThreadPool threadPool) {
         this.settings = settings;
         this.threadPool = threadPool;
         this.admin = new Admin(this);
-        this.threadedWrapper = new ThreadedActionListener.Wrapper(logger, settings, threadPool);
+        this.logger =LogManager.getLogger(this.getClass());
     }
 
     @Override
@@ -385,7 +385,6 @@ public abstract class AbstractClient extends AbstractComponent implements Client
     @Override
     public final <Request extends ActionRequest, Response extends ActionResponse> void execute(
         Action<Response> action, Request request, ActionListener<Response> listener) {
-        listener = threadedWrapper.wrap(listener);
         doExecute(action, request, listener);
     }
 
@@ -573,32 +572,8 @@ public abstract class AbstractClient extends AbstractComponent implements Client
     }
 
     @Override
-    public TermVectorsRequestBuilder prepareTermVectors(String index, String type, String id) {
-        return new TermVectorsRequestBuilder(this, TermVectorsAction.INSTANCE, index, type, id);
-    }
-
-    @Deprecated
-    @Override
-    public ActionFuture<TermVectorsResponse> termVector(final TermVectorsRequest request) {
-        return termVectors(request);
-    }
-
-    @Deprecated
-    @Override
-    public void termVector(final TermVectorsRequest request, final ActionListener<TermVectorsResponse> listener) {
-        termVectors(request, listener);
-    }
-
-    @Deprecated
-    @Override
-    public TermVectorsRequestBuilder prepareTermVector() {
-        return prepareTermVectors();
-    }
-
-    @Deprecated
-    @Override
-    public TermVectorsRequestBuilder prepareTermVector(String index, String type, String id) {
-        return prepareTermVectors(index, type, id);
+    public TermVectorsRequestBuilder prepareTermVectors(String index, String id) {
+        return new TermVectorsRequestBuilder(this, TermVectorsAction.INSTANCE, index, id);
     }
 
     @Override
@@ -1087,11 +1062,6 @@ public abstract class AbstractClient extends AbstractComponent implements Client
         }
 
         @Override
-        public PutPipelineRequestBuilder preparePutPipeline(String id, BytesReference source) {
-            return new PutPipelineRequestBuilder(this, PutPipelineAction.INSTANCE, id, source);
-        }
-
-        @Override
         public PutPipelineRequestBuilder preparePutPipeline(String id, BytesReference source, XContentType xContentType) {
             return new PutPipelineRequestBuilder(this, PutPipelineAction.INSTANCE, id, source, xContentType);
         }
@@ -1139,11 +1109,6 @@ public abstract class AbstractClient extends AbstractComponent implements Client
         @Override
         public ActionFuture<SimulatePipelineResponse> simulatePipeline(SimulatePipelineRequest request) {
             return execute(SimulatePipelineAction.INSTANCE, request);
-        }
-
-        @Override
-        public SimulatePipelineRequestBuilder prepareSimulatePipeline(BytesReference source) {
-            return new SimulatePipelineRequestBuilder(this, SimulatePipelineAction.INSTANCE, source);
         }
 
         @Override
@@ -1385,12 +1350,12 @@ public abstract class AbstractClient extends AbstractComponent implements Client
         }
 
         @Override
-        public ActionFuture<AcknowledgedResponse> close(final CloseIndexRequest request) {
+        public ActionFuture<CloseIndexResponse> close(final CloseIndexRequest request) {
             return execute(CloseIndexAction.INSTANCE, request);
         }
 
         @Override
-        public void close(final CloseIndexRequest request, final ActionListener<AcknowledgedResponse> listener) {
+        public void close(final CloseIndexRequest request, final ActionListener<CloseIndexResponse> listener) {
             execute(CloseIndexAction.INSTANCE, request, listener);
         }
 
@@ -1625,12 +1590,12 @@ public abstract class AbstractClient extends AbstractComponent implements Client
         }
 
         @Override
-        public ActionFuture<AnalyzeResponse> analyze(final AnalyzeRequest request) {
+        public ActionFuture<AnalyzeAction.Response> analyze(final AnalyzeAction.Request request) {
             return execute(AnalyzeAction.INSTANCE, request);
         }
 
         @Override
-        public void analyze(final AnalyzeRequest request, final ActionListener<AnalyzeResponse> listener) {
+        public void analyze(final AnalyzeAction.Request request, final ActionListener<AnalyzeAction.Response> listener) {
             execute(AnalyzeAction.INSTANCE, request, listener);
         }
 

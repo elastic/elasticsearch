@@ -5,8 +5,10 @@
  */
 package org.elasticsearch.xpack.security.rest.action.role;
 
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.license.XPackLicenseState;
@@ -16,9 +18,9 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestBuilderListener;
+import org.elasticsearch.xpack.core.security.action.role.GetRolesRequestBuilder;
 import org.elasticsearch.xpack.core.security.action.role.GetRolesResponse;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
-import org.elasticsearch.xpack.core.security.client.SecurityClient;
 import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;
 
 import java.io.IOException;
@@ -29,21 +31,31 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
  * Rest endpoint to retrieve a Role from the security index
  */
 public class RestGetRolesAction extends SecurityBaseRestHandler {
+
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(RestGetRolesAction.class));
+
     public RestGetRolesAction(Settings settings, RestController controller, XPackLicenseState licenseState) {
         super(settings, licenseState);
-        controller.registerHandler(GET, "/_xpack/security/role/", this);
-        controller.registerHandler(GET, "/_xpack/security/role/{name}", this);
+        // TODO: remove deprecated endpoint in 8.0.0
+        controller.registerWithDeprecatedHandler(
+            GET, "/_security/role/", this,
+            GET, "/_xpack/security/role/", deprecationLogger);
+        controller.registerWithDeprecatedHandler(
+            GET, "/_security/role/{name}", this,
+            GET, "/_xpack/security/role/{name}", deprecationLogger);
     }
 
     @Override
     public String getName() {
-        return "xpack_security_get_roles_action";
+        return "security_get_roles_action";
     }
 
     @Override
     public RestChannelConsumer innerPrepareRequest(RestRequest request, NodeClient client) throws IOException {
         final String[] roles = request.paramAsStringArray("name", Strings.EMPTY_ARRAY);
-        return channel -> new SecurityClient(client).prepareGetRoles(roles).execute(new RestBuilderListener<GetRolesResponse>(channel) {
+        return channel -> new GetRolesRequestBuilder(client)
+            .names(roles)
+            .execute(new RestBuilderListener<>(channel) {
             @Override
             public RestResponse buildResponse(GetRolesResponse response, XContentBuilder builder) throws Exception {
                 builder.startObject();

@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.sql.querydsl.query;
 
 import org.elasticsearch.common.Booleans;
+import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.index.query.MultiMatchQueryBuilder;
 import org.elasticsearch.index.query.Operator;
@@ -13,51 +14,42 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryStringQueryBuilder;
 import org.elasticsearch.xpack.sql.expression.predicate.fulltext.StringQueryPredicate;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.BiConsumer;
 
+import static java.util.Map.entry;
+
 public class QueryStringQuery extends LeafQuery {
 
-    private static final Map<String, BiConsumer<QueryStringQueryBuilder, String>> BUILDER_APPLIERS;
-
-    static {
-        HashMap<String, BiConsumer<QueryStringQueryBuilder, String>> appliers = new HashMap<>(28);
-        // TODO: it'd be great if these could be constants instead of Strings, needs a core change to make the fields public first
-        appliers.put("default_field", (qb, s) -> qb.defaultField(s));
-        appliers.put("default_operator", (qb, s) -> qb.defaultOperator(Operator.fromString(s)));
-        appliers.put("analyzer", (qb, s) -> qb.analyzer(s));
-        appliers.put("quote_analyzer", (qb, s) -> qb.quoteAnalyzer(s));
-        appliers.put("allow_leading_wildcard", (qb, s) -> qb.allowLeadingWildcard(Booleans.parseBoolean(s)));
-        appliers.put("auto_generate_phrase_queries", (qb, s) -> qb.autoGeneratePhraseQueries(Booleans.parseBoolean(s)));
-        appliers.put("max_determinized_states", (qb, s) -> qb.maxDeterminizedStates(Integer.valueOf(s)));
-        appliers.put("lowercase_expanded_terms", (qb, s) -> {});
-        appliers.put("enable_position_increments", (qb, s) -> qb.enablePositionIncrements(Booleans.parseBoolean(s)));
-        appliers.put("escape", (qb, s) -> qb.escape(Booleans.parseBoolean(s)));
-        appliers.put("use_dis_max", (qb, s) -> qb.useDisMax(Booleans.parseBoolean(s)));
-        appliers.put("fuzzy_prefix_length", (qb, s) -> qb.fuzzyPrefixLength(Integer.valueOf(s)));
-        appliers.put("fuzzy_max_expansions", (qb, s) -> qb.fuzzyMaxExpansions(Integer.valueOf(s)));
-        appliers.put("fuzzy_rewrite", (qb, s) -> qb.fuzzyRewrite(s));
-        appliers.put("phrase_slop", (qb, s) -> qb.phraseSlop(Integer.valueOf(s)));
-        appliers.put("tie_breaker", (qb, s) -> qb.tieBreaker(Float.valueOf(s)));
-        appliers.put("analyze_wildcard", (qb, s) -> qb.analyzeWildcard(Booleans.parseBoolean(s)));
-        appliers.put("rewrite", (qb, s) -> qb.rewrite(s));
-        appliers.put("minimum_should_match", (qb, s) -> qb.minimumShouldMatch(s));
-        appliers.put("quote_field_suffix", (qb, s) -> qb.quoteFieldSuffix(s));
-        appliers.put("lenient", (qb, s) -> qb.lenient(Booleans.parseBoolean(s)));
-        appliers.put("locale", (qb, s) -> {});
-        appliers.put("time_zone", (qb, s) -> qb.timeZone(s));
-        appliers.put("split_on_whitespace", (qb, s) -> qb.splitOnWhitespace(Booleans.parseBoolean(s)));
-        appliers.put("all_fields", (qb, s) -> qb.useAllFields(Booleans.parseBoolean(s)));
-        appliers.put("type", (qb, s) -> qb.type(MultiMatchQueryBuilder.Type.parse(s, LoggingDeprecationHandler.INSTANCE)));
-        appliers.put("auto_generate_synonyms_phrase_query", (qb, s) -> qb.autoGenerateSynonymsPhraseQuery(Booleans.parseBoolean(s)));
-        appliers.put("fuzzy_transpositions", (qb, s) -> qb.fuzzyTranspositions(Booleans.parseBoolean(s)));
-        BUILDER_APPLIERS = Collections.unmodifiableMap(appliers);
-    }
+    // TODO: it'd be great if these could be constants instead of Strings, needs a core change to make the fields public first
+    private static final Map<String, BiConsumer<QueryStringQueryBuilder, String>> BUILDER_APPLIERS = Map.ofEntries(
+            entry("allow_leading_wildcard", (qb, s) -> qb.allowLeadingWildcard(Booleans.parseBoolean(s))),
+            entry("analyze_wildcard", (qb, s) -> qb.analyzeWildcard(Booleans.parseBoolean(s))),
+            entry("analyzer", QueryStringQueryBuilder::analyzer),
+            entry("auto_generate_synonyms_phrase_query", (qb, s) -> qb.autoGenerateSynonymsPhraseQuery(Booleans.parseBoolean(s))),
+            entry("default_field", QueryStringQueryBuilder::defaultField),
+            entry("default_operator", (qb, s) -> qb.defaultOperator(Operator.fromString(s))),
+            entry("enable_position_increments", (qb, s) -> qb.enablePositionIncrements(Booleans.parseBoolean(s))),
+            entry("escape", (qb, s) -> qb.escape(Booleans.parseBoolean(s))),
+            entry("fuzziness", (qb, s) -> qb.fuzziness(Fuzziness.fromString(s))),
+            entry("fuzzy_max_expansions", (qb, s) -> qb.fuzzyMaxExpansions(Integer.valueOf(s))),
+            entry("fuzzy_prefix_length", (qb, s) -> qb.fuzzyPrefixLength(Integer.valueOf(s))),
+            entry("fuzzy_rewrite", QueryStringQueryBuilder::fuzzyRewrite),
+            entry("fuzzy_transpositions", (qb, s) -> qb.fuzzyTranspositions(Booleans.parseBoolean(s))),
+            entry("lenient", (qb, s) -> qb.lenient(Booleans.parseBoolean(s))),
+            entry("max_determinized_states", (qb, s) -> qb.maxDeterminizedStates(Integer.valueOf(s))),
+            entry("minimum_should_match", QueryStringQueryBuilder::minimumShouldMatch),
+            entry("phrase_slop", (qb, s) -> qb.phraseSlop(Integer.valueOf(s))),
+            entry("rewrite", QueryStringQueryBuilder::rewrite),
+            entry("quote_analyzer", QueryStringQueryBuilder::quoteAnalyzer),
+            entry("quote_field_suffix", QueryStringQueryBuilder::quoteFieldSuffix),
+            entry("tie_breaker", (qb, s) -> qb.tieBreaker(Float.valueOf(s))),
+            entry("time_zone", QueryStringQueryBuilder::timeZone),
+            entry("type", (qb, s) -> qb.type(MultiMatchQueryBuilder.Type.parse(s, LoggingDeprecationHandler.INSTANCE))));
 
     private final String query;
     private final Map<String, Float> fields;
@@ -65,12 +57,12 @@ public class QueryStringQuery extends LeafQuery {
     private final Map<String, String> options;
 
     // dedicated constructor for QueryTranslator
-    public QueryStringQuery(Location location, String query, String fieldName) {
-        this(location, query, Collections.singletonMap(fieldName, Float.valueOf(1.0f)), null);
+    public QueryStringQuery(Source source, String query, String fieldName) {
+        this(source, query, Collections.singletonMap(fieldName, Float.valueOf(1.0f)), null);
     }
 
-    public QueryStringQuery(Location location, String query, Map<String, Float> fields, StringQueryPredicate predicate) {
-        super(location);
+    public QueryStringQuery(Source source, String query, Map<String, Float> fields, StringQueryPredicate predicate) {
+        super(source);
         this.query = query;
         this.fields = fields;
         this.predicate = predicate;

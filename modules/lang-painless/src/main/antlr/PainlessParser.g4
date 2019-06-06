@@ -55,7 +55,7 @@ dstatement
     | declaration                     # decl
     | CONTINUE                        # continue
     | BREAK                           # break
-    | RETURN expression               # return
+    | RETURN expression?              # return
     | THROW expression                # throw
     | expression                      # expr
     ;

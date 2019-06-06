@@ -23,11 +23,11 @@ public final class Messages {
             "script_fields cannot be used in combination with aggregations";
     public static final String DATAFEED_CONFIG_INVALID_OPTION_VALUE = "Invalid {0} value ''{1}'' in datafeed configuration";
     public static final String DATAFEED_CONFIG_DELAYED_DATA_CHECK_TOO_SMALL =
-        "delayed_data_check_window [{0}] must be greater than the bucket_span [{1}]";
-    public static final String DATAFEED_CONFIG_DELAYED_DATA_CHECK_TOO_LARGE =
-        "delayed_data_check_window [{0}] must be less than or equal to [24h]";
+        "delayed_data_check_config: check_window [{0}] must be greater than the bucket_span [{1}]";
     public static final String DATAFEED_CONFIG_DELAYED_DATA_CHECK_SPANS_TOO_MANY_BUCKETS =
-        "delayed_data_check_window [{0}] must be less than 10,000x the bucket_span [{1}]";
+        "delayed_data_check_config: check_window [{0}] must be less than 10,000x the bucket_span [{1}]";
+    public static final String DATAFEED_CONFIG_QUERY_BAD_FORMAT = "Datafeed query is not parsable";
+    public static final String DATAFEED_CONFIG_AGG_BAD_FORMAT = "Datafeed aggregations are not parsable";
 
     public static final String DATAFEED_DOES_NOT_SUPPORT_JOB_WITH_LATENCY = "A job configured with datafeed cannot support latency";
     public static final String DATAFEED_NOT_FOUND = "No datafeed with id [{0}] exists";
@@ -48,9 +48,11 @@ public final class Messages {
     public static final String DATAFEED_MISSING_MAX_AGGREGATION_FOR_TIME_FIELD = "Missing max aggregation for time_field [{0}]";
     public static final String DATAFEED_FREQUENCY_MUST_BE_MULTIPLE_OF_AGGREGATIONS_INTERVAL =
             "Datafeed frequency [{0}] must be a multiple of the aggregation interval [{1}]";
+    public static final String DATAFEED_ID_ALREADY_TAKEN = "A datafeed with id [{0}] already exists";
 
-    public static final String FILTER_NOT_FOUND = "No filter with id [{0}] exists";
+    public static final String FILTER_CANNOT_DELETE = "Cannot delete filter [{0}] currently used by jobs {1}";
     public static final String FILTER_CONTAINS_TOO_MANY_ITEMS = "Filter [{0}] contains too many items; up to [{1}] items are allowed";
+    public static final String FILTER_NOT_FOUND = "No filter with id [{0}] exists";
 
     public static final String INCONSISTENT_ID =
             "Inconsistent {0}; ''{1}'' specified in the body differs from ''{2}'' specified as a URL argument";
@@ -77,6 +79,7 @@ public final class Messages {
     public static final String JOB_AUDIT_DATAFEED_STARTED_FROM_TO = "Datafeed started (from: {0} to: {1}) with frequency [{2}]";
     public static final String JOB_AUDIT_DATAFEED_STARTED_REALTIME = "Datafeed started in real-time";
     public static final String JOB_AUDIT_DATAFEED_STOPPED = "Datafeed stopped";
+    public static final String JOB_AUDIT_DATAFEED_ISOLATED = "Datafeed isolated";
     public static final String JOB_AUDIT_DELETING = "Deleting job by task with id ''{0}''";
     public static final String JOB_AUDIT_DELETING_FAILED = "Error deleting job: {0}";
     public static final String JOB_AUDIT_DELETED = "Job deleted";
@@ -88,8 +91,11 @@ public final class Messages {
     public static final String JOB_AUDIT_CALENDARS_UPDATED_ON_PROCESS = "Updated calendars in running process";
     public static final String JOB_AUDIT_MEMORY_STATUS_SOFT_LIMIT = "Job memory status changed to soft_limit; memory pruning will now be " +
             "more aggressive";
-    public static final String JOB_AUDIT_MEMORY_STATUS_HARD_LIMIT = "Job memory status changed to hard_limit at {0}; adjust the " +
-            "analysis_limits.model_memory_limit setting to ensure all data is analyzed";
+    public static final String JOB_AUDIT_MEMORY_STATUS_HARD_LIMIT = "Job memory status changed to hard_limit; " +
+            "job exceeded model memory limit {0} by {1}. " +
+            "Adjust the analysis_limits.model_memory_limit setting to ensure all data is analyzed";
+    public static final String JOB_AUDIT_MEMORY_STATUS_HARD_LIMIT_PRE_7_2 = "Job memory status changed to hard_limit at {0}; adjust the " +
+        "analysis_limits.model_memory_limit setting to ensure all data is analyzed";
 
     public static final String JOB_CONFIG_CATEGORIZATION_FILTERS_CONTAINS_DUPLICATES = "categorization_filters contain duplicates";
     public static final String JOB_CONFIG_CATEGORIZATION_FILTERS_CONTAINS_EMPTY =
@@ -140,12 +146,12 @@ public final class Messages {
     public static final String JOB_CONFIG_NO_DETECTORS = "No detectors configured";
     public static final String JOB_CONFIG_OVERFIELD_INCOMPATIBLE_FUNCTION =
             "over_field_name cannot be used with function ''{0}''";
-    public static final String JOB_CONFIG_OVERLAPPING_BUCKETS_INCOMPATIBLE_FUNCTION =
-            "Overlapping buckets cannot be used with function ''{0}''";
     public static final String JOB_CONFIG_UNKNOWN_FUNCTION = "Unknown function ''{0}''";
     public static final String JOB_CONFIG_UPDATE_ANALYSIS_LIMITS_MODEL_MEMORY_LIMIT_CANNOT_BE_DECREASED =
             "Invalid update value for analysis_limits: model_memory_limit cannot be decreased below current usage; " +
                     "current usage [{0}], update had [{1}]";
+    public static final String JOB_CONFIG_DUPLICATE_DETECTORS_DISALLOWED =
+            "Duplicate detectors are not allowed: [{0}]";
     public static final String JOB_CONFIG_DETECTOR_DUPLICATE_FIELD_NAME =
             "{0} and {1} cannot be the same: ''{2}''";
     public static final String JOB_CONFIG_DETECTOR_COUNT_DISALLOWED =

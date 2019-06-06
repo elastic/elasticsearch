@@ -154,7 +154,7 @@ public class RandomShapeGenerator extends RandomGeoGenerator {
     /**
      * Creates a random shape useful for randomized testing, NOTE: exercise caution when using this to build random GeometryCollections
      * as creating a large random number of random shapes can result in massive resource consumption
-     * see: {@link GeoShapeQueryTests#testShapeFilterWithRandomGeoCollection}
+     * see: {@link GeoShapeQueryTests#testQueryRandomGeoCollection()}
      *
      * The following options are included
      * @param nearPoint Create a shape near a provided point
@@ -192,7 +192,9 @@ public class RandomShapeGenerator extends RandomGeoGenerator {
                     p = xRandomPointIn(r, within);
                     coordinatesBuilder.coordinate(p.getX(), p.getY());
                 }
-                ShapeBuilder pcb = (st == ShapeType.MULTIPOINT) ? new MultiPointBuilder(coordinatesBuilder.build()) : new LineStringBuilder(coordinatesBuilder);
+                ShapeBuilder pcb = (st == ShapeType.MULTIPOINT)
+                    ? new MultiPointBuilder(coordinatesBuilder.build())
+                    : new LineStringBuilder(coordinatesBuilder);
                 return pcb;
             case MULTILINESTRING:
                 MultiLineStringBuilder mlsb = new MultiLineStringBuilder();
@@ -204,7 +206,7 @@ public class RandomShapeGenerator extends RandomGeoGenerator {
                 numPoints = RandomNumbers.randomIntBetween(r, 5, 25);
                 Coordinate[] coordinates = new Coordinate[numPoints];
                 for (int i=0; i<numPoints; ++i) {
-                    p = (Point) createShape(r, nearPoint, within, ShapeType.POINT, false).build();
+                    p = (Point) createShape(r, nearPoint, within, ShapeType.POINT, false).buildS4J();
                     coordinates[i] = new Coordinate(p.getX(), p.getY());
                 }
                 // random point order or random linestrings can lead to invalid self-crossing polygons,
@@ -227,7 +229,7 @@ public class RandomShapeGenerator extends RandomGeoGenerator {
                     // intent for ambiguous polygons. Therefore, an invalid oriented dateline crossing polygon could be built.
                     // The validate flag will check for these possibilities and bail if an incorrect geometry is created
                     try {
-                        pgb.build();
+                        pgb.buildS4J();
                     } catch (AssertionError | InvalidShapeException e) {
                         // jts bug may occasionally misinterpret coordinate order causing an unhelpful ('geom' assertion)
                         // or InvalidShapeException

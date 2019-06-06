@@ -69,7 +69,7 @@ public class QueryRescorerBuilderTests extends ESTestCase {
      */
     @BeforeClass
     public static void init() {
-        SearchModule searchModule = new SearchModule(Settings.EMPTY, false, emptyList());
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, emptyList());
         namedWriteableRegistry = new NamedWriteableRegistry(searchModule.getNamedWriteables());
         xContentRegistry = new NamedXContentRegistry(searchModule.getNamedXContents());
     }
@@ -200,11 +200,13 @@ public class QueryRescorerBuilderTests extends ESTestCase {
         rescoreBuilder.setQueryWeight(randomFloat());
         rescoreBuilder.setRescoreQueryWeight(randomFloat());
         rescoreBuilder.setScoreMode(QueryRescoreMode.Max);
+        rescoreBuilder.windowSize(randomIntBetween(0, 100));
 
         QueryRescorerBuilder rescoreRewritten = rescoreBuilder.rewrite(mockShardContext);
         assertEquals(rescoreRewritten.getQueryWeight(), rescoreBuilder.getQueryWeight(), 0.01f);
         assertEquals(rescoreRewritten.getRescoreQueryWeight(), rescoreBuilder.getRescoreQueryWeight(), 0.01f);
         assertEquals(rescoreRewritten.getScoreMode(), rescoreBuilder.getScoreMode());
+        assertEquals(rescoreRewritten.windowSize(), rescoreBuilder.windowSize());
     }
 
     /**

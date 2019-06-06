@@ -10,7 +10,7 @@ import org.elasticsearch.xpack.sql.expression.Attribute;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.Expressions;
 import org.elasticsearch.xpack.sql.expression.NamedExpression;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 
 import java.util.List;
@@ -21,8 +21,8 @@ public class Aggregate extends UnaryPlan {
     private final List<Expression> groupings;
     private final List<? extends NamedExpression> aggregates;
 
-    public Aggregate(Location location, LogicalPlan child, List<Expression> groupings, List<? extends NamedExpression> aggregates) {
-        super(location, child);
+    public Aggregate(Source source, LogicalPlan child, List<Expression> groupings, List<? extends NamedExpression> aggregates) {
+        super(source, child);
         this.groupings = groupings;
         this.aggregates = aggregates;
     }
@@ -34,7 +34,7 @@ public class Aggregate extends UnaryPlan {
 
     @Override
     protected Aggregate replaceChild(LogicalPlan newChild) {
-        return new Aggregate(location(), newChild, groupings, aggregates);
+        return new Aggregate(source(), newChild, groupings, aggregates);
     }
 
     public List<Expression> groupings() {

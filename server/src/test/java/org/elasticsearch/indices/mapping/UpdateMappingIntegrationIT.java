@@ -25,10 +25,12 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.mapper.MapperService;
@@ -72,21 +74,25 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
                                 .put(MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(), Long.MAX_VALUE)
                 ).execute().actionGet();
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
+        client().admin().cluster().prepareUpdateSettings().setTransientSettings(
+            Settings.builder().put(MappingUpdatedAction.INDICES_MAPPING_DYNAMIC_TIMEOUT_SETTING.getKey(), TimeValue.timeValueMinutes(5)))
+            .get();
 
-        int recCount = randomIntBetween(200, 600);
+        int recCount = randomIntBetween(20, 200);
         List<IndexRequestBuilder> indexRequests = new ArrayList<>();
         for (int rec = 0; rec < recCount; rec++) {
             String type = "type";
             String fieldName = "field_" + type + "_" + rec;
-            indexRequests.add(client().prepareIndex("test", type, Integer.toString(rec)).setSource(fieldName, "some_value"));
+            indexRequests.add(client().prepareIndex("test", type, Integer.toString(rec))
+                .setTimeout(TimeValue.timeValueMinutes(5)).setSource(fieldName, "some_value"));
         }
-        indexRandom(true, indexRequests);
+        indexRandom(true, false, indexRequests);
 
         logger.info("checking all the documents are there");
         RefreshResponse refreshResponse = client().admin().indices().prepareRefresh().execute().actionGet();
         assertThat(refreshResponse.getFailedShards(), equalTo(0));
         SearchResponse response = client().prepareSearch("test").setSize(0).execute().actionGet();
-        assertThat(response.getHits().getTotalHits(), equalTo((long) recCount));
+        assertThat(response.getHits().getTotalHits().value, equalTo((long) recCount));
 
         logger.info("checking all the fields are in the mappings");
 
@@ -95,6 +101,9 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
             String fieldName = "field_" + type + "_" + rec;
             assertConcreteMappingsOnAll("test", type, fieldName);
         }
+
+        client().admin().cluster().prepareUpdateSettings().setTransientSettings(
+            Settings.builder().putNull(MappingUpdatedAction.INDICES_MAPPING_DYNAMIC_TIMEOUT_SETTING.getKey())).get();
     }
 
     public void testUpdateMappingWithoutType() {
@@ -224,13 +233,14 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
                                 JsonXContent.contentBuilder().startObject().startObject(typeName)
                                         .startObject("properties").startObject(fieldName).field("type", "text").endObject().endObject()
                                         .endObject().endObject()
-                        ).get();
+                        ).setMasterNodeTimeout(TimeValue.timeValueMinutes(5)).get();
 
                         assertThat(response.isAcknowledged(), equalTo(true));
                         GetMappingsResponse getMappingResponse = client2.admin().indices().prepareGetMappings(indexName).get();
                         ImmutableOpenMap<String, MappingMetaData> mappings = getMappingResponse.getMappings().get(indexName);
                         assertThat(mappings.containsKey(typeName), equalTo(true));
-                        assertThat(((Map<String, Object>) mappings.get(typeName).getSourceAsMap().get("properties")).keySet(), Matchers.hasItem(fieldName));
+                        assertThat(((Map<String, Object>) mappings.get(typeName).getSourceAsMap().get("properties")).keySet(),
+                            Matchers.hasItem(fieldName));
                     }
                 } catch (Exception e) {
                     threadException.set(e);

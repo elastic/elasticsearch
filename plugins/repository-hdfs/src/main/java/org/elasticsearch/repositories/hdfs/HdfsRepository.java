@@ -40,6 +40,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -52,14 +53,12 @@ import java.util.Locale;
 
 public final class HdfsRepository extends BlobStoreRepository {
 
-    private static final Logger LOGGER = LogManager.getLogger(HdfsRepository.class);
+    private static final Logger logger = LogManager.getLogger(HdfsRepository.class);
 
     private static final String CONF_SECURITY_PRINCIPAL = "security.principal";
 
     private final Environment environment;
     private final ByteSizeValue chunkSize;
-    private final boolean compress;
-    private final BlobPath basePath = BlobPath.cleanPath();
     private final URI uri;
     private final String pathSetting;
 
@@ -68,12 +67,11 @@ public final class HdfsRepository extends BlobStoreRepository {
     private static final ByteSizeValue DEFAULT_BUFFER_SIZE = new ByteSizeValue(100, ByteSizeUnit.KB);
 
     public HdfsRepository(RepositoryMetaData metadata, Environment environment,
-                          NamedXContentRegistry namedXContentRegistry) {
-        super(metadata, environment.settings(), namedXContentRegistry);
+                          NamedXContentRegistry namedXContentRegistry, ThreadPool threadPool) {
+        super(metadata, environment.settings(), namedXContentRegistry, threadPool, BlobPath.cleanPath());
 
         this.environment = environment;
         this.chunkSize = metadata.settings().getAsBytesSize("chunk_size", null);
-        this.compress = metadata.settings().getAsBoolean("compress", false);
 
         String uriSetting = getMetadata().settings().get("uri");
         if (Strings.hasText(uriSetting) == false) {
@@ -105,7 +103,7 @@ public final class HdfsRepository extends BlobStoreRepository {
 
         final Settings confSettings = repositorySettings.getByPrefix("conf.");
         for (String key : confSettings.keySet()) {
-            LOGGER.debug("Adding configuration to HDFS Client Configuration : {} = {}", key, confSettings.get(key));
+            logger.debug("Adding configuration to HDFS Client Configuration : {} = {}", key, confSettings.get(key));
             hadoopConfiguration.set(key, confSettings.get(key));
         }
 
@@ -161,7 +159,7 @@ public final class HdfsRepository extends BlobStoreRepository {
 
         // Check to see if the authentication method is compatible
         if (kerberosPrincipal != null && authMethod.equals(AuthenticationMethod.SIMPLE)) {
-            LOGGER.warn("Hadoop authentication method is set to [SIMPLE], but a Kerberos principal is " +
+            logger.warn("Hadoop authentication method is set to [SIMPLE], but a Kerberos principal is " +
                 "specified. Continuing with [KERBEROS] authentication.");
             SecurityUtil.setAuthenticationMethod(AuthenticationMethod.KERBEROS, hadoopConfiguration);
         } else if (kerberosPrincipal == null && authMethod.equals(AuthenticationMethod.KERBEROS)) {
@@ -174,15 +172,15 @@ public final class HdfsRepository extends BlobStoreRepository {
         UserGroupInformation.setConfiguration(hadoopConfiguration);
 
         // Debugging
-        LOGGER.debug("Hadoop security enabled: [{}]", UserGroupInformation.isSecurityEnabled());
-        LOGGER.debug("Using Hadoop authentication method: [{}]", SecurityUtil.getAuthenticationMethod(hadoopConfiguration));
+        logger.debug("Hadoop security enabled: [{}]", UserGroupInformation.isSecurityEnabled());
+        logger.debug("Using Hadoop authentication method: [{}]", SecurityUtil.getAuthenticationMethod(hadoopConfiguration));
 
         // UserGroupInformation (UGI) instance is just a Hadoop specific wrapper around a Java Subject
         try {
             if (UserGroupInformation.isSecurityEnabled()) {
                 String principal = preparePrincipal(kerberosPrincipal);
                 String keytab = HdfsSecurityContext.locateKeytabFile(environment).toString();
-                LOGGER.debug("Using kerberos principal [{}] and keytab located at [{}]", principal, keytab);
+                logger.debug("Using kerberos principal [{}] and keytab located at [{}]", principal, keytab);
                 return UserGroupInformation.loginUserFromKeytabAndReturnUGI(principal, keytab);
             }
             return UserGroupInformation.getCurrentUser();
@@ -203,7 +201,7 @@ public final class HdfsRepository extends BlobStoreRepository {
             }
 
             if (originalPrincipal.equals(finalPrincipal) == false) {
-                LOGGER.debug("Found service principal. Converted original principal name [{}] to server principal [{}]",
+                logger.debug("Found service principal. Converted original principal name [{}] to server principal [{}]",
                     originalPrincipal, finalPrincipal);
             }
         }
@@ -232,16 +230,6 @@ public final class HdfsRepository extends BlobStoreRepository {
             AccessController.doPrivileged((PrivilegedAction<HdfsBlobStore>)
                 () -> createBlobstore(uri, pathSetting, getMetadata().settings()));
         return blobStore;
-    }
-
-    @Override
-    protected BlobPath basePath() {
-        return basePath;
-    }
-
-    @Override
-    protected boolean isCompress() {
-        return compress;
     }
 
     @Override

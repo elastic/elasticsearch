@@ -9,16 +9,18 @@ package org.elasticsearch.xpack.core.ccr.client;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.xpack.core.ccr.action.CcrStatsAction;
-import org.elasticsearch.xpack.core.ccr.action.FollowStatsAction;
-import org.elasticsearch.xpack.core.ccr.action.PutFollowAction;
 import org.elasticsearch.xpack.core.ccr.action.DeleteAutoFollowPatternAction;
-import org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction;
+import org.elasticsearch.xpack.core.ccr.action.FollowStatsAction;
+import org.elasticsearch.xpack.core.ccr.action.ForgetFollowerAction;
 import org.elasticsearch.xpack.core.ccr.action.GetAutoFollowPatternAction;
-import org.elasticsearch.xpack.core.ccr.action.PutAutoFollowPatternAction;
 import org.elasticsearch.xpack.core.ccr.action.PauseFollowAction;
+import org.elasticsearch.xpack.core.ccr.action.PutAutoFollowPatternAction;
+import org.elasticsearch.xpack.core.ccr.action.PutFollowAction;
+import org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction;
 import org.elasticsearch.xpack.core.ccr.action.UnfollowAction;
 
 import java.util.Objects;
@@ -93,6 +95,16 @@ public class CcrClient {
     public ActionFuture<AcknowledgedResponse> unfollow(final UnfollowAction.Request request) {
         final PlainActionFuture<AcknowledgedResponse> listener = PlainActionFuture.newFuture();
         client.execute(UnfollowAction.INSTANCE, request, listener);
+        return listener;
+    }
+
+    public void forgetFollower(final ForgetFollowerAction.Request request, final ActionListener<BroadcastResponse> listener) {
+        client.execute(ForgetFollowerAction.INSTANCE, request, listener);
+    }
+
+    public ActionFuture<BroadcastResponse> forgetFollower(final ForgetFollowerAction.Request request) {
+        final PlainActionFuture<BroadcastResponse> listener = PlainActionFuture.newFuture();
+        client.execute(ForgetFollowerAction.INSTANCE, request, listener);
         return listener;
     }
 

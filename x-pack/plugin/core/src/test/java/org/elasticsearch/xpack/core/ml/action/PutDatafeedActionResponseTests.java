@@ -23,7 +23,6 @@ public class PutDatafeedActionResponseTests extends AbstractStreamableTestCase<R
         DatafeedConfig.Builder datafeedConfig = new DatafeedConfig.Builder(
                 DatafeedConfigTests.randomValidDatafeedId(), randomAlphaOfLength(10));
         datafeedConfig.setIndices(Arrays.asList(randomAlphaOfLength(10)));
-        datafeedConfig.setTypes(Arrays.asList(randomAlphaOfLength(10)));
         return new Response(datafeedConfig.build());
     }
 
@@ -34,7 +33,7 @@ public class PutDatafeedActionResponseTests extends AbstractStreamableTestCase<R
 
     @Override
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
-        SearchModule searchModule = new SearchModule(Settings.EMPTY, false, Collections.emptyList());
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, Collections.emptyList());
         return new NamedWriteableRegistry(searchModule.getNamedWriteables());
     }
 }

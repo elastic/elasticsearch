@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.core.security.action.saml.SamlLogoutRequest;
 import org.elasticsearch.xpack.core.security.action.saml.SamlLogoutResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Realm;
+import org.elasticsearch.xpack.core.security.authc.support.TokensInvalidationResult;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authc.Realms;
 import org.elasticsearch.xpack.security.authc.TokenService;
@@ -27,7 +28,6 @@ import org.elasticsearch.xpack.security.authc.saml.SamlRedirect;
 import org.elasticsearch.xpack.security.authc.saml.SamlUtils;
 import org.opensaml.saml.saml2.core.LogoutRequest;
 
-import java.io.IOException;
 import java.util.Map;
 
 /**
@@ -72,14 +72,14 @@ public final class TransportSamlLogoutAction
                             ));
                         }, listener::onFailure
                 ));
-            } catch (IOException | ElasticsearchException e) {
+            } catch (ElasticsearchException e) {
                 logger.debug("Internal exception during SAML logout", e);
                 listener.onFailure(e);
             }
         }, listener::onFailure));
     }
 
-    private void invalidateRefreshToken(String refreshToken, ActionListener<Boolean> listener) {
+    private void invalidateRefreshToken(String refreshToken, ActionListener<TokensInvalidationResult> listener) {
         if (refreshToken == null) {
             listener.onResponse(null);
         } else {

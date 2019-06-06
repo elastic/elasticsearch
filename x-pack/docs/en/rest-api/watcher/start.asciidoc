@@ -1,6 +1,9 @@
 [role="xpack"]
 [[watcher-api-start]]
 === Start API
+++++
+<titleabbrev>Start</titleabbrev>
+++++
 
 The `start` API starts the {watcher} service if the service is not already
 running.
@@ -8,7 +11,7 @@ running.
 [float]
 ==== Request
 
-`POST _xpack/watcher/_start`
+`POST _watcher/_start`
 
 ==== Authorization
 
@@ -20,7 +23,7 @@ information, see {xpack-ref}/security-privileges.html[Security Privileges].
 
 [source,js]
 --------------------------------------------------
-POST _xpack/watcher/_start
+POST _watcher/_start
 --------------------------------------------------
 // CONSOLE
 

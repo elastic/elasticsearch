@@ -1,14 +1,17 @@
 [role="xpack"]
 [testenv="basic"]
 [[get-license]]
-=== Get License API
+=== Get license API
+++++
+<titleabbrev>Get license</titleabbrev>
+++++
 
 This API enables you to retrieve licensing information.
 
 [float]
 ==== Request
 
-`GET /_xpack/license`
+`GET /_license`
 
 [float]
 ==== Description
@@ -43,7 +46,7 @@ The following example provides information about a trial license:
 
 [source,js]
 --------------------------------------------------
-GET _xpack/license
+GET /_license
 --------------------------------------------------
 // CONSOLE
 

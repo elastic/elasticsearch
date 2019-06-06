@@ -228,7 +228,7 @@ public class SerialDiffIT extends ESIntegTestCase {
 
     public void testBasicDiff() {
         SearchResponse response = client()
-                .prepareSearch("idx").setTypes("type")
+                .prepareSearch("idx")
                 .addAggregation(
                         histogram("histo").field(INTERVAL_FIELD).interval(interval)
                                 .extendedBounds(0L, (long) (interval * (numBuckets - 1)))
@@ -239,7 +239,7 @@ public class SerialDiffIT extends ESIntegTestCase {
                                 .subAggregation(diff("diff_values", "the_metric")
                                         .lag(lag)
                                         .gapPolicy(gapPolicy))
-                ).execute().actionGet();
+                ).get();
 
         assertSearchResponse(response);
 
@@ -275,7 +275,7 @@ public class SerialDiffIT extends ESIntegTestCase {
     public void testInvalidLagSize() {
         try {
             client()
-                .prepareSearch("idx").setTypes("type")
+                    .prepareSearch("idx")
                 .addAggregation(
                         histogram("histo").field(INTERVAL_FIELD).interval(interval)
                                 .extendedBounds(0L, (long) (interval * (numBuckets - 1)))
@@ -283,7 +283,7 @@ public class SerialDiffIT extends ESIntegTestCase {
                                 .subAggregation(diff("diff_counts", "_count")
                                         .lag(-1)
                                         .gapPolicy(gapPolicy))
-                ).execute().actionGet();
+                ).get();
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), is("[lag] must be a positive integer: [diff_counts]"));
         }

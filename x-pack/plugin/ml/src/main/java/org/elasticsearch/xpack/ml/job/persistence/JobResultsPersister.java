@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.ml.job.persistence;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
@@ -18,7 +20,6 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -44,8 +45,6 @@ import java.util.Objects;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
-import static org.elasticsearch.xpack.core.ClientHelper.stashWithOrigin;
-import static org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings.DOC_TYPE;
 
 /**
  * Persists result types, Quantiles etc to Elasticsearch<br>
@@ -63,7 +62,9 @@ import static org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappi
  *
  * @see ElasticsearchMappings
  */
-public class JobResultsPersister extends AbstractComponent {
+public class JobResultsPersister {
+
+    private static final Logger logger = LogManager.getLogger(JobResultsPersister.class);
 
     private final Client client;
 
@@ -172,7 +173,7 @@ public class JobResultsPersister extends AbstractComponent {
 
         private void indexResult(String id, ToXContent resultDoc, String resultType) {
             try (XContentBuilder content = toXContentBuilder(resultDoc)) {
-                bulkRequest.add(new IndexRequest(indexName, DOC_TYPE, id).source(content));
+                bulkRequest.add(new IndexRequest(indexName).id(id).source(content));
             } catch (IOException e) {
                 logger.error(new ParameterizedMessage("[{}] Error serialising {}", jobId, resultType), e);
             }
@@ -191,7 +192,7 @@ public class JobResultsPersister extends AbstractComponent {
             }
             logger.trace("[{}] ES API CALL: bulk request with {} actions", jobId, bulkRequest.numberOfActions());
 
-            try (ThreadContext.StoredContext ignore = stashWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN)) {
+            try (ThreadContext.StoredContext ignore = client.threadPool().getThreadContext().stashWithOrigin(ML_ORIGIN)) {
                 BulkResponse addRecordsResponse = client.bulk(bulkRequest).actionGet();
                 if (addRecordsResponse.hasFailures()) {
                     logger.error("[{}] Bulk index of results has errors: {}", jobId, addRecordsResponse.buildFailureMessage());
@@ -225,7 +226,7 @@ public class JobResultsPersister extends AbstractComponent {
      */
     public void persistQuantiles(Quantiles quantiles) {
         Persistable persistable = new Persistable(quantiles.getJobId(), quantiles, Quantiles.documentId(quantiles.getJobId()));
-        persistable.persist(AnomalyDetectorsIndex.jobStateIndexName()).actionGet();
+        persistable.persist(AnomalyDetectorsIndex.jobStateIndexWriteAlias()).actionGet();
     }
 
     /**
@@ -234,16 +235,16 @@ public class JobResultsPersister extends AbstractComponent {
     public void persistQuantiles(Quantiles quantiles, WriteRequest.RefreshPolicy refreshPolicy, ActionListener<IndexResponse> listener) {
         Persistable persistable = new Persistable(quantiles.getJobId(), quantiles, Quantiles.documentId(quantiles.getJobId()));
         persistable.setRefreshPolicy(refreshPolicy);
-        persistable.persist(AnomalyDetectorsIndex.jobStateIndexName(), listener);
+        persistable.persist(AnomalyDetectorsIndex.jobStateIndexWriteAlias(), listener);
     }
 
     /**
      * Persist a model snapshot description
      */
-    public void persistModelSnapshot(ModelSnapshot modelSnapshot, WriteRequest.RefreshPolicy refreshPolicy) {
+    public IndexResponse persistModelSnapshot(ModelSnapshot modelSnapshot, WriteRequest.RefreshPolicy refreshPolicy) {
         Persistable persistable = new Persistable(modelSnapshot.getJobId(), modelSnapshot, ModelSnapshot.documentId(modelSnapshot));
         persistable.setRefreshPolicy(refreshPolicy);
-        persistable.persist(AnomalyDetectorsIndex.resultsWriteAlias(modelSnapshot.getJobId())).actionGet();
+        return persistable.persist(AnomalyDetectorsIndex.resultsWriteAlias(modelSnapshot.getJobId())).actionGet();
     }
 
     /**
@@ -290,7 +291,7 @@ public class JobResultsPersister extends AbstractComponent {
         logger.trace("[{}] ES API CALL: refresh index {}", jobId, indexName);
         RefreshRequest refreshRequest = new RefreshRequest(indexName);
         refreshRequest.indicesOptions(IndicesOptions.lenientExpandOpen());
-        try (ThreadContext.StoredContext ignore = stashWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN)) {
+        try (ThreadContext.StoredContext ignore = client.threadPool().getThreadContext().stashWithOrigin(ML_ORIGIN)) {
             client.admin().indices().refresh(refreshRequest).actionGet();
         }
     }
@@ -302,12 +303,12 @@ public class JobResultsPersister extends AbstractComponent {
      * @param jobId The job Id
      * */
     public void commitStateWrites(String jobId) {
-        String indexName = AnomalyDetectorsIndex.jobStateIndexName();
+        String indexName = AnomalyDetectorsIndex.jobStateIndexPattern();
         // Refresh should wait for Lucene to make the data searchable
         logger.trace("[{}] ES API CALL: refresh index {}", jobId, indexName);
         RefreshRequest refreshRequest = new RefreshRequest(indexName);
         refreshRequest.indicesOptions(IndicesOptions.lenientExpandOpen());
-        try (ThreadContext.StoredContext ignore = stashWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN)) {
+        try (ThreadContext.StoredContext ignore = client.threadPool().getThreadContext().stashWithOrigin(ML_ORIGIN)) {
             client.admin().indices().refresh(refreshRequest).actionGet();
         }
     }
@@ -346,7 +347,7 @@ public class JobResultsPersister extends AbstractComponent {
             logCall(indexName);
 
             try (XContentBuilder content = toXContentBuilder(object)) {
-                IndexRequest indexRequest = new IndexRequest(indexName, DOC_TYPE, id).source(content).setRefreshPolicy(refreshPolicy);
+                IndexRequest indexRequest = new IndexRequest(indexName).id(id).source(content).setRefreshPolicy(refreshPolicy);
                 executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, indexRequest, listener, client::index);
             } catch (IOException e) {
                 logger.error(new ParameterizedMessage("[{}] Error writing [{}]", jobId, (id == null) ? "auto-generated ID" : id), e);

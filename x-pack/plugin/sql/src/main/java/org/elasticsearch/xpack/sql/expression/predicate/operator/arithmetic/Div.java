@@ -7,7 +7,7 @@ package org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.BinaryArithmeticProcessor.BinaryArithmeticOperation;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.type.DataTypeConversion;
@@ -17,8 +17,8 @@ import org.elasticsearch.xpack.sql.type.DataTypeConversion;
  */
 public class Div extends ArithmeticOperation {
 
-    public Div(Location location, Expression left, Expression right) {
-        super(location, left, right, BinaryArithmeticOperation.DIV);
+    public Div(Source source, Expression left, Expression right) {
+        super(source, left, right, BinaryArithmeticOperation.DIV);
     }
 
     @Override
@@ -28,7 +28,7 @@ public class Div extends ArithmeticOperation {
 
     @Override
     protected Div replaceChildren(Expression newLeft, Expression newRight) {
-        return new Div(location(), newLeft, newRight);
+        return new Div(source(), newLeft, newRight);
     }
 
     @Override

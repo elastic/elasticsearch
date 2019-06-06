@@ -28,6 +28,7 @@ teardown:
             - '{"f1": "local_cluster", "sort_field": 0}'
   - do:
       search:
+        rest_total_hits_as_int: true
         index: "single_doc_index,my_remote_cluster:single_doc_index"
         body:
           sort: "sort_field"

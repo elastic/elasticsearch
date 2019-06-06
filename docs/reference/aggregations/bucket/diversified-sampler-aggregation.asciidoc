@@ -108,7 +108,7 @@ POST /stackoverflow/_search?size=0
                 "max_docs_per_value" : 3,
                 "script" : {
                     "lang": "painless",
-                    "source": "doc['tags'].values.hashCode()"
+                    "source": "doc['tags'].hashCode()"
                 }
             },
             "aggs": {
@@ -186,6 +186,7 @@ Please note that Elasticsearch will ignore the choice of execution hint if it is
 
 ==== Limitations
 
+[[div-sampler-breadth-first-nested-agg]]
 ===== Cannot be nested under `breadth_first` aggregations
 Being a quality-based filter the diversified_sampler aggregation needs access to the relevance score produced for each document.
 It therefore cannot be nested under a `terms` aggregation which has the `collect_mode` switched from the default `depth_first` mode to `breadth_first` as this discards scores.
@@ -194,6 +195,7 @@ In this situation an error will be thrown.
 ===== Limited de-dup logic.
 The de-duplication logic applies only at a shard level so will not apply across shards.
 
+[[spec-syntax-geo-date-fields]]
 ===== No specialized syntax for geo/date fields
 Currently the syntax for defining the diversifying values is defined by a choice of `field` or
 `script` - there is no added syntactical sugar for expressing geo or date units such as "7d" (7

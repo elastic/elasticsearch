@@ -72,6 +72,21 @@ import java.util.Objects;
  * </ul>
  */
 public final class PainlessLookupUtility {
+    
+    /**
+     * The name for an anonymous class.
+     */
+    public static final String ANONYMOUS_CLASS_NAME = "$anonymous";
+
+    /**
+     * The def type name as specified in the source for a script.
+     */
+    public static final String DEF_CLASS_NAME = "def";
+
+    /**
+     * The method name for all constructors.
+     */
+    public static final String CONSTRUCTOR_NAME = "<init>";
 
     /**
      * Converts a canonical type name to a type based on the terminology specified as part of the documentation for
@@ -187,6 +202,7 @@ public final class PainlessLookupUtility {
 
         return typesStringBuilder.toString();
     }
+
     /**
      * Converts a java type to a type based on the terminology specified as part of {@link PainlessLookupUtility} where if a type is an
      * object class or object array, the returned type will be the equivalent def class or def array. Otherwise, this behaves as an
@@ -343,22 +359,7 @@ public final class PainlessLookupUtility {
     public static String buildPainlessFieldKey(String fieldName) {
         return fieldName;
     }
-
-    /**
-     * The name for an anonymous class.
-     */
-    public static final String ANONYMOUS_CLASS_NAME = "$anonymous";
-
-    /**
-     * The def type name as specified in the source for a script.
-     */
-    public static final String DEF_CLASS_NAME = "def";
-
-    /**
-     * The method name for all constructors.
-     */
-    public static final String CONSTRUCTOR_NAME = "<init>";
-
+    
     private PainlessLookupUtility() {
 
     }

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.gateway;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
@@ -68,11 +67,6 @@ public class TransportNodesListGatewayMetaState extends TransportNodesAction<Tra
     }
 
     @Override
-    protected boolean transportCompress() {
-        return true; // compress since the metadata can become large
-    }
-
-    @Override
     protected NodeRequest newNodeRequest(String nodeId, Request request) {
         return new NodeRequest(nodeId);
     }
@@ -89,11 +83,7 @@ public class TransportNodesListGatewayMetaState extends TransportNodesAction<Tra
 
     @Override
     protected NodeGatewayMetaState nodeOperation(NodeRequest request) {
-        try {
-            return new NodeGatewayMetaState(clusterService.localNode(), metaState.loadMetaState());
-        } catch (Exception e) {
-            throw new ElasticsearchException("failed to load metadata", e);
-        }
+        return new NodeGatewayMetaState(clusterService.localNode(), metaState.getMetaData());
     }
 
     public static class Request extends BaseNodesRequest<Request> {
@@ -104,22 +94,9 @@ public class TransportNodesListGatewayMetaState extends TransportNodesAction<Tra
         public Request(String... nodesIds) {
             super(nodesIds);
         }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-        }
     }
 
     public static class NodesGatewayMetaState extends BaseNodesResponse<NodeGatewayMetaState> {
-
-        NodesGatewayMetaState() {
-        }
 
         public NodesGatewayMetaState(ClusterName clusterName, List<NodeGatewayMetaState> nodes, List<FailedNodeException> failures) {
             super(clusterName, nodes, failures);
@@ -145,15 +122,6 @@ public class TransportNodesListGatewayMetaState extends TransportNodesAction<Tra
             super(nodeId);
         }
 
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-        }
     }
 
     public static class NodeGatewayMetaState extends BaseNodeResponse {

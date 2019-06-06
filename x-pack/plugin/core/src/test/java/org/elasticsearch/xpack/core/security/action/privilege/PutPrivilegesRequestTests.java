@@ -74,6 +74,9 @@ public class PutPrivilegesRequestTests extends ESTestCase {
         assertValidationFailure(request(wildcardApp, numericName, reservedMetadata, badAction),
             "Application names may not contain", "Application privilege names must match", "metadata keys may not start",
             "must contain one of");
+
+        // Empty request
+        assertValidationFailure(new PutPrivilegesRequest(), "At least one application privilege must be provided");
     }
 
     private ApplicationPrivilegeDescriptor descriptor(String application, String name, String... actions) {

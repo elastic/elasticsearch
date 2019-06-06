@@ -19,11 +19,14 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.index.IndexOptions;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.joda.FormatDateTimeFormatter;
-import org.elasticsearch.common.joda.Joda;
+import org.elasticsearch.Version;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.index.analysis.AnalysisMode;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.similarity.SimilarityProvider;
 
@@ -37,13 +40,13 @@ import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeFl
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeStringValue;
 
 public class TypeParsers {
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(TypeParsers.class));
 
     public static final String DOC_VALUES = "doc_values";
     public static final String INDEX_OPTIONS_DOCS = "docs";
     public static final String INDEX_OPTIONS_FREQS = "freqs";
     public static final String INDEX_OPTIONS_POSITIONS = "positions";
     public static final String INDEX_OPTIONS_OFFSETS = "offsets";
-
 
     private static void parseAnalyzersAndTermVectors(FieldMapper.Builder builder, String name, Map<String, Object> fieldNode,
                                                      Mapper.TypeParser.ParserContext parserContext) {
@@ -82,6 +85,7 @@ public class TypeParsers {
                 if (analyzer == null) {
                     throw new MapperParsingException("analyzer [" + propNode.toString() + "] not found for field [" + name + "]");
                 }
+                analyzer.checkAllowedInMode(AnalysisMode.SEARCH_TIME);
                 searchAnalyzer = analyzer;
                 iterator.remove();
             } else if (propName.equals("search_quote_analyzer")) {
@@ -89,8 +93,26 @@ public class TypeParsers {
                 if (analyzer == null) {
                     throw new MapperParsingException("analyzer [" + propNode.toString() + "] not found for field [" + name + "]");
                 }
+                analyzer.checkAllowedInMode(AnalysisMode.SEARCH_TIME);
                 searchQuoteAnalyzer = analyzer;
                 iterator.remove();
+            }
+        }
+
+        // check analyzers are allowed to work in the respective AnalysisMode
+        {
+            if (indexAnalyzer != null) {
+                if (searchAnalyzer == null) {
+                    indexAnalyzer.checkAllowedInMode(AnalysisMode.ALL);
+                } else {
+                    indexAnalyzer.checkAllowedInMode(AnalysisMode.INDEX_TIME);
+                }
+            }
+            if (searchAnalyzer != null) {
+                searchAnalyzer.checkAllowedInMode(AnalysisMode.SEARCH_TIME);
+            }
+            if (searchQuoteAnalyzer != null) {
+                searchQuoteAnalyzer.checkAllowedInMode(AnalysisMode.SEARCH_TIME);
             }
         }
 
@@ -196,11 +218,25 @@ public class TypeParsers {
 
     public static boolean parseMultiField(FieldMapper.Builder builder, String name, Mapper.TypeParser.ParserContext parserContext,
                                           String propName, Object propNode) {
-        parserContext = parserContext.createMultiFieldContext(parserContext);
         if (propName.equals("fields")) {
+            if (parserContext.isWithinMultiField()) {
+                // For indices created prior to 8.0, we only emit a deprecation warning and do not fail type parsing. This is to
+                // maintain the backwards-compatibility guarantee that we can always load indexes from the previous major version.
+                if (parserContext.indexVersionCreated().before(Version.V_8_0_0)) {
+                    deprecationLogger.deprecatedAndMaybeLog("multifield_within_multifield", "At least one multi-field, [" + name + "], " +
+                        "was encountered that itself contains a multi-field. Defining multi-fields within a multi-field is deprecated " +
+                        "and is not supported for indices created in 8.0 and later. To migrate the mappings, all instances of [fields] " +
+                        "that occur within a [fields] block should be removed from the mappings, either by flattening the chained " +
+                        "[fields] blocks into a single level, or switching to [copy_to] if appropriate.");
+                } else {
+                    throw new IllegalArgumentException("Encountered a multi-field [" + name + "] which itself contains a multi-field. " +
+                        "Defining chained multi-fields is not supported.");
+                }
+            }
+
+            parserContext = parserContext.createMultiFieldContext(parserContext);
 
             final Map<String, Object> multiFieldsPropNodes;
-
             if (propNode instanceof List && ((List<?>) propNode).isEmpty()) {
                 multiFieldsPropNodes = Collections.emptyMap();
             } else if (propNode instanceof Map) {
@@ -263,9 +299,9 @@ public class TypeParsers {
         }
     }
 
-    public static FormatDateTimeFormatter parseDateTimeFormatter(Object node) {
+    public static DateFormatter parseDateTimeFormatter(Object node) {
         if (node instanceof String) {
-            return Joda.forPattern((String) node);
+            return DateFormatter.forPattern((String) node);
         }
         throw new IllegalArgumentException("Invalid format: [" + node.toString() + "]: expected string value");
     }

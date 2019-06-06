@@ -20,6 +20,7 @@
 package org.elasticsearch.nio;
 
 import org.elasticsearch.common.concurrent.CompletableContext;
+import org.elasticsearch.nio.utils.ByteBufferUtils;
 import org.elasticsearch.nio.utils.ExceptionsHelper;
 
 import java.io.IOException;
@@ -44,7 +45,7 @@ import java.util.function.Predicate;
  */
 public abstract class SocketChannelContext extends ChannelContext<SocketChannel> {
 
-    public static final Predicate<NioSocketChannel> ALWAYS_ALLOW_CHANNEL = (c) -> true;
+    protected static final Predicate<NioSocketChannel> ALWAYS_ALLOW_CHANNEL = (c) -> true;
 
     protected final NioSocketChannel channel;
     protected final InboundChannelBuffer channelBuffer;
@@ -169,6 +170,7 @@ public abstract class SocketChannelContext extends ChannelContext<SocketChannel>
     @Override
     protected void register() throws IOException {
         super.register();
+        readWriteHandler.channelRegistered();
         if (allowChannelPredicate.test(channel) == false) {
             closeNow = true;
         }
@@ -209,7 +211,7 @@ public abstract class SocketChannelContext extends ChannelContext<SocketChannel>
 
     protected void handleReadBytes() throws IOException {
         int bytesConsumed = Integer.MAX_VALUE;
-        while (bytesConsumed > 0 && channelBuffer.getIndex() > 0) {
+        while (isOpen() && bytesConsumed > 0 && channelBuffer.getIndex() > 0) {
             bytesConsumed = readWriteHandler.consumeReads(channelBuffer);
             channelBuffer.release(bytesConsumed);
         }
@@ -234,49 +236,72 @@ public abstract class SocketChannelContext extends ChannelContext<SocketChannel>
         return closeNow;
     }
 
-    protected int readFromChannel(ByteBuffer buffer) throws IOException {
+    protected void setCloseNow() {
+        closeNow = true;
+    }
+
+    // When you read or write to a nio socket in java, the heap memory passed down must be copied to/from
+    // direct memory. The JVM internally does some buffering of the direct memory, however we can save space
+    // by reusing a thread-local direct buffer (provided by the NioSelector).
+    //
+    // Each network event loop is given a 64kb DirectByteBuffer. When we read we use this buffer and copy the
+    // data after the read. When we go to write, we copy the data to the direct memory before calling write.
+    // The choice of 64KB is rather arbitrary. We can explore different sizes in the future. However, any
+    // data that is copied to the buffer for a write, but not successfully flushed immediately, must be
+    // copied again on the next call.
+
+    protected int readFromChannel(InboundChannelBuffer channelBuffer) throws IOException {
+        ByteBuffer ioBuffer = getSelector().getIoBuffer();
+        int bytesRead;
         try {
-            int bytesRead = rawChannel.read(buffer);
-            if (bytesRead < 0) {
-                closeNow = true;
-                bytesRead = 0;
+            bytesRead = rawChannel.read(ioBuffer);
+        } catch (IOException e) {
+            closeNow = true;
+            throw e;
+        }
+        if (bytesRead < 0) {
+            closeNow = true;
+            return 0;
+        } else {
+            ioBuffer.flip();
+            channelBuffer.ensureCapacity(channelBuffer.getIndex() + ioBuffer.remaining());
+            ByteBuffer[] buffers = channelBuffer.sliceBuffersFrom(channelBuffer.getIndex());
+            int j = 0;
+            while (j < buffers.length && ioBuffer.remaining() > 0) {
+                ByteBuffer buffer = buffers[j++];
+                ByteBufferUtils.copyBytes(ioBuffer, buffer);
             }
+            channelBuffer.incrementIndex(bytesRead);
             return bytesRead;
-        } catch (IOException e) {
-            closeNow = true;
-            throw e;
         }
     }
 
-    protected int readFromChannel(ByteBuffer[] buffers) throws IOException {
-        try {
-            int bytesRead = (int) rawChannel.read(buffers);
-            if (bytesRead < 0) {
+    // Currently we limit to 64KB. This is a trade-off which means more syscalls, in exchange for less
+    // copying.
+    private final int WRITE_LIMIT = 1 << 16;
+
+    protected int flushToChannel(FlushOperation flushOperation) throws IOException {
+        ByteBuffer ioBuffer = getSelector().getIoBuffer();
+
+        boolean continueFlush = flushOperation.isFullyFlushed() == false;
+        int totalBytesFlushed = 0;
+        while (continueFlush) {
+            ioBuffer.clear();
+            ioBuffer.limit(Math.min(WRITE_LIMIT, ioBuffer.limit()));
+            ByteBuffer[] buffers = flushOperation.getBuffersToWrite(WRITE_LIMIT);
+            ByteBufferUtils.copyBytes(buffers, ioBuffer);
+            ioBuffer.flip();
+            int bytesFlushed;
+            try {
+                bytesFlushed = rawChannel.write(ioBuffer);
+            } catch (IOException e) {
                 closeNow = true;
-                bytesRead = 0;
+                throw e;
             }
-            return bytesRead;
-        } catch (IOException e) {
-            closeNow = true;
-            throw e;
+            flushOperation.incrementIndex(bytesFlushed);
+            totalBytesFlushed += bytesFlushed;
+            continueFlush = ioBuffer.hasRemaining() == false && flushOperation.isFullyFlushed() == false;
         }
-    }
-
-    protected int flushToChannel(ByteBuffer buffer) throws IOException {
-        try {
-            return rawChannel.write(buffer);
-        } catch (IOException e) {
-            closeNow = true;
-            throw e;
-        }
-    }
-
-    protected int flushToChannel(ByteBuffer[] buffers) throws IOException {
-        try {
-            return (int) rawChannel.write(buffers);
-        } catch (IOException e) {
-            closeNow = true;
-            throw e;
-        }
+        return totalBytesFlushed;
     }
 }

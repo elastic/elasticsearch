@@ -1,9 +1,9 @@
 [role="xpack"]
 [testenv="platinum"]
 [[ml-get-snapshot]]
-=== Get Model Snapshots API
+=== Get model snapshots API
 ++++
-<titleabbrev>Get Model Snapshots</titleabbrev>
+<titleabbrev>Get model snapshots</titleabbrev>
 ++++
 
 Retrieves information about model snapshots.
@@ -11,9 +11,9 @@ Retrieves information about model snapshots.
 
 ==== Request
 
-`GET _xpack/ml/anomaly_detectors/<job_id>/model_snapshots` +
+`GET _ml/anomaly_detectors/<job_id>/model_snapshots` +
 
-`GET _xpack/ml/anomaly_detectors/<job_id>/model_snapshots/<snapshot_id>`
+`GET _ml/anomaly_detectors/<job_id>/model_snapshots/<snapshot_id>`
 
 //===== Description
 
@@ -72,7 +72,7 @@ The following example gets model snapshot information for the
 
 [source,js]
 --------------------------------------------------
-GET _xpack/ml/anomaly_detectors/farequote/model_snapshots
+GET _ml/anomaly_detectors/farequote/model_snapshots
 {
   "start": "1491852977000"
 }

@@ -31,7 +31,7 @@ The returned +{response}+ indicates if the put lifecycle policy request was rece
 --------------------------------------------------
 include-tagged::{doc-tests-file}[{api}-response]
 --------------------------------------------------
-<1> Whether or not the put lifecycle policy was acknowledge.
+<1> Whether or not the put lifecycle policy was acknowledged.
 
 include::../execution.asciidoc[]
 

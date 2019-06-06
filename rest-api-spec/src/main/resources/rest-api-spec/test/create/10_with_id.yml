@@ -1,25 +1,22 @@
 ---
 "Create with ID":
+
  - do:
       create:
           index:  test_1
-          type:   test
           id:     1
           body:   { foo: bar }
 
  - match:   { _index:   test_1 }
- - match:   { _type:    test }
  - match:   { _id:      "1"}
  - match:   { _version: 1}
 
  - do:
       get:
           index:  test_1
-          type:   test
           id:     1
 
  - match:   { _index:   test_1 }
- - match:   { _type:    test }
  - match:   { _id:      "1"}
  - match:   { _version: 1}
  - match:   { _source: { foo: bar }}
@@ -28,6 +25,5 @@
       catch:      conflict
       create:
           index:  test_1
-          type:   test
           id:     1
           body:   { foo: bar }

@@ -60,7 +60,6 @@ public class DatafeedUpdate implements ToXContentObject {
         PARSER.declareString(Builder::setJobId, Job.ID);
         PARSER.declareStringArray(Builder::setIndices, DatafeedConfig.INDEXES);
         PARSER.declareStringArray(Builder::setIndices, DatafeedConfig.INDICES);
-        PARSER.declareStringArray(Builder::setTypes, DatafeedConfig.TYPES);
         PARSER.declareString((builder, val) -> builder.setQueryDelay(
             TimeValue.parseTimeValue(val, DatafeedConfig.QUERY_DELAY.getPreferredName())), DatafeedConfig.QUERY_DELAY);
         PARSER.declareString((builder, val) -> builder.setFrequency(
@@ -93,7 +92,6 @@ public class DatafeedUpdate implements ToXContentObject {
     private final TimeValue queryDelay;
     private final TimeValue frequency;
     private final List<String> indices;
-    private final List<String> types;
     private final BytesReference query;
     private final BytesReference aggregations;
     private final List<SearchSourceBuilder.ScriptField> scriptFields;
@@ -101,15 +99,14 @@ public class DatafeedUpdate implements ToXContentObject {
     private final ChunkingConfig chunkingConfig;
     private final DelayedDataCheckConfig delayedDataCheckConfig;
 
-    private DatafeedUpdate(String id, String jobId, TimeValue queryDelay, TimeValue frequency, List<String> indices, List<String> types,
-                           BytesReference query, BytesReference aggregations, List<SearchSourceBuilder.ScriptField> scriptFields,
-                           Integer scrollSize, ChunkingConfig chunkingConfig, DelayedDataCheckConfig delayedDataCheckConfig) {
+    private DatafeedUpdate(String id, String jobId, TimeValue queryDelay, TimeValue frequency, List<String> indices, BytesReference query,
+                           BytesReference aggregations, List<SearchSourceBuilder.ScriptField> scriptFields, Integer scrollSize,
+                           ChunkingConfig chunkingConfig, DelayedDataCheckConfig delayedDataCheckConfig) {
         this.id = id;
         this.jobId = jobId;
         this.queryDelay = queryDelay;
         this.frequency = frequency;
         this.indices = indices;
-        this.types = types;
         this.query = query;
         this.aggregations = aggregations;
         this.scriptFields = scriptFields;
@@ -143,7 +140,6 @@ public class DatafeedUpdate implements ToXContentObject {
         if (aggregations != null) {
             builder.field(DatafeedConfig.AGGREGATIONS.getPreferredName(), asMap(aggregations));
         }
-        addOptionalField(builder, DatafeedConfig.TYPES, types);
         if (scriptFields != null) {
             builder.startObject(DatafeedConfig.SCRIPT_FIELDS.getPreferredName());
             for (SearchSourceBuilder.ScriptField scriptField : scriptFields) {
@@ -180,10 +176,6 @@ public class DatafeedUpdate implements ToXContentObject {
 
     public List<String> getIndices() {
         return indices;
-    }
-
-    public List<String> getTypes() {
-        return types;
     }
 
     public Integer getScrollSize() {
@@ -240,7 +232,6 @@ public class DatafeedUpdate implements ToXContentObject {
             && Objects.equals(this.frequency, that.frequency)
             && Objects.equals(this.queryDelay, that.queryDelay)
             && Objects.equals(this.indices, that.indices)
-            && Objects.equals(this.types, that.types)
             && Objects.equals(asMap(this.query), asMap(that.query))
             && Objects.equals(this.scrollSize, that.scrollSize)
             && Objects.equals(asMap(this.aggregations), asMap(that.aggregations))
@@ -256,7 +247,7 @@ public class DatafeedUpdate implements ToXContentObject {
      */
     @Override
     public int hashCode() {
-        return Objects.hash(id, jobId, frequency, queryDelay, indices, types, asMap(query), scrollSize, asMap(aggregations), scriptFields,
+        return Objects.hash(id, jobId, frequency, queryDelay, indices, asMap(query), scrollSize, asMap(aggregations), scriptFields,
             chunkingConfig, delayedDataCheckConfig);
     }
 
@@ -271,7 +262,6 @@ public class DatafeedUpdate implements ToXContentObject {
         private TimeValue queryDelay;
         private TimeValue frequency;
         private List<String> indices;
-        private List<String> types;
         private BytesReference query;
         private BytesReference aggregations;
         private List<SearchSourceBuilder.ScriptField> scriptFields;
@@ -289,7 +279,6 @@ public class DatafeedUpdate implements ToXContentObject {
             this.queryDelay = config.queryDelay;
             this.frequency = config.frequency;
             this.indices = config.indices;
-            this.types = config.types;
             this.query = config.query;
             this.aggregations = config.aggregations;
             this.scriptFields = config.scriptFields;
@@ -310,11 +299,6 @@ public class DatafeedUpdate implements ToXContentObject {
 
         public Builder setIndices(String... indices) {
             return setIndices(Arrays.asList(indices));
-        }
-
-        public Builder setTypes(List<String> types) {
-            this.types = types;
-            return this;
         }
 
         public Builder setQueryDelay(TimeValue queryDelay) {
@@ -380,7 +364,7 @@ public class DatafeedUpdate implements ToXContentObject {
         }
 
         public DatafeedUpdate build() {
-            return new DatafeedUpdate(id, jobId, queryDelay, frequency, indices, types, query, aggregations, scriptFields, scrollSize,
+            return new DatafeedUpdate(id, jobId, queryDelay, frequency, indices, query, aggregations, scriptFields, scrollSize,
                 chunkingConfig, delayedDataCheckConfig);
         }
 

@@ -30,7 +30,6 @@ import org.elasticsearch.action.support.nodes.TransportNodesAction;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.shard.ShardId;
@@ -49,7 +48,7 @@ import java.util.Map;
 import static java.util.Collections.unmodifiableMap;
 
 /**
- * Transport client that collects snapshot shard statuses from data nodes
+ * Transport action that collects snapshot shard statuses from data nodes
  */
 public class TransportNodesSnapshotsStatus extends TransportNodesAction<TransportNodesSnapshotsStatus.Request,
                                                                         TransportNodesSnapshotsStatus.NodesSnapshotStatus,
@@ -60,18 +59,12 @@ public class TransportNodesSnapshotsStatus extends TransportNodesAction<Transpor
 
     private final SnapshotShardsService snapshotShardsService;
 
-    @Inject
     public TransportNodesSnapshotsStatus(ThreadPool threadPool, ClusterService clusterService,
                                          TransportService transportService, SnapshotShardsService snapshotShardsService,
                                          ActionFilters actionFilters) {
         super(ACTION_NAME, threadPool, clusterService, transportService, actionFilters,
             Request::new, NodeRequest::new, ThreadPool.Names.GENERIC, NodeSnapshotStatus.class);
         this.snapshotShardsService = snapshotShardsService;
-    }
-
-    @Override
-    protected boolean transportCompress() {
-        return true; // compress since the metadata can become large
     }
 
     @Override
@@ -219,7 +212,7 @@ public class TransportNodesSnapshotsStatus extends TransportNodesAction<Transpor
                 int numberOfShards = in.readVInt();
                 Map<ShardId, SnapshotIndexShardStatus> shardMapBuilder = new HashMap<>(numberOfShards);
                 for (int j = 0; j < numberOfShards; j++) {
-                    ShardId shardId =  ShardId.readShardId(in);
+                    ShardId shardId =  new ShardId(in);
                     SnapshotIndexShardStatus status = SnapshotIndexShardStatus.readShardSnapshotStatus(in);
                     shardMapBuilder.put(shardId, status);
                 }

@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.gradle.vagrant
 
-import com.carrotsearch.gradle.junit4.LoggingOutputStream
+import org.elasticsearch.gradle.LoggingOutputStream
 import org.gradle.internal.logging.progress.ProgressLogger
 
 /**

@@ -45,8 +45,6 @@ final class TranslogHeader {
     public static final int VERSION_PRIMARY_TERM = 3; // added primary term
     public static final int CURRENT_VERSION = VERSION_PRIMARY_TERM;
 
-    public static final long UNKNOWN_PRIMARY_TERM = 0L;
-
     private final String translogUUID;
     private final long primaryTerm;
     private final int headerSizeInBytes;
@@ -123,6 +121,9 @@ final class TranslogHeader {
         if (version == VERSION_CHECKSUMS) {
             throw new IllegalStateException("pre-2.0 translog found [" + path + "]");
         }
+        if (version == VERSION_CHECKPOINTS) {
+            throw new IllegalStateException("pre-6.3 translog found [" + path + "]");
+        }
         // Read the translogUUID
         final int uuidLen = in.readInt();
         if (uuidLen > channel.size()) {
@@ -141,17 +142,10 @@ final class TranslogHeader {
                             " this translog file belongs to a different translog");
         }
         // Read the primary term
-        final long primaryTerm;
-        if (version == VERSION_PRIMARY_TERM) {
-            primaryTerm = in.readLong();
-        } else {
-            assert version == VERSION_CHECKPOINTS : "Unknown header version [" + version + "]";
-            primaryTerm = UNKNOWN_PRIMARY_TERM;
-        }
+        assert version == VERSION_PRIMARY_TERM;
+        final long primaryTerm = in.readLong();
         // Verify the checksum
-        if (version >= VERSION_PRIMARY_TERM) {
-            Translog.verifyChecksum(in);
-        }
+        Translog.verifyChecksum(in);
         assert primaryTerm >= 0 : "Primary term must be non-negative [" + primaryTerm + "]; translog path [" + path + "]";
 
         final int headerSizeInBytes = headerSizeInBytes(version, uuid.length);

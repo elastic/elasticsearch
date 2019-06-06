@@ -30,6 +30,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Predicate;
 
 public class PhaseTests extends AbstractXContentTestCase<Phase> {
     private String phaseName;
@@ -62,6 +63,12 @@ public class PhaseTests extends AbstractXContentTestCase<Phase> {
     }
 
     @Override
+    protected Predicate<String> getRandomFieldsExcludeFilter() {
+        // actions are plucked from the named registry, and it fails if the action is not in the named registry
+        return (field) -> field.equals("actions");
+    }
+
+    @Override
     protected NamedXContentRegistry xContentRegistry() {
         List<NamedXContentRegistry.Entry> entries = new ArrayList<>(ClusterModule.getNamedXWriteables());
         entries.add(new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(DeleteAction.NAME), DeleteAction::parse));
@@ -70,7 +77,7 @@ public class PhaseTests extends AbstractXContentTestCase<Phase> {
 
     @Override
     protected boolean supportsUnknownFields() {
-        return false;
+        return true;
     }
 
     public void testDefaultAfter() {

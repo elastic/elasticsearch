@@ -49,8 +49,7 @@ public class GeoPolygonIT extends ESIntegTestCase {
 
     @Override
     protected void setupSuiteScopeCluster() throws Exception {
-        Version version = VersionUtils.randomVersionBetween(random(), Version.V_6_0_0,
-                Version.CURRENT);
+        Version version = VersionUtils.randomIndexCompatibleVersion(random());
         Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
 
         assertAcked(prepareCreate("test").setSettings(settings).addMapping("type1", "location",
@@ -104,7 +103,7 @@ public class GeoPolygonIT extends ESIntegTestCase {
         points.add(new GeoPoint(40.7, -74.0));
         SearchResponse searchResponse = client().prepareSearch("test") // from NY
                 .setQuery(boolQuery().must(geoPolygonQuery("location", points)))
-                .execute().actionGet();
+                .get();
         assertHitCount(searchResponse, 4);
         assertThat(searchResponse.getHits().getHits().length, equalTo(4));
         for (SearchHit hit : searchResponse.getHits()) {
@@ -119,7 +118,7 @@ public class GeoPolygonIT extends ESIntegTestCase {
         points.add(new GeoPoint(40.8, -74.1));
         points.add(new GeoPoint(40.8, -74.0));
         SearchResponse searchResponse = client().prepareSearch("test") // from NY
-                .setQuery(boolQuery().must(geoPolygonQuery("location", points))).execute().actionGet();
+                .setQuery(boolQuery().must(geoPolygonQuery("location", points))).get();
         assertHitCount(searchResponse, 4);
         assertThat(searchResponse.getHits().getHits().length, equalTo(4));
         for (SearchHit hit : searchResponse.getHits()) {
@@ -136,7 +135,7 @@ public class GeoPolygonIT extends ESIntegTestCase {
         points.add(new GeoPoint(40.7, -74.0));
         SearchResponse searchResponse = client().prepareSearch("test") // from NY
             .setQuery(boolQuery().must(geoPolygonQuery("alias", points)))
-            .execute().actionGet();
+            .get();
         assertHitCount(searchResponse, 4);
     }
 }

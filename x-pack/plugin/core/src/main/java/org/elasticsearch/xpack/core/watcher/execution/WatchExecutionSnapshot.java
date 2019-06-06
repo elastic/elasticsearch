@@ -11,18 +11,19 @@ import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.watcher.actions.ActionWrapperResult;
-import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
+import java.time.Instant;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.Map;
 
 public class WatchExecutionSnapshot implements Streamable, ToXContentObject {
 
     private String watchId;
     private String watchRecordId;
-    private DateTime triggeredTime;
-    private DateTime executionTime;
+    private ZonedDateTime triggeredTime;
+    private ZonedDateTime executionTime;
     private ExecutionPhase phase;
     private String[] executedActions;
     private StackTraceElement[] executionStackTrace;
@@ -55,11 +56,11 @@ public class WatchExecutionSnapshot implements Streamable, ToXContentObject {
         return watchRecordId;
     }
 
-    public DateTime triggeredTime() {
+    public ZonedDateTime triggeredTime() {
         return triggeredTime;
     }
 
-    public DateTime executionTime() {
+    public ZonedDateTime executionTime() {
         return executionTime;
     }
 
@@ -75,8 +76,8 @@ public class WatchExecutionSnapshot implements Streamable, ToXContentObject {
     public void readFrom(StreamInput in) throws IOException {
         watchId = in.readString();
         watchRecordId = in.readString();
-        triggeredTime = new DateTime(in.readVLong(), DateTimeZone.UTC);
-        executionTime = new DateTime(in.readVLong(), DateTimeZone.UTC);
+        triggeredTime = Instant.ofEpochMilli(in.readVLong()).atZone(ZoneOffset.UTC);
+        executionTime = Instant.ofEpochMilli(in.readVLong()).atZone(ZoneOffset.UTC);
         phase = ExecutionPhase.resolve(in.readString());
         int size = in.readVInt();
         executionStackTrace = new StackTraceElement[size];
@@ -93,8 +94,8 @@ public class WatchExecutionSnapshot implements Streamable, ToXContentObject {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(watchId);
         out.writeString(watchRecordId);
-        out.writeVLong(triggeredTime.getMillis());
-        out.writeVLong(executionTime.getMillis());
+        out.writeVLong(triggeredTime.toInstant().toEpochMilli());
+        out.writeVLong(executionTime.toInstant().toEpochMilli());
         out.writeString(phase.id());
         out.writeVInt(executionStackTrace.length);
         for (StackTraceElement element : executionStackTrace) {

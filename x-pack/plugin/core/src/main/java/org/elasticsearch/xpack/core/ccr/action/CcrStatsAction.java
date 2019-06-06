@@ -72,8 +72,7 @@ public class CcrStatsAction extends Action<CcrStatsAction.Response> {
         public Response(StreamInput in) throws IOException {
             super(in);
             autoFollowStats = new AutoFollowStats(in);
-            followStats = new FollowStatsAction.StatsResponses();
-            followStats.readFrom(in);
+            followStats = new FollowStatsAction.StatsResponses(in);
         }
 
         public AutoFollowStats getAutoFollowStats() {

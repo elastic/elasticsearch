@@ -25,24 +25,40 @@ public class RollupIndexerJobStats extends IndexerJobStats {
     private static ParseField NUM_INPUT_DOCUMENTS = new ParseField("documents_processed");
     private static ParseField NUM_OUTPUT_DOCUMENTS = new ParseField("rollups_indexed");
     private static ParseField NUM_INVOCATIONS = new ParseField("trigger_count");
+    private static ParseField INDEX_TIME_IN_MS = new ParseField("index_time_in_ms");
+    private static ParseField SEARCH_TIME_IN_MS = new ParseField("search_time_in_ms");
+    private static ParseField INDEX_TOTAL = new ParseField("index_total");
+    private static ParseField SEARCH_TOTAL = new ParseField("search_total");
+    private static ParseField SEARCH_FAILURES = new ParseField("search_failures");
+    private static ParseField INDEX_FAILURES = new ParseField("index_failures");
 
     public static final ConstructingObjectParser<RollupIndexerJobStats, Void> PARSER =
         new ConstructingObjectParser<>(NAME.getPreferredName(),
-            args -> new RollupIndexerJobStats((long) args[0], (long) args[1], (long) args[2], (long) args[3]));
+            args -> new RollupIndexerJobStats((long) args[0], (long) args[1], (long) args[2], (long) args[3],
+                (long) args[4], (long) args[5], (long) args[6], (long) args[7],  (long) args[8], (long) args[9]));
 
     static {
         PARSER.declareLong(constructorArg(), NUM_PAGES);
         PARSER.declareLong(constructorArg(), NUM_INPUT_DOCUMENTS);
         PARSER.declareLong(constructorArg(), NUM_OUTPUT_DOCUMENTS);
         PARSER.declareLong(constructorArg(), NUM_INVOCATIONS);
+        PARSER.declareLong(constructorArg(), INDEX_TIME_IN_MS);
+        PARSER.declareLong(constructorArg(), SEARCH_TIME_IN_MS);
+        PARSER.declareLong(constructorArg(), INDEX_TOTAL);
+        PARSER.declareLong(constructorArg(), SEARCH_TOTAL);
+        PARSER.declareLong(constructorArg(), INDEX_FAILURES);
+        PARSER.declareLong(constructorArg(), SEARCH_FAILURES);
     }
 
     public RollupIndexerJobStats() {
         super();
     }
 
-    public RollupIndexerJobStats(long numPages, long numInputDocuments, long numOuputDocuments, long numInvocations) {
-        super(numPages, numInputDocuments, numOuputDocuments, numInvocations);
+    public RollupIndexerJobStats(long numPages, long numInputDocuments, long numOuputDocuments, long numInvocations,
+                                 long indexTime, long searchTime, long indexTotal, long searchTotal, long indexFailures,
+                                 long searchFailures) {
+        super(numPages, numInputDocuments, numOuputDocuments, numInvocations, indexTime, searchTime,
+            indexTotal, searchTotal, indexFailures, searchFailures);
     }
 
     public RollupIndexerJobStats(StreamInput in) throws IOException {
@@ -56,6 +72,12 @@ public class RollupIndexerJobStats extends IndexerJobStats {
         builder.field(NUM_INPUT_DOCUMENTS.getPreferredName(), numInputDocuments);
         builder.field(NUM_OUTPUT_DOCUMENTS.getPreferredName(), numOuputDocuments);
         builder.field(NUM_INVOCATIONS.getPreferredName(), numInvocations);
+        builder.field(INDEX_TIME_IN_MS.getPreferredName(), indexTime);
+        builder.field(INDEX_TOTAL.getPreferredName(), indexTotal);
+        builder.field(INDEX_FAILURES.getPreferredName(), indexFailures);
+        builder.field(SEARCH_TIME_IN_MS.getPreferredName(), searchTime);
+        builder.field(SEARCH_TOTAL.getPreferredName(), searchTotal);
+        builder.field(SEARCH_FAILURES.getPreferredName(), searchFailures);
         builder.endObject();
         return builder;
     }

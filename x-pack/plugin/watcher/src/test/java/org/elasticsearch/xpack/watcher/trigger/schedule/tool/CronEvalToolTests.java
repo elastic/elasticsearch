@@ -7,8 +7,9 @@ package org.elasticsearch.xpack.watcher.trigger.schedule.tool;
 
 import org.elasticsearch.cli.Command;
 import org.elasticsearch.cli.CommandTestCase;
-import org.joda.time.DateTimeZone;
 
+import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.util.Arrays;
 import java.util.Calendar;
 import java.util.Locale;
@@ -57,7 +58,7 @@ public class CronEvalToolTests extends CommandTestCase {
     // we always have to output in standard locale and independent from timezone
     public void testEnsureDateIsShownInRootLocale() throws Exception {
         String output = execute("-c","1", "0 0 11 ? * MON-SAT 2040");
-        if (TimeZone.getDefault().equals(DateTimeZone.UTC.toTimeZone())) {
+        if (ZoneId.systemDefault().equals(ZoneOffset.UTC)) {
             assertThat(output, not(containsString("local time is")));
             long linesStartingWithOne = Arrays.stream(output.split("\n")).filter(s -> s.startsWith("\t")).count();
             assertThat(linesStartingWithOne, is(0L));

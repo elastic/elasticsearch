@@ -20,6 +20,7 @@
 package org.elasticsearch.action.admin.cluster.node.tasks.list;
 
 import org.elasticsearch.action.Action;
+import org.elasticsearch.common.io.stream.Writeable;
 
 /**
  * Action for retrieving a list of currently running tasks
@@ -35,6 +36,11 @@ public class ListTasksAction extends Action<ListTasksResponse> {
 
     @Override
     public ListTasksResponse newResponse() {
-        return new ListTasksResponse();
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
+    }
+
+    @Override
+    public Writeable.Reader<ListTasksResponse> getResponseReader() {
+        return ListTasksResponse::new;
     }
 }

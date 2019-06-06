@@ -57,11 +57,10 @@ public final class CustomNormalizerProvider extends AbstractIndexAnalyzerProvide
                 throw new IllegalArgumentException("Custom normalizer [" + name() + "] failed to find char_filter under name ["
                         + charFilterName + "]");
             }
-            if (charFilter instanceof MultiTermAwareComponent == false) {
+            if (charFilter instanceof NormalizingCharFilterFactory == false) {
                 throw new IllegalArgumentException("Custom normalizer [" + name() + "] may not use char filter ["
                         + charFilterName + "]");
             }
-            charFilter = (CharFilterFactory) ((MultiTermAwareComponent) charFilter).getMultiTermComponent();
             charFiltersList.add(charFilter);
         }
 
@@ -73,10 +72,9 @@ public final class CustomNormalizerProvider extends AbstractIndexAnalyzerProvide
                 throw new IllegalArgumentException("Custom Analyzer [" + name() + "] failed to find filter under name ["
                         + tokenFilterName + "]");
             }
-            if (tokenFilter instanceof MultiTermAwareComponent == false) {
+            if (tokenFilter instanceof NormalizingTokenFilterFactory == false) {
                 throw new IllegalArgumentException("Custom normalizer [" + name() + "] may not use filter [" + tokenFilterName + "]");
             }
-            tokenFilter = (TokenFilterFactory) ((MultiTermAwareComponent) tokenFilter).getMultiTermComponent();
             tokenFilterList.add(tokenFilter);
         }
 

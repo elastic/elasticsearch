@@ -67,16 +67,7 @@ public class TransportDeleteSnapshotAction extends TransportMasterNodeAction<Del
     @Override
     protected void masterOperation(final DeleteSnapshotRequest request, ClusterState state,
                                    final ActionListener<AcknowledgedResponse> listener) {
-        snapshotsService.deleteSnapshot(request.repository(), request.snapshot(), new SnapshotsService.DeleteSnapshotListener() {
-            @Override
-            public void onResponse() {
-                listener.onResponse(new AcknowledgedResponse(true));
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                listener.onFailure(e);
-            }
-        }, false);
+        snapshotsService.deleteSnapshot(request.repository(), request.snapshot(),
+            ActionListener.map(listener, v -> new AcknowledgedResponse(true)), false);
     }
 }

@@ -14,13 +14,13 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.xcontent.ObjectPath;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.rest.ESRestTestCase;
-import org.elasticsearch.common.xcontent.ObjectPath;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -32,7 +32,7 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
+import static org.elasticsearch.xpack.test.SecuritySettingsSourceField.basicAuthHeaderValue;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.isOneOf;
 
@@ -69,7 +69,7 @@ public class RollupIT extends ESRestTestCase {
         try (XContentBuilder builder = jsonBuilder()) {
             builder.startObject();
             {
-                builder.startObject("mappings").startObject("_doc")
+                builder.startObject("mappings")
                     .startObject("properties")
                     .startObject("timestamp")
                     .field("type", "date")
@@ -77,7 +77,6 @@ public class RollupIT extends ESRestTestCase {
                     .endObject()
                     .startObject("value")
                     .field("type", "integer")
-                    .endObject()
                     .endObject()
                     .endObject().endObject();
             }
@@ -92,7 +91,7 @@ public class RollupIT extends ESRestTestCase {
         // index documents for the rollup job
         final StringBuilder bulk = new StringBuilder();
         for (int i = 0; i < numDocs; i++) {
-            bulk.append("{\"index\":{\"_index\":\"rollup-docs\",\"_type\":\"_doc\"}}\n");
+            bulk.append("{\"index\":{\"_index\":\"rollup-docs\"}}\n");
             ZonedDateTime zdt = ZonedDateTime.ofInstant(Instant.ofEpochSecond(1531221196 + (60*i)), ZoneId.of("UTC"));
             String date = zdt.format(DateTimeFormatter.ISO_OFFSET_DATE_TIME);
             bulk.append("{\"timestamp\":\"").append(date).append("\",\"value\":").append(i).append("}\n");
@@ -105,7 +104,7 @@ public class RollupIT extends ESRestTestCase {
         client().performRequest(bulkRequest);
 
         // create the rollup job
-        final Request createRollupJobRequest = new Request("PUT", "/_xpack/rollup/job/rollup-job-test");
+        final Request createRollupJobRequest = new Request("PUT", "/_rollup/job/rollup-job-test");
         int pageSize = randomIntBetween(2, 50);
         createRollupJobRequest.setJsonEntity("{"
             + "\"index_pattern\":\"rollup-*\","
@@ -115,7 +114,7 @@ public class RollupIT extends ESRestTestCase {
             + "\"groups\":{"
             + "    \"date_histogram\":{"
             + "        \"field\":\"timestamp\","
-            + "        \"interval\":\"5m\""
+            + "        \"fixed_interval\":\"5m\""
             + "      }"
             + "},"
             + "\"metrics\":["
@@ -127,7 +126,7 @@ public class RollupIT extends ESRestTestCase {
         assertThat(createRollupJobResponse.get("acknowledged"), equalTo(Boolean.TRUE));
 
         // start the rollup job
-        final Request startRollupJobRequest = new Request("POST", "_xpack/rollup/job/rollup-job-test/_start");
+        final Request startRollupJobRequest = new Request("POST", "_rollup/job/rollup-job-test/_start");
         Map<String, Object> startRollupJobResponse = toMap(client().performRequest(startRollupJobRequest));
         assertThat(startRollupJobResponse.get("started"), equalTo(Boolean.TRUE));
 
@@ -135,7 +134,7 @@ public class RollupIT extends ESRestTestCase {
 
         // Wait for the job to finish, by watching how many rollup docs we've indexed
         assertBusy(() -> {
-            final Request getRollupJobRequest = new Request("GET", "_xpack/rollup/job/rollup-job-test");
+            final Request getRollupJobRequest = new Request("GET", "_rollup/job/rollup-job-test");
             Response getRollupJobResponse = client().performRequest(getRollupJobRequest);
             assertThat(getRollupJobResponse.getStatusLine().getStatusCode(), equalTo(RestStatus.OK.getStatus()));
 
@@ -159,7 +158,7 @@ public class RollupIT extends ESRestTestCase {
             "    \"date_histo\": {\n" +
             "      \"date_histogram\": {\n" +
             "        \"field\": \"timestamp\",\n" +
-            "        \"interval\": \"60m\",\n" +
+            "        \"fixed_interval\": \"60m\",\n" +
             "        \"format\": \"date_time\"\n" +
             "      },\n" +
             "      \"aggs\": {\n" +
@@ -204,7 +203,7 @@ public class RollupIT extends ESRestTestCase {
         waitForRollUpJob(rollupJob, states);
 
         // check that the rollup job is started using the RollUp API
-        final Request getRollupJobRequest = new Request("GET", "_xpack/rollup/job/" + rollupJob);
+        final Request getRollupJobRequest = new Request("GET", "_rollup/job/" + rollupJob);
         Map<String, Object> getRollupJobResponse = toMap(client().performRequest(getRollupJobRequest));
         Map<String, Object> job = getJob(getRollupJobResponse, rollupJob);
         if (job != null) {
@@ -246,7 +245,7 @@ public class RollupIT extends ESRestTestCase {
 
     private void waitForRollUpJob(final String rollupJob, String[] expectedStates) throws Exception {
         assertBusy(() -> {
-            final Request getRollupJobRequest = new Request("GET", "_xpack/rollup/job/" + rollupJob);
+            final Request getRollupJobRequest = new Request("GET", "_rollup/job/" + rollupJob);
             Response getRollupJobResponse = client().performRequest(getRollupJobRequest);
             assertThat(getRollupJobResponse.getStatusLine().getStatusCode(), equalTo(RestStatus.OK.getStatus()));
 

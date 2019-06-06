@@ -1,10 +1,10 @@
 ---
 "Missing metadata":
 
+
   - do:
       index:
           index:  test_1
-          type:   test
           id:     1
           body:   { foo: bar }
 
@@ -13,14 +13,14 @@
       mget:
         body:
           docs:
-            - { _index: test_1, _type: test}
+            - { _index: test_1 }
 
   - do:
       catch: /action_request_validation_exception.+ index is missing/
       mget:
         body:
           docs:
-            - { _type: test, _id: 1}
+            - { _id: 1 }
 
   - do:
       catch: /action_request_validation_exception.+ no documents to get/
@@ -41,7 +41,7 @@
 
   - is_true: docs.0.found
   - match: { docs.0._index:     test_1      }
-  - match: { docs.0._type:      test        }
+  - match: { docs.0._type:      _doc        }
   - match: { docs.0._id:        "1"         }
   - match: { docs.0._version:   1           }
   - match: { docs.0._source:    { foo: bar }}

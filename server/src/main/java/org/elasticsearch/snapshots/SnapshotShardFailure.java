@@ -27,7 +27,6 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.shard.ShardId;
@@ -100,7 +99,7 @@ public class SnapshotShardFailure extends ShardOperationFailedException {
     @Override
     public void readFrom(StreamInput in) throws IOException {
         nodeId = in.readOptionalString();
-        shardId = ShardId.readShardId(in);
+        shardId = new ShardId(in);
         super.shardId = shardId.getId();
         index = shardId.getIndexName();
         reason = in.readString();
@@ -123,19 +122,6 @@ public class SnapshotShardFailure extends ShardOperationFailedException {
             ", nodeId='" + nodeId + '\'' +
             ", status=" + status +
             '}';
-    }
-
-    /**
-     * Serializes snapshot failure information into JSON
-     *
-     * @param snapshotShardFailure snapshot failure information
-     * @param builder              XContent builder
-     * @param params               additional parameters
-     */
-    public static void toXContent(SnapshotShardFailure snapshotShardFailure, XContentBuilder builder, ToXContent.Params params) throws IOException {
-        builder.startObject();
-        snapshotShardFailure.toXContent(builder, params);
-        builder.endObject();
     }
 
     static final ConstructingObjectParser<SnapshotShardFailure, Void> SNAPSHOT_SHARD_FAILURE_PARSER =
@@ -169,16 +155,6 @@ public class SnapshotShardFailure extends ShardOperationFailedException {
 
         ShardId shardId = new ShardId(index, indexUuid != null ? indexUuid : IndexMetaData.INDEX_UUID_NA_VALUE, intShardId);
 
-        // Workaround for https://github.com/elastic/elasticsearch/issues/25878
-        // Some old snapshot might still have null in shard failure reasons
-        String nonNullReason;
-        if (reason != null) {
-            nonNullReason = reason;
-        } else {
-            nonNullReason = "";
-        }
-
-
         RestStatus restStatus;
         if (status != null) {
             restStatus = RestStatus.valueOf(status);
@@ -186,7 +162,7 @@ public class SnapshotShardFailure extends ShardOperationFailedException {
             restStatus = RestStatus.INTERNAL_SERVER_ERROR;
         }
 
-        return new SnapshotShardFailure(nodeId, shardId, nonNullReason, restStatus);
+        return new SnapshotShardFailure(nodeId, shardId, reason, restStatus);
     }
 
     /**
@@ -201,6 +177,7 @@ public class SnapshotShardFailure extends ShardOperationFailedException {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
         builder.field("index", shardId.getIndexName());
         builder.field("index_uuid", shardId.getIndexName());
         builder.field("shard_id", shardId.id());
@@ -209,6 +186,7 @@ public class SnapshotShardFailure extends ShardOperationFailedException {
             builder.field("node_id", nodeId);
         }
         builder.field("status", status.name());
+        builder.endObject();
         return builder;
     }
 

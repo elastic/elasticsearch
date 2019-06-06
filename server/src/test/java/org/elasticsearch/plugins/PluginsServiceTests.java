@@ -19,7 +19,7 @@
 
 package org.elasticsearch.plugins;
 
-import org.apache.log4j.Level;
+import org.apache.logging.log4j.Level;
 import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.Version;
@@ -62,7 +62,10 @@ public class PluginsServiceTests extends ESTestCase {
     public static class AdditionalSettingsPlugin1 extends Plugin {
         @Override
         public Settings additionalSettings() {
-            return Settings.builder().put("foo.bar", "1").put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), IndexModule.Type.MMAPFS.getSettingsKey()).build();
+            return Settings.builder()
+                .put("foo.bar", "1")
+                .put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), IndexModule.Type.MMAPFS.getSettingsKey())
+                .build();
         }
     }
     public static class AdditionalSettingsPlugin2 extends Plugin {
@@ -75,7 +78,10 @@ public class PluginsServiceTests extends ESTestCase {
     public static class FilterablePlugin extends Plugin implements ScriptPlugin {}
 
     static PluginsService newPluginsService(Settings settings, Class<? extends Plugin>... classpathPlugins) {
-        return new PluginsService(settings, null, null, TestEnvironment.newEnvironment(settings).pluginsFile(), Arrays.asList(classpathPlugins));
+        return new PluginsService(
+            settings, null, null,
+            TestEnvironment.newEnvironment(settings).pluginsFile(), Arrays.asList(classpathPlugins)
+        );
     }
 
     public void testAdditionalSettings() {
@@ -87,7 +93,10 @@ public class PluginsServiceTests extends ESTestCase {
         Settings newSettings = service.updatedSettings();
         assertEquals("test", newSettings.get("my.setting")); // previous settings still exist
         assertEquals("1", newSettings.get("foo.bar")); // added setting exists
-        assertEquals(IndexModule.Type.SIMPLEFS.getSettingsKey(), newSettings.get(IndexModule.INDEX_STORE_TYPE_SETTING.getKey())); // does not override pre existing settings
+        assertEquals(
+            IndexModule.Type.SIMPLEFS.getSettingsKey(),
+            newSettings.get(IndexModule.INDEX_STORE_TYPE_SETTING.getKey())
+        ); // does not override pre existing settings
     }
 
     public void testAdditionalSettingsClash() {
@@ -162,7 +171,15 @@ public class PluginsServiceTests extends ESTestCase {
             if (Constants.WINDOWS) {
                 assertThat(e.getCause(), instanceOf(NoSuchFileException.class));
             } else {
-                assertThat(e.getCause(), hasToString(containsString("Not a directory")));
+                // force a "Not a directory" exception to be thrown so that we can extract the locale-dependent message
+                final String expected;
+                try (InputStream ignored = Files.newInputStream(desktopServicesStore.resolve("not-a-directory"))) {
+                    throw new AssertionError();
+                } catch (final FileSystemException inner) {
+                    // locale-dependent translation of "Not a directory"
+                    expected = inner.getReason();
+                }
+                assertThat(e.getCause(), hasToString(containsString(expected)));
             }
         }
     }
@@ -228,8 +245,10 @@ public class PluginsServiceTests extends ESTestCase {
 
         final Path home = createTempDir();
         final Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), home).build();
-        final IllegalStateException e =
-                expectThrows(IllegalStateException.class, () -> newPluginsService(settings, MultiplePublicConstructorsPlugin.class));
+        final IllegalStateException e = expectThrows(
+            IllegalStateException.class,
+            () -> newPluginsService(settings, MultiplePublicConstructorsPlugin.class)
+        );
         assertThat(e, hasToString(containsString("no unique public constructor")));
     }
 
@@ -590,7 +609,7 @@ public class PluginsServiceTests extends ESTestCase {
     }
 
     public void testIncompatibleElasticsearchVersion() throws Exception {
-        PluginInfo info = new PluginInfo("my_plugin", "desc", "1.0", Version.V_6_0_0,
+        PluginInfo info = new PluginInfo("my_plugin", "desc", "1.0", Version.fromId(6000099),
             "1.8", "FakePlugin", Collections.emptyList(), false);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> PluginsService.verifyCompatibility(info));
         assertThat(e.getMessage(), containsString("was built for Elasticsearch version 6.0.0"));

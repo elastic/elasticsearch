@@ -1,0 +1,49 @@
+[role="xpack"]
+[testenv="platinum"]
+[[sql-client-apps-tableau]]
+=== Tableau Desktop
+
+[quote, https://www.tableau.com/products/what-is-tableau]
+____
+https://www.tableau.com/products/desktop[Tableau] is the most powerful, secure, and flexible end-to-end analytics platform
+for your data.
+____
+
+IMPORTANT: Elastic does not endorse, promote or provide support for this application; for native Elasticsearch integration in this product, please reach out to its vendor.
+
+==== Prerequisites
+
+* Tableau 2018 or higher
+* {es-sql} <<sql-odbc, ODBC driver>>
+* A preconfigured User or System DSN (see <<dsn-configuration,Configuration>> section on how to configure a DSN).
+
+==== Data loading
+
+First, you'll need to choose ODBC as the source to load data from. Once launched, click on the _More..._ menu item and in the expanded
+list of connectors, choose _Other Databases (ODBC)_:
+
+[[apps_tableau_fromodbc]]
+.ODBC as data source
+image:images/sql/odbc/apps_tableau_fromodbc.png[]
+
+In the new connection window that appears, select the previously configured DSN that will connect to the desired {es} instance. Press the
+_Connect_ button. In case credentials are needed, a new windows - driver's DSN editor - will be launched and you'll need to provide the
+_Username_ and _Password_ in the respective fields. (Note that these will not be stored as part of the DSN, but only remembered for the
+duration of the session).
+If the connection is successful, the _Connection Attributes_ section of the connection window is populated with the respective details;
+press the _Sign In_ button next:
+
+[[apps_tableau_connd]]
+.Authenticate and sign in
+image:images/sql/odbc/apps_tableau_connd.png[]
+
+In Tableau Desktop's main window then choose the name of {es} instance as the _Database_, select one table that you'd like to load from
+the list (click on the magnifying glass icon to have them all shown), drag the table over the work area, then click the _Update Now_
+button to load a preview of the table:
+
+[[apps_tableau_loaded]]
+.Data loaded
+image:images/sql/odbc/apps_tableau_loaded.png[]
+
+
+// vim: set noet fenc=utf-8 ff=dos sts=0 sw=4 ts=4 tw=138 columns=140

@@ -4,7 +4,39 @@
     "methods": ["GET"],
     "url": {
       "path": "/_nodes/hot_threads",
-      "paths": ["/_cluster/nodes/hotthreads", "/_cluster/nodes/hot_threads", "/_cluster/nodes/{node_id}/hotthreads", "/_cluster/nodes/{node_id}/hot_threads", "/_nodes/hotthreads", "/_nodes/hot_threads", "/_nodes/{node_id}/hotthreads", "/_nodes/{node_id}/hot_threads"],
+      "paths": ["/_nodes/hot_threads",  "/_nodes/{node_id}/hot_threads"],
+      "deprecated_paths" : [
+        {
+          "version" : "7.0.0",
+          "path" : "/_cluster/nodes/hotthreads",
+          "description" : "The hot threads API accepts `hotthreads` but only `hot_threads` is documented"
+        },
+        {
+          "version" : "7.0.0",
+          "path" : "/_cluster/nodes/{node_id}/hotthreads",
+          "description" : "The hot threads API accepts `hotthreads` but only `hot_threads` is documented"
+        },
+        {
+          "version" : "7.0.0",
+          "path" : "/_nodes/hotthreads",
+          "description" : "The hot threads API accepts `hotthreads` but only `hot_threads` is documented"
+        },
+        {
+          "version" : "7.0.0",
+          "path" : "/_nodes/{node_id}/hotthreads",
+          "description" : "The hot threads API accepts `hotthreads` but only `hot_threads` is documented"
+        },
+        {
+          "version" : "7.0.0",
+          "path" : "/_cluster/nodes/hot_threads",
+          "description" : "The hot accepts /_cluster/nodes as prefix for backwards compatibility reasons"
+        },
+        {
+          "version" : "7.0.0",
+          "path" :"/_cluster/nodes/{node_id}/hot_threads",
+          "description" : "The hot accepts /_cluster/nodes as prefix for backwards compatibility reasons"
+        }
+      ],
       "parts": {
         "node_id": {
           "type" : "list",

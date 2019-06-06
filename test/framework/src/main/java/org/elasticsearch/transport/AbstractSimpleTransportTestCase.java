@@ -19,6 +19,8 @@
 
 package org.elasticsearch.transport;
 
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.util.CollectionUtil;
@@ -29,29 +31,30 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.network.CloseableChannel;
-import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.network.NetworkUtils;
 import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.internal.io.IOUtils;
-import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.mocksocket.MockServerSocket;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.test.transport.StubbableTransport;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -104,10 +107,10 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
     private static final Version CURRENT_VERSION = Version.fromString(String.valueOf(Version.CURRENT.major) + ".0.0");
     protected static final Version version0 = CURRENT_VERSION.minimumCompatibilityVersion();
 
-    private ClusterSettings clusterSettings;
 
     protected volatile DiscoveryNode nodeA;
     protected volatile MockTransportService serviceA;
+    protected ClusterSettings clusterSettingsA;
 
     protected static final Version version1 = Version.fromId(CURRENT_VERSION.id + 1);
     protected volatile DiscoveryNode nodeB;
@@ -120,21 +123,25 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         return 6;
     }
 
+    protected Set<Setting<?>> getSupportedSettings() {
+        return ClusterSettings.BUILT_IN_CLUSTER_SETTINGS;
+    }
+
     @Override
     @Before
     public void setUp() throws Exception {
         super.setUp();
         threadPool = new TestThreadPool(getClass().getName());
-        clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        clusterSettingsA = new ClusterSettings(Settings.EMPTY, getSupportedSettings());
         Settings connectionSettings = Settings.builder()
-            .put(TransportService.CONNECTIONS_PER_NODE_RECOVERY.getKey(), 1)
-            .put(TransportService.CONNECTIONS_PER_NODE_BULK.getKey(), 1)
-            .put(TransportService.CONNECTIONS_PER_NODE_REG.getKey(), 2)
-            .put(TransportService.CONNECTIONS_PER_NODE_STATE.getKey(), 1)
-            .put(TransportService.CONNECTIONS_PER_NODE_PING.getKey(), 1)
+            .put(TransportSettings.CONNECTIONS_PER_NODE_RECOVERY.getKey(), 1)
+            .put(TransportSettings.CONNECTIONS_PER_NODE_BULK.getKey(), 1)
+            .put(TransportSettings.CONNECTIONS_PER_NODE_REG.getKey(), 2)
+            .put(TransportSettings.CONNECTIONS_PER_NODE_STATE.getKey(), 1)
+            .put(TransportSettings.CONNECTIONS_PER_NODE_PING.getKey(), 1)
             .build();
 
-        serviceA = buildService("TS_A",  version0, clusterSettings, connectionSettings); // this one supports dynamic tracer updates
+        serviceA = buildService("TS_A",  version0, clusterSettingsA, connectionSettings); // this one supports dynamic tracer updates
         nodeA = serviceA.getLocalNode();
         serviceB = buildService("TS_B", version1, null, connectionSettings); // this one doesn't support dynamic tracer updates
         nodeB = serviceB.getLocalNode();
@@ -165,25 +172,24 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         serviceB.removeConnectionListener(waitForConnection);
     }
 
-    private MockTransportService buildService(final String name, final Version version, ClusterSettings clusterSettings,
+    private MockTransportService buildService(final String name, final Version version, @Nullable ClusterSettings clusterSettings,
                                               Settings settings, boolean acceptRequests, boolean doHandshake) {
-        MockTransportService service = build(
-                Settings.builder()
-                        .put(settings)
-                        .put(Node.NODE_NAME_SETTING.getKey(), name)
-                        .put(TransportService.TRACE_LOG_INCLUDE_SETTING.getKey(), "")
-                        .put(TransportService.TRACE_LOG_EXCLUDE_SETTING.getKey(), "NOTHING")
-                        .build(),
-                version,
-                clusterSettings, doHandshake);
+        Settings updatedSettings = Settings.builder()
+            .put(settings)
+            .put(Node.NODE_NAME_SETTING.getKey(), name)
+            .build();
+        if (clusterSettings == null) {
+            clusterSettings = new ClusterSettings(updatedSettings, getSupportedSettings());
+        }
+        MockTransportService service = build(updatedSettings, version, clusterSettings, doHandshake);
         if (acceptRequests) {
             service.acceptIncomingRequests();
         }
         return service;
     }
 
-    protected MockTransportService buildService(final String name, final Version version, ClusterSettings clusterSettings) {
-        return buildService(name, version, clusterSettings, Settings.EMPTY);
+    protected MockTransportService buildService(final String name, final Version version, Settings settings) {
+        return buildService(name, version, null, settings);
     }
 
     protected MockTransportService buildService(final String name, final Version version, ClusterSettings clusterSettings,
@@ -260,7 +266,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         }
 
         res = serviceB.submitRequest(nodeA, "internal:sayHello", new StringMessageRequest("moshe"),
-            TransportRequestOptions.builder().withCompress(true).build(), new TransportResponseHandler<StringMessageResponse>() {
+            TransportRequestOptions.EMPTY, new TransportResponseHandler<StringMessageResponse>() {
                 @Override
                 public StringMessageResponse read(StreamInput in) throws IOException {
                     return new StringMessageResponse(in);
@@ -391,7 +397,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         assertThat(responseString.get(), equalTo("test"));
     }
 
-    public void testAdapterSendReceiveCallbacks() throws Exception {
+    public void testMessageListeners() throws Exception {
         final TransportRequestHandler<TransportRequest.Empty> requestHandler = (request, channel, task) -> {
             try {
                 if (randomBoolean()) {
@@ -410,62 +416,62 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         serviceB.registerRequestHandler(ACTION, TransportRequest.Empty::new, ThreadPool.Names.GENERIC,
             requestHandler);
 
-
-        class CountingTracer extends MockTransportService.Tracer {
+        class CountingListener implements TransportMessageListener {
             AtomicInteger requestsReceived = new AtomicInteger();
             AtomicInteger requestsSent = new AtomicInteger();
             AtomicInteger responseReceived = new AtomicInteger();
             AtomicInteger responseSent = new AtomicInteger();
 
             @Override
-            public void receivedRequest(long requestId, String action) {
+            public void onRequestReceived(long requestId, String action) {
                 if (action.equals(ACTION)) {
                     requestsReceived.incrementAndGet();
                 }
             }
 
             @Override
-            public void responseSent(long requestId, String action) {
+            public void onResponseSent(long requestId, String action, TransportResponse response) {
                 if (action.equals(ACTION)) {
                     responseSent.incrementAndGet();
                 }
             }
 
             @Override
-            public void responseSent(long requestId, String action, Throwable t) {
+            public void onResponseSent(long requestId, String action, Exception error) {
                 if (action.equals(ACTION)) {
                     responseSent.incrementAndGet();
                 }
             }
 
             @Override
-            public void receivedResponse(long requestId, DiscoveryNode sourceNode, String action) {
-                if (action.equals(ACTION)) {
+            public void onResponseReceived(long requestId, Transport.ResponseContext context) {
+                if (context.action().equals(ACTION)) {
                     responseReceived.incrementAndGet();
                 }
             }
 
             @Override
-            public void requestSent(DiscoveryNode node, long requestId, String action, TransportRequestOptions options) {
+            public void onRequestSent(DiscoveryNode node, long requestId, String action, TransportRequest request,
+                                      TransportRequestOptions options) {
                 if (action.equals(ACTION)) {
                     requestsSent.incrementAndGet();
                 }
             }
         }
-        final CountingTracer tracerA = new CountingTracer();
-        final CountingTracer tracerB = new CountingTracer();
-        serviceA.addTracer(tracerA);
-        serviceB.addTracer(tracerB);
+
+        final CountingListener tracerA = new CountingListener();
+        final CountingListener tracerB = new CountingListener();
+        serviceA.addMessageListener(tracerA);
+        serviceB.addMessageListener(tracerB);
 
         try {
-            serviceA
-                .submitRequest(nodeB, ACTION, TransportRequest.Empty.INSTANCE, EmptyTransportResponseHandler.INSTANCE_SAME).get();
+            serviceA.submitRequest(nodeB, ACTION, TransportRequest.Empty.INSTANCE, EmptyTransportResponseHandler.INSTANCE_SAME).get();
         } catch (ExecutionException e) {
             assertThat(e.getCause(), instanceOf(ElasticsearchException.class));
             assertThat(ExceptionsHelper.unwrapCause(e.getCause()).getMessage(), equalTo("simulated"));
         }
 
-        // use assert busy as call backs are sometime called after the response have been sent
+        // use assert busy as callbacks are called on a different thread
         assertBusy(() -> {
             assertThat(tracerA.requestsReceived.get(), equalTo(0));
             assertThat(tracerA.requestsSent.get(), equalTo(1));
@@ -478,28 +484,47 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         });
 
         try {
-            serviceA
-                .submitRequest(nodeA, ACTION, TransportRequest.Empty.INSTANCE, EmptyTransportResponseHandler.INSTANCE_SAME).get();
+            serviceB.submitRequest(nodeA, ACTION, TransportRequest.Empty.INSTANCE, EmptyTransportResponseHandler.INSTANCE_SAME).get();
         } catch (ExecutionException e) {
             assertThat(e.getCause(), instanceOf(ElasticsearchException.class));
             assertThat(ExceptionsHelper.unwrapCause(e.getCause()).getMessage(), equalTo("simulated"));
         }
 
-        // use assert busy as call backs are sometime called after the response have been sent
+        // use assert busy as callbacks are called on a different thread
         assertBusy(() -> {
             assertThat(tracerA.requestsReceived.get(), equalTo(1));
-            assertThat(tracerA.requestsSent.get(), equalTo(2));
-            assertThat(tracerA.responseReceived.get(), equalTo(2));
+            assertThat(tracerA.requestsSent.get(), equalTo(1));
+            assertThat(tracerA.responseReceived.get(), equalTo(1));
             assertThat(tracerA.responseSent.get(), equalTo(1));
             assertThat(tracerB.requestsReceived.get(), equalTo(1));
-            assertThat(tracerB.requestsSent.get(), equalTo(0));
-            assertThat(tracerB.responseReceived.get(), equalTo(0));
+            assertThat(tracerB.requestsSent.get(), equalTo(1));
+            assertThat(tracerB.responseReceived.get(), equalTo(1));
+            assertThat(tracerB.responseSent.get(), equalTo(1));
+        });
+
+        // use assert busy as callbacks are called on a different thread
+        try {
+            serviceA.submitRequest(nodeA, ACTION, TransportRequest.Empty.INSTANCE, EmptyTransportResponseHandler.INSTANCE_SAME).get();
+        } catch (ExecutionException e) {
+            assertThat(e.getCause(), instanceOf(ElasticsearchException.class));
+            assertThat(ExceptionsHelper.unwrapCause(e.getCause()).getMessage(), equalTo("simulated"));
+        }
+
+        // use assert busy as callbacks are called on a different thread
+        assertBusy(() -> {
+            assertThat(tracerA.requestsReceived.get(), equalTo(2));
+            assertThat(tracerA.requestsSent.get(), equalTo(2));
+            assertThat(tracerA.responseReceived.get(), equalTo(2));
+            assertThat(tracerA.responseSent.get(), equalTo(2));
+            assertThat(tracerB.requestsReceived.get(), equalTo(1));
+            assertThat(tracerB.requestsSent.get(), equalTo(1));
+            assertThat(tracerB.responseReceived.get(), equalTo(1));
             assertThat(tracerB.responseSent.get(), equalTo(1));
         });
     }
 
     public void testVoidMessageCompressed() {
-        try (MockTransportService serviceC = build(Settings.EMPTY, CURRENT_VERSION, null, true)) {
+        try (MockTransportService serviceC = buildService("TS_C", CURRENT_VERSION, Settings.EMPTY)) {
             serviceC.start();
             serviceC.acceptIncomingRequests();
 
@@ -513,13 +538,13 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                     }
                 });
 
-            Settings settingsWithCompress = Settings.builder().put(Transport.TRANSPORT_TCP_COMPRESS.getKey(), true).build();
+            Settings settingsWithCompress = Settings.builder().put(TransportSettings.TRANSPORT_COMPRESS.getKey(), true).build();
             ConnectionProfile connectionProfile = ConnectionProfile.buildDefaultConnectionProfile(settingsWithCompress);
             serviceC.connectToNode(serviceA.getLocalDiscoNode(), connectionProfile);
 
 
             TransportFuture<TransportResponse.Empty> res = serviceC.submitRequest(nodeA, "internal:sayHello",
-                TransportRequest.Empty.INSTANCE, TransportRequestOptions.builder().withCompress(true).build(),
+                TransportRequest.Empty.INSTANCE, TransportRequestOptions.EMPTY,
                 new TransportResponseHandler<TransportResponse.Empty>() {
                     @Override
                     public TransportResponse.Empty read(StreamInput in) {
@@ -552,7 +577,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
     }
 
     public void testHelloWorldCompressed() throws IOException {
-        try (MockTransportService serviceC = build(Settings.EMPTY, CURRENT_VERSION, null, true)) {
+        try (MockTransportService serviceC = buildService("TS_C", CURRENT_VERSION,  Settings.EMPTY)) {
             serviceC.start();
             serviceC.acceptIncomingRequests();
 
@@ -567,12 +592,12 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                     }
                 });
 
-            Settings settingsWithCompress = Settings.builder().put(Transport.TRANSPORT_TCP_COMPRESS.getKey(), true).build();
+            Settings settingsWithCompress = Settings.builder().put(TransportSettings.TRANSPORT_COMPRESS.getKey(), true).build();
             ConnectionProfile connectionProfile = ConnectionProfile.buildDefaultConnectionProfile(settingsWithCompress);
             serviceC.connectToNode(serviceA.getLocalDiscoNode(), connectionProfile);
 
             TransportFuture<StringMessageResponse> res = serviceC.submitRequest(nodeA, "internal:sayHello",
-                new StringMessageRequest("moshe"), TransportRequestOptions.builder().withCompress(true).build(),
+                new StringMessageRequest("moshe"), TransportRequestOptions.EMPTY,
                 new TransportResponseHandler<StringMessageResponse>() {
                     @Override
                     public StringMessageResponse read(StreamInput in) throws IOException {
@@ -766,7 +791,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             if (i % 3 == 0) {
                 // simulate restart of nodeB
                 serviceB.close();
-                MockTransportService newService = buildService("TS_B_" + i, version1, null);
+                MockTransportService newService = buildService("TS_B_" + i, version1, Settings.EMPTY);
                 newService.registerRequestHandler("internal:test", TestRequest::new, ThreadPool.Names.SAME, ignoringRequestHandler);
                 serviceB = newService;
                 nodeB = newService.getLocalDiscoNode();
@@ -967,20 +992,17 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         assertTrue(inFlight.tryAcquire(Integer.MAX_VALUE, 10, TimeUnit.SECONDS));
     }
 
-    public void testTracerLog() throws InterruptedException {
+    @TestLogging(value = "org.elasticsearch.transport.TransportService.tracer:trace")
+    public void testTracerLog() throws Exception {
         TransportRequestHandler<TransportRequest> handler = (request, channel, task) -> channel.sendResponse(new StringMessageResponse(""));
-        TransportRequestHandler<StringMessageRequest> handlerWithError = new TransportRequestHandler<StringMessageRequest>() {
-            @Override
-            public void messageReceived(StringMessageRequest request, TransportChannel channel, Task task) throws Exception {
-                if (request.timeout() > 0) {
-                    Thread.sleep(request.timeout);
-                }
-                channel.sendResponse(new RuntimeException(""));
-
+        TransportRequestHandler<StringMessageRequest> handlerWithError = (request, channel, task) -> {
+            if (request.timeout() > 0) {
+                Thread.sleep(request.timeout);
             }
+            channel.sendResponse(new RuntimeException(""));
+
         };
 
-        final Semaphore requestCompleted = new Semaphore(0);
         TransportResponseHandler<StringMessageResponse> noopResponseHandler = new TransportResponseHandler<StringMessageResponse>() {
 
             @Override
@@ -990,12 +1012,10 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
             @Override
             public void handleResponse(StringMessageResponse response) {
-                requestCompleted.release();
             }
 
             @Override
             public void handleException(TransportException exp) {
-                requestCompleted.release();
             }
 
             @Override
@@ -1005,145 +1025,97 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         };
 
         serviceA.registerRequestHandler("internal:test", StringMessageRequest::new, ThreadPool.Names.SAME, handler);
+        serviceA.registerRequestHandler("internal:testNotSeen", StringMessageRequest::new, ThreadPool.Names.SAME, handler);
         serviceA.registerRequestHandler("internal:testError", StringMessageRequest::new, ThreadPool.Names.SAME, handlerWithError);
         serviceB.registerRequestHandler("internal:test", StringMessageRequest::new, ThreadPool.Names.SAME, handler);
+        serviceB.registerRequestHandler("internal:testNotSeen", StringMessageRequest::new, ThreadPool.Names.SAME, handler);
         serviceB.registerRequestHandler("internal:testError", StringMessageRequest::new, ThreadPool.Names.SAME, handlerWithError);
-
-        final Tracer tracer = new Tracer(new HashSet<>(Arrays.asList("internal:test", "internal:testError")));
-        // the tracer is invoked concurrently after the actual action is executed. that means a Tracer#requestSent can still be in-flight
-        // from a handshake executed on connect in the setup method. this might confuse this test since it expects exact number of
-        // invocations. To prevent any unrelated events messing with this test we filter on the actions we execute in this test.
-        serviceA.addTracer(tracer);
-        serviceB.addTracer(tracer);
-
-        tracer.reset(4);
-        boolean timeout = randomBoolean();
-        TransportRequestOptions options = timeout ? TransportRequestOptions.builder().withTimeout(1).build() :
-            TransportRequestOptions.EMPTY;
-        serviceA.sendRequest(nodeB, "internal:test", new StringMessageRequest("", 10), options, noopResponseHandler);
-        requestCompleted.acquire();
-        tracer.expectedEvents.get().await();
-        assertThat("didn't see request sent", tracer.sawRequestSent, equalTo(true));
-        assertThat("didn't see request received", tracer.sawRequestReceived, equalTo(true));
-        assertThat("didn't see response sent", tracer.sawResponseSent, equalTo(true));
-        assertThat("didn't see response received", tracer.sawResponseReceived, equalTo(true));
-        assertThat("saw error sent", tracer.sawErrorSent, equalTo(false));
-
-        tracer.reset(4);
-        serviceA.sendRequest(nodeB, "internal:testError", new StringMessageRequest(""), noopResponseHandler);
-        requestCompleted.acquire();
-        tracer.expectedEvents.get().await();
-        assertThat("didn't see request sent", tracer.sawRequestSent, equalTo(true));
-        assertThat("didn't see request received", tracer.sawRequestReceived, equalTo(true));
-        assertThat("saw response sent", tracer.sawResponseSent, equalTo(false));
-        assertThat("didn't see response received", tracer.sawResponseReceived, equalTo(true));
-        assertThat("didn't see error sent", tracer.sawErrorSent, equalTo(true));
 
         String includeSettings;
         String excludeSettings;
         if (randomBoolean()) {
             // sometimes leave include empty (default)
             includeSettings = randomBoolean() ? "*" : "";
-            excludeSettings = "*Error";
+            excludeSettings = "internal:testNotSeen";
         } else {
-            includeSettings = "internal:test";
+            includeSettings = "internal:test,internal:testError";
             excludeSettings = "DOESN'T_MATCH";
         }
-        clusterSettings.applySettings(Settings.builder()
-            .put(TransportService.TRACE_LOG_INCLUDE_SETTING.getKey(), includeSettings)
-            .put(TransportService.TRACE_LOG_EXCLUDE_SETTING.getKey(), excludeSettings)
+        clusterSettingsA.applySettings(Settings.builder()
+            .put(TransportSettings.TRACE_LOG_INCLUDE_SETTING.getKey(), includeSettings)
+            .put(TransportSettings.TRACE_LOG_EXCLUDE_SETTING.getKey(), excludeSettings)
             .build());
 
-        tracer.reset(4);
-        serviceA.sendRequest(nodeB, "internal:test", new StringMessageRequest(""), noopResponseHandler);
-        requestCompleted.acquire();
-        tracer.expectedEvents.get().await();
-        assertThat("didn't see request sent", tracer.sawRequestSent, equalTo(true));
-        assertThat("didn't see request received", tracer.sawRequestReceived, equalTo(true));
-        assertThat("didn't see response sent", tracer.sawResponseSent, equalTo(true));
-        assertThat("didn't see response received", tracer.sawResponseReceived, equalTo(true));
-        assertThat("saw error sent", tracer.sawErrorSent, equalTo(false));
+        MockLogAppender appender = new MockLogAppender();
+        try {
+            appender.start();
+            Loggers.addAppender(LogManager.getLogger("org.elasticsearch.transport.TransportService.tracer"), appender);
+            final String requestSent = ".*\\[internal:test].*sent to.*\\{TS_B}.*";
+            final MockLogAppender.LoggingExpectation requestSentExpectation =
+                new MockLogAppender.PatternSeenEventExpectation(
+                    "sent request", "org.elasticsearch.transport.TransportService.tracer", Level.TRACE, requestSent);
+            final String requestReceived = ".*\\[internal:test].*received request.*";
+            final MockLogAppender.LoggingExpectation requestReceivedExpectation =
+                new MockLogAppender.PatternSeenEventExpectation(
+                    "received request", "org.elasticsearch.transport.TransportService.tracer", Level.TRACE, requestReceived);
+            final String responseSent = ".*\\[internal:test].*sent response.*";
+            final MockLogAppender.LoggingExpectation responseSentExpectation =
+                new MockLogAppender.PatternSeenEventExpectation(
+                    "sent response", "org.elasticsearch.transport.TransportService.tracer", Level.TRACE, responseSent);
+            final String responseReceived = ".*\\[internal:test].*received response from.*\\{TS_B}.*";
+            final MockLogAppender.LoggingExpectation responseReceivedExpectation =
+                new MockLogAppender.PatternSeenEventExpectation(
+                    "received response", "org.elasticsearch.transport.TransportService.tracer", Level.TRACE, responseReceived);
 
-        tracer.reset(2);
-        serviceA.sendRequest(nodeB, "internal:testError", new StringMessageRequest(""), noopResponseHandler);
-        requestCompleted.acquire();
-        tracer.expectedEvents.get().await();
-        assertThat("saw request sent", tracer.sawRequestSent, equalTo(false));
-        assertThat("didn't see request received", tracer.sawRequestReceived, equalTo(true));
-        assertThat("saw response sent", tracer.sawResponseSent, equalTo(false));
-        assertThat("saw response received", tracer.sawResponseReceived, equalTo(false));
-        assertThat("didn't see error sent", tracer.sawErrorSent, equalTo(true));
-    }
+            appender.addExpectation(requestSentExpectation);
+            appender.addExpectation(requestReceivedExpectation);
+            appender.addExpectation(responseSentExpectation);
+            appender.addExpectation(responseReceivedExpectation);
 
-    private static class Tracer extends MockTransportService.Tracer {
-        private final Set<String> actions;
-        public volatile boolean sawRequestSent;
-        public volatile boolean sawRequestReceived;
-        public volatile boolean sawResponseSent;
-        public volatile boolean sawErrorSent;
-        public volatile boolean sawResponseReceived;
+            StringMessageRequest request = new StringMessageRequest("", 10);
+            serviceA.sendRequest(nodeB, "internal:test", request, TransportRequestOptions.EMPTY, noopResponseHandler);
 
-        public AtomicReference<CountDownLatch> expectedEvents = new AtomicReference<>();
+            assertBusy(appender::assertAllExpectationsMatched);
 
-        Tracer(Set<String> actions) {
-            this.actions = actions;
-        }
+            final String errorResponseSent = ".*\\[internal:testError].*sent error response.*";
+            final MockLogAppender.LoggingExpectation errorResponseSentExpectation =
+                new MockLogAppender.PatternSeenEventExpectation(
+                    "sent error response", "org.elasticsearch.transport.TransportService.tracer", Level.TRACE, errorResponseSent);
 
-        @Override
-        public void receivedRequest(long requestId, String action) {
-            super.receivedRequest(requestId, action);
-            if (actions.contains(action)) {
-                sawRequestReceived = true;
-                expectedEvents.get().countDown();
-            }
-        }
+            final String errorResponseReceived = ".*\\[internal:testError].*received response from.*\\{TS_B}.*";
+            final MockLogAppender.LoggingExpectation errorResponseReceivedExpectation =
+                new MockLogAppender.PatternSeenEventExpectation(
+                    "received error response", "org.elasticsearch.transport.TransportService.tracer", Level.TRACE, errorResponseReceived);
 
-        @Override
-        public void requestSent(DiscoveryNode node, long requestId, String action, TransportRequestOptions options) {
-            super.requestSent(node, requestId, action, options);
-            if (actions.contains(action)) {
-                sawRequestSent = true;
-                expectedEvents.get().countDown();
-            }
-        }
+            appender.addExpectation(errorResponseSentExpectation);
+            appender.addExpectation(errorResponseReceivedExpectation);
 
-        @Override
-        public void responseSent(long requestId, String action) {
-            super.responseSent(requestId, action);
-            if (actions.contains(action)) {
-                sawResponseSent = true;
-                expectedEvents.get().countDown();
-            }
-        }
+            serviceA.sendRequest(nodeB, "internal:testError", new StringMessageRequest(""), noopResponseHandler);
 
-        @Override
-        public void responseSent(long requestId, String action, Throwable t) {
-            super.responseSent(requestId, action, t);
-            if (actions.contains(action)) {
-                sawErrorSent = true;
-                expectedEvents.get().countDown();
-            }
-        }
+            assertBusy(appender::assertAllExpectationsMatched);
 
-        @Override
-        public void receivedResponse(long requestId, DiscoveryNode sourceNode, String action) {
-            super.receivedResponse(requestId, sourceNode, action);
-            if (actions.contains(action)) {
-                sawResponseReceived = true;
-                expectedEvents.get().countDown();
-            }
-        }
+            final String notSeenSent = "*[internal:testNotSeen]*sent to*";
+            final MockLogAppender.LoggingExpectation notSeenSentExpectation =
+                new MockLogAppender.UnseenEventExpectation(
+                    "not seen request sent", "org.elasticsearch.transport.TransportService.tracer", Level.TRACE, notSeenSent);
+            final String notSeenReceived = ".*\\[internal:testNotSeen].*received request.*";
+            final MockLogAppender.LoggingExpectation notSeenReceivedExpectation =
+                new MockLogAppender.PatternSeenEventExpectation(
+                    "not seen request received", "org.elasticsearch.transport.TransportService.tracer", Level.TRACE, notSeenReceived);
 
-        public void reset(int expectedCount) {
-            sawRequestSent = false;
-            sawRequestReceived = false;
-            sawResponseSent = false;
-            sawErrorSent = false;
-            sawResponseReceived = false;
-            expectedEvents.set(new CountDownLatch(expectedCount));
+            appender.addExpectation(notSeenSentExpectation);
+            appender.addExpectation(notSeenReceivedExpectation);
+
+            PlainTransportFuture<StringMessageResponse> future = new PlainTransportFuture<>(noopResponseHandler);
+            serviceA.sendRequest(nodeB, "internal:testNotSeen", new StringMessageRequest(""), future);
+            future.txGet();
+
+            assertBusy(appender::assertAllExpectationsMatched);
+        } finally {
+            Loggers.removeAppender(LogManager.getLogger("org.elasticsearch.transport.TransportService.tracer"), appender);
+            appender.stop();
         }
     }
-
 
     public static class StringMessageRequest extends TransportRequest {
 
@@ -1521,7 +1493,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             // all is well
         }
 
-        expectThrows(ConnectTransportException.class, () -> serviceB.openConnection(nodeA, MockTcpTransport.LIGHT_PROFILE));
+        expectThrows(ConnectTransportException.class, () -> serviceB.openConnection(nodeA, TestProfiles.LIGHT_PROFILE));
     }
 
     public void testMockUnresponsiveRule() throws IOException {
@@ -1572,7 +1544,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             // all is well
         }
 
-        expectThrows(ConnectTransportException.class, () -> serviceB.openConnection(nodeA, MockTcpTransport.LIGHT_PROFILE));
+        expectThrows(ConnectTransportException.class, () -> serviceB.openConnection(nodeA, TestProfiles.LIGHT_PROFILE));
     }
 
 
@@ -1731,14 +1703,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
     }
 
     public void testSendRandomRequests() throws InterruptedException {
-        TransportService serviceC = build(
-            Settings.builder()
-                .put("name", "TS_TEST")
-                .put(TransportService.TRACE_LOG_INCLUDE_SETTING.getKey(), "")
-                .put(TransportService.TRACE_LOG_EXCLUDE_SETTING.getKey(), "NOTHING")
-                .build(),
-            version0,
-            null, true);
+        TransportService serviceC = buildService("TS_C", version0, Settings.EMPTY);
         DiscoveryNode nodeC = serviceC.getLocalNode();
         serviceC.acceptIncomingRequests();
 
@@ -1795,7 +1760,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                     DiscoveryNode node = randomFrom(nodeA, nodeB, nodeC);
                     logger.debug("send secondary request from {} to {} - {}", toNodeMap.get(service), node, request.info);
                     service.sendRequest(node, "internal:action1", new TestRequest("secondary " + request.info),
-                        TransportRequestOptions.builder().withCompress(randomBoolean()).build(),
+                        TransportRequestOptions.EMPTY,
                         new TransportResponseHandler<TestResponse>() {
                             @Override
                             public TestResponse read(StreamInput in) throws IOException {
@@ -1886,7 +1851,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             DiscoveryNode node = randomFrom(nodeC, nodeB, nodeA);
             logger.debug("send from {} to {}", toNodeMap.get(service), node);
             service.sendRequest(node, "internal:action1", new TestRequest("REQ[" + i + "]"),
-                TransportRequestOptions.builder().withCompress(randomBoolean()).build(), new TestResponseHandler(i));
+                TransportRequestOptions.EMPTY, new TestResponseHandler(i));
         }
         logger.debug("waiting for response");
         fail.set(randomBoolean());
@@ -1969,7 +1934,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
     public void testHandshakeWithIncompatVersion() {
         assumeTrue("only tcp transport has a handshake method", serviceA.getOriginalTransport() instanceof TcpTransport);
         Version version = Version.fromString("2.0.0");
-        try (MockTransportService service = build(Settings.EMPTY, version, null, true)) {
+        try (MockTransportService service = buildService("TS_C", version,  Settings.EMPTY)) {
             service.start();
             service.acceptIncomingRequests();
             TransportAddress address = service.boundAddress().publishAddress();
@@ -1988,7 +1953,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
     public void testHandshakeUpdatesVersion() throws IOException {
         assumeTrue("only tcp transport has a handshake method", serviceA.getOriginalTransport() instanceof TcpTransport);
         Version version = VersionUtils.randomVersionBetween(random(), Version.CURRENT.minimumCompatibilityVersion(), Version.CURRENT);
-        try (MockTransportService service = build(Settings.EMPTY, version, null, true)) {
+        try (MockTransportService service = buildService("TS_C", version,  Settings.EMPTY)) {
             service.start();
             service.acceptIncomingRequests();
             TransportAddress address = service.boundAddress().publishAddress();
@@ -2006,40 +1971,58 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         }
     }
 
-    public void testTcpHandshake() throws IOException, InterruptedException {
-        assumeTrue("only tcp transport has a handshake method", serviceA.getOriginalTransport() instanceof TcpTransport);
+    public void testKeepAlivePings() throws Exception {
+        assumeTrue("only tcp transport has keep alive pings", serviceA.getOriginalTransport() instanceof TcpTransport);
         TcpTransport originalTransport = (TcpTransport) serviceA.getOriginalTransport();
-        NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(Collections.emptyList());
 
-        MockTcpTransport transport = new MockTcpTransport(Settings.EMPTY, threadPool, BigArrays.NON_RECYCLING_INSTANCE,
-            new NoneCircuitBreakerService(), namedWriteableRegistry, new NetworkService(Collections.emptyList())) {
-            @Override
-            protected String handleRequest(TcpChannel mockChannel, String profileName, StreamInput stream, long requestId,
-                                           int messageLengthBytes, Version version, InetSocketAddress remoteAddress, byte status)
-                throws IOException {
-                return super.handleRequest(mockChannel, profileName, stream, requestId, messageLengthBytes, version, remoteAddress,
-                    (byte) (status & ~(1 << 3))); // we flip the isHandshake bit back and act like the handler is not found
+        ConnectionProfile defaultProfile = ConnectionProfile.buildDefaultConnectionProfile(Settings.EMPTY);
+        ConnectionProfile connectionProfile = new ConnectionProfile.Builder(defaultProfile)
+            .setPingInterval(TimeValue.timeValueMillis(50))
+            .build();
+        try (TransportService service = buildService("TS_TPC", Version.CURRENT, Settings.EMPTY)) {
+            PlainActionFuture<Transport.Connection> future = PlainActionFuture.newFuture();
+            DiscoveryNode node = new DiscoveryNode("TS_TPC", "TS_TPC", service.boundAddress().publishAddress(), emptyMap(), emptySet(),
+                version0);
+            originalTransport.openConnection(node, connectionProfile, future);
+            try (Transport.Connection connection = future.actionGet()) {
+                assertBusy(() -> {
+                    assertTrue(originalTransport.getKeepAlive().successfulPingCount() > 30);
+                });
+                assertEquals(0, originalTransport.getKeepAlive().failedPingCount());
             }
-        };
+        }
+    }
 
-        try (MockTransportService service = MockTransportService.createNewService(Settings.EMPTY, transport, Version.CURRENT, threadPool,
-            null, Collections.emptySet())) {
+    public void testTcpHandshake() {
+        assumeTrue("only tcp transport has a handshake method", serviceA.getOriginalTransport() instanceof TcpTransport);
+        try (MockTransportService service = MockTransportService.createNewService(Settings.EMPTY, Version.CURRENT, threadPool, null)) {
+            service.addMessageListener(new TransportMessageListener() {
+                @Override
+                public void onRequestReceived(long requestId, String action) {
+                    if (TransportHandshaker.HANDSHAKE_ACTION_NAME.equals(action)) {
+                        throw new ActionNotFoundTransportException(action);
+                    }
+                }
+            });
             service.start();
             service.acceptIncomingRequests();
             // this acts like a node that doesn't have support for handshakes
             DiscoveryNode node =
-                new DiscoveryNode("TS_TPC", "TS_TPC", transport.boundAddress().publishAddress(), emptyMap(), emptySet(), version0);
+                new DiscoveryNode("TS_TPC", "TS_TPC", service.boundAddress().publishAddress(), emptyMap(), emptySet(), version0);
             ConnectTransportException exception = expectThrows(ConnectTransportException.class, () -> serviceA.connectToNode(node));
-            assertTrue(exception.getCause() instanceof IllegalStateException);
-            assertEquals("handshake failed", exception.getCause().getMessage());
+            assertTrue(exception.getCause() instanceof TransportException);
+            assertEquals("handshake failed because connection reset", exception.getCause().getMessage());
         }
 
         ConnectionProfile connectionProfile = ConnectionProfile.buildDefaultConnectionProfile(Settings.EMPTY);
-        try (TransportService service = buildService("TS_TPC", Version.CURRENT, null);
-             TcpTransport.NodeChannels connection = originalTransport.openConnection(
-                 new DiscoveryNode("TS_TPC", "TS_TPC", service.boundAddress().publishAddress(), emptyMap(), emptySet(), version0),
-                 connectionProfile)) {
-            assertEquals(connection.getVersion(), Version.CURRENT);
+        try (TransportService service = buildService("TS_TPC", Version.CURRENT, Settings.EMPTY)) {
+            DiscoveryNode node = new DiscoveryNode("TS_TPC", "TS_TPC", service.boundAddress().publishAddress(), emptyMap(), emptySet(),
+                version0);
+            PlainActionFuture<Transport.Connection> future = PlainActionFuture.newFuture();
+            serviceA.getOriginalTransport().openConnection(node, connectionProfile, future);
+            try (Transport.Connection connection = future.actionGet()) {
+                assertEquals(connection.getVersion(), Version.CURRENT);
+            }
         }
     }
 
@@ -2163,7 +2146,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
     public void testHandlerIsInvokedOnConnectionClose() throws IOException, InterruptedException {
         List<String> executors = new ArrayList<>(ThreadPool.THREAD_POOL_TYPES.keySet());
         CollectionUtil.timSort(executors); // makes sure it's reproducible
-        TransportService serviceC = build(Settings.builder().put("name", "TS_TEST").build(), version0, null, true);
+        TransportService serviceC = buildService("TS_C", CURRENT_VERSION,  Settings.EMPTY);
         serviceC.registerRequestHandler("internal:action", TestRequest::new, ThreadPool.Names.SAME,
             (request, channel, task) -> {
                 // do nothing
@@ -2221,7 +2204,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
     }
 
     public void testConcurrentDisconnectOnNonPublishedConnection() throws IOException, InterruptedException {
-        MockTransportService serviceC = build(Settings.builder().put("name", "TS_TEST").build(), version0, null, true);
+        MockTransportService serviceC = buildService("TS_C", version0,  Settings.EMPTY);
         CountDownLatch receivedLatch = new CountDownLatch(1);
         CountDownLatch sendResponseLatch = new CountDownLatch(1);
         serviceC.registerRequestHandler("internal:action", TestRequest::new, ThreadPool.Names.SAME,
@@ -2289,7 +2272,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
     }
 
     public void testTransportStats() throws Exception {
-        MockTransportService serviceC = build(Settings.builder().put("name", "TS_TEST").build(), version0, null, true);
+        MockTransportService serviceC = buildService("TS_C", version0,  Settings.EMPTY);
         CountDownLatch receivedLatch = new CountDownLatch(1);
         CountDownLatch sendResponseLatch = new CountDownLatch(1);
         serviceB.registerRequestHandler("internal:action", TestRequest::new, ThreadPool.Names.SAME,
@@ -2357,7 +2340,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 assertEquals(1, transportStats.getRxCount());
                 assertEquals(1, transportStats.getTxCount());
                 assertEquals(25, transportStats.getRxSize().getBytes());
-                assertEquals(45, transportStats.getTxSize().getBytes());
+                assertEquals(51, transportStats.getTxSize().getBytes());
             });
             serviceC.sendRequest(connection, "internal:action", new TestRequest("hello world"), TransportRequestOptions.EMPTY,
                 transportResponseHandler);
@@ -2367,7 +2350,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 assertEquals(1, transportStats.getRxCount());
                 assertEquals(2, transportStats.getTxCount());
                 assertEquals(25, transportStats.getRxSize().getBytes());
-                assertEquals(101, transportStats.getTxSize().getBytes());
+                assertEquals(107, transportStats.getTxSize().getBytes());
             });
             sendResponseLatch.countDown();
             responseLatch.await();
@@ -2375,7 +2358,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             assertEquals(2, stats.getRxCount());
             assertEquals(2, stats.getTxCount());
             assertEquals(46, stats.getRxSize().getBytes());
-            assertEquals(101, stats.getTxSize().getBytes());
+            assertEquals(107, stats.getTxSize().getBytes());
         } finally {
             serviceC.close();
         }
@@ -2400,7 +2383,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
     }
 
     public void testTransportStatsWithException() throws Exception {
-        MockTransportService serviceC = build(Settings.builder().put("name", "TS_TEST").build(), version0, null, true);
+        MockTransportService serviceC = buildService("TS_C", version0,  Settings.EMPTY);
         CountDownLatch receivedLatch = new CountDownLatch(1);
         CountDownLatch sendResponseLatch = new CountDownLatch(1);
         Exception ex = new RuntimeException("boom");
@@ -2472,7 +2455,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 assertEquals(1, transportStats.getRxCount());
                 assertEquals(1, transportStats.getTxCount());
                 assertEquals(25, transportStats.getRxSize().getBytes());
-                assertEquals(45, transportStats.getTxSize().getBytes());
+                assertEquals(51, transportStats.getTxSize().getBytes());
             });
             serviceC.sendRequest(connection, "internal:action", new TestRequest("hello world"), TransportRequestOptions.EMPTY,
                 transportResponseHandler);
@@ -2482,7 +2465,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 assertEquals(1, transportStats.getRxCount());
                 assertEquals(2, transportStats.getTxCount());
                 assertEquals(25, transportStats.getRxSize().getBytes());
-                assertEquals(101, transportStats.getTxSize().getBytes());
+                assertEquals(107, transportStats.getTxSize().getBytes());
             });
             sendResponseLatch.countDown();
             responseLatch.await();
@@ -2497,7 +2480,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             // 49 bytes are the non-exception message bytes that have been received. It should include the initial
             // handshake message and the header, version, etc bytes in the exception message.
             assertEquals(failedMessage, 49 + streamOutput.bytes().length(), stats.getRxSize().getBytes());
-            assertEquals(101, stats.getTxSize().getBytes());
+            assertEquals(107, stats.getTxSize().getBytes());
         } finally {
             serviceC.close();
         }
@@ -2511,15 +2494,14 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         } else {
             hosts = Arrays.asList("_local:ipv4_");
         }
-        try (MockTransportService serviceC = build(Settings.builder()
-            .put("name", "TS_TEST")
+        try (MockTransportService serviceC = buildService("TS_C", version0, Settings.builder()
             .put("transport.profiles.default.bind_host", "_local:ipv4_")
             .put("transport.profiles.some_profile.port", "8900-9000")
             .put("transport.profiles.some_profile.bind_host", "_local:ipv4_")
             .put("transport.profiles.some_other_profile.port", "8700-8800")
             .putList("transport.profiles.some_other_profile.bind_host", hosts)
             .putList("transport.profiles.some_other_profile.publish_host", "_local:ipv4_")
-            .build(), version0, null, true)) {
+            .build())) {
 
             serviceC.start();
             serviceC.acceptIncomingRequests();
@@ -2576,34 +2558,34 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             .build();
 
         Settings transportSettings = Settings.builder()
-            .put("transport.tcp_no_delay", enable)
+            .put("transport.tcp.no_delay", enable)
             .put("transport.tcp.keep_alive", enable)
             .put("transport.tcp.reuse_address", enable)
             .put("transport.tcp.send_buffer_size", "43000b")
             .put("transport.tcp.receive_buffer_size", "42000b")
             .put("transport.publish_host", "the_publish_host")
-            .put("transport.tcp.port", "9700-9800")
+            .put("transport.port", "9700-9800")
             .put("transport.bind_host", "the_bind_host")
             .put(globalSettings2)
             .build();
 
         Settings transportSettings2 = Settings.builder()
-            .put("transport.tcp_no_delay", !enable)
+            .put("transport.tcp.no_delay", !enable)
             .put("transport.tcp.keep_alive", !enable)
             .put("transport.tcp.reuse_address", !enable)
             .put("transport.tcp.send_buffer_size", "5b")
             .put("transport.tcp.receive_buffer_size", "6b")
             .put("transport.publish_host", "another_publish_host")
-            .put("transport.tcp.port", "9702-9802")
+            .put("transport.port", "9702-9802")
             .put("transport.bind_host", "another_bind_host")
             .put(globalSettings2)
             .build();
         Settings defaultProfileSettings = Settings.builder()
-            .put("transport.profiles.default.tcp_no_delay", enable)
-            .put("transport.profiles.default.tcp_keep_alive", enable)
-            .put("transport.profiles.default.reuse_address", enable)
-            .put("transport.profiles.default.send_buffer_size", "43000b")
-            .put("transport.profiles.default.receive_buffer_size", "42000b")
+            .put("transport.profiles.default.tcp.no_delay", enable)
+            .put("transport.profiles.default.tcp.keep_alive", enable)
+            .put("transport.profiles.default.tcp.reuse_address", enable)
+            .put("transport.profiles.default.tcp.send_buffer_size", "43000b")
+            .put("transport.profiles.default.tcp.receive_buffer_size", "42000b")
             .put("transport.profiles.default.port", "9700-9800")
             .put("transport.profiles.default.publish_host", "the_publish_host")
             .put("transport.profiles.default.bind_host", "the_bind_host")
@@ -2612,11 +2594,11 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             .build();
 
         Settings profileSettings = Settings.builder()
-            .put("transport.profiles.some_profile.tcp_no_delay", enable)
-            .put("transport.profiles.some_profile.tcp_keep_alive", enable)
-            .put("transport.profiles.some_profile.reuse_address", enable)
-            .put("transport.profiles.some_profile.send_buffer_size", "43000b")
-            .put("transport.profiles.some_profile.receive_buffer_size", "42000b")
+            .put("transport.profiles.some_profile.tcp.no_delay", enable)
+            .put("transport.profiles.some_profile.tcp.keep_alive", enable)
+            .put("transport.profiles.some_profile.tcp.reuse_address", enable)
+            .put("transport.profiles.some_profile.tcp.send_buffer_size", "43000b")
+            .put("transport.profiles.some_profile.tcp.receive_buffer_size", "42000b")
             .put("transport.profiles.some_profile.port", "9700-9800")
             .put("transport.profiles.some_profile.publish_host", "the_publish_host")
             .put("transport.profiles.some_profile.bind_host", "the_bind_host")
@@ -2657,7 +2639,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
     public void testProfilesIncludesDefault() {
         Set<TcpTransport.ProfileSettings> profileSettings = TcpTransport.getProfileSettings(Settings.EMPTY);
         assertEquals(1, profileSettings.size());
-        assertEquals(TcpTransport.DEFAULT_PROFILE, profileSettings.stream().findAny().get().profileName);
+        assertEquals(TransportSettings.DEFAULT_PROFILE, profileSettings.stream().findAny().get().profileName);
 
         profileSettings = TcpTransport.getProfileSettings(Settings.builder()
             .put("transport.profiles.test.port", "0")
@@ -2676,7 +2658,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
     }
 
     public void testChannelCloseWhileConnecting() {
-        try (MockTransportService service = build(Settings.builder().put("name", "close").build(), version0, null, true)) {
+        try (MockTransportService service = buildService("TS_C", version0, Settings.EMPTY)) {
             AtomicBoolean connectionClosedListenerCalled = new AtomicBoolean(false);
             service.addConnectionListener(new TransportConnectionListener() {
                 @Override
@@ -2717,5 +2699,9 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
     @SuppressForbidden(reason = "need local ephemeral port")
     protected InetSocketAddress getLocalEphemeral() throws UnknownHostException {
         return new InetSocketAddress(InetAddress.getLocalHost(), 0);
+    }
+
+    protected Set<TcpChannel> getAcceptedChannels(TcpTransport transport) {
+        return transport.getAcceptedChannels();
     }
 }

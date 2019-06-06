@@ -38,7 +38,9 @@ import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
@@ -47,19 +49,23 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class RestMultiSearchAction extends BaseRestHandler {
 
-    private static final Set<String> RESPONSE_PARAMS = Collections.singleton(RestSearchAction.TYPED_KEYS_PARAM);
+    private static final Set<String> RESPONSE_PARAMS;
+
+    static {
+        final Set<String> responseParams = new HashSet<>(
+            Arrays.asList(RestSearchAction.TYPED_KEYS_PARAM, RestSearchAction.TOTAL_HITS_AS_INT_PARAM)
+        );
+        RESPONSE_PARAMS = Collections.unmodifiableSet(responseParams);
+    }
 
     private final boolean allowExplicitIndex;
 
     public RestMultiSearchAction(Settings settings, RestController controller) {
         super(settings);
-
         controller.registerHandler(GET, "/_msearch", this);
         controller.registerHandler(POST, "/_msearch", this);
         controller.registerHandler(GET, "/{index}/_msearch", this);
         controller.registerHandler(POST, "/{index}/_msearch", this);
-        controller.registerHandler(GET, "/{index}/{type}/_msearch", this);
-        controller.registerHandler(POST, "/{index}/{type}/_msearch", this);
 
         this.allowExplicitIndex = MULTI_ALLOW_EXPLICIT_INDEX.get(settings);
     }
@@ -80,6 +86,8 @@ public class RestMultiSearchAction extends BaseRestHandler {
      */
     public static MultiSearchRequest parseRequest(RestRequest restRequest, boolean allowExplicitIndex) throws IOException {
         MultiSearchRequest multiRequest = new MultiSearchRequest();
+        IndicesOptions indicesOptions = IndicesOptions.fromRequest(restRequest, multiRequest.indicesOptions());
+        multiRequest.indicesOptions(indicesOptions);
         if (restRequest.hasParam("max_concurrent_searches")) {
             multiRequest.maxConcurrentSearchRequests(restRequest.paramAsInt("max_concurrent_searches", 0));
         }
@@ -97,6 +105,7 @@ public class RestMultiSearchAction extends BaseRestHandler {
 
         parseMultiLineRequest(restRequest, multiRequest.indicesOptions(), allowExplicitIndex, (searchRequest, parser) -> {
             searchRequest.source(SearchSourceBuilder.fromXContent(parser, false));
+            RestSearchAction.checkRestTotalHits(restRequest, searchRequest);
             multiRequest.add(searchRequest);
         });
         List<SearchRequest> requests = multiRequest.requests();
@@ -118,15 +127,15 @@ public class RestMultiSearchAction extends BaseRestHandler {
             CheckedBiConsumer<SearchRequest, XContentParser, IOException> consumer) throws IOException {
 
         String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
-        String[] types = Strings.splitStringByCommaToArray(request.param("type"));
         String searchType = request.param("search_type");
+        boolean ccsMinimizeRoundtrips = request.paramAsBoolean("ccs_minimize_roundtrips", true);
         String routing = request.param("routing");
 
         final Tuple<XContentType, BytesReference> sourceTuple = request.contentOrSourceParam();
         final XContent xContent = sourceTuple.v1().xContent();
         final BytesReference data = sourceTuple.v2();
-        MultiSearchRequest.readMultiLineFormat(data, xContent, consumer, indices, indicesOptions, types, routing,
-                searchType, request.getXContentRegistry(), allowExplicitIndex);
+        MultiSearchRequest.readMultiLineFormat(data, xContent, consumer, indices, indicesOptions, routing,
+                searchType, ccsMinimizeRoundtrips, request.getXContentRegistry(), allowExplicitIndex);
     }
 
     @Override

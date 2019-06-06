@@ -14,7 +14,6 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.tasks.TransportTasksAction;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -24,7 +23,6 @@ import org.elasticsearch.xpack.core.rollup.action.StopRollupJobAction;
 import org.elasticsearch.xpack.core.rollup.job.RollupJobStatus;
 import org.elasticsearch.xpack.rollup.job.RollupJobTask;
 
-import java.io.IOException;
 import java.util.List;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
@@ -37,8 +35,8 @@ public class TransportStopRollupAction extends TransportTasksAction<RollupJobTas
     @Inject
     public TransportStopRollupAction(TransportService transportService, ActionFilters actionFilters,
                                      ClusterService clusterService, ThreadPool threadPool) {
-        super(StopRollupJobAction.NAME, clusterService, transportService, actionFilters,
-            StopRollupJobAction.Request::new, StopRollupJobAction.Response::new, ThreadPool.Names.SAME);
+        super(StopRollupJobAction.NAME, clusterService, transportService, actionFilters, StopRollupJobAction.Request::new,
+            StopRollupJobAction.Response::new, StopRollupJobAction.Response::new, ThreadPool.Names.SAME);
         this.threadPool = threadPool;
     }
 
@@ -83,10 +81,15 @@ public class TransportStopRollupAction extends TransportTasksAction<RollupJobTas
                                 listener.onResponse(response);
                             } else {
                                 listener.onFailure(new ElasticsearchTimeoutException("Timed out after [" + request.timeout().getStringRep()
-                                    + "] while waiting for rollup job [" + request.getId() + "] to stop"));
+                                    + "] while waiting for rollup job [" + request.getId() + "] to stop. State was ["
+                                    + ((RollupJobStatus) jobTask.getStatus()).getIndexerState() + "]"));
                             }
                         } catch (InterruptedException e) {
                             listener.onFailure(e);
+                        } catch (Exception e) {
+                            listener.onFailure(new ElasticsearchTimeoutException("Encountered unexpected error while waiting for " +
+                                "rollup job [" + request.getId() + "] to stop.  State was ["
+                                + ((RollupJobStatus) jobTask.getStatus()).getIndexerState() + "].", e));
                         }
                     });
 
@@ -144,11 +147,6 @@ public class TransportStopRollupAction extends TransportTasksAction<RollupJobTas
 
         boolean allStopped = tasks.stream().allMatch(StopRollupJobAction.Response::isStopped);
         return new StopRollupJobAction.Response(allStopped);
-    }
-
-    @Override
-    protected StopRollupJobAction.Response readTaskResponse(StreamInput in) throws IOException {
-        return new StopRollupJobAction.Response(in);
     }
 
 }

@@ -19,8 +19,10 @@
 
 package org.elasticsearch.action.admin.indices.close;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -38,6 +40,7 @@ public class CloseIndexRequest extends AcknowledgedRequest<CloseIndexRequest> im
 
     private String[] indices;
     private IndicesOptions indicesOptions = IndicesOptions.strictExpandOpen();
+    private ActiveShardCount waitForActiveShards = ActiveShardCount.DEFAULT;
 
     public CloseIndexRequest() {
     }
@@ -101,11 +104,25 @@ public class CloseIndexRequest extends AcknowledgedRequest<CloseIndexRequest> im
         return this;
     }
 
+    public ActiveShardCount waitForActiveShards() {
+        return waitForActiveShards;
+    }
+
+    public CloseIndexRequest waitForActiveShards(final ActiveShardCount waitForActiveShards) {
+        this.waitForActiveShards = waitForActiveShards;
+        return this;
+    }
+
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         indices = in.readStringArray();
         indicesOptions = IndicesOptions.readIndicesOptions(in);
+        if (in.getVersion().onOrAfter(Version.V_7_2_0)) {
+            waitForActiveShards = ActiveShardCount.readFrom(in);
+        } else {
+            waitForActiveShards = ActiveShardCount.NONE;
+        }
     }
 
     @Override
@@ -113,5 +130,8 @@ public class CloseIndexRequest extends AcknowledgedRequest<CloseIndexRequest> im
         super.writeTo(out);
         out.writeStringArray(indices);
         indicesOptions.writeIndicesOptions(out);
+        if (out.getVersion().onOrAfter(Version.V_7_2_0)) {
+            waitForActiveShards.writeTo(out);
+        }
     }
 }

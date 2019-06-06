@@ -8,24 +8,23 @@ setup:
           index: test
           body:
             mappings:
-              test:
-                "properties":
-                  "suggest_1":
-                     "type" : "completion"
-                  "suggest_2":
-                     "type" : "completion"
-                  "suggest_3":
-                     "type" : "completion"
-                  "suggest_4":
-                     "type" : "completion"
-                  "suggest_5a":
-                     "type" : "completion"
-                  "suggest_5b":
-                     "type" : "completion"
-                  "suggest_6":
-                     "type" : "completion"
-                  title:
-                     type: keyword
+              "properties":
+                "suggest_1":
+                   "type" : "completion"
+                "suggest_2":
+                   "type" : "completion"
+                "suggest_3":
+                   "type" : "completion"
+                "suggest_4":
+                   "type" : "completion"
+                "suggest_5a":
+                   "type" : "completion"
+                "suggest_5b":
+                   "type" : "completion"
+                "suggest_6":
+                   "type" : "completion"
+                title:
+                   type: keyword
 
 ---
 "Simple suggestion should work":
@@ -33,7 +32,6 @@ setup:
   - do:
       index:
         index: test
-        type:  test
         id:    1
         body:
           suggest_1: "bar"
@@ -41,7 +39,6 @@ setup:
   - do:
       index:
         index: test
-        type:  test
         id:    2
         body:
           suggest_1: "baz"
@@ -51,6 +48,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body:
           suggest:
             result:
@@ -67,7 +65,6 @@ setup:
   - do:
       index:
         index: test
-        type:  test
         id:    1
         body:
           suggest_2: ["bar", "foo"]
@@ -77,6 +74,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body:
           suggest:
             result:
@@ -90,6 +88,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body:
           suggest:
             result:
@@ -107,7 +106,6 @@ setup:
   - do:
       index:
         index: test
-        type:  test
         id:    1
         body:
           suggest_3:
@@ -117,7 +115,6 @@ setup:
   - do:
       index:
         index: test
-        type:  test
         id:    2
         body:
           suggest_3:
@@ -129,6 +126,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body:
           suggest:
             result:
@@ -147,7 +145,6 @@ setup:
   - do:
       index:
         index: test
-        type:  test
         id:    1
         body:
           suggest_4:
@@ -159,7 +156,6 @@ setup:
   - do:
       index:
         index: test
-        type:  test
         id:    2
         body:
           suggest_4:
@@ -173,6 +169,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body:
           suggest:
             result:
@@ -187,6 +184,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body:
           suggest:
             result:
@@ -205,7 +203,6 @@ setup:
   - do:
       index:
         index: test
-        type:  test
         id:    1
         body:
           suggest_5a: "bar"
@@ -216,6 +213,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body:
           suggest:
             result:
@@ -229,6 +227,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body:
           suggest:
             result:
@@ -246,7 +245,6 @@ setup:
   - do:
       index:
         index: test
-        type:  test
         id:    1
         body:
           suggest_6:
@@ -258,7 +256,6 @@ setup:
   - do:
       index:
         index: test
-        type:  test
         id:    2
         body:
           suggest_6:
@@ -272,6 +269,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body:
           suggest:
             result:
@@ -283,25 +281,21 @@ setup:
   - length: { suggest.result.0.options: 2  }
   - match:  { suggest.result.0.options.0.text: "baz" }
   - match:  { suggest.result.0.options.0._index: "test" }
-  - match:  { suggest.result.0.options.0._type: "test" }
+  - match:  { suggest.result.0.options.0._type: "_doc" }
   - match:  { suggest.result.0.options.0._source.title: "title_baz" }
   - match:  { suggest.result.0.options.0._source.count: 3 }
   - match:  { suggest.result.0.options.1.text: "bar" }
   - match:  { suggest.result.0.options.1._index: "test" }
-  - match:  { suggest.result.0.options.1._type: "test" }
+  - match:  { suggest.result.0.options.1._type: "_doc" }
   - match:  { suggest.result.0.options.1._source.title: "title_bar" }
   - match:  { suggest.result.0.options.1._source.count: 4 }
 
 ---
 "Skip duplicates should work":
-  - skip:
-      version: " - 6.0.99"
-      reason: skip_duplicates was added in 6.1
 
   - do:
       index:
         index: test
-        type:  test
         id:    1
         body:
           suggest_1: "bar"
@@ -309,7 +303,6 @@ setup:
   - do:
       index:
         index: test
-        type:  test
         id:    2
         body:
           suggest_1: "bar"
@@ -319,6 +312,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body:
           suggest:
             result:

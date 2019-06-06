@@ -69,11 +69,12 @@ public abstract class PersistentTasksDecidersTestCase extends ESTestCase {
                 };
             }
         };
-        persistentTasksClusterService = new PersistentTasksClusterService(clusterService.getSettings(), registry, clusterService);
+        persistentTasksClusterService = new PersistentTasksClusterService(clusterService.getSettings(), registry, clusterService,
+            threadPool);
     }
 
     @AfterClass
-    public static void tearDownThreadPool() throws Exception {
+    public static void tearDownThreadPool() {
         terminate(threadPool);
     }
 

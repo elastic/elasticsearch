@@ -19,6 +19,10 @@ import org.elasticsearch.index.Index;
 import java.io.IOException;
 import java.util.Objects;
 
+/**
+ * Verifies that an index was created through a shrink operation, rather than created some other way.
+ * Also checks the name of the index to ensure it aligns with what is expected from an index shrunken via a previous step.
+ */
 public class ShrunkenIndexCheckStep extends ClusterStateWaitStep {
     public static final String NAME = "is-shrunken-index";
     private static final Logger logger = LogManager.getLogger(InitializePolicyContextStep.class);

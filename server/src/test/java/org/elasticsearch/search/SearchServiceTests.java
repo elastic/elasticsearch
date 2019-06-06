@@ -19,7 +19,6 @@
 package org.elasticsearch.search;
 
 import com.carrotsearch.hppc.IntArrayList;
-
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.ElasticsearchException;
@@ -52,6 +51,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.TermQueryBuilder;
+import org.elasticsearch.index.search.stats.SearchStats;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.SearchOperationListener;
 import org.elasticsearch.index.shard.ShardId;
@@ -229,6 +229,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         AtomicBoolean running = new AtomicBoolean(true);
         CountDownLatch startGun = new CountDownLatch(1);
         Semaphore semaphore = new Semaphore(Integer.MAX_VALUE);
+
         final Thread thread = new Thread() {
             @Override
             public void run() {
@@ -267,10 +268,17 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                 try {
                     try {
                         PlainActionFuture<SearchPhaseResult> result = new PlainActionFuture<>();
-                        service.executeQueryPhase(
-                            new ShardSearchLocalRequest(indexShard.shardId(), 1, SearchType.DEFAULT,
+                        final boolean useScroll = randomBoolean();
+                        ShardSearchLocalRequest shardRequest;
+                        if (useScroll) {
+                            shardRequest = new ShardScrollRequestTest(indexShard.shardId());
+                        } else {
+                            shardRequest = new ShardSearchLocalRequest(indexShard.shardId(), 1, SearchType.DEFAULT,
                                 new SearchSourceBuilder(), new String[0], false, new AliasFilter(null, Strings.EMPTY_ARRAY), 1.0f,
-                                true, null, null),
+                                true, null, null);
+                        }
+                        service.executeQueryPhase(
+                            shardRequest,
                             new SearchTask(123L, "", "", "", null, Collections.emptyMap()), result);
                         SearchPhaseResult searchPhaseResult = result.get();
                         IntArrayList intCursors = new IntArrayList(1);
@@ -279,6 +287,9 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                         PlainActionFuture<FetchSearchResult> listener = new PlainActionFuture<>();
                         service.executeFetchPhase(req, new SearchTask(123L, "", "", "", null, Collections.emptyMap()), listener);
                         listener.get();
+                        if (useScroll) {
+                            service.freeContext(searchPhaseResult.getRequestId());
+                        }
                     } catch (ExecutionException ex) {
                         assertThat(ex.getCause(), instanceOf(RuntimeException.class));
                         throw ((RuntimeException)ex.getCause());
@@ -296,6 +307,13 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
             thread.join();
             semaphore.acquire(Integer.MAX_VALUE);
         }
+
+        assertEquals(0, service.getActiveContexts());
+
+        SearchStats.Stats totalStats = indexShard.searchStats().getTotal();
+        assertEquals(0, totalStats.getQueryCurrent());
+        assertEquals(0, totalStats.getScrollCurrent());
+        assertEquals(0, totalStats.getFetchCurrent());
     }
 
     public void testTimeout() throws IOException {

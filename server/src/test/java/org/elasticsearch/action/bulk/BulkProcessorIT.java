@@ -35,9 +35,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.transport.MockTransportClient;
 
 import java.util.Arrays;
 import java.util.HashSet;
@@ -156,48 +154,6 @@ public class BulkProcessorIT extends ESIntegTestCase {
         }
 
         assertMultiGetResponse(multiGetRequestBuilder.get(), numDocs);
-    }
-
-    //https://github.com/elastic/elasticsearch/issues/5038
-    public void testBulkProcessorConcurrentRequestsNoNodeAvailableException() throws Exception {
-        //we create a transport client with no nodes to make sure it throws NoNodeAvailableException
-        Settings settings = Settings.builder()
-                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
-                .build();
-        Client transportClient = new MockTransportClient(settings);
-
-        int bulkActions = randomIntBetween(10, 100);
-        int numDocs = randomIntBetween(bulkActions, bulkActions + 100);
-        int concurrentRequests = randomIntBetween(0, 10);
-
-        int expectedBulkActions = numDocs / bulkActions;
-
-        final CountDownLatch latch = new CountDownLatch(expectedBulkActions);
-        int totalExpectedBulkActions = numDocs % bulkActions == 0 ? expectedBulkActions : expectedBulkActions + 1;
-        final CountDownLatch closeLatch = new CountDownLatch(totalExpectedBulkActions);
-
-        BulkProcessorTestListener listener = new BulkProcessorTestListener(latch, closeLatch);
-
-        try (BulkProcessor processor = BulkProcessor.builder(transportClient, listener)
-                .setConcurrentRequests(concurrentRequests).setBulkActions(bulkActions)
-                //set interval and size to high values
-                .setFlushInterval(TimeValue.timeValueHours(24)).setBulkSize(new ByteSizeValue(1, ByteSizeUnit.GB)).build()) {
-
-            indexDocs(transportClient, processor, numDocs);
-
-            latch.await();
-
-            assertThat(listener.beforeCounts.get(), equalTo(expectedBulkActions));
-            assertThat(listener.afterCounts.get(), equalTo(expectedBulkActions));
-            assertThat(listener.bulkFailures.size(), equalTo(expectedBulkActions));
-            assertThat(listener.bulkItems.size(), equalTo(0));
-        }
-
-        closeLatch.await();
-
-        assertThat(listener.bulkFailures.size(), equalTo(totalExpectedBulkActions));
-        assertThat(listener.bulkItems.size(), equalTo(0));
-        transportClient.close();
     }
 
     public void testBulkProcessorWaitOnClose() throws Exception {

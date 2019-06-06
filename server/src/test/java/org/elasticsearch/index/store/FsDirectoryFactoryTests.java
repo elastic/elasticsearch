@@ -104,7 +104,8 @@ public class FsDirectoryFactoryTests extends ESTestCase {
                 assertFalse(preLoadMMapDirectory.useDelegate("XXX"));
                 assertFalse(preLoadMMapDirectory.getPreload());
                 preLoadMMapDirectory.close();
-                expectThrows(AlreadyClosedException.class, () -> preLoadMMapDirectory.getDelegate().openInput("foo.bar", IOContext.DEFAULT));
+                expectThrows(AlreadyClosedException.class, () -> preLoadMMapDirectory.getDelegate().openInput("foo.bar",
+                    IOContext.DEFAULT));
             }
         }
         expectThrows(AlreadyClosedException.class, () -> directory.openInput(randomBoolean() && preload.length != 0 ?

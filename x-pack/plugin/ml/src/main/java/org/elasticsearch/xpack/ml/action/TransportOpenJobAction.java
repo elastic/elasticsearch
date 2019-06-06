@@ -45,7 +45,6 @@ import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.FinalizeJobExecutionAction;
 import org.elasticsearch.xpack.core.ml.action.OpenJobAction;
-import org.elasticsearch.xpack.core.ml.job.config.DetectionRule;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.config.JobTaskState;
@@ -177,14 +176,6 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
             if (compatibleJobTypes.contains(job.getJobType()) == false) {
                 String reason = "Not opening job [" + jobId + "] on node [" + nodeNameAndVersion(node) +
                         "], because this node does not support jobs of type [" + job.getJobType() + "]";
-                logger.trace(reason);
-                reasons.add(reason);
-                continue;
-            }
-
-            if (jobHasRules(job) && node.getVersion().before(DetectionRule.VERSION_INTRODUCED)) {
-                String reason = "Not opening job [" + jobId + "] on node [" + nodeNameAndVersion(node) + "], because jobs using " +
-                        "custom_rules require a node of version [" + DetectionRule.VERSION_INTRODUCED + "] or higher";
                 logger.trace(reason);
                 reasons.add(reason);
                 continue;

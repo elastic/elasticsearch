@@ -347,7 +347,6 @@ public class ActionModule extends AbstractModule {
 
     private static final Logger logger = LogManager.getLogger(ActionModule.class);
 
-    private final boolean transportClient;
     private final Settings settings;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final IndexScopedSettings indexScopedSettings;
@@ -361,11 +360,10 @@ public class ActionModule extends AbstractModule {
     private final RestController restController;
     private final TransportPutMappingAction.RequestValidators mappingRequestValidators;
 
-    public ActionModule(boolean transportClient, Settings settings, IndexNameExpressionResolver indexNameExpressionResolver,
+    public ActionModule(Settings settings, IndexNameExpressionResolver indexNameExpressionResolver,
                         IndexScopedSettings indexScopedSettings, ClusterSettings clusterSettings, SettingsFilter settingsFilter,
                         ThreadPool threadPool, List<ActionPlugin> actionPlugins, NodeClient nodeClient,
-            CircuitBreakerService circuitBreakerService, UsageService usageService) {
-        this.transportClient = transportClient;
+                        CircuitBreakerService circuitBreakerService, UsageService usageService) {
         this.settings = settings;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.indexScopedSettings = indexScopedSettings;
@@ -374,7 +372,7 @@ public class ActionModule extends AbstractModule {
         this.actionPlugins = actionPlugins;
         actions = setupActions(actionPlugins);
         actionFilters = setupActionFilters(actionPlugins);
-        autoCreateIndex = transportClient ? null : new AutoCreateIndex(settings, clusterSettings, indexNameExpressionResolver);
+        autoCreateIndex = new AutoCreateIndex(settings, clusterSettings, indexNameExpressionResolver);
         destructiveOperations = new DestructiveOperations(settings, clusterSettings);
         Set<String> headers = Stream.concat(
             actionPlugins.stream().flatMap(p -> p.getRestHeaders().stream()),
@@ -395,11 +393,7 @@ public class ActionModule extends AbstractModule {
             actionPlugins.stream().flatMap(p -> p.mappingRequestValidators().stream()).collect(Collectors.toList())
         );
 
-        if (transportClient) {
-            restController = null;
-        } else {
-            restController = new RestController(headers, restWrapper, nodeClient, circuitBreakerService, usageService);
-        }
+        restController = new RestController(headers, restWrapper, nodeClient, circuitBreakerService, usageService);
     }
 
 
@@ -691,25 +685,22 @@ public class ActionModule extends AbstractModule {
         bind(ActionFilters.class).toInstance(actionFilters);
         bind(DestructiveOperations.class).toInstance(destructiveOperations);
         bind(TransportPutMappingAction.RequestValidators.class).toInstance(mappingRequestValidators);
+        bind(AutoCreateIndex.class).toInstance(autoCreateIndex);
+        bind(TransportLivenessAction.class).asEagerSingleton();
 
-        if (false == transportClient) {
-            // Supporting classes only used when not a transport client
-            bind(AutoCreateIndex.class).toInstance(autoCreateIndex);
-            bind(TransportLivenessAction.class).asEagerSingleton();
-
-            // register Action -> transportAction Map used by NodeClient
-            @SuppressWarnings("rawtypes")
-            MapBinder<Action, TransportAction> transportActionsBinder
-                    = MapBinder.newMapBinder(binder(), Action.class, TransportAction.class);
-            for (ActionHandler<?, ?> action : actions.values()) {
-                // bind the action as eager singleton, so the map binder one will reuse it
-                bind(action.getTransportAction()).asEagerSingleton();
-                transportActionsBinder.addBinding(action.getAction()).to(action.getTransportAction()).asEagerSingleton();
-                for (Class<?> supportAction : action.getSupportTransportActions()) {
-                    bind(supportAction).asEagerSingleton();
-                }
+        // register Action -> transportAction Map used by NodeClient
+        @SuppressWarnings("rawtypes")
+        MapBinder<Action, TransportAction> transportActionsBinder
+                = MapBinder.newMapBinder(binder(), Action.class, TransportAction.class);
+        for (ActionHandler<?, ?> action : actions.values()) {
+            // bind the action as eager singleton, so the map binder one will reuse it
+            bind(action.getTransportAction()).asEagerSingleton();
+            transportActionsBinder.addBinding(action.getAction()).to(action.getTransportAction()).asEagerSingleton();
+            for (Class<?> supportAction : action.getSupportTransportActions()) {
+                bind(supportAction).asEagerSingleton();
             }
         }
+
     }
 
     public ActionFilters getActionFilters() {

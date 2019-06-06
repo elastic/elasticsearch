@@ -1,0 +1,142 @@
+[role="xpack"]
+[[backup-restore-security-configuration]]
+=== Security Configuration
+
+Security is configured from files and by various API endpoints. All Security
+settings are namespaced under `xpack.security.*`.
+
+The configuration files reside on every node but are usually identical across
+nodes. They are formatted as YAML text files. Also on every node, there is a
+secure store file, named `elasticsearch.keystore`, which is binary formatted,
+and it is used only for sensitive settings such as service passwords. Some setting
+values may be paths pointing to other files, such as the keys and certificates to
+configure TLS. Reassuringly, all these files are stored inside the
+`$ES_PATH_CONF` directory, so backing-up the whole folder is sure to capture
+all of Security's file based configuration.
+
+The API calls act on configuration that is stored in the global cluster
+metadata as well as inside a dedicated {es} index. This index is named
+`.security-6` in the 6.x versions and `.security-7` in the 7.x releases, and it
+is always pointed to by the `.security` alias. This contains the data which is
+*not* part of an ordinary configuration backup. This data describes:
+
+* definition of users in the native realm (including hashed passwords)
+* role definitions
+* role mappings
+* application privileges
+* API keys
+
+The format is only compatible across the same major release version.
+
+The `elasticsearch.yml` and `elasticsearch.keystore` files in `$ES_PATH_CONF`,
+as well as the global cluster metadata contain settings for all the cluster's
+features, not only for Security. It is easier to backup and restore all these
+configurations as a whole, and also, non-Security configurations need backup too!
+Cherry-picking only Security configurations complicates the procedure a bit, but
+it's definitely a viable option. All the other
+{es-repo-dir}/security/reference/files.asciidoc[configuration files] and the
+`.security` index contain only Security configuration data.
+
+=== Backup File Based Configuration
+
+Changes to the configuration files usually require a node restart for the
+changes to take effect, so this configuration method is reserved for settings
+that change rarely (or are required for cluster formation, or require file
+system privileges for modifications). In a typical deployment, once a desired
+configuration is reached, subsequent changes will be infrequent.
+
+The simplest way to backup file based configuration is to simply copy the
+`$ES_PATH_CONF` directory. And given the infrequent modifications, you can do
+this after every change. For the YAML text files you also have the option of
+storing diffs against a baseline, or checking them into `git`, to make the
+changes more easily reviewable by the {es} administrator. The binary or encoded
+files, such as the private keys or the secure store file are extra sensitive;
+they require restricted read access. This is the identical procedure as for a
+complete backup. Remember that in a typical {es} deployment all files are
+indentical on every node.
+
+=== Backup API Based Configuration
+
+API based configuration backup uses the common snapshot functionality [link].
+The snapshot API saves the settings, the type mapping and the contents of any
+index, to a location of a cloud storage service or on a shared network file
+system. The snapshot can also optionally capture the persistent settings from
+the global cluster metadata.
+
+To use the snapshot API to backup `.security` first create a repository [link].
+Creating a repository requires the elevated `manage` cluster privilege.
+Afterwards, all snapshots can be created inside that repository by a user with
+the limited `snapshot_user` role. This role grants privileges to create
+snapshots in any existing repositories. It also grants privileges to list and
+read settings for all indices (but no data).
+
+[example creating the user]
+[example doing the snapshot]
+
+A few Security settings are stored in the global cluster metadata as persistent
+settings. These are included in the snapshot, but for facilitating change
+reviews as well as restore convenience, we can pull them out to stand on their
+own file.
+
+curl -X GET -u elastic:password "localhost:9200/_cluster/settings?pretty&flat_settings" | jq '.persistent | with_entries(select(.key|startswith("xpack.security")))'
+
+You can store the output of this together with the other configuration files.
+
+NOTE: Transient settings are not considered for backup.
+
+=== Backup Repository Access
+
+Simply exposing the contents of the `.security` index, by having a third party
+read the snapshot, does not equate to a compromised cluster security. This is
+because an attacker still needs to brute force cryptographic hashes before it
+can impersonate users or use API keys. But every document in the security index
+is sensitive to changes, meaning that any modification has the potential to
+compromise the integrity of all the data in the cluster. Therefore it is
+recommended to:
+
+* snapshot `.security` in a dedicated repository, to which read and write
+access is strictly restricted and audited
+* if there are indications that the snapshot has been read, proceed to changing
+the passwords of the users in the native realm as well as revoking API keys
+* never restore a snapshot for which there are indications that it has been
+tampered with; there is currently no option for the restore process to detect
+malicious tampering
+
+The same recommendations are available for the storing of backups for
+configuration files. However, special caution must be employed when storing
+the `elasticsearch.keystore` and private key file backups, because currently
+the secure store is *not* password protected and any read access can compromise
+passwords of external systems and private keys.
+
+=== Restore Security Configuration
+
+The first part of restoring a Security configuration backup is restoring the
+`.security` index. You can restore a snapshot of the `.security` index only if
+it has been created in the same major release version. The last minor version of
+every major release can convert and read both versions of the index.
+Log in to one of the node hosts, navigate to {es} installation directory, and
+follow these steps:
+
+ * make sure the repository holding the `.security` snapshot is installed
+ * add a new user with the `superuser` role to the file based realm
+ bin/elasticsearch-users useradd jacknich -p password -r superuser
+ * using the previously create user, delete the existing `.security-6` or
+`.security-7` index
+  curl -u jacknich:password -X DELETE "localhost:9200/.security-7"
+  +
+  NOTE: after this step authentication will not work so all API calls will fail
+ * using the same user, restore the `.security` index from the snapshot
+ curl -u elastic:password -X POST "localhost:9200/_snapshot/my_backup/snapshot_1/_restore" -H 'Content-Type: application/json' -d'
+ {
+    "indices": ".security-7",
+    "include_global_state": true
+ }
+ '
+ +
+ NOTE: restoring the global state is optional, but it will help make sure the
+
+The next part is really common to every other backup restore; copy the backed-up
+configuration overwritting the contents of `$ES_PATH_CONF` and restart the node.
+
+You can now cherry-pick and apply the persistent secure settings:
+curl -X PUT _settings

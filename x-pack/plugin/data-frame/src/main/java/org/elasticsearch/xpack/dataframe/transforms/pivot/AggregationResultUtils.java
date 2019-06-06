@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.dataframe.transforms.pivot;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.Numbers;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
@@ -73,27 +74,8 @@ public final class AggregationResultUtils {
                 // TODO: support other aggregation types
                 Aggregation aggResult = bucket.getAggregations().get(aggName);
 
-                if (aggResult instanceof NumericMetricsAggregation.SingleValue) {
-                    NumericMetricsAggregation.SingleValue aggResultSingleValue = (SingleValue) aggResult;
-                    // If the type is numeric or if the formatted string is the same as simply making the value a string,
-                    //    gather the `value` type, otherwise utilize `getValueAsString` so we don't lose formatted outputs.
-                    if (isNumericType(fieldType) ||
-                        (aggResultSingleValue.getValueAsString().equals(String.valueOf(aggResultSingleValue.value())))) {
-                        updateDocument(document, aggName, aggResultSingleValue.value());
-                    } else {
-                        updateDocument(document, aggName, aggResultSingleValue.getValueAsString());
-                    }
-                } else if (aggResult instanceof ScriptedMetric) {
-                    updateDocument(document, aggName, ((ScriptedMetric) aggResult).aggregation());
-                } else if (aggResult instanceof GeoCentroid) {
-                    updateDocument(document, aggName, ((GeoCentroid) aggResult).centroid().toString());
-                } else {
-                    // Execution should never reach this point!
-                    // Creating transforms with unsupported aggregations shall not be possible
-                    throw new AggregationExtractionException("unsupported aggregation [{}] with name [{}]",
-                        aggResult.getType(),
-                        aggResult.getName());
-                }
+                AggValueExtractor extractor = getExtractor(aggResult, fieldType);
+                updateDocument(document, aggName, extractor.value());
             }
 
             document.put(DataFrameField.DOCUMENT_ID_FIELD, idGen.getID());
@@ -101,6 +83,23 @@ public final class AggregationResultUtils {
             return document;
         });
     }
+
+    static AggValueExtractor getExtractor(Aggregation aggregation, String fieldType) {
+        if (aggregation instanceof NumericMetricsAggregation.SingleValue) {
+            return new SingleValueAggExtractor((SingleValue) aggregation, fieldType);
+        } else if (aggregation instanceof ScriptedMetric) {
+            return new ScriptedMetricAggExtractor((ScriptedMetric) aggregation);
+        } else if (aggregation instanceof GeoCentroid) {
+            return new GeoCentroidAggExtractor((GeoCentroid)aggregation);
+        } else {
+            // Execution should never reach this point!
+            // Creating transforms with unsupported aggregations shall not be possible
+            throw new AggregationExtractionException("unsupported aggregation [{}] with name [{}]",
+                aggregation.getType(),
+                aggregation.getName());
+        }
+    }
+
 
     @SuppressWarnings("unchecked")
     static void updateDocument(Map<String, Object> document, String fieldName, Object value) {
@@ -145,6 +144,62 @@ public final class AggregationResultUtils {
     public static class AggregationExtractionException extends ElasticsearchException {
         AggregationExtractionException(String msg, Object... args) {
             super(msg, args);
+        }
+    }
+
+    private interface AggValueExtractor {
+        Object value();
+    }
+
+    private static class SingleValueAggExtractor implements AggValueExtractor {
+        private final SingleValue aggregation;
+        private final String fieldType;
+        SingleValueAggExtractor(SingleValue aggregation, String fieldType) {
+            this.aggregation = aggregation;
+            this.fieldType = fieldType;
+        }
+
+        @Override
+        public Object value() {
+            // If the double is invalid, this indicates sparse data
+            if (Numbers.isValidDouble(aggregation.value()) == false) {
+                return null;
+            }
+            // If the type is numeric or if the formatted string is the same as simply making the value a string,
+            //    gather the `value` type, otherwise utilize `getValueAsString` so we don't lose formatted outputs.
+            if (isNumericType(fieldType) ||
+                aggregation.getValueAsString().equals(String.valueOf(aggregation.value()))){
+                return aggregation.value();
+            } else {
+                return aggregation.getValueAsString();
+            }
+        }
+    }
+
+    private static class ScriptedMetricAggExtractor implements AggValueExtractor {
+        private final ScriptedMetric aggregation;
+
+        ScriptedMetricAggExtractor(ScriptedMetric aggregation) {
+            this.aggregation = aggregation;
+        }
+
+        @Override
+        public Object value() {
+            return aggregation.aggregation();
+        }
+    }
+
+    private static class GeoCentroidAggExtractor implements AggValueExtractor {
+        private final GeoCentroid aggregation;
+
+        GeoCentroidAggExtractor(GeoCentroid aggregation) {
+            this.aggregation = aggregation;
+        }
+
+        @Override
+        public Object value() {
+            // if the account is `0` iff there is no contained centroid
+            return aggregation.count() > 0 ? aggregation.centroid().toString() : null;
         }
     }
 }

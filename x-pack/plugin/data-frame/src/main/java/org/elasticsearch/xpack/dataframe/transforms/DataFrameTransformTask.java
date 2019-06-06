@@ -584,6 +584,14 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
                                 next.run();
                             }
                     ));
+
+            // TODO: check whether continuous data frames is enabled when available
+            if (indexerState.equals(IndexerState.STARTED) && transformTask.currentCheckpoint.get() == 1) {
+                auditor.info(transformConfig.getId(), "Stopping data frame transform and removing task");
+                logger.info("Stopping data frame transform [{}] and removing task", transformConfig.getId());
+                transformTask.shutdown();
+            }
+
         }
 
         @Override

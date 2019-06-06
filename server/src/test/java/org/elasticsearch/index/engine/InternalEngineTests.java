@@ -5589,7 +5589,7 @@ public class InternalEngineTests extends EngineTestCase {
                         "seq_no=" + op.seqNo() + " max_seq_no=" + tracker.getMaxSeqNo() + "checkpoint=" + tracker.getCheckpoint(),
                         tracker.contains(op.seqNo()), equalTo(seqNosInSafeCommit.contains(op.seqNo())));
                 }
-                engine.recoverFromTranslog(translogHandler, Long.MFsDirectoryFactoryAX_VALUE);
+                engine.recoverFromTranslog(translogHandler, Long.MAX_VALUE);
                 assertThat(getDocIds(engine, true), equalTo(docs));
             }
         }

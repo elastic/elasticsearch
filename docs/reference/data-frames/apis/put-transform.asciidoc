@@ -39,7 +39,7 @@ a `query`.
 `dest` (required):: (object) The destination configuration, consisting of `index`.
 
 `pivot`:: (object) Defines the pivot function `group by` fields and the aggregation to
-reduce the data.
+reduce the data. See <<data-frame-transform-pivot, data frame transform pivot objects>>.
 
 `description`:: Optional free text description of the data frame transform
 

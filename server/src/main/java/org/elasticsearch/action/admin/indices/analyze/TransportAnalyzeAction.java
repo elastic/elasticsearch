@@ -124,72 +124,92 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeAc
     }
 
     @Override
-    protected AnalyzeAction.Response shardOperation(AnalyzeAction.Request request, ShardId shardId) {
-        try {
-            final IndexService indexService;
-            if (shardId != null) {
-                indexService = indicesService.indexServiceSafe(shardId.getIndex());
-            } else {
-                indexService = null;
-            }
-            String field = null;
-            Analyzer analyzer = null;
-            if (request.field() != null) {
-                if (indexService == null) {
-                    throw new IllegalArgumentException(
-                        "No index provided, and trying to analyzer based on a specific field which requires the index parameter");
-                }
-                MappedFieldType fieldType = indexService.mapperService().fullName(request.field());
-                if (fieldType != null) {
-                    if (fieldType.tokenized() || fieldType instanceof KeywordFieldMapper.KeywordFieldType) {
-                        analyzer = fieldType.indexAnalyzer();
-                    } else {
-                        throw new IllegalArgumentException("Can't process field [" + request.field() +
-                            "], Analysis requests are only supported on tokenized fields");
-                    }
-                    field = fieldType.name();
-                }
-            }
-            if (field == null) {
-                /**
-                 * TODO: _all is disabled by default and index.query.default_field can define multiple fields or patterns so we should
-                 * probably makes the field name mandatory in analyze query.
-                 **/
-                if (indexService != null) {
-                    field = indexService.getIndexSettings().getDefaultFields().get(0);
-                }
-            }
-            final AnalysisRegistry analysisRegistry = indicesService.getAnalysis();
-            final int maxTokenCount = indexService == null ?
-                IndexSettings.MAX_TOKEN_COUNT_SETTING.get(settings) : indexService.getIndexSettings().getMaxTokenCount();
-            return analyze(request, field, analyzer, indexService != null ? indexService.getIndexAnalyzers() : null,
-                analysisRegistry, environment, maxTokenCount);
-        } catch (IOException e) {
-            throw new ElasticsearchException("analysis failed", e);
-        }
+    protected AnalyzeAction.Response shardOperation(AnalyzeAction.Request request, ShardId shardId) throws IOException {
+        final IndexService indexService = getIndexService(shardId);
+        final int maxTokenCount = indexService == null ?
+            IndexSettings.MAX_TOKEN_COUNT_SETTING.get(settings) : indexService.getIndexSettings().getMaxTokenCount();
 
+        return analyze(request, indicesService.getAnalysis(), environment, indexService, maxTokenCount);
     }
 
-    public static AnalyzeAction.Response analyze(AnalyzeAction.Request request, String field, Analyzer analyzer,
-                                                 IndexAnalyzers indexAnalyzers, AnalysisRegistry analysisRegistry,
-                                                 Environment environment, int maxTokenCount) throws IOException {
-        boolean closeAnalyzer = false;
-        if (analyzer == null && request.analyzer() != null) {
-            if (indexAnalyzers == null) {
-                analyzer = analysisRegistry.getAnalyzer(request.analyzer());
+    public static AnalyzeAction.Response analyze(AnalyzeAction.Request request, AnalysisRegistry analysisRegistry,
+                                          Environment environment, IndexService indexService, int maxTokenCount) throws IOException {
+
+        IndexAnalyzers indexAnalyzers = indexService == null ? null : indexService.getIndexAnalyzers();
+
+        // First, we check to see if the request requires a custom analyzer.  If so, then we
+        // need to build it and then close it after use.
+        try (Analyzer analyzer = buildCustomAnalyzer(request, analysisRegistry, indexAnalyzers, environment)) {
+            if (analyzer != null) {
+                return analyze(request, analyzer, maxTokenCount);
+            }
+        }
+
+        // Otherwise we use a built-in analyzer, which should not be closed
+        return analyze(request, getAnalyzer(request, analysisRegistry, indexService), maxTokenCount);
+    }
+
+    private IndexService getIndexService(ShardId shardId) {
+        if (shardId != null) {
+            return indicesService.indexServiceSafe(shardId.getIndex());
+        }
+        return null;
+    }
+
+    private static Analyzer getAnalyzer(AnalyzeAction.Request request, AnalysisRegistry analysisRegistry,
+                                        IndexService indexService) throws IOException {
+        if (request.analyzer() != null) {
+            if (indexService == null) {
+                Analyzer analyzer = analysisRegistry.getAnalyzer(request.analyzer());
                 if (analyzer == null) {
                     throw new IllegalArgumentException("failed to find global analyzer [" + request.analyzer() + "]");
                 }
+                return analyzer;
             } else {
-                analyzer = indexAnalyzers.get(request.analyzer());
+                Analyzer analyzer = indexService.getIndexAnalyzers().get(request.analyzer());
                 if (analyzer == null) {
                     throw new IllegalArgumentException("failed to find analyzer [" + request.analyzer() + "]");
                 }
+                return analyzer;
             }
-        } else if (request.tokenizer() != null) {
+        }
+        if (request.normalizer() != null) {
+            // Get normalizer from indexAnalyzers
+            if (indexService == null) {
+                throw new IllegalArgumentException("analysis based on a normalizer requires an index");
+            }
+            Analyzer analyzer = indexService.getIndexAnalyzers().getNormalizer(request.normalizer());
+            if (analyzer == null) {
+                throw new IllegalArgumentException("failed to find normalizer under [" + request.normalizer() + "]");
+            }
+        }
+        if (request.field() != null) {
+            if (indexService == null) {
+                throw new IllegalArgumentException("analysis based on a specific field requires an index");
+            }
+            MappedFieldType fieldType = indexService.mapperService().fullName(request.field());
+            if (fieldType != null) {
+                if (fieldType.tokenized() || fieldType instanceof KeywordFieldMapper.KeywordFieldType) {
+                    return fieldType.indexAnalyzer();
+                } else {
+                    throw new IllegalArgumentException("Can't process field [" + request.field() +
+                        "], Analysis requests are only supported on tokenized fields");
+                }
+            }
+        }
+        if (indexService == null) {
+            return analysisRegistry.getAnalyzer("standard");
+        } else {
+            return indexService.getIndexAnalyzers().getDefaultIndexAnalyzer();
+        }
+    }
+
+    private static Analyzer buildCustomAnalyzer(AnalyzeAction.Request request, AnalysisRegistry analysisRegistry,
+                                                IndexAnalyzers indexAnalyzers, Environment environment) throws IOException {
+        if (request.tokenizer() != null) {
             final IndexSettings indexSettings = indexAnalyzers == null ? null : indexAnalyzers.getIndexSettings();
             Tuple<String, TokenizerFactory> tokenizerFactory = parseTokenizerFactory(request, indexAnalyzers,
-                        analysisRegistry, environment);
+                analysisRegistry, environment);
 
             List<CharFilterFactory> charFilterFactoryList =
                 parseCharFilterFactories(request, indexSettings, analysisRegistry, environment, false);
@@ -197,18 +217,11 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeAc
             List<TokenFilterFactory> tokenFilterFactoryList = parseTokenFilterFactories(request, indexSettings, analysisRegistry,
                 environment, tokenizerFactory, charFilterFactoryList, false);
 
-            analyzer = new CustomAnalyzer(tokenizerFactory.v1(), tokenizerFactory.v2(),
-                charFilterFactoryList.toArray(new CharFilterFactory[charFilterFactoryList.size()]),
-                tokenFilterFactoryList.toArray(new TokenFilterFactory[tokenFilterFactoryList.size()]));
-            closeAnalyzer = true;
-        } else if (request.normalizer() != null) {
-            // Get normalizer from indexAnalyzers
-            analyzer = indexAnalyzers.getNormalizer(request.normalizer());
-            if (analyzer == null) {
-                throw new IllegalArgumentException("failed to find normalizer under [" + request.normalizer() + "]");
-            }
+            return new CustomAnalyzer(tokenizerFactory.v1(), tokenizerFactory.v2(),
+                charFilterFactoryList.toArray(new CharFilterFactory[0]),
+                tokenFilterFactoryList.toArray(new TokenFilterFactory[0]));
         } else if (((request.tokenFilters() != null && request.tokenFilters().size() > 0)
-                || (request.charFilters() != null && request.charFilters().size() > 0))) {
+            || (request.charFilters() != null && request.charFilters().size() > 0))) {
             final IndexSettings indexSettings = indexAnalyzers == null ? null : indexAnalyzers.getIndexSettings();
             // custom normalizer = if normalizer == null but filter or char_filter is not null and tokenizer/analyzer is null
             // get charfilter and filter from request
@@ -222,46 +235,29 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeAc
                 parseTokenFilterFactories(request, indexSettings, analysisRegistry, environment,
                     new Tuple<>(keywordTokenizerName, keywordTokenizerFactory), charFilterFactoryList, true);
 
-            analyzer = new CustomAnalyzer("keyword_for_normalizer",
-                keywordTokenizerFactory,
-                charFilterFactoryList.toArray(new CharFilterFactory[charFilterFactoryList.size()]),
-                tokenFilterFactoryList.toArray(new TokenFilterFactory[tokenFilterFactoryList.size()]));
-            closeAnalyzer = true;
-        } else if (analyzer == null) {
-            if (indexAnalyzers == null) {
-                analyzer = analysisRegistry.getAnalyzer("standard");
-            } else {
-                analyzer = indexAnalyzers.getDefaultIndexAnalyzer();
-            }
+            return new CustomAnalyzer("keyword_for_normalizer", keywordTokenizerFactory,
+                charFilterFactoryList.toArray(new CharFilterFactory[0]), tokenFilterFactoryList.toArray(new TokenFilterFactory[0]));
         }
-        if (analyzer == null) {
-            throw new IllegalArgumentException("failed to find analyzer");
-        }
+        return null;
+    }
 
-        List<AnalyzeAction.AnalyzeToken> tokens = null;
-        AnalyzeAction.DetailAnalyzeResponse detail = null;
-
+    private static AnalyzeAction.Response analyze(AnalyzeAction.Request request, Analyzer analyzer, int maxTokenCount) {
         if (request.explain()) {
-            detail = detailAnalyze(request, analyzer, field, maxTokenCount);
-        } else {
-            tokens = simpleAnalyze(request, analyzer, field, maxTokenCount);
+            return new AnalyzeAction.Response(null, detailAnalyze(request, analyzer, maxTokenCount));
         }
-
-        if (closeAnalyzer) {
-            analyzer.close();
-        }
-
-        return new AnalyzeAction.Response(tokens, detail);
+        return new AnalyzeAction.Response(simpleAnalyze(request, analyzer, maxTokenCount), null);
     }
 
     private static List<AnalyzeAction.AnalyzeToken> simpleAnalyze(AnalyzeAction.Request request,
-                                                                           Analyzer analyzer, String field, int maxTokenCount) {
+                                                                  Analyzer analyzer, int maxTokenCount) {
         TokenCounter tc = new TokenCounter(maxTokenCount);
         List<AnalyzeAction.AnalyzeToken> tokens = new ArrayList<>();
         int lastPosition = -1;
         int lastOffset = 0;
+        // Note that we always pass "" as the field to the various Analyzer methods, because
+        // the analyzers we use here are all field-specific and so ignore this parameter
         for (String text : request.text()) {
-            try (TokenStream stream = analyzer.tokenStream(field, text)) {
+            try (TokenStream stream = analyzer.tokenStream("", text)) {
                 stream.reset();
                 CharTermAttribute term = stream.addAttribute(CharTermAttribute.class);
                 PositionIncrementAttribute posIncr = stream.addAttribute(PositionIncrementAttribute.class);
@@ -282,8 +278,8 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeAc
                 lastOffset += offset.endOffset();
                 lastPosition += posIncr.getPositionIncrement();
 
-                lastPosition += analyzer.getPositionIncrementGap(field);
-                lastOffset += analyzer.getOffsetGap(field);
+                lastPosition += analyzer.getPositionIncrementGap("");
+                lastOffset += analyzer.getOffsetGap("");
             } catch (IOException e) {
                 throw new ElasticsearchException("failed to analyze", e);
             }
@@ -292,7 +288,7 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeAc
     }
 
     private static AnalyzeAction.DetailAnalyzeResponse detailAnalyze(AnalyzeAction.Request request, Analyzer analyzer,
-                                                                     String field, int maxTokenCount) {
+                                                                     int maxTokenCount) {
         AnalyzeAction.DetailAnalyzeResponse detailResponse;
         final Set<String> includeAttributes = new HashSet<>();
         if (request.attributes() != null) {
@@ -338,7 +334,7 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeAc
                 // analyzing only tokenizer
                 Tokenizer tokenizer = tokenizerFactory.create();
                 tokenizer.setReader(reader);
-                tokenizerTokenListCreator.analyze(tokenizer, customAnalyzer, field, includeAttributes);
+                tokenizerTokenListCreator.analyze(tokenizer, customAnalyzer, includeAttributes);
 
                 // analyzing each tokenfilter
                 if (tokenFilterFactories != null) {
@@ -348,7 +344,7 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeAc
                         }
                         TokenStream stream = createStackedTokenStream(request.text()[textIndex],
                             charFilterFactories, tokenizerFactory, tokenFilterFactories, tokenFilterIndex + 1);
-                        tokenFiltersTokenListCreator[tokenFilterIndex].analyze(stream, customAnalyzer, field, includeAttributes);
+                        tokenFiltersTokenListCreator[tokenFilterIndex].analyze(stream, customAnalyzer, includeAttributes);
                     }
                 }
             }
@@ -383,8 +379,8 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeAc
 
             TokenListCreator tokenListCreator = new TokenListCreator(maxTokenCount);
             for (String text : request.text()) {
-                tokenListCreator.analyze(analyzer.tokenStream(field, text), analyzer, field,
-                        includeAttributes);
+                tokenListCreator.analyze(analyzer.tokenStream("", text), analyzer,
+                    includeAttributes);
             }
             detailResponse
                 = new AnalyzeAction.DetailAnalyzeResponse(new AnalyzeAction.AnalyzeTokenList(name, tokenListCreator.getArrayTokens()));
@@ -454,7 +450,7 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeAc
             tc = new TokenCounter(maxTokenCount);
         }
 
-        private void analyze(TokenStream stream, Analyzer analyzer, String field, Set<String> includeAttributes) {
+        private void analyze(TokenStream stream, Analyzer analyzer, Set<String> includeAttributes) {
             try {
                 stream.reset();
                 CharTermAttribute term = stream.addAttribute(CharTermAttribute.class);
@@ -477,8 +473,8 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeAc
                 lastOffset += offset.endOffset();
                 lastPosition += posIncr.getPositionIncrement();
 
-                lastPosition += analyzer.getPositionIncrementGap(field);
-                lastOffset += analyzer.getOffsetGap(field);
+                lastPosition += analyzer.getPositionIncrementGap("");
+                lastOffset += analyzer.getOffsetGap("");
 
             } catch (IOException e) {
                 throw new ElasticsearchException("failed to analyze", e);
@@ -488,7 +484,7 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeAc
         }
 
         private AnalyzeAction.AnalyzeToken[] getArrayTokens() {
-            return tokens.toArray(new AnalyzeAction.AnalyzeToken[tokens.size()]);
+            return tokens.toArray(new AnalyzeAction.AnalyzeToken[0]);
         }
 
     }

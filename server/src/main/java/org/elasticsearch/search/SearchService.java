@@ -673,6 +673,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     private void onFreeContext(SearchContext context) {
         assert context.refCount() > 0 : " refCount must be > 0: " + context.refCount();
+        assert activeContexts.containsKey(context.id()) == false;
         context.indexShard().getSearchOperationListener().onFreeContext(context);
         if (context.scrollContext() != null) {
             openScrollContexts.decrementAndGet();

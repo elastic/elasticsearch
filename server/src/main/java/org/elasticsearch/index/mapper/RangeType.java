@@ -358,7 +358,7 @@ public enum RangeType {
         @Override
         public Double doubleValue(Object endpointValue) {
             assert endpointValue instanceof Double;
-            return (Double)endpointValue;
+            return (Double) endpointValue;
         }
 
         @Override
@@ -430,7 +430,7 @@ public enum RangeType {
         }
 
         @Override
-        public Double doubleValue (Object endpointValue) {
+        public Double doubleValue(Object endpointValue) {
             return LONG.doubleValue(endpointValue);
         }
 

@@ -59,10 +59,10 @@ public class RangeHistogramAggregator extends BucketsAggregator {
     private final LongHash bucketOrds;
 
     RangeHistogramAggregator(String name, AggregatorFactories factories, double interval, double offset,
-                               BucketOrder order, boolean keyed, long minDocCount, double minBound, double maxBound,
-                               @Nullable ValuesSource.Bytes.FieldData.RangeFieldData valuesSource, DocValueFormat formatter,
-                               SearchContext context, Aggregator parent,
-                               List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
+                             BucketOrder order, boolean keyed, long minDocCount, double minBound, double maxBound,
+                             @Nullable ValuesSource.Bytes.FieldData.RangeFieldData valuesSource, DocValueFormat formatter,
+                             SearchContext context, Aggregator parent,
+                             List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
 
         super(name, factories, context, parent, pipelineAggregators, metaData);
         if (interval <= 0) {
@@ -103,8 +103,9 @@ public class RangeHistogramAggregator extends BucketsAggregator {
                         // This list should be sorted by start-of-range, I think?
                         List<RangeFieldMapper.Range> ranges = rangeType.decodeRanges(encodedRanges);
                         for (RangeFieldMapper.Range range : ranges) {
-                            for (double value = rangeType.doubleValue(range.getFrom()); value <= rangeType.doubleValue(range.getTo());
-                                 value += interval) {
+                            final Double from = rangeType.doubleValue(range.getFrom());
+                            final Double to = rangeType.doubleValue(range.getTo());
+                            for (double value = from; value <= to; value += interval) {
                                 double key = Math.floor((value - offset) / interval);
                                 if (key <= previousKey) {
                                     continue;

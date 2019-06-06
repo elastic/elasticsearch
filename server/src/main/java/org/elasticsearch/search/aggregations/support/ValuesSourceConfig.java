@@ -101,13 +101,12 @@ public class ValuesSourceConfig<VS extends ValuesSource> {
                 config = new ValuesSourceConfig<>(ValuesSourceType.NUMERIC);
             } else if (indexFieldData instanceof IndexGeoPointFieldData) {
                 config = new ValuesSourceConfig<>(ValuesSourceType.GEOPOINT);
+            } else if (fieldType instanceof RangeFieldMapper.RangeFieldType) {
+                config = new ValuesSourceConfig<>(ValuesSourceType.RANGE);
             } else {
-                if (fieldType instanceof RangeFieldMapper.RangeFieldType) {
-                    config = new ValuesSourceConfig<>(ValuesSourceType.RANGE);
-                } else {
-                    config = new ValuesSourceConfig<>(ValuesSourceType.BYTES);
-                }
+                config = new ValuesSourceConfig<>(ValuesSourceType.BYTES);
             }
+
         } else {
             config = new ValuesSourceConfig<>(valueType.getValuesSourceType());
         }

@@ -22,7 +22,6 @@ package org.elasticsearch.index.translog;
 import org.elasticsearch.common.io.stream.ByteBufferStreamInput;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 
-import java.io.EOFException;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
@@ -77,7 +76,7 @@ public abstract class BaseTranslogReader implements Comparable<BaseTranslogReade
             reusableBuffer.capacity() + "]";
         reusableBuffer.clear();
         reusableBuffer.limit(4);
-        readBytesDetectingTruncation(reusableBuffer, position);
+        readBytes(reusableBuffer, position);
         reusableBuffer.flip();
         // Add an extra 4 to account for the operation size integer itself
         final int size = reusableBuffer.getInt() + 4;
@@ -108,17 +107,9 @@ public abstract class BaseTranslogReader implements Comparable<BaseTranslogReade
         }
         buffer.clear();
         buffer.limit(opSize);
-        readBytesDetectingTruncation(buffer, position);
+        readBytes(buffer, position);
         buffer.flip();
         return new BufferedChecksumStreamInput(new ByteBufferStreamInput(buffer), path.toString(), reuse);
-    }
-
-    private void readBytesDetectingTruncation(ByteBuffer buffer, long position) throws IOException {
-        try {
-            readBytes(buffer, position);
-        } catch (EOFException e) {
-            throw new TranslogCorruptedException(path.toString(), "translog truncated", e);
-        }
     }
 
     protected Translog.Operation read(BufferedChecksumStreamInput inStream) throws IOException {

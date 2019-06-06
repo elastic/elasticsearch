@@ -93,15 +93,19 @@ final class TranslogSnapshot extends BaseTranslogReader {
      * reads an operation at the given position into the given buffer.
      */
     protected void readBytes(ByteBuffer buffer, long position) throws IOException {
-        if (position >= length) {
-            throw new EOFException("read requested past EOF. pos [" + position + "] end: [" + length + "], generation: [" +
-                getGeneration() + "], path: [" + path + "]");
+        try {
+            if (position >= length) {
+                throw new EOFException("read requested past EOF. pos [" + position + "] end: [" + length + "], generation: [" +
+                    getGeneration() + "], path: [" + path + "]");
+            }
+            if (position < getFirstOperationOffset()) {
+                throw new IOException("read requested before position of first ops. pos [" + position + "] first op on: [" +
+                    getFirstOperationOffset() + "], generation: [" + getGeneration() + "], path: [" + path + "]");
+            }
+            Channels.readFromFileChannelWithEofException(channel, position, buffer);
+        } catch (EOFException e) {
+            throw new TranslogCorruptedException(path.toString(), "translog truncated", e);
         }
-        if (position < getFirstOperationOffset()) {
-            throw new IOException("read requested before position of first ops. pos [" + position + "] first op on: [" +
-                getFirstOperationOffset() + "], generation: [" + getGeneration() + "], path: [" + path + "]");
-        }
-        Channels.readFromFileChannelWithEofException(channel, position, buffer);
     }
 
     @Override

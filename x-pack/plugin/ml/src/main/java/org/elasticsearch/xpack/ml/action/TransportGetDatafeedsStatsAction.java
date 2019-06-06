@@ -24,24 +24,29 @@ import org.elasticsearch.xpack.core.ml.action.GetDatafeedsStatsAction;
 import org.elasticsearch.xpack.core.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedState;
+import org.elasticsearch.xpack.core.ml.datafeed.DatafeedTimingStats;
 import org.elasticsearch.xpack.ml.datafeed.persistence.DatafeedConfigProvider;
+import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 public class TransportGetDatafeedsStatsAction extends TransportMasterNodeReadAction<GetDatafeedsStatsAction.Request,
         GetDatafeedsStatsAction.Response> {
 
     private final DatafeedConfigProvider datafeedConfigProvider;
+    private final JobResultsProvider jobResultsProvider;
 
     @Inject
     public TransportGetDatafeedsStatsAction(TransportService transportService, ClusterService clusterService,
                                             ThreadPool threadPool, ActionFilters actionFilters,
                                             IndexNameExpressionResolver indexNameExpressionResolver,
-                                            DatafeedConfigProvider datafeedConfigProvider) {
+                                            DatafeedConfigProvider datafeedConfigProvider, JobResultsProvider jobResultsProvider) {
         super(GetDatafeedsStatsAction.NAME, transportService, clusterService, threadPool, actionFilters,
             GetDatafeedsStatsAction.Request::new, indexNameExpressionResolver);
         this.datafeedConfigProvider = datafeedConfigProvider;
+        this.jobResultsProvider = jobResultsProvider;
     }
 
     @Override
@@ -59,22 +64,37 @@ public class TransportGetDatafeedsStatsAction extends TransportMasterNodeReadAct
                                    ActionListener<GetDatafeedsStatsAction.Response> listener) throws Exception {
         logger.debug("Get stats for datafeed '{}'", request.getDatafeedId());
 
-        datafeedConfigProvider.expandDatafeedIds(request.getDatafeedId(), request.allowNoDatafeeds(), ActionListener.wrap(
-                expandedDatafeedIds -> {
-                    PersistentTasksCustomMetaData tasksInProgress = state.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
-                    List<GetDatafeedsStatsAction.Response.DatafeedStats> results = expandedDatafeedIds.stream()
-                            .map(datafeedId -> getDatafeedStats(datafeedId, state, tasksInProgress))
-                            .collect(Collectors.toList());
-                    QueryPage<GetDatafeedsStatsAction.Response.DatafeedStats> statsPage = new QueryPage<>(results, results.size(),
-                            DatafeedConfig.RESULTS_FIELD);
-                    listener.onResponse(new GetDatafeedsStatsAction.Response(statsPage));
+        datafeedConfigProvider.expandDatafeedConfigs(
+            request.getDatafeedId(),
+            request.allowNoDatafeeds(),
+            ActionListener.wrap(
+                datafeedBuilders -> {
+                    Map<String, String> jobIdByDatafeedId = datafeedBuilders.stream()
+                        .map(DatafeedConfig.Builder::build)
+                        .collect(Collectors.toUnmodifiableMap(DatafeedConfig::getId, DatafeedConfig::getJobId));
+                    jobResultsProvider.datafeedTimingStats(
+                        jobIdByDatafeedId.values(),
+                        timingStatsByJobId -> {
+                            PersistentTasksCustomMetaData tasksInProgress = state.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
+                            List<GetDatafeedsStatsAction.Response.DatafeedStats> results = datafeedBuilders.stream()
+                                .map(datafeedBuilder -> getDatafeedStats(
+                                    datafeedBuilder.getId(), state, tasksInProgress, jobIdByDatafeedId, timingStatsByJobId))
+                                .collect(Collectors.toList());
+                            QueryPage<GetDatafeedsStatsAction.Response.DatafeedStats> statsPage =
+                                new QueryPage<>(results, results.size(), DatafeedConfig.RESULTS_FIELD);
+                            listener.onResponse(new GetDatafeedsStatsAction.Response(statsPage));
+                        },
+                        listener::onFailure);
                 },
-                listener::onFailure
-        ));
+                listener::onFailure)
+        );
     }
 
-    private static GetDatafeedsStatsAction.Response.DatafeedStats getDatafeedStats(String datafeedId, ClusterState state,
-                                                                                   PersistentTasksCustomMetaData tasks) {
+    private static GetDatafeedsStatsAction.Response.DatafeedStats getDatafeedStats(String datafeedId,
+                                                                                   ClusterState state,
+                                                                                   PersistentTasksCustomMetaData tasks,
+                                                                                   Map<String, String> jobIdByDatafeedId,
+                                                                                   Map<String, DatafeedTimingStats> timingStatsByJobId) {
         PersistentTasksCustomMetaData.PersistentTask<?> task = MlTasks.getDatafeedTask(datafeedId, tasks);
         DatafeedState datafeedState = MlTasks.getDatafeedState(datafeedId, tasks);
         DiscoveryNode node = null;
@@ -83,7 +103,15 @@ public class TransportGetDatafeedsStatsAction extends TransportMasterNodeReadAct
             node = state.nodes().get(task.getExecutorNode());
             explanation = task.getAssignment().getExplanation();
         }
-        return new GetDatafeedsStatsAction.Response.DatafeedStats(datafeedId, datafeedState, node, explanation);
+        DatafeedTimingStats timingStats = null;
+        String jobId = jobIdByDatafeedId.get(datafeedId);
+        if (jobId != null) {
+            timingStats = timingStatsByJobId.get(jobId);
+            if (timingStats == null) {
+                timingStats = new DatafeedTimingStats(jobId);
+            }
+        }
+        return new GetDatafeedsStatsAction.Response.DatafeedStats(datafeedId, datafeedState, node, explanation, timingStats);
     }
 
     @Override

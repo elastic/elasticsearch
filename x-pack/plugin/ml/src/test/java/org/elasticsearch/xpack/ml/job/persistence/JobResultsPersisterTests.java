@@ -6,15 +6,18 @@
 package org.elasticsearch.xpack.ml.job.persistence;
 
 import org.elasticsearch.action.ActionFuture;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.ml.datafeed.DatafeedTimingStats;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.TimingStats;
 import org.elasticsearch.xpack.core.ml.job.results.AnomalyRecord;
 import org.elasticsearch.xpack.core.ml.job.results.Bucket;
@@ -32,6 +35,7 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Matchers.any;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -222,6 +226,38 @@ public class JobResultsPersisterTests extends ESTestCase {
                     "maximum_bucket_processing_time_ms", 2.0,
                     "average_bucket_processing_time_ms", 1.23,
                     "exponential_average_bucket_processing_time_ms", 7.89)));
+
+        verify(client, times(1)).threadPool();
+        verifyNoMoreInteractions(client);
+    }
+
+    public void testPersistDatafeedTimingStats() {
+        Client client = mockClient(ArgumentCaptor.forClass(BulkRequest.class));
+        doAnswer(
+            invocationOnMock -> {
+                // Take the listener passed to client::index as 2nd argument
+                ActionListener listener = (ActionListener) invocationOnMock.getArguments()[1];
+                // Handle the response on the listener
+                listener.onResponse(new IndexResponse());
+                return null;
+            })
+            .when(client).index(any(), any(ActionListener.class));
+
+        JobResultsPersister persister = new JobResultsPersister(client);
+        DatafeedTimingStats timingStats = new DatafeedTimingStats("foo", 666.0);
+        persister.persistDatafeedTimingStats(timingStats);
+
+        ArgumentCaptor<IndexRequest> indexRequestCaptor = ArgumentCaptor.forClass(IndexRequest.class);
+        verify(client, times(1)).index(indexRequestCaptor.capture(), any(ActionListener.class));
+        IndexRequest indexRequest = indexRequestCaptor.getValue();
+        assertThat(indexRequest.index(), equalTo(".ml-anomalies-.write-foo"));
+        assertThat(indexRequest.id(), equalTo("foo_datafeed_timing_stats"));
+        assertThat(
+            indexRequest.sourceAsMap(),
+            equalTo(
+                Map.of(
+                    "job_id", "foo",
+                    "total_search_time_ms", 666.0)));
 
         verify(client, times(1)).threadPool();
         verifyNoMoreInteractions(client);

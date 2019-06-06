@@ -38,6 +38,14 @@ public final class AnomalyDetectorsIndex {
     }
 
     /**
+     * The name of the alias pointing to the indices where the jobs' results are stored
+     * @return The read alias
+     */
+    public static String jobResultsIndexName() {
+        return AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + AnomalyDetectorsIndexFields.RESULTS_INDEX_DEFAULT;
+    }
+
+    /**
      * The name of the alias pointing to the indices where the job's results are stored
      * @param jobId Job Id
      * @return The read alias

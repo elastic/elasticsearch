@@ -42,6 +42,7 @@ import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.action.util.QueryPage;
+import org.elasticsearch.xpack.core.ml.datafeed.DatafeedTimingStats;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndexFields;
@@ -63,6 +64,7 @@ import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
@@ -871,6 +873,83 @@ public class JobResultsProviderTests extends ESTestCase {
         provider.timingStats(
             "foo",
             stats -> assertThat(stats, equalTo(new TimingStats("foo"))),
+            e -> { throw new AssertionError(); });
+
+        verify(client).prepareSearch(indexName);
+        verify(client).threadPool();
+        verify(client).search(any(SearchRequest.class), any(ActionListener.class));
+        verifyNoMoreInteractions(client);
+    }
+
+    public void testDatafeedTimingStats_MultipleDocumentsAtOnce() throws IOException {
+        String indexName = AnomalyDetectorsIndex.jobResultsIndexName();
+        List<Map<String, Object>> source =
+            Arrays.asList(
+                Map.of(
+                    Job.ID.getPreferredName(), "foo",
+                    DatafeedTimingStats.TOTAL_SEARCH_TIME_MS.getPreferredName(), 666.0),
+                Map.of(
+                    Job.ID.getPreferredName(), "bar",
+                    DatafeedTimingStats.TOTAL_SEARCH_TIME_MS.getPreferredName(), 777.0));
+        SearchResponse response = createSearchResponse(source);
+        Client client = getMockedClient(
+            queryBuilder -> assertThat(queryBuilder.getName(), equalTo("ids")),
+            response);
+
+        when(client.prepareSearch(indexName)).thenReturn(new SearchRequestBuilder(client, SearchAction.INSTANCE).setIndices(indexName));
+        JobResultsProvider provider = createProvider(client);
+        provider.datafeedTimingStats(
+            Set.of("foo", "bar"),
+            statsByJobId ->
+                assertThat(
+                    statsByJobId,
+                    equalTo(Map.of("foo", new DatafeedTimingStats("foo", 666.0), "bar", new DatafeedTimingStats("bar", 777.0)))),
+            e -> { throw new AssertionError(); });
+
+        verify(client).prepareSearch(indexName);
+        verify(client).threadPool();
+        verify(client).search(any(SearchRequest.class), any(ActionListener.class));
+        verifyNoMoreInteractions(client);
+    }
+
+    public void testDatafeedTimingStats_Ok() throws IOException {
+        String indexName = AnomalyDetectorsIndex.jobResultsAliasedName("foo");
+        List<Map<String, Object>> source =
+            Arrays.asList(
+                Map.of(
+                    Job.ID.getPreferredName(), "foo",
+                    DatafeedTimingStats.TOTAL_SEARCH_TIME_MS.getPreferredName(), 666.0));
+        SearchResponse response = createSearchResponse(source);
+        Client client = getMockedClient(
+            queryBuilder -> assertThat(queryBuilder.getName(), equalTo("ids")),
+            response);
+
+        when(client.prepareSearch(indexName)).thenReturn(new SearchRequestBuilder(client, SearchAction.INSTANCE).setIndices(indexName));
+        JobResultsProvider provider = createProvider(client);
+        provider.datafeedTimingStats(
+            "foo",
+            stats -> assertThat(stats, equalTo(new DatafeedTimingStats("foo", 666.0))),
+            e -> { throw new AssertionError(); });
+
+        verify(client).prepareSearch(indexName);
+        verify(client).threadPool();
+        verify(client).search(any(SearchRequest.class), any(ActionListener.class));
+        verifyNoMoreInteractions(client);
+    }
+
+    public void testDatafeedTimingStats_NotFound() throws IOException {
+        String indexName = AnomalyDetectorsIndex.jobResultsAliasedName("foo");
+        List<Map<String, Object>> source = new ArrayList<>();
+        SearchResponse response = createSearchResponse(source);
+        Client client = getMockedClient(
+            queryBuilder -> assertThat(queryBuilder.getName(), equalTo("ids")),
+            response);
+
+        when(client.prepareSearch(indexName)).thenReturn(new SearchRequestBuilder(client, SearchAction.INSTANCE).setIndices(indexName));
+        JobResultsProvider provider = createProvider(client);
+        provider.datafeedTimingStats(
+            "foo",
+            stats -> assertThat(stats, equalTo(new DatafeedTimingStats("foo"))),
             e -> { throw new AssertionError(); });
 
         verify(client).prepareSearch(indexName);

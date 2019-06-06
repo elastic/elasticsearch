@@ -28,8 +28,11 @@ import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.ml.datafeed.DatafeedTimingStats;
+import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter;
 import org.elasticsearch.xpack.ml.datafeed.extractor.fields.ExtractedField;
 import org.elasticsearch.xpack.ml.datafeed.extractor.fields.TimeBasedExtractedFields;
+import org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 
@@ -38,6 +41,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
+import java.time.Clock;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -71,6 +75,7 @@ public class ScrollDataExtractorTests extends ESTestCase {
     private int scrollSize;
     private long initScrollStartTime;
     private ActionFuture<ClearScrollResponse> clearScrollFuture;
+    private DatafeedTimingStatsReporter timingStatsReporter;
 
     private class TestDataExtractor extends ScrollDataExtractor {
 
@@ -81,7 +86,7 @@ public class ScrollDataExtractorTests extends ESTestCase {
         }
 
         TestDataExtractor(ScrollDataExtractorContext context) {
-            super(client, context);
+            super(client, context, timingStatsReporter);
         }
 
         @Override
@@ -140,6 +145,8 @@ public class ScrollDataExtractorTests extends ESTestCase {
         clearScrollFuture = mock(ActionFuture.class);
         capturedClearScrollRequests = ArgumentCaptor.forClass(ClearScrollRequest.class);
         when(client.execute(same(ClearScrollAction.INSTANCE), capturedClearScrollRequests.capture())).thenReturn(clearScrollFuture);
+        timingStatsReporter =
+            new DatafeedTimingStatsReporter(new DatafeedTimingStats(jobId), Clock.systemUTC(), mock(JobResultsPersister.class));
     }
 
     public void testSinglePageExtraction() throws IOException {

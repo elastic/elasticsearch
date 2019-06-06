@@ -17,7 +17,10 @@ import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.ml.datafeed.DatafeedTimingStats;
+import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter;
 import org.elasticsearch.xpack.ml.datafeed.extractor.aggregation.AggregationTestUtils.Term;
+import org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister;
 import org.junit.Before;
 
 import java.io.BufferedReader;
@@ -25,6 +28,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
+import java.time.Clock;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -54,13 +58,14 @@ public class AggregationDataExtractorTests extends ESTestCase {
     private List<String> indices;
     private QueryBuilder query;
     private AggregatorFactories.Builder aggs;
+    private DatafeedTimingStatsReporter timingStatsReporter;
 
     private class TestDataExtractor extends AggregationDataExtractor {
 
         private SearchResponse nextResponse;
 
         TestDataExtractor(long start, long end) {
-            super(testClient, createContext(start, end));
+            super(testClient, createContext(start, end), timingStatsReporter);
         }
 
         @Override
@@ -88,6 +93,8 @@ public class AggregationDataExtractorTests extends ESTestCase {
                 .addAggregator(AggregationBuilders.histogram("time").field("time").interval(1000).subAggregation(
                         AggregationBuilders.terms("airline").field("airline").subAggregation(
                                 AggregationBuilders.avg("responsetime").field("responsetime"))));
+        timingStatsReporter =
+            new DatafeedTimingStatsReporter(new DatafeedTimingStats(jobId), Clock.systemUTC(), mock(JobResultsPersister.class));
     }
 
     public void testExtraction() throws IOException {

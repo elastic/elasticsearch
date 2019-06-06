@@ -81,6 +81,7 @@ import org.elasticsearch.xpack.core.ml.action.GetInfluencersAction;
 import org.elasticsearch.xpack.core.ml.action.GetRecordsAction;
 import org.elasticsearch.xpack.core.ml.calendars.Calendar;
 import org.elasticsearch.xpack.core.ml.calendars.ScheduledEvent;
+import org.elasticsearch.xpack.core.ml.datafeed.DatafeedTimingStats;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.MlFilter;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
@@ -124,6 +125,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -440,6 +442,51 @@ public class JobResultsProvider {
             .setSize(1)
             .setIndicesOptions(IndicesOptions.lenientExpandOpen())
             .setQuery(QueryBuilders.idsQuery().addIds(TimingStats.documentId(jobId)));
+    }
+
+    public void datafeedTimingStats(Collection<String> jobIds, Consumer<Map<String, DatafeedTimingStats>> handler,
+                                    Consumer<Exception> errorHandler) {
+        String indexName = AnomalyDetectorsIndex.jobResultsIndexName();
+        SearchRequest searchRequest =
+            client.prepareSearch(indexName)
+                .setSize(jobIds.size())
+                .setIndicesOptions(IndicesOptions.lenientExpandOpen())
+                .setQuery(QueryBuilders.idsQuery().addIds(jobIds.stream().map(DatafeedTimingStats::documentId).toArray(String[]::new)))
+                .request();
+        executeAsyncWithOrigin(
+            client.threadPool().getThreadContext(),
+            ML_ORIGIN,
+            searchRequest,
+            ActionListener.<SearchResponse>wrap(
+                searchResponse -> {
+                    Map<String, DatafeedTimingStats> timingStatsByJobId =
+                        Arrays.stream(searchResponse.getHits().getHits())
+                            .map(hit -> parseSearchHit(hit, DatafeedTimingStats.PARSER, errorHandler))
+                            .collect(Collectors.toUnmodifiableMap(DatafeedTimingStats::getJobId, Function.identity()));
+                    handler.accept(timingStatsByJobId);
+                },
+                errorHandler
+            ),
+            client::search);
+    }
+
+    public void datafeedTimingStats(String jobId, Consumer<DatafeedTimingStats> handler, Consumer<Exception> errorHandler) {
+        String indexName = AnomalyDetectorsIndex.jobResultsAliasedName(jobId);
+        searchSingleResult(
+            jobId,
+            DatafeedTimingStats.TYPE.getPreferredName(),
+            createDatafeedTimingStatsSearch(indexName, jobId),
+            DatafeedTimingStats.PARSER,
+            result -> handler.accept(result.result),
+            errorHandler,
+            () -> new DatafeedTimingStats(jobId));
+    }
+
+    private SearchRequestBuilder createDatafeedTimingStatsSearch(String indexName, String jobId) {
+        return client.prepareSearch(indexName)
+            .setSize(1)
+            .setIndicesOptions(IndicesOptions.lenientExpandOpen())
+            .setQuery(QueryBuilders.idsQuery().addIds(DatafeedTimingStats.documentId(jobId)));
     }
 
     public void getAutodetectParams(Job job, Consumer<AutodetectParams> consumer, Consumer<Exception> errorHandler) {

@@ -23,12 +23,16 @@ import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.metrics.Max;
 import org.elasticsearch.search.aggregations.metrics.Min;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.ml.datafeed.DatafeedTimingStats;
 import org.elasticsearch.xpack.core.ml.datafeed.extractor.DataExtractor;
+import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
+import org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister;
 import org.junit.Before;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.time.Clock;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -54,17 +58,18 @@ public class ChunkedDataExtractorTests extends ESTestCase {
     private int scrollSize;
     private TimeValue chunkSpan;
     private DataExtractorFactory dataExtractorFactory;
+    private DatafeedTimingStatsReporter timingStatsReporter;
 
     private class TestDataExtractor extends ChunkedDataExtractor {
 
         private SearchResponse nextResponse;
 
         TestDataExtractor(long start, long end) {
-            super(client, dataExtractorFactory, createContext(start, end));
+            super(client, dataExtractorFactory, createContext(start, end), timingStatsReporter);
         }
 
         TestDataExtractor(long start, long end, boolean hasAggregations, Long histogramInterval) {
-            super(client, dataExtractorFactory, createContext(start, end, hasAggregations, histogramInterval));
+            super(client, dataExtractorFactory, createContext(start, end, hasAggregations, histogramInterval), timingStatsReporter);
         }
 
         @Override
@@ -89,6 +94,8 @@ public class ChunkedDataExtractorTests extends ESTestCase {
         scrollSize = 1000;
         chunkSpan = null;
         dataExtractorFactory = mock(DataExtractorFactory.class);
+        timingStatsReporter =
+            new DatafeedTimingStatsReporter(new DatafeedTimingStats(jobId), Clock.systemUTC(), mock(JobResultsPersister.class));
     }
 
     public void testExtractionGivenNoData() throws IOException {

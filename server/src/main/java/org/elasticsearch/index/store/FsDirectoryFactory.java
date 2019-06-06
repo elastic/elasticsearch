@@ -101,13 +101,13 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
 
     private static MMapDirectory setPreload(MMapDirectory mMapDirectory, LockFactory lockFactory,
             Set<String> preLoadExtensions) throws IOException {
-        if (preLoadExtensions.isEmpty() == false
-                && mMapDirectory.getPreload() == false) {
+        assert mMapDirectory.getPreload() == false;
+        if (preLoadExtensions.isEmpty() == false) {
             if (preLoadExtensions.contains("*")) {
                 mMapDirectory.setPreload(true);
-                return mMapDirectory;
+            } else {
+                return new PreLoadMMapDirectory(mMapDirectory, lockFactory, preLoadExtensions);
             }
-            return new PreLoadMMapDirectory(mMapDirectory, lockFactory, preLoadExtensions);
         }
         return mMapDirectory;
     }
@@ -144,6 +144,11 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
             }
         }
 
+        @Override
+        public void close() throws IOException {
+            IOUtils.close(super::close, delegate);
+        }
+
         boolean useDelegate(String name) {
             String extension = FileSwitchDirectory.getExtension(name);
             switch(extension) {
@@ -153,15 +158,10 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
                 case "dvd":
                 case "tim":
                 case "cfs":
-                   return true;
+                    return true;
                 default:
                     return false;
             }
-        }
-
-        @Override
-        public void close() throws IOException {
-            IOUtils.close(super::close, delegate);
         }
 
         MMapDirectory getDelegate() {

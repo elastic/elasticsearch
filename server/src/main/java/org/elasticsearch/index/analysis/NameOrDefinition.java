@@ -5,6 +5,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParseException;
@@ -15,7 +16,7 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 
-public class NameOrDefinition implements Writeable {
+public class NameOrDefinition implements Writeable, ToXContentFragment {
     // exactly one of these two members is not null
     public final String name;
     public final Settings definition;
@@ -67,4 +68,29 @@ public class NameOrDefinition implements Writeable {
             "Expected [VALUE_STRING] or [START_OBJECT], got " + parser.currentToken());
     }
 
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        if (definition == null) {
+            builder.value(name);
+        } else {
+            builder.startObject();
+            definition.toXContent(builder, params);
+            builder.endObject();
+        }
+        return builder;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        NameOrDefinition that = (NameOrDefinition) o;
+        return Objects.equals(name, that.name) &&
+            Objects.equals(definition, that.definition);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(name, definition);
+    }
 }

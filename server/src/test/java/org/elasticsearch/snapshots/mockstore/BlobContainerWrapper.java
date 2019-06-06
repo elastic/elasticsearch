@@ -75,6 +75,11 @@ public class BlobContainerWrapper implements BlobContainer {
     }
 
     @Override
+    public Map<String, BlobContainer> children() throws IOException {
+        return delegate.children();
+    }
+
+    @Override
     public Map<String, BlobMetaData> listBlobsByPrefix(String blobNamePrefix) throws IOException {
         return delegate.listBlobsByPrefix(blobNamePrefix);
     }

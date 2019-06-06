@@ -11,6 +11,11 @@
           "description": "How many lines of the file should be included in the analysis",
           "default": 1000
         },
+        "line_merge_size_limit": {
+          "type": "int",
+          "description": "Maximum number of characters permitted in a single message when lines are merged to create messages.",
+          "default": 10000
+        },
         "timeout": {
           "type": "time",
           "description": "Timeout after which the analysis will be aborted",

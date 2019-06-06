@@ -21,6 +21,7 @@ package org.elasticsearch.plugins;
 
 import java.util.List;
 
+// TODO: remove this indirection now that transport client is gone
 /**
  * This class exists solely as an intermediate layer to avoid causing PluginsService
  * to load ExtendedPluginsClassLoader when used in the transport client.

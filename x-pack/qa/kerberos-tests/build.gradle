@@ -12,7 +12,7 @@ testFixtures.useFixture ":test:fixtures:krb5kdc-fixture"
 integTest.enabled = false
 
 dependencies {
-    testCompile "org.elasticsearch.plugin:x-pack-core:${version}"
+    testCompile project(':x-pack:plugin:core')
     testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
     if (isEclipse) {
       testCompile project(path: xpackModule('core-tests'), configuration: 'testArtifacts')

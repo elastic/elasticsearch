@@ -163,7 +163,8 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
                                                 throw new IllegalStateException("Tried to get index commit from closed context");
                                             }
                                             if (reader == null) {
-                                                reader = DirectoryReader.open(tempStore.directory());
+                                                reader = DirectoryReader.open(tempStore.directory(),
+                                                    ReadOnlyEngine.OFF_HEAP_READER_ATTRIBUTES);
                                                 assert indexCommit == null;
                                                 indexCommit = reader.getIndexCommit();
                                             }

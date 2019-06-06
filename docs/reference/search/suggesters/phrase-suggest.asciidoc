@@ -267,7 +267,9 @@ POST _search
 
 The `phrase` suggester supports multiple smoothing models to balance
 weight between infrequent grams (grams (shingles) are not existing in
-the index) and frequent grams (appear at least once in the index).
+the index) and frequent grams (appear at least once in the index). The
+smoothing model can be selected setting the `smoothing` parameter to one
+of the following options:
 
 [horizontal]
 `stupid_backoff`::

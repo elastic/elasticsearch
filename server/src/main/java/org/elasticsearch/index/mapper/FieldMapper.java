@@ -300,21 +300,11 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
             String valuePreview = "";
             try {
                 XContentParser parser = context.parser();
-                if (parser.currentToken().isValue()) {
-                    valuePreview = parser.text();
-                } else if (parser.currentToken() == XContentParser.Token.VALUE_NULL) {
+                Object complexValue = AbstractXContentParser.readValue(parser, ()-> new HashMap<String, Object>());
+                if (complexValue == null) {
                     valuePreview = "null";
                 } else {
-                    Object complexValue = AbstractXContentParser.readValue(parser,
-                        ()-> new HashMap<String, Object>(),
-                        parser.currentToken());
                     valuePreview = complexValue.toString();
-
-
-                    if (valuePreview == null) {
-                        // @reviewers: need some better handling here, but not sure in which case (if any) it may occur
-                        valuePreview = "unexpected value";
-                    }
                 }
             } catch (Exception innerException) {
                 throw new MapperParsingException("failed to parse field [{}] of type [{}] in document with id '{}'. " +

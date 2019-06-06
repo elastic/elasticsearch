@@ -290,6 +290,28 @@ of the following options:
     All parameters (`trigram_lambda`, `bigram_lambda`, `unigram_lambda`)
     must be supplied.
 
+[source,js]
+--------------------------------------------------
+POST _search
+{
+  "suggest": {
+    "text" : "obel prize",
+    "simple_phrase" : {
+      "phrase" : {
+        "field" : "title.trigram",
+        "size" : 1,
+        "smoothing" : {
+          "laplace" : {
+            "alpha" : 0.7
+          }
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
+// CONSOLE
+
 ==== Candidate Generators
 
 The `phrase` suggester uses candidate generators to produce a list of

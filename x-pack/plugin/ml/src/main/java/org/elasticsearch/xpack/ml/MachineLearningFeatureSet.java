@@ -73,8 +73,7 @@ public class MachineLearningFeatureSet implements XPackFeatureSet {
         this.jobManagerHolder = jobManagerHolder;
         Map<String, Object> nativeCodeInfo = NativeController.UNKNOWN_NATIVE_CODE_INFO;
         // Don't try to get the native code version if ML is disabled - it causes too much controversy
-        // if ML has been disabled because of some OS incompatibility.  Also don't try to get the native
-        // code version in the transport client - the controller process won't be running.
+        // if ML has been disabled because of some OS incompatibility.
         if (enabled) {
             try {
                 if (isRunningOnMlPlatform(true)) {
@@ -174,7 +173,7 @@ public class MachineLearningFeatureSet implements XPackFeatureSet {
         }
 
         public void execute(ActionListener<Usage> listener) {
-            // empty holder means either ML disabled or transport client mode
+            // empty holder means ML is disabled
             if (jobManagerHolder.isEmpty()) {
                 listener.onResponse(
                     new MachineLearningFeatureSetUsage(available, enabled, Collections.emptyMap(), Collections.emptyMap(), 0));

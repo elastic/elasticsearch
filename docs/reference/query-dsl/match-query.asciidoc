@@ -50,7 +50,7 @@ The `prefix_length` and
 `max_expansions` can be set in this case to control the fuzzy process.
 If the fuzzy option is set the query will use `top_terms_blended_freqs_${max_expansions}`
 as its <<query-dsl-multi-term-rewrite,rewrite
-method>> the `fuzzy_rewrite` parameter allows to control how the query will get
+method>>. The `fuzzy_rewrite` parameter allows to control how the query will get
 rewritten.
 
 Fuzzy transpositions (`ab` -> `ba`) are allowed by default but can be disabled

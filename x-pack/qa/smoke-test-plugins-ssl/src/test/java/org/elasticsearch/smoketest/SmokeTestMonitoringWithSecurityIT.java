@@ -63,7 +63,7 @@ import static org.hamcrest.Matchers.notNullValue;
  *
  * It sets up a cluster with Monitoring and Security configured with SSL. Once started,
  * an HTTP exporter is activated and it exports data locally over HTTPS/SSL. The test
- * then uses a transport client to check that the data have been correctly received and
+ * then uses a rest client to check that the data have been correctly received and
  * indexed in the cluster.
  */
 public class SmokeTestMonitoringWithSecurityIT extends ESRestTestCase {

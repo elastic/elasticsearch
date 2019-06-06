@@ -62,7 +62,7 @@ public class SourceConfigTests extends AbstractXContentTestCase<SourceConfig> {
 
     @Override
     protected NamedXContentRegistry xContentRegistry() {
-        SearchModule searchModule = new SearchModule(Settings.EMPTY, false, emptyList());
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, emptyList());
         return new NamedXContentRegistry(searchModule.getNamedXContents());
     }
 }

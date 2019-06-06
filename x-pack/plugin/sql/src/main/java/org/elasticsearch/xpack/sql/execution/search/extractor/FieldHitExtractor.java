@@ -20,6 +20,8 @@ import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.util.DateUtils;
 
 import java.io.IOException;
+import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.time.ZoneId;
 import java.util.ArrayDeque;
 import java.util.Deque;
@@ -165,9 +167,9 @@ public class FieldHitExtractor implements HitExtractor {
                 return DateUtils.asDateTime(Long.parseLong(values.toString()), zoneId);
             }
         }
-        if (values instanceof Integer
-                || values instanceof Long
-                || values instanceof Double
+        // The Jackson json parser can generate for numerics - Integers, Longs, BigIntegers (if Long is not enough)
+        // and BigDecimal (if Double is not enough)
+        if (values instanceof Number
                 || values instanceof String
                 || values instanceof Boolean) {
             return values;

@@ -89,12 +89,10 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
         String initialReason = null;
         long initialGeneration = 0;
         Map<String, Object> initialPosition = null;
-        logger.trace("[{}] init, got state: [{}]", transform.getId(), state != null);
         if (state != null) {
             initialTaskState = state.getTaskState();
             initialReason = state.getReason();
             final IndexerState existingState = state.getIndexerState();
-            logger.info("[{}] Loading existing state: [{}], position [{}]", transform.getId(), existingState, state.getPosition());
             if (existingState.equals(IndexerState.INDEXING)) {
                 // reset to started as no indexer is running
                 initialState = IndexerState.STARTED;
@@ -213,6 +211,10 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
             getIndexer().getProgress());
 
         logger.info("Updating state for data frame transform [{}] to [{}]", transform.getId(), state.toString());
+        // Even though the indexer information is persisted to an index, we still need DataFrameTransformTaskState in the clusterstate
+        // This keeps track of STARTED, FAILED, STOPPED
+        // This is because a FAILED state can occur because we cannot read the config from the internal index, which would imply that
+        //   we could not read the previous state information from said index.
         persistStateToClusterState(state, ActionListener.wrap(
             task -> {
                 auditor.info(transform.getId(),
@@ -301,6 +303,10 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
         taskState.set(DataFrameTransformTaskState.FAILED);
         stateReason.set(reason);
         auditor.error(transform.getId(), reason);
+        // Even though the indexer information is persisted to an index, we still need DataFrameTransformTaskState in the clusterstate
+        // This keeps track of STARTED, FAILED, STOPPED
+        // This is because a FAILED state can occur because we cannot read the config from the internal index, which would imply that
+        //   we could not read the previous state information from said index.
         persistStateToClusterState(getState(), ActionListener.wrap(
             r -> listener.onResponse(null),
             listener::onFailure

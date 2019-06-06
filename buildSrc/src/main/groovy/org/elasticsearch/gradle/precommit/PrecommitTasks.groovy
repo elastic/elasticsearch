@@ -23,11 +23,13 @@ import de.thetaphi.forbiddenapis.gradle.CheckForbiddenApis
 import de.thetaphi.forbiddenapis.gradle.ForbiddenApisPlugin
 import org.elasticsearch.gradle.ExportElasticsearchBuildResourcesTask
 import org.elasticsearch.gradle.VersionProperties
+import org.elasticsearch.gradle.tool.ClasspathUtils
 import org.gradle.api.JavaVersion
 import org.gradle.api.Project
 import org.gradle.api.Task
 import org.gradle.api.plugins.JavaBasePlugin
 import org.gradle.api.plugins.quality.Checkstyle
+
 /**
  * Validation tasks which should be run before committing. These run before tests.
  */
@@ -40,18 +42,18 @@ class PrecommitTasks {
     public static Task create(Project project, boolean includeDependencyLicenses) {
         project.configurations.create("forbiddenApisCliJar")
         project.dependencies {
-            forbiddenApisCliJar ('de.thetaphi:forbiddenapis:2.6')
+            forbiddenApisCliJar('de.thetaphi:forbiddenapis:2.6')
         }
 
         List<Task> precommitTasks = [
-            configureCheckstyle(project),
-            configureForbiddenApisCli(project),
-            project.tasks.create('forbiddenPatterns', ForbiddenPatternsTask.class),
-            project.tasks.create('licenseHeaders', LicenseHeadersTask.class),
-            project.tasks.create('filepermissions', FilePermissionsTask.class),
-            configureJarHell(project),
-            configureThirdPartyAudit(project),
-            configureTestingConventions(project)
+                configureCheckstyle(project),
+                configureForbiddenApisCli(project),
+                project.tasks.create('forbiddenPatterns', ForbiddenPatternsTask.class),
+                project.tasks.create('licenseHeaders', LicenseHeadersTask.class),
+                project.tasks.create('filepermissions', FilePermissionsTask.class),
+                configureJarHell(project),
+                configureThirdPartyAudit(project),
+                configureTestingConventions(project)
         ]
 
         // tasks with just tests don't need dependency licenses, so this flag makes adding
@@ -85,10 +87,10 @@ class PrecommitTasks {
         }
 
         return project.tasks.create([
-            name: 'precommit',
-            group: JavaBasePlugin.VERIFICATION_GROUP,
-            description: 'Runs all non-test checks.',
-            dependsOn: precommitTasks
+                name       : 'precommit',
+                group      : JavaBasePlugin.VERIFICATION_GROUP,
+                description: 'Runs all non-test checks.',
+                dependsOn  : precommitTasks
         ])
     }
 
@@ -168,7 +170,7 @@ class PrecommitTasks {
                 )
             }
         }
-        Task forbiddenApis =  project.tasks.getByName("forbiddenApis")
+        Task forbiddenApis = project.tasks.getByName("forbiddenApis")
         forbiddenApis.group = ""
         return forbiddenApis
     }
@@ -211,7 +213,7 @@ class PrecommitTasks {
         project.checkstyle {
             config = project.resources.text.fromFile(checkstyleConf, 'UTF-8')
             configProperties = [
-                suppressions: checkstyleSuppressions
+                    suppressions: checkstyleSuppressions
             ]
             toolVersion = CHECKSTYLE_VERSION
         }
@@ -229,9 +231,11 @@ class PrecommitTasks {
     }
 
     private static Task configureLoggerUsage(Project project) {
+        Object dependency = ClasspathUtils.isElasticsearchProject() ? project.project(':test:logger-usage') :
+                "org.elasticsearch.test:logger-usage:${VersionProperties.elasticsearch}"
+
         project.configurations.create('loggerUsagePlugin')
-        project.dependencies.add('loggerUsagePlugin',
-                "org.elasticsearch.test:logger-usage:${VersionProperties.elasticsearch}")
+        project.dependencies.add('loggerUsagePlugin', dependency)
         return project.tasks.create('loggerUsageCheck', LoggerUsageTask.class) {
             classpath = project.configurations.loggerUsagePlugin
         }

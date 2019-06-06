@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.index.engine;
 
+import org.apache.lucene.codecs.blocktree.BlockTreeTermsReader;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexReader;
@@ -47,7 +48,9 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.function.BiFunction;
 import java.util.function.Function;
@@ -62,6 +65,12 @@ import java.util.stream.Stream;
  */
 public class ReadOnlyEngine extends Engine {
 
+    /**
+     * Reader attributes used for read only engines. These attributes prevent loading term dictionaries on-heap even if the field is an
+     * ID field.
+     */
+    public static final Map<String, String> OFF_HEAP_READER_ATTRIBUTES = Collections.singletonMap(BlockTreeTermsReader.FST_MODE_KEY,
+        BlockTreeTermsReader.FSTLoadMode.OFF_HEAP.name());
     private final SegmentInfos lastCommittedSegmentInfos;
     private final SeqNoStats seqNoStats;
     private final TranslogStats translogStats;
@@ -165,7 +174,7 @@ public class ReadOnlyEngine extends Engine {
     }
 
     protected DirectoryReader open(IndexCommit commit) throws IOException {
-        return DirectoryReader.open(commit);
+        return DirectoryReader.open(commit, OFF_HEAP_READER_ATTRIBUTES);
     }
 
     private DocsStats docsStats(final SegmentInfos lastCommittedSegmentInfos) {

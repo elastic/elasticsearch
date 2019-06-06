@@ -1,5 +1,5 @@
 [[modules-scripting-fields]]
-=== Accessing document fields and special variables
+== Accessing document fields and special variables
 
 Depending on where a script is used, it will have access to certain special
 variables and document fields.
@@ -17,7 +17,7 @@ API will have access to the `ctx` variable which exposes:
 `ctx._index` etc::  Access to <<mapping-fields,document meta-fields>>, some of which may be read-only.
 
 [float]
-== Search and Aggregation scripts
+== Search and aggregation scripts
 
 With the exception of <<search-request-script-fields,script fields>> which are
 executed once per search hit, scripts used in search and aggregations will be
@@ -80,7 +80,7 @@ GET my_index/_search
 
 [float]
 [[modules-scripting-doc-vals]]
-=== Doc Values
+=== Doc values
 
 By far the fastest most efficient way to access a field value from a
 script is to use the `doc['field_name']` syntax, which retrieves the field
@@ -140,7 +140,7 @@ access `text` fields from scripts.
 
 [float]
 [[modules-scripting-stored]]
-=== Stored Fields and `_source`
+=== Stored fields and `_source`
 
 _Stored fields_ -- fields explicitly marked as
 <<mapping-store,`"store": true`>> -- can be accessed using the

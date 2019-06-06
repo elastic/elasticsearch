@@ -16,10 +16,17 @@ import org.elasticsearch.search.aggregations.matrix.stats.InternalMatrixStats;
 
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 public class ParsedPCAStats extends BaseParsedMatrixStats {
+    /** list of field names */
+    protected List<String> fieldNames;
+
+    private List<ParsedPCAStatsResults> eigenResults;
     /** eigen values from PCA */
     protected final Map<String, Complex_F64> eigenVals = new HashMap<>();
     /** eigen vectors from PCA */
@@ -28,6 +35,14 @@ public class ParsedPCAStats extends BaseParsedMatrixStats {
     @Override
     public String getType() {
         return PCAAggregationBuilder.NAME;
+    }
+
+    protected void setFieldNames(List<String> fieldNames) {
+        this.fieldNames = fieldNames;
+        for (String field : fieldNames) {
+            eigenVals.put(field, new Complex_F64());
+            eigenVectors.put(field, new DMatrixRMaj());
+        }
     }
 
     public Complex_F64 getEigenValue(String field) {
@@ -48,15 +63,16 @@ public class ParsedPCAStats extends BaseParsedMatrixStats {
     protected XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
         builder.field(CommonFields.DOC_COUNT.getPreferredName(), getDocCount());
         builder.startArray(Fields.FIELDS);
-        for (String fieldName : counts.keySet()) {
+        Set<String> fields = counts.keySet().size() == 0 ? new HashSet<>(fieldNames) : counts.keySet();
+        for (String fieldName : fields) {
             builder.value(fieldName);
         }
         builder.endArray();
         builder.startArray(Fields.PRINCIPAL_COMPONENT);
-        for (String fieldName : counts.keySet()) {
+        for (String fieldName : fields) {
             builder.startObject();
-            builder.field(Fields.EIGENVALUE, getEigenValue(fieldName));
-            builder.field(Fields.EIGENVECTOR, getEigenVector(fieldName));
+            builder.field(Fields.EIGENVALUE, getEigenValue(fieldName).toString());
+            builder.field(Fields.EIGENVECTOR, getEigenVector(fieldName).data);
             builder.endObject();
         }
         builder.endArray();
@@ -72,32 +88,50 @@ public class ParsedPCAStats extends BaseParsedMatrixStats {
     static {
         declareAggregationFields(PARSER);
         PARSER.declareLong(ParsedPCAStats::setDocCount, CommonFields.DOC_COUNT);
-        PCA_PARSER.declareStringArray(ParsedPCAStatsResults::setFieldNames, new ParseField(Fields.FIELDS));
-        PCA_PARSER.declareObjectArray((pcaStats, results) -> {
-
+        PARSER.declareStringArray(ParsedPCAStats::setFieldNames, new ParseField(Fields.FIELDS));
+        PCA_PARSER.declareString(ParsedPCAStatsResults::setEigenValue, new ParseField(Fields.EIGENVALUE));
+        PCA_PARSER.declareDoubleArray(ParsedPCAStatsResults::setEigenVector, new ParseField(Fields.EIGENVECTOR));
+        PARSER.declareObjectArray((pcaStats, results) -> {
+            pcaStats.eigenResults = results;
         }, (p, c) -> ParsedPCAStatsResults.fromXContent(p), new ParseField(Fields.PRINCIPAL_COMPONENT));
     }
 
     public static ParsedPCAStats fromXContent(XContentParser parser, String name) throws IOException {
-        ParsedPCAStats aggregation = PARSER.parse(parser, null);
-        ParsedPCAStatsResults results = PCA_PARSER.parse(parser, null);
-        aggregation.setName(name);
-        // IN WORK!
-        return aggregation;
+        ParsedPCAStats stats = PARSER.parse(parser, null);
+        int i = 0;
+        for (String field : stats.fieldNames) {
+            stats.eigenVals.put(field, stats.eigenResults.get(i).eigenValue);
+            stats.eigenVectors.put(field, stats.eigenResults.get(i++).eigenVector);
+        }
+        stats.setName(name);
+        return stats;
     }
 
 
     static class ParsedPCAStatsResults {
-        List<String> fieldNames;
+        Complex_F64 eigenValue;
+        DMatrixRMaj eigenVector;
 
-
-        public ParsedPCAStatsResults setFieldNames(List<String> fieldNames) {
-            this.fieldNames = fieldNames;
-            return this;
+        public void setEigenValue(String value) {
+            String[] split = value.split("\\s+");
+            double r = Double.parseDouble(split[0]);
+            double i = 0;
+            if (split.length > 1) {
+                i = Double.parseDouble(split[1].split("i")[0]);
+            }
+            eigenValue = new Complex_F64(r, i);
         }
 
-        public static ParsedPCAStats fromXContent(XContentParser parser) {
-            ParsedPCAStats pcaStats = PARSER.apply(parser, null);
+        public void setEigenVector(List<Double> vector) {
+            double[] vals = new double[vector.size()];
+            for (int i = 0; i < vals.length; ++i) {
+                vals[i] = vector.get(i);
+            }
+            eigenVector = new DMatrixRMaj(vals);
+        }
+
+        public static ParsedPCAStatsResults fromXContent(XContentParser parser) {
+            ParsedPCAStatsResults pcaStats = PCA_PARSER.apply(parser, null);
             return pcaStats;
         }
     }

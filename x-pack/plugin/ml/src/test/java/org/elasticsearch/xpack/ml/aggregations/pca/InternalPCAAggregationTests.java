@@ -76,7 +76,7 @@ public class InternalPCAAggregationTests extends InternalAggregationTestCase<Int
 
     @Override
     protected void assertReduced(InternalPCAStats reduced, List<InternalPCAStats> inputs) {
-        throw new UnsupportedOperationException();
+        // todo implement
     }
 
     @Override

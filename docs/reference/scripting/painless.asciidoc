@@ -1,5 +1,5 @@
 [[modules-scripting-painless]]
-=== Painless Scripting Language
+== Painless scripting language
 
 include::../../../painless/painless-description.asciidoc[]
 

@@ -183,7 +183,6 @@ specific index module:
      This setting is only applicable when highlighting is requested on a text that was indexed without offsets or term vectors.
      By default this settings is unset in 6.x, defaults to `-1`.
 
-[[index-max-terms-count]]
  `index.max_terms_count`::
 
     The maximum number of terms that can be used in Terms Query.

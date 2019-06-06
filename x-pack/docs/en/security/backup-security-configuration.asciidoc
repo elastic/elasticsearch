@@ -181,10 +181,10 @@ GET /_snapshot/my_backup
 --------------------------------------------------
   curl -u jacknich-X DELETE "localhost:9200/.security-7"
 --------------------------------------------------
-  +
-  NOTE: after this step authentication will not work so all API calls will fail
+
+NOTE: after this step authentication will not work so all API calls will fail
 --
- * using the same user, restore the `.security` index from the snapshot
+ . using the same user, restore the `.security` index from the snapshot
 +
 --
 [source,shell]
@@ -196,11 +196,12 @@ GET /_snapshot/my_backup
  }
  '
 --------------------------------------------------
- +
- NOTE: restoring the global state is optional, but it will help make sure the
+
+NOTE: restoring the global state is optional, but it will help make sure the
+--
 
 The next part is really common to every other backup restore; copy the backed-up
 configuration overwritting the contents of `$ES_PATH_CONF` and restart the node.
 
-You can now cherry-pick and apply the persistent secure settings:
-curl -X PUT _settings
+Lastly, you can now cherry-pick and <<cluster-update-settings,  apply the
+persistent secure settings>> from earlier.

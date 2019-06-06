@@ -5,7 +5,9 @@
  */
 package org.elasticsearch.xpack.core.ml.filestructurefinder;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -27,12 +29,14 @@ public class FieldStats implements ToXContentObject, Writeable {
     static final ParseField MAX_VALUE = new ParseField("max_value");
     static final ParseField MEAN_VALUE = new ParseField("mean_value");
     static final ParseField MEDIAN_VALUE = new ParseField("median_value");
+    static final ParseField EARLIEST = new ParseField("earliest");
+    static final ParseField LATEST = new ParseField("latest");
     static final ParseField TOP_HITS = new ParseField("top_hits");
 
     @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<FieldStats, Void> PARSER = new ConstructingObjectParser<>("field_stats", false,
         a -> new FieldStats((long) a[0], (int) a[1], (Double) a[2], (Double) a[3], (Double) a[4], (Double) a[5],
-            (List<Map<String, Object>>) a[6]));
+            (String) a[6], (String) a[7], (List<Map<String, Object>>) a[8]));
 
     static {
         PARSER.declareLong(ConstructingObjectParser.constructorArg(), COUNT);
@@ -41,6 +45,8 @@ public class FieldStats implements ToXContentObject, Writeable {
         PARSER.declareDouble(ConstructingObjectParser.optionalConstructorArg(), MAX_VALUE);
         PARSER.declareDouble(ConstructingObjectParser.optionalConstructorArg(), MEAN_VALUE);
         PARSER.declareDouble(ConstructingObjectParser.optionalConstructorArg(), MEDIAN_VALUE);
+        PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), EARLIEST);
+        PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), LATEST);
         PARSER.declareObjectArray(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> p.mapOrdered(), TOP_HITS);
     }
 
@@ -50,20 +56,33 @@ public class FieldStats implements ToXContentObject, Writeable {
     private final Double maxValue;
     private final Double meanValue;
     private final Double medianValue;
+    private final String earliestTimestamp;
+    private final String latestTimestamp;
     private final List<Map<String, Object>> topHits;
 
     public FieldStats(long count, int cardinality, List<Map<String, Object>> topHits) {
-        this(count, cardinality, null, null, null, null, topHits);
+        this(count, cardinality, null, null, null, null, null, null, topHits);
+    }
+
+    public FieldStats(long count, int cardinality, String earliestTimestamp, String latestTimestamp, List<Map<String, Object>> topHits) {
+        this(count, cardinality, null, null, null, null, earliestTimestamp, latestTimestamp, topHits);
     }
 
     public FieldStats(long count, int cardinality, Double minValue, Double maxValue, Double meanValue, Double medianValue,
                       List<Map<String, Object>> topHits) {
+        this(count, cardinality, minValue, maxValue, meanValue, medianValue, null, null, topHits);
+    }
+
+    FieldStats(long count, int cardinality, Double minValue, Double maxValue, Double meanValue, Double medianValue,
+               String earliestTimestamp, String latestTimestamp, List<Map<String, Object>> topHits) {
         this.count = count;
         this.cardinality = cardinality;
         this.minValue = minValue;
         this.maxValue = maxValue;
         this.meanValue = meanValue;
         this.medianValue = medianValue;
+        this.earliestTimestamp = earliestTimestamp;
+        this.latestTimestamp = latestTimestamp;
         this.topHits = (topHits == null) ? Collections.emptyList() : Collections.unmodifiableList(topHits);
     }
 
@@ -74,6 +93,13 @@ public class FieldStats implements ToXContentObject, Writeable {
         maxValue = in.readOptionalDouble();
         meanValue = in.readOptionalDouble();
         medianValue = in.readOptionalDouble();
+        if (in.getVersion().onOrAfter(Version.V_7_3_0)) {
+            earliestTimestamp = in.readOptionalString();
+            latestTimestamp = in.readOptionalString();
+        } else {
+            earliestTimestamp = null;
+            latestTimestamp = null;
+        }
         topHits = in.readList(StreamInput::readMap);
     }
 
@@ -85,6 +111,10 @@ public class FieldStats implements ToXContentObject, Writeable {
         out.writeOptionalDouble(maxValue);
         out.writeOptionalDouble(meanValue);
         out.writeOptionalDouble(medianValue);
+        if (out.getVersion().onOrAfter(Version.V_7_3_0)) {
+            out.writeOptionalString(earliestTimestamp);
+            out.writeOptionalString(latestTimestamp);
+        }
         out.writeCollection(topHits, StreamOutput::writeMap);
     }
 
@@ -112,6 +142,14 @@ public class FieldStats implements ToXContentObject, Writeable {
         return medianValue;
     }
 
+    public String getEarliestTimestamp() {
+        return earliestTimestamp;
+    }
+
+    public String getLatestTimestamp() {
+        return latestTimestamp;
+    }
+
     public List<Map<String, Object>> getTopHits() {
         return topHits;
     }
@@ -134,6 +172,12 @@ public class FieldStats implements ToXContentObject, Writeable {
         if (medianValue != null) {
             builder.field(MEDIAN_VALUE.getPreferredName(), toIntegerIfInteger(medianValue));
         }
+        if (earliestTimestamp != null) {
+            builder.field(EARLIEST.getPreferredName(), earliestTimestamp);
+        }
+        if (latestTimestamp != null) {
+            builder.field(LATEST.getPreferredName(), latestTimestamp);
+        }
         if (topHits.isEmpty() == false) {
             builder.field(TOP_HITS.getPreferredName(), topHits);
         }
@@ -154,7 +198,7 @@ public class FieldStats implements ToXContentObject, Writeable {
     @Override
     public int hashCode() {
 
-        return Objects.hash(count, cardinality, minValue, maxValue, meanValue, medianValue, topHits);
+        return Objects.hash(count, cardinality, minValue, maxValue, meanValue, medianValue, earliestTimestamp, latestTimestamp, topHits);
     }
 
     @Override
@@ -175,6 +219,13 @@ public class FieldStats implements ToXContentObject, Writeable {
             Objects.equals(this.maxValue, that.maxValue) &&
             Objects.equals(this.meanValue, that.meanValue) &&
             Objects.equals(this.medianValue, that.medianValue) &&
+            Objects.equals(this.earliestTimestamp, that.earliestTimestamp) &&
+            Objects.equals(this.latestTimestamp, that.latestTimestamp) &&
             Objects.equals(this.topHits, that.topHits);
+    }
+
+    @Override
+    public String toString() {
+        return Strings.toString(this);
     }
 }

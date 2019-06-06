@@ -120,7 +120,7 @@ public class AzureRepository extends BlobStoreRepository {
 
     @Override
     protected AzureBlobStore createBlobStore() {
-        final AzureBlobStore blobStore = new AzureBlobStore(metadata, storageService);
+        final AzureBlobStore blobStore = new AzureBlobStore(metadata, storageService, threadPool);
 
         logger.debug(() -> new ParameterizedMessage(
             "using container [{}], chunk_size [{}], compress [{}], base_path [{}]",

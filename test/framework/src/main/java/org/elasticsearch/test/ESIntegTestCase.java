@@ -1847,10 +1847,8 @@ public abstract class ESIntegTestCase extends ESTestCase {
 
     protected NodeConfigurationSource getNodeConfigSource() {
         Settings.Builder initialNodeSettings = Settings.builder();
-        Settings.Builder initialTransportClientSettings = Settings.builder();
         if (addMockTransportService()) {
-            initialNodeSettings.put(NetworkModule.TRANSPORT_TYPE_KEY, getTestTransportType());
-            initialTransportClientSettings.put(NetworkModule.TRANSPORT_TYPE_KEY, getTestTransportType());
+            initialNodeSettings.put(NetworkModule.TRANSPORT_TYPE_KEY, getTestTransportType());;
         }
         return new NodeConfigurationSource() {
             @Override

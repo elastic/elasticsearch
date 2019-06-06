@@ -53,6 +53,8 @@ import java.util.concurrent.atomic.AtomicReference;
 
 public class DataFrameTransformTask extends AllocatedPersistentTask implements SchedulerEngine.Listener {
 
+    // interval the scheduler sends an event
+    private static final int SCHEDULER_NEXT_MILLISECONDS = 10000;
     private static final Logger logger = LogManager.getLogger(DataFrameTransformTask.class);
     // TODO consider moving to dynamic cluster setting
     private static final int MAX_CONTINUOUS_FAILURES = 10;
@@ -237,6 +239,10 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
             return;
         }
 
+        if (getIndexer().getState() == IndexerState.STOPPED) {
+            return;
+        }
+
         IndexerState state = getIndexer().stop();
         if (state == IndexerState.STOPPED) {
             getIndexer().doSaveState(state, getIndexer().getPosition(), () -> getIndexer().onStop());
@@ -333,7 +339,7 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
 
     private SchedulerEngine.Schedule next() {
         return (startTime, now) -> {
-            return now + 1000; // to be fixed, hardcode something
+            return now + SCHEDULER_NEXT_MILLISECONDS;
         };
     }
 
@@ -508,6 +514,13 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
         public synchronized boolean maybeTriggerAsyncJob(long now) {
             if (transformTask.taskState.get() == DataFrameTransformTaskState.FAILED) {
                 logger.debug("Schedule was triggered for transform [{}] but task is failed. Ignoring trigger.", getJobId());
+                return false;
+            }
+
+            // ignore trigger if indexer is running, prevents log spam in A2P indexer
+            IndexerState indexerState = getState();
+            if (IndexerState.INDEXING.equals(indexerState) || IndexerState.STOPPING.equals(indexerState)) {
+                logger.debug("Indexer for transform [{}] has state [{}], ignoring trigger", getJobId(), indexerState);
                 return false;
             }
 

@@ -518,13 +518,11 @@ public class QueryStringQueryBuilderTests extends FullTextQueryTestCase<QueryStr
         Query query = queryStringQuery("test").field("mapped_str*").toQuery(createShardContext());
         assertThat(query, instanceOf(DisjunctionMaxQuery.class));
         DisjunctionMaxQuery dQuery = (DisjunctionMaxQuery) query;
-        assertThat(dQuery.getDisjuncts().size(), equalTo(3));
+        assertThat(dQuery.getDisjuncts().size(), equalTo(2));
         assertThat(assertDisjunctionSubQuery(query, TermQuery.class, 0).getTerm(),
             equalTo(new Term(STRING_FIELD_NAME, "test")));
         assertThat(assertDisjunctionSubQuery(query, TermQuery.class, 1).getTerm(),
             equalTo(new Term(STRING_FIELD_NAME_2, "test")));
-        assertThat(assertDisjunctionSubQuery(query, TermQuery.class, 2).getTerm(),
-            equalTo(new Term(STRING_FIELD_NAME, "test")));
     }
 
     public void testToQueryDisMaxQuery() throws Exception {
@@ -1538,6 +1536,19 @@ public class QueryStringQueryBuilderTests extends FullTextQueryTestCase<QueryStr
         assertThat(exc.getMessage(), CoreMatchers.containsString("negative [boost]"));
     }
 
+    public void testMergeBoosts() throws IOException {
+        Query query = new QueryStringQueryBuilder("first")
+            .type(MultiMatchQueryBuilder.Type.MOST_FIELDS)
+            .field(STRING_FIELD_NAME, 0.3f)
+            .field(STRING_FIELD_NAME.substring(0, STRING_FIELD_NAME.length()-2) + "*", 0.5f)
+            .toQuery(createShardContext());
+        List<Query> terms = new ArrayList<>();
+        terms.add(new BoostQuery(new TermQuery(new Term(STRING_FIELD_NAME, "first")), 0.075f));
+        terms.add(new BoostQuery(new TermQuery(new Term(STRING_FIELD_NAME_2, "first")), 0.5f));
+        Query expected = new DisjunctionMaxQuery(terms, 1.0f);
+        assertEquals(expected, query);
+    }
+
     private static IndexMetaData newIndexMeta(String name, Settings oldIndexSettings, Settings indexSettings) {
         Settings build = Settings.builder().put(oldIndexSettings)
             .put(indexSettings)
@@ -1554,7 +1565,7 @@ public class QueryStringQueryBuilderTests extends FullTextQueryTestCase<QueryStr
                 noMatchNoDocsQueries++;
             }
         }
-        assertEquals(11, noMatchNoDocsQueries);
+        assertEquals(9, noMatchNoDocsQueries);
         assertThat(disjunctionMaxQuery.getDisjuncts(), hasItems(new TermQuery(new Term(STRING_FIELD_NAME, "hello")),
             new TermQuery(new Term(STRING_FIELD_NAME_2, "hello"))));
     }

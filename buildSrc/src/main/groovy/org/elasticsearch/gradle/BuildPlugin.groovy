@@ -876,6 +876,9 @@ class BuildPlugin implements Plugin<Project> {
                 // TODO: remove this once ctx isn't added to update script params in 7.0
                 test.systemProperty 'es.scripting.update.ctx_in_params', 'false'
 
+                // TODO: remove when sort optimization is merged
+                test.systemProperty 'es.search.long_sort_optimized', 'true'
+
                 test.testLogging { TestLoggingContainer logging ->
                     logging.showExceptions = true
                     logging.showCauses = true

@@ -44,6 +44,7 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopFieldDocs;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.action.search.SearchTask;
+import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.common.util.concurrent.QueueResizingEsThreadPoolExecutor;
@@ -87,6 +88,8 @@ import static org.elasticsearch.search.query.TopDocsCollectorContext.shortcutTot
  */
 public class QueryPhase implements SearchPhase {
     private static final Logger LOGGER = LogManager.getLogger(QueryPhase.class);
+    public static final boolean SYS_PROP_LONG_SORT_OPTIMIZED =
+        Booleans.parseBoolean(System.getProperty("es.search.long_sort_optimized", "false"));
 
     private final AggregationPhase aggregationPhase;
     private final SuggestPhase suggestPhase;
@@ -218,7 +221,7 @@ public class QueryPhase implements SearchPhase {
             }
 
             // try to rewrite numeric or date sort to the optimized distanceFeatureQuery
-            if (searchContext.sort() != null) {
+            if ((searchContext.sort() != null) && SYS_PROP_LONG_SORT_OPTIMIZED) {
                 try {
                     Query rewrittenQuery = tryRewriteLongSort(searchContext, searcher.getIndexReader(), query, hasFilterCollector);
                     if (rewrittenQuery != null) {

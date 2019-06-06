@@ -122,7 +122,7 @@ public class EdgeTreeTests extends ESTestCase {
         // test cell crossing poly
         EdgeTreeWriter writer = new EdgeTreeWriter(px, py);
         EdgeTreeReader reader = new EdgeTreeReader(writer.toBytesRef());
-        assertTrue(reader.containsBottomLeft(xMin, yMin, xMax, yMax));
+        assertTrue(reader.containsBottomLeft(new EdgeTreeReader.Extent(xMin, yMin, xMax, yMax), true));
     }
 
     private int[] asIntArray(double[] doub) {

@@ -236,54 +236,6 @@ POST /index_long,index_double/_search
 To avoid overflow, the conversion to `date_nanos` cannot be applied on dates before
 1970 and after 2262 as nanoseconds are represented as longs.
 
-
-==== Sort Optimization
-experimental[]
-
-Sort on `long`, `date` and `date_nanos` fields can be optionally optimized.
-The optimization instead of sorting all field values, will underneath use the
-<<query-dsl-distance-feature-query, distance_feature>>
-query that can efficiently skip non-competitive hits.
-For the optimization to work, the field must be indexed and
-doc-values must be activated.
-Depending on the data this could bring significant speedups, while
-some performance regression is also possible.
-
-The optimization is disabled by default. To enable optimization,
-set the `optimized` parameter to `true`.
-This example shows how to enable optimization on a `long` field:
-
-[source,js]
---------------------------------------------------
-PUT /index_long
-{
-    "mappings": {
-        "properties": {
-            "my_long": { "type": "long" }
-        }
-    }
-}
---------------------------------------------------
-// CONSOLE
-
-[source,js]
---------------------------------------------------
-POST /index_long/_search
-{
-    "sort" : [
-        {
-            "my_long" : {
-                "optimized": true,
-                "order" : "asc"
-            }
-        }
-    ]
-}
---------------------------------------------------
-// CONSOLE
-// TEST[continued]
-
-
 [[nested-sorting]]
 ==== Sorting within nested objects.
 

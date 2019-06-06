@@ -25,7 +25,6 @@ public final class SortAndFormats {
 
     public final Sort sort;
     public final DocValueFormat[] formats;
-    public final boolean[] optimized;
 
     public SortAndFormats(Sort sort, DocValueFormat[] formats) {
         if (sort.getSort().length != formats.length) {
@@ -34,17 +33,6 @@ public final class SortAndFormats {
         }
         this.sort = sort;
         this.formats = formats;
-        this.optimized = null;
-    }
-
-    public SortAndFormats(Sort sort, DocValueFormat[] formats, boolean[] optimized) {
-        if (sort.getSort().length != formats.length) {
-            throw new IllegalArgumentException("Number of sort field mismatch: "
-                + sort.getSort().length + " != " + formats.length);
-        }
-        this.sort = sort;
-        this.formats = formats;
-        this.optimized = optimized;
     }
 
 }

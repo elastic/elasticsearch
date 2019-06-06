@@ -27,18 +27,10 @@ public final class SortFieldAndFormat {
 
     public final SortField field;
     public final DocValueFormat format;
-    public final boolean optimized;
 
     public SortFieldAndFormat(SortField field, DocValueFormat format) {
         this.field = Objects.requireNonNull(field);
         this.format = Objects.requireNonNull(format);
-        this.optimized = false;
-    }
-
-    public SortFieldAndFormat(SortField field, DocValueFormat format, boolean optimized) {
-        this.field = Objects.requireNonNull(field);
-        this.format = Objects.requireNonNull(format);
-        this.optimized = optimized;
     }
 
 }

@@ -60,7 +60,6 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
     public static final ParseField SORT_MODE = new ParseField("mode");
     public static final ParseField UNMAPPED_TYPE = new ParseField("unmapped_type");
     public static final ParseField NUMERIC_TYPE = new ParseField("numeric_type");
-    public static final ParseField OPTIMIZED_FIELD = new ParseField("optimized");
 
     /**
      * special field name to sort by index order
@@ -87,8 +86,6 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
 
     private NestedSortBuilder nestedSort;
 
-    private boolean optimized = false;
-
     /** Copy constructor. */
     public FieldSortBuilder(FieldSortBuilder template) {
         this(template.fieldName);
@@ -104,7 +101,6 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
             this.setNestedSort(template.getNestedSort());
         }
         this.numericType = template.numericType;
-        this.optimized(template.optimized);
     }
 
     /**
@@ -135,9 +131,6 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
         if (in.getVersion().onOrAfter(Version.V_7_2_0)) {
             numericType = in.readOptionalString();
         }
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
-            optimized = in.readOptionalBoolean();
-        }
     }
 
     @Override
@@ -152,9 +145,6 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
         out.writeOptionalWriteable(nestedSort);
         if (out.getVersion().onOrAfter(Version.V_7_2_0)) {
             out.writeOptionalString(numericType);
-        }
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
-            out.writeOptionalBoolean(optimized);
         }
     }
 
@@ -326,20 +316,6 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
         return this;
     }
 
-    /**
-     * Sets if the sort should be optimized
-     * Applicable only for numeric long, date and date_nano fields.
-     */
-    public FieldSortBuilder optimized(boolean optimized) {
-        this.optimized = optimized;
-        return this;
-    }
-
-    /** Returns if the sort is optimized. */
-    public boolean optimized() {
-        return optimized;
-    }
-
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
@@ -365,9 +341,6 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
         }
         if (numericType != null) {
             builder.field(NUMERIC_TYPE.getPreferredName(), numericType);
-        }
-        if (optimized) {
-            builder.field(OPTIMIZED_FIELD.getPreferredName(), optimized);
         }
         builder.endObject();
         builder.endObject();
@@ -452,7 +425,7 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
             } else {
                 field = fieldData.sortField(missing, localSortMode, nested, reverse);
             }
-            return new SortFieldAndFormat(field, fieldType.docValueFormat(null, null), optimized);
+            return new SortFieldAndFormat(field, fieldType.docValueFormat(null, null));
         }
     }
 
@@ -471,14 +444,13 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
                 && Objects.equals(this.nestedPath, builder.nestedPath) && Objects.equals(this.missing, builder.missing)
                 && Objects.equals(this.order, builder.order) && Objects.equals(this.sortMode, builder.sortMode)
                 && Objects.equals(this.unmappedType, builder.unmappedType) && Objects.equals(this.nestedSort, builder.nestedSort))
-                && Objects.equals(this.numericType, builder.numericType)
-                && this.optimized == builder.optimized;
+                && Objects.equals(this.numericType, builder.numericType);
     }
 
     @Override
     public int hashCode() {
         return Objects.hash(this.fieldName, this.nestedFilter, this.nestedPath, this.nestedSort, this.missing, this.order, this.sortMode,
-            this.unmappedType, this.numericType, this.optimized);
+            this.unmappedType, this.numericType);
     }
 
     @Override
@@ -516,7 +488,6 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
         }, NESTED_FILTER_FIELD);
         PARSER.declareObject(FieldSortBuilder::setNestedSort, (p, c) -> NestedSortBuilder.fromXContent(p), NESTED_FIELD);
         PARSER.declareString((b, v) -> b.setNumericType(v), NUMERIC_TYPE);
-        PARSER.declareBoolean(FieldSortBuilder::optimized, OPTIMIZED_FIELD);
     }
 
     @Override

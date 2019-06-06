@@ -356,8 +356,6 @@ public class QueryPhase implements SearchPhase {
         if (searchContext.collapse() != null) return null;
         if (searchContext.trackScores()) return null;
         if (searchContext.aggregations() != null) return null;
-        if (searchContext.sort().optimized == null) return null;
-        if (searchContext.sort().optimized[0] == false) return null;
         Sort sort = searchContext.sort().sort;
         SortField sortField = sort.getSort()[0];
         if (SortField.Type.LONG.equals(IndexSortConfig.getSortFieldType(sortField)) == false) return null;

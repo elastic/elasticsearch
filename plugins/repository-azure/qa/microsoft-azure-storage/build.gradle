@@ -71,6 +71,8 @@ testClusters.integTest {
         // in a hacky way to change the protocol and endpoint. We must fix that.
         setting 'azure.client.integration_test.endpoint_suffix',
                 { "ignored;DefaultEndpointsProtocol=http;BlobEndpoint=http://${azureStorageFixture.addressAndPort }" }
+        String firstPartOfSeed = project.rootProject.testSeed.tokenize(':').get(0)
+        setting 'thread_pool.repository_azure.max', (Math.abs(Long.parseUnsignedLong(firstPartOfSeed, 16) % 10) + 1).toString()
     } else {
         println "Using an external service to test the repository-azure plugin"
     }

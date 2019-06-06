@@ -28,6 +28,7 @@ import org.elasticsearch.persistent.PersistentTaskState;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.persistent.PersistentTasksExecutor;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.util.Map;
@@ -65,14 +66,15 @@ public class ReindexTask extends AllocatedPersistentTask {
 
     public static class ReindexPersistentTasksExecutor extends PersistentTasksExecutor<ReindexJob> {
 
-        protected ReindexPersistentTasksExecutor(String taskName, String executor) {
-            super(taskName, executor);
+        protected ReindexPersistentTasksExecutor() {
+            // TODO: Name
+            super("reindex_task", ThreadPool.Names.GENERIC);
         }
 
         @Override
         protected void nodeOperation(AllocatedPersistentTask task, ReindexJob reindexJob, PersistentTaskState state) {
             ReindexTask reindexTask = (ReindexTask) task;
-            // TODO: Run
+            reindexTask.doReindex();
 
         }
 
@@ -89,5 +91,7 @@ public class ReindexTask extends AllocatedPersistentTask {
         this.reindexJob = reindexJob;
     }
 
+    private void doReindex() {
 
+    }
 }

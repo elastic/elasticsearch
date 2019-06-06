@@ -31,10 +31,13 @@ import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
+import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.persistent.PersistentTasksExecutor;
 import org.elasticsearch.plugins.ActionPlugin;
+import org.elasticsearch.plugins.PersistentTaskPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
@@ -52,7 +55,7 @@ import java.util.function.Supplier;
 
 import static java.util.Collections.singletonList;
 
-public class ReindexPlugin extends Plugin implements ActionPlugin {
+public class ReindexPlugin extends Plugin implements ActionPlugin, PersistentTaskPlugin {
     public static final String NAME = "reindex";
 
     @Override
@@ -94,5 +97,11 @@ public class ReindexPlugin extends Plugin implements ActionPlugin {
         settings.add(TransportReindexAction.REMOTE_CLUSTER_WHITELIST);
         settings.addAll(ReindexSslConfig.getSettings());
         return settings;
+    }
+
+    @Override
+    public List<PersistentTasksExecutor<?>> getPersistentTasksExecutor(ClusterService clusterService, ThreadPool threadPool, Client client,
+                                                                       SettingsModule settingsModule) {
+        return Collections.singletonList(new ReindexTask.ReindexPersistentTasksExecutor());
     }
 }

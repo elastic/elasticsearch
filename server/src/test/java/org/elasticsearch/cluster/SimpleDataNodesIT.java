@@ -97,7 +97,7 @@ public class SimpleDataNodesIT extends ESIntegTestCase {
             equalTo(false));
     }
 
-    public void testAutoExpandReplicasAdjustedWhenDataNodeJoins() throws Exception {
+    public void testAutoExpandReplicasAdjustedWhenDataNodeJoins() {
         internalCluster().startNode(Settings.builder().put(Node.NODE_DATA_SETTING.getKey(), false).build());
         client().admin().indices().create(createIndexRequest("test")
             .settings(Settings.builder().put(IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS, "0-all"))
@@ -109,27 +109,8 @@ public class SimpleDataNodesIT extends ESIntegTestCase {
         assertThat(healthResponse1.getStatus(), equalTo(ClusterHealthStatus.YELLOW)); // TODO should be RED, see #41073
         assertThat(healthResponse1.getActiveShards(), equalTo(0));
 
-        internalCluster().startNode(Settings.builder().put(Node.NODE_DATA_SETTING.getKey(), true).build());
-
-        assertThat(client().admin().cluster().prepareHealth()
-                .setWaitForEvents(Priority.LANGUID).setWaitForNodes("2").setWaitForGreenStatus().execute().actionGet().isTimedOut(),
-            equalTo(false));
-
-        final AtomicBoolean stopRerouting = new AtomicBoolean();
-        final Thread rerouteThread = new Thread(() -> {
-            while (stopRerouting.get() == false) {
-                client().admin().cluster().prepareReroute().setRetryFailed(true).get();
-            }
-        });
-        rerouteThread.start();
-
-        internalCluster().startNode(Settings.builder().put(Node.NODE_DATA_SETTING.getKey(), true).build());
-
-        assertThat(client().admin().cluster().prepareHealth()
-                .setWaitForEvents(Priority.LANGUID).setWaitForNodes("3").setWaitForGreenStatus().execute().actionGet().isTimedOut(),
-            equalTo(false));
-
-        stopRerouting.set(true);
-        rerouteThread.join();
+        internalCluster().startNode();
+        internalCluster().startNode();
+        client().admin().cluster().prepareReroute().setRetryFailed(true).get();
     }
 }

@@ -22,6 +22,7 @@ PUT /elision_example
             "filter" : {
                 "elision" : {
                     "type" : "elision",
+                    "articles_case": true,
                     "articles" : ["l", "m", "t", "qu", "n", "s", "j"]
                 }
             }

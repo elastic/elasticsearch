@@ -62,16 +62,6 @@ public final class QueryBuilders {
     }
 
     /**
-     * Creates a common query for the provided field name and text.
-     *
-     * @param fieldName The field name.
-     * @param text The query text (to be analyzed).
-     */
-    public static CommonTermsQueryBuilder commonTermsQuery(String fieldName, Object text) {
-        return new CommonTermsQueryBuilder(fieldName, text);
-    }
-
-    /**
      * Creates a match query with type "BOOLEAN" for the provided field name and text.
      *
      * @param fieldNames The field names.

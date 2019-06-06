@@ -40,6 +40,7 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -412,16 +413,29 @@ public class TransportBulkActionIngestTests extends ESTestCase {
     }
 
     public void testUseDefaultPipelineWithBulkUpsert() throws Exception {
+        String indexRequestName = randomFrom(new String[]{null, WITH_DEFAULT_PIPELINE, WITH_DEFAULT_PIPELINE_ALIAS});
+        validatePipelineWithBulkUpsert(indexRequestName, WITH_DEFAULT_PIPELINE);
+    }
+
+    public void testUseDefaultPipelineWithBulkUpsertWithAlias() throws Exception {
+        String indexRequestName = randomFrom(new String[]{null, WITH_DEFAULT_PIPELINE, WITH_DEFAULT_PIPELINE_ALIAS});
+        validatePipelineWithBulkUpsert(indexRequestName, WITH_DEFAULT_PIPELINE_ALIAS);
+    }
+
+    private void validatePipelineWithBulkUpsert(@Nullable String indexRequestIndexName, String updateRequestIndexName) throws Exception {
         Exception exception = new Exception("fake exception");
         BulkRequest bulkRequest = new BulkRequest();
-        IndexRequest indexRequest1 = new IndexRequest(WITH_DEFAULT_PIPELINE, "type", "id1").source(Collections.emptyMap());
-        IndexRequest indexRequest2 = new IndexRequest(WITH_DEFAULT_PIPELINE, "type", "id2").source(Collections.emptyMap());
-        IndexRequest indexRequest3 = new IndexRequest(WITH_DEFAULT_PIPELINE, "type", "id3").source(Collections.emptyMap());
-        UpdateRequest upsertRequest = new UpdateRequest(WITH_DEFAULT_PIPELINE, "type", "id1").upsert(indexRequest1).script(mockScript("1"));
-        UpdateRequest docAsUpsertRequest = new UpdateRequest(WITH_DEFAULT_PIPELINE, "type", "id2").doc(indexRequest2).docAsUpsert(true);
+        IndexRequest indexRequest1 = new IndexRequest(indexRequestIndexName, "type", "id1").source(Collections.emptyMap());
+        IndexRequest indexRequest2 = new IndexRequest(indexRequestIndexName, "type", "id2").source(Collections.emptyMap());
+        IndexRequest indexRequest3 = new IndexRequest(indexRequestIndexName, "type", "id3").source(Collections.emptyMap());
+        UpdateRequest upsertRequest = new UpdateRequest(updateRequestIndexName, "type", "id1")
+            .upsert(indexRequest1).script(mockScript("1"));
+        UpdateRequest docAsUpsertRequest = new UpdateRequest(updateRequestIndexName, "type", "id2")
+            .doc(indexRequest2).docAsUpsert(true);
         // this test only covers the mechanics that scripted bulk upserts will execute a default pipeline. However, in practice scripted
         // bulk upserts with a default pipeline are a bit surprising since the script executes AFTER the pipeline.
-        UpdateRequest scriptedUpsert = new UpdateRequest(WITH_DEFAULT_PIPELINE, "type", "id2").upsert(indexRequest3).script(mockScript("1"))
+        UpdateRequest scriptedUpsert = new UpdateRequest(updateRequestIndexName, "type", "id2")
+            .upsert(indexRequest3).script(mockScript("1"))
             .scriptedUpsert(true);
         bulkRequest.add(upsertRequest).add(docAsUpsertRequest).add(scriptedUpsert);
 

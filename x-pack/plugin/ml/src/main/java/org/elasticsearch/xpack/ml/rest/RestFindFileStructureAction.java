@@ -53,6 +53,8 @@ public class RestFindFileStructureAction extends BaseRestHandler {
         FindFileStructureAction.Request request = new FindFileStructureAction.Request();
         request.setLinesToSample(restRequest.paramAsInt(FindFileStructureAction.Request.LINES_TO_SAMPLE.getPreferredName(),
             FileStructureFinderManager.DEFAULT_IDEAL_SAMPLE_LINE_COUNT));
+        request.setLineMergeSizeLimit(restRequest.paramAsInt(FindFileStructureAction.Request.LINE_MERGE_SIZE_LIMIT.getPreferredName(),
+            FileStructureFinderManager.DEFAULT_LINE_MERGE_SIZE_LIMIT));
         request.setTimeout(TimeValue.parseTimeValue(restRequest.param(FindFileStructureAction.Request.TIMEOUT.getPreferredName()),
             DEFAULT_TIMEOUT, FindFileStructureAction.Request.TIMEOUT.getPreferredName()));
         request.setCharset(restRequest.param(FindFileStructureAction.Request.CHARSET.getPreferredName()));

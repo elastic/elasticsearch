@@ -39,6 +39,7 @@ dependencies {
   compile "org.apache.httpcomponents:httpclient:${versions.httpclient}"
   compile "org.apache.httpcomponents:httpcore:${versions.httpcore}"
   compile "commons-logging:commons-logging:${versions.commonslogging}"
+  compile "org.apache.logging.log4j:log4j-1.2-api:${versions.log4j}"
   compile "commons-codec:commons-codec:${versions.commonscodec}"
   compile "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
   compile 'com.fasterxml.jackson.core:jackson-databind:2.8.11.3'
@@ -163,7 +164,7 @@ if (useFixture) {
   def minioAddress = {
     int minioPort = postProcessFixture.ext."test.fixtures.minio-fixture.tcp.9000"
     assert minioPort > 0
-    return 'http://127.0.0.1:' + minioPort
+    'http://127.0.0.1:' + minioPort
   }
 
   File minioAddressFile = new File(project.buildDir, 'generated-resources/s3Fixture.address')
@@ -172,7 +173,6 @@ if (useFixture) {
   // and pass its name instead.
   task writeMinioAddress {
     dependsOn tasks.bundlePlugin, tasks.postProcessFixture
-    outputs.file(minioAddressFile)
     doLast {
       file(minioAddressFile).text = "${ -> minioAddress.call() }"
     }
@@ -180,7 +180,6 @@ if (useFixture) {
 
   thirdPartyTest {
     dependsOn writeMinioAddress
-    inputs.file(minioAddressFile)
     systemProperty 'test.s3.endpoint', minioAddressFile.name
   }
 

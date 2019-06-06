@@ -139,16 +139,6 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
     }
 
     /**
-     * Set the document types which need to be copied from the source indices
-     */
-    public ReindexRequest setSourceDocTypes(String... docTypes) {
-        if (docTypes != null) {
-            this.getSearchRequest().types(docTypes);
-        }
-        return this;
-    }
-
-    /**
      * Sets the scroll size for setting how many documents are to be processed in one batch during reindex
      */
     public ReindexRequest setSourceBatchSize(int size) {
@@ -295,10 +285,6 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
                 builder.rawField("query", remoteInfo.getQuery().streamInput(), builder.contentType());
             }
             builder.array("index", getSearchRequest().indices());
-            String[] types = getSearchRequest().types();
-            if (types.length > 0) {
-                builder.array("type", types);
-            }
             getSearchRequest().source().innerToXContent(builder, params);
             builder.endObject();
         }
@@ -322,8 +308,8 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
         }
         {
             // Other fields
-            if (getSize() != -1 || getSize() > 0) {
-                builder.field("size", getSize());
+            if (getMaxDocs() != -1) {
+                builder.field("max_docs", getMaxDocs());
             }
             if (getScript() != null) {
                 builder.field("script", getScript());

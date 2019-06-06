@@ -318,8 +318,10 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
             assertTrue(indicesService.hasUncompletedPendingDeletes());
             // shard lock released... we can now delete
             indicesService.processPendingDeletes(test.index(), test.getIndexSettings(), new TimeValue(0, TimeUnit.MILLISECONDS));
-            assertEquals(indicesService.numPendingDeletes(test.index()), 0);
-            assertTrue(indicesService.hasUncompletedPendingDeletes()); // "bogus" index has not been removed
+            assertBusy(() -> {
+                assertEquals(indicesService.numPendingDeletes(test.index()), 0);
+                assertTrue(indicesService.hasUncompletedPendingDeletes()); // "bogus" index has not been removed
+            });
         }
         assertAcked(client().admin().indices().prepareOpen("test").setTimeout(TimeValue.timeValueSeconds(1)));
 

@@ -47,7 +47,7 @@ public final class AutoDateHistogramAggregatorFactory
                                               SearchContext context,
                                               AggregatorFactory<?> parent,
                                               AggregatorFactories.Builder subFactoriesBuilder,
-            Map<String, Object> metaData) throws IOException {
+                                              Map<String, Object> metaData) throws IOException {
         super(name, config, context, parent, subFactoriesBuilder, metaData);
         this.numBuckets = numBuckets;
         this.roundingInfos = roundingInfos;

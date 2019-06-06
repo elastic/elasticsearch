@@ -67,13 +67,13 @@ public class AutoDateHistogramAggregationBuilder
         PARSER.declareStringOrNull(AutoDateHistogramAggregationBuilder::setMinimumIntervalExpression, MINIMUM_INTERVAL_FIELD);
     }
 
-    public static final Map<String, Rounding.DateTimeUnit> allowedIntervals = Map.ofEntries(
-        entry("year", Rounding.DateTimeUnit.YEAR_OF_CENTURY),
-        entry("month", Rounding.DateTimeUnit.MONTH_OF_YEAR),
-        entry("day", Rounding.DateTimeUnit.DAY_OF_MONTH),
-        entry("hour", Rounding.DateTimeUnit.HOUR_OF_DAY),
-        entry("minute", Rounding.DateTimeUnit.MINUTES_OF_HOUR),
-        entry("second", Rounding.DateTimeUnit.SECOND_OF_MINUTE)
+    public static final Map<Rounding.DateTimeUnit, String> allowedIntervals = Map.ofEntries(
+        entry(Rounding.DateTimeUnit.YEAR_OF_CENTURY, "year"),
+        entry(Rounding.DateTimeUnit.MONTH_OF_YEAR, "month"),
+        entry(Rounding.DateTimeUnit.DAY_OF_MONTH, "day"),
+        entry( Rounding.DateTimeUnit.HOUR_OF_DAY, "hour"),
+        entry(Rounding.DateTimeUnit.MINUTES_OF_HOUR, "minute"),
+        entry(Rounding.DateTimeUnit.SECOND_OF_MINUTE, "second")
     );
 
     /**
@@ -85,25 +85,26 @@ public class AutoDateHistogramAggregationBuilder
     static RoundingInfo[] buildRoundings(ZoneId timeZone, String minimumInterval) {
 
         int indexToSliceFrom = 0;
-        /*
-        if (minimumInterval!= null && allowedIntervals.contains(minimumInterval)) {
-            indexToSliceFrom = allowedIntervals.indexOf(minimumInterval);
-        }
-         */
 
         RoundingInfo[] roundings = new RoundingInfo[6];
         roundings[0] = new RoundingInfo(createRounding(Rounding.DateTimeUnit.SECOND_OF_MINUTE, timeZone),
-            1000L, "s", "second" , 1, 5, 10, 30);
+            1000L, "s",
+            allowedIntervals.get(Rounding.DateTimeUnit.SECOND_OF_MINUTE),1, 5, 10, 30);
         roundings[1] = new RoundingInfo(createRounding(Rounding.DateTimeUnit.MINUTES_OF_HOUR, timeZone),
-            60 * 1000L, "m",  "minute", 1, 5, 10, 30);
+            60 * 1000L, "m",
+            allowedIntervals.get(Rounding.DateTimeUnit.MINUTES_OF_HOUR), 1, 5, 10, 30);
         roundings[2] = new RoundingInfo(createRounding(Rounding.DateTimeUnit.HOUR_OF_DAY, timeZone),
-            60 * 60 * 1000L, "h", "hour", 1, 3, 12);
+            60 * 60 * 1000L, "h",
+            allowedIntervals.get(Rounding.DateTimeUnit.HOUR_OF_DAY), 1, 3, 12);
         roundings[3] = new RoundingInfo(createRounding(Rounding.DateTimeUnit.DAY_OF_MONTH, timeZone),
-            24 * 60 * 60 * 1000L, "d", "day", 1, 7);
+            24 * 60 * 60 * 1000L, "d",
+            allowedIntervals.get(Rounding.DateTimeUnit.DAY_OF_MONTH), 1, 7);
         roundings[4] = new RoundingInfo(createRounding(Rounding.DateTimeUnit.MONTH_OF_YEAR, timeZone),
-            30 * 24 * 60 * 60 * 1000L, "M", "month", 1, 3);
+            30 * 24 * 60 * 60 * 1000L, "M",
+            allowedIntervals.get(Rounding.DateTimeUnit.MONTH_OF_YEAR), 1, 3);
         roundings[5] = new RoundingInfo(createRounding(Rounding.DateTimeUnit.YEAR_OF_CENTURY, timeZone),
-            365 * 24 * 60 * 60 * 1000L, "y", "year", 1, 5, 10, 20, 50, 100);
+            365 * 24 * 60 * 60 * 1000L, "y",
+            allowedIntervals.get(Rounding.DateTimeUnit.YEAR_OF_CENTURY), 1, 5, 10, 20, 50, 100);
 
         for (int i = 0; i < roundings.length; i++) {
             RoundingInfo roundingInfo = roundings[i];
@@ -128,9 +129,9 @@ public class AutoDateHistogramAggregationBuilder
     }
 
     public AutoDateHistogramAggregationBuilder setMinimumIntervalExpression(String minimumIntervalExpression) {
-        if (minimumIntervalExpression != null && !allowedIntervals.containsKey(minimumIntervalExpression)) {
+        if (minimumIntervalExpression != null && !allowedIntervals.containsValue(minimumIntervalExpression)) {
             throw new IllegalArgumentException(MINIMUM_INTERVAL_FIELD.getPreferredName() +
-                " must be one of [" + allowedIntervals.keySet().toString() + "]");
+                " must be one of [" + allowedIntervals.values().toString() + "]");
         }
         this.minimumIntervalExpression = minimumIntervalExpression;
         return this;
@@ -146,6 +147,7 @@ public class AutoDateHistogramAggregationBuilder
     public AutoDateHistogramAggregationBuilder(StreamInput in) throws IOException {
         super(in, ValuesSourceType.NUMERIC, ValueType.DATE);
         numBuckets = in.readVInt();
+        //TODO[PCS] update after backport
         if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
             minimumIntervalExpression = in.readOptionalString();
         }

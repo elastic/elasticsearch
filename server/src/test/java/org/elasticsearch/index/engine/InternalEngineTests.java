@@ -5811,7 +5811,6 @@ public class InternalEngineTests extends EngineTestCase {
         policy.setMinMergeDocs(10000);
         try (InternalEngine engine = createEngine(indexSettings, store, createTempDir(), policy)) {
             int numDocs = between(1, 20);
-            logger.info("" + numDocs);
             for (int i = 0; i < numDocs; i++) {
                 index(engine, i);
             }

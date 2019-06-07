@@ -29,7 +29,6 @@ import org.elasticsearch.plugins.PluginInfo;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.secure_sm.SecureSM;
 import org.elasticsearch.transport.TcpTransport;
-import org.elasticsearch.transport.TransportSettings;
 
 import java.io.IOException;
 import java.net.SocketPermission;

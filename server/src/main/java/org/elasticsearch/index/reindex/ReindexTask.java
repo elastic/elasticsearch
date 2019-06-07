@@ -29,13 +29,14 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
 
 public class ReindexTask extends AllocatedPersistentTask {
 
     // TODO: Name
     public static final String NAME = "reindex/job";
 
-    private final ReindexJob reindexJob;
+    private final AtomicReference<ReindexJob> taskState = new AtomicReference<>();
     private final Client client;
 
     public static class ReindexPersistentTasksExecutor extends PersistentTasksExecutor<ReindexJob> {
@@ -65,21 +66,41 @@ public class ReindexTask extends AllocatedPersistentTask {
     private ReindexTask(long id, String type, String action, TaskId parentTask, Map<String, String> headers, ReindexJob reindexJob,
                         Client client) {
         super(id, type, action, "reindex_" + id, parentTask, headers);
-        this.reindexJob = reindexJob;
+        taskState.set(reindexJob);
         this.client = client;
     }
 
     private void doReindex() {
-//        client.execute(ReindexAction.INSTANCE, reindexJob.getReindexRequest(), new ActionListener<>() {
-//            @Override
-//            public void onResponse(BulkByScrollResponse response) {
-//
-//            }
-//
-//            @Override
-//            public void onFailure(Exception e) {
-//
-//            }
-//        });
+        client.execute(ReindexAction.INSTANCE, taskState.get().getReindexRequest(), new ActionListener<>() {
+            @Override
+            public void onResponse(BulkByScrollResponse response) {
+                updatePersistentTaskState(null, new ActionListener<>() {
+                    @Override
+                    public void onResponse(PersistentTasksCustomMetaData.PersistentTask<?> persistentTask) {
+
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+
+                    }
+                });
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                updatePersistentTaskState(null, new ActionListener<>() {
+                    @Override
+                    public void onResponse(PersistentTasksCustomMetaData.PersistentTask<?> persistentTask) {
+
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+
+                    }
+                });
+            }
+        });
     }
 }

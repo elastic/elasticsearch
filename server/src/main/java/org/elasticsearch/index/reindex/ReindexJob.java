@@ -86,4 +86,8 @@ public class ReindexJob implements PersistentTaskParams {
     public static ReindexJob fromXContent(XContentParser parser) {
         return PARSER.apply(parser, null);
     }
+
+    public BulkByScrollResponse getReindexResponse() {
+        return null;
+    }
 }

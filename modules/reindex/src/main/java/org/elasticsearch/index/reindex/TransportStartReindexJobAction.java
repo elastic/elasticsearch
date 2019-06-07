@@ -24,7 +24,6 @@ import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
-import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -40,21 +39,20 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.Objects;
+import java.util.function.Predicate;
 
 public class TransportStartReindexJobAction
     extends TransportMasterNodeAction<StartReindexJobAction.Request, StartReindexJobAction.Response> {
 
     private final PersistentTasksService persistentTasksService;
-    private final Client client;
 
     @Inject
     public TransportStartReindexJobAction(TransportService transportService, ThreadPool threadPool,
                                           ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                                          ClusterService clusterService, PersistentTasksService persistentTasksService, Client client) {
+                                          ClusterService clusterService, PersistentTasksService persistentTasksService) {
         super(StartReindexJobAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver,
             StartReindexJobAction.Request::new);
         this.persistentTasksService = persistentTasksService;
-        this.client = client;
     }
 
     @Override
@@ -70,39 +68,42 @@ public class TransportStartReindexJobAction
     @Override
     protected void masterOperation(StartReindexJobAction.Request request, ClusterState clusterState,
                                    ActionListener<StartReindexJobAction.Response> listener) {
-        startPersistentTask(request.getReindexRequest(), listener);
-    }
-
-    private void startPersistentTask(ReindexRequest request, ActionListener<StartReindexJobAction.Response> listener) {
         String taskId = UUIDs.randomBase64UUID();
 
         // TODO: Task name
-        persistentTasksService.sendStartRequest(taskId, ReindexTask.NAME, new ReindexJob(request),
-                ActionListener.wrap(
-                        reindexPersistentTask -> waitForReindexTaskStarted(taskId, request, listener),
-                        e -> {
-                            // TODO: This probably should not happen as we are generating the UUID ourselves?
-                            if (e instanceof ResourceAlreadyExistsException) {
-                                e = new ElasticsearchStatusException("Cannot create job [" + taskId +
-                                        "] because it has already been created (task exists)", RestStatus.CONFLICT, e);
-                            }
-                            listener.onFailure(e);
-                        }));
+        persistentTasksService.sendStartRequest(taskId, ReindexTask.NAME, new ReindexJob(request.getReindexRequest()),
+            new ActionListener<>() {
+                @Override
+                public void onResponse(PersistentTasksCustomMetaData.PersistentTask<ReindexJob> persistentTask) {
+                    boolean waitForReindexToComplete = true;
+
+                    if (waitForReindexToComplete) {
+                        waitForReindexDone(taskId, listener);
+                    } else {
+                        waitForReindexTask(taskId, request, listener);
+                    }
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // TODO: This probably should not happen as we are generating the UUID ourselves?
+                    if (e instanceof ResourceAlreadyExistsException) {
+                        e = new ElasticsearchStatusException("Cannot create job [" + taskId +
+                            "] because it has already been created (task exists)", RestStatus.CONFLICT, e);
+                    }
+                    listener.onFailure(e);
+                }
+            });
     }
 
-
-    private void waitForReindexTaskStarted(String taskId, ReindexRequest request, ActionListener<StartReindexJobAction.Response> listener) {
-        persistentTasksService.waitForPersistentTaskCondition(taskId, Objects::nonNull, request.getTimeout(),
+    private void waitForReindexTask(String taskId, StartReindexJobAction.Request request,
+                                    ActionListener<StartReindexJobAction.Response> listener) {
+        // TODO: Configurable timeout?
+        persistentTasksService.waitForPersistentTaskCondition(taskId, Objects::nonNull, TimeValue.timeValueSeconds(20),
                 new PersistentTasksService.WaitForPersistentTaskListener<ReindexJob>() {
                     @Override
                     public void onResponse(PersistentTasksCustomMetaData.PersistentTask<ReindexJob> task) {
-                        boolean waitForReindexToComplete = true;
-
-                        if (waitForReindexToComplete) {
-                            startReindex(taskId, request, listener);
-                        } else {
-                            listener.onResponse(new StartReindexJobAction.Response(true, taskId));
-                        }
+                        listener.onResponse(new StartReindexJobAction.Response(true, taskId));
                     }
 
                     @Override
@@ -118,22 +119,45 @@ public class TransportStartReindexJobAction
                 });
     }
 
-    private void startReindex(String taskId, ReindexRequest request, ActionListener<StartReindexJobAction.Response> listener) {
-        client.execute(ReindexAction.INSTANCE, request, new ActionListener<>() {
-            @Override
-            public void onResponse(BulkByScrollResponse response) {
-                listener.onResponse(new StartReindexJobAction.Response(true, taskId, response));
-            }
+    private void waitForReindexDone(String taskId, ActionListener<StartReindexJobAction.Response> listener) {
+        // TODO: timeout?
+        persistentTasksService.waitForPersistentTaskCondition(taskId, new ReindexDonePredicate(), null,
+            new PersistentTasksService.WaitForPersistentTaskListener<ReindexJob>() {
+                @Override
+                public void onResponse(PersistentTasksCustomMetaData.PersistentTask<ReindexJob> task) {
+                    BulkByScrollResponse response = (BulkByScrollResponse) task.getState();
 
-            @Override
-            public void onFailure(Exception e) {
-                listener.onFailure(e);
-            }
-        });
+                    listener.onResponse(new StartReindexJobAction.Response(true, taskId, response));
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    listener.onFailure(e);
+                }
+            });
     }
 
     @Override
     protected ClusterBlockException checkBlock(StartReindexJobAction.Request request, ClusterState state) {
         return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
+    }
+
+    private class ReindexDonePredicate implements Predicate<PersistentTasksCustomMetaData.PersistentTask<?>> {
+
+
+        @Override
+        public boolean test(PersistentTasksCustomMetaData.PersistentTask<?> persistentTask) {
+            if (persistentTask == null) {
+                return false;
+            }
+            PersistentTasksCustomMetaData.Assignment assignment = persistentTask.getAssignment();
+            // TODO: Dataframes has a lot of handling around an existing, not non-assigned task. Do we need that?
+            return assignment != null && assignment.isAssigned() && isDone(persistentTask);
+        }
+
+        private boolean isDone(PersistentTasksCustomMetaData.PersistentTask<?> task) {
+            ReindexJob state = (ReindexJob) task.getState();
+            return state != null && state.getReindexResponse() != null;
+        }
     }
 }

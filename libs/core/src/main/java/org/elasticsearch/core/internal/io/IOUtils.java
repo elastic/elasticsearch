@@ -249,6 +249,7 @@ public final class IOUtils {
     }
 
     // TODO: replace with constants class if needed (cf. org.apache.lucene.util.Constants)
+    private static final boolean WINDOWS = System.getProperty("os.name").startsWith("Windows");
     private static final boolean LINUX = System.getProperty("os.name").startsWith("Linux");
     private static final boolean MAC_OS_X = System.getProperty("os.name").startsWith("Mac OS X");
 
@@ -263,6 +264,10 @@ public final class IOUtils {
      *                   systems and operating systems allow to fsync on a directory)
      */
     public static void fsync(final Path fileToSync, final boolean isDir) throws IOException {
+        // opening a directory on Windows fails, directories can not be fsynced there
+        if (isDir && WINDOWS) {
+            return;
+        }
         try (FileChannel file = FileChannel.open(fileToSync, isDir ? StandardOpenOption.READ : StandardOpenOption.WRITE)) {
             try {
                 file.force(true);

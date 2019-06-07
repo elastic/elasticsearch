@@ -19,10 +19,87 @@
         id:      1
         body:    { "text": "test" }
   - do:
-      catch: /\[size\] parameter cannot be negative, found \[-4\]/
+      catch: /\[max_docs\] parameter cannot be negative, found \[-4\]/
       update_by_query:
         index: test
         size: -4
+
+---
+"invalid max_docs in URL fails":
+  - skip:
+      version: " - 7.1.99"
+      reason: "max_docs introduced in 7.2.0"
+
+  - do:
+      index:
+        index:   test
+        id:      1
+        body:    { "text": "test" }
+  - do:
+      catch: /\[max_docs\] parameter cannot be negative, found \[-4\]/
+      update_by_query:
+        index: test
+        max_docs: -4
+
+---
+"invalid max_docs in body fails":
+  - skip:
+      version: " - 7.1.99"
+      reason: "max_docs introduced in 7.2.0"
+
+  - do:
+      index:
+        index:   test
+        id:      1
+        body:    { "text": "test" }
+  - do:
+      catch: /\[max_docs\] parameter cannot be negative, found \[-4\]/
+      update_by_query:
+        index: test
+        body:
+          max_docs: -4
+
+---
+"inconsistent max_docs and size fails":
+  - skip:
+      version: " - 7.1.99"
+      reason: "max_docs introduced in 7.2.0"
+
+  - do:
+      index:
+        index:   test
+        id:      1
+        body:    { "text": "test" }
+  - do:
+      catch: /\[max_docs\] set to two different values \[4\] and \[5\]/
+      delete_by_query:
+        index: test
+        size: 4
+        max_docs: 5
+        body:
+          query:
+            match_all: {}
+
+---
+"inconsistent max_docs in body and max_docs in URL fails":
+  - skip:
+      version: " - 7.1.99"
+      reason: "max_docs introduced in 7.2.0"
+
+  - do:
+      index:
+        index:   test
+        id:      1
+        body:    { "text": "test" }
+  - do:
+      catch: /\[max_docs\] set to two different values \[4\] and \[5\]/
+      delete_by_query:
+        index: test
+        max_docs: 5
+        body:
+          max_docs: 4
+          query:
+            match_all: {}
 
 ---
 "invalid scroll_size fails":

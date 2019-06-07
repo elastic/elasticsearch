@@ -346,7 +346,10 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
      * @throws IOException if an I/O exception occurs reading the retention leases
      */
     public RetentionLeases loadRetentionLeases(final Path path) throws IOException {
-        final RetentionLeases retentionLeases = RetentionLeases.FORMAT.loadLatestState(logger, NamedXContentRegistry.EMPTY, path);
+        final RetentionLeases retentionLeases;
+        synchronized (retentionLeasePersistenceLock) {
+            retentionLeases = RetentionLeases.FORMAT.loadLatestState(logger, NamedXContentRegistry.EMPTY, path);
+        }
 
         // TODO after backporting we expect this never to happen in 8.x, so adjust this to throw an exception instead.
         assert Version.CURRENT.major <= 8 : "throw an exception instead of returning EMPTY on null";

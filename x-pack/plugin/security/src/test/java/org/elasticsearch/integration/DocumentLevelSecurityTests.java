@@ -345,8 +345,8 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
         MultiSearchResponse response = client()
                 .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
                 .prepareMultiSearch()
-                .add(client().prepareSearch("test1").setTypes("type1").setQuery(QueryBuilders.matchAllQuery()))
-                .add(client().prepareSearch("test2").setTypes("type1").setQuery(QueryBuilders.matchAllQuery()))
+                .add(client().prepareSearch("test1").setQuery(QueryBuilders.matchAllQuery()))
+                .add(client().prepareSearch("test2").setQuery(QueryBuilders.matchAllQuery()))
                 .get();
         assertFalse(response.getResponses()[0].isFailure());
         assertThat(response.getResponses()[0].getResponse().getHits().getTotalHits().value, is(1L));
@@ -363,8 +363,8 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
         response = client()
                 .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD)))
                 .prepareMultiSearch()
-                .add(client().prepareSearch("test1").setTypes("type1").setQuery(QueryBuilders.matchAllQuery()))
-                .add(client().prepareSearch("test2").setTypes("type1").setQuery(QueryBuilders.matchAllQuery()))
+                .add(client().prepareSearch("test1").setQuery(QueryBuilders.matchAllQuery()))
+                .add(client().prepareSearch("test2").setQuery(QueryBuilders.matchAllQuery()))
                 .get();
         assertFalse(response.getResponses()[0].isFailure());
         assertThat(response.getResponses()[0].getResponse().getHits().getTotalHits().value, is(1L));
@@ -381,9 +381,9 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
         response = client()
                 .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user3", USERS_PASSWD)))
                 .prepareMultiSearch()
-                .add(client().prepareSearch("test1").setTypes("type1").addSort(SortBuilders.fieldSort("id").sortMode(SortMode.MIN))
+                .add(client().prepareSearch("test1").addSort(SortBuilders.fieldSort("id").sortMode(SortMode.MIN))
                         .setQuery(QueryBuilders.matchAllQuery()))
-                .add(client().prepareSearch("test2").setTypes("type1").addSort(SortBuilders.fieldSort("id").sortMode(SortMode.MIN))
+                .add(client().prepareSearch("test2").addSort(SortBuilders.fieldSort("id").sortMode(SortMode.MIN))
                         .setQuery(QueryBuilders.matchAllQuery()))
                 .get();
         assertFalse(response.getResponses()[0].isFailure());
@@ -424,47 +424,47 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
         boolean realtime = randomBoolean();
         TermVectorsResponse response = client()
                 .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
-                .prepareTermVectors("test", "type1", "1")
+                .prepareTermVectors("test", "1")
                 .setRealtime(realtime)
                 .get();
         assertThat(response.isExists(), is(true));
         assertThat(response.getId(), is("1"));
 
         response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD)))
-                .prepareTermVectors("test", "type1", "2")
+                .prepareTermVectors("test", "2")
                 .setRealtime(realtime)
                 .get();
         assertThat(response.isExists(), is(true));
         assertThat(response.getId(), is("2"));
 
         response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user3", USERS_PASSWD)))
-                .prepareTermVectors("test", "type1", "1")
+                .prepareTermVectors("test", "1")
                 .setRealtime(realtime)
                 .get();
         assertThat(response.isExists(), is(true));
         assertThat(response.getId(), is("1"));
 
         response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user3", USERS_PASSWD)))
-                .prepareTermVectors("test", "type1", "2")
+                .prepareTermVectors("test", "2")
                 .setRealtime(realtime)
                 .get();
         assertThat(response.isExists(), is(true));
         assertThat(response.getId(), is("2"));
 
         response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD)))
-                .prepareTermVectors("test", "type1", "1")
+                .prepareTermVectors("test", "1")
                 .setRealtime(realtime)
                 .get();
         assertThat(response.isExists(), is(false));
 
         response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
-                .prepareTermVectors("test", "type1", "2")
+                .prepareTermVectors("test", "2")
                 .setRealtime(realtime)
                 .get();
         assertThat(response.isExists(), is(false));
 
         response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user3", USERS_PASSWD)))
-                .prepareTermVectors("test", "type1", "3")
+                .prepareTermVectors("test", "3")
                 .setRealtime(realtime)
                 .get();
         assertThat(response.isExists(), is(false));
@@ -490,7 +490,7 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
         MultiTermVectorsResponse response = client()
                 .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
                 .prepareMultiTermVectors()
-                .add(new TermVectorsRequest("test", "type1", "1").realtime(realtime))
+                .add(new TermVectorsRequest("test", "1").realtime(realtime))
                 .get();
         assertThat(response.getResponses().length, equalTo(1));
         assertThat(response.getResponses()[0].getResponse().isExists(), is(true));
@@ -498,7 +498,7 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
 
         response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD)))
                 .prepareMultiTermVectors()
-                .add(new TermVectorsRequest("test", "type1", "2").realtime(realtime))
+                .add(new TermVectorsRequest("test", "2").realtime(realtime))
                 .get();
         assertThat(response.getResponses().length, equalTo(1));
         assertThat(response.getResponses()[0].getResponse().isExists(), is(true));
@@ -506,8 +506,7 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
 
         response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user3", USERS_PASSWD)))
                 .prepareMultiTermVectors()
-                .add(new TermVectorsRequest("test", "type1", "1").realtime(realtime))
-                .add(new TermVectorsRequest("test", "type1", "2").realtime(realtime))
+                .add(new TermVectorsRequest("test", "1").realtime(realtime)).add(new TermVectorsRequest("test", "2").realtime(realtime))
                 .get();
         assertThat(response.getResponses().length, equalTo(2));
         assertThat(response.getResponses()[0].getResponse().isExists(), is(true));
@@ -517,21 +516,21 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
 
         response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD)))
                 .prepareMultiTermVectors()
-                .add(new TermVectorsRequest("test", "type1", "1").realtime(realtime))
+                .add(new TermVectorsRequest("test", "1").realtime(realtime))
                 .get();
         assertThat(response.getResponses().length, equalTo(1));
         assertThat(response.getResponses()[0].getResponse().isExists(), is(false));
 
         response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
                 .prepareMultiTermVectors()
-                .add(new TermVectorsRequest("test", "type1", "2").realtime(realtime))
+                .add(new TermVectorsRequest("test", "2").realtime(realtime))
                 .get();
         assertThat(response.getResponses().length, equalTo(1));
         assertThat(response.getResponses()[0].getResponse().isExists(), is(false));
 
         response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user3", USERS_PASSWD)))
                 .prepareMultiTermVectors()
-                .add(new TermVectorsRequest("test", "type1", "3").realtime(realtime))
+                .add(new TermVectorsRequest("test", "3").realtime(realtime))
                 .get();
         assertThat(response.getResponses().length, equalTo(1));
         assertThat(response.getResponses()[0].getResponse().isExists(), is(false));

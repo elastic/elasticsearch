@@ -360,14 +360,14 @@ public enum Hasher {
         public char[] hash(SecureString text) {
             MessageDigest md = MessageDigests.sha256();
             md.update(CharArrays.toUtf8Bytes(text.getChars()));
-            return Base64.getEncoder().encodeToString(md.digest()).toCharArray();
+            return Base64.getUrlEncoder().withoutPadding().encodeToString(md.digest()).toCharArray();
         }
 
         @Override
         public boolean verify(SecureString text, char[] hash) {
             MessageDigest md = MessageDigests.sha256();
             md.update(CharArrays.toUtf8Bytes(text.getChars()));
-            return CharArrays.constantTimeEquals(Base64.getEncoder().encodeToString(md.digest()).toCharArray(), hash);
+            return CharArrays.constantTimeEquals(Base64.getUrlEncoder().withoutPadding().encodeToString(md.digest()).toCharArray(), hash);
         }
     },
 

@@ -19,8 +19,8 @@
 
 package org.elasticsearch.action.termvectors;
 
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.RealtimeRequest;
 import org.elasticsearch.action.ValidateActions;
@@ -31,7 +31,6 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -39,7 +38,6 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.VersionType;
-import org.elasticsearch.rest.action.document.RestTermVectorsAction;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -54,18 +52,13 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 
 /**
- * Request returning the term vector (doc frequency, positions, offsets) for a
- * document.
+ * Request returning the term vector (doc frequency, positions, offsets) for a document.
  * <p>
- * Note, the {@link #index()}, {@link #type(String)} and {@link #id(String)} are
- * required.
+ * Note, the {@link #index()} and {@link #id(String)} are required.
  */
 public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> implements RealtimeRequest {
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(
-        LogManager.getLogger(TermVectorsRequest.class));
 
     private static final ParseField INDEX = new ParseField("_index");
-    private static final ParseField TYPE = new ParseField("_type");
     private static final ParseField ID = new ParseField("_id");
     private static final ParseField ROUTING = new ParseField("routing");
     private static final ParseField VERSION = new ParseField("version");
@@ -78,8 +71,6 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
     private static final ParseField FILTER = new ParseField("filter");
     private static final ParseField DOC = new ParseField("doc");
 
-
-    private String type;
 
     private String id;
 
@@ -144,24 +135,22 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
 
     /**
      * Constructs a new term vector request for a document that will be fetch
-     * from the provided index. Use {@link #type(String)} and
-     * {@link #id(String)} to specify the document to load.
+     * from the provided index. Use and {@link #id(String)} to specify the
+     * document to load.
      */
-    public TermVectorsRequest(String index, String type, String id) {
+    public TermVectorsRequest(String index, String id) {
         super(index);
         this.id = id;
-        this.type = type;
     }
 
     /**
      * Constructs a new term vector request for a document that will be fetch
-     * from the provided index. Use {@link #type(String)} and
-     * {@link #id(String)} to specify the document to load.
+     * from the provided index. Use {@link #id(String)} to specify the
+     * document to load.
      */
     public TermVectorsRequest(TermVectorsRequest other) {
         super(other.index());
         this.id = other.id();
-        this.type = other.type();
         if (other.doc != null) {
             this.doc = new BytesArray(other.doc().toBytesRef(), true);
             this.xContentType = other.xContentType;
@@ -184,28 +173,12 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
     public TermVectorsRequest(MultiGetRequest.Item item) {
         super(item.index());
         this.id = item.id();
-        this.type = item.type();
         this.selectedFields(item.storedFields());
         this.routing(item.routing());
     }
 
     public EnumSet<Flag> getFlags() {
         return flagsEnum;
-    }
-
-    /**
-     * Sets the type of document to get the term vector for.
-     */
-    public TermVectorsRequest type(String type) {
-        this.type = type;
-        return this;
-    }
-
-    /**
-     * Returns the type of document to get the term vector for.
-     */
-    public String type() {
-        return type;
     }
 
     /**
@@ -461,9 +434,6 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = super.validateNonNullIndex();
-        if (type == null) {
-            validationException = ValidateActions.addValidationError("type is missing", validationException);
-        }
         if (id == null && doc == null) {
             validationException = ValidateActions.addValidationError("id or doc is missing", validationException);
         }
@@ -480,7 +450,10 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        type = in.readString();
+        if (in.getVersion().before(Version.V_8_0_0)) {
+            // types no longer relevant so ignore
+            in.readString();
+        }
         id = in.readString();
 
         if (in.readBoolean()) {
@@ -519,7 +492,10 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeString(type);
+        if (out.getVersion().before(Version.V_8_0_0)) {
+            // types not supported so send an empty array to previous versions
+            out.writeString("_doc");
+        }
         out.writeString(id);
 
         out.writeBoolean(doc != null);
@@ -599,10 +575,6 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
                 } else if (INDEX.match(currentFieldName, parser.getDeprecationHandler())) {
                     // the following is important for multi request parsing.
                     termVectorsRequest.index = parser.text();
-                } else if (TYPE.match(currentFieldName, parser.getDeprecationHandler())) {
-                    termVectorsRequest.type = parser.text();
-                    deprecationLogger.deprecatedAndMaybeLog("termvectors_with_types",
-                        RestTermVectorsAction.TYPES_DEPRECATION_MESSAGE);
                 } else if (ID.match(currentFieldName, parser.getDeprecationHandler())) {
                     if (termVectorsRequest.doc != null) {
                         throw new ElasticsearchParseException("failed to parse term vectors request. " +

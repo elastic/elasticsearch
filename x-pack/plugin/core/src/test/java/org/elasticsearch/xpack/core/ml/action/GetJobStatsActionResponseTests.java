@@ -40,37 +40,17 @@ public class GetJobStatsActionResponseTests extends AbstractWireSerializingTestC
         List<Response.JobStats> jobStatsList = new ArrayList<>(listSize);
         for (int j = 0; j < listSize; j++) {
             String jobId = randomAlphaOfLength(10);
-
             DataCounts dataCounts = new DataCountsTests().createTestInstance();
-
-            ModelSizeStats sizeStats = null;
-            if (randomBoolean()) {
-                sizeStats = new ModelSizeStats.Builder("foo").build();
-            }
-
-            ForecastStats forecastStats = null;
-            if (randomBoolean()) {
-                forecastStats = new ForecastStatsTests().createTestInstance();
-            }
-
+            ModelSizeStats sizeStats = randomBoolean() ? null : new ModelSizeStats.Builder("foo").build();
+            ForecastStats forecastStats = randomBoolean() ? null : new ForecastStatsTests().createTestInstance();
             JobState jobState = randomFrom(EnumSet.allOf(JobState.class));
-
-            DiscoveryNode node = null;
-            if (randomBoolean()) {
-                node = new DiscoveryNode("_id", new TransportAddress(InetAddress.getLoopbackAddress(), 9300), Version.CURRENT);
-            }
-            String explanation = null;
-            if (randomBoolean()) {
-                explanation = randomAlphaOfLength(3);
-            }
-            TimeValue openTime = null;
-            if (randomBoolean()) {
-                openTime = parseTimeValue(randomPositiveTimeValue(), "open_time-Test");
-            }
-            TimingStats timingStats = null;
-            if (randomBoolean()) {
-                timingStats = TimingStatsTests.createTestInstance("foo");
-            }
+            DiscoveryNode node =
+                randomBoolean()
+                    ? null
+                    : new DiscoveryNode("_id", new TransportAddress(InetAddress.getLoopbackAddress(), 9300), Version.CURRENT);
+            String explanation = randomBoolean() ? null : randomAlphaOfLength(3);
+            TimeValue openTime = randomBoolean() ? null : parseTimeValue(randomPositiveTimeValue(), "open_time-Test");
+            TimingStats timingStats = randomBoolean() ? null : TimingStatsTests.createTestInstance("foo");
             Response.JobStats jobStats =
                 new Response.JobStats(jobId, dataCounts, sizeStats, forecastStats, jobState, node, explanation, openTime, timingStats);
             jobStatsList.add(jobStats);

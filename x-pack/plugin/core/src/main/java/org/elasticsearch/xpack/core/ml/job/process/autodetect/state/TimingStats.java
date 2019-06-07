@@ -81,7 +81,7 @@ public class TimingStats implements ToXContentObject, Writeable {
 
     public TimingStats(StreamInput in) throws IOException {
         this.jobId = in.readString();
-        this.bucketCount = in.readOptionalLong();
+        this.bucketCount = in.readLong();
         this.minBucketProcessingTimeMs = in.readOptionalDouble();
         this.maxBucketProcessingTimeMs = in.readOptionalDouble();
         this.avgBucketProcessingTimeMs = in.readOptionalDouble();
@@ -111,6 +111,9 @@ public class TimingStats implements ToXContentObject, Writeable {
      * Updates the statistics (min, max, avg) for the given data point (bucket processing time).
      */
     public void updateStats(double bucketProcessingTimeMs) {
+        if (bucketProcessingTimeMs < 0.0) {
+            throw new IllegalArgumentException("bucketProcessingTimeMs must be positive, was: " + bucketProcessingTimeMs);
+        }
         if (minBucketProcessingTimeMs == null || bucketProcessingTimeMs < minBucketProcessingTimeMs) {
             minBucketProcessingTimeMs = bucketProcessingTimeMs;
         }
@@ -130,7 +133,7 @@ public class TimingStats implements ToXContentObject, Writeable {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(jobId);
-        out.writeOptionalLong(bucketCount);
+        out.writeLong(bucketCount);
         out.writeOptionalDouble(minBucketProcessingTimeMs);
         out.writeOptionalDouble(maxBucketProcessingTimeMs);
         out.writeOptionalDouble(avgBucketProcessingTimeMs);
@@ -180,22 +183,28 @@ public class TimingStats implements ToXContentObject, Writeable {
      * Returns true if given stats objects differ from each other by more than 10% for at least one of the statistics.
      */
     public static boolean differSignificantly(TimingStats stats1, TimingStats stats2) {
-        return differSignificantly(stats1.minBucketProcessingTimeMs, stats2.minBucketProcessingTimeMs, 0.1)
-            || differSignificantly(stats1.maxBucketProcessingTimeMs, stats2.maxBucketProcessingTimeMs, 0.1)
-            || differSignificantly(stats1.avgBucketProcessingTimeMs, stats2.avgBucketProcessingTimeMs, 0.1);
+        return differSignificantly(stats1.minBucketProcessingTimeMs, stats2.minBucketProcessingTimeMs)
+            || differSignificantly(stats1.maxBucketProcessingTimeMs, stats2.maxBucketProcessingTimeMs)
+            || differSignificantly(stats1.avgBucketProcessingTimeMs, stats2.avgBucketProcessingTimeMs);
     }
 
     /**
-     * Returns {@code true} if one of the ratios { value1 / value2, value2 / value1 } is smaller than (1 - p) for the given p.
+     * Returns {@code true} if one of the ratios { value1 / value2, value2 / value1 } is smaller than MIN_VALID_RATIO.
      * This can be interpreted as values { value1, value2 } differing significantly from each other.
      * This method also returns:
      *   - {@code true} in case one value is {@code null} while the other is not.
      *   - {@code false} in case both values are {@code null}.
      */
-    static boolean differSignificantly(Double value1, Double value2, double p) {
+    static boolean differSignificantly(Double value1, Double value2) {
         if (value1 != null && value2 != null) {
-            return (value2 / value1 < 1 - p) || (value1 / value2 < 1 - p);
+            return (value2 / value1 < MIN_VALID_RATIO) || (value1 / value2 < MIN_VALID_RATIO);
         }
         return (value1 != null) || (value2 != null);
     }
+
+    /**
+     * Minimum ratio of values that is interpreted as values being similar.
+     * If the values ratio is less than MIN_VALID_RATIO, the values are interpreted as significantly different.
+     */
+    private static final double MIN_VALID_RATIO = 0.9;
 }

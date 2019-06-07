@@ -11,6 +11,7 @@ import org.elasticsearch.test.AbstractSerializingTestCase;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 
 public class TimingStatsTests extends AbstractSerializingTestCase<TimingStats> {
 
@@ -65,9 +66,9 @@ public class TimingStatsTests extends AbstractSerializingTestCase<TimingStats> {
 
         assertThat(stats.getJobId(), equalTo(JOB_ID));
         assertThat(stats.getBucketCount(), equalTo(0L));
-        assertNull(stats.getMinBucketProcessingTimeMs());
-        assertNull(stats.getMaxBucketProcessingTimeMs());
-        assertNull(stats.getAvgBucketProcessingTimeMs());
+        assertThat(stats.getMinBucketProcessingTimeMs(), nullValue());
+        assertThat(stats.getMaxBucketProcessingTimeMs(), nullValue());
+        assertThat(stats.getAvgBucketProcessingTimeMs(), nullValue());
     }
 
     public void testConstructor() {
@@ -132,16 +133,14 @@ public class TimingStatsTests extends AbstractSerializingTestCase<TimingStats> {
     }
 
     public void testValuesDifferSignificantly() {
-        assertThat(TimingStats.differSignificantly(null, null, 0.1), is(false));
-        assertThat(TimingStats.differSignificantly(1.0, null, 0.1), is(true));
-        assertThat(TimingStats.differSignificantly(null, 1.0, 0.1), is(true));
-        assertThat(TimingStats.differSignificantly(0.9, 1.0, 0.1), is(false));
-        assertThat(TimingStats.differSignificantly(1.0, 0.9, 0.1), is(false));
-        assertThat(TimingStats.differSignificantly(0.9, 1.000001, 0.1), is(true));
-        assertThat(TimingStats.differSignificantly(1.0, 0.899999, 0.1), is(true));
-        assertThat(TimingStats.differSignificantly(0.9, 1.000001, 0.2), is(false));
-        assertThat(TimingStats.differSignificantly(1.0, 0.899999, 0.2), is(false));
-        assertThat(TimingStats.differSignificantly(0.0, 1.0, 0.1), is(true));
-        assertThat(TimingStats.differSignificantly(1.0, 0.0, 0.1), is(true));
+        assertThat(TimingStats.differSignificantly((Double) null, (Double) null), is(false));
+        assertThat(TimingStats.differSignificantly(1.0, null), is(true));
+        assertThat(TimingStats.differSignificantly(null, 1.0), is(true));
+        assertThat(TimingStats.differSignificantly(0.9, 1.0), is(false));
+        assertThat(TimingStats.differSignificantly(1.0, 0.9), is(false));
+        assertThat(TimingStats.differSignificantly(0.9, 1.000001), is(true));
+        assertThat(TimingStats.differSignificantly(1.0, 0.899999), is(true));
+        assertThat(TimingStats.differSignificantly(0.0, 1.0), is(true));
+        assertThat(TimingStats.differSignificantly(1.0, 0.0), is(true));
     }
 }

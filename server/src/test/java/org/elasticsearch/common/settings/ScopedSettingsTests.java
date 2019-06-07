@@ -805,6 +805,38 @@ public class ScopedSettingsTests extends ESTestCase {
         assertEquals("illegal value for [index.similarity.classic] cannot redefine built-in similarity", e.getMessage());
     }
 
+    public void testAnalyzerSettingsAreValidated() {
+        IndexScopedSettings settings = IndexScopedSettings.DEFAULT_SCOPED_SETTINGS;
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () ->
+            settings.validate("index.analysis.version", Settings.builder().put("index.analysis.version", "2.0").build(), false));
+        assertThat(e.getMessage(), equalTo("illegal settings entry for [index.analysis.version]. Since version 8.0.0 the property is " +
+            "reserved for internal usage only."));
+
+        e = expectThrows(IllegalArgumentException.class, () ->
+            settings.validate("index.analysis.version", Settings.builder().put("index.analysis.version", "8.0").build(), false));
+        assertThat(e.getMessage(), containsString("[index.analysis.version]"));
+
+        e = expectThrows(IllegalArgumentException.class, () ->
+            settings.validate("index.analysis.version", Settings.builder().put("index.analysis.version", "not-a-number").build(), false));
+        assertThat(e.getMessage(), containsString("[index.analysis.version]"));
+
+        e = expectThrows(IllegalArgumentException.class, () ->
+            settings.validate("index.analysis.analyzer.very_old.version", Settings.builder().put("index.analysis.analyzer.very_old" +
+                ".version", "2.0").build(), false));
+        assertThat(e.getMessage(), containsString("[index.analysis.analyzer.very_old.version]"));
+
+        e = expectThrows(IllegalArgumentException.class, () ->
+            settings.validate("index.analysis.analyzer.brand_new.version", Settings.builder().put("index.analysis.analyzer.brand_new" +
+                ".version", "8.0").build(), false));
+        assertThat(e.getMessage(), containsString("[index.analysis.analyzer.brand_new.version]"));
+
+        e = expectThrows(IllegalArgumentException.class, () ->
+            settings.validate("index.analysis.analyzer.name.version", Settings.builder().put("index.analysis.analyzer.name.version", "not" +
+                "-a-number").build(), false));
+        assertThat(e.getMessage(), containsString("[index.analysis.analyzer.name.version]"));
+    }
+
     public void testValidateSecureSettings() {
         MockSecureSettings secureSettings = new MockSecureSettings();
         secureSettings.setString("some.secure.setting", "secret");

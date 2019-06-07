@@ -51,6 +51,8 @@ public final class AnalysisRegistry implements Closeable {
     public static final String INDEX_ANALYSIS_CHAR_FILTER = "index.analysis.char_filter";
     public static final String INDEX_ANALYSIS_FILTER = "index.analysis.filter";
     public static final String INDEX_ANALYSIS_TOKENIZER = "index.analysis.tokenizer";
+    private static final String INDEX_ANALYSIS_ANALYZER = "index.analysis.analyzer";
+    private static final String INDEX_ANALYSIS_NORMALIZER = "index.analysis.normalizer";
 
     public static final String DEFAULT_ANALYZER_NAME = "default";
     public static final String DEFAULT_SEARCH_ANALYZER_NAME = "default_search";
@@ -182,12 +184,12 @@ public final class AnalysisRegistry implements Closeable {
     }
 
     public Map<String, AnalyzerProvider<?>> buildAnalyzerFactories(IndexSettings indexSettings) throws IOException {
-        final Map<String, Settings> analyzersSettings = indexSettings.getSettings().getGroups("index.analysis.analyzer");
+        final Map<String, Settings> analyzersSettings = indexSettings.getSettings().getGroups(INDEX_ANALYSIS_ANALYZER);
         return buildMapping(Component.ANALYZER, indexSettings, analyzersSettings, analyzers, prebuiltAnalysis.analyzerProviderFactories);
     }
 
     public Map<String, AnalyzerProvider<?>> buildNormalizerFactories(IndexSettings indexSettings) throws IOException {
-        final Map<String, Settings> normalizersSettings = indexSettings.getSettings().getGroups("index.analysis.normalizer");
+        final Map<String, Settings> normalizersSettings = indexSettings.getSettings().getGroups(INDEX_ANALYSIS_NORMALIZER);
         // TODO: Have pre-built normalizers
         return buildMapping(Component.NORMALIZER, indexSettings, normalizersSettings, normalizers, Collections.emptyMap());
     }
@@ -201,7 +203,7 @@ public final class AnalysisRegistry implements Closeable {
      * @return {@link TokenizerFactory} provider or <code>null</code>
      */
     public AnalysisProvider<TokenizerFactory> getTokenizerProvider(String tokenizer, IndexSettings indexSettings) {
-        return getProvider(Component.TOKENIZER, tokenizer, indexSettings, "index.analysis.tokenizer", tokenizers,
+        return getProvider(Component.TOKENIZER, tokenizer, indexSettings, INDEX_ANALYSIS_TOKENIZER, tokenizers,
                 this::getTokenizerProvider);
     }
 
@@ -214,7 +216,7 @@ public final class AnalysisRegistry implements Closeable {
      * @return {@link TokenFilterFactory} provider or <code>null</code>
      */
     public AnalysisProvider<TokenFilterFactory> getTokenFilterProvider(String tokenFilter, IndexSettings indexSettings) {
-        return getProvider(Component.FILTER, tokenFilter, indexSettings, "index.analysis.filter", tokenFilters,
+        return getProvider(Component.FILTER, tokenFilter, indexSettings, INDEX_ANALYSIS_FILTER, tokenFilters,
                 this::getTokenFilterProvider);
     }
 
@@ -227,7 +229,7 @@ public final class AnalysisRegistry implements Closeable {
      * @return {@link CharFilterFactory} provider or <code>null</code>
      */
     public AnalysisProvider<CharFilterFactory> getCharFilterProvider(String charFilter, IndexSettings indexSettings) {
-        return getProvider(Component.CHAR_FILTER, charFilter, indexSettings, "index.analysis.char_filter", charFilters,
+        return getProvider(Component.CHAR_FILTER, charFilter, indexSettings, INDEX_ANALYSIS_CHAR_FILTER, charFilters,
                 this::getCharFilterProvider);
     }
 

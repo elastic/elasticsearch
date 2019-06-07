@@ -81,8 +81,8 @@ public class TransportPutMappingRequestValidatorsTests extends ESTestCase {
             assertNull(e);
         } else {
             assertNotNull(e);
+            assertThat(e.getSuppressed(), Matchers.arrayWithSize(numberOfFailures - 1));
         }
-        assertThat(e.getSuppressed(), Matchers.arrayWithSize(numberOfFailures - 1));
     }
 
 }

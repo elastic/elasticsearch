@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.core.watcher.condition.Condition;
 import org.elasticsearch.xpack.core.watcher.condition.ExecutableCondition;
 import org.elasticsearch.xpack.core.watcher.execution.ExecutionState;
 import org.elasticsearch.xpack.core.watcher.input.Input;
+import org.elasticsearch.xpack.core.watcher.transport.actions.put.PutWatchRequestBuilder;
 import org.elasticsearch.xpack.watcher.condition.CompareCondition;
 import org.elasticsearch.xpack.watcher.condition.InternalAlwaysCondition;
 import org.elasticsearch.xpack.watcher.condition.NeverCondition;
@@ -253,7 +254,7 @@ public class HistoryActionConditionTests extends AbstractWatcherIntegrationTestC
             source.addAction("action" + i, actionConditions[i], loggingAction(Integer.toString(i)));
         }
 
-        PutWatchResponse putWatchResponse = watcherClient().preparePutWatch(id).setSource(source).get();
+        PutWatchResponse putWatchResponse = new PutWatchRequestBuilder(client(), id).setSource(source).get();
 
         assertThat(putWatchResponse.isCreated(), is(true));
 

@@ -1,5 +1,5 @@
 [[modules-scripting-using]]
-=== How to use scripts
+== How to use scripts
 
 Wherever scripting is supported in the Elasticsearch API, the syntax follows
 the same pattern:
@@ -45,7 +45,7 @@ GET my_index/_search
 // CONSOLE
 
 [float]
-=== Script Parameters
+=== Script parameters
 
 `lang`::
 
@@ -107,7 +107,7 @@ minute will be compiled. You can change this setting dynamically by setting
 
 [float]
 [[modules-scripting-short-script-form]]
-=== Short Script Form
+=== Short script form
 A short script form can be used for brevity. In the short form, `script` is represented
 by a string instead of an object. This string contains the source of the script.
 
@@ -131,12 +131,13 @@ The same script in the normal form:
 
 [float]
 [[modules-scripting-stored-scripts]]
-=== Stored Scripts
+=== Stored scripts
 
 Scripts may be stored in and retrieved from the cluster state using the
 `_scripts` end-point.
 
-==== Request Examples
+[float]
+==== Request examples
 
 The following are examples of using a stored script that lives at
 `/_scripts/{id}`.
@@ -196,7 +197,7 @@ DELETE _scripts/calculate-score
 
 [float]
 [[modules-scripting-using-caching]]
-=== Script Caching
+=== Script caching
 
 All scripts are cached by default so that they only need to be recompiled
 when updates occur. By default, scripts do not have a time-based expiration, but

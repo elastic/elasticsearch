@@ -141,8 +141,8 @@ public class QueryRescorerBuilderTests extends ESTestCase {
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(randomAlphaOfLengthBetween(1, 10), indexSettings);
         // shard context will only need indicesQueriesRegistry for building Query objects nested in query rescorer
-        QueryShardContext mockShardContext = new QueryShardContext(0, idxSettings, null, null, null, null, null, xContentRegistry(),
-            namedWriteableRegistry, null, null, () -> nowInMillis, null) {
+        QueryShardContext mockShardContext = new QueryShardContext(0, idxSettings, null, null, null, null, null, null,
+            xContentRegistry(), namedWriteableRegistry, null, null, () -> nowInMillis, null) {
             @Override
             public MappedFieldType fieldMapper(String name) {
                 TextFieldMapper.Builder builder = new TextFieldMapper.Builder(name);
@@ -184,8 +184,8 @@ public class QueryRescorerBuilderTests extends ESTestCase {
             .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(randomAlphaOfLengthBetween(1, 10), indexSettings);
         // shard context will only need indicesQueriesRegistry for building Query objects nested in query rescorer
-        QueryShardContext mockShardContext = new QueryShardContext(0, idxSettings, null, null, null, null, null, xContentRegistry(),
-            namedWriteableRegistry, null, null, () -> nowInMillis, null) {
+        QueryShardContext mockShardContext = new QueryShardContext(0, idxSettings, null, null, null, null, null, null,
+            xContentRegistry(), namedWriteableRegistry, null, null, () -> nowInMillis, null) {
             @Override
             public MappedFieldType fieldMapper(String name) {
                 TextFieldMapper.Builder builder = new TextFieldMapper.Builder(name);

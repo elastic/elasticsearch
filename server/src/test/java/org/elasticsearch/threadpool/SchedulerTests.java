@@ -158,7 +158,8 @@ public class SchedulerTests extends ESTestCase {
         ScheduledThreadPoolExecutor executor = Scheduler.initScheduler(Settings.EMPTY);
         try {
             CountDownLatch missingExecutions = new CountDownLatch(randomIntBetween(1, 10));
-            executor.scheduleAtFixedRate(missingExecutions::countDown, randomIntBetween(1, 10), randomIntBetween(1, 10), TimeUnit.MILLISECONDS);
+            executor.scheduleAtFixedRate(missingExecutions::countDown,
+                randomIntBetween(1, 10), randomIntBetween(1, 10), TimeUnit.MILLISECONDS);
             assertTrue(missingExecutions.await(30, TimeUnit.SECONDS));
         } finally {
             Scheduler.terminate(executor, 10, TimeUnit.SECONDS);

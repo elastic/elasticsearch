@@ -134,8 +134,7 @@ public final class AnalysisRegistry implements Closeable {
                 throw new IllegalArgumentException("failed to find global " + componentType + " under [" + nod.name + "]");
             }
             return factory.get(environment, nod.name);
-        }
-        else {
+        } else {
             // get the component from index settings
             AnalysisProvider<T> factory = indexComponentProvider.apply(nod.name, settings);
             if (factory == null) {
@@ -237,8 +236,7 @@ public final class AnalysisRegistry implements Closeable {
                 try {
                     return getComponentFactory(indexSettings, new NameOrDefinition(name), "filter",
                         this::getTokenFilterProvider, this::getTokenFilterProvider);
-                }
-                catch (IOException e) {
+                } catch (IOException e) {
                     throw new UncheckedIOException(e);
                 }
             });

@@ -1365,7 +1365,8 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         String sourceIndex = "start-test-source-index";
         String destIndex = "start-test-dest-index";
         createIndex(sourceIndex, defaultMappingForTest());
-        highLevelClient().index(new IndexRequest(sourceIndex).source(XContentType.JSON, "total", 10000), RequestOptions.DEFAULT);
+        highLevelClient().index(new IndexRequest(sourceIndex).source(XContentType.JSON, "total", 10000)
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE), RequestOptions.DEFAULT);
 
         // Verify that the destination index does not exist. Otherwise, analytics' reindexing step would fail.
         assertFalse(highLevelClient().indices().exists(new GetIndexRequest(destIndex), RequestOptions.DEFAULT));
@@ -1391,12 +1392,6 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
             new StartDataFrameAnalyticsRequest(configId),
             machineLearningClient::startDataFrameAnalytics, machineLearningClient::startDataFrameAnalyticsAsync);
         assertTrue(startDataFrameAnalyticsResponse.isAcknowledged());
-        assertThat(
-            getAnalyticsState(configId),
-            anyOf(
-                equalTo(DataFrameAnalyticsState.STARTED),
-                equalTo(DataFrameAnalyticsState.REINDEXING),
-                equalTo(DataFrameAnalyticsState.ANALYZING)));
 
         // Wait for the analytics to stop.
         assertBusy(() -> assertThat(getAnalyticsState(configId), equalTo(DataFrameAnalyticsState.STOPPED)), 30, TimeUnit.SECONDS);
@@ -1409,7 +1404,8 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         String sourceIndex = "stop-test-source-index";
         String destIndex = "stop-test-dest-index";
         createIndex(sourceIndex, mappingForClassification());
-        highLevelClient().index(new IndexRequest(sourceIndex).source(XContentType.JSON, "total", 10000), RequestOptions.DEFAULT);
+        highLevelClient().index(new IndexRequest(sourceIndex).source(XContentType.JSON, "total", 10000)
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE), RequestOptions.DEFAULT);
 
         // Verify that the destination index does not exist. Otherwise, analytics' reindexing step would fail.
         assertFalse(highLevelClient().indices().exists(new GetIndexRequest(destIndex), RequestOptions.DEFAULT));

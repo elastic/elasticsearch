@@ -39,6 +39,7 @@ import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSizeStats;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshotField;
+import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.TimingStats;
 import org.elasticsearch.xpack.core.ml.job.results.AnomalyCause;
 import org.elasticsearch.xpack.core.ml.job.results.AnomalyRecord;
 import org.elasticsearch.xpack.core.ml.job.results.Bucket;
@@ -449,6 +450,7 @@ public class ElasticsearchMappings {
         addResultsMapping(builder);
         addCategoryDefinitionMapping(builder);
         addDataCountsMapping(builder);
+        addTimingStatsMapping(builder);
         addModelSnapshotMapping(builder);
 
         addTermFields(builder, extraTermFields);
@@ -790,8 +792,7 @@ public class ElasticsearchMappings {
 
     /**
      * {@link DataCounts} mapping.
-     * The type is disabled so {@link DataCounts} aren't searchable and
-     * the '_all' field is disabled
+     * The type is disabled so {@link DataCounts} aren't searchable and the '_all' field is disabled
      *
      * @throws IOException On builder write error
      */
@@ -844,6 +845,28 @@ public class ElasticsearchMappings {
         .startObject(DataCounts.LAST_DATA_TIME.getPreferredName())
             .field(TYPE, DATE)
         .endObject();
+    }
+
+    /**
+     * {@link TimingStats} mapping.
+     * The type is disabled so {@link TimingStats} aren't searchable and the '_all' field is disabled
+     *
+     * @throws IOException On builder write error
+     */
+    private static void addTimingStatsMapping(XContentBuilder builder) throws IOException {
+        builder
+            .startObject(TimingStats.BUCKET_COUNT.getPreferredName())
+                .field(TYPE, LONG)
+            .endObject()
+            .startObject(TimingStats.MIN_BUCKET_PROCESSING_TIME_MS.getPreferredName())
+                .field(TYPE, DOUBLE)
+            .endObject()
+            .startObject(TimingStats.MAX_BUCKET_PROCESSING_TIME_MS.getPreferredName())
+                .field(TYPE, DOUBLE)
+            .endObject()
+            .startObject(TimingStats.AVG_BUCKET_PROCESSING_TIME_MS.getPreferredName())
+                .field(TYPE, DOUBLE)
+            .endObject();
     }
 
     /**

@@ -29,8 +29,8 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -44,7 +44,6 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchPhaseResult;
@@ -476,28 +475,21 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         routingMap = routingMap == null ? Collections.emptyMap() : Collections.unmodifiableMap(routingMap);
         Map<String, Float> concreteIndexBoosts = resolveIndexBoosts(searchRequest, clusterState);
 
-        if (searchRequest.scroll() != null || searchRequest.searchType() == DFS_QUERY_THEN_FETCH
-            || searchRequest.indicesOptions().ignoreThrottled()
-            || (searchRequest.source() != null && searchRequest.source().size() == 0)) {
-            String[] concreteIndices = Arrays.stream(indices).map(Index::getName).toArray(String[]::new);
-            executeSearch(task, timeProvider, searchRequest, localIndices, concreteIndices, routingMap,
-                aliasFilter, concreteIndexBoosts, remoteShardIterators, remoteConnections, clusterState, listener, clusters);
-        } else {
-            List<String> throttledIndices = new ArrayList<>();
-            List<String> nonThrottledIndices = new ArrayList<>();
-            for (Index index : indices) {
-                IndexMetaData indexMetaData = clusterState.getMetaData().index(index);
-                if (IndexSettings.INDEX_SEARCH_THROTTLED.get(indexMetaData.getSettings())) {
-                    throttledIndices.add(index.getName());
-                } else {
-                    nonThrottledIndices.add(index.getName());
-                }
-            }
-            if (throttledIndices.isEmpty()) {
-                executeSearch(task, timeProvider, searchRequest, localIndices, nonThrottledIndices.toArray(new String[0]), routingMap,
+        if (shouldSplitIndices(searchRequest)) {
+            //Execute two separate searches when we can, so that indices that are being written to are searched as quickly as possible.
+            //Otherwise their search context would need to stay open for too long between the query and the fetch phase, due to other
+            //indices (possibly slower) being searched at the same time.
+            List<String> writeIndicesList = new ArrayList<>();
+            List<String> readOnlyIndicesList = new ArrayList<>();
+            splitIndices(indices, clusterState, writeIndicesList, readOnlyIndicesList);
+            String[] writeIndices = writeIndicesList.toArray(new String[0]);
+            String[] readOnlyIndices = readOnlyIndicesList.toArray(new String[0]);
+
+            if (readOnlyIndices.length == 0) {
+                executeSearch(task, timeProvider, searchRequest, localIndices, writeIndices, routingMap,
                     aliasFilter, concreteIndexBoosts, remoteShardIterators, remoteConnections, clusterState, listener, clusters);
-            } else if (nonThrottledIndices.isEmpty() && remoteShardIterators.isEmpty()) {
-                executeSearch(task, timeProvider, searchRequest, localIndices, throttledIndices.toArray(new String[0]), routingMap,
+            } else if (writeIndices.length == 0 && remoteShardIterators.isEmpty()) {
+                executeSearch(task, timeProvider, searchRequest, localIndices, readOnlyIndices, routingMap,
                     aliasFilter, concreteIndexBoosts, remoteShardIterators, remoteConnections, clusterState, listener, clusters);
             } else {
                 //Split the search in two whenever throttled indices are searched together with ordinary indices (local or remote), so
@@ -508,36 +500,52 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     searchService::createReduceContext);
                 CountDownActionListener<SearchResponse, SearchResponse> countDownActionListener =
                     new CountDownActionListener<>(countDown, exceptions, listener) {
-                    @Override
-                    void innerOnResponse(SearchResponse searchResponse) {
-                        searchResponseMerger.add(searchResponse);
-                    }
+                        @Override
+                        void innerOnResponse(SearchResponse searchResponse) {
+                            searchResponseMerger.add(searchResponse);
+                        }
 
-                    @Override
-                    SearchResponse createFinalResponse() {
-                        return searchResponseMerger.getMergedResponse(clusters);
-                    }
-                };
+                        @Override
+                        SearchResponse createFinalResponse() {
+                            return searchResponseMerger.getMergedResponse(clusters);
+                        }
+                    };
 
-                String[] ordinaryIndices = nonThrottledIndices.toArray(new String[0]);
                 //Note that the indices set to the new SearchRequest won't be retrieved from it, as they have been already resolved and
                 //will be provided separately to executeSearch.
-                SearchRequest nonThrottledRequest = SearchRequest.subSearchRequest(searchRequest, ordinaryIndices,
+                SearchRequest writeIndicesRequest = SearchRequest.subSearchRequest(searchRequest, writeIndices,
                     RemoteClusterService.LOCAL_CLUSTER_GROUP_KEY, timeProvider.getAbsoluteStartMillis(), false);
-                executeSearch(task, timeProvider, nonThrottledRequest, localIndices, ordinaryIndices, routingMap,
+                executeSearch(task, timeProvider, writeIndicesRequest, localIndices, writeIndices, routingMap,
                     aliasFilter, concreteIndexBoosts, remoteShardIterators, remoteConnections, clusterState, countDownActionListener,
                     SearchResponse.Clusters.EMPTY);
 
-                String[] throttled = throttledIndices.toArray(new String[0]);
                 //Note that the indices set to the new SearchRequest won't be retrieved from it, as they have been already resolved and
                 //will be provided separately to executeSearch.
-                SearchRequest throttledRequest = SearchRequest.subSearchRequest(searchRequest, throttled,
+                SearchRequest readOnlyIndicesRequest = SearchRequest.subSearchRequest(searchRequest, readOnlyIndices,
                     RemoteClusterService.LOCAL_CLUSTER_GROUP_KEY, timeProvider.getAbsoluteStartMillis(), false);
-                //as we are searching throttled indices only, we can set this to 1 automatically so the can match phase is always run
-                throttledRequest.setPreFilterShardSize(1);
-                executeSearch(task, timeProvider, throttledRequest, localIndices, throttled, routingMap,
+                executeSearch(task, timeProvider, readOnlyIndicesRequest, localIndices, readOnlyIndices, routingMap,
                     aliasFilter, concreteIndexBoosts, Collections.emptyList(), (alias, id) -> null, clusterState, countDownActionListener,
                     SearchResponse.Clusters.EMPTY);
+            }
+        } else {
+            String[] concreteIndices = Arrays.stream(indices).map(Index::getName).toArray(String[]::new);
+            executeSearch(task, timeProvider, searchRequest, localIndices, concreteIndices, routingMap,
+                aliasFilter, concreteIndexBoosts, remoteShardIterators, remoteConnections, clusterState, listener, clusters);
+        }
+    }
+
+    static boolean shouldSplitIndices(SearchRequest searchRequest) {
+        return searchRequest.scroll() == null && searchRequest.searchType() != DFS_QUERY_THEN_FETCH
+            && (searchRequest.source() == null || searchRequest.source().size() != 0);
+    }
+
+    static void splitIndices(Index[] indices, ClusterState clusterState, List<String> writeIndices, List<String> readOnlyIndices) {
+        for (Index index : indices) {
+            ClusterBlockException writeBlock = clusterState.blocks().indexBlockedException(ClusterBlockLevel.WRITE, index.getName());
+            if (writeBlock == null) {
+                writeIndices.add(index.getName());
+            } else {
+                readOnlyIndices.add(index.getName());
             }
         }
     }

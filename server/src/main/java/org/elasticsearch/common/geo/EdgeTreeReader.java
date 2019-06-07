@@ -18,33 +18,26 @@
  */
 package org.elasticsearch.common.geo;
 
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.ByteBufferStreamInput;
 import org.elasticsearch.common.io.stream.StreamInput;
 
 import java.io.IOException;
-import java.nio.ByteBuffer;
 import java.util.Optional;
 
 import static org.apache.lucene.geo.GeoUtils.lineCrossesLineWithBoundary;
 
 public class EdgeTreeReader {
-    final BytesRef bytesRef;
     final ByteBufferStreamInput input;
+    final int startPosition;
 
-    public EdgeTreeReader(StreamInput input) throws IOException {
-        int treeBytesSize = input.readVInt();
-        this.bytesRef = input.readBytesRef(treeBytesSize);
-        this.input = new ByteBufferStreamInput(ByteBuffer.wrap(bytesRef.bytes, bytesRef.offset, bytesRef.length));
+    public EdgeTreeReader(ByteBufferStreamInput input) throws IOException {
+        this.startPosition = input.position();
+        this.input = input;
     }
 
     public Extent getExtent() throws IOException {
-        input.position(0);
-        int thisMinX = input.readInt();
-        int thisMinY = input.readInt();
-        int thisMaxX = input.readInt();
-        int thisMaxY = input.readInt();
-        return new Extent(thisMinX, thisMinY, thisMaxX, thisMaxY);
+        resetInputPosition();
+        return new Extent(input);
     }
 
     /**
@@ -52,29 +45,26 @@ public class EdgeTreeReader {
      */
     public boolean containedInOrCrosses(int minX, int minY, int maxX, int maxY) throws IOException {
         Extent extent = new Extent(minX, minY, maxX, maxY);
-        return this.containsBottomLeft(extent, true) || this.crosses(extent, true);
+        return this.containsBottomLeft(extent) || this.crosses(extent);
     }
 
     static Optional<Boolean> checkExtent(StreamInput input, Extent extent) throws IOException {
-        int thisMinX = input.readInt();
-        int thisMinY = input.readInt();
-        int thisMaxX = input.readInt();
-        int thisMaxY = input.readInt();
+        Extent edgeExtent = new Extent(input);
 
-        if (thisMinY > extent.maxY || thisMaxX < extent.minX || thisMaxY < extent.minY || thisMinX > extent.maxX) {
+        if (edgeExtent.minY > extent.maxY || edgeExtent.maxX < extent.minX
+                || edgeExtent.maxY < extent.minY || edgeExtent.minX > extent.maxX) {
             return Optional.of(false); // tree and bbox-query are disjoint
         }
 
-        if (extent.minX <= thisMinX && extent.minY <= thisMinY && extent.maxX >= thisMaxX && extent.maxY >= thisMaxY) {
+        if (extent.minX <= edgeExtent.minX && extent.minY <= edgeExtent.minY
+                && extent.maxX >= edgeExtent.maxX && extent.maxY >= edgeExtent.maxY) {
             return Optional.of(true); // bbox-query fully contains tree's extent.
         }
         return Optional.empty();
     }
 
-    boolean containsBottomLeft(Extent extent, boolean resetInput) throws IOException {
-        if (resetInput) {
-            input.position(0);
-        }
+    boolean containsBottomLeft(Extent extent) throws IOException {
+        resetInputPosition();
 
         Optional<Boolean> extentCheck = checkExtent(input, extent);
         if (extentCheck.isPresent()) {
@@ -84,10 +74,8 @@ public class EdgeTreeReader {
         return containsBottomLeft(readRoot(input.position()), extent);
     }
 
-    public boolean crosses(Extent extent, boolean resetInput) throws IOException {
-        if (resetInput) {
-            input.position(0);
-        }
+    public boolean crosses(Extent extent) throws IOException {
+        resetInputPosition();
 
         Optional<Boolean> extentCheck = checkExtent(input, extent);
         if (extentCheck.isPresent()) {
@@ -177,29 +165,19 @@ public class EdgeTreeReader {
         return false;
     }
 
-    static final class Extent {
-        final int minX;
-        final int minY;
-        final int maxX;
-        final int maxY;
-
-        Extent(int minX, int minY, int maxX, int maxY) {
-            this.minX = minX;
-            this.minY = minY;
-            this.maxX = maxX;
-            this.maxY = maxY;
-        }
+    private void resetInputPosition() throws IOException {
+        input.position(startPosition);
     }
 
-    private static class Edge {
-        int streamOffset;
-        int x1;
-        int y1;
-        int x2;
-        int y2;
-        int minY;
-        int maxY;
-        int rightOffset;
+    private static final class Edge {
+        final int streamOffset;
+        final int x1;
+        final int y1;
+        final int x2;
+        final int y2;
+        final int minY;
+        final int maxY;
+        final int rightOffset;
 
         /**
          * Object representing an edge node read from bytes

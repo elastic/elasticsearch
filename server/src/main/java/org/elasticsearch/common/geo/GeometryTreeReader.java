@@ -40,7 +40,7 @@ public class GeometryTreeReader {
         this.input = new ByteBufferStreamInput(ByteBuffer.wrap(bytesRef.bytes, bytesRef.offset, bytesRef.length));
     }
 
-    public EdgeTreeReader.Extent getExtent() throws IOException {
+    public Extent getExtent() throws IOException {
         input.position(0);
         boolean hasExtent = input.readBoolean();
         if (hasExtent) {
@@ -48,7 +48,7 @@ public class GeometryTreeReader {
             int thisMinLat = input.readInt();
             int thisMaxLon = input.readInt();
             int thisMaxLat = input.readInt();
-            return new EdgeTreeReader.Extent(thisMinLon, thisMinLat, thisMaxLon, thisMaxLat);
+            return new Extent(thisMinLon, thisMinLat, thisMaxLon, thisMaxLat);
         }
         assert input.readVInt() == 1;
         ShapeType shapeType = input.readEnum(ShapeType.class);
@@ -65,7 +65,7 @@ public class GeometryTreeReader {
         boolean hasExtent = input.readBoolean();
         if (hasExtent) {
             Optional<Boolean> extentCheck = EdgeTreeReader.checkExtent(input,
-                new EdgeTreeReader.Extent(minLon, minLat, maxLon, maxLat));
+                new Extent(minLon, minLat, maxLon, maxLat));
             if (extentCheck.isPresent()) {
                 return extentCheck.get();
             }

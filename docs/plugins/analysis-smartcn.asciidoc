@@ -20,6 +20,8 @@ include::install_remove.asciidoc[]
 The plugin provides the `smartcn` analyzer, `smartcn_tokenizer` tokenizer, and
 `smartcn_stop` token filter which are not configurable.
 
+NOTE: The `smartcn_word` token filter and `smartcn_sentence` have been deprecated.
+
 ==== Reimplementing and extending the analyzers
 
 The `smartcn` analyzer could be reimplemented as a `custom` analyzer that can

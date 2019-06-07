@@ -363,17 +363,6 @@ final class Security {
     }
 
     /**
-     * Add dynamic {@link SocketPermission} based on transport settings.
-     *
-     * @param policy          the {@link Permissions} instance to apply the dynamic {@link SocketPermission}s to
-     * @param settings        the {@link Settings} instance to read the transport settings from
-     */
-    private static void addSocketPermissionForTransport(final Permissions policy, final Settings settings) {
-        final String transportRange = TransportSettings.PORT.get(settings);
-        addSocketPermissionForPortRange(policy, transportRange);
-    }
-
-    /**
      * Add dynamic {@link SocketPermission} for the specified port range.
      *
      * @param policy the {@link Permissions} instance to apply the dynamic {@link SocketPermission} to.

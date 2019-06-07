@@ -6,8 +6,6 @@
 
 package org.elasticsearch.xpack.dataframe.transforms.pivot;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Numbers;
 import org.elasticsearch.search.aggregations.Aggregation;
@@ -15,7 +13,6 @@ import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregation;
 import org.elasticsearch.search.aggregations.metrics.GeoCentroid;
-import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregation;
 import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregation.SingleValue;
 import org.elasticsearch.search.aggregations.metrics.ScriptedMetric;
 import org.elasticsearch.xpack.core.dataframe.DataFrameField;
@@ -24,6 +21,7 @@ import org.elasticsearch.xpack.core.dataframe.transforms.pivot.GroupConfig;
 import org.elasticsearch.xpack.dataframe.transforms.IDGenerator;
 
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -33,7 +31,15 @@ import java.util.stream.Stream;
 import static org.elasticsearch.xpack.dataframe.transforms.pivot.SchemaUtil.isNumericType;
 
 public final class AggregationResultUtils {
-    private static final Logger logger = LogManager.getLogger(AggregationResultUtils.class);
+
+    private static final Map<String, AggValueExtractor> TYPE_VALUE_EXTRACTOR_MAP;
+    static {
+        Map<String, AggValueExtractor> tempMap = new HashMap<>();
+        tempMap.put(SingleValue.class.getName(), new SingleValueAggExtractor());
+        tempMap.put(ScriptedMetric.class.getName(), new ScriptedMetricAggExtractor());
+        tempMap.put(GeoCentroid.class.getName(), new GeoCentroidAggExtractor());
+        TYPE_VALUE_EXTRACTOR_MAP = Collections.unmodifiableMap(tempMap);
+    }
 
     /**
      * Extracts aggregation results from a composite aggregation and puts it into a map.
@@ -74,8 +80,8 @@ public final class AggregationResultUtils {
                 // TODO: support other aggregation types
                 Aggregation aggResult = bucket.getAggregations().get(aggName);
 
-                AggValueExtractor extractor = getExtractor(aggResult, fieldType);
-                updateDocument(document, aggName, extractor.value());
+                AggValueExtractor extractor = getExtractor(aggResult);
+                updateDocument(document, aggName, extractor.value(aggResult, fieldType));
             }
 
             document.put(DataFrameField.DOCUMENT_ID_FIELD, idGen.getID());
@@ -84,13 +90,13 @@ public final class AggregationResultUtils {
         });
     }
 
-    static AggValueExtractor getExtractor(Aggregation aggregation, String fieldType) {
-        if (aggregation instanceof NumericMetricsAggregation.SingleValue) {
-            return new SingleValueAggExtractor((SingleValue) aggregation, fieldType);
+    static AggValueExtractor getExtractor(Aggregation aggregation) {
+        if (aggregation instanceof SingleValue) {
+            return TYPE_VALUE_EXTRACTOR_MAP.get(SingleValue.class.getName());
         } else if (aggregation instanceof ScriptedMetric) {
-            return new ScriptedMetricAggExtractor((ScriptedMetric) aggregation);
+            return TYPE_VALUE_EXTRACTOR_MAP.get(ScriptedMetric.class.getName());
         } else if (aggregation instanceof GeoCentroid) {
-            return new GeoCentroidAggExtractor((GeoCentroid)aggregation);
+            return TYPE_VALUE_EXTRACTOR_MAP.get(GeoCentroid.class.getName());
         } else {
             // Execution should never reach this point!
             // Creating transforms with unsupported aggregations shall not be possible
@@ -148,19 +154,13 @@ public final class AggregationResultUtils {
     }
 
     private interface AggValueExtractor {
-        Object value();
+        Object value(Aggregation aggregation, String fieldType);
     }
 
     private static class SingleValueAggExtractor implements AggValueExtractor {
-        private final SingleValue aggregation;
-        private final String fieldType;
-        SingleValueAggExtractor(SingleValue aggregation, String fieldType) {
-            this.aggregation = aggregation;
-            this.fieldType = fieldType;
-        }
-
         @Override
-        public Object value() {
+        public Object value(Aggregation agg, String fieldType) {
+            SingleValue aggregation = (SingleValue)agg;
             // If the double is invalid, this indicates sparse data
             if (Numbers.isValidDouble(aggregation.value()) == false) {
                 return null;
@@ -177,27 +177,17 @@ public final class AggregationResultUtils {
     }
 
     private static class ScriptedMetricAggExtractor implements AggValueExtractor {
-        private final ScriptedMetric aggregation;
-
-        ScriptedMetricAggExtractor(ScriptedMetric aggregation) {
-            this.aggregation = aggregation;
-        }
-
         @Override
-        public Object value() {
+        public Object value(Aggregation agg, String fieldType) {
+            ScriptedMetric aggregation = (ScriptedMetric)agg;
             return aggregation.aggregation();
         }
     }
 
     private static class GeoCentroidAggExtractor implements AggValueExtractor {
-        private final GeoCentroid aggregation;
-
-        GeoCentroidAggExtractor(GeoCentroid aggregation) {
-            this.aggregation = aggregation;
-        }
-
         @Override
-        public Object value() {
+        public Object value(Aggregation agg, String fieldType) {
+            GeoCentroid aggregation = (GeoCentroid)agg;
             // if the account is `0` iff there is no contained centroid
             return aggregation.count() > 0 ? aggregation.centroid().toString() : null;
         }

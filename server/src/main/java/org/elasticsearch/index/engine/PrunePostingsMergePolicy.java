@@ -31,11 +31,19 @@ import org.apache.lucene.index.PostingsEnum;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.ScoreMode;
+import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.FixedBitSet;
+import org.elasticsearch.common.collect.Tuple;
 
 import java.io.IOException;
 import java.util.Iterator;
+import java.util.function.Supplier;
 
 /**
  * This merge policy drops id field postings for all delete documents this can be
@@ -49,22 +57,23 @@ import java.util.Iterator;
  */
 final class PrunePostingsMergePolicy extends OneMergeWrappingMergePolicy {
 
-    PrunePostingsMergePolicy(MergePolicy in, String idField) {
+    PrunePostingsMergePolicy(MergePolicy in, String idField, Supplier<Query> retentionQuery) {
         super(in, toWrap -> new OneMerge(toWrap.segments) {
             @Override
             public CodecReader wrapForMerge(CodecReader reader) throws IOException {
                 CodecReader wrapped = toWrap.wrapForMerge(reader);
-                return wrapReader(wrapped, idField);
+                return wrapReader(wrapped, idField, retentionQuery);
             }
         });
     }
 
-    private static CodecReader wrapReader(CodecReader reader, String idField) {
-        Bits liveDocs = reader.getLiveDocs();
-        if (liveDocs == null) {
+    private static CodecReader wrapReader(CodecReader reader, String idField, Supplier<Query> retentionQuery) throws IOException {
+        if (reader.getLiveDocs() == null) {
             return reader; // no deleted docs - we are good!
         }
-        final boolean fullyDeletedSegment = reader.numDocs() == 0;
+        final Tuple<Bits, Boolean> liveDocsAndFullyDeletedSegment = applyRetentionQuery(reader, retentionQuery.get());
+        final Bits liveDocs = liveDocsAndFullyDeletedSegment.v1();
+        final boolean fullyDeletedSegment = liveDocsAndFullyDeletedSegment.v2();
         return new FilterCodecReader(reader) {
 
             @Override
@@ -219,6 +228,55 @@ final class PrunePostingsMergePolicy extends OneMergeWrappingMergePolicy {
         @Override
         public BytesRef getPayload() throws IOException {
             return in.getPayload();
+        }
+    }
+
+    private static Tuple<Bits, Boolean> applyRetentionQuery(CodecReader reader, Query retentionQuery) throws IOException {
+        final IndexSearcher searcher = new IndexSearcher(new FilterCodecReader(reader) {
+            private final Bits liveDocs = reader.getLiveDocs();
+
+            @Override
+            public CacheHelper getCoreCacheHelper() {
+                return reader.getCoreCacheHelper();
+            }
+
+            @Override
+            public CacheHelper getReaderCacheHelper() {
+                return null; // we are altering live docs
+            }
+
+            @Override
+            public Bits getLiveDocs() {
+                return new Bits() {
+                    @Override
+                    public boolean get(int index) {
+                        return liveDocs.get(index) == false;
+                    }
+
+                    @Override
+                    public int length() {
+                        return liveDocs.length();
+                    }
+                };
+            }
+
+            @Override
+            public int numDocs() {
+                return reader.maxDoc() - reader.numDocs();
+            }
+        });
+        searcher.setQueryCache(null);
+        final Weight weight = searcher.createWeight(searcher.rewrite(retentionQuery), ScoreMode.COMPLETE_NO_SCORES, 1.0f);
+        final Scorer scorer = weight.scorer(reader.getContext());
+        if (scorer == null) {
+            return Tuple.tuple(reader.getLiveDocs(), reader.numDocs() == 0);
+        } else {
+            final FixedBitSet liveDocs = FixedBitSet.copyOf(reader.getLiveDocs());
+            final DocIdSetIterator iterator = scorer.iterator();
+            while (iterator.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
+                liveDocs.set(iterator.docID());
+            }
+            return Tuple.tuple(liveDocs, false);
         }
     }
 }

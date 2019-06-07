@@ -50,7 +50,7 @@ public class PrunePostingsMergePolicyTests extends ESTestCase {
             IndexWriterConfig iwc = newIndexWriterConfig();
             iwc.setSoftDeletesField("_soft_deletes");
             MergePolicy mp = new SoftDeletesRetentionMergePolicy("_soft_deletes", MatchAllDocsQuery::new,
-                new PrunePostingsMergePolicy(newLogMergePolicy(), "id"));
+                new PrunePostingsMergePolicy(newLogMergePolicy(), "id", MatchAllDocsQuery::new));
             iwc.setMergePolicy(mp);
             boolean sorted = randomBoolean();
             if (sorted) {

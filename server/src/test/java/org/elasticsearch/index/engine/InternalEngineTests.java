@@ -48,12 +48,14 @@ import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.PointValues;
+import org.apache.lucene.index.PostingsEnum;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.SoftDeletesRetentionMergePolicy;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.index.TieredMergePolicy;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.ReferenceManager;
@@ -1470,8 +1472,8 @@ public class InternalEngineTests extends EngineTestCase {
             IndexWriterConfig indexWriterConfig = new IndexWriterConfig(Lucene.STANDARD_ANALYZER);
             indexWriterConfig.setSoftDeletesField(Lucene.SOFT_DELETES_FIELD);
             try (IndexWriter writer = new IndexWriter(dir,
-                indexWriterConfig.setMergePolicy(new SoftDeletesRetentionMergePolicy(Lucene.SOFT_DELETES_FIELD,
-                    MatchAllDocsQuery::new, new PrunePostingsMergePolicy(indexWriterConfig.getMergePolicy(), "_id"))))) {
+                indexWriterConfig.setMergePolicy(new SoftDeletesRetentionMergePolicy(Lucene.SOFT_DELETES_FIELD, MatchAllDocsQuery::new,
+                    new PrunePostingsMergePolicy(indexWriterConfig.getMergePolicy(), "_id", MatchAllDocsQuery::new))))) {
                 org.apache.lucene.document.Document doc = new org.apache.lucene.document.Document();
                 doc.add(new Field(IdFieldMapper.NAME, "1", IdFieldMapper.Defaults.FIELD_TYPE));
                 doc.add(new NumericDocValuesField(VersionFieldMapper.NAME, -1));
@@ -1578,6 +1580,7 @@ public class InternalEngineTests extends EngineTestCase {
                     assertThat(msg, ops.get(seqno), notNullValue());
                 }
             }
+            assertPruneIdBelowLocalCheckpointSafeCommit(engine, mapperService, safeCommitCheckpoint);
             settings.put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING.getKey(), 0);
             indexSettings.updateIndexMetaData(IndexMetaData.builder(defaultSettings.getIndexMetaData()).settings(settings).build());
             engine.onSettingsChanged();
@@ -1587,6 +1590,44 @@ public class InternalEngineTests extends EngineTestCase {
             engine.forceMerge(true, 1, false, false, false);
             assertConsistentHistoryBetweenTranslogAndLuceneIndex(engine, mapperService);
             assertThat(readAllOperationsInLucene(engine, mapperService), hasSize(liveDocs.size()));
+            assertPruneIdBelowLocalCheckpointSafeCommit(engine, mapperService, safeCommitCheckpoint);
+        }
+    }
+
+    private void assertPruneIdBelowLocalCheckpointSafeCommit(Engine engine, MapperService mapperService,
+                                                             long localCheckpointOfSafeCommit) throws IOException {
+        try (Searcher search = engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL)) {
+            for (LeafReaderContext leaf : search.getDirectoryReader().leaves()) {
+                LeafReader leafReader = leaf.reader();
+                Map<String, Set<Integer>> retainedSegmentDocIds = new HashMap<>();
+                NumericDocValues seqNoDV = leafReader.getNumericDocValues(SeqNoFieldMapper.NAME);
+                for (int segmentDocID = 0; segmentDocID < leafReader.maxDoc(); segmentDocID++) {
+                    seqNoDV.advanceExact(segmentDocID);
+                    if (seqNoDV.longValue() > localCheckpointOfSafeCommit || leafReader.getLiveDocs().get(segmentDocID)) {
+                        final FieldsVisitor fields = new FieldsVisitor(true, SourceFieldMapper.NAME);
+                        leafReader.document(segmentDocID, fields);
+                        fields.postProcess(mapperService);
+                        retainedSegmentDocIds.computeIfAbsent(fields.uid().id(), k -> new HashSet<>()).add(segmentDocID);
+                    }
+                }
+                TermsEnum termsEnum = leafReader.terms(IdFieldMapper.NAME).iterator();
+                if (termsEnum == null) {
+                    assertThat(retainedSegmentDocIds.keySet(), empty());
+                    continue;
+                }
+                for (String id : retainedSegmentDocIds.keySet()) {
+                    if (termsEnum.seekExact(newUid(id).bytes()) == false) {
+                        assertThat(retainedSegmentDocIds.get(id), empty());
+                        continue;
+                    }
+                    final PostingsEnum docsEnum = termsEnum.postings(null, 0);
+                    final Set<Integer> fromTerms = new HashSet<>();
+                    while (docsEnum.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
+                        fromTerms.add(docsEnum.docID());
+                    }
+                    assertThat(fromTerms, equalTo(retainedSegmentDocIds.get(id)));
+                }
+            }
         }
     }
 
@@ -3965,7 +4006,6 @@ public class InternalEngineTests extends EngineTestCase {
         searchResult.close();
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/42979")
     public void testLookupSeqNoByIdInLucene() throws Exception {
         int numOps = between(10, 100);
         long seqNo = 0;

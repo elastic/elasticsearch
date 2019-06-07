@@ -29,6 +29,7 @@ import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogDeletionPolicy;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.file.Path;
 import java.util.Collection;
 import java.util.List;
@@ -211,6 +212,15 @@ public final class CombinedDeletionPolicy extends IndexDeletionPolicy {
             }
         }
         return false;
+    }
+
+    long localCheckpointOfSafeCommit() {
+        try {
+            assert safeCommit != null;
+            return Long.parseLong(safeCommit.getUserData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY));
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
     }
 
     /**

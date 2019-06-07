@@ -264,8 +264,8 @@ public final class IOUtils {
      *                   systems and operating systems allow to fsync on a directory)
      */
     public static void fsync(final Path fileToSync, final boolean isDir) throws IOException {
-        // opening a directory on Windows fails, directories can not be fsynced there
         if (isDir && WINDOWS) {
+            // opening a directory on Windows fails, directories can not be fsynced there
             return;
         }
         try (FileChannel file = FileChannel.open(fileToSync, isDir ? StandardOpenOption.READ : StandardOpenOption.WRITE)) {

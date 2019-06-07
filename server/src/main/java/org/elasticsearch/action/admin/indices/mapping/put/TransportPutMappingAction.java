@@ -38,6 +38,7 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.Objects;
 import java.util.Optional;
 
 /**
@@ -49,14 +50,18 @@ public class TransportPutMappingAction extends TransportMasterNodeAction<PutMapp
     private final RequestValidators<PutMappingRequest> requestValidators;
 
     @Inject
-    public TransportPutMappingAction(TransportService transportService, ClusterService clusterService,
-                                     ThreadPool threadPool, MetaDataMappingService metaDataMappingService,
-                                     ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                                     RequestValidators<PutMappingRequest> requestValidators) {
+    public TransportPutMappingAction(
+            final TransportService transportService,
+            final ClusterService clusterService,
+            final ThreadPool threadPool,
+            final MetaDataMappingService metaDataMappingService,
+            final ActionFilters actionFilters,
+            final IndexNameExpressionResolver indexNameExpressionResolver,
+            final RequestValidators<PutMappingRequest> requestValidators) {
         super(PutMappingAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver,
             PutMappingRequest::new);
         this.metaDataMappingService = metaDataMappingService;
-        this.requestValidators = requestValidators;
+        this.requestValidators = Objects.requireNonNull(requestValidators);
     }
 
     @Override

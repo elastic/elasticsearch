@@ -25,7 +25,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.VersionType;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
@@ -63,7 +62,7 @@ public class RestTermVectorsAction extends BaseRestHandler {
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         TermVectorsRequest termVectorsRequest;
-        termVectorsRequest = new TermVectorsRequest(request.param("index"), MapperService.SINGLE_MAPPING_NAME, request.param("id"));
+        termVectorsRequest = new TermVectorsRequest(request.param("index"), request.param("id"));
 
         if (request.hasContentOrSourceParam()) {
             try (XContentParser parser = request.contentOrSourceParamParser()) {

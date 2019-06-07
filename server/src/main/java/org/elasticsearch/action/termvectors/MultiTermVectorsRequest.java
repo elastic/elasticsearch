@@ -29,7 +29,6 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.mapper.MapperService;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -52,8 +51,8 @@ public class MultiTermVectorsRequest extends ActionRequest
         return this;
     }
 
-    public MultiTermVectorsRequest add(String index, @Nullable String type, String id) {
-        requests.add(new TermVectorsRequest(index, type, id));
+    public MultiTermVectorsRequest add(String index, String id) {
+        requests.add(new TermVectorsRequest(index, id));
         return this;
     }
 
@@ -102,9 +101,6 @@ public class MultiTermVectorsRequest extends ActionRequest
                                 throw new IllegalArgumentException("docs array element should include an object");
                             }
                             TermVectorsRequest termVectorsRequest = new TermVectorsRequest(template);
-                            if (termVectorsRequest.type() == null) {
-                                termVectorsRequest.type(MapperService.SINGLE_MAPPING_NAME);
-                            }
                             TermVectorsRequest.parseRequest(termVectorsRequest, parser);
                             add(termVectorsRequest);
                         }

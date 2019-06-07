@@ -70,7 +70,7 @@ public class DataFrameTransformConfigTests extends AbstractXContentTestCase<Data
 
     @Override
     protected NamedXContentRegistry xContentRegistry() {
-        SearchModule searchModule = new SearchModule(Settings.EMPTY, false, Collections.emptyList());
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, Collections.emptyList());
         List<NamedXContentRegistry.Entry> namedXContents = searchModule.getNamedXContents();
         namedXContents.addAll(new DataFrameNamedXContentProvider().getNamedXContentParsers());
 

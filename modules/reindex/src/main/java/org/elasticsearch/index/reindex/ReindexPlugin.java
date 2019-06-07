@@ -25,6 +25,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
@@ -35,6 +36,7 @@ import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.persistent.PersistentTaskParams;
 import org.elasticsearch.persistent.PersistentTasksExecutor;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.PersistentTaskPlugin;
@@ -63,13 +65,21 @@ public class ReindexPlugin extends Plugin implements ActionPlugin, PersistentTas
         return Arrays.asList(new ActionHandler<>(ReindexAction.INSTANCE, TransportReindexAction.class),
                 new ActionHandler<>(UpdateByQueryAction.INSTANCE, TransportUpdateByQueryAction.class),
                 new ActionHandler<>(DeleteByQueryAction.INSTANCE, TransportDeleteByQueryAction.class),
-                new ActionHandler<>(RethrottleAction.INSTANCE, TransportRethrottleAction.class));
+                new ActionHandler<>(RethrottleAction.INSTANCE, TransportRethrottleAction.class),
+                new ActionHandler<>(StartReindexJobAction.INSTANCE, TransportStartReindexJobAction.class));
     }
 
     @Override
     public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
+        return Arrays.asList(
+            new NamedWriteableRegistry.Entry(Task.Status.class, BulkByScrollTask.Status.NAME, BulkByScrollTask.Status::new),
+            new NamedWriteableRegistry.Entry(PersistentTaskParams.class, ReindexJob.NAME, ReindexJob::new));
+    }
+
+    @Override
+    public List<NamedXContentRegistry.Entry> getNamedXContent() {
         return singletonList(
-                new NamedWriteableRegistry.Entry(Task.Status.class, BulkByScrollTask.Status.NAME, BulkByScrollTask.Status::new));
+            new NamedXContentRegistry.Entry(PersistentTaskParams.class, new ParseField(ReindexJob.NAME), ReindexJob::fromXContent));
     }
 
     @Override
@@ -102,6 +112,6 @@ public class ReindexPlugin extends Plugin implements ActionPlugin, PersistentTas
     @Override
     public List<PersistentTasksExecutor<?>> getPersistentTasksExecutor(ClusterService clusterService, ThreadPool threadPool, Client client,
                                                                        SettingsModule settingsModule) {
-        return Collections.singletonList(new ReindexTask.ReindexPersistentTasksExecutor());
+        return Collections.singletonList(new ReindexTask.ReindexPersistentTasksExecutor(client));
     }
 }

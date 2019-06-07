@@ -19,6 +19,8 @@
 
 package org.elasticsearch.index.reindex;
 
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
 import org.elasticsearch.persistent.PersistentTaskState;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
@@ -30,13 +32,19 @@ import java.util.Map;
 
 public class ReindexTask extends AllocatedPersistentTask {
 
+    // TODO: Name
+    public static final String NAME = "reindex/job";
+
     private final ReindexJob reindexJob;
+    private final Client client;
 
     public static class ReindexPersistentTasksExecutor extends PersistentTasksExecutor<ReindexJob> {
 
-        protected ReindexPersistentTasksExecutor() {
-            // TODO: Name
-            super("reindex_task", ThreadPool.Names.GENERIC);
+        private final Client client;
+
+        protected ReindexPersistentTasksExecutor(final Client client) {
+            super(NAME, ThreadPool.Names.GENERIC);
+            this.client = client;
         }
 
         @Override
@@ -50,16 +58,28 @@ public class ReindexTask extends AllocatedPersistentTask {
         protected AllocatedPersistentTask createTask(long id, String type, String action, TaskId parentTaskId,
                                                      PersistentTasksCustomMetaData.PersistentTask<ReindexJob> taskInProgress,
                                                      Map<String, String> headers) {
-            return new ReindexTask(id, type, action, parentTaskId, headers, taskInProgress.getParams());
+            return new ReindexTask(id, type, action, parentTaskId, headers, taskInProgress.getParams(), client);
         }
     }
 
-    ReindexTask(long id, String type, String action, TaskId parentTask, Map<String, String> headers, ReindexJob reindexJob) {
+    private ReindexTask(long id, String type, String action, TaskId parentTask, Map<String, String> headers, ReindexJob reindexJob,
+                        Client client) {
         super(id, type, action, "reindex_" + id, parentTask, headers);
         this.reindexJob = reindexJob;
+        this.client = client;
     }
 
     private void doReindex() {
-
+//        client.execute(ReindexAction.INSTANCE, reindexJob.getReindexRequest(), new ActionListener<>() {
+//            @Override
+//            public void onResponse(BulkByScrollResponse response) {
+//
+//            }
+//
+//            @Override
+//            public void onFailure(Exception e) {
+//
+//            }
+//        });
     }
 }

@@ -20,9 +20,12 @@
 package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.persistent.PersistentTaskParams;
 
 import java.io.IOException;
@@ -30,12 +33,26 @@ import java.io.IOException;
 public class ReindexJob implements PersistentTaskParams {
 
     // TODO: Name
-    public static final String NAME = "reindex";
+    public static final String NAME = ReindexTask.NAME;
 
-    private final String id;
+    @SuppressWarnings("unchecked")
+    public static final ConstructingObjectParser<ReindexJob, Void> PARSER
+        = new ConstructingObjectParser<>(NAME, a -> new ReindexJob((ReindexRequest) a[0]));
 
-    public ReindexJob(String id) {
-        this.id = id;
+    private static ParseField REINDEX_REQUEST = new ParseField("reindex_request");
+
+    static {
+        PARSER.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> ReindexRequest.fromXContent(p), REINDEX_REQUEST);
+    }
+
+    private ReindexRequest reindexRequest;
+
+    public ReindexJob(ReindexRequest reindexRequest) {
+        this.reindexRequest = reindexRequest;
+    }
+
+    public ReindexJob(StreamInput in) throws IOException {
+        reindexRequest = new ReindexRequest(in);
     }
 
     @Override
@@ -51,19 +68,22 @@ public class ReindexJob implements PersistentTaskParams {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(id);
+        reindexRequest.writeTo(out);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        return null;
+        builder.startObject();
+        builder.field("reindex_request");
+        reindexRequest.toXContent(builder, params);
+        return builder.endObject();
     }
 
-    public String getId() {
-        return id;
+    public ReindexRequest getReindexRequest() {
+        return reindexRequest;
     }
 
-    public TimeValue getTimeout() {
-        return TimeValue.timeValueSeconds(20);
+    public static ReindexJob fromXContent(XContentParser parser) {
+        return PARSER.apply(parser, null);
     }
 }

@@ -8,13 +8,9 @@ package org.elasticsearch.xpack.enrich;
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
-import org.elasticsearch.common.settings.SecureString;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.rest.ESRestTestCase;
-import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.junit.After;
 
 import java.io.IOException;
@@ -24,22 +20,6 @@ import java.util.Map;
 import static org.hamcrest.Matchers.equalTo;
 
 public class EnrichIT extends ESRestTestCase {
-
-    @Override
-    protected Settings restClientSettings() {
-        String token = UsernamePasswordToken.basicAuthHeaderValue("test_enrich", new SecureString("x-pack-test-password".toCharArray()));
-        return Settings.builder()
-            .put(ThreadContext.PREFIX + ".Authorization", token)
-            .build();
-    }
-
-    @Override
-    protected Settings restAdminSettings() {
-        String token = UsernamePasswordToken.basicAuthHeaderValue("test_admin", new SecureString("x-pack-test-password".toCharArray()));
-        return Settings.builder()
-            .put(ThreadContext.PREFIX + ".Authorization", token)
-            .build();
-    }
 
     @After
     private void deletePolicies() throws Exception {

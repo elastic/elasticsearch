@@ -4,19 +4,8 @@ apply plugin: 'elasticsearch.standalone-test'
 
 dependencies {
     testCompile project(path: xpackModule('enrich'), configuration: 'runtime')
-}
-
-configurations {
-    testArtifacts.extendsFrom testRuntime
-}
-
-task testJar(type: Jar) {
-    appendix 'test'
-    from sourceSets.test.output
-}
-
-artifacts {
-    testArtifacts testJar
+    testCompile project(path: xpackModule('core'), configuration: 'runtime')
+    testCompile project(path: xpackModule('enrich:qa:rest'), configuration: 'testArtifacts')
 }
 
 task restTest(type: RestIntegTestTask) {
@@ -31,7 +20,7 @@ restTestCluster {
     setupCommand 'setupTestAdmin',
             'bin/elasticsearch-users', 'useradd', "test_admin", '-p', 'x-pack-test-password', '-r', "superuser"
     setupCommand 'setupEnrichUser',
-            'bin/elasticsearch-users', 'useradd', "test_enrich", '-p', 'x-pack-test-password', '-r', "enrich_user,integ_test_role"
+            'bin/elasticsearch-users', 'useradd', "test_enrich", '-p', 'x-pack-test-password', '-r', "enrich"
     setupCommand 'setupEnrichUserNoPrivs',
             'bin/elasticsearch-users', 'useradd', "test_enrich_no_privs", '-p', 'x-pack-test-password', '-r', "enrich_no_privs"
     waitCondition = { node, ant ->

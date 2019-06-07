@@ -11,14 +11,14 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.rest.ESRestTestCase;
-import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
+
+import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 
 public class EnrichSecurityFailureIT extends ESRestTestCase {
 
     @Override
     protected Settings restClientSettings() {
-        String token = UsernamePasswordToken.basicAuthHeaderValue("test_enrich_no_privs",
-            new SecureString("x-pack-test-password".toCharArray()));
+        String token = basicAuthHeaderValue("test_enrich_no_privs", new SecureString("x-pack-test-password".toCharArray()));
         return Settings.builder()
             .put(ThreadContext.PREFIX + ".Authorization", token)
             .build();
@@ -26,7 +26,7 @@ public class EnrichSecurityFailureIT extends ESRestTestCase {
 
     @Override
     protected Settings restAdminSettings() {
-        String token = UsernamePasswordToken.basicAuthHeaderValue("test_admin", new SecureString("x-pack-test-password".toCharArray()));
+        String token = basicAuthHeaderValue("test_admin", new SecureString("x-pack-test-password".toCharArray()));
         return Settings.builder()
             .put(ThreadContext.PREFIX + ".Authorization", token)
             .build();

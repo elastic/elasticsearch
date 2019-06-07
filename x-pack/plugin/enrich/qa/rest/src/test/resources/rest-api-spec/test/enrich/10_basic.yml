@@ -3,7 +3,7 @@
 
   - do:
       enrich.put_policy:
-        name: my_policy
+        name: policy-crud
         body:
           type: exact_match
           indices: ["bar*"]
@@ -13,12 +13,12 @@
 
   - do:
       enrich.execute_policy:
-        name: my_policy
+        name: policy-crud
   - is_true: acknowledged
 
   - do:
       enrich.get_policy:
-        name: my_policy
+        name: policy-crud
   - match: { type: exact_match }
   - match: { indices: ["bar*"] }
   - match: { enrich_key: baz }
@@ -27,7 +27,7 @@
   - do:
       enrich.list_policy: {}
   - length: { policies: 1 }
-  - match: { policies.0.name: my_policy }
+  - match: { policies.0.name: policy-crud }
   - match: { policies.0.type: exact_match }
   - match: { policies.0.indices: ["bar*"] }
   - match: { policies.0.enrich_key: baz }
@@ -35,5 +35,5 @@
 
   - do:
       enrich.delete_policy:
-        name: my_policy
+        name: policy-crud
   - is_true: acknowledged

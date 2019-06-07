@@ -128,7 +128,7 @@ public class StringTermsIT extends AbstractTermsTestCase {
                 .addMapping("type", SINGLE_VALUED_FIELD_NAME, "type=keyword",
                         MULTI_VALUED_FIELD_NAME, "type=keyword",
                         "tag", "type=keyword",
-                        JSON_FIELD_NAME, "type=embedded_json").get());
+                        JSON_FIELD_NAME, "type=flattened").get());
         List<IndexRequestBuilder> builders = new ArrayList<>();
         for (int i = 0; i < 5; i++) {
             builders.add(client().prepareIndex("idx", "type").setSource(
@@ -1116,7 +1116,7 @@ public class StringTermsIT extends AbstractTermsTestCase {
         }
     }
 
-    public void testJsonField() {
+    public void testFlatObjectField() {
         TermsAggregationBuilder builder = terms("terms")
             .field(JSON_FIELD_NAME)
             .collectMode(randomFrom(SubAggCollectionMode.values()))
@@ -1141,7 +1141,7 @@ public class StringTermsIT extends AbstractTermsTestCase {
         assertEquals(1, bucket2.getDocCount());
     }
     
-    public void testKeyedJsonField() {
+    public void testKeyedFlatObject() {
         // Aggregate on the 'priority' subfield.
         TermsAggregationBuilder priorityAgg = terms("terms")
             .field(JSON_FIELD_NAME + ".priority")
@@ -1184,7 +1184,7 @@ public class StringTermsIT extends AbstractTermsTestCase {
         }
     }
 
-    public void testKeyedJsonFieldWithMinDocCount() {
+    public void testKeyedFlatObjectWithMinDocCount() {
         TermsAggregationBuilder priorityAgg = terms("terms")
             .field(JSON_FIELD_NAME + ".priority")
             .collectMode(randomFrom(SubAggCollectionMode.values()))

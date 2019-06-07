@@ -336,17 +336,17 @@ public class MultiMatchQueryTests extends ESSingleNodeTestCase {
         assertThat(query, equalTo(expected));
     }
 
-    public void testJsonSplitQueriesOnWhitespace() throws IOException {
+    public void testFlatObjectSplitQueriesOnWhitespace() throws IOException {
         IndexService indexService = createIndex("test_json");
         MapperService mapperService = indexService.mapperService();
         String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject()
             .startObject("type")
                 .startObject("properties")
                     .startObject("field")
-                        .field("type", "embedded_json")
+                        .field("type", "flattened")
                     .endObject()
                     .startObject("field_split")
-                        .field("type", "embedded_json")
+                        .field("type", "flattened")
                         .field("split_queries_on_whitespace", true)
                     .endObject()
                 .endObject()

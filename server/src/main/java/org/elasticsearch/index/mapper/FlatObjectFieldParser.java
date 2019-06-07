@@ -33,10 +33,10 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * A helper class for {@link JsonFieldMapper} parses a JSON object
+ * A helper class for {@link FlatObjectFieldMapper} parses a JSON object
  * and produces a pair of indexable fields for each leaf value.
  */
-public class JsonFieldParser {
+public class FlatObjectFieldParser {
     static final String SEPARATOR = "\0";
     private static final byte SEPARATOR_BYTE = '\0';
 
@@ -47,11 +47,11 @@ public class JsonFieldParser {
     private final int depthLimit;
     private final int ignoreAbove;
 
-    JsonFieldParser(String rootFieldName,
-                    String keyedFieldName,
-                    MappedFieldType fieldType,
-                    int depthLimit,
-                    int ignoreAbove) {
+    FlatObjectFieldParser(String rootFieldName,
+                          String keyedFieldName,
+                          MappedFieldType fieldType,
+                          int depthLimit,
+                          int ignoreAbove) {
         this.rootFieldName = rootFieldName;
         this.keyedFieldName = keyedFieldName;
         this.fieldType = fieldType;
@@ -139,7 +139,7 @@ public class JsonFieldParser {
 
         String key = path.pathAsText(currentName);
         if (key.contains(SEPARATOR)) {
-            throw new IllegalArgumentException("Keys in [embedded_json] fields cannot contain the reserved character \\0."
+            throw new IllegalArgumentException("Keys in [flattened] fields cannot contain the reserved character \\0."
                 + " Offending key: [" + key + "].");
         }
         String keyedValue = createKeyedValue(key, value);
@@ -157,8 +157,8 @@ public class JsonFieldParser {
 
     private void validateDepthLimit(ContentPath path) {
         if (path.length() + 1 > depthLimit) {
-            throw new IllegalArgumentException("The provided JSON field [" + rootFieldName + "] exceeds" +
-                " the maximum depth limit of [" + depthLimit + "].");
+            throw new IllegalArgumentException("The provided [flattened] field [" + rootFieldName +"]" +
+                " exceeds the maximum depth limit of [" + depthLimit + "].");
         }
     }
 

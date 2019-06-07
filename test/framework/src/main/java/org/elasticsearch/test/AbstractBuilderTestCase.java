@@ -403,7 +403,7 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
                     GEO_POINT_FIELD_NAME, "type=geo_point",
                     GEO_POINT_ALIAS_FIELD_NAME, "type=alias,path=" + GEO_POINT_FIELD_NAME,
                     GEO_SHAPE_FIELD_NAME, "type=geo_shape",
-                    JSON_FIELD_NAME, "type=embedded_json"
+                    JSON_FIELD_NAME, "type=flattened"
                 ))), MapperService.MergeReason.MAPPING_UPDATE);
                 // also add mappings for two inner field in the object field
                 mapperService.merge("_doc", new CompressedXContent("{\"properties\":{\"" + OBJECT_FIELD_NAME + "\":{\"type\":\"object\","

@@ -63,10 +63,10 @@
   - match: {hits.total: 0}
 
 ---
-"search on JSON field":
+"search on flat object field":
   - skip:
       version: " - 7.99.99"
-      reason: "JSON fields are currently only implemented in 8.0."
+      reason: "Flat object fields are currently only implemented in 8.0."
 
   - do:
       indices.create:
@@ -75,7 +75,7 @@
           mappings:
             properties:
               headers:
-                type: embedded_json
+                type: flattened
 
   - do:
       index:

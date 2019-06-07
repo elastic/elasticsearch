@@ -30,12 +30,12 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitC
 
 public class MatchQueryIT extends ESIntegTestCase {
 
-     public void testJsonFields() throws Exception {
+     public void testFlatObjectFields() throws Exception {
         XContentBuilder mapping = XContentFactory.jsonBuilder().startObject()
             .startObject("_doc")
                 .startObject("properties")
                     .startObject("headers")
-                        .field("type", "embedded_json")
+                        .field("type", "flattened")
                         .field("split_queries_on_whitespace", true)
                     .endObject()
                 .endObject()

@@ -35,13 +35,13 @@ import org.junit.Before;
 import java.io.IOException;
 import java.util.List;
 
-public class JsonFieldParserTests extends ESTestCase {
-    private JsonFieldParser parser;
+public class FlatObjectFieldParserTests extends ESTestCase {
+    private FlatObjectFieldParser parser;
 
     @Before
     public void setUp() throws Exception {
         super.setUp();
-        parser = new JsonFieldParser("field", "field._keyed",
+        parser = new FlatObjectFieldParser("field", "field._keyed",
             new FakeFieldType(),
             Integer.MAX_VALUE,
             Integer.MAX_VALUE);
@@ -220,19 +220,19 @@ public class JsonFieldParserTests extends ESTestCase {
         String input = "{ \"parent1\": { \"key\" : \"value\" }," +
             "\"parent2\": [{ \"key\" : { \"key\" : \"value\" }}]}";
         XContentParser xContentParser = createXContentParser(input);
-        JsonFieldParser configuredParser = new JsonFieldParser("field", "field._keyed",
+        FlatObjectFieldParser configuredParser = new FlatObjectFieldParser("field", "field._keyed",
             new FakeFieldType(), 2, Integer.MAX_VALUE);
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
             () -> configuredParser.parse(xContentParser));
-        assertEquals("The provided JSON field [field] exceeds the maximum depth limit of [2].", e.getMessage());
+        assertEquals("The provided [flattened] field [field] exceeds the maximum depth limit of [2].", e.getMessage());
     }
 
     public void testDepthLimitBoundary() throws Exception {
         String input = "{ \"parent1\": { \"key\" : \"value\" }," +
             "\"parent2\": [{ \"key\" : { \"key\" : \"value\" }}]}";
         XContentParser xContentParser = createXContentParser(input);
-        JsonFieldParser configuredParser = new JsonFieldParser("field", "field._keyed",
+        FlatObjectFieldParser configuredParser = new FlatObjectFieldParser("field", "field._keyed",
             new FakeFieldType(), 3, Integer.MAX_VALUE);
 
         List<IndexableField> fields = configuredParser.parse(xContentParser);
@@ -242,7 +242,7 @@ public class JsonFieldParserTests extends ESTestCase {
     public void testIgnoreAbove() throws Exception {
         String input = "{ \"key\": \"a longer field than usual\" }";
         XContentParser xContentParser = createXContentParser(input);
-        JsonFieldParser configuredParser = new JsonFieldParser("field", "field._keyed",
+        FlatObjectFieldParser configuredParser = new FlatObjectFieldParser("field", "field._keyed",
             new FakeFieldType(), Integer.MAX_VALUE, 10);
 
         List<IndexableField> fields = configuredParser.parse(xContentParser);
@@ -260,7 +260,7 @@ public class JsonFieldParserTests extends ESTestCase {
 
         MappedFieldType fieldType = new FakeFieldType();
         fieldType.setNullValue("placeholder");
-        JsonFieldParser configuredParser = new JsonFieldParser("field", "field._keyed",
+        FlatObjectFieldParser configuredParser = new FlatObjectFieldParser("field", "field._keyed",
             fieldType, Integer.MAX_VALUE, Integer.MAX_VALUE);
 
         fields = configuredParser.parse(xContentParser);
@@ -318,7 +318,7 @@ public class JsonFieldParserTests extends ESTestCase {
         XContentParser xContentParser = createXContentParser(input.utf8ToString());
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> parser.parse(xContentParser));
-        assertEquals("Keys in [embedded_json] fields cannot contain the reserved character \\0. Offending key: [k\0y].",
+        assertEquals("Keys in [flattened] fields cannot contain the reserved character \\0. Offending key: [k\0y].",
             e.getMessage());
     }
 

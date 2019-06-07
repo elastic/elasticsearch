@@ -29,8 +29,8 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.mapper.JsonFieldMapper.KeyedJsonFieldType;
-import org.elasticsearch.index.mapper.JsonFieldMapper.RootJsonFieldType;
+import org.elasticsearch.index.mapper.FlatObjectFieldMapper.KeyedFlatObjectFieldType;
+import org.elasticsearch.index.mapper.FlatObjectFieldMapper.RootFlatObjectFieldType;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
@@ -43,7 +43,7 @@ import java.util.Collection;
 import static org.apache.lucene.analysis.BaseTokenStreamTestCase.assertTokenStreamContents;
 import static org.hamcrest.Matchers.equalTo;
 
-public class JsonFieldMapperTests extends ESSingleNodeTestCase {
+public class FlatObjectFieldMapperTests extends ESSingleNodeTestCase {
     private IndexService indexService;
     private DocumentMapperParser parser;
 
@@ -63,7 +63,7 @@ public class JsonFieldMapperTests extends ESSingleNodeTestCase {
             .startObject("type")
                 .startObject("properties")
                     .startObject("field")
-                        .field("type", "embedded_json")
+                        .field("type", "flattened")
                     .endObject()
                 .endObject()
             .endObject()
@@ -118,7 +118,7 @@ public class JsonFieldMapperTests extends ESSingleNodeTestCase {
             .startObject("type")
                 .startObject("properties")
                     .startObject("field")
-                        .field("type", "embedded_json")
+                        .field("type", "flattened")
                         .field("index", false)
                     .endObject()
                 .endObject()
@@ -150,7 +150,7 @@ public class JsonFieldMapperTests extends ESSingleNodeTestCase {
             .startObject("type")
                 .startObject("properties")
                     .startObject("field")
-                        .field("type", "embedded_json")
+                        .field("type", "flattened")
                         .field("doc_values", false)
                     .endObject()
                 .endObject()
@@ -186,7 +186,7 @@ public class JsonFieldMapperTests extends ESSingleNodeTestCase {
             .startObject("type")
                 .startObject("properties")
                     .startObject("field")
-                        .field("type", "embedded_json")
+                        .field("type", "flattened")
                         .field("store", true)
                     .endObject()
                 .endObject()
@@ -202,7 +202,7 @@ public class JsonFieldMapperTests extends ESSingleNodeTestCase {
             .startObject("type")
                 .startObject("properties")
                     .startObject("field")
-                        .field("type", "embedded_json")
+                        .field("type", "flattened")
                         .field("index_options", "freqs")
                     .endObject()
                 .endObject()
@@ -217,7 +217,7 @@ public class JsonFieldMapperTests extends ESSingleNodeTestCase {
                 .startObject("type")
                     .startObject("properties")
                         .startObject("field")
-                            .field("type", "embedded_json")
+                            .field("type", "flattened")
                             .field("index_options", indexOptions)
                         .endObject()
                     .endObject()
@@ -225,7 +225,7 @@ public class JsonFieldMapperTests extends ESSingleNodeTestCase {
             .endObject());
             IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
                     () -> parser.parse("type", new CompressedXContent(invalidMapping)));
-            assertEquals("The [embedded_json] field does not support positions, got [index_options]=" + indexOptions, e.getMessage());
+            assertEquals("The [flattened] field does not support positions, got [index_options]=" + indexOptions, e.getMessage());
         }
     }
 
@@ -234,7 +234,7 @@ public class JsonFieldMapperTests extends ESSingleNodeTestCase {
             .startObject("type")
                 .startObject("properties")
                     .startObject("field")
-                        .field("type", "embedded_json")
+                        .field("type", "flattened")
                     .endObject()
                 .endObject()
             .endObject()
@@ -257,7 +257,7 @@ public class JsonFieldMapperTests extends ESSingleNodeTestCase {
             .startObject("type")
                 .startObject("properties")
                     .startObject("field")
-                        .field("type", "embedded_json")
+                        .field("type", "flattened")
                     .endObject()
                 .endObject()
             .endObject()
@@ -283,7 +283,7 @@ public class JsonFieldMapperTests extends ESSingleNodeTestCase {
             .startObject("type")
                 .startObject("properties")
                     .startObject("field")
-                        .field("type", "embedded_json")
+                        .field("type", "flattened")
                     .endObject()
                 .endObject()
             .endObject()
@@ -324,7 +324,7 @@ public class JsonFieldMapperTests extends ESSingleNodeTestCase {
             .startObject("type")
                 .startObject("properties")
                     .startObject("field")
-                        .field("type", "embedded_json")
+                        .field("type", "flattened")
                         .field("depth_limit", 2)
                     .endObject()
                 .endObject()
@@ -353,7 +353,7 @@ public class JsonFieldMapperTests extends ESSingleNodeTestCase {
             .startObject("type")
                 .startObject("properties")
                     .startObject("field")
-                        .field("type", "embedded_json")
+                        .field("type", "flattened")
                         .field("eager_global_ordinals", true)
                     .endObject().endObject()
                 .endObject().endObject());
@@ -370,7 +370,7 @@ public class JsonFieldMapperTests extends ESSingleNodeTestCase {
             .startObject("type")
                 .startObject("properties")
                     .startObject("field")
-                        .field("type", "embedded_json")
+                        .field("type", "flattened")
                         .field("ignore_above", 10)
                     .endObject()
                 .endObject()
@@ -398,10 +398,10 @@ public class JsonFieldMapperTests extends ESSingleNodeTestCase {
             .startObject("type")
                 .startObject("properties")
                     .startObject("field")
-                        .field("type", "embedded_json")
+                        .field("type", "flattened")
                     .endObject()
                     .startObject("other_field")
-                        .field("type", "embedded_json")
+                        .field("type", "flattened")
                         .field("null_value", "placeholder")
                     .endObject()
                 .endObject()
@@ -441,19 +441,19 @@ public class JsonFieldMapperTests extends ESSingleNodeTestCase {
             .startObject("type")
                 .startObject("properties")
                     .startObject("field")
-                        .field("type", "embedded_json")
+                        .field("type", "flattened")
                         .field("split_queries_on_whitespace", true)
                     .endObject()
                 .endObject()
             .endObject().endObject());
         mapperService.merge("type", new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE);
 
-        RootJsonFieldType rootFieldType = (RootJsonFieldType) mapperService.fullName("field");
+        RootFlatObjectFieldType rootFieldType = (RootFlatObjectFieldType) mapperService.fullName("field");
         assertThat(rootFieldType.searchAnalyzer().name(), equalTo("whitespace"));
         assertTokenStreamContents(rootFieldType.searchAnalyzer().analyzer().tokenStream("", "Hello World"),
             new String[] {"Hello", "World"});
 
-        KeyedJsonFieldType keyedFieldType = (KeyedJsonFieldType) mapperService.fullName("field.key");
+        KeyedFlatObjectFieldType keyedFieldType = (KeyedFlatObjectFieldType) mapperService.fullName("field.key");
         assertThat(keyedFieldType.searchAnalyzer().name(), equalTo("whitespace"));
         assertTokenStreamContents(keyedFieldType.searchAnalyzer().analyzer().tokenStream("", "Hello World"),
             new String[] {"Hello", "World"});

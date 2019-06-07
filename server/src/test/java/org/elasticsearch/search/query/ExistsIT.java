@@ -233,12 +233,12 @@ public class ExistsIT extends ESIntegTestCase {
         assertHitCount(response, 2);
     }
 
-    public void testJsonFields() throws Exception {
+    public void testFlatObjectFields() throws Exception {
         XContentBuilder mapping = XContentFactory.jsonBuilder().startObject()
             .startObject("type")
                 .startObject("properties")
                     .startObject("headers")
-                        .field("type", "embedded_json")
+                        .field("type", "flattened")
                     .endObject()
                 .endObject()
            .endObject()

@@ -28,32 +28,32 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.unit.Fuzziness;
-import org.elasticsearch.index.mapper.JsonFieldMapper.KeyedJsonFieldType;
+import org.elasticsearch.index.mapper.FlatObjectFieldMapper.KeyedFlatObjectFieldType;
 import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.List;
 
-public class KeyedJsonFieldTypeTests extends FieldTypeTestCase {
+public class KeyedFlatObjectFieldTypeTests extends FieldTypeTestCase {
 
     @Before
     public void setupProperties() {
         addModifier(new Modifier("split_queries_on_whitespace", true) {
             @Override
             public void modify(MappedFieldType type) {
-                KeyedJsonFieldType ft = (KeyedJsonFieldType) type;
+                KeyedFlatObjectFieldType ft = (KeyedFlatObjectFieldType) type;
                 ft.setSplitQueriesOnWhitespace(!ft.splitQueriesOnWhitespace());
             }
         });
     }
 
     @Override
-    protected KeyedJsonFieldType createDefaultFieldType() {
-        return new KeyedJsonFieldType("key");
+    protected KeyedFlatObjectFieldType createDefaultFieldType() {
+        return new KeyedFlatObjectFieldType("key");
     }
 
     public void testIndexedValueForSearch() {
-        KeyedJsonFieldType ft = createDefaultFieldType();
+        KeyedFlatObjectFieldType ft = createDefaultFieldType();
         ft.setName("field");
 
         BytesRef keywordValue = ft.indexedValueForSearch("value");
@@ -67,7 +67,7 @@ public class KeyedJsonFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testTermQuery() {
-        KeyedJsonFieldType ft = createDefaultFieldType();
+        KeyedFlatObjectFieldType ft = createDefaultFieldType();
         ft.setName("field");
 
         Query expected = new TermQuery(new Term("field", "key\0value"));
@@ -80,7 +80,7 @@ public class KeyedJsonFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testTermsQuery() {
-        KeyedJsonFieldType ft = createDefaultFieldType();
+        KeyedFlatObjectFieldType ft = createDefaultFieldType();
         ft.setName("field");
 
         Query expected = new TermInSetQuery("field",
@@ -96,7 +96,7 @@ public class KeyedJsonFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testExistsQuery() {
-        KeyedJsonFieldType ft = createDefaultFieldType();
+        KeyedFlatObjectFieldType ft = createDefaultFieldType();
         ft.setName("field");
 
         Query expected = new PrefixQuery(new Term("field", "key\0"));
@@ -104,7 +104,7 @@ public class KeyedJsonFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testPrefixQuery() {
-        KeyedJsonFieldType ft = createDefaultFieldType();
+        KeyedFlatObjectFieldType ft = createDefaultFieldType();
         ft.setName("field");
 
         Query expected = new PrefixQuery(new Term("field", "key\0val"));
@@ -112,16 +112,16 @@ public class KeyedJsonFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testFuzzyQuery() {
-        KeyedJsonFieldType ft = createDefaultFieldType();
+        KeyedFlatObjectFieldType ft = createDefaultFieldType();
         ft.setName("field");
 
         UnsupportedOperationException e = expectThrows(UnsupportedOperationException.class,
             () -> ft.fuzzyQuery("valuee", Fuzziness.fromEdits(2), 1, 50, true));
-        assertEquals("[fuzzy] queries are not currently supported on keyed [embedded_json] fields.", e.getMessage());
+        assertEquals("[fuzzy] queries are not currently supported on keyed [flattened] fields.", e.getMessage());
     }
 
     public void testRangeQuery() {
-        KeyedJsonFieldType ft = createDefaultFieldType();
+        KeyedFlatObjectFieldType ft = createDefaultFieldType();
         ft.setName("field");
 
         TermRangeQuery expected = new TermRangeQuery("field",
@@ -136,30 +136,30 @@ public class KeyedJsonFieldTypeTests extends FieldTypeTestCase {
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () ->
             ft.rangeQuery("lower", null, false, false, null));
-        assertEquals("[range] queries on keyed [embedded_json] fields must include both an upper and a lower bound.",
+        assertEquals("[range] queries on keyed [flattened] fields must include both an upper and a lower bound.",
             e.getMessage());
 
         e = expectThrows(IllegalArgumentException.class, () ->
             ft.rangeQuery(null, "upper", false, false, null));
-        assertEquals("[range] queries on keyed [embedded_json] fields must include both an upper and a lower bound.",
+        assertEquals("[range] queries on keyed [flattened] fields must include both an upper and a lower bound.",
             e.getMessage());
     }
 
     public void testRegexpQuery() {
-        KeyedJsonFieldType ft = createDefaultFieldType();
+        KeyedFlatObjectFieldType ft = createDefaultFieldType();
         ft.setName("field");
 
         UnsupportedOperationException e = expectThrows(UnsupportedOperationException.class,
             () -> ft.regexpQuery("valu*", 0, 10, null, null));
-        assertEquals("[regexp] queries are not currently supported on keyed [embedded_json] fields.", e.getMessage());
+        assertEquals("[regexp] queries are not currently supported on keyed [flattened] fields.", e.getMessage());
     }
 
     public void testWildcardQuery() {
-        KeyedJsonFieldType ft = createDefaultFieldType();
+        KeyedFlatObjectFieldType ft = createDefaultFieldType();
         ft.setName("field");
 
         UnsupportedOperationException e = expectThrows(UnsupportedOperationException.class,
             () -> ft.wildcardQuery("valu*", null, null));
-        assertEquals("[wildcard] queries are not currently supported on keyed [embedded_json] fields.", e.getMessage());
+        assertEquals("[wildcard] queries are not currently supported on keyed [flattened] fields.", e.getMessage());
     }
 }

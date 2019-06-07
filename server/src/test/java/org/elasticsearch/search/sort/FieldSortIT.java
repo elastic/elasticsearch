@@ -1802,13 +1802,13 @@ public class FieldSortIT extends ESIntegTestCase {
         }
     }
 
-    public void testJsonField() throws Exception {
+    public void testFlatObjectField() throws Exception {
          XContentBuilder mapping = jsonBuilder()
             .startObject()
                 .startObject("_doc")
                     .startObject("properties")
-                        .startObject("json_field")
-                            .field("type", "embedded_json")
+                        .startObject("flat_object")
+                            .field("type", "flattened")
                         .endObject()
                     .endObject()
                 .endObject()
@@ -1818,42 +1818,42 @@ public class FieldSortIT extends ESIntegTestCase {
 
         index("test", "_doc", "1", jsonBuilder()
             .startObject()
-                .startObject("json_field")
+                .startObject("flat_object")
                     .field("key", "A")
                     .field("other_key", "D")
                 .endObject()
             .endObject());
         index("test", "_doc", "2", jsonBuilder()
             .startObject()
-                .startObject("json_field")
+                .startObject("flat_object")
                     .field("key", "B")
                     .field("other_key", "C")
                 .endObject()
             .endObject());
         index("test", "_doc", "3", jsonBuilder()
             .startObject()
-                .startObject("json_field")
+                .startObject("flat_object")
                     .field("other_key", "E")
                 .endObject()
             .endObject());
         refresh("test");
 
         SearchResponse response = client().prepareSearch("test")
-            .addSort("json_field", SortOrder.DESC)
+            .addSort("flat_object", SortOrder.DESC)
             .get();
         assertSearchResponse(response);
         assertHitCount(response, 3);
         assertOrderedSearchHits(response, "3", "1", "2");
 
         response = client().prepareSearch("test")
-            .addSort("json_field.key", SortOrder.DESC)
+            .addSort("flat_object.key", SortOrder.DESC)
             .get();
         assertSearchResponse(response);
         assertHitCount(response, 3);
         assertOrderedSearchHits(response, "2", "1", "3");
 
         response = client().prepareSearch("test")
-            .addSort(new FieldSortBuilder("json_field.key").order(SortOrder.DESC).missing("Z"))
+            .addSort(new FieldSortBuilder("flat_object.key").order(SortOrder.DESC).missing("Z"))
             .get();
         assertSearchResponse(response);
         assertHitCount(response, 3);

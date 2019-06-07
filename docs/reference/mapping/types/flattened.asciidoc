@@ -1,12 +1,12 @@
-[[embedded-json]]
-=== Embedded JSON datatype
+[[flattened]]
+=== Flattened datatype
 
 By default, each subfield in an object is mapped and indexed separately. If
 the names or types of the subfields are not known in advance, then they are
 <<dynamic-mapping, mapped dynamically>>.
 
-The `embedded_json` type provides an alternative approach, where the entire
-object is mapped as a single field. Given an object, the `embedded_json`
+The `flattened` type provides an alternative approach, where the entire
+object is mapped as a single field. Given an object, the `flattened`
 mapping will parse out its leaf values and index them into one field as
 keywords. The object's contents can then be searched through simple queries
 and aggregations.
@@ -16,17 +16,17 @@ number of unique keys. Only one field mapping is created for the whole JSON
 object, which can help prevent a <<mapping-limit-settings, mappings explosion>>
 from having too many distinct field mappings.
 
-On the other hand, embedded JSON fields present a trade-off in terms of search
-functionality. Only basic queries are allowed, with no support for numeric
-range queries or highlighting. Further information on the limitations can be
-found in the <<supported-operations, Supported operations>> section.
+On the other hand, flattened object fields present a trade-off in terms of
+search functionality. Only basic queries are allowed, with no support for
+numeric range queries or highlighting. Further information on the limitations
+can be found in the <<supported-operations, Supported operations>> section.
 
-NOTE: The `embedded_json` mapping type should **not** be used for indexing all
-JSON content, as it treats all values as keywords and does not provide full
+NOTE: The `flattened` mapping type should **not** be used for indexing all
+document content, as it treats all values as keywords and does not provide full
 search functionality. The default approach, where each subfield has its own
 entry in the mappings, works well in the majority of cases.
 
-An embedded JSON field can be created as follows:
+An flattened object field can be created as follows:
 [source,js]
 --------------------------------
 PUT bug_reports
@@ -37,7 +37,7 @@ PUT bug_reports
         "type": "text"
       },
       "labels": {
-        "type": "embedded_json"
+        "type": "flattened"
       }
     }
   }
@@ -63,7 +63,7 @@ During indexing, tokens are created for each leaf value in the JSON object. The
 values are indexed as string keywords, without analysis or special handling for
 numbers or dates.
 
-Querying the top-level `embedded_json` field searches all leaf values in the
+Querying the top-level `flattened` field searches all leaf values in the
 object:
 
 [source,js]
@@ -77,7 +77,7 @@ POST bug_reports/_search
 --------------------------------
 // CONSOLE
 
-To query on a specific key in the JSON object, object dot notation is used:
+To query on a specific key in the flattened object, object dot notation is used:
 [source,js]
 --------------------------------
 POST bug_reports/_search
@@ -92,11 +92,11 @@ POST bug_reports/_search
 [[supported-operations]]
 ==== Supported operations
 
-Because of the similarities in the way values are indexed, `embedded_json`
+Because of the similarities in the way values are indexed, `flattened`
 fields share much of the same mapping and search functionality as
 <<keyword, `keyword`>> fields.
 
-Currently, embedded JSON fields can be used with the following query types:
+Currently, flattened object fields can be used with the following query types:
 
 - `term`, `terms`, and `terms_set`
 - `prefix`
@@ -108,19 +108,19 @@ Currently, embedded JSON fields can be used with the following query types:
 When querying, it is not possible to refer to field keys using wildcards, as in
 `{ "term": {"labels.time*": 1541457010}}`. Note that all queries, including
 `range`, treat the values as string keywords. Highlighting is not supported on
-`embedded_json` fields.
+`flattened` fields.
 
-It is possible to sort on an embedded JSON field, as well as perform simple
+It is possible to sort on an flattened object field, as well as perform simple
 keyword-style aggregations such as `terms`. As with queries, there is no
 special support for numerics -- all values in the JSON object are treated as
 keywords. When sorting, this implies that values are compared
 lexicographically.
 
-Embedded JSON fields currently cannot be stored. It is not possible to specify
-the <<mapping-store, `store`>> parameter in the mapping.
+Flattened object fields currently cannot be stored. It is not possible to
+specify the <<mapping-store, `store`>> parameter in the mapping.
 
-[[json-params]]
-==== Parameters for JSON fields
+[[flattened-params]]
+==== Parameters for flattened object fields
 
 The following mapping parameters are accepted:
 
@@ -133,9 +133,9 @@ The following mapping parameters are accepted:
 
 `depth_limit`::
 
-    The maximum allowed depth of the JSON field, in terms of nested inner
-    objects. If a JSON field exceeds this limit, then an error will be
-    thrown. Defaults to `20`.
+    The maximum allowed depth of the flattened object field, in terms of nested
+    inner objects. If a flattened object field exceeds this limit, then an
+    error will be thrown. Defaults to `20`.
 
 <<doc-values,`doc_values`>>::
 
@@ -153,8 +153,8 @@ The following mapping parameters are accepted:
 
     Leaf values longer than this limit will not be indexed. By default, there
     is no limit and all values will be indexed. Note that this limit applies
-    to the leaf values within the JSON field, and not the length of the entire
-    field.
+    to the leaf values within the flattened object field, and not the length of
+    the entire field.
 
 <<mapping-index,`index`>>::
 
@@ -170,8 +170,8 @@ The following mapping parameters are accepted:
 <<null-value,`null_value`>>::
 
     A string value which is substituted for any explicit `null` values within
-    the JSON field. Defaults to `null`, which means null sfields are treated as
-    if it were missing.
+    the flattened object field. Defaults to `null`, which means null sields are
+    treated as if it were missing.
 
 <<similarity,`similarity`>>::
 

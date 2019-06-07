@@ -31,7 +31,7 @@ import java.io.IOException;
 
 import static org.apache.lucene.index.SortedSetDocValues.NO_MORE_ORDS;
 
-public class KeyedJsonAtomicFieldDataTests extends ESTestCase {
+public class KeyedFlatObjectAtomicFieldDataTests extends ESTestCase {
     private AtomicOrdinalsFieldData delegate;
 
     @Before
@@ -66,7 +66,7 @@ public class KeyedJsonAtomicFieldDataTests extends ESTestCase {
     }
 
     private BytesRef prefixedValue(String key, String value) {
-        String term = JsonFieldParser.createKeyedValue(key, value);
+        String term = FlatObjectFieldParser.createKeyedValue(key, value);
         return new BytesRef(term);
     }
 
@@ -104,26 +104,26 @@ public class KeyedJsonAtomicFieldDataTests extends ESTestCase {
                                       long expectedMacOrd) throws IOException {
         BytesRef bytesKey = new BytesRef(key);
 
-        long actualMinOrd = KeyedJsonAtomicFieldData.findMinOrd(bytesKey, delegate.getOrdinalsValues());
+        long actualMinOrd = KeyedFlatObjectAtomicFieldData.findMinOrd(bytesKey, delegate.getOrdinalsValues());
         assertEquals(expectedMinOrd,  actualMinOrd);
 
-        long actualMaxOrd = KeyedJsonAtomicFieldData.findMaxOrd(bytesKey, delegate.getOrdinalsValues());
+        long actualMaxOrd = KeyedFlatObjectAtomicFieldData.findMaxOrd(bytesKey, delegate.getOrdinalsValues());
         assertEquals(expectedMacOrd, actualMaxOrd);
     }
 
     public void testAdvanceExact() throws IOException {
-        AtomicOrdinalsFieldData avocadoFieldData = new KeyedJsonAtomicFieldData("avocado", delegate);
+        AtomicOrdinalsFieldData avocadoFieldData = new KeyedFlatObjectAtomicFieldData("avocado", delegate);
         assertFalse(avocadoFieldData.getOrdinalsValues().advanceExact(0));
 
-        AtomicOrdinalsFieldData bananaFieldData = new KeyedJsonAtomicFieldData("banana", delegate);
+        AtomicOrdinalsFieldData bananaFieldData = new KeyedFlatObjectAtomicFieldData("banana", delegate);
         assertTrue(bananaFieldData.getOrdinalsValues().advanceExact(0));
 
-        AtomicOrdinalsFieldData nonexistentFieldData = new KeyedJsonAtomicFieldData("berry", delegate);
+        AtomicOrdinalsFieldData nonexistentFieldData = new KeyedFlatObjectAtomicFieldData("berry", delegate);
         assertFalse(nonexistentFieldData.getOrdinalsValues().advanceExact(0));
     }
 
     public void testNextOrd() throws IOException {
-        AtomicOrdinalsFieldData fieldData = new KeyedJsonAtomicFieldData("banana", delegate);
+        AtomicOrdinalsFieldData fieldData = new KeyedFlatObjectAtomicFieldData("banana", delegate);
         SortedSetDocValues docValues = fieldData.getOrdinalsValues();
         docValues.advanceExact(0);
 
@@ -141,15 +141,15 @@ public class KeyedJsonAtomicFieldDataTests extends ESTestCase {
     }
 
     public void testLookupOrd() throws IOException {
-        AtomicOrdinalsFieldData appleFieldData = new KeyedJsonAtomicFieldData("apple", delegate);
+        AtomicOrdinalsFieldData appleFieldData = new KeyedFlatObjectAtomicFieldData("apple", delegate);
         SortedSetDocValues appleDocValues = appleFieldData.getOrdinalsValues();
         assertEquals(new BytesRef("value0"), appleDocValues.lookupOrd(0));
 
-        AtomicOrdinalsFieldData cantaloupeFieldData = new KeyedJsonAtomicFieldData("cantaloupe", delegate);
+        AtomicOrdinalsFieldData cantaloupeFieldData = new KeyedFlatObjectAtomicFieldData("cantaloupe", delegate);
         SortedSetDocValues cantaloupeDocValues = cantaloupeFieldData.getOrdinalsValues();
         assertEquals(new BytesRef("value40"), cantaloupeDocValues.lookupOrd(0));
 
-        AtomicOrdinalsFieldData cucumberFieldData = new KeyedJsonAtomicFieldData("cucumber", delegate);
+        AtomicOrdinalsFieldData cucumberFieldData = new KeyedFlatObjectAtomicFieldData("cucumber", delegate);
         SortedSetDocValues cucumberDocValues = cucumberFieldData.getOrdinalsValues();
         assertEquals(new BytesRef("value41"), cucumberDocValues.lookupOrd(0));
     }

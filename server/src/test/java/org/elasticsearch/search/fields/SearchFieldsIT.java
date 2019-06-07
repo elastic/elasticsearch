@@ -1227,13 +1227,13 @@ public class SearchFieldsIT extends ESIntegTestCase {
         assertThat(fields.get("_routing").getValue().toString(), equalTo("1"));
     }
 
-     public void testJsonDocValuesFields() throws Exception {
+     public void testFlatObjectDocValuesFields() throws Exception {
         XContentBuilder mapping = XContentFactory.jsonBuilder()
             .startObject()
                 .startObject("_doc")
                     .startObject("properties")
-                        .startObject("json_field")
-                            .field("type", "embedded_json")
+                        .startObject("flat_object")
+                            .field("type", "flattened")
                         .endObject()
                     .endObject()
                 .endObject()
@@ -1243,7 +1243,7 @@ public class SearchFieldsIT extends ESIntegTestCase {
 
         XContentBuilder source = XContentFactory.jsonBuilder()
             .startObject()
-                .startObject("json_field")
+                .startObject("flat_object")
                     .field("key", "value")
                     .field("other_key", "other_value")
                 .endObject()
@@ -1252,20 +1252,20 @@ public class SearchFieldsIT extends ESIntegTestCase {
         refresh("test");
 
         SearchResponse response = client().prepareSearch("test")
-            .addDocValueField("json_field")
-            .addDocValueField("json_field.key")
+            .addDocValueField("flat_object")
+            .addDocValueField("flat_object.key")
             .get();
         assertSearchResponse(response);
         assertHitCount(response, 1);
 
         Map<String, DocumentField> fields = response.getHits().getAt(0).getFields();
 
-        DocumentField field = fields.get("json_field");
-        assertEquals("json_field", field.getName());
+        DocumentField field = fields.get("flat_object");
+        assertEquals("flat_object", field.getName());
         assertEquals(Arrays.asList("other_value", "value"), field.getValues());
 
-        DocumentField keyedField = fields.get("json_field.key");
-        assertEquals("json_field.key", keyedField.getName());
+        DocumentField keyedField = fields.get("flat_object.key");
+        assertEquals("flat_object.key", keyedField.getName());
         assertEquals("value", keyedField.getValue());
      }
 }

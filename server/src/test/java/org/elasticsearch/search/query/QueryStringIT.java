@@ -361,7 +361,7 @@ public class QueryStringIT extends ESIntegTestCase {
         assertHits(response.getHits(), "1");
     }
 
-    public void testJsonField() throws Exception {
+    public void testFlatObjectField() throws Exception {
         IndexRequestBuilder indexRequest = client().prepareIndex("test", "_doc", "1")
             .setSource(XContentFactory.jsonBuilder()
                 .startObject()

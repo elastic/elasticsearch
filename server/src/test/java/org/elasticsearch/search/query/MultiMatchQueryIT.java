@@ -712,12 +712,12 @@ public class MultiMatchQueryIT extends ESIntegTestCase {
         assertThat(hits[0].getScore(), greaterThan(hits[1].getScore()));
     }
 
-     public void testJsonFields() throws Exception {
+     public void testFlatObjectFields() throws Exception {
         XContentBuilder mapping = XContentFactory.jsonBuilder().startObject()
             .startObject("_doc")
                 .startObject("properties")
                     .startObject("headers")
-                        .field("type", "embedded_json")
+                        .field("type", "flattened")
                         .field("split_queries_on_whitespace", true)
                     .endObject()
                 .endObject()

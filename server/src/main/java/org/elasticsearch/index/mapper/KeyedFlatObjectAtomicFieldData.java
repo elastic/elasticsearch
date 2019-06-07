@@ -35,21 +35,21 @@ import java.io.UncheckedIOException;
 import java.util.Collection;
 
 /**
- * The atomic field data implementation for {@link JsonFieldMapper.KeyedJsonFieldType}.
+ * The atomic field data implementation for {@link FlatObjectFieldMapper.KeyedFlatObjectFieldType}.
  *
- * This class wraps the field data that is built directly on the keyed JSON field,
+ * This class wraps the field data that is built directly on the keyed flat object field,
  * and filters out values whose prefix doesn't match the requested key.
  *
  * In order to support all usage patterns, the delegate's ordinal values are shifted
  * to range from 0 to the number of total values.
  */
-public class KeyedJsonAtomicFieldData implements AtomicOrdinalsFieldData {
+public class KeyedFlatObjectAtomicFieldData implements AtomicOrdinalsFieldData {
 
     private final String key;
     private final AtomicOrdinalsFieldData delegate;
 
-    KeyedJsonAtomicFieldData(String key,
-                             AtomicOrdinalsFieldData delegate) {
+    KeyedFlatObjectAtomicFieldData(String key,
+                                   AtomicOrdinalsFieldData delegate) {
         this.key = key;
         this.delegate = delegate;
     }
@@ -151,7 +151,7 @@ public class KeyedJsonAtomicFieldData implements AtomicOrdinalsFieldData {
     }
 
     private static int compare(BytesRef key, BytesRef term) {
-        BytesRef extractedKey = JsonFieldParser.extractKey(term);
+        BytesRef extractedKey = FlatObjectFieldParser.extractKey(term);
         return key.compareTo(extractedKey);
     }
 

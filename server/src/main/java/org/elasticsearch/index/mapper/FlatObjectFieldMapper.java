@@ -72,10 +72,10 @@ import static org.elasticsearch.index.mapper.TypeParsers.parseField;
  * representations, and indexes each one as a keyword. It creates both a 'keyed' version of the token
  * to allow searches on particular key-value pairs, as well as a 'root' token without the key
  *
- * As an example, given a json field called 'json_field' and the following input
+ * As an example, given a flat object field called 'flat_object' and the following input
  *
  * {
- *   "json_field: {
+ *   "flat_object": {
  *     "key1": "some value",
  *     "key2": {
  *       "key3": true
@@ -83,17 +83,18 @@ import static org.elasticsearch.index.mapper.TypeParsers.parseField;
  *   }
  * }
  *
- * the mapper will produce untokenized string fields called "json_field" with values "some value" and "true",
- * as well as string fields called "json_field._keyed" with values "key\0some value" and "key2.key3\0true".
- * Note that \0 is used as a reserved separator character (see {@link JsonFieldParser#SEPARATOR}).
+ * the mapper will produce untokenized string fields with the name "flat_object" and values
+ * "some value" and "true", as well as string fields called "flat_object._keyed" with values
+ * "key\0some value" and "key2.key3\0true". Note that \0 is used as a reserved separator
+ *  character (see {@link FlatObjectFieldParser#SEPARATOR}).
  */
-public final class JsonFieldMapper extends FieldMapper {
+public final class FlatObjectFieldMapper extends FieldMapper {
 
-    public static final String CONTENT_TYPE = "embedded_json";
+    public static final String CONTENT_TYPE = "flattened";
     private static final String KEYED_FIELD_SUFFIX = "._keyed";
 
     private static class Defaults {
-        public static final MappedFieldType FIELD_TYPE = new RootJsonFieldType();
+        public static final MappedFieldType FIELD_TYPE = new RootFlatObjectFieldType();
 
         static {
             FIELD_TYPE.setTokenized(false);
@@ -108,7 +109,7 @@ public final class JsonFieldMapper extends FieldMapper {
         public static final int IGNORE_ABOVE = Integer.MAX_VALUE;
     }
 
-    public static class Builder extends FieldMapper.Builder<Builder, JsonFieldMapper> {
+    public static class Builder extends FieldMapper.Builder<Builder, FlatObjectFieldMapper> {
         private int depthLimit = Defaults.DEPTH_LIMIT;
         private int ignoreAbove = Defaults.IGNORE_ABOVE;
 
@@ -118,8 +119,8 @@ public final class JsonFieldMapper extends FieldMapper {
         }
 
         @Override
-        public RootJsonFieldType fieldType() {
-            return (RootJsonFieldType) super.fieldType();
+        public RootFlatObjectFieldType fieldType() {
+            return (RootFlatObjectFieldType) super.fieldType();
         }
 
         @Override
@@ -174,13 +175,13 @@ public final class JsonFieldMapper extends FieldMapper {
         }
 
         @Override
-        public JsonFieldMapper build(BuilderContext context) {
+        public FlatObjectFieldMapper build(BuilderContext context) {
             setupFieldType(context);
             if (fieldType().splitQueriesOnWhitespace()) {
                 NamedAnalyzer whitespaceAnalyzer = new NamedAnalyzer("whitespace", AnalyzerScope.INDEX, new WhitespaceAnalyzer());
                 fieldType().setSearchAnalyzer(whitespaceAnalyzer);
             }
-            return new JsonFieldMapper(name, fieldType, defaultFieldType,
+            return new FlatObjectFieldMapper(name, fieldType, defaultFieldType,
                 ignoreAbove, depthLimit, context.indexSettings());
         }
     }
@@ -188,7 +189,7 @@ public final class JsonFieldMapper extends FieldMapper {
     public static class TypeParser implements Mapper.TypeParser {
         @Override
         public Mapper.Builder<?,?> parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
-            JsonFieldMapper.Builder builder = new JsonFieldMapper.Builder(name);
+            FlatObjectFieldMapper.Builder builder = new FlatObjectFieldMapper.Builder(name);
             parseField(builder, name, node, parserContext);
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
                 Map.Entry<String, Object> entry = iterator.next();
@@ -221,29 +222,29 @@ public final class JsonFieldMapper extends FieldMapper {
 
     /**
      * A field type that represents the values under a particular JSON key, used
-     * when searching under a specific key as in 'my_json_field.key: some_value'.
+     * when searching under a specific key as in 'my_flat_object.key: some_value'.
      */
-    public static final class KeyedJsonFieldType extends StringFieldType {
+    public static final class KeyedFlatObjectFieldType extends StringFieldType {
         private final String key;
         private boolean splitQueriesOnWhitespace;
 
-        public KeyedJsonFieldType(String key) {
+        public KeyedFlatObjectFieldType(String key) {
             setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
             setSearchAnalyzer(Lucene.KEYWORD_ANALYZER);
             this.key = key;
         }
 
-        public KeyedJsonFieldType clone() {
-            return new KeyedJsonFieldType(this);
+        public KeyedFlatObjectFieldType clone() {
+            return new KeyedFlatObjectFieldType(this);
         }
 
-        private KeyedJsonFieldType(KeyedJsonFieldType ref) {
+        private KeyedFlatObjectFieldType(KeyedFlatObjectFieldType ref) {
             super(ref);
             this.key = ref.key;
             this.splitQueriesOnWhitespace = ref.splitQueriesOnWhitespace;
         }
 
-        private KeyedJsonFieldType(String name, String key, RootJsonFieldType ref) {
+        private KeyedFlatObjectFieldType(String name, String key, RootFlatObjectFieldType ref) {
             super(ref);
             setName(name);
             this.key = key;
@@ -255,7 +256,7 @@ public final class JsonFieldMapper extends FieldMapper {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             if (!super.equals(o)) return false;
-            KeyedJsonFieldType that = (KeyedJsonFieldType) o;
+            KeyedFlatObjectFieldType that = (KeyedFlatObjectFieldType) o;
             return splitQueriesOnWhitespace == that.splitQueriesOnWhitespace;
         }
 
@@ -284,7 +285,7 @@ public final class JsonFieldMapper extends FieldMapper {
 
         @Override
         public Query existsQuery(QueryShardContext context) {
-            Term term = new Term(name(), JsonFieldParser.createKeyedValue(key, ""));
+            Term term = new Term(name(), FlatObjectFieldParser.createKeyedValue(key, ""));
             return new PrefixQuery(term);
         }
 
@@ -338,14 +339,14 @@ public final class JsonFieldMapper extends FieldMapper {
             String stringValue = value instanceof BytesRef
                 ? ((BytesRef) value).utf8ToString()
                 : value.toString();
-            String keyedValue = JsonFieldParser.createKeyedValue(key, stringValue);
+            String keyedValue = FlatObjectFieldParser.createKeyedValue(key, stringValue);
             return new BytesRef(keyedValue);
         }
 
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
             failIfNoDocValues();
-            return new KeyedJsonIndexFieldData.Builder(key);
+            return new KeyedFlatObjectFieldData.Builder(key);
         }
     }
 
@@ -353,19 +354,19 @@ public final class JsonFieldMapper extends FieldMapper {
      * A field data implementation that gives access to the values associated with
      * a particular JSON key.
      *
-     * This class wraps the field data that is built directly on the keyed JSON field, and
-     * filters out values whose prefix doesn't match the requested key. Loading and caching
-     * is fully delegated to the wrapped field data, so that different {@link KeyedJsonIndexFieldData}
-     * for the same JSON field share the same global ordinals.
+     * This class wraps the field data that is built directly on the keyed flat object field,
+     * and filters out values whose prefix doesn't match the requested key. Loading and caching
+     * is fully delegated to the wrapped field data, so that different {@link KeyedFlatObjectFieldData}
+     * for the same flat object field share the same global ordinals.
      *
      * Because of the code-level complexity it would introduce, it is currently not possible
      * to retrieve the underlying global ordinals map through {@link #getOrdinalMap()}.
      */
-    public static class KeyedJsonIndexFieldData implements IndexOrdinalsFieldData {
+    public static class KeyedFlatObjectFieldData implements IndexOrdinalsFieldData {
         private final String key;
         private final IndexOrdinalsFieldData delegate;
 
-        private KeyedJsonIndexFieldData(String key, IndexOrdinalsFieldData delegate) {
+        private KeyedFlatObjectFieldData(String key, IndexOrdinalsFieldData delegate) {
             this.delegate = delegate;
             this.key = key;
         }
@@ -396,30 +397,30 @@ public final class JsonFieldMapper extends FieldMapper {
         @Override
         public AtomicOrdinalsFieldData load(LeafReaderContext context) {
             AtomicOrdinalsFieldData fieldData = delegate.load(context);
-            return new KeyedJsonAtomicFieldData(key, fieldData);
+            return new KeyedFlatObjectAtomicFieldData(key, fieldData);
         }
 
         @Override
         public AtomicOrdinalsFieldData loadDirect(LeafReaderContext context) throws Exception {
             AtomicOrdinalsFieldData fieldData = delegate.loadDirect(context);
-            return new KeyedJsonAtomicFieldData(key, fieldData);
+            return new KeyedFlatObjectAtomicFieldData(key, fieldData);
         }
 
         @Override
         public IndexOrdinalsFieldData loadGlobal(DirectoryReader indexReader) {
             IndexOrdinalsFieldData fieldData = delegate.loadGlobal(indexReader);
-            return new KeyedJsonIndexFieldData(key, fieldData);
+            return new KeyedFlatObjectFieldData(key, fieldData);
         }
 
         @Override
         public IndexOrdinalsFieldData localGlobalDirect(DirectoryReader indexReader) throws Exception {
             IndexOrdinalsFieldData fieldData = delegate.localGlobalDirect(indexReader);
-            return new KeyedJsonIndexFieldData(key, fieldData);
+            return new KeyedFlatObjectFieldData(key, fieldData);
         }
 
         @Override
         public OrdinalMap getOrdinalMap() {
-            throw new UnsupportedOperationException("The keyed JSON field data for field ["
+            throw new UnsupportedOperationException("The field data for the flat object field ["
                 + delegate.getFieldName() + "] does not allow access to the underlying ordinal map.");
         }
 
@@ -444,30 +445,30 @@ public final class JsonFieldMapper extends FieldMapper {
                 String fieldName = fieldType.name();
                 IndexOrdinalsFieldData delegate = new SortedSetDVOrdinalsIndexFieldData(indexSettings,
                     cache, fieldName, breakerService, AbstractAtomicOrdinalsFieldData.DEFAULT_SCRIPT_FUNCTION);
-                return new KeyedJsonIndexFieldData(key, delegate);
+                return new KeyedFlatObjectFieldData(key, delegate);
             }
         }
     }
 
     /**
      * A field type that represents all 'root' values. This field type is used in
-     * searches on the JSON field itself, e.g. 'my_json_field: some_value'.
+     * searches on the flat object field itself, e.g. 'my_flat_object: some_value'.
      */
-    public static final class RootJsonFieldType extends StringFieldType {
+    public static final class RootFlatObjectFieldType extends StringFieldType {
         private boolean splitQueriesOnWhitespace;
 
-        public RootJsonFieldType() {
+        public RootFlatObjectFieldType() {
             setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
             setSearchAnalyzer(Lucene.KEYWORD_ANALYZER);
         }
 
-        private RootJsonFieldType(RootJsonFieldType ref) {
+        private RootFlatObjectFieldType(RootFlatObjectFieldType ref) {
             super(ref);
             this.splitQueriesOnWhitespace = ref.splitQueriesOnWhitespace;
         }
 
-        public RootJsonFieldType clone() {
-            return new RootJsonFieldType(this);
+        public RootFlatObjectFieldType clone() {
+            return new RootFlatObjectFieldType(this);
         }
 
         @Override
@@ -475,7 +476,7 @@ public final class JsonFieldMapper extends FieldMapper {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             if (!super.equals(o)) return false;
-            RootJsonFieldType that = (RootJsonFieldType) o;
+            RootFlatObjectFieldType that = (RootFlatObjectFieldType) o;
             return splitQueriesOnWhitespace == that.splitQueriesOnWhitespace;
         }
 
@@ -523,22 +524,22 @@ public final class JsonFieldMapper extends FieldMapper {
         }
     }
 
-    private final JsonFieldParser fieldParser;
+    private final FlatObjectFieldParser fieldParser;
     private int depthLimit;
     private int ignoreAbove;
 
-    private JsonFieldMapper(String simpleName,
-                            MappedFieldType fieldType,
-                            MappedFieldType defaultFieldType,
-                            int ignoreAbove,
-                            int depthLimit,
-                            Settings indexSettings) {
+    private FlatObjectFieldMapper(String simpleName,
+                                  MappedFieldType fieldType,
+                                  MappedFieldType defaultFieldType,
+                                  int ignoreAbove,
+                                  int depthLimit,
+                                  Settings indexSettings) {
         super(simpleName, fieldType, defaultFieldType, indexSettings, MultiFields.empty(), CopyTo.empty());
         assert fieldType.indexOptions().compareTo(IndexOptions.DOCS_AND_FREQS) <= 0;
 
         this.depthLimit = depthLimit;
         this.ignoreAbove = ignoreAbove;
-        this.fieldParser = new JsonFieldParser(fieldType.name(), keyedFieldName(),
+        this.fieldParser = new FlatObjectFieldParser(fieldType.name(), keyedFieldName(),
             fieldType, depthLimit, ignoreAbove);
     }
 
@@ -550,21 +551,21 @@ public final class JsonFieldMapper extends FieldMapper {
     @Override
     protected void doMerge(Mapper mergeWith) {
         super.doMerge(mergeWith);
-        this.ignoreAbove = ((JsonFieldMapper) mergeWith).ignoreAbove;
+        this.ignoreAbove = ((FlatObjectFieldMapper) mergeWith).ignoreAbove;
     }
 
     @Override
-    protected JsonFieldMapper clone() {
-        return (JsonFieldMapper) super.clone();
+    protected FlatObjectFieldMapper clone() {
+        return (FlatObjectFieldMapper) super.clone();
     }
 
     @Override
-    public RootJsonFieldType fieldType() {
-        return (RootJsonFieldType) super.fieldType();
+    public RootFlatObjectFieldType fieldType() {
+        return (RootFlatObjectFieldType) super.fieldType();
     }
 
-    public KeyedJsonFieldType keyedFieldType(String key) {
-        return new KeyedJsonFieldType(keyedFieldName(), key, fieldType());
+    public KeyedFlatObjectFieldType keyedFieldType(String key) {
+        return new KeyedFlatObjectFieldType(keyedFieldName(), key, fieldType());
     }
 
     public String keyedFieldName() {

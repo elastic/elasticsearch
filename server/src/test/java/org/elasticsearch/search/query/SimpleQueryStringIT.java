@@ -663,7 +663,7 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
         assertHits(response.getHits(), "1");
     }
 
-    public void testJsonField() throws Exception {
+    public void testFlatObjectField() throws Exception {
         String indexBody = copyToStringFromClasspath("/org/elasticsearch/search/query/all-query-index.json");
         assertAcked(prepareCreate("test").setSource(indexBody, XContentType.JSON));
         ensureGreen("test");

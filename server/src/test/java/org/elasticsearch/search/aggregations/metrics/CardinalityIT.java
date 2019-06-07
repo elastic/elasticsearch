@@ -126,8 +126,8 @@ public class CardinalityIT extends ESIntegTestCase {
                     .startObject("d_values")
                         .field("type", "double")
                     .endObject()
-                    .startObject("json_values")
-                        .field("type", "embedded_json")
+                    .startObject("flattened_values")
+                        .field("type", "flattened")
                     .endObject()
                     .endObject().endObject().endObject()).get();
 
@@ -143,7 +143,7 @@ public class CardinalityIT extends ESIntegTestCase {
                         .array("l_values", new int[] {i * 2, i * 2 + 1})
                         .field("d_value", i)
                         .array("d_values", new double[]{i * 2, i * 2 + 1})
-                        .startObject("json_values")
+                        .startObject("flattened_values")
                             .field("first", i)
                             .field("second", i / 2)
                         .endObject()
@@ -308,11 +308,11 @@ public class CardinalityIT extends ESIntegTestCase {
         assertCount(count, numDocs * 2);
     }
 
-    public void testJsonField() {
+    public void testFlatObjectField() {
         SearchResponse response = client().prepareSearch("idx")
             .addAggregation(cardinality("cardinality")
                 .precisionThreshold(precisionThreshold)
-                .field("json_values"))
+                .field("flattened_values"))
             .get();
 
         assertSearchResponse(response);
@@ -320,11 +320,11 @@ public class CardinalityIT extends ESIntegTestCase {
         assertCount(count, numDocs);
     }
 
-    public void testKeyedJsonField() {
+    public void testFlatObjectWithKey() {
         SearchResponse firstResponse = client().prepareSearch("idx")
             .addAggregation(cardinality("cardinality")
                 .precisionThreshold(precisionThreshold)
-                .field("json_values.first"))
+                .field("flattened_values.first"))
             .get();
         assertSearchResponse(firstResponse);
 
@@ -334,7 +334,7 @@ public class CardinalityIT extends ESIntegTestCase {
         SearchResponse secondResponse = client().prepareSearch("idx")
             .addAggregation(cardinality("cardinality")
                 .precisionThreshold(precisionThreshold)
-                .field("json_values.second"))
+                .field("flattened_values.second"))
             .get();
         assertSearchResponse(secondResponse);
 

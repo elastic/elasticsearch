@@ -25,7 +25,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.mapper.JsonFieldMapper.KeyedJsonFieldType;
+import org.elasticsearch.index.mapper.FlatObjectFieldMapper.KeyedFlatObjectFieldType;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.test.ESTestCase;
 
@@ -148,9 +148,9 @@ public class FieldTypeLookupTests extends ESTestCase {
         assertEquals(fieldType2, aliasType2);
     }
 
-    public void testJsonFieldType() {
+    public void testFlatObjectFieldType() {
         String fieldName = "object1.object2.field";
-        JsonFieldMapper mapper = createJsonMapper(fieldName);
+        FlatObjectFieldMapper mapper = createFlatObjectMapper(fieldName);
 
         FieldTypeLookup lookup = new FieldTypeLookup()
             .copyAndAddAll("type", newList(mapper), emptyList());
@@ -161,15 +161,15 @@ public class FieldTypeLookupTests extends ESTestCase {
 
         MappedFieldType searchFieldType = lookup.get(searchFieldName);
         assertEquals(mapper.keyedFieldName(), searchFieldType.name());
-        assertThat(searchFieldType, instanceOf(KeyedJsonFieldType.class));
+        assertThat(searchFieldType, instanceOf(KeyedFlatObjectFieldType.class));
 
-        KeyedJsonFieldType keyedFieldType = (KeyedJsonFieldType) searchFieldType;
+        KeyedFlatObjectFieldType keyedFieldType = (KeyedFlatObjectFieldType) searchFieldType;
         assertEquals(objectKey, keyedFieldType.key());
     }
 
-    public void testJsonFieldTypeWithAlias() {
+    public void testFlatObjectFieldTypeWithAlias() {
         String fieldName = "object1.object2.field";
-        JsonFieldMapper mapper = createJsonMapper(fieldName);
+        FlatObjectFieldMapper mapper = createFlatObjectMapper(fieldName);
 
         String aliasName = "alias";
         FieldAliasMapper alias = new FieldAliasMapper(aliasName, aliasName, fieldName);
@@ -183,48 +183,48 @@ public class FieldTypeLookupTests extends ESTestCase {
 
         MappedFieldType searchFieldType = lookup.get(searchFieldName);
         assertEquals(mapper.keyedFieldName(), searchFieldType.name());
-        assertThat(searchFieldType, instanceOf(KeyedJsonFieldType.class));
+        assertThat(searchFieldType, instanceOf(KeyedFlatObjectFieldType.class));
 
-        KeyedJsonFieldType keyedFieldType = (KeyedJsonFieldType) searchFieldType;
+        KeyedFlatObjectFieldType keyedFieldType = (KeyedFlatObjectFieldType) searchFieldType;
         assertEquals(objectKey, keyedFieldType.key());
     }
 
-    public void testMaxJsonFieldDepth() {
+    public void testMaxFlatObjectDepth() {
         FieldTypeLookup lookup = new FieldTypeLookup();
-        assertEquals(0, lookup.maxJsonFieldDepth());
+        assertEquals(0, lookup.maxFlatObjectDepth());
 
-        // Add a JSON field.
-        String jsonFieldName = "object1.object2.field";
-        JsonFieldMapper jsonField = createJsonMapper(jsonFieldName);
-        lookup = lookup.copyAndAddAll("type", newList(jsonField), emptyList());
-        assertEquals(3, lookup.maxJsonFieldDepth());
+        // Add a flattened object field.
+        String flatObjectName = "object1.object2.field";
+        FlatObjectFieldMapper flatObjectField = createFlatObjectMapper(flatObjectName);
+        lookup = lookup.copyAndAddAll("type", newList(flatObjectField), emptyList());
+        assertEquals(3, lookup.maxFlatObjectDepth());
 
         // Add a short alias to that field.
         String aliasName = "alias";
-        FieldAliasMapper alias = new FieldAliasMapper(aliasName, aliasName, jsonFieldName);
+        FieldAliasMapper alias = new FieldAliasMapper(aliasName, aliasName, flatObjectName);
         lookup = lookup.copyAndAddAll("type", emptyList(), newList(alias));
-        assertEquals(3, lookup.maxJsonFieldDepth());
+        assertEquals(3, lookup.maxFlatObjectDepth());
 
         // Add a longer alias to that field.
         String longAliasName = "object1.object2.object3.alias";
-        FieldAliasMapper longAlias = new FieldAliasMapper(longAliasName, longAliasName, jsonFieldName);
+        FieldAliasMapper longAlias = new FieldAliasMapper(longAliasName, longAliasName, flatObjectName);
         lookup = lookup.copyAndAddAll("type", emptyList(), newList(longAlias));
-        assertEquals(4, lookup.maxJsonFieldDepth());
+        assertEquals(4, lookup.maxFlatObjectDepth());
 
-        // Update the long alias to refer to a non-JSON field.
+        // Update the long alias to refer to a non-flattened object field.
         String fieldName = "field";
         MockFieldMapper field = new MockFieldMapper(fieldName);
         longAlias = new FieldAliasMapper(longAliasName, longAliasName, fieldName);
         lookup = lookup.copyAndAddAll("type", newList(field), newList(longAlias));
-        assertEquals(3, lookup.maxJsonFieldDepth());
+        assertEquals(3, lookup.maxFlatObjectDepth());
     }
 
-    private JsonFieldMapper createJsonMapper(String fieldName) {
+    private FlatObjectFieldMapper createFlatObjectMapper(String fieldName) {
         Settings settings = Settings.builder()
             .put("index.version.created", Version.CURRENT)
             .build();
         Mapper.BuilderContext context = new Mapper.BuilderContext(settings, new ContentPath());
-        return new JsonFieldMapper.Builder(fieldName).build(context);
+        return new FlatObjectFieldMapper.Builder(fieldName).build(context);
     }
 
     public void testSimpleMatchToFullName() {
@@ -250,10 +250,10 @@ public class FieldTypeLookupTests extends ESTestCase {
 
     public void testFieldTypeIterator() {
         MockFieldMapper mapper = new MockFieldMapper("foo");
-        JsonFieldMapper jsonMapper = createJsonMapper("object1.object2.field");
+        FlatObjectFieldMapper flatObjectMapper = createFlatObjectMapper("object1.object2.field");
 
         FieldTypeLookup lookup = new FieldTypeLookup()
-            .copyAndAddAll("type", newList(mapper, jsonMapper), emptyList());
+            .copyAndAddAll("type", newList(mapper, flatObjectMapper), emptyList());
 
         Set<String> fieldNames = new HashSet<>();
         for (MappedFieldType fieldType : lookup) {
@@ -261,7 +261,7 @@ public class FieldTypeLookupTests extends ESTestCase {
         }
 
         assertThat(fieldNames, containsInAnyOrder(
-            mapper.name(), jsonMapper.name(), jsonMapper.keyedFieldName()));
+            mapper.name(), flatObjectMapper.name(), flatObjectMapper.keyedFieldName()));
     }
 
     public void testIteratorImmutable() {

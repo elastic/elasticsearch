@@ -29,29 +29,29 @@ import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.unit.Fuzziness;
-import org.elasticsearch.index.mapper.JsonFieldMapper.RootJsonFieldType;
+import org.elasticsearch.index.mapper.FlatObjectFieldMapper.RootFlatObjectFieldType;
 import org.junit.Before;
 
-public class RootJsonFieldTypeTests extends FieldTypeTestCase {
+public class RootFlatObjectFieldTypeTests extends FieldTypeTestCase {
 
     @Before
     public void setupProperties() {
         addModifier(new Modifier("split_queries_on_whitespace", true) {
             @Override
             public void modify(MappedFieldType type) {
-                RootJsonFieldType ft = (RootJsonFieldType) type;
+                RootFlatObjectFieldType ft = (RootFlatObjectFieldType) type;
                 ft.setSplitQueriesOnWhitespace(!ft.splitQueriesOnWhitespace());
             }
         });
     }
 
     @Override
-    protected RootJsonFieldType createDefaultFieldType() {
-        return new RootJsonFieldType();
+    protected RootFlatObjectFieldType createDefaultFieldType() {
+        return new RootFlatObjectFieldType();
     }
 
     public void testValueForDisplay() {
-        RootJsonFieldType ft = createDefaultFieldType();
+        RootFlatObjectFieldType ft = createDefaultFieldType();
 
         String fieldValue = "{ \"key\": \"value\" }";
         BytesRef storedValue = new BytesRef(fieldValue);
@@ -59,7 +59,7 @@ public class RootJsonFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testTermQuery() {
-        RootJsonFieldType ft = createDefaultFieldType();
+        RootFlatObjectFieldType ft = createDefaultFieldType();
         ft.setName("field");
 
         Query expected = new TermQuery(new Term("field", "value"));
@@ -72,7 +72,7 @@ public class RootJsonFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testExistsQuery() {
-        RootJsonFieldType ft = new RootJsonFieldType();
+        RootFlatObjectFieldType ft = new RootFlatObjectFieldType();
         ft.setName("field");
         assertEquals(
             new TermQuery(new Term(FieldNamesFieldMapper.NAME, new BytesRef("field"))),
@@ -83,7 +83,7 @@ public class RootJsonFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testFuzzyQuery() {
-        RootJsonFieldType ft = createDefaultFieldType();
+        RootFlatObjectFieldType ft = createDefaultFieldType();
         ft.setName("field");
 
         Query expected = new FuzzyQuery(new Term("field", "value"), 2, 1, 50, true);
@@ -92,7 +92,7 @@ public class RootJsonFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testRangeQuery() {
-        RootJsonFieldType ft = createDefaultFieldType();
+        RootFlatObjectFieldType ft = createDefaultFieldType();
         ft.setName("field");
 
         TermRangeQuery expected = new TermRangeQuery("field",
@@ -107,7 +107,7 @@ public class RootJsonFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testRegexpQuery() {
-        RootJsonFieldType ft = createDefaultFieldType();
+        RootFlatObjectFieldType ft = createDefaultFieldType();
         ft.setName("field");
 
         Query expected = new RegexpQuery(new Term("field", "val.*"));
@@ -116,7 +116,7 @@ public class RootJsonFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testWildcardQuery() {
-        RootJsonFieldType ft = createDefaultFieldType();
+        RootFlatObjectFieldType ft = createDefaultFieldType();
         ft.setName("field");
 
         Query expected = new WildcardQuery(new Term("field", new BytesRef("valu*")));

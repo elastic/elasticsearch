@@ -40,9 +40,9 @@ import org.elasticsearch.index.fielddata.plain.SortedNumericDVIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedSetDVOrdinalsIndexFieldData;
 import org.elasticsearch.index.mapper.BooleanFieldMapper;
 import org.elasticsearch.index.mapper.ContentPath;
-import org.elasticsearch.index.mapper.JsonFieldMapper;
-import org.elasticsearch.index.mapper.JsonFieldMapper.KeyedJsonIndexFieldData;
-import org.elasticsearch.index.mapper.JsonFieldMapper.KeyedJsonFieldType;
+import org.elasticsearch.index.mapper.FlatObjectFieldMapper;
+import org.elasticsearch.index.mapper.FlatObjectFieldMapper.KeyedFlatObjectFieldData;
+import org.elasticsearch.index.mapper.FlatObjectFieldMapper.KeyedFlatObjectFieldType;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
@@ -219,7 +219,7 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
         ifdService.clear();
     }
 
-    public void testJsonFields() throws IOException {
+    public void testFlatObjectFields() throws IOException {
         // Set up the index service.
         IndexService indexService = createIndex("test");
         IndicesService indicesService = getInstanceFromNode(IndicesService.class);
@@ -229,7 +229,7 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
             indexService.mapperService());
 
         BuilderContext ctx = new BuilderContext(indexService.getIndexSettings().getSettings(), new ContentPath(1));
-        JsonFieldMapper fieldMapper = new JsonFieldMapper.Builder("json").build(ctx);
+        FlatObjectFieldMapper fieldMapper = new FlatObjectFieldMapper.Builder("json").build(ctx);
 
         AtomicInteger onCacheCalled = new AtomicInteger();
         ifdService.setListener(new IndexFieldDataCache.Listener() {
@@ -255,21 +255,21 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
             new ShardId("test", "_na_", 1));
 
         // Load global field data for subfield 'key'.
-        KeyedJsonFieldType fieldType1 = fieldMapper.keyedFieldType("key");
+        KeyedFlatObjectFieldType fieldType1 = fieldMapper.keyedFieldType("key");
         IndexFieldData<?> ifd1 = ifdService.getForField(fieldType1);
-        assertTrue(ifd1 instanceof KeyedJsonIndexFieldData);
+        assertTrue(ifd1 instanceof KeyedFlatObjectFieldData);
 
-        KeyedJsonIndexFieldData fieldData1 = (KeyedJsonIndexFieldData) ifd1;
+        KeyedFlatObjectFieldData fieldData1 = (KeyedFlatObjectFieldData) ifd1;
         assertEquals("key", fieldData1.getKey());
         fieldData1.loadGlobal(reader);
         assertEquals(1, onCacheCalled.get());
 
         // Load global field data for the subfield 'other_key'.
-        KeyedJsonFieldType fieldType2 = fieldMapper.keyedFieldType("other_key");
+        KeyedFlatObjectFieldType fieldType2 = fieldMapper.keyedFieldType("other_key");
         IndexFieldData<?> ifd2 = ifdService.getForField(fieldType2);
-        assertTrue(ifd2 instanceof KeyedJsonIndexFieldData);
+        assertTrue(ifd2 instanceof KeyedFlatObjectFieldData);
 
-        KeyedJsonIndexFieldData fieldData2 = (KeyedJsonIndexFieldData) ifd2;
+        KeyedFlatObjectFieldData fieldData2 = (KeyedFlatObjectFieldData) ifd2;
         assertEquals("other_key", fieldData2.getKey());
         fieldData2.loadGlobal(reader);
         assertEquals(1, onCacheCalled.get());

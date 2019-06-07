@@ -38,24 +38,24 @@ class FieldTypeLookup implements Iterable<MappedFieldType> {
     final CopyOnWriteHashMap<String, MappedFieldType> fullNameToFieldType;
     private final CopyOnWriteHashMap<String, String> aliasToConcreteName;
 
-    private final CopyOnWriteHashMap<String, JsonFieldMapper> fullNameToJsonMapper;
-    private final int maxJsonFieldDepth;
+    private final CopyOnWriteHashMap<String, FlatObjectFieldMapper> flatObjectMappers;
+    private final int maxFlatObjectDepth;
 
     FieldTypeLookup() {
         fullNameToFieldType = new CopyOnWriteHashMap<>();
         aliasToConcreteName = new CopyOnWriteHashMap<>();
-        fullNameToJsonMapper = new CopyOnWriteHashMap<>();
-        maxJsonFieldDepth = 0;
+        flatObjectMappers = new CopyOnWriteHashMap<>();
+        maxFlatObjectDepth = 0;
     }
 
     private FieldTypeLookup(CopyOnWriteHashMap<String, MappedFieldType> fullNameToFieldType,
                             CopyOnWriteHashMap<String, String> aliasToConcreteName,
-                            CopyOnWriteHashMap<String, JsonFieldMapper> fullNameToJsonMapper,
-                            int maxJsonFieldDepth) {
+                            CopyOnWriteHashMap<String, FlatObjectFieldMapper> flatObjectMappers,
+                            int maxFlatObjectDepth) {
         this.fullNameToFieldType = fullNameToFieldType;
         this.aliasToConcreteName = aliasToConcreteName;
-        this.fullNameToJsonMapper = fullNameToJsonMapper;
-        this.maxJsonFieldDepth = maxJsonFieldDepth;
+        this.flatObjectMappers = flatObjectMappers;
+        this.maxFlatObjectDepth = maxFlatObjectDepth;
     }
 
     /**
@@ -74,7 +74,7 @@ class FieldTypeLookup implements Iterable<MappedFieldType> {
 
         CopyOnWriteHashMap<String, MappedFieldType> fullName = this.fullNameToFieldType;
         CopyOnWriteHashMap<String, String> aliases = this.aliasToConcreteName;
-        CopyOnWriteHashMap<String, JsonFieldMapper> jsonMappers = this.fullNameToJsonMapper;
+        CopyOnWriteHashMap<String, FlatObjectFieldMapper> flatObjectMappers = this.flatObjectMappers;
 
         for (FieldMapper fieldMapper : fieldMappers) {
             String fieldName = fieldMapper.name();
@@ -85,8 +85,8 @@ class FieldTypeLookup implements Iterable<MappedFieldType> {
                 fullName = fullName.copyAndPut(fieldType.name(), fieldType);
             }
 
-            if (fieldMapper instanceof JsonFieldMapper) {
-                jsonMappers = fullNameToJsonMapper.copyAndPut(fieldName, (JsonFieldMapper) fieldMapper);
+            if (fieldMapper instanceof FlatObjectFieldMapper) {
+                flatObjectMappers = this.flatObjectMappers.copyAndPut(fieldName, (FlatObjectFieldMapper) fieldMapper);
             }
         }
 
@@ -100,13 +100,13 @@ class FieldTypeLookup implements Iterable<MappedFieldType> {
             }
         }
 
-        int maxFieldDepth = getMaxJsonFieldDepth(aliases, jsonMappers);
+        int maxFlatObjectDepth = getMaxFlatObjectDepth(aliases, flatObjectMappers);
 
-        return new FieldTypeLookup(fullName, aliases, jsonMappers, maxFieldDepth);
+        return new FieldTypeLookup(fullName, aliases, flatObjectMappers, maxFlatObjectDepth);
     }
 
-    private static int getMaxJsonFieldDepth(CopyOnWriteHashMap<String, String> aliases,
-                                            CopyOnWriteHashMap<String, JsonFieldMapper> jsonMappers) {
+    private static int getMaxFlatObjectDepth(CopyOnWriteHashMap<String, String> aliases,
+                                             CopyOnWriteHashMap<String, FlatObjectFieldMapper> jsonMappers) {
         int maxFieldDepth = 0;
         for (Map.Entry<String, String> entry : aliases.entrySet()) {
             String aliasName = entry.getKey();
@@ -152,22 +152,22 @@ class FieldTypeLookup implements Iterable<MappedFieldType> {
             return fieldType;
         }
 
-        // If the mapping contains JSON fields, check if this could correspond
-        // to a keyed JSON field of the form 'path_to_json_field.path_to_key'.
-        return !fullNameToJsonMapper.isEmpty() ? getKeyedJsonField(field) : null;
+        // If the mapping contains flat object fields, check if this could correspond
+        // to a keyed field of the form 'path_to_flat_object.path_to_key'.
+        return !flatObjectMappers.isEmpty() ? getKeyedFlatObjectField(field) : null;
     }
 
     /**
-     * Check if the given field corresponds to a keyed JSON field of the form
-     * 'path_to_json_field.path_to_key'. If so, returns a field type that can
-     * be used to perform searches on this field.
+     * Check if the given field corresponds to a keyed flat object field of the
+     * form 'path_to_flat_object.path_to_key'. If so, returns a field type that
+     * can be used to perform searches on this field.
      */
-    private MappedFieldType getKeyedJsonField(String field) {
+    private MappedFieldType getKeyedFlatObjectField(String field) {
         int dotIndex = -1;
         int fieldDepth = 0;
 
         while (true) {
-            if (++fieldDepth > maxJsonFieldDepth) {
+            if (++fieldDepth > maxFlatObjectDepth) {
                 return null;
             }
 
@@ -178,7 +178,7 @@ class FieldTypeLookup implements Iterable<MappedFieldType> {
 
             String parentField = field.substring(0, dotIndex);
             String concreteField = aliasToConcreteName.getOrDefault(parentField, parentField);
-            JsonFieldMapper mapper = fullNameToJsonMapper.get(concreteField);
+            FlatObjectFieldMapper mapper = flatObjectMappers.get(concreteField);
 
             if (mapper != null) {
                 String key = field.substring(dotIndex + 1);
@@ -209,18 +209,18 @@ class FieldTypeLookup implements Iterable<MappedFieldType> {
     public Iterator<MappedFieldType> iterator() {
         Iterator<MappedFieldType> concreteFieldTypes = fullNameToFieldType.values().iterator();
 
-        if (fullNameToJsonMapper.isEmpty()) {
+        if (flatObjectMappers.isEmpty()) {
             return concreteFieldTypes;
         } else {
-            Iterator<MappedFieldType> keyedJsonFieldTypes = fullNameToJsonMapper.values().stream()
+            Iterator<MappedFieldType> keyedFlatObjectTypes = flatObjectMappers.values().stream()
                 .<MappedFieldType>map(mapper -> mapper.keyedFieldType(""))
                 .iterator();
-            return Iterators.concat(concreteFieldTypes, keyedJsonFieldTypes);
+            return Iterators.concat(concreteFieldTypes, keyedFlatObjectTypes);
         }
     }
 
     // Visible for testing.
-    int maxJsonFieldDepth() {
-        return maxJsonFieldDepth;
+    int maxFlatObjectDepth() {
+        return maxFlatObjectDepth;
     }
 }

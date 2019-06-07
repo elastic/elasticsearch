@@ -32,8 +32,9 @@ public class EdgeTreeReader {
     final BytesRef bytesRef;
     final ByteBufferStreamInput input;
 
-    public EdgeTreeReader(BytesRef bytesRef) {
-        this.bytesRef = bytesRef;
+    public EdgeTreeReader(StreamInput input) throws IOException {
+        int treeBytesSize = input.readVInt();
+        this.bytesRef = input.readBytesRef(treeBytesSize);
         this.input = new ByteBufferStreamInput(ByteBuffer.wrap(bytesRef.bytes, bytesRef.offset, bytesRef.length));
     }
 

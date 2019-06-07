@@ -53,8 +53,7 @@ public class GeometryTreeReader {
         assert input.readVInt() == 1;
         ShapeType shapeType = input.readEnum(ShapeType.class);
         if (ShapeType.POLYGON.equals(shapeType)) {
-            BytesRef treeRef = input.readBytesRef();
-            EdgeTreeReader reader = new EdgeTreeReader(treeRef);
+            EdgeTreeReader reader = new EdgeTreeReader(input);
             return reader.getExtent();
         } else {
             throw new UnsupportedOperationException("only polygons supported -- TODO");
@@ -76,8 +75,7 @@ public class GeometryTreeReader {
         for (int i = 0; i < numTrees; i++) {
             ShapeType shapeType = input.readEnum(ShapeType.class);
             if (ShapeType.POLYGON.equals(shapeType)) {
-                BytesRef treeRef = input.readBytesRef();
-                EdgeTreeReader reader = new EdgeTreeReader(treeRef);
+                EdgeTreeReader reader = new EdgeTreeReader(input);
                 if (reader.containedInOrCrosses(minLon, minLat, maxLon, maxLat)) {
                     return true;
                 }

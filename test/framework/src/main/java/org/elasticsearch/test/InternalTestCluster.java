@@ -1428,7 +1428,13 @@ public final class InternalTestCluster extends TestCluster {
      * Returns a reference to the given nodes instances of the given class &gt;T&lt;
      */
     public <T> T getInstance(Class<T> clazz, final String node) {
-        return getInstance(clazz, nc -> node == null || node.equals(nc.name));
+        if (node != null) {
+            NodeAndClient randomNodeAndClient = nodes.get(node);
+            assert randomNodeAndClient != null;
+            return getInstanceFromNode(clazz, randomNodeAndClient.node);
+        } else {
+            return getInstance(clazz);
+        }
     }
 
     public <T> T getDataNodeInstance(Class<T> clazz) {

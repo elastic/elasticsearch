@@ -222,24 +222,20 @@ public class QueryPhase implements SearchPhase {
 
             // try to rewrite numeric or date sort to the optimized distanceFeatureQuery
             if ((searchContext.sort() != null) && SYS_PROP_LONG_SORT_OPTIMIZED) {
-                try {
-                    Query rewrittenQuery = tryRewriteLongSort(searchContext, searcher.getIndexReader(), query, hasFilterCollector);
-                    if (rewrittenQuery != null) {
-                        query = rewrittenQuery;
-                        // modify sorts: add sort on _score as 1st sort, and move the sort on the original field as the 2nd sort
-                        SortField[] oldSortFields = searchContext.sort().sort.getSort();
-                        DocValueFormat[] oldFormats = searchContext.sort().formats;
-                        SortField[] newSortFields = new SortField[oldSortFields.length + 1];
-                        DocValueFormat[] newFormats = new DocValueFormat[oldSortFields.length + 1];
-                        newSortFields[0] = SortField.FIELD_SCORE;
-                        newFormats[0] = DocValueFormat.RAW;
-                        System.arraycopy(oldSortFields, 0, newSortFields, 1, oldSortFields.length);
-                        System.arraycopy(oldFormats, 0, newFormats, 1, oldFormats.length);
-                        sortAndFormatsForRewrittenNumericSort = searchContext.sort(); // stash SortAndFormats to restore it later
-                        searchContext.sort(new SortAndFormats(new Sort(newSortFields), newFormats));
-                    }
-                } catch (IOException e) {
-                    // in case of errors do nothing - keep the same query
+                Query rewrittenQuery = tryRewriteLongSort(searchContext, searcher.getIndexReader(), query, hasFilterCollector);
+                if (rewrittenQuery != null) {
+                    query = rewrittenQuery;
+                    // modify sorts: add sort on _score as 1st sort, and move the sort on the original field as the 2nd sort
+                    SortField[] oldSortFields = searchContext.sort().sort.getSort();
+                    DocValueFormat[] oldFormats = searchContext.sort().formats;
+                    SortField[] newSortFields = new SortField[oldSortFields.length + 1];
+                    DocValueFormat[] newFormats = new DocValueFormat[oldSortFields.length + 1];
+                    newSortFields[0] = SortField.FIELD_SCORE;
+                    newFormats[0] = DocValueFormat.RAW;
+                    System.arraycopy(oldSortFields, 0, newSortFields, 1, oldSortFields.length);
+                    System.arraycopy(oldFormats, 0, newFormats, 1, oldFormats.length);
+                    sortAndFormatsForRewrittenNumericSort = searchContext.sort(); // stash SortAndFormats to restore it later
+                    searchContext.sort(new SortAndFormats(new Sort(newSortFields), newFormats));
                 }
             }
 

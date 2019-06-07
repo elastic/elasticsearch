@@ -58,8 +58,8 @@ public class ReindexBasicTests extends ReindexTestCase {
         assertThat(copy.get(), matcher().created(2));
         assertHitCount(client().prepareSearch("dest_half").setSize(0).get(), 2);
 
-        // Limit with size
-        copy = reindex().source("source").destination("dest_size_one", "type").size(1).refresh(true);
+        // Limit with maxDocs
+        copy = reindex().source("source").destination("dest_size_one", "type").maxDocs(1).refresh(true);
         assertThat(copy.get(), matcher().created(1));
         assertHitCount(client().prepareSearch("dest_size_one").setSize(0).get(), 1);
     }
@@ -86,7 +86,7 @@ public class ReindexBasicTests extends ReindexTestCase {
         copy = reindex().source("source").destination("dest_half", "type").refresh(true);
         // Use a small batch size so we have to use more than one batch
         copy.source().setSize(5);
-        copy.size(half); // The real "size" of the request.
+        copy.maxDocs(half);
         assertThat(copy.get(), matcher().created(half).batches(half, 5));
         assertHitCount(client().prepareSearch("dest_half").setSize(0).get(), half);
     }
@@ -116,7 +116,7 @@ public class ReindexBasicTests extends ReindexTestCase {
         copy = reindex().source("source").destination("dest_half", "type").refresh(true).setSlices(slices);
         // Use a small batch size so we have to use more than one batch
         copy.source().setSize(5);
-        copy.size(half); // The real "size" of the request.
+        copy.maxDocs(half);
         BulkByScrollResponse response = copy.get();
         assertThat(response, matcher().created(lessThanOrEqualTo((long) half)).slices(hasSize(expectedSlices)));
         assertHitCount(client().prepareSearch("dest_half").setSize(0).get(), response.getCreated());

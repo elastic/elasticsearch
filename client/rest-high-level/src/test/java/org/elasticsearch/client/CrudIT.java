@@ -19,7 +19,6 @@
 
 package org.elasticsearch.client;
 
-import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
@@ -94,7 +93,6 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThan;
 
-@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/42881")
 public class CrudIT extends ESRestHighLevelClientTestCase {
 
     public void testDelete() throws IOException {
@@ -114,17 +112,20 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
             } else {
                 deleteRequest.version(indexResponse.getVersion());
             }
-            DeleteResponse deleteResponse = execute(deleteRequest, highLevelClient()::delete, highLevelClient()::deleteAsync,
+            final DeleteResponse deleteResponse;
+            if (useSeqNo == false && randomBoolean()) {
+                deleteResponse = execute(deleteRequest, highLevelClient()::delete, highLevelClient()::deleteAsync,
+                    expectWarnings("Usage of internal versioning for optimistic concurrency control is deprecated and will be removed." +
+                        " Please use the `if_seq_no` and `if_primary_term` parameters instead." +
+                        " (request for index [index], type [type], id [id])"));
+            } else {
+                deleteResponse = execute(deleteRequest, highLevelClient()::delete, highLevelClient()::deleteAsync,
                     highLevelClient()::delete, highLevelClient()::deleteAsync);
+            }
             assertEquals("index", deleteResponse.getIndex());
             assertEquals("type", deleteResponse.getType());
             assertEquals(docId, deleteResponse.getId());
             assertEquals(DocWriteResponse.Result.DELETED, deleteResponse.getResult());
-            if (useSeqNo == false) {
-                assertWarnings("Usage of internal versioning for optimistic concurrency control is deprecated and will be removed." +
-                    " Please use the `if_seq_no` and `if_primary_term` parameters instead." +
-                    " (request for index [index], type [type], id [id])");
-            }
         }
         {
             // Testing non existing document
@@ -150,9 +151,17 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
                 deleteRequest.version(2);
             }
 
-            ElasticsearchException exception = expectThrows(ElasticsearchException.class,
-                () -> execute(deleteRequest, highLevelClient()::delete, highLevelClient()::deleteAsync,
-                        highLevelClient()::delete, highLevelClient()::deleteAsync));
+            ElasticsearchException exception = expectThrows(ElasticsearchException.class, () -> {
+                if (seqNos == false && randomBoolean()) {
+                    execute(deleteRequest, highLevelClient()::delete, highLevelClient()::deleteAsync,
+                        expectWarnings("Usage of internal versioning for optimistic concurrency control is deprecated and will be removed."
+                            + " Please use the `if_seq_no` and `if_primary_term` parameters instead."
+                            + " (request for index [index], type [type], id [version_conflict])"));
+                } else {
+                    execute(deleteRequest, highLevelClient()::delete, highLevelClient()::deleteAsync,
+                        highLevelClient()::delete, highLevelClient()::deleteAsync);
+                }
+            });
             assertEquals(RestStatus.CONFLICT, exception.status());
             if (seqNos) {
                 assertEquals("Elasticsearch exception [type=version_conflict_engine_exception, reason=[type][" + docId + "]: " +
@@ -161,9 +170,6 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
             } else {
                 assertEquals("Elasticsearch exception [type=version_conflict_engine_exception, reason=[type][" + docId + "]: " +
                     "version conflict, current version [1] is different than the one provided [2]]", exception.getMessage());
-                assertWarnings("Usage of internal versioning for optimistic concurrency control is deprecated and will be removed." +
-                    " Please use the `if_seq_no` and `if_primary_term` parameters instead." +
-                    " (request for index [index], type [type], id [version_conflict])");
             }
             assertEquals("index", exception.getMetadata("es.index").get(0));
         }
@@ -497,9 +503,15 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
                 } else {
                     wrongRequest.version(5);
                 }
-
-                execute(wrongRequest, highLevelClient()::index, highLevelClient()::indexAsync,
+                if (seqNosForConflict == false && randomBoolean()) {
+                    execute(wrongRequest, highLevelClient()::index, highLevelClient()::indexAsync,
+                        expectWarnings("Usage of internal versioning for optimistic concurrency control is deprecated and will be removed. "
+                            + "Please use the `if_seq_no` and `if_primary_term` parameters instead. "
+                            + "(request for index [index], type [type], id [id])"));
+                } else {
+                    execute(wrongRequest, highLevelClient()::index, highLevelClient()::indexAsync,
                         highLevelClient()::index, highLevelClient()::indexAsync);
+                }
             });
             assertEquals(RestStatus.CONFLICT, exception.status());
             if (seqNosForConflict) {
@@ -509,9 +521,6 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
             } else {
                 assertEquals("Elasticsearch exception [type=version_conflict_engine_exception, reason=[type][id]: " +
                     "version conflict, current version [2] is different than the one provided [5]]", exception.getMessage());
-                assertWarnings("Usage of internal versioning for optimistic concurrency control is deprecated and will be removed. " +
-                    "Please use the `if_seq_no` and `if_primary_term` parameters instead. " +
-                    "(request for index [index], type [type], id [id])");
             }
             assertEquals("index", exception.getMetadata("es.index").get(0));
         }

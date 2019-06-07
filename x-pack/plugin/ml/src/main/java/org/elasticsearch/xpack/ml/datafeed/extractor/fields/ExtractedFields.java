@@ -87,8 +87,14 @@ public class ExtractedFields {
                             : ExtractedField.ExtractionMethod.SOURCE;
                 }
             }
-            if (isFieldOfType(field, "geo_point") || isFieldOfType(field, "geo_shape")) {
-                return ExtractedField.newGeoField(field, internalField, method);
+            if (isFieldOfType(field, "geo_point")) {
+                if (method != ExtractedField.ExtractionMethod.DOC_VALUE) {
+                    throw new IllegalArgumentException("cannot use [geo_point] field with disabled doc values");
+                }
+                return ExtractedField.newGeoPointField(field, internalField, method);
+            }
+            if (isFieldOfType(field, "geo_shape")) {
+                return ExtractedField.newGeoShapeField(field, internalField, method);
             }
             return ExtractedField.newField(field, internalField, method);
         }

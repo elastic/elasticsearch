@@ -190,7 +190,7 @@ class FieldTypeLookup implements Iterable<MappedFieldType> {
     /**
      * Returns a list of the full names of a simple match regex like pattern against full name and index name.
      */
-    public Collection<String> simpleMatchToFullName(String pattern) {
+    public Set<String> simpleMatchToFullName(String pattern) {
         Set<String> fields = new HashSet<>();
         for (MappedFieldType fieldType : this) {
             if (Regex.simpleMatch(pattern, fieldType.name())) {

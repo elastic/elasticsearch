@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.common.geo;
 
-import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.geo.geometry.LinearRing;
 import org.elasticsearch.geo.geometry.Polygon;
 import org.elasticsearch.test.ESTestCase;
@@ -37,8 +37,11 @@ public class GeometryTreeTests extends ESTestCase {
             double[] x = new double[]{minX, maxX, maxX, minX, minX};
             double[] y = new double[]{minY, minY, maxY, maxY, minY};
             GeometryTreeWriter writer = new GeometryTreeWriter(new Polygon(new LinearRing(y, x), Collections.emptyList()));
-            BytesRef bytes = writer.toBytesRef();
-            GeometryTreeReader reader = new GeometryTreeReader(bytes);
+
+            BytesStreamOutput output = new BytesStreamOutput();
+            writer.writeTo(output);
+            output.close();
+            GeometryTreeReader reader = new GeometryTreeReader(output.bytes().toBytesRef());
 
             // box-query touches bottom-left corner
             assertTrue(reader.containedInOrCrosses(minX - randomIntBetween(1, 180), minY - randomIntBetween(1, 180), minX, minY));
@@ -91,7 +94,10 @@ public class GeometryTreeTests extends ESTestCase {
 
         // test cell crossing poly
         GeometryTreeWriter writer = new GeometryTreeWriter(new Polygon(new LinearRing(py, px), Collections.emptyList()));
-        GeometryTreeReader reader = new GeometryTreeReader(writer.toBytesRef());
+        BytesStreamOutput output = new BytesStreamOutput();
+        writer.writeTo(output);
+        output.close();
+        GeometryTreeReader reader = new GeometryTreeReader(output.bytes().toBytesRef());
         assertTrue(reader.containedInOrCrosses(xMin, yMin, xMax, yMax));
     }
 }

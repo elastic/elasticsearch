@@ -18,8 +18,9 @@
  */
 package org.elasticsearch.common.geo;
 
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.geo.geometry.Polygon;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.geo.RandomShapeGenerator;
@@ -38,8 +39,10 @@ public class EdgeTreeTests extends ESTestCase {
             int[] x = new int[]{minX, maxX, maxX, minX, minX};
             int[] y = new int[]{minY, minY, maxY, maxY, minY};
             EdgeTreeWriter writer = new EdgeTreeWriter(x, y);
-            BytesRef bytes = writer.toBytesRef();
-            EdgeTreeReader reader = new EdgeTreeReader(bytes);
+            BytesStreamOutput output = new BytesStreamOutput();
+            writer.writeTo(output);
+            output.close();
+            EdgeTreeReader reader = new EdgeTreeReader(StreamInput.wrap(output.bytes().toBytesRef().bytes));
 
             // box-query touches bottom-left corner
             assertTrue(reader.containedInOrCrosses(minX - randomIntBetween(1, 180), minY - randomIntBetween(1, 180), minX, minY));
@@ -93,7 +96,10 @@ public class EdgeTreeTests extends ESTestCase {
             int[] y = asIntArray(geo.getPolygon().getLats());
 
             EdgeTreeWriter writer = new EdgeTreeWriter(x, y);
-            EdgeTreeReader reader = new EdgeTreeReader(writer.toBytesRef());
+            BytesStreamOutput output = new BytesStreamOutput();
+            writer.writeTo(output);
+            output.close();
+            EdgeTreeReader reader = new EdgeTreeReader(StreamInput.wrap(output.bytes().toBytesRef().bytes));
             // polygon fully contained within box
             assertTrue(reader.containedInOrCrosses(minXBox, minYBox, maxXBox, maxYBox));
             // containedInOrCrosses
@@ -121,7 +127,10 @@ public class EdgeTreeTests extends ESTestCase {
 
         // test cell crossing poly
         EdgeTreeWriter writer = new EdgeTreeWriter(px, py);
-        EdgeTreeReader reader = new EdgeTreeReader(writer.toBytesRef());
+        BytesStreamOutput output = new BytesStreamOutput();
+        writer.writeTo(output);
+        output.close();
+        EdgeTreeReader reader = new EdgeTreeReader(StreamInput.wrap(output.bytes().toBytesRef().bytes));
         assertTrue(reader.containsBottomLeft(xMin, yMin, xMax, yMax));
     }
 

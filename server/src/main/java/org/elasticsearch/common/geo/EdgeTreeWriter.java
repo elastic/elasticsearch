@@ -18,9 +18,8 @@
  */
 package org.elasticsearch.common.geo;
 
-import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -28,7 +27,7 @@ import java.util.Arrays;
 /**
  * Shape edge-tree writer for use in doc-values
  */
-public class EdgeTreeWriter {
+public class EdgeTreeWriter implements Writeable {
 
     /**
      * | minY | maxY | x1 | y1 | x2 | y2 | right_offset |
@@ -68,17 +67,14 @@ public class EdgeTreeWriter {
         this.tree = createTree(edges, 0, edges.length - 1);
     }
 
-    public BytesRef toBytesRef() throws IOException {
-        BytesStreamOutput output = new BytesStreamOutput(4 * 4 + EDGE_SIZE_IN_BYTES * tree.size);
-        // write extent of edges
-        output.writeInt(minX);
-        output.writeInt(minY);
-        output.writeInt(maxX);
-        output.writeInt(maxY);
-        // write edge-tree itself
-        writeTree(tree, output);
-        output.close();
-        return output.bytes().toBytesRef();
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeVInt(4 * 4 + EDGE_SIZE_IN_BYTES * tree.size);
+        out.writeInt(minX);
+        out.writeInt(minY);
+        out.writeInt(maxX);
+        out.writeInt(maxY);
+        writeTree(tree, out);
     }
 
     private void writeTree(Edge edge, StreamOutput output) throws IOException {

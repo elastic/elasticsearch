@@ -18,8 +18,8 @@
  */
 package org.elasticsearch.common.geo;
 
-import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.geo.geometry.Circle;
 import org.elasticsearch.geo.geometry.Geometry;
 import org.elasticsearch.geo.geometry.GeometryCollection;
@@ -43,7 +43,7 @@ import java.util.List;
  * appropriate tree structure for each type of
  * {@link Geometry} into a byte array.
  */
-public class GeometryTreeWriter {
+public class GeometryTreeWriter implements Writeable {
 
     private final GeometryTreeBuilder builder;
 
@@ -52,25 +52,23 @@ public class GeometryTreeWriter {
         geometry.visit(builder);
     }
 
-    public BytesRef toBytesRef() throws IOException {
-        BytesStreamOutput output = new BytesStreamOutput();
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
         // only write a geometry extent for the tree if the tree
         // contains multiple sub-shapes
         boolean prependExtent = builder.shapeWriters.size() > 1;
-        output.writeBoolean(prependExtent);
+        out.writeBoolean(prependExtent);
         if (prependExtent) {
-            output.writeInt(builder.minLon);
-            output.writeInt(builder.minLat);
-            output.writeInt(builder.maxLon);
-            output.writeInt(builder.maxLat);
+            out.writeInt(builder.minLon);
+            out.writeInt(builder.minLat);
+            out.writeInt(builder.maxLon);
+            out.writeInt(builder.maxLat);
         }
-        output.writeVInt(builder.shapeWriters.size());
+        out.writeVInt(builder.shapeWriters.size());
         for (EdgeTreeWriter writer : builder.shapeWriters) {
-            output.writeEnum(ShapeType.POLYGON);
-            output.writeBytesRef(writer.toBytesRef());
+            out.writeEnum(ShapeType.POLYGON);
+            writer.writeTo(out);
         }
-        output.close();
-        return output.bytes().toBytesRef();
     }
 
     class GeometryTreeBuilder implements GeometryVisitor<Void, RuntimeException> {

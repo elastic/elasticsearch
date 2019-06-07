@@ -13,13 +13,15 @@ import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.xpack.core.watcher.WatcherField;
-import org.elasticsearch.xpack.core.watcher.client.WatcherClient;
 import org.elasticsearch.xpack.core.watcher.crypto.CryptoService;
 import org.elasticsearch.xpack.core.watcher.crypto.CryptoServiceTests;
 import org.elasticsearch.xpack.core.watcher.execution.ActionExecutionMode;
 import org.elasticsearch.xpack.core.watcher.support.xcontent.XContentSource;
+import org.elasticsearch.xpack.core.watcher.transport.actions.execute.ExecuteWatchRequestBuilder;
 import org.elasticsearch.xpack.core.watcher.transport.actions.execute.ExecuteWatchResponse;
+import org.elasticsearch.xpack.core.watcher.transport.actions.get.GetWatchRequestBuilder;
 import org.elasticsearch.xpack.core.watcher.transport.actions.get.GetWatchResponse;
+import org.elasticsearch.xpack.core.watcher.transport.actions.put.PutWatchRequestBuilder;
 import org.elasticsearch.xpack.core.watcher.trigger.TriggerEvent;
 import org.elasticsearch.xpack.core.watcher.watch.Watch;
 import org.elasticsearch.xpack.watcher.common.http.BasicAuth;
@@ -88,8 +90,7 @@ public class HttpSecretsIntegrationTests extends AbstractWatcherIntegrationTestC
     }
 
     public void testHttpInput() throws Exception {
-        WatcherClient watcherClient = watcherClient();
-        watcherClient.preparePutWatch("_id")
+        new PutWatchRequestBuilder(client()).setId("_id")
                 .setSource(watchBuilder()
                         .trigger(schedule(cron("0 0 0 1 * ? 2020")))
                         .input(httpInput(HttpRequestTemplate.builder(webServer.getHostName(), webServer.getPort())
@@ -119,7 +120,7 @@ public class HttpSecretsIntegrationTests extends AbstractWatcherIntegrationTestC
         }
 
         // verifying the password is not returned by the GET watch API
-        GetWatchResponse watchResponse = watcherClient.prepareGetWatch("_id").get();
+        GetWatchResponse watchResponse = new GetWatchRequestBuilder(client()).setId("_id").get();
         assertThat(watchResponse, notNullValue());
         assertThat(watchResponse.getId(), is("_id"));
         XContentSource contentSource = watchResponse.getSource();
@@ -142,7 +143,7 @@ public class HttpSecretsIntegrationTests extends AbstractWatcherIntegrationTestC
                 BytesReference.bytes(jsonBuilder().startObject().field("key", "value").endObject()).utf8ToString()));
 
         TriggerEvent triggerEvent = new ScheduleTriggerEvent(ZonedDateTime.now(ZoneOffset.UTC), ZonedDateTime.now(ZoneOffset.UTC));
-        ExecuteWatchResponse executeResponse = watcherClient.prepareExecuteWatch("_id")
+        ExecuteWatchResponse executeResponse = new ExecuteWatchRequestBuilder(client()).setId("_id")
                 .setRecordExecution(false)
                 .setTriggerEvent(triggerEvent)
                 .setActionMode("_all", ActionExecutionMode.FORCE_EXECUTE)
@@ -167,8 +168,7 @@ public class HttpSecretsIntegrationTests extends AbstractWatcherIntegrationTestC
     }
 
     public void testWebhookAction() throws Exception {
-        WatcherClient watcherClient = watcherClient();
-        watcherClient.preparePutWatch("_id")
+        new PutWatchRequestBuilder(client()).setId("_id")
                 .setSource(watchBuilder()
                         .trigger(schedule(cron("0 0 0 1 * ? 2020")))
                         .input(simpleInput())
@@ -199,7 +199,7 @@ public class HttpSecretsIntegrationTests extends AbstractWatcherIntegrationTestC
         }
 
         // verifying the password is not returned by the GET watch API
-        GetWatchResponse watchResponse = watcherClient.prepareGetWatch("_id").get();
+        GetWatchResponse watchResponse = new GetWatchRequestBuilder(client()).setId("_id").get();
         assertThat(watchResponse, notNullValue());
         assertThat(watchResponse.getId(), is("_id"));
         XContentSource contentSource = watchResponse.getSource();
@@ -222,7 +222,7 @@ public class HttpSecretsIntegrationTests extends AbstractWatcherIntegrationTestC
                 BytesReference.bytes(jsonBuilder().startObject().field("key", "value").endObject()).utf8ToString()));
 
         TriggerEvent triggerEvent = new ScheduleTriggerEvent(ZonedDateTime.now(ZoneOffset.UTC), ZonedDateTime.now(ZoneOffset.UTC));
-        ExecuteWatchResponse executeResponse = watcherClient.prepareExecuteWatch("_id")
+        ExecuteWatchResponse executeResponse = new ExecuteWatchRequestBuilder(client()).setId("_id")
                 .setRecordExecution(false)
                 .setActionMode("_all", ActionExecutionMode.FORCE_EXECUTE)
                 .setTriggerEvent(triggerEvent)

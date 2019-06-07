@@ -381,6 +381,9 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
           if (details.relativePath.segments[-2] == 'bin' || details.relativePath.segments[-1] == 'jspawnhelper') {
             details.mode = 0755
           }
+          if (details.name == 'src.zip') {
+            details.exclude()
+          }
         }
       }
     }

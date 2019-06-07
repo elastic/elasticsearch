@@ -111,6 +111,7 @@ public class Lucene {
     public static final String LATEST_DOC_VALUES_FORMAT = "Lucene70";
     public static final String LATEST_POSTINGS_FORMAT = "Lucene50";
     public static final String LATEST_CODEC = "Lucene80";
+    private static final Version EARLIEST_SUPPORTED_LUCENE_VERSION = Version.LUCENE_7_0_0;
 
     static {
         Deprecated annotation = PostingsFormat.forName(LATEST_POSTINGS_FORMAT).getClass().getAnnotation(Deprecated.class);
@@ -136,7 +137,15 @@ public class Lucene {
             return defaultVersion;
         }
         try {
-            return Version.parse(version);
+            Version luceneVersion = Version.parse(version);
+            if (luceneVersion.onOrAfter(EARLIEST_SUPPORTED_LUCENE_VERSION)) {
+                return luceneVersion;
+            } else {
+                logger.warn(() -> new ParameterizedMessage(
+                    "Unsupported index version {}, using earliest still supported instead -> {}",
+                    version, EARLIEST_SUPPORTED_LUCENE_VERSION));
+                return EARLIEST_SUPPORTED_LUCENE_VERSION;
+            }
         } catch (ParseException e) {
             logger.warn(() -> new ParameterizedMessage("no version match {}, default to {}", version, defaultVersion), e);
             return defaultVersion;

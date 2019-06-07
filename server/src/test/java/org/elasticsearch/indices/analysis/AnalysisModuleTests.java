@@ -156,8 +156,9 @@ public class AnalysisModuleTests extends ESTestCase {
                 indexAnalyzers.get("stop").analyzer().getVersion());
 
         assertThat(indexAnalyzers.get("custom7").analyzer(), is(instanceOf(StandardAnalyzer.class)));
-        assertEquals(org.apache.lucene.util.Version.fromBits(3,6,0),
+        assertEquals(org.apache.lucene.util.Version.LUCENE_7_0_0,
                 indexAnalyzers.get("custom7").analyzer().getVersion());
+        // todo: verify that the message was logged
     }
 
     private void testSimpleConfiguration(Settings settings) throws IOException {

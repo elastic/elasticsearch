@@ -1,0 +1,9 @@
+[role="xpack"]
+[testenv="basic"]
+[[pivoting]]
+== Pivoting your data with {dataframe-transforms}
+
+beta[]
+
+coming[7.2.0]
+

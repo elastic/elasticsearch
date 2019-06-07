@@ -224,3 +224,13 @@ cluster.
 The `discovery.zen.no_master_block` setting doesn't apply to nodes-based apis
 (for example cluster stats, node info and node stats apis).  Requests to these
 apis will not be blocked and can run on any available node.
+
+[float]
+[[single-node]]
+==== Single-node discovery
+
+The `discovery.type` setting specifies whether {es} should form a multiple-node
+cluster. By default, {es} discovers other nodes when forming a cluster and
+allows other nodes to join the cluster later. If `discovery.type` is set to
+`single-node`, {es} forms a single-node cluster. For more information about when
+you might use this setting, see <<single-node-discovery,Bootstrap checks>>.

@@ -34,6 +34,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThan;
@@ -62,12 +63,23 @@ public class TranslogHeaderTests extends ESTestCase {
         });
         assertThat(mismatchUUID.getMessage(), containsString("this translog file belongs to a different translog"));
         int corruptions = between(1, 10);
-        for (int i = 0; i < corruptions; i++) {
+        for (int i = 0; i < corruptions && Files.size(translogFile) > 0; i++) {
             TestTranslog.corruptFile(logger, random(), translogFile);
         }
         expectThrows(TranslogCorruptedException.class, () -> {
             try (FileChannel channel = FileChannel.open(translogFile, StandardOpenOption.READ)) {
-                TranslogHeader.read(outHeader.getTranslogUUID(), translogFile, channel);
+                final TranslogHeader translogHeader = TranslogHeader.read(outHeader.getTranslogUUID(), translogFile, channel);
+                // succeeds if the corruption corrupted the version byte making this look like a v2 translog, because we don't check the
+                // checksum on this version
+                assertThat("version " + TranslogHeader.VERSION_CHECKPOINTS + " translog",
+                    translogHeader.getPrimaryTerm(), equalTo(SequenceNumbers.UNASSIGNED_PRIMARY_TERM));
+                throw new TranslogCorruptedException(translogFile.toString(), "adjusted translog version");
+            } catch (IllegalStateException e) {
+                // corruption corrupted the version byte making this look like a v2, v1 or v0 translog
+                assertThat("version " + TranslogHeader.VERSION_CHECKPOINTS + "-or-earlier translog",
+                    e.getMessage(), anyOf(containsString("pre-2.0 translog found"), containsString("pre-1.4 translog found"),
+                        containsString("pre-6.3 translog found")));
+                throw new TranslogCorruptedException(translogFile.toString(), "adjusted translog version", e);
             }
         });
     }

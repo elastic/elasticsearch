@@ -395,12 +395,12 @@ public class QueryPhase implements SearchPhase {
         if (PointValues.size(reader, fieldName) != PointValues.getDocCount(reader, fieldName)) return null; //TODO: handle multiple values
 
         // check if the optimization makes sense with the track_total_hits setting
-         if (searchContext.trackTotalHitsUpTo() == Integer.MAX_VALUE) {
-             // with filter, we can't pre-calculate hitsCount, we need to explicitly calculate them => optimization does't make sense
-             if (hasFilterCollector) return null;
-             // if we can't pre-calculate hitsCount based on the query type, optimization does't make sense
-             if (shortcutTotalHitCount(reader, query) == -1) return null;
-         }
+        if (searchContext.trackTotalHitsUpTo() == Integer.MAX_VALUE) {
+            // with filter, we can't pre-calculate hitsCount, we need to explicitly calculate them => optimization does't make sense
+            if (hasFilterCollector) return null;
+            // if we can't pre-calculate hitsCount based on the query type, optimization does't make sense
+            if (shortcutTotalHitCount(reader, query) == -1) return null;
+        }
 
         byte[] minValueBytes = PointValues.getMinPackedValue(reader, fieldName);
         byte[] maxValueBytes = PointValues.getMaxPackedValue(reader, fieldName);

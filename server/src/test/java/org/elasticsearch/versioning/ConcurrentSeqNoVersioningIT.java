@@ -454,8 +454,8 @@ public class ConcurrentSeqNoVersioningIT extends AbstractDisruptionTestCase {
                 String serializedHistory = base64Serialize(history);
                 if (linearizable == false) {
                     // we dump base64 encoded data, since the nature of this test is that it does not reproduce even with same seed.
-                    logger.error("Linearizability check failed. Spec: {}, initial version: {}, serialized history: {}", spec, initialVersion,
-                        serializedHistory);
+                    logger.error("Linearizability check failed. Spec: {}, initial version: {}, serialized history: {}",
+                        spec, initialVersion, serializedHistory);
                 }
             }
             return linearizable;

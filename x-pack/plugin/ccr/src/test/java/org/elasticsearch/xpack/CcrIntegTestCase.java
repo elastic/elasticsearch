@@ -257,16 +257,6 @@ public abstract class CcrIntegTestCase extends ESTestCase {
                         CcrIntegTestCase.this.nodePlugins().stream())
                         .collect(Collectors.toList());
             }
-
-            @Override
-            public Settings transportClientSettings() {
-                return super.transportClientSettings();
-            }
-
-            @Override
-            public Collection<Class<? extends Plugin>> transportClientPlugins() {
-                return Arrays.asList(LocalStateCcr.class, getTestTransportPlugin());
-            }
         };
     }
 

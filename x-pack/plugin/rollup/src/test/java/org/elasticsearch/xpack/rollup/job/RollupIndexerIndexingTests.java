@@ -89,7 +89,7 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
     private void setup() {
         settings = createIndexSettings();
         queryShardContext = new QueryShardContext(0, settings,
-                null, null, null, null, null,
+                null, null, null, null, null, null,
                 null, null, null, null, () -> 0L, null);
     }
 

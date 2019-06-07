@@ -1,5 +1,5 @@
 [[modules-scripting-painless]]
-=== Painless Scripting Language
+== Painless scripting language
 
 _Painless_ is a simple, secure scripting language designed specifically for use
 with Elasticsearch. It is the default scripting language for Elasticsearch and

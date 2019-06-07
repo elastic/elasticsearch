@@ -57,6 +57,65 @@
        wait_for_status: green
 
 ---
+"Put categorization job on the old cluster and post some data":
+
+  - do:
+      ml.put_job:
+        job_id: old-cluster-categorization-job
+        body:  >
+          {
+            "description":"Cluster upgrade with categorization",
+            "analysis_config" : {
+                "bucket_span": "60s",
+                "detectors" :[{"function":"count","by_field_name":"mlcategory"}],
+                "categorization_field_name": "message",
+                "categorization_analyzer" : {
+                    "char_filter" : ["html_strip"],
+                    "tokenizer" : "classic",
+                    "filter" : ["stop"]
+                }
+            },
+            "analysis_limits" : {
+                "model_memory_limit": "50mb"
+            },
+            "data_description" : {
+                "time_field":"time",
+                "time_format":"epoch"
+            }
+          }
+  - match: { job_id: old-cluster-categorization-job }
+
+  - do:
+      ml.open_job:
+        job_id: old-cluster-categorization-job
+
+  - do:
+      ml.post_data:
+        job_id: old-cluster-categorization-job
+        body:
+          - message: "this is the first message to be categorized"
+            time: 1403481600
+          - message: "this is the second message to be categorized"
+            time: 1403481700
+  - match: { processed_record_count: 2 }
+
+  - do:
+      ml.close_job:
+        job_id: old-cluster-categorization-job
+
+  - do:
+      ml.get_categories:
+        job_id: old-cluster-categorization-job
+  - match: { count: 1 }
+
+# Wait for indices to be fully allocated before
+# killing the node
+  - do:
+     cluster.health:
+       index: [".ml-state", ".ml-anomalies-shared"]
+       wait_for_status: green
+
+---
 "Put job on the old cluster with the default model memory limit and post some data":
   - do:
       ml.put_job:

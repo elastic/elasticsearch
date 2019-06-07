@@ -450,7 +450,7 @@ public class ElasticsearchMappings {
         addResultsMapping(builder);
         addCategoryDefinitionMapping(builder);
         addDataCountsMapping(builder);
-        addTimingStatsMapping(builder);
+        addTimingStatsExceptBucketCountMapping(builder);
         addModelSnapshotMapping(builder);
 
         addTermFields(builder, extraTermFields);
@@ -792,7 +792,6 @@ public class ElasticsearchMappings {
 
     /**
      * {@link DataCounts} mapping.
-     * The type is disabled so {@link DataCounts} aren't searchable and the '_all' field is disabled
      *
      * @throws IOException On builder write error
      */
@@ -849,15 +848,13 @@ public class ElasticsearchMappings {
 
     /**
      * {@link TimingStats} mapping.
-     * The type is disabled so {@link TimingStats} aren't searchable and the '_all' field is disabled
+     * Does not include mapping for BUCKET_COUNT as this mapping is added by {@link #addDataCountsMapping} method.
      *
      * @throws IOException On builder write error
      */
-    private static void addTimingStatsMapping(XContentBuilder builder) throws IOException {
+    private static void addTimingStatsExceptBucketCountMapping(XContentBuilder builder) throws IOException {
         builder
-            .startObject(TimingStats.BUCKET_COUNT.getPreferredName())
-                .field(TYPE, LONG)
-            .endObject()
+            // re-used: BUCKET_COUNT
             .startObject(TimingStats.MIN_BUCKET_PROCESSING_TIME_MS.getPreferredName())
                 .field(TYPE, DOUBLE)
             .endObject()

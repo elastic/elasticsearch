@@ -8,10 +8,11 @@ package org.elasticsearch.xpack.enrich;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.test.enrich.CommonEnrichRestTestCase;
 
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 
-public class EnrichSecurityIT extends EnrichIT {
+public class EnrichSecurityIT extends CommonEnrichRestTestCase {
 
     @Override
     protected Settings restClientSettings() {

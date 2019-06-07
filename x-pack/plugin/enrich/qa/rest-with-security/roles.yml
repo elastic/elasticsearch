@@ -5,7 +5,6 @@ integ_test_role:
         - manage
         - read
         - write
-        - create_index
 
 enrich_no_privs:
   cluster:
@@ -15,7 +14,5 @@ enrich_no_privs:
     - names: [ '.enrich-my_policy*', 'my-index', 'my-source-index' ]
       privileges:
         - manage
-        - monitor
         - read
         - write
-        - create_index

@@ -264,17 +264,19 @@ public final class IOUtils {
      */
     public static void fsync(final Path fileToSync, final boolean isDir) throws IOException {
         try (FileChannel file = FileChannel.open(fileToSync, isDir ? StandardOpenOption.READ : StandardOpenOption.WRITE)) {
-            file.force(true);
-        } catch (final IOException ioe) {
-            if (isDir) {
-                assert (LINUX || MAC_OS_X) == false :
-                        "on Linux and MacOSX fsyncing a directory should not throw IOException, "+
-                                "we just don't want to rely on that in production (undocumented); got: " + ioe;
-                // ignore exception if it is a directory
-                return;
+            try {
+                file.force(true);
+            } catch (final IOException e) {
+                if (isDir) {
+                    assert (LINUX || MAC_OS_X) == false :
+                            "on Linux and MacOSX fsyncing a directory should not throw IOException, "+
+                                    "we just don't want to rely on that in production (undocumented); got: " + e;
+                    // ignore exception if it is a directory
+                    return;
+                }
+                // throw original exception
+                throw e;
             }
-            // throw original exception
-            throw ioe;
         }
     }
 }

@@ -72,6 +72,7 @@ import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -494,10 +495,25 @@ public final class NodeEnvironment  implements Closeable {
     private static NodeMetaData loadOrCreateNodeMetaData(Settings settings, Logger logger,
                                                          NodePath... nodePaths) throws IOException {
         final Path[] paths = Arrays.stream(nodePaths).map(np -> np.path).toArray(Path[]::new);
+
+        final Set<String> nodeIds = new HashSet<>();
+        for (final Path path : paths) {
+            final NodeMetaData metaData = NodeMetaData.FORMAT.loadLatestState(logger, NamedXContentRegistry.EMPTY, path);
+            if (metaData != null) {
+                nodeIds.add(metaData.nodeId());
+            }
+        }
+        if (nodeIds.size() > 1) {
+            throw new IllegalStateException(
+                "data paths " + Arrays.toString(paths) + " belong to multiple nodes with IDs " + nodeIds);
+        }
+
         NodeMetaData metaData = NodeMetaData.FORMAT.loadLatestState(logger, NamedXContentRegistry.EMPTY, paths);
         if (metaData == null) {
+            assert nodeIds.isEmpty() : nodeIds;
             metaData = new NodeMetaData(generateNodeId(settings), Version.CURRENT);
         } else {
+            assert nodeIds.equals(Collections.singleton(metaData.nodeId())) : nodeIds + " doesn't match " + metaData;
             metaData = metaData.upgradeToCurrentVersion();
         }
 

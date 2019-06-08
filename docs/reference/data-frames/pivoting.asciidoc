@@ -7,3 +7,124 @@ beta[]
 
 coming[7.2.0]
 
+////
+
+. Choose the index that contains the data you want to pivot. In this example,
+we'll use the {kibana-ref}/add-sample-data.html[{kib} sample data], in
+particular, the Sample eCommerce orders.
+. Define pivot
+.. Query (query pattern: “fieldname”:”value”) - optional
+.. Group by
+.. Aggregations
+. Job details
+.. Job ID
+.. Target Index
+.. Create index pattern selector
+. (Optional) Preview your {dataframe-transform}.
++
+--
+[source,js]
+--------------------------------------------------
+POST _data_frame/transforms/_preview
+{
+  "source": {
+    "index": "kibana_sample_data_ecommerce"
+  },
+  "pivot": {
+    "group_by": {
+      "customer_id": {
+        "terms": {
+          "field": "customer_id"
+        }
+      }
+    },
+    "aggregations": {
+      "max_price": {
+        "max": {
+          "field": "taxful_total_price"
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[skip:set up sample data]
+--
+. Create a {dataframe-transform}.
++
+--
+For example:
+
+[source,js]
+--------------------------------------------------
+PUT _data_frame/transforms/ecommerce_transform
+{
+  "source": {
+    "index": "kibana_sample_data_ecommerce",
+    "query": {
+      "term": {
+        "geoip.continent_name": {
+          "value": "Asia"
+        }
+      }
+    }
+  },
+  "dest": {
+    "index": "kibana_sample_data_ecommerce_transform"
+  },
+  "pivot": {
+    "group_by": {
+      "customer_id": {
+        "terms": {
+          "field": "customer_id"
+        }
+      }
+    },
+    "aggregations": {
+      "max_price": {
+        "max": {
+          "field": "taxful_total_price"
+        }
+      }
+    }
+  },
+  "description": "Maximum priced ecommerce data by customer_id in Asia"
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[skip:setup kibana sample data]
+--
+.. Start {dataframe-transform}.
++
+--
+[source,js]
+--------------------------------------------------
+POST _data_frame/transforms/ecommerce_transform/_start
+--------------------------------------------------
+// CONSOLE
+// TEST[skip:setup kibana sample data]
+--
+. Progress bar
+. (Options to move further: Data frame jobs - job management, Discover - explore data frame pivot) Link to “job management” and “Discover”.
+.  Stop the {dataframe-transform}.
++
+--
+[source,js]
+--------------------------------------------------
+POST _data_frame/transforms/ecommerce_transform/_stop
+--------------------------------------------------
+// CONSOLE
+// TEST[skip:set up kibana samples]
+--
+. Delete the {dataframe-transform}.
++
+--
+[source,js]
+--------------------------------------------------
+DELETE _data_frame/transforms/ecommerce_transform
+--------------------------------------------------
+// CONSOLE
+// TEST[skip:setup kibana sample data]
+--
+////

@@ -82,7 +82,8 @@ public class MonitoringFeatureSet implements XPackFeatureSet {
         @Inject
         public UsageTransportAction(TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
                                     ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                                    Settings settings, MonitoringService monitoring, XPackLicenseState licenseState, Exporters exporters) {
+                                    Settings settings, XPackLicenseState licenseState, @Nullable MonitoringService monitoring,
+                                    @Nullable Exporters exporters) {
             super(XPackUsageFeatureAction.MONITORING.name(), transportService, clusterService, threadPool,
                 actionFilters, indexNameExpressionResolver);
             this.enabled = XPackSettings.MONITORING_ENABLED.get(settings);

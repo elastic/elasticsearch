@@ -24,6 +24,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.FileVisitResult;
 import java.nio.file.FileVisitor;
 import java.nio.file.Files;
+import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.nio.file.attribute.BasicFileAttributes;
@@ -249,6 +250,7 @@ public final class IOUtils {
     }
 
     // TODO: replace with constants class if needed (cf. org.apache.lucene.util.Constants)
+    private static final boolean WINDOWS = System.getProperty("os.name").startsWith("Windows");
     private static final boolean LINUX = System.getProperty("os.name").startsWith("Linux");
     private static final boolean MAC_OS_X = System.getProperty("os.name").startsWith("Mac OS X");
 
@@ -263,6 +265,14 @@ public final class IOUtils {
      *                   systems and operating systems allow to fsync on a directory)
      */
     public static void fsync(final Path fileToSync, final boolean isDir) throws IOException {
+        if (isDir && WINDOWS) {
+            // opening a directory on Windows fails, directories can not be fsynced there
+            if (Files.exists(fileToSync) == false) {
+                // yet do not suppress trying to fsync directories that do not exist
+                throw new NoSuchFileException(fileToSync.toString());
+            }
+            return;
+        }
         try (FileChannel file = FileChannel.open(fileToSync, isDir ? StandardOpenOption.READ : StandardOpenOption.WRITE)) {
             try {
                 file.force(true);

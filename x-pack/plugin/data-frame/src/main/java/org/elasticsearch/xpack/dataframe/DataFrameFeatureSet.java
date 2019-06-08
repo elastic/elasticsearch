@@ -134,7 +134,7 @@ public class DataFrameFeatureSet implements XPackFeatureSet {
                 return;
             }
 
-            PersistentTasksCustomMetaData taskMetadata = PersistentTasksCustomMetaData.getPersistentTasksCustomMetaData(clusterService.state());
+            PersistentTasksCustomMetaData taskMetadata = PersistentTasksCustomMetaData.getPersistentTasksCustomMetaData(state);
             Collection<PersistentTasksCustomMetaData.PersistentTask<?>> dataFrameTasks = taskMetadata == null ?
                 Collections.emptyList() :
                 taskMetadata.findTasks(DataFrameTransform.NAME, (t) -> true);

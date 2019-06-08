@@ -111,12 +111,6 @@ public class DataFrameTransformPersistentTasksExecutor extends PersistentTasksEx
             new DataFrameTransformTask.ClientDataFrameIndexerBuilder(transformId)
                 .setAuditor(auditor)
                 .setClient(client)
-                .setIndexerState(currentIndexerState(transformPTaskState))
-                // If the transform persistent task state is `null` that means this is a "first run".
-                // If we have state then the task has relocated from another node in which case this
-                // state is preferred
-                .setInitialPosition(transformPTaskState == null ? null : transformPTaskState.getPosition())
-                .setProgress(transformPTaskState == null ? null : transformPTaskState.getProgress())
                 .setTransformsCheckpointService(dataFrameTransformsCheckpointService)
                 .setTransformsConfigManager(transformsConfigManager);
 
@@ -132,18 +126,22 @@ public class DataFrameTransformPersistentTasksExecutor extends PersistentTasksEx
         // Schedule execution regardless
         ActionListener<DataFrameTransformStateAndStats> transformStatsActionListener = ActionListener.wrap(
             stateAndStats -> {
-                indexerBuilder.setInitialStats(stateAndStats.getTransformStats());
-                if (transformPTaskState == null) { // prefer the persistent task state
-                    indexerBuilder.setInitialPosition(stateAndStats.getTransformState().getPosition());
-                    indexerBuilder.setProgress(stateAndStats.getTransformState().getProgress());
-                }
+                logger.trace("[{}] initializing state and stats: [{}]", transformId, stateAndStats.toString());
+                indexerBuilder.setInitialStats(stateAndStats.getTransformStats())
+                    .setInitialPosition(stateAndStats.getTransformState().getPosition())
+                    .setProgress(stateAndStats.getTransformState().getProgress())
+                    .setIndexerState(currentIndexerState(stateAndStats.getTransformState()));
+                logger.info("[{}] Loading existing state: [{}], position [{}]",
+                    transformId,
+                    stateAndStats.getTransformState(),
+                    stateAndStats.getTransformState().getPosition());
 
-                final Long checkpoint = previousCheckpoint != null ? previousCheckpoint : stateAndStats.getTransformState().getCheckpoint();
+                final Long checkpoint = stateAndStats.getTransformState().getCheckpoint();
                 startTask(buildTask, indexerBuilder, checkpoint, startTaskListener);
             },
             error -> {
                 if (error instanceof ResourceNotFoundException == false) {
-                    logger.error("Unable to load previously persisted statistics for transform [" + params.getId() + "]", error);
+                    logger.warn("Unable to load previously persisted statistics for transform [" + params.getId() + "]", error);
                 }
                 startTask(buildTask, indexerBuilder, previousCheckpoint, startTaskListener);
             }

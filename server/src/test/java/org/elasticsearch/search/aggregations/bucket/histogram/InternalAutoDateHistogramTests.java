@@ -44,7 +44,6 @@ import java.util.TreeMap;
 import static org.elasticsearch.common.unit.TimeValue.timeValueHours;
 import static org.elasticsearch.common.unit.TimeValue.timeValueMinutes;
 import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
-import static org.elasticsearch.search.aggregations.bucket.histogram.AutoDateHistogramAggregationBuilder.createRounding;
 import static org.hamcrest.Matchers.equalTo;
 
 public class InternalAutoDateHistogramTests extends InternalMultiBucketAggregationTestCase<InternalAutoDateHistogram> {
@@ -93,12 +92,12 @@ public class InternalAutoDateHistogramTests extends InternalMultiBucketAggregati
         // Since we pass 0 as the starting index to getAppropriateRounding, we'll also use
         // an innerInterval that is quite large, such that targetBuckets * roundings[i].getMaximumInnerInterval()
         // will be larger than the estimate.
-        roundings[0] = new RoundingInfo(createRounding(Rounding.DateTimeUnit.SECOND_OF_MINUTE, timeZone),
-            1000L, "s", "second", 1000);
-        roundings[1] = new RoundingInfo(createRounding(Rounding.DateTimeUnit.MINUTES_OF_HOUR, timeZone),
-            60 * 1000L, "m", "minute", 1, 5, 10, 30);
-        roundings[2] = new RoundingInfo(createRounding(Rounding.DateTimeUnit.HOUR_OF_DAY, timeZone),
-            60 * 60 * 1000L, "h", "hour" , 1, 3, 12);
+        roundings[0] = new RoundingInfo(Rounding.DateTimeUnit.SECOND_OF_MINUTE, timeZone,
+            1000L, "s", 1000);
+        roundings[1] = new RoundingInfo(Rounding.DateTimeUnit.MINUTES_OF_HOUR, timeZone,
+            60 * 1000L, "m", 1, 5, 10, 30);
+        roundings[2] = new RoundingInfo(Rounding.DateTimeUnit.HOUR_OF_DAY, timeZone,
+            60 * 60 * 1000L, "h", 1, 3, 12);
 
         OffsetDateTime timestamp = Instant.parse("2018-01-01T00:00:01.000Z").atOffset(ZoneOffset.UTC);
         // We want to pass a roundingIdx of zero, because in order to reproduce this bug, we need the function

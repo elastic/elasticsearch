@@ -67,7 +67,7 @@ public class AutoDateHistogramAggregationBuilder
         PARSER.declareStringOrNull(AutoDateHistogramAggregationBuilder::setMinimumIntervalExpression, MINIMUM_INTERVAL_FIELD);
     }
 
-    public static final Map<Rounding.DateTimeUnit, String> allowedIntervals = Map.ofEntries(
+    public static final Map<Rounding.DateTimeUnit, String> ALLOWED_INTERVALS = Map.ofEntries(
         entry(Rounding.DateTimeUnit.YEAR_OF_CENTURY, "year"),
         entry(Rounding.DateTimeUnit.MONTH_OF_YEAR, "month"),
         entry(Rounding.DateTimeUnit.DAY_OF_MONTH, "day"),
@@ -87,24 +87,18 @@ public class AutoDateHistogramAggregationBuilder
         int indexToSliceFrom = 0;
 
         RoundingInfo[] roundings = new RoundingInfo[6];
-        roundings[0] = new RoundingInfo(createRounding(Rounding.DateTimeUnit.SECOND_OF_MINUTE, timeZone),
-            1000L, "s",
-            allowedIntervals.get(Rounding.DateTimeUnit.SECOND_OF_MINUTE),1, 5, 10, 30);
-        roundings[1] = new RoundingInfo(createRounding(Rounding.DateTimeUnit.MINUTES_OF_HOUR, timeZone),
-            60 * 1000L, "m",
-            allowedIntervals.get(Rounding.DateTimeUnit.MINUTES_OF_HOUR), 1, 5, 10, 30);
-        roundings[2] = new RoundingInfo(createRounding(Rounding.DateTimeUnit.HOUR_OF_DAY, timeZone),
-            60 * 60 * 1000L, "h",
-            allowedIntervals.get(Rounding.DateTimeUnit.HOUR_OF_DAY), 1, 3, 12);
-        roundings[3] = new RoundingInfo(createRounding(Rounding.DateTimeUnit.DAY_OF_MONTH, timeZone),
-            24 * 60 * 60 * 1000L, "d",
-            allowedIntervals.get(Rounding.DateTimeUnit.DAY_OF_MONTH), 1, 7);
-        roundings[4] = new RoundingInfo(createRounding(Rounding.DateTimeUnit.MONTH_OF_YEAR, timeZone),
-            30 * 24 * 60 * 60 * 1000L, "M",
-            allowedIntervals.get(Rounding.DateTimeUnit.MONTH_OF_YEAR), 1, 3);
-        roundings[5] = new RoundingInfo(createRounding(Rounding.DateTimeUnit.YEAR_OF_CENTURY, timeZone),
-            365 * 24 * 60 * 60 * 1000L, "y",
-            allowedIntervals.get(Rounding.DateTimeUnit.YEAR_OF_CENTURY), 1, 5, 10, 20, 50, 100);
+        roundings[0] = new RoundingInfo(Rounding.DateTimeUnit.SECOND_OF_MINUTE,
+            timeZone, 1000L, "s",1, 5, 10, 30);
+        roundings[1] = new RoundingInfo(Rounding.DateTimeUnit.MINUTES_OF_HOUR, timeZone,
+            60 * 1000L, "m", 1, 5, 10, 30);
+        roundings[2] = new RoundingInfo(Rounding.DateTimeUnit.HOUR_OF_DAY, timeZone,
+            60 * 60 * 1000L, "h", 1, 3, 12);
+        roundings[3] = new RoundingInfo(Rounding.DateTimeUnit.DAY_OF_MONTH, timeZone,
+            24 * 60 * 60 * 1000L, "d", 1, 7);
+        roundings[4] = new RoundingInfo(Rounding.DateTimeUnit.MONTH_OF_YEAR, timeZone,
+            30 * 24 * 60 * 60 * 1000L, "M", 1, 3);
+        roundings[5] = new RoundingInfo(Rounding.DateTimeUnit.YEAR_OF_CENTURY, timeZone,
+            365 * 24 * 60 * 60 * 1000L, "y", 1, 5, 10, 20, 50, 100);
 
         for (int i = 0; i < roundings.length; i++) {
             RoundingInfo roundingInfo = roundings[i];
@@ -129,9 +123,9 @@ public class AutoDateHistogramAggregationBuilder
     }
 
     public AutoDateHistogramAggregationBuilder setMinimumIntervalExpression(String minimumIntervalExpression) {
-        if (minimumIntervalExpression != null && !allowedIntervals.containsValue(minimumIntervalExpression)) {
+        if (minimumIntervalExpression != null && !ALLOWED_INTERVALS.containsValue(minimumIntervalExpression)) {
             throw new IllegalArgumentException(MINIMUM_INTERVAL_FIELD.getPreferredName() +
-                " must be one of [" + allowedIntervals.values().toString() + "]");
+                " must be one of [" + ALLOWED_INTERVALS.values().toString() + "]");
         }
         this.minimumIntervalExpression = minimumIntervalExpression;
         return this;
@@ -245,16 +239,17 @@ public class AutoDateHistogramAggregationBuilder
         final String unitAbbreviation;
         final String dateTimeUnit;
 
-        public RoundingInfo(Rounding rounding,
+        public RoundingInfo(Rounding.DateTimeUnit dateTimeUnit,
+                            ZoneId timeZone,
                             long roughEstimateDurationMillis,
                             String unitAbbreviation,
-                            String dateTimeUnit,
                             int... innerIntervals) {
-            this.rounding = rounding;
+            this.rounding = createRounding(Rounding.DateTimeUnit.SECOND_OF_MINUTE, timeZone);
             this.roughEstimateDurationMillis = roughEstimateDurationMillis;
             this.unitAbbreviation = unitAbbreviation;
             this.innerIntervals = innerIntervals;
-            this.dateTimeUnit = dateTimeUnit;
+            assert dateTimeUnit != null;
+            this.dateTimeUnit = ALLOWED_INTERVALS.get(dateTimeUnit);
         }
 
         public RoundingInfo(StreamInput in) throws IOException {

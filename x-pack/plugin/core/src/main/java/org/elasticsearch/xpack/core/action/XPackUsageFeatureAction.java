@@ -39,4 +39,9 @@ public class XPackUsageFeatureAction extends Action<XPackUsageFeatureResponse> {
     public XPackUsageFeatureResponse newResponse() {
         return new XPackUsageFeatureResponse();
     }
+
+    @Override
+    public String toString() {
+        return "Action [" + name() + "]";
+    }
 }

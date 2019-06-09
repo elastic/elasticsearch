@@ -178,7 +178,7 @@ class IndicesAndAliasesResolver {
         } else {
             if (containsWildcards(indicesRequest)) {
                 throw new IllegalStateException("There are no external requests known to support wildcards that don't support replacing " +
-                        "their indices");
+                    "their indices." + "(This indicesRequest includes indices which name has wildcards(*) : " + Arrays.toString(indicesRequest.indices()) + ") \nPlesae remove wildcards from index name.";
             }
             //NOTE: shard level requests do support wildcards (as they hold the original indices options) but don't support
             // replacing their indices.

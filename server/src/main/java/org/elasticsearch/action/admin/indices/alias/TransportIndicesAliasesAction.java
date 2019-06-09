@@ -116,21 +116,21 @@ public class TransportIndicesAliasesAction extends TransportMasterNodeAction<Ind
                 return;
             }
             Collections.addAll(aliases, action.getOriginalAliases());
-            for (String index : Arrays.stream(concreteIndices).map(Index::getName).collect(Collectors.toList())) {
+            for (final Index index : concreteIndices) {
                 switch (action.actionType()) {
                 case ADD:
-                    for (String alias : concreteAliases(action, state.metaData(), index)) {
-                        finalActions.add(new AliasAction.Add(index, alias, action.filter(), action.indexRouting(),
+                    for (String alias : concreteAliases(action, state.metaData(), index.getName())) {
+                        finalActions.add(new AliasAction.Add(index.getName(), alias, action.filter(), action.indexRouting(),
                             action.searchRouting(), action.writeIndex()));
                     }
                     break;
                 case REMOVE:
-                    for (String alias : concreteAliases(action, state.metaData(), index)) {
-                        finalActions.add(new AliasAction.Remove(index, alias));
+                    for (String alias : concreteAliases(action, state.metaData(), index.getName())) {
+                        finalActions.add(new AliasAction.Remove(index.getName(), alias));
                     }
                     break;
                 case REMOVE_INDEX:
-                    finalActions.add(new AliasAction.RemoveIndex(index));
+                    finalActions.add(new AliasAction.RemoveIndex(index.getName()));
                     break;
                 default:
                     throw new IllegalArgumentException("Unsupported action [" + action.actionType() + "]");

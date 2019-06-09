@@ -20,6 +20,7 @@
 package org.elasticsearch.action.admin.indices.alias;
 
 import org.elasticsearch.ElasticsearchGenerationException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.AliasesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -62,6 +63,7 @@ import static org.elasticsearch.common.xcontent.ObjectParser.fromList;
 public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesRequest> implements ToXContentObject {
 
     private List<AliasActions> allAliasActions = new ArrayList<>();
+    private String origin = "";
 
     // indices options that require every specified index to exist, expand wildcards only to open
     // indices, don't allow that no indices are resolved from wildcard expressions and resolve the
@@ -526,6 +528,15 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
         }
     }
 
+    public String origin() {
+        return origin;
+    }
+
+    public IndicesAliasesRequest origin(final String origin) {
+        this.origin = Objects.requireNonNull(origin);
+        return this;
+    }
+
     /**
      * Add the action to this request and validate it.
      */
@@ -556,12 +567,23 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         allAliasActions = in.readList(AliasActions::new);
+        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+            origin = in.readOptionalString();
+        } else {
+            origin = null;
+        }
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeList(allAliasActions);
+        // noinspection StatementWithEmptyBody
+        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+            out.writeOptionalString(origin);
+        } else {
+            // nothing to do here, here for symmetry with IndicesAliasesRequest#readFrom
+        }
     }
 
     public IndicesOptions indicesOptions() {

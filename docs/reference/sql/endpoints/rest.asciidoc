@@ -30,7 +30,7 @@ Alastair Reynolds|Revelation Space    |585            |2000-03-15T00:00:00.000Z
 James S.A. Corey |Leviathan Wakes     |561            |2011-06-02T00:00:00.000Z
 --------------------------------------------------
 // TESTRESPONSE[s/\|/\\|/ s/\+/\\+/]
-// TESTRESPONSE[_cat]
+// TESTRESPONSE[non_json]
 
 [[sql-kibana-console]]
 .Using Kibana Console
@@ -233,7 +233,7 @@ Which returns:
 Douglas Adams  |The Hitchhiker's Guide to the Galaxy|180            |1979-10-12T00:00:00.000Z
 --------------------------------------------------
 // TESTRESPONSE[s/\|/\\|/ s/\+/\\+/]
-// TESTRESPONSE[_cat]
+// TESTRESPONSE[non_json]
 
 [[sql-rest-columnar]]
 [float]

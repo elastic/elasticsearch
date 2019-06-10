@@ -49,8 +49,11 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.join.mapper.MetaJoinFieldMapper;
 import org.elasticsearch.join.mapper.ParentJoinFieldMapper;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
+import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.InternalMin;
 import org.elasticsearch.search.aggregations.metrics.MinAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.TopHitsAggregationBuilder;
+import org.elasticsearch.search.aggregations.support.ValueType;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -67,6 +70,7 @@ public class ParentToChildrenAggregatorTests extends AggregatorTestCase {
 
     private static final String CHILD_TYPE = "child_type";
     private static final String PARENT_TYPE = "parent_type";
+    private static final String JOIN_FIELD = "join_field";
 
     public void testNoDocs() throws IOException {
         Directory directory = newDirectory();
@@ -120,6 +124,41 @@ public class ParentToChildrenAggregatorTests extends AggregatorTestCase {
         directory.close();
     }
 
+    /**
+     * Ensure that ParenChild agg cannot have a scoring aggregation as sub-aggregation
+     */
+    public void testRejectScoringSubAgg() throws IOException {
+        Directory directory = newDirectory();
+        RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory);
+
+        final Map<String, Tuple<Integer, Integer>> expectedParentChildRelations = setupIndex(indexWriter);
+        indexWriter.close();
+
+        IndexReader indexReader = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(directory),
+            new ShardId(new Index("foo", "_na_"), 1));
+        // TODO set "maybeWrap" to true for IndexSearcher once #23338 is resolved
+        IndexSearcher indexSearcher = newSearcher(indexReader, false, true);
+
+        ChildrenAggregationBuilder childAggBuilder = new ChildrenAggregationBuilder("children-agg", CHILD_TYPE);
+        TermsAggregationBuilder termsAggBuilder = new TermsAggregationBuilder("term-agg", ValueType.NUMERIC).field("number");
+        TopHitsAggregationBuilder topHitsAggBuilder = new TopHitsAggregationBuilder("tophits-agg");
+
+        // Nest aggregations children-agg -> term-agg -> tophits-agg
+        childAggBuilder.subAggregation(termsAggBuilder);
+        termsAggBuilder.subAggregation(topHitsAggBuilder);
+
+        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG);
+        fieldType.setName("number");
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+                () -> search(indexSearcher, new TermInSetQuery(JOIN_FIELD, Uid.encodeId(PARENT_TYPE)), childAggBuilder, fieldType));
+        assertEquals("ParentJoin agg [children-agg] has a scoring sub-agg [term-agg]. This combination is not supported.",
+            e.getMessage());
+
+        indexReader.close();
+        directory.close();
+    }
+
     private static Map<String, Tuple<Integer, Integer>> setupIndex(RandomIndexWriter iw) throws IOException {
         Map<String, Tuple<Integer, Integer>> expectedValues = new HashMap<>();
         int numParents = randomIntBetween(1, 10);
@@ -141,7 +180,7 @@ public class ParentToChildrenAggregatorTests extends AggregatorTestCase {
     private static List<Field> createParentDocument(String id) {
         return Arrays.asList(
                 new StringField(IdFieldMapper.NAME, Uid.encodeId(id), Field.Store.NO),
-                new StringField("join_field", PARENT_TYPE, Field.Store.NO),
+                new StringField(JOIN_FIELD, PARENT_TYPE, Field.Store.NO),
                 createJoinField(PARENT_TYPE, id)
         );
     }
@@ -149,14 +188,14 @@ public class ParentToChildrenAggregatorTests extends AggregatorTestCase {
     private static List<Field> createChildDocument(String childId, String parentId, int value) {
         return Arrays.asList(
                 new StringField(IdFieldMapper.NAME, Uid.encodeId(childId), Field.Store.NO),
-                new StringField("join_field", CHILD_TYPE, Field.Store.NO),
+                new StringField(JOIN_FIELD, CHILD_TYPE, Field.Store.NO),
                 createJoinField(PARENT_TYPE, parentId),
                 new SortedNumericDocValuesField("number", value)
         );
     }
 
     private static SortedDocValuesField createJoinField(String parentType, String id) {
-        return new SortedDocValuesField("join_field#" + parentType, new BytesRef(id));
+        return new SortedDocValuesField(JOIN_FIELD + "#" + parentType, new BytesRef(id));
     }
 
     @Override
@@ -171,7 +210,7 @@ public class ParentToChildrenAggregatorTests extends AggregatorTestCase {
 
     private static ParentJoinFieldMapper createJoinFieldMapper() {
         Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
-        return new ParentJoinFieldMapper.Builder("join_field")
+        return new ParentJoinFieldMapper.Builder(JOIN_FIELD)
                 .addParent(PARENT_TYPE, Collections.singleton(CHILD_TYPE))
                 .build(new Mapper.BuilderContext(settings, new ContentPath(0)));
     }

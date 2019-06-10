@@ -82,6 +82,20 @@ public abstract class ParentJoinAggregator extends BucketsAggregator implements 
                 "for this aggregation: " + Integer.MAX_VALUE);
         }
 
+        String scoringAgg = subAggsNeedScore();
+        if (scoringAgg != null) {
+            /*
+             * It is generally expected that query and aggregation match the same document. This is not
+             * the case with parent/children join aggregators, because they switch the context of the query
+             * to documents so that they don't necessarily match the parent query. Therefore, we should not
+             * allow sub-aggregations that use _score.
+             *
+             * Fixes issue https://github.com/elastic/elasticsearch/issues/37650
+             */
+            throw new IllegalArgumentException("ParentJoin agg [" + name() + "] has a scoring sub-agg [" + scoringAgg
+                + "]. This combination is not supported.");
+        }
+
         // these two filters are cached in the parser
         this.inFilter = context.searcher().createWeight(context.searcher().rewrite(inFilter), ScoreMode.COMPLETE_NO_SCORES, 1f);
         this.outFilter = context.searcher().createWeight(context.searcher().rewrite(outFilter), ScoreMode.COMPLETE_NO_SCORES, 1f);
@@ -169,5 +183,21 @@ public abstract class ParentJoinAggregator extends BucketsAggregator implements 
     @Override
     protected void doClose() {
         Releasables.close(ordsBit, ordsHash);
+    }
+
+    /**
+     * Iterate over all sub-aggregators and return the name of the first
+     * aggregator that requires scoring.
+     *
+     * @return the name of the aggregator that requires scoring, null if none is found
+     */
+    // TODO: Perhaps we should move this to the AggregatorBase class, as it is used by other aggs
+    private String subAggsNeedScore() {
+        for (Aggregator subAgg : subAggregators) {
+            if (subAgg.scoreMode().needsScores()) {
+                return subAgg.name();
+            }
+        }
+        return null;
     }
 }

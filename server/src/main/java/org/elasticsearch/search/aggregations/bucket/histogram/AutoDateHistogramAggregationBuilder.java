@@ -244,11 +244,14 @@ public class AutoDateHistogramAggregationBuilder
                             long roughEstimateDurationMillis,
                             String unitAbbreviation,
                             int... innerIntervals) {
-            this.rounding = createRounding(Rounding.DateTimeUnit.SECOND_OF_MINUTE, timeZone);
+            this.rounding = createRounding(dateTimeUnit, timeZone);
             this.roughEstimateDurationMillis = roughEstimateDurationMillis;
             this.unitAbbreviation = unitAbbreviation;
             this.innerIntervals = innerIntervals;
-            assert dateTimeUnit != null;
+            Objects.requireNonNull(dateTimeUnit, "dateTimeUnit cannot be null");
+            if (!ALLOWED_INTERVALS.containsKey(dateTimeUnit)) {
+                throw new IllegalArgumentException("dateTimeUnit must be one of " + ALLOWED_INTERVALS.keySet().toString());
+            }
             this.dateTimeUnit = ALLOWED_INTERVALS.get(dateTimeUnit);
         }
 

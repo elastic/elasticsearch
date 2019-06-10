@@ -21,6 +21,11 @@ package org.elasticsearch.search.aggregations.bucket.histogram;
 
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.Set;
+import java.util.stream.Collectors;
+
 import static org.hamcrest.Matchers.equalTo;
 
 public class AutoDateHistogramAggregationBuilderTests extends ESTestCase {
@@ -33,15 +38,30 @@ public class AutoDateHistogramAggregationBuilderTests extends ESTestCase {
     }
 
     public void testBuildRoundingsWithNullParameter() {
+        int expectedLength = AutoDateHistogramAggregationBuilder.ALLOWED_INTERVALS.size();
         AutoDateHistogramAggregationBuilder.RoundingInfo[] roundings = AutoDateHistogramAggregationBuilder.buildRoundings(null, null);
-        assertThat(roundings.length, equalTo(6));
+        assertThat(roundings.length, equalTo(expectedLength));
     }
 
-    public void testBuildRoundingsWithMinInterval() {
+    public void testBuildRoundingsWithMinIntervalOfAYear() {
+        int[] expectedYearIntervals = { 1, 5, 10, 20, 50, 100 };
         AutoDateHistogramAggregationBuilder.RoundingInfo[] roundings = AutoDateHistogramAggregationBuilder.buildRoundings(null, "year");
         assertThat(roundings.length, equalTo(1));
-        roundings = AutoDateHistogramAggregationBuilder.buildRoundings(null, "second");
-        assertThat(roundings.length, equalTo(6));
+        AutoDateHistogramAggregationBuilder.RoundingInfo year = roundings[0];
+        assertEquals(year.unitAbbreviation, "y");
+        assertEquals(year.dateTimeUnit, "year");
+        assertEquals(year.roughEstimateDurationMillis, 31536000000L);
+        assertArrayEquals(year.innerIntervals, expectedYearIntervals);
+    }
+
+    public void testRoundingsMatchAllowedIntervals() {
+        AutoDateHistogramAggregationBuilder.RoundingInfo[] roundings = AutoDateHistogramAggregationBuilder.buildRoundings(
+            null, "second");
+        Set<String> actualDateTimeUnits = Arrays.stream(roundings)
+            .map(AutoDateHistogramAggregationBuilder.RoundingInfo::getDateTimeUnit)
+            .collect(Collectors.toSet());
+        Set<String> expectedDateTimeUnits = new HashSet<>(AutoDateHistogramAggregationBuilder.ALLOWED_INTERVALS.values());
+        assertEquals(actualDateTimeUnits, expectedDateTimeUnits);
     }
 
 }

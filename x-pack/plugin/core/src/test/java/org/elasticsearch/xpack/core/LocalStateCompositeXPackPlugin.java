@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.core;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.RequestValidators;
+import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.bootstrap.BootstrapCheck;
@@ -439,8 +440,17 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin implements Scrip
                 .collect(Collectors.toList());
     }
 
+    @Override
+    public Collection<RequestValidators.RequestValidator<IndicesAliasesRequest>> indicesAliasesRequestValidators() {
+        return filterPlugins(ActionPlugin.class)
+                .stream()
+                .flatMap(p -> p.indicesAliasesRequestValidators().stream())
+                .collect(Collectors.toList());
+    }
+
     private <T> List<T> filterPlugins(Class<T> type) {
         return plugins.stream().filter(x -> type.isAssignableFrom(x.getClass())).map(p -> ((T)p))
                 .collect(Collectors.toList());
     }
+
 }

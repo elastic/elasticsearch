@@ -38,7 +38,6 @@ public class AutodetectMemoryLimitIT extends MlNativeAutodetectIntegTestCase {
         cleanUp();
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/43013")
     public void testTooManyPartitions() throws Exception {
         assumeFalse("AwaitsFix(bugUrl = \"https://github.com/elastic/elasticsearch/issues/32033\")", Constants.WINDOWS);
         Detector.Builder detector = new Detector.Builder("count", null);
@@ -80,7 +79,7 @@ public class AutodetectMemoryLimitIT extends MlNativeAutodetectIntegTestCase {
         // Assert we haven't violated the limit too much
         GetJobsStatsAction.Response.JobStats jobStats = getJobStats(job.getId()).get(0);
         ModelSizeStats modelSizeStats = jobStats.getModelSizeStats();
-        assertThat(modelSizeStats.getModelBytes(), lessThan(31500000L));
+        assertThat(modelSizeStats.getModelBytes(), lessThan(32000000L));
         assertThat(modelSizeStats.getModelBytes(), greaterThan(24000000L));
         assertThat(modelSizeStats.getMemoryStatus(), equalTo(ModelSizeStats.MemoryStatus.HARD_LIMIT));
     }

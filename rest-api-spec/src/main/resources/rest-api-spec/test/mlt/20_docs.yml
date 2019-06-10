@@ -41,12 +41,10 @@
                 like:
                   -
                     _index: test_1
-                    _type: _doc
                     doc:
                       foo: bar
                   -
                     _index: test_1
-                    _type: _doc
                     _id: 2
                   -
                     _id: 3

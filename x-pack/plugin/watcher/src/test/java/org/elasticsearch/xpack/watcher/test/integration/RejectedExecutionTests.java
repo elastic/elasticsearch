@@ -9,7 +9,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.xpack.core.XPackSettings;
-import org.elasticsearch.xpack.core.watcher.client.WatcherClient;
+import org.elasticsearch.xpack.core.watcher.transport.actions.put.PutWatchRequestBuilder;
 import org.elasticsearch.xpack.watcher.condition.CompareCondition;
 import org.elasticsearch.xpack.watcher.support.search.WatcherSearchTemplateRequest;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
@@ -34,12 +34,11 @@ public class RejectedExecutionTests extends AbstractWatcherIntegrationTestCase {
     }
 
     public void testHistoryOnRejection() throws Exception {
-        WatcherClient watcherClient = watcherClient();
         createIndex("idx");
         client().prepareIndex("idx", "_doc").setSource("field", "a").get();
         refresh();
         WatcherSearchTemplateRequest request = templateRequest(searchSource().query(termQuery("field", "a")), "idx");
-        watcherClient.preparePutWatch(randomAlphaOfLength(5))
+        new PutWatchRequestBuilder(client()).setId(randomAlphaOfLength(5))
             .setSource(watchBuilder()
                 .trigger(schedule(interval(1, IntervalSchedule.Interval.Unit.SECONDS)))
                 .input(searchInput(request))

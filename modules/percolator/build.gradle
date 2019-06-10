@@ -20,7 +20,6 @@
 esplugin {
     description 'Percolator module adds capability to index queries and query these queries by specifying documents'
     classname 'org.elasticsearch.percolator.PercolatorPlugin'
-    hasClientJar = true
 }
 
 dependencies {

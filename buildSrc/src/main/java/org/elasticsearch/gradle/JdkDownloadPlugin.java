@@ -23,6 +23,7 @@ import org.gradle.api.Action;
 import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
+import org.gradle.api.Task;
 import org.gradle.api.UnknownTaskException;
 import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.artifacts.ConfigurationContainer;
@@ -165,7 +166,12 @@ public class JdkDownloadPlugin implements Plugin<Project> {
         }
         String extractDir = rootProject.getBuildDir().toPath().resolve("jdks/openjdk-" + jdkVersion + "_" + platform).toString();
         TaskProvider<Copy> extractTask = rootProject.getTasks().register(extractTaskName, Copy.class, copyTask -> {
-            copyTask.doFirst(t -> rootProject.delete(extractDir));
+            copyTask.doFirst(new Action<Task>() {
+                @Override
+                public void execute(Task t) {
+                    rootProject.delete(extractDir);
+                }
+            });
             copyTask.into(extractDir);
             copyTask.from(fileGetter, removeRootDir);
         });

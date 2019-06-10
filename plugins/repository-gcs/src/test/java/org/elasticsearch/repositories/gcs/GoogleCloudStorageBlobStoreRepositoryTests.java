@@ -27,7 +27,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.blobstore.ESBlobStoreRepositoryIntegTestCase;
-import org.junit.AfterClass;
+import org.junit.After;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -67,8 +67,8 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESBlobStoreRepos
         assertThat(repository, instanceOf(GoogleCloudStorageRepository.class));
     }
 
-    @AfterClass
-    public static void wipeRepository() {
+    @After
+    public void wipeRepository() {
         blobs.clear();
     }
 

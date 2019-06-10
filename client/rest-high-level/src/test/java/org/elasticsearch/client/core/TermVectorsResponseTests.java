@@ -22,11 +22,11 @@ package org.elasticsearch.client.core;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.test.ESTestCase;
 
-import java.util.ArrayList;
-import java.util.List;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.List;
 
 import static org.elasticsearch.test.AbstractXContentTestCase.xContentTester;
 
@@ -47,7 +47,6 @@ public class TermVectorsResponseTests extends ESTestCase {
     static void toXContent(TermVectorsResponse response, XContentBuilder builder) throws IOException {
         builder.startObject();
         builder.field("_index", response.getIndex());
-        builder.field("_type", response.getType());
         if (response.getId() != null) {
             builder.field("_id", response.getId());
         }
@@ -119,7 +118,6 @@ public class TermVectorsResponseTests extends ESTestCase {
 
     static TermVectorsResponse createTestInstance() {
         String index = randomAlphaOfLength(5);
-        String type = randomAlphaOfLength(5);
         String id = String.valueOf(randomIntBetween(1,100));
         long version = randomNonNegativeLong();
         long tookInMillis = randomNonNegativeLong();
@@ -142,7 +140,7 @@ public class TermVectorsResponseTests extends ESTestCase {
                     fieldName, hasFieldStatistics, hasTermStatistics, hasScores, hasOffsets, hasPositions, hasPayloads));
             }
         }
-        TermVectorsResponse tvresponse = new TermVectorsResponse(index, type, id, version, found, tookInMillis, tvList);
+        TermVectorsResponse tvresponse = new TermVectorsResponse(index, id, version, found, tookInMillis, tvList);
         return tvresponse;
     }
 

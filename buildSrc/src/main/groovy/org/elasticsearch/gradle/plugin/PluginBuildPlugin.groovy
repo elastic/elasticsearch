@@ -19,7 +19,6 @@
 package org.elasticsearch.gradle.plugin
 
 import com.github.jengelman.gradle.plugins.shadow.ShadowPlugin
-import nebula.plugin.publishing.maven.MavenScmPlugin
 import org.elasticsearch.gradle.BuildPlugin
 import org.elasticsearch.gradle.NoticeTask
 import org.elasticsearch.gradle.Version
@@ -27,29 +26,29 @@ import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.test.RestIntegTestTask
 import org.elasticsearch.gradle.test.RunTask
 import org.elasticsearch.gradle.testclusters.TestClustersPlugin
+import org.elasticsearch.gradle.tool.ClasspathUtils
 import org.gradle.api.InvalidUserDataException
+import org.gradle.api.Plugin
 import org.gradle.api.Project
 import org.gradle.api.Task
 import org.gradle.api.publish.maven.MavenPublication
 import org.gradle.api.publish.maven.plugins.MavenPublishPlugin
-import org.gradle.api.publish.maven.tasks.GenerateMavenPom
 import org.gradle.api.tasks.Copy
 import org.gradle.api.tasks.SourceSet
 import org.gradle.api.tasks.bundling.Zip
-import org.gradle.jvm.tasks.Jar
 
 import java.util.regex.Matcher
 import java.util.regex.Pattern
 /**
  * Encapsulates build configuration for an Elasticsearch plugin.
  */
-class PluginBuildPlugin extends BuildPlugin {
+class PluginBuildPlugin implements Plugin<Project> {
 
     public static final String PLUGIN_EXTENSION_NAME = 'esplugin'
 
     @Override
     void apply(Project project) {
-        super.apply(project)
+        project.pluginManager.apply(BuildPlugin)
 
         PluginPropertiesExtension extension = project.extensions.create(PLUGIN_EXTENSION_NAME, PluginPropertiesExtension, project)
         configureDependencies(project)
@@ -130,31 +129,21 @@ class PluginBuildPlugin extends BuildPlugin {
     }
 
     private void configurePublishing(Project project, PluginPropertiesExtension extension) {
-        // Only configure publishing if applied externally
-        if (extension.hasClientJar) {
-            project.plugins.apply(MavenScmPlugin.class)
-            // Only change Jar tasks, we don't want a -client zip so we can't change archivesBaseName
-            project.tasks.withType(Jar) {
-                baseName = baseName + "-client"
-            }
-            // always configure publishing for client jars
-            project.plugins.apply(MavenScmPlugin.class)
-            project.publishing.publications.nebula(MavenPublication).artifactId(extension.name + "-client")
-            project.tasks.withType(GenerateMavenPom.class) { GenerateMavenPom generatePOMTask ->
-                generatePOMTask.ext.pomFileName = "${project.archivesBaseName}-client-${project.versions.elasticsearch}.pom"
-            }
-        } else {
-            if (project.plugins.hasPlugin(MavenPublishPlugin)) {
-                project.publishing.publications.nebula(MavenPublication).artifactId(extension.name)
-            }
-
+        if (project.plugins.hasPlugin(MavenPublishPlugin)) {
+            project.publishing.publications.nebula(MavenPublication).artifactId(extension.name)
         }
+
     }
 
     private static void configureDependencies(Project project) {
         project.dependencies {
-            compileOnly "org.elasticsearch:elasticsearch:${project.versions.elasticsearch}"
-            testCompile "org.elasticsearch.test:framework:${project.versions.elasticsearch}"
+            if (ClasspathUtils.isElasticsearchProject()) {
+                compileOnly project.project(':server')
+                testCompile project.project(':test:framework')
+            } else {
+                compileOnly "org.elasticsearch:elasticsearch:${project.versions.elasticsearch}"
+                testCompile "org.elasticsearch.test:framework:${project.versions.elasticsearch}"
+            }
             // we "upgrade" these optional deps to provided for plugins, since they will run
             // with a full elasticsearch server that includes optional deps
             compileOnly "org.locationtech.spatial4j:spatial4j:${project.versions.spatial4j}"
@@ -258,8 +247,6 @@ class PluginBuildPlugin extends BuildPlugin {
         project.configurations.create('zip')
         project.artifacts.add('zip', bundle)
     }
-
-    /** Adds a task to move jar and associated files to a "-client" name. */
 
     static final Pattern GIT_PATTERN = Pattern.compile(/git@([^:]+):([^\.]+)\.git/)
 

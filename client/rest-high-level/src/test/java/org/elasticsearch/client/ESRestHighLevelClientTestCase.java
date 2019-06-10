@@ -131,7 +131,7 @@ public abstract class ESRestHighLevelClientTestCase extends ESRestTestCase {
 
     private static class HighLevelClient extends RestHighLevelClient {
         private HighLevelClient(RestClient restClient) {
-            super(restClient, (client) -> {}, new SearchModule(Settings.EMPTY, false, Collections.emptyList()).getNamedXContents());
+            super(restClient, (client) -> {}, new SearchModule(Settings.EMPTY, Collections.emptyList()).getNamedXContents());
         }
     }
 

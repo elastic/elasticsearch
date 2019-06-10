@@ -584,17 +584,17 @@ public class SimpleRoutingIT extends ESIntegTestCase {
         }
 
         logger.info("--> verifying term vector with id [1], with routing [0], should succeed");
-        TermVectorsResponse termVectorsResponse = client().prepareTermVectors(indexOrAlias(), "type1", "1")
+        TermVectorsResponse termVectorsResponse = client().prepareTermVectors(indexOrAlias(), "1")
                                                           .setRouting(routingValue)
                                                           .get();
         assertThat(termVectorsResponse.isExists(), equalTo(true));
         assertThat(termVectorsResponse.getId(), equalTo("1"));
 
         try {
-            client().prepareTermVectors(indexOrAlias(), "type1", "1").get();
+            client().prepareTermVectors(indexOrAlias(), "1").get();
             fail();
         } catch (RoutingMissingException e) {
-            assertThat(e.getMessage(), equalTo("routing is required for [test]/[type1]/[1]"));
+            assertThat(e.getMessage(), equalTo("routing is required for [test]/[_doc]/[1]"));
         }
 
         UpdateResponse updateResponse = client().prepareUpdate(indexOrAlias(), "type1", "1").setRouting(routingValue)
@@ -632,9 +632,9 @@ public class SimpleRoutingIT extends ESIntegTestCase {
         assertThat(multiGetResponse.getResponses()[1].getFailure().getMessage(), equalTo("routing is required for [test]/[type1]/[2]"));
 
         MultiTermVectorsResponse multiTermVectorsResponse = client().prepareMultiTermVectors()
-                                                                    .add(new TermVectorsRequest(indexOrAlias(), "type1", "1")
+                .add(new TermVectorsRequest(indexOrAlias(), "1")
                                                                         .routing(routingValue))
-                                                                    .add(new TermVectorsRequest(indexOrAlias(), "type1", "2")
+                .add(new TermVectorsRequest(indexOrAlias(), "2")
                                                                         .routing(routingValue))
                                                                     .get();
         assertThat(multiTermVectorsResponse.getResponses().length, equalTo(2));
@@ -648,21 +648,20 @@ public class SimpleRoutingIT extends ESIntegTestCase {
         assertThat(multiTermVectorsResponse.getResponses()[1].getResponse().isExists(), equalTo(true));
 
         multiTermVectorsResponse = client().prepareMultiTermVectors()
-                                           .add(new TermVectorsRequest(indexOrAlias(), "type1", "1"))
-                                           .add(new TermVectorsRequest(indexOrAlias(), "type1", "2")).get();
+                .add(new TermVectorsRequest(indexOrAlias(), "1")).add(new TermVectorsRequest(indexOrAlias(), "2")).get();
         assertThat(multiTermVectorsResponse.getResponses().length, equalTo(2));
         assertThat(multiTermVectorsResponse.getResponses()[0].getId(), equalTo("1"));
         assertThat(multiTermVectorsResponse.getResponses()[0].isFailed(), equalTo(true));
         assertThat(multiTermVectorsResponse.getResponses()[0].getFailure()
                                                              .getCause()
-                                                             .getMessage(), equalTo("routing is required for [test]/[type1]/[1]"));
+                                                             .getMessage(), equalTo("routing is required for [test]/[_doc]/[1]"));
         assertThat(multiTermVectorsResponse.getResponses()[0].getResponse(), nullValue());
         assertThat(multiTermVectorsResponse.getResponses()[1].getId(), equalTo("2"));
         assertThat(multiTermVectorsResponse.getResponses()[1].isFailed(), equalTo(true));
         assertThat(multiTermVectorsResponse.getResponses()[1].getResponse(), nullValue());
         assertThat(multiTermVectorsResponse.getResponses()[1].getFailure()
                                                              .getCause()
-                                                             .getMessage(), equalTo("routing is required for [test]/[type1]/[2]"));
+                                                             .getMessage(), equalTo("routing is required for [test]/[_doc]/[2]"));
     }
 
     private static String indexOrAlias() {

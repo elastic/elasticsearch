@@ -17,6 +17,9 @@ import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
+import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
+import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
+import org.elasticsearch.action.admin.indices.alias.get.GetAliasesResponse;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsRequest;
@@ -43,6 +46,7 @@ import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.health.ClusterIndexHealth;
 import org.elasticsearch.cluster.health.ClusterShardHealth;
+import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
@@ -103,11 +107,13 @@ import static java.util.Collections.singletonMap;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.ccr.CcrRetentionLeases.retentionLeaseId;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -410,6 +416,43 @@ public class IndexFollowingIT extends CcrIntegTestCase {
         assertAcked(followerClient().execute(UnfollowAction.INSTANCE, new UnfollowAction.Request("index-2")).actionGet());
         followerClient().admin().indices().open(new OpenIndexRequest("index-2")).actionGet();
         assertAcked(followerClient().admin().indices().putMapping(putMappingRequest).actionGet());
+    }
+
+    public void testDoNotAllowAddAliasToFollower() throws Exception {
+        final String leaderIndexSettings =
+                getIndexSettings(between(1, 2), between(0, 1), singletonMap(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true"));
+        assertAcked(leaderClient().admin().indices().prepareCreate("leader").setSource(leaderIndexSettings, XContentType.JSON));
+        followerClient().execute(PutFollowAction.INSTANCE, putFollow("leader", "follower")).get();
+        final IndicesAliasesRequest request = new IndicesAliasesRequest()
+                .addAliasAction(IndicesAliasesRequest.AliasActions.add().index("follower").alias("follower_alias"));
+        final ElasticsearchStatusException e =
+                expectThrows(ElasticsearchStatusException.class, () -> followerClient().admin().indices().aliases(request).actionGet());
+        assertThat(
+                e,
+                hasToString(containsString("can't modify aliases on indices [follower]; "
+                        + "aliases of following indices are self-replicated from their leader indices")));
+        assertThat(e.status(), equalTo(RestStatus.FORBIDDEN));
+    }
+
+    public void testAddAliasAfterUnfollow() throws Exception {
+        final String leaderIndexSettings =
+                getIndexSettings(between(1, 2), between(0, 1), singletonMap(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true"));
+        assertAcked(leaderClient().admin().indices().prepareCreate("leader").setSource(leaderIndexSettings, XContentType.JSON));
+        followerClient().execute(PutFollowAction.INSTANCE, putFollow("leader", "follower")).get();
+        pauseFollow("follower");
+        followerClient().admin().indices().close(new CloseIndexRequest("follower")).actionGet();
+        assertAcked(followerClient().execute(UnfollowAction.INSTANCE, new UnfollowAction.Request("follower")).actionGet());
+        followerClient().admin().indices().open(new OpenIndexRequest("follower")).actionGet();
+        final IndicesAliasesRequest request = new IndicesAliasesRequest()
+                .addAliasAction(IndicesAliasesRequest.AliasActions.add().index("follower").alias("follower_alias"));
+        assertAcked(followerClient().admin().indices().aliases(request).actionGet());
+        final GetAliasesResponse response =
+                followerClient().admin().indices().getAliases(new GetAliasesRequest("follower_alias")).actionGet();
+        assertThat(response.getAliases().keys().size(), equalTo(1));
+        assertThat(response.getAliases().keys().iterator().next().value, equalTo("follower"));
+        final List<AliasMetaData> aliasMetaData = response.getAliases().get("follower");
+        assertThat(aliasMetaData, hasSize(1));
+        assertThat(aliasMetaData.get(0).alias(), equalTo("follower_alias"));
     }
 
     public void testFollowIndex_backlog() throws Exception {

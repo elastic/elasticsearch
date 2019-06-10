@@ -23,6 +23,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.dataframe.action.DeleteDataFrameTransformAction;
 import org.elasticsearch.xpack.core.dataframe.action.DeleteDataFrameTransformAction.Request;
+import org.elasticsearch.xpack.dataframe.notifications.DataFrameAuditor;
 import org.elasticsearch.xpack.dataframe.persistence.DataFrameTransformsConfigManager;
 
 import java.io.IOException;
@@ -30,14 +31,16 @@ import java.io.IOException;
 public class TransportDeleteDataFrameTransformAction extends TransportMasterNodeAction<Request, AcknowledgedResponse> {
 
     private final DataFrameTransformsConfigManager transformsConfigManager;
+    private final DataFrameAuditor auditor;
 
     @Inject
     public TransportDeleteDataFrameTransformAction(TransportService transportService, ActionFilters actionFilters, ThreadPool threadPool,
                                                    ClusterService clusterService, IndexNameExpressionResolver indexNameExpressionResolver,
-                                                   DataFrameTransformsConfigManager transformsConfigManager) {
+                                                   DataFrameTransformsConfigManager transformsConfigManager, DataFrameAuditor auditor) {
         super(DeleteDataFrameTransformAction.NAME, transportService, clusterService, threadPool, actionFilters,
                 Request::new, indexNameExpressionResolver);
         this.transformsConfigManager = transformsConfigManager;
+        this.auditor = auditor;
     }
 
     @Override
@@ -65,7 +68,10 @@ public class TransportDeleteDataFrameTransformAction extends TransportMasterNode
         } else {
             // Task is not running, delete the configuration document
             transformsConfigManager.deleteTransform(request.getId(), ActionListener.wrap(
-                    r -> listener.onResponse(new AcknowledgedResponse(r)),
+                    r -> {
+                        auditor.info(request.getId(), "Deleted data frame transform.");
+                        listener.onResponse(new AcknowledgedResponse(r));
+                    },
                     listener::onFailure));
         }
     }

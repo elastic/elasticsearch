@@ -10,7 +10,7 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.xpack.core.dataframe.DataFrameField;
-import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameIndexerTransformStats;
+import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformStateAndStats;
 import org.elasticsearch.xpack.dataframe.persistence.DataFrameInternalIndex;
 import org.junit.Before;
 
@@ -72,7 +72,7 @@ public class DataFrameUsageIT extends DataFrameRestTestCase {
         Request statsExistsRequest = new Request("GET",
             DataFrameInternalIndex.INDEX_NAME+"/_search?q=" +
                 INDEX_DOC_TYPE.getPreferredName() + ":" +
-                DataFrameIndexerTransformStats.NAME);
+                DataFrameTransformStateAndStats.NAME);
         // Verify that we have our two stats documents
         assertBusy(() -> {
             Map<String, Object> hasStatsMap = entityAsMap(client().performRequest(statsExistsRequest));
@@ -100,7 +100,6 @@ public class DataFrameUsageIT extends DataFrameRestTestCase {
             expectedStats.merge(statName, statistic, Integer::sum);
         }
 
-
         usageResponse = client().performRequest(new Request("GET", "_xpack/usage"));
 
         usageAsMap = entityAsMap(usageResponse);
@@ -109,7 +108,8 @@ public class DataFrameUsageIT extends DataFrameRestTestCase {
         assertEquals(1, XContentMapValues.extractValue("data_frame.transforms.started", usageAsMap));
         assertEquals(2, XContentMapValues.extractValue("data_frame.transforms.stopped", usageAsMap));
         for(String statName : PROVIDED_STATS) {
-            assertEquals(expectedStats.get(statName), XContentMapValues.extractValue("data_frame.stats."+statName, usageAsMap));
+            assertEquals("Incorrect stat " +  statName,
+                    expectedStats.get(statName), XContentMapValues.extractValue("data_frame.stats." + statName, usageAsMap));
         }
     }
 }

@@ -140,15 +140,13 @@ public class AliasMetaData extends AbstractDiffable<AliasMetaData> implements To
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
 
-        AliasMetaData that = (AliasMetaData) o;
+        final AliasMetaData that = (AliasMetaData) o;
 
         if (alias != null ? !alias.equals(that.alias) : that.alias != null) return false;
         if (filter != null ? !filter.equals(that.filter) : that.filter != null) return false;
         if (indexRouting != null ? !indexRouting.equals(that.indexRouting) : that.indexRouting != null) return false;
-        if (searchRouting != null ? !searchRouting.equals(that.searchRouting) : that.searchRouting != null)
-            return false;
-        if (writeIndex != null ? writeIndex != that.writeIndex : that.writeIndex != null)
-            return false;
+        if (searchRouting != null ? !searchRouting.equals(that.searchRouting) : that.searchRouting != null) return false;
+        if (writeIndex != null ? writeIndex != that.writeIndex : that.writeIndex != null) return false;
 
         return true;
     }

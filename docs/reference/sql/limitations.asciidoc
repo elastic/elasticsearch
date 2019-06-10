@@ -150,3 +150,14 @@ SELECT count(*) FROM test GROUP BY MINUTE((CAST(date_created AS TIME));
 -------------------------------------------------------------
 SELECT HISTOGRAM(CAST(birth_date AS TIME), INTERVAL '10' MINUTES) as h, COUNT(*) FROM t GROUP BY h
 -------------------------------------------------------------
+
+[float]
+[[geo-sql-limitations]]
+=== Geo-related functions
+
+Since `geo_shape` fields don't have doc values these fields cannot be used for filtering, grouping or sorting.
+
+By default,`geo_points` fields are indexed and have doc values. However only latitude and longitude are stored and
+indexed with some loss of precision from the original values (4.190951585769653E-8 for the latitude and
+8.381903171539307E-8 for longitude). The altitude component is accepted but not stored in doc values nor indexed.
+Therefore calling `ST_Z` function in the filtering, grouping or sorting will return `null`.

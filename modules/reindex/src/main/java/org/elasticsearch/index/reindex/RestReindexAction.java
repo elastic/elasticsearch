@@ -69,11 +69,6 @@ public class RestReindexAction extends AbstractBaseReindexRestHandler<ReindexReq
             if (indices != null) {
                 request.getSearchRequest().indices(indices);
             }
-            String[] types = extractStringArray(source, "type");
-            if (types != null) {
-                deprecationLogger.deprecatedAndMaybeLog("reindex_with_types", TYPES_DEPRECATION_MESSAGE);
-                request.getSearchRequest().types(types);
-            }
             request.setRemoteInfo(buildRemoteInfo(source));
             XContentBuilder builder = XContentFactory.contentBuilder(parser.contentType());
             builder.map(source);
@@ -97,7 +92,7 @@ public class RestReindexAction extends AbstractBaseReindexRestHandler<ReindexReq
 
         PARSER.declareField(sourceParser::parse, new ParseField("source"), ValueType.OBJECT);
         PARSER.declareField((p, v, c) -> destParser.parse(p, v.getDestination(), c), new ParseField("dest"), ValueType.OBJECT);
-        PARSER.declareInt(ReindexRequest::setSize, new ParseField("size"));
+        PARSER.declareInt(RestReindexAction::setMaxDocsValidateIdentical, new ParseField("max_docs", "size"));
         PARSER.declareField((p, v, c) -> v.setScript(Script.parse(p)), new ParseField("script"),
                 ValueType.OBJECT);
         PARSER.declareString(ReindexRequest::setConflicts, new ParseField("conflicts"));

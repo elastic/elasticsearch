@@ -75,7 +75,7 @@ import static java.util.Collections.emptyList;
 import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.action.bulk.BackoffPolicy.exponentialBackoff;
 import static org.elasticsearch.common.unit.TimeValue.timeValueNanos;
-import static org.elasticsearch.index.reindex.AbstractBulkByScrollRequest.SIZE_ALL_MATCHES;
+import static org.elasticsearch.index.reindex.AbstractBulkByScrollRequest.MAX_DOCS_ALL_MATCHES;
 import static org.elasticsearch.rest.RestStatus.CONFLICT;
 import static org.elasticsearch.search.sort.SortBuilders.fieldSort;
 
@@ -263,8 +263,8 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
             return;
         }
         long total = response.getTotalHits();
-        if (mainRequest.getSize() > 0) {
-            total = min(total, mainRequest.getSize());
+        if (mainRequest.getMaxDocs() > 0) {
+            total = min(total, mainRequest.getMaxDocs());
         }
         worker.setTotal(total);
         AbstractRunnable prepareBulkRequestRunnable = new AbstractRunnable() {
@@ -304,9 +304,9 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
         }
         worker.countBatch();
         List<? extends ScrollableHitSource.Hit> hits = response.getHits();
-        if (mainRequest.getSize() != SIZE_ALL_MATCHES) {
-            // Truncate the hits if we have more than the request size
-            long remaining = max(0, mainRequest.getSize() - worker.getSuccessfullyProcessed());
+        if (mainRequest.getMaxDocs() != MAX_DOCS_ALL_MATCHES) {
+            // Truncate the hits if we have more than the request max docs
+            long remaining = max(0, mainRequest.getMaxDocs() - worker.getSuccessfullyProcessed());
             if (remaining < hits.size()) {
                 hits = hits.subList(0, (int) remaining);
             }
@@ -395,7 +395,7 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
                 return;
             }
 
-            if (mainRequest.getSize() != SIZE_ALL_MATCHES && worker.getSuccessfullyProcessed() >= mainRequest.getSize()) {
+            if (mainRequest.getMaxDocs() != MAX_DOCS_ALL_MATCHES && worker.getSuccessfullyProcessed() >= mainRequest.getMaxDocs()) {
                 // We've processed all the requested docs.
                 refreshAndFinish(emptyList(), emptyList(), false);
                 return;

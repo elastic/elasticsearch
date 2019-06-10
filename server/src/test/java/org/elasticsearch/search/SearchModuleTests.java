@@ -172,11 +172,11 @@ public class SearchModuleTests extends ESTestCase {
     }
 
     private ThrowingRunnable registryForPlugin(SearchPlugin plugin) {
-        return () -> new NamedXContentRegistry(new SearchModule(Settings.EMPTY, false, singletonList(plugin)).getNamedXContents());
+        return () -> new NamedXContentRegistry(new SearchModule(Settings.EMPTY, singletonList(plugin)).getNamedXContents());
     }
 
     public void testRegisterSuggester() {
-        SearchModule module = new SearchModule(Settings.EMPTY, false, singletonList(new SearchPlugin() {
+        SearchModule module = new SearchModule(Settings.EMPTY, singletonList(new SearchPlugin() {
             @Override
             public List<SuggesterSpec<?>> getSuggesters() {
                 return singletonList(
@@ -222,7 +222,7 @@ public class SearchModuleTests extends ESTestCase {
 
     public void testRegisterHighlighter() {
         CustomHighlighter customHighlighter = new CustomHighlighter();
-        SearchModule module = new SearchModule(Settings.EMPTY, false, singletonList(new SearchPlugin() {
+        SearchModule module = new SearchModule(Settings.EMPTY, singletonList(new SearchPlugin() {
             @Override
             public Map<String, Highlighter> getHighlighters() {
                 return singletonMap("custom", customHighlighter);
@@ -236,14 +236,15 @@ public class SearchModuleTests extends ESTestCase {
         assertSame(highlighters.get("custom"), customHighlighter);
     }
 
-    public void testRegisteredQueries() throws IOException {
+    public void testRegisteredQueries() {
         List<String> allSupportedQueries = new ArrayList<>();
         Collections.addAll(allSupportedQueries, NON_DEPRECATED_QUERIES);
         Collections.addAll(allSupportedQueries, DEPRECATED_QUERIES);
-        SearchModule module = new SearchModule(Settings.EMPTY, false, emptyList());
+        SearchModule module = new SearchModule(Settings.EMPTY, emptyList());
 
         Set<String> registeredNonDeprecated = module.getNamedXContents().stream()
                 .filter(e -> e.categoryClass.equals(QueryBuilder.class))
+                .filter(e -> e.name.getDeprecatedNames().length == 0)
                 .map(e -> e.name.getPreferredName())
                 .collect(toSet());
         Set<String> registeredAll = module.getNamedXContents().stream()
@@ -256,7 +257,7 @@ public class SearchModuleTests extends ESTestCase {
     }
 
     public void testRegisterAggregation() {
-        SearchModule module = new SearchModule(Settings.EMPTY, false, singletonList(new SearchPlugin() {
+        SearchModule module = new SearchModule(Settings.EMPTY, singletonList(new SearchPlugin() {
             @Override
             public List<AggregationSpec> getAggregations() {
                 return singletonList(new AggregationSpec("test", TestAggregationBuilder::new, TestAggregationBuilder::fromXContent));
@@ -272,7 +273,7 @@ public class SearchModuleTests extends ESTestCase {
     }
 
     public void testRegisterPipelineAggregation() {
-        SearchModule module = new SearchModule(Settings.EMPTY, false, singletonList(new SearchPlugin() {
+        SearchModule module = new SearchModule(Settings.EMPTY, singletonList(new SearchPlugin() {
             @Override
             public List<PipelineAggregationSpec> getPipelineAggregations() {
                 return singletonList(new PipelineAggregationSpec("test",
@@ -289,7 +290,7 @@ public class SearchModuleTests extends ESTestCase {
     }
 
     public void testRegisterRescorer() {
-        SearchModule module = new SearchModule(Settings.EMPTY, false, singletonList(new SearchPlugin() {
+        SearchModule module = new SearchModule(Settings.EMPTY, singletonList(new SearchPlugin() {
             @Override
             public List<RescorerSpec<?>> getRescorers() {
                 return singletonList(new RescorerSpec<>("test", TestRescorerBuilder::new, TestRescorerBuilder::fromXContent));
@@ -306,7 +307,6 @@ public class SearchModuleTests extends ESTestCase {
     private static final String[] NON_DEPRECATED_QUERIES = new String[] {
             "bool",
             "boosting",
-            "common",
             "constant_score",
             "dis_max",
             "exists",

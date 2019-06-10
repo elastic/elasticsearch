@@ -397,25 +397,23 @@ public class ElasticsearchNode implements TestClusterConfiguration {
 
     private void installModules() {
         if (distribution == Distribution.INTEG_TEST) {
-            modules.forEach(module -> services.copy(spec -> {
-                if (module.getName().toLowerCase().endsWith(".zip")) {
-                    spec.from(services.zipTree(module));
-                } else if (module.isDirectory()) {
-                    spec.from(module);
-                } else {
-                    throw new IllegalArgumentException("Not a valid module " + module + " for " + this);
+            for (File module : modules) {
+                Path destination = workingDir.resolve("modules").resolve(module.getName().replace(".zip", "").replace("-" + version, ""));
+
+                // only install modules that are not already bundled with the integ-test distribution
+                if (Files.exists(destination) == false) {
+                    services.copy(spec -> {
+                        if (module.getName().toLowerCase().endsWith(".zip")) {
+                            spec.from(services.zipTree(module));
+                        } else if (module.isDirectory()) {
+                            spec.from(module);
+                        } else {
+                            throw new IllegalArgumentException("Not a valid module " + module + " for " + this);
+                        }
+                        spec.into(destination);
+                    });
                 }
-                spec.into(
-                    workingDir
-                        .resolve("modules")
-                        .resolve(
-                            module.getName()
-                                .replace(".zip", "")
-                                .replace("-" + version, "")
-                        )
-                        .toFile()
-                );
-            }));
+            }
         } else {
             LOGGER.info("Not installing " + modules.size() + "(s) since the " + distribution + " distribution already " +
                 "has them");

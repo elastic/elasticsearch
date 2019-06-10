@@ -164,7 +164,7 @@ if (useFixture) {
   def minioAddress = {
     int minioPort = postProcessFixture.ext."test.fixtures.minio-fixture.tcp.9000"
     assert minioPort > 0
-    return 'http://127.0.0.1:' + minioPort
+    'http://127.0.0.1:' + minioPort
   }
 
   File minioAddressFile = new File(project.buildDir, 'generated-resources/s3Fixture.address')
@@ -175,7 +175,6 @@ if (useFixture) {
     doFirst {
       file(minioAddressFile).text = "${ -> minioAddress.call() }"
     }
-    inputs.file(minioAddressFile)
     // TODO: this could be a nonInputProperties.systemProperty so we don't need a file
     systemProperty 'test.s3.endpoint', minioAddressFile.name
   }

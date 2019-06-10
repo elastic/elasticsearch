@@ -46,6 +46,7 @@ import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesResponse;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.permission.ResourcePrivileges;
 import org.elasticsearch.xpack.core.security.support.Exceptions;
+import org.elasticsearch.xpack.dataframe.notifications.DataFrameAuditor;
 import org.elasticsearch.xpack.dataframe.persistence.DataFrameTransformsConfigManager;
 import org.elasticsearch.xpack.dataframe.transforms.pivot.Pivot;
 
@@ -65,12 +66,14 @@ public class TransportPutDataFrameTransformAction
     private final Client client;
     private final DataFrameTransformsConfigManager dataFrameTransformsConfigManager;
     private final SecurityContext securityContext;
+    private final DataFrameAuditor auditor;
 
     @Inject
     public TransportPutDataFrameTransformAction(Settings settings, TransportService transportService, ThreadPool threadPool,
                                                 ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
                                                 ClusterService clusterService, XPackLicenseState licenseState,
-                                                DataFrameTransformsConfigManager dataFrameTransformsConfigManager, Client client) {
+                                                DataFrameTransformsConfigManager dataFrameTransformsConfigManager, Client client,
+                                                DataFrameAuditor auditor) {
         super(PutDataFrameTransformAction.NAME, transportService, clusterService, threadPool, actionFilters,
                 PutDataFrameTransformAction.Request::new, indexNameExpressionResolver);
         this.licenseState = licenseState;
@@ -78,6 +81,7 @@ public class TransportPutDataFrameTransformAction
         this.dataFrameTransformsConfigManager = dataFrameTransformsConfigManager;
         this.securityContext = XPackSettings.SECURITY_ENABLED.get(settings) ?
             new SecurityContext(settings, threadPool.getThreadContext()) : null;
+        this.auditor = auditor;
     }
 
     @Override
@@ -234,7 +238,10 @@ public class TransportPutDataFrameTransformAction
 
         // <5> Return the listener, or clean up destination index on failure.
         ActionListener<Boolean> putTransformConfigurationListener = ActionListener.wrap(
-            putTransformConfigurationResult -> listener.onResponse(new AcknowledgedResponse(true)),
+            putTransformConfigurationResult -> {
+                auditor.info(config.getId(), "Created data frame transform.");
+                listener.onResponse(new AcknowledgedResponse(true));
+            },
             listener::onFailure
         );
 

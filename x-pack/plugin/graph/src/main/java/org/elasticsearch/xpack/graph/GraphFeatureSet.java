@@ -80,7 +80,7 @@ public class GraphFeatureSet implements XPackFeatureSet {
         @Override
         protected void masterOperation(XPackUsageRequest request, ClusterState state, ActionListener<XPackUsageFeatureResponse> listener) {
             GraphFeatureSetUsage usage =
-                new GraphFeatureSetUsage(XPackSettings.GRAPH_ENABLED.get(settings), licenseState.isGraphAllowed());
+                new GraphFeatureSetUsage(licenseState.isGraphAllowed(), XPackSettings.GRAPH_ENABLED.get(settings));
             listener.onResponse(new XPackUsageFeatureResponse(usage));
         }
     }

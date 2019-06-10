@@ -163,7 +163,7 @@ public class ReindexBasicTests extends ReindexTestCase {
             .refresh(true)
             .setSlices(AbstractBulkByScrollRequest.AUTO_SLICES)
             .get();
-        assertThat(response, matcher().updated(0).slices(hasSize(0)));
+        assertThat(response, matcher().created(0).slices(hasSize(0)));
     }
 
 }

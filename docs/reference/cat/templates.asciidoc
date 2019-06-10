@@ -28,7 +28,7 @@ template0 [te*]          0
 template1 [tea*]         1
 template2 [teak*]        2     7
 --------------------------------------------------
-// TESTRESPONSE[s/\*/\\*/ s/\[/\\[/ s/\]/\\]/ _cat]
+// TESTRESPONSE[s/\*/\\*/ s/\[/\\[/ s/\]/\\]/ non_json]
 
 The output shows that there are three existing templates,
 with template2 having a version value.

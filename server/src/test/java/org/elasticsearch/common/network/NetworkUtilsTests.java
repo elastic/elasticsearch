@@ -97,7 +97,7 @@ public class NetworkUtilsTests extends ESTestCase {
                 // On some systems listing all network interfaces returns interfaces that throw
                 // java.net.SocketException: No such device (getFlags() failed) on an isUp check. We just skip those cases here
                 // and test the properly behaved interfaces.
-                continue;
+                throw new AssertionError("Failed to check if interface [" + netIf + "] is up", e);
             }
 
             String name = netIf.getName();

@@ -88,9 +88,6 @@ public class ExtractedFields {
                 }
             }
             if (isFieldOfType(field, "geo_point")) {
-                if (method != ExtractedField.ExtractionMethod.DOC_VALUE) {
-                    throw new IllegalArgumentException("cannot use [geo_point] field with disabled doc values");
-                }
                 return ExtractedField.newGeoPointField(field, internalField, method);
             }
             if (isFieldOfType(field, "geo_shape")) {

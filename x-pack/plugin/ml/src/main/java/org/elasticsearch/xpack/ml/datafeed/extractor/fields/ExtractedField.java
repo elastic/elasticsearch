@@ -172,6 +172,9 @@ public abstract class ExtractedField {
 
         GeoPointField(String alias, String name, ExtractionMethod extractionMethod) {
             super(alias, name, extractionMethod);
+            if (extractionMethod != ExtractionMethod.DOC_VALUE) {
+                throw new IllegalArgumentException("cannot use [geo_point] field with disabled doc values");
+            }
         }
 
         @Override

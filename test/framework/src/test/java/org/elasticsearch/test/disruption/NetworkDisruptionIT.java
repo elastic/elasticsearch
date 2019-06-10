@@ -44,6 +44,7 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
@@ -135,26 +136,29 @@ public class NetworkDisruptionIT extends ESIntegTestCase {
 
             transportService.sendRequest(target.getLocalNode(), ClusterHealthAction.NAME, new ClusterHealthRequest(),
                 new TransportResponseHandler<>() {
-                @Override
-                public void handleResponse(TransportResponse response) {
-                    latch.countDown();
-                }
+                    private AtomicBoolean responded = new AtomicBoolean();
+                    @Override
+                    public void handleResponse(TransportResponse response) {
+                        assertTrue(responded.compareAndSet(false, true));
+                        latch.countDown();
+                    }
 
-                @Override
-                public void handleException(TransportException exp) {
-                    latch.countDown();
-                }
+                    @Override
+                    public void handleException(TransportException exp) {
+                        assertTrue(responded.compareAndSet(false, true));
+                        latch.countDown();
+                    }
 
-                @Override
-                public String executor() {
-                    return ThreadPool.Names.SAME;
-                }
+                    @Override
+                    public String executor() {
+                        return ThreadPool.Names.SAME;
+                    }
 
-                @Override
-                public TransportResponse read(StreamInput in) throws IOException {
-                    return ClusterHealthResponse.readResponseFrom(in);
-                }
-            });
+                    @Override
+                    public TransportResponse read(StreamInput in) throws IOException {
+                        return ClusterHealthResponse.readResponseFrom(in);
+                    }
+                });
         }
 
         // give a bit of time to send something under disruption.

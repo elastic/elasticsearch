@@ -592,6 +592,7 @@ class BuildPlugin implements Plugin<Project> {
     static void configureCompile(Project project) {
         ExtraPropertiesExtension ext = project.extensions.getByType(ExtraPropertiesExtension)
         ext.set('compactProfile', 'full')
+        ext.set('useReleaseArg', true)
 
         project.extensions.getByType(JavaPluginExtension).sourceCompatibility = ext.get('minimumRuntimeVersion') as JavaVersion
         project.extensions.getByType(JavaPluginExtension).targetCompatibility = ext.get('minimumRuntimeVersion') as JavaVersion
@@ -626,7 +627,9 @@ class BuildPlugin implements Plugin<Project> {
                 compileTask.options.incremental = true
 
                 // TODO: use native Gradle support for --release when available (cf. https://github.com/gradle/gradle/issues/2510)
-                compileTask.options.compilerArgs << '--release' << targetCompatibilityVersion.majorVersion
+                if (ext.get('useReleaseArg')) {
+                    compileTask.options.compilerArgs << '--release' << targetCompatibilityVersion.majorVersion
+                }
             }
             // also apply release flag to groovy, which is used in build-tools
             project.tasks.withType(GroovyCompile) { GroovyCompile compileTask ->
@@ -636,7 +639,9 @@ class BuildPlugin implements Plugin<Project> {
                 } else {
                     compileTask.options.fork = true
                     compileTask.options.forkOptions.javaHome = compilerJavaHome
-                    compileTask.options.compilerArgs << '--release' << JavaVersion.toVersion(compileTask.targetCompatibility).majorVersion
+                    if (ext.get('useReleaseArg')) {
+                        compileTask.options.compilerArgs << '--release' << JavaVersion.toVersion(compileTask.targetCompatibility).majorVersion
+                    }
                 }
             }
         }

@@ -121,9 +121,12 @@ if (project != rootProject) {
   apply plugin: 'nebula.maven-base-publish'
   apply plugin: 'nebula.maven-scm'
 
-  // we need to apply these again to override the build plugin
-  targetCompatibility = "10"
-  sourceCompatibility = "10"
+  // instruct the build plugin to omit the --release compiler flag so we can still compile against Java 9+ APIs
+  ext.useReleaseArg = false
+
+  // Keep compatibility with Java 8 for external users of build-tools that haven't migrated to Java 11
+  targetCompatibility = "8"
+  sourceCompatibility = "8"
 
   // groovydoc succeeds, but has some weird internal exception...
   groovydoc.enabled = false

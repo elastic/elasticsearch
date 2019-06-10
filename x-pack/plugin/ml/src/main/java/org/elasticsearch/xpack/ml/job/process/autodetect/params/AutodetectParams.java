@@ -136,7 +136,7 @@ public class AutodetectParams {
         }
 
         public Builder setTimingStats(TimingStats timingStats) {
-            this.timingStats = timingStats;
+            this.timingStats = new TimingStats(timingStats);
             return this;
         }
 

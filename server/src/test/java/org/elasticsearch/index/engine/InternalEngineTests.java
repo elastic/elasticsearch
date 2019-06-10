@@ -3965,6 +3965,7 @@ public class InternalEngineTests extends EngineTestCase {
         searchResult.close();
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/42979")
     public void testLookupSeqNoByIdInLucene() throws Exception {
         int numOps = between(10, 100);
         long seqNo = 0;

@@ -19,6 +19,8 @@ import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.util.DateUtils;
 
 import java.io.IOException;
+import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -127,7 +129,7 @@ public class FieldHitExtractorTests extends AbstractWireSerializingTestCase<Fiel
             BytesReference sourceRef = BytesReference.bytes(source);
             hit.sourceRef(sourceRef);
             Object extract = extractor.extract(hit);
-            assertEquals(hasSource ? value : null, extract);
+            assertFieldHitEquals(hasSource ? value : null, extract);
         }
     }
 
@@ -180,7 +182,7 @@ public class FieldHitExtractorTests extends AbstractWireSerializingTestCase<Fiel
             source.endObject();
             BytesReference sourceRef = BytesReference.bytes(source);
             hit.sourceRef(sourceRef);
-            assertEquals(value, extractor.extract(hit));
+            assertFieldHitEquals(value, extractor.extract(hit));
         }
     }
 
@@ -226,7 +228,7 @@ public class FieldHitExtractorTests extends AbstractWireSerializingTestCase<Fiel
         source.endObject();
         BytesReference sourceRef = BytesReference.bytes(source);
         hit.sourceRef(sourceRef);
-        assertEquals(value, fe.extract(hit));
+        assertFieldHitEquals(value, fe.extract(hit));
     }
 
     public void testExtractSourcePath() {
@@ -580,6 +582,9 @@ public class FieldHitExtractorTests extends AbstractWireSerializingTestCase<Fiel
                 () -> randomAlphaOfLength(10),
                 ESTestCase::randomLong,
                 ESTestCase::randomDouble,
+                ESTestCase::randomInt,
+                () -> BigInteger.valueOf(Long.MAX_VALUE).add(BigInteger.ONE),
+                () -> new BigDecimal("20012312345621343256123456254.20012312345621343256123456254"),
                 () -> null));
         return value.get();
     }
@@ -588,8 +593,21 @@ public class FieldHitExtractorTests extends AbstractWireSerializingTestCase<Fiel
         Supplier<Object> value = randomFrom(Arrays.asList(
                 () -> randomAlphaOfLength(10),
                 ESTestCase::randomLong,
-                ESTestCase::randomDouble));
+                ESTestCase::randomDouble,
+                ESTestCase::randomInt,
+                () -> BigInteger.valueOf(Long.MAX_VALUE).add(BigInteger.ONE),
+                () -> new BigDecimal("20012312345621343256123456254.20012312345621343256123456254")));
         return value.get();
+    }
+    
+    private void assertFieldHitEquals(Object expected, Object actual) {
+        if (expected instanceof BigDecimal) {
+            // parsing will, by default, build a Double even if the initial value is BigDecimal
+            // Elasticsearch does this the same when returning the results
+            assertEquals(((BigDecimal) expected).doubleValue(), actual);
+        } else {
+            assertEquals(expected, actual);
+        }
     }
 
     private Object randomPoint(double lat, double lon) {

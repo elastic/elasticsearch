@@ -13,6 +13,7 @@ import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.xpack.core.watcher.execution.ExecutionState;
 import org.elasticsearch.xpack.core.watcher.history.HistoryStoreField;
+import org.elasticsearch.xpack.core.watcher.transport.actions.put.PutWatchRequestBuilder;
 import org.elasticsearch.xpack.watcher.condition.InternalAlwaysCondition;
 import org.elasticsearch.xpack.watcher.support.search.WatcherSearchTemplateRequest;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
@@ -45,7 +46,7 @@ public class HistoryTemplateSearchInputMappingsTests extends AbstractWatcherInte
                 new String[]{index}, new String[]{type}, SearchType.QUERY_THEN_FETCH,
                 WatcherSearchTemplateRequest.DEFAULT_INDICES_OPTIONS, new BytesArray("{}")
         );
-        PutWatchResponse putWatchResponse = watcherClient().preparePutWatch("_id").setSource(watchBuilder()
+        PutWatchResponse putWatchResponse = new PutWatchRequestBuilder(client(), "_id").setSource(watchBuilder()
                 .trigger(schedule(interval("5s")))
                 .input(searchInput(request))
                 .condition(InternalAlwaysCondition.INSTANCE)

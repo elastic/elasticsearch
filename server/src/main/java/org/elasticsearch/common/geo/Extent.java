@@ -23,6 +23,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 
 import java.io.IOException;
+import java.util.Objects;
 
 /**
  * Object representing the extent of a geometry object within a
@@ -51,5 +52,21 @@ final class Extent implements Writeable {
         out.writeInt(minY);
         out.writeInt(maxX);
         out.writeInt(maxY);
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        Extent extent = (Extent) o;
+        return minX == extent.minX &&
+            minY == extent.minY &&
+            maxX == extent.maxX &&
+            maxY == extent.maxY;
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(minX, minY, maxX, maxY);
     }
 }

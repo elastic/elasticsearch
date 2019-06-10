@@ -29,6 +29,8 @@ import org.locationtech.spatial4j.shape.Rectangle;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 
+import static org.hamcrest.Matchers.equalTo;
+
 public class EdgeTreeTests extends ESTestCase {
 
     public void testRectangleShape() throws IOException {
@@ -101,6 +103,7 @@ public class EdgeTreeTests extends ESTestCase {
             writer.writeTo(output);
             output.close();
             EdgeTreeReader reader = new EdgeTreeReader(new ByteBufferStreamInput(ByteBuffer.wrap(output.bytes().toBytesRef().bytes)));
+            assertThat(reader.getExtent(), equalTo(new Extent(minXBox, minYBox, maxXBox, maxYBox)));
             // polygon fully contained within box
             assertTrue(reader.containedInOrCrosses(minXBox, minYBox, maxXBox, maxYBox));
             // containedInOrCrosses

@@ -303,7 +303,7 @@ epoch      timestamp cluster       status node.total node.data shards pri relo i
 --------------------------------------------------
 // TESTRESPONSE[s/1475247709 17:01:49  elasticsearch/\\d+ \\d+:\\d+:\\d+ integTest/]
 // TESTRESPONSE[s/0             0                  -/0             \\d+                  -/]
-// TESTRESPONSE[_cat]
+// TESTRESPONSE[non_json]
 
 We can see that our cluster named "elasticsearch" is up with a green status.
 
@@ -333,7 +333,7 @@ ip        heap.percent ram.percent cpu load_1m load_5m load_15m node.role master
 127.0.0.1           10           5   5    4.46                        mdi      *      PB2SGZY
 --------------------------------------------------
 // TESTRESPONSE[s/10           5   5    4.46/\\d+ \\d+ \\d+ (\\d+\\.\\d+)? (\\d+\\.\\d+)? (\\d+\.\\d+)?/]
-// TESTRESPONSE[s/[*]/[*]/ s/PB2SGZY/.+/ _cat]
+// TESTRESPONSE[s/[*]/[*]/ s/PB2SGZY/.+/ non_json]
 
 Here, we can see our one node named "PB2SGZY", which is the single node that is currently in our cluster.
 
@@ -354,7 +354,7 @@ And the response:
 --------------------------------------------------
 health status index uuid pri rep docs.count docs.deleted store.size pri.store.size
 --------------------------------------------------
-// TESTRESPONSE[_cat]
+// TESTRESPONSE[non_json]
 
 Which simply means we have no indices yet in the cluster.
 
@@ -379,7 +379,7 @@ And the response:
 health status index    uuid                   pri rep docs.count docs.deleted store.size pri.store.size
 yellow open   customer 95SQ4TSUT7mWBT7VNHH67A   1   1          0            0       260b           260b
 --------------------------------------------------
-// TESTRESPONSE[s/95SQ4TSUT7mWBT7VNHH67A/.+/ s/260b/\\d+\\.?\\d?k?b/ _cat]
+// TESTRESPONSE[s/95SQ4TSUT7mWBT7VNHH67A/.+/ s/260b/\\d+\\.?\\d?k?b/ non_json]
 
 The results of the second command tells us that we now have one index named customer and it has one primary shard and one replica (the defaults) and it contains zero documents in it.
 
@@ -471,7 +471,7 @@ And the response:
 --------------------------------------------------
 health status index uuid pri rep docs.count docs.deleted store.size pri.store.size
 --------------------------------------------------
-// TESTRESPONSE[_cat]
+// TESTRESPONSE[non_json]
 
 Which means that the index was deleted successfully and we are now back to where we started with nothing in our cluster.
 
@@ -715,7 +715,7 @@ health status index uuid                   pri rep docs.count docs.deleted store
 yellow open   bank  l7sSYV2cQXmu6_4rJWVIww   5   1       1000            0    128.6kb        128.6kb
 --------------------------------------------------
 // TESTRESPONSE[s/128.6kb/\\d+(\\.\\d+)?[mk]?b/]
-// TESTRESPONSE[s/l7sSYV2cQXmu6_4rJWVIww/.+/ _cat]
+// TESTRESPONSE[s/l7sSYV2cQXmu6_4rJWVIww/.+/ non_json]
 
 Which means that we just successfully bulk indexed 1000 documents into the bank index.
 

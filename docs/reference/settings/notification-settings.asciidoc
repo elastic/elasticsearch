@@ -37,14 +37,8 @@ required. For more information, see
 {xpack-ref}/encrypting-data.html[Encrypting sensitive data in {watcher}].
 
 `xpack.watcher.history.cleaner_service.enabled`::
-ifdef::asciidoctor[]
 added:[6.3.0,Default changed to `true`.]
 deprecated:[7.0.0,Watcher history indices are now managed by the `watch-history-ilm-policy` ILM policy]
-endif::[]
-ifndef::asciidoctor[]
-added[6.3.0,Default changed to `true`.]
-deprecated[7.0.0,Watcher history indices are now managed by the `watch-history-ilm-policy` ILM policy]
-endif::[]
 +
 Set to `true` (default) to enable the cleaner service. If this setting is
 `true`, the `xpack.monitoring.enabled` setting must also be set to `true` with
@@ -85,6 +79,7 @@ corresponding endpoints are whitelisted as well.
 :component:              {watcher}
 :verifies:
 :server!:
+:ssl-context:            watcher
 
 include::ssl-settings.asciidoc[]
 
@@ -304,38 +299,39 @@ Specifies account information for sending notifications
 via PagerDuty. You can specify the following PagerDuty account attributes:
 +
 --
-  `name`;;
-  A name for the PagerDuty account associated with the API key you
-  are using to access PagerDuty. Required.
+`name`;;
+A name for the PagerDuty account associated with the API key you
+are using to access PagerDuty. Required.
 
-  `secure_service_api_key` (<<secure-settings,Secure>>);;
-   The https://developer.pagerduty.com/documentation/rest/authentication[
-   PagerDuty API key] to use to access PagerDuty. Required.
+`secure_service_api_key` (<<secure-settings,Secure>>);;
+The https://developer.pagerduty.com/documentation/rest/authentication[
+PagerDuty API key] to use to access PagerDuty. Required.
+--
++
+`event_defaults`;;
+Default values for  {xpack-ref}/actions-pagerduty.html#pagerduty-event-trigger-incident-attributes[
+PagerDuty event attributes]. Optional.
++
+--
+`description`::
+A string that contains the default description for PagerDuty events.
+If no default is configured, each PagerDuty action must specify a
+`description`.
 
+`incident_key`::
+A string that contains the default incident key to use when sending
+PagerDuty events.
 
-  `event_defaults`;;
-  Default values for  {xpack-ref}/actions-pagerduty.html#pagerduty-event-trigger-incident-attributes[
-  PagerDuty event attributes]. Optional.
-        +
-        `description`::
-        A string that contains the default description for PagerDuty events.
-        If no default is configured, each PagerDuty action must specify a
-        `description`.
-        +
-        `incident_key`::
-        A string that contains the default incident key to use when sending
-        PagerDuty events.
-        +
-        `client`::
-        A string that specifies the default monitoring client.
-        +
-        `client_url`::
-        The URL of the default monitoring client.
-        +
-        `event_type`::
-        The default event type. Valid values: `trigger`,`resolve`, `acknowledge`.
-        +
-        `attach_payload`::
-        Whether or not to provide the watch payload as context for
-        the event by default. Valid values: `true`, `false`.
+`client`::
+A string that specifies the default monitoring client.
+
+`client_url`::
+The URL of the default monitoring client.
+
+`event_type`::
+The default event type. Valid values: `trigger`,`resolve`, `acknowledge`.
+
+`attach_payload`::
+Whether or not to provide the watch payload as context for
+the event by default. Valid values: `true`, `false`.
 --

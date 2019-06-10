@@ -28,8 +28,6 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.LogEvent;
 import org.apache.logging.log4j.core.appender.AbstractAppender;
 import org.apache.logging.log4j.core.filter.RegexFilter;
-import org.apache.lucene.codecs.lucene50.Lucene50PostingsFormat;
-import org.apache.lucene.codecs.lucene50.Lucene50StoredFieldsFormat;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.NumericDocValuesField;
@@ -53,6 +51,8 @@ import org.apache.lucene.index.PointValues;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.SoftDeletesRetentionMergePolicy;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.index.Terms;
+import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.index.TieredMergePolicy;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
@@ -63,8 +63,11 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TotalHitCountCollector;
 import org.apache.lucene.store.AlreadyClosedException;
+import org.apache.lucene.store.BaseDirectoryWrapper;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.Lock;
+import org.apache.lucene.store.MMapDirectory;
 import org.apache.lucene.store.MockDirectoryWrapper;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
@@ -83,6 +86,7 @@ import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
@@ -99,6 +103,7 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.codec.CodecService;
@@ -116,6 +121,8 @@ import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.RootObjectMapper;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
+import org.elasticsearch.index.mapper.Uid;
+import org.elasticsearch.index.mapper.VersionFieldMapper;
 import org.elasticsearch.index.seqno.LocalCheckpointTracker;
 import org.elasticsearch.index.seqno.ReplicationTracker;
 import org.elasticsearch.index.seqno.RetentionLease;
@@ -124,7 +131,9 @@ import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexSearcherWrapper;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.index.shard.ShardUtils;
+import org.elasticsearch.index.store.FsDirectoryFactory;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.SnapshotMatchers;
 import org.elasticsearch.index.translog.Translog;
@@ -133,7 +142,6 @@ import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.test.VersionUtils;
 import org.hamcrest.MatcherAssert;
-import org.hamcrest.Matchers;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -157,6 +165,7 @@ import java.util.Set;
 import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -302,14 +311,6 @@ public class InternalEngineTests extends EngineTestCase {
             assertThat(segments.get(0).getDeletedDocs(), equalTo(0));
             assertThat(segments.get(0).isCompound(), equalTo(true));
             assertThat(segments.get(0).ramTree, nullValue());
-            assertThat(segments.get(0).getAttributes().keySet(),
-                Matchers.contains(
-                    // TODO: Lucene50PostingsFormat#MODE_KEY should be public ?
-                    Lucene50PostingsFormat.class.getSimpleName() + ".fstMode",
-                    Lucene50StoredFieldsFormat.MODE_KEY
-                )
-            );
-
             engine.flush();
 
             segments = engine.segments(false);
@@ -1457,6 +1458,61 @@ public class InternalEngineTests extends EngineTestCase {
             try (Engine.Searcher test = engine.acquireSearcher("test")) {
                 assertEquals(numDocs - 2, test.reader().numDocs());
                 assertEquals(numDocs - 1, test.reader().maxDoc());
+            }
+        }
+    }
+
+    /*
+     * we are testing an edge case here where we have a fully deleted segment that is retained but has all it's IDs pruned away.
+     */
+    public void testLookupVersionWithPrunedAwayIds() throws IOException {
+        try (Directory dir = newDirectory()) {
+            IndexWriterConfig indexWriterConfig = new IndexWriterConfig(Lucene.STANDARD_ANALYZER);
+            indexWriterConfig.setSoftDeletesField(Lucene.SOFT_DELETES_FIELD);
+            try (IndexWriter writer = new IndexWriter(dir,
+                indexWriterConfig.setMergePolicy(new SoftDeletesRetentionMergePolicy(Lucene.SOFT_DELETES_FIELD,
+                    MatchAllDocsQuery::new, new PrunePostingsMergePolicy(indexWriterConfig.getMergePolicy(), "_id"))))) {
+                org.apache.lucene.document.Document doc = new org.apache.lucene.document.Document();
+                doc.add(new Field(IdFieldMapper.NAME, "1", IdFieldMapper.Defaults.FIELD_TYPE));
+                doc.add(new NumericDocValuesField(VersionFieldMapper.NAME, -1));
+                doc.add(new NumericDocValuesField(SeqNoFieldMapper.NAME, 1));
+                doc.add(new NumericDocValuesField(SeqNoFieldMapper.PRIMARY_TERM_NAME, 1));
+                writer.addDocument(doc);
+                writer.flush();
+                writer.softUpdateDocument(new Term(IdFieldMapper.NAME, "1"), doc, new NumericDocValuesField(Lucene.SOFT_DELETES_FIELD, 1));
+                writer.updateNumericDocValue(new Term(IdFieldMapper.NAME, "1"), Lucene.SOFT_DELETES_FIELD, 1);
+                writer.forceMerge(1);
+                try (DirectoryReader reader = DirectoryReader.open(writer)) {
+                    assertEquals(1, reader.leaves().size());
+                    assertNull(VersionsAndSeqNoResolver.loadDocIdAndVersion(reader, new Term(IdFieldMapper.NAME, "1"), false));
+                }
+            }
+        }
+    }
+
+    public void testUpdateWithFullyDeletedSegments() throws IOException {
+        Settings.Builder settings = Settings.builder()
+            .put(defaultSettings.getSettings())
+            .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
+            .put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING.getKey(), Integer.MAX_VALUE);
+        final IndexMetaData indexMetaData = IndexMetaData.builder(defaultSettings.getIndexMetaData()).settings(settings).build();
+        final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(indexMetaData);
+        final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
+        final Set<String> liveDocs = new HashSet<>();
+        try (Store store = createStore();
+             InternalEngine engine = createEngine(config(indexSettings, store, createTempDir(), newMergePolicy(), null,
+                 null, globalCheckpoint::get))) {
+            int numDocs = scaledRandomIntBetween(10, 100);
+            for (int i = 0; i < numDocs; i++) {
+                ParsedDocument doc = testParsedDocument(Integer.toString(i), null, testDocument(), B_1, null);
+                engine.index(indexForDoc(doc));
+                liveDocs.add(doc.id());
+            }
+
+            for (int i = 0; i < numDocs; i++) {
+                ParsedDocument doc = testParsedDocument(Integer.toString(i), null, testDocument(), B_1, null);
+                engine.index(indexForDoc(doc));
+                liveDocs.add(doc.id());
             }
         }
     }
@@ -3909,6 +3965,7 @@ public class InternalEngineTests extends EngineTestCase {
         searchResult.close();
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/42979")
     public void testLookupSeqNoByIdInLucene() throws Exception {
         int numOps = between(10, 100);
         long seqNo = 0;
@@ -5646,5 +5703,157 @@ public class InternalEngineTests extends EngineTestCase {
         indexing.join();
         rollTranslog.join();
         assertMaxSeqNoInCommitUserData(engine);
+    }
+
+    @AwaitsFix(bugUrl = "https://issues.apache.org/jira/browse/LUCENE-8809")
+    public void testRefreshAndFailEngineConcurrently() throws Exception {
+        AtomicBoolean stopped = new AtomicBoolean();
+        Semaphore indexedDocs = new Semaphore(0);
+        Thread indexer = new Thread(() -> {
+            while (stopped.get() == false) {
+                String id = Integer.toString(randomIntBetween(1, 100));
+                try {
+                    engine.index(indexForDoc(createParsedDoc(id, null)));
+                    indexedDocs.release();
+                } catch (IOException e) {
+                    throw new AssertionError(e);
+                } catch (AlreadyClosedException e) {
+                    return;
+                }
+            }
+        });
+
+        Thread refresher = new Thread(() -> {
+            while (stopped.get() == false) {
+                try {
+                    engine.refresh("test", randomFrom(Engine.SearcherScope.values()), randomBoolean());
+                } catch (AlreadyClosedException e) {
+                    return;
+                }
+            }
+        });
+        indexer.start();
+        refresher.start();
+        indexedDocs.acquire(randomIntBetween(1, 100));
+        try {
+            engine.failEngine("test", new IOException("simulated error"));
+        } finally {
+            stopped.set(true);
+            indexer.join();
+            refresher.join();
+        }
+        assertThat(engine.config().getCircuitBreakerService().getBreaker(CircuitBreaker.ACCOUNTING).getUsed(), equalTo(0L));
+    }
+
+    public void testGetReaderAttributes() throws IOException {
+        try(BaseDirectoryWrapper dir = newFSDirectory(createTempDir())) {
+            Directory unwrap = FilterDirectory.unwrap(dir);
+            boolean isMMap = unwrap instanceof MMapDirectory;
+            Map<String, String> readerAttributes = InternalEngine.getReaderAttributes(dir);
+            assertEquals(2, readerAttributes.size());
+            assertEquals("ON_HEAP", readerAttributes.get("blocktree.terms.fst._id"));
+            if (isMMap) {
+                assertEquals("OFF_HEAP", readerAttributes.get("blocktree.terms.fst"));
+            } else {
+                assertEquals("ON_HEAP", readerAttributes.get("blocktree.terms.fst"));
+            }
+        }
+
+        try(MMapDirectory dir = new MMapDirectory(createTempDir())) {
+            Map<String, String> readerAttributes =
+                InternalEngine.getReaderAttributes(randomBoolean() ? dir :
+                    new MockDirectoryWrapper(random(), dir));
+            assertEquals(2, readerAttributes.size());
+            assertEquals("ON_HEAP", readerAttributes.get("blocktree.terms.fst._id"));
+            assertEquals("OFF_HEAP", readerAttributes.get("blocktree.terms.fst"));
+        }
+
+        Settings.Builder settingsBuilder = Settings.builder()
+            .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT);
+        Settings settings = settingsBuilder.build();
+        IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("foo", settings);
+        FsDirectoryFactory service = new FsDirectoryFactory();
+        Path tempDir = createTempDir().resolve(indexSettings.getUUID()).resolve("0");
+        ShardPath path = new ShardPath(false, tempDir, tempDir, new ShardId(indexSettings.getIndex(), 0));
+        try (Directory directory = service.newDirectory(indexSettings, path)) {
+
+            Map<String, String> readerAttributes =
+                InternalEngine.getReaderAttributes(randomBoolean() ? directory :
+                    new MockDirectoryWrapper(random(), directory));
+            assertEquals(2, readerAttributes.size());
+
+            switch (IndexModule.defaultStoreType(true)) {
+                case HYBRIDFS:
+                case MMAPFS:
+                    assertEquals("ON_HEAP", readerAttributes.get("blocktree.terms.fst._id"));
+                    assertEquals("OFF_HEAP", readerAttributes.get("blocktree.terms.fst"));
+                    break;
+                case NIOFS:
+                case SIMPLEFS:
+                case FS:
+                    assertEquals("ON_HEAP", readerAttributes.get("blocktree.terms.fst._id"));
+                    assertEquals("ON_HEAP", readerAttributes.get("blocktree.terms.fst"));
+                    break;
+                default:
+                    fail("unknownw type");
+            }
+        }
+    }
+
+    public void testPruneAwayDeletedButRetainedIds() throws Exception {
+        IOUtils.close(engine, store);
+        Settings settings = Settings.builder()
+            .put(defaultSettings.getSettings())
+            .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true).build();
+        IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(
+            IndexMetaData.builder(defaultSettings.getIndexMetaData()).settings(settings).build());
+        store = createStore(indexSettings, newDirectory());
+        LogDocMergePolicy policy = new LogDocMergePolicy();
+        policy.setMinMergeDocs(10000);
+        try (InternalEngine engine = createEngine(indexSettings, store, createTempDir(), policy)) {
+            int numDocs = between(1, 20);
+            for (int i = 0; i < numDocs; i++) {
+                index(engine, i);
+            }
+            engine.forceMerge(true);
+            engine.delete(new Engine.Delete("_doc", "0", newUid("0"), primaryTerm.get()));
+            engine.refresh("test");
+            // now we have 2 segments since we now added a tombstone plus the old segment with the delete
+            try (Searcher searcher = engine.acquireSearcher("test")) {
+                IndexReader reader = searcher.reader();
+                assertEquals(2, reader.leaves().size());
+                LeafReaderContext leafReaderContext = reader.leaves().get(0);
+                LeafReader leafReader = leafReaderContext.reader();
+                assertEquals("the delete and the tombstone", 1, leafReader.numDeletedDocs());
+                assertEquals(numDocs, leafReader.maxDoc());
+                Terms id = leafReader.terms("_id");
+                assertNotNull(id);
+                assertEquals("deleted IDs are NOT YET pruned away", reader.numDocs() + 1, id.size());
+                TermsEnum iterator = id.iterator();
+                assertTrue(iterator.seekExact(Uid.encodeId("0")));
+            }
+
+            // lets force merge the tombstone and the original segment and make sure the doc is still there but the ID term is gone
+            engine.forceMerge(true);
+            engine.refresh("test");
+            try (Searcher searcher = engine.acquireSearcher("test")) {
+                IndexReader reader = searcher.reader();
+                assertEquals(1, reader.leaves().size());
+                LeafReaderContext leafReaderContext = reader.leaves().get(0);
+                LeafReader leafReader = leafReaderContext.reader();
+                assertEquals("the delete and the tombstone", 2, leafReader.numDeletedDocs());
+                assertEquals(numDocs + 1, leafReader.maxDoc());
+                Terms id = leafReader.terms("_id");
+                if (numDocs == 1) {
+                    assertNull(id); // everything is pruned away
+                    assertEquals(0, leafReader.numDocs());
+                } else {
+                    assertNotNull(id);
+                    assertEquals("deleted IDs are pruned away", reader.numDocs(), id.size());
+                    TermsEnum iterator = id.iterator();
+                    assertFalse(iterator.seekExact(Uid.encodeId("0")));
+                }
+            }
+        }
     }
 }

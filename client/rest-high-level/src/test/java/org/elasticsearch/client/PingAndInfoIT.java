@@ -90,12 +90,7 @@ public class PingAndInfoIT extends ESRestHighLevelClientTestCase {
     public void testXPackInfoEmptyRequest() throws IOException {
         XPackInfoResponse info = highLevelClient().xpack().info(new XPackInfoRequest(), RequestOptions.DEFAULT);
 
-        /*
-         * The default in the transport client is non-verbose and returning
-         * no categories which is the opposite of the default when you use
-         * the API over REST. We don't want to break the transport client
-         * even though it doesn't feel like a good default.
-         */
+        // TODO: reconsider this leniency now that the transport client is gone
         assertNull(info.getBuildInfo());
         assertNull(info.getLicenseInfo());
         assertNull(info.getFeatureSetsInfo());

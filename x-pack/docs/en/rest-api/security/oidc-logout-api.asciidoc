@@ -39,7 +39,7 @@ POST /_security/oidc/logout
 }
 --------------------------------------------------
 // CONSOLE
-// TEST[skip:These are properly tested in the OpenIDConnectIT suite]
+// TEST[catch:unauthorized]
 
 The following example output of the response contains the URI pointing to the End Session Endpoint of the
 OpenID Connect Provider with all the parameters of the Logout Request, as HTTP GET parameters

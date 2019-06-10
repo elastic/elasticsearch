@@ -33,6 +33,56 @@
 
 ---
 "Sorting and size combined":
+  - skip:
+      version: " - 7.1.99"
+      reason: "deprecation warnings only emitted on 7.2+"
+      features: warnings
+
+  - do:
+      index:
+        index:  test
+        id:     1
+        body:   { "order": 1 }
+  - do:
+      index:
+        index:  test
+        id:     2
+        body:   { "order": 2 }
+  - do:
+      indices.refresh: {}
+
+  - do:
+      warnings:
+        - Deprecated field [size] used, expected [max_docs] instead
+      reindex:
+        refresh: true
+        body:
+          size: 1
+          source:
+            index: test
+            sort: order
+          dest:
+            index: target
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: target
+  - match: { hits.total: 1 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: target
+        q: order:1
+  - match: { hits.total: 1 }
+
+---
+"Sorting and size combined pre 7.2":
+  - skip:
+      version: "7.2.0 - "
+      reason: "7.2 should use max_docs or get deprecation warning"
+
   - do:
       index:
         index:  test
@@ -68,4 +118,82 @@
         rest_total_hits_as_int: true
         index: target
         q: order:1
+  - match: { hits.total: 1 }
+
+---
+"Sorting and max_docs in body combined":
+  - skip:
+      version: " - 7.1.99"
+      reason: "max_docs introduced in 7.2.0"
+
+  - do:
+      index:
+        index:  test
+        id:     1
+        body:   { "order": 1 }
+  - do:
+      index:
+        index:  test
+        id:     2
+        body:   { "order": 2 }
+  - do:
+      indices.refresh: {}
+
+  - do:
+      reindex:
+        refresh: true
+        body:
+          max_docs: 1
+          source:
+            index: test
+            sort: order
+          dest:
+            index: target
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: target
+  - match: { hits.total: 1 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: target
+        q: order:1
+  - match: { hits.total: 1 }
+
+---
+"max_docs in URL":
+  - skip:
+      version: " - 7.1.99"
+      reason: "max_docs introduced in 7.2.0"
+
+  - do:
+      index:
+        index:  test
+        id:     1
+        body:   { "value": 17 }
+  - do:
+      index:
+        index:  test
+        id:     2
+        body:   { "value": 17 }
+  - do:
+      indices.refresh: {}
+
+  - do:
+      reindex:
+        refresh: true
+        max_docs: 1
+        body:
+          source:
+            index: test
+          dest:
+            index: target
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: target
   - match: { hits.total: 1 }

@@ -81,6 +81,10 @@ public final class Request {
         }
     }
 
+    public void addParameters(Map<String, String> paramSource){
+        paramSource.forEach(this::addParameter);
+    }
+
     /**
      * Query string parameters. The returned map is an unmodifiable view of the
      * map in the request so calls to {@link #addParameter(String, String)}

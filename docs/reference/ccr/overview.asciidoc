@@ -119,6 +119,9 @@ index are automatically retried as-needed by the follower index. Not all
 settings updates are needed by the follower index. For example, changing the
 number of replicas on the leader index is not replicated by the follower index.
 
+Alias updates applied to the leader index are automatically retrieved by the
+follower index.
+
 NOTE: If you apply a non-dynamic settings change to the leader index that is
 needed by the follower index, the follower index will go through a cycle of
 closing itself, applying the settings update, and then re-opening itself. The

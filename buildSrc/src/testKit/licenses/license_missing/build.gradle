@@ -1,3 +1,0 @@
-dependencies {
-    compile "com.ibm.icu:icu4j:62.1"
-}

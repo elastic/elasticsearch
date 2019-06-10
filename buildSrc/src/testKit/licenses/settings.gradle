@@ -1,6 +1,0 @@
-include 'no_dependencies_and_no_folder'
-include 'no_dependencies_with_folder'
-include 'dependencies_ok'
-include 'dependencies_too_much'
-include 'sha_missing'
-include 'license_missing'

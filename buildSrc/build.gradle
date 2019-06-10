@@ -112,7 +112,7 @@ repositories {
 dependencies {
   compile localGroovy()
   
-  compile "commons-codec:commons-codec:${props.getProperty('commonscodec')}"
+  compile 'commons-codec:commons-codec:1.11'
 
   compile 'com.netflix.nebula:gradle-extra-configurations-plugin:3.0.3'
   compile 'com.netflix.nebula:nebula-publishing-plugin:4.4.4'

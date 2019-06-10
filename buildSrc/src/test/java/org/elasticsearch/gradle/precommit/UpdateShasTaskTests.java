@@ -2,6 +2,7 @@ package org.elasticsearch.gradle.precommit;
 
 import org.apache.commons.io.FileUtils;
 import org.elasticsearch.gradle.test.GradleUnitTestCase;
+import org.gradle.api.GradleException;
 import org.gradle.api.Project;
 import org.gradle.api.artifacts.Dependency;
 import org.gradle.api.file.FileCollection;
@@ -19,6 +20,7 @@ import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.security.NoSuchAlgorithmException;
 
+import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 
 public class UpdateShasTaskTests extends GradleUnitTestCase {
@@ -37,6 +39,7 @@ public class UpdateShasTaskTests extends GradleUnitTestCase {
         project = createProject();
         task = createUpdateShasTask(project);
         dependency = project.getDependencies().localGroovy();
+
     }
 
     @Test
@@ -76,6 +79,15 @@ public class UpdateShasTaskTests extends GradleUnitTestCase {
         task.updateShas();
 
         assertThat(FileUtils.readFileToString(groovySha), equalTo("content"));
+    }
+
+    @Test
+    public void whenLicensesDirDoesntExistThenShouldThrowException()
+        throws IOException, NoSuchAlgorithmException {
+        expectedException.expect(GradleException.class);
+        expectedException.expectMessage(containsString("isn't a valid directory"));
+
+        task.updateShas();
     }
 
     private Project createProject() {

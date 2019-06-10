@@ -39,7 +39,6 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -127,6 +126,29 @@ public class DependencyLicensesTask extends DefaultTask {
             throw new InvalidUserDataException("Unknown properties for mapping on dependencyLicenses: " + props.keySet());
         }
         mappings.put(from, to);
+    }
+
+    @InputFiles
+    public FileCollection getDependencies() {
+        return dependencies;
+    }
+
+    public void setDependencies(FileCollection dependencies) {
+        this.dependencies = dependencies;
+    }
+
+    @Optional
+    @InputDirectory
+    public File getLicensesDir() {
+        if (licensesDir.exists()) {
+            return licensesDir;
+        }
+
+        return null;
+    }
+
+    public void setLicensesDir(File licensesDir) {
+        this.licensesDir = licensesDir;
     }
 
     /**
@@ -287,7 +309,7 @@ public class DependencyLicensesTask extends DefaultTask {
     Set<File> getShaFiles() {
         File[] array = licensesDir.listFiles();
         if (array == null) {
-            return Collections.emptySet();
+            throw new GradleException("\"" + licensesDir.getPath() + "\" isn't a valid directory");
         }
 
         return Arrays.stream(array)
@@ -296,39 +318,11 @@ public class DependencyLicensesTask extends DefaultTask {
     }
 
     String getSha1(File file) throws IOException, NoSuchAlgorithmException {
-        return applySha1(getBytes(file));
-    }
+        byte[] bytes =  Files.readAllBytes(file.toPath());
 
-    String applySha1(byte[] bytes) throws NoSuchAlgorithmException {
         MessageDigest digest = MessageDigest.getInstance("SHA-1");
         char[] encoded = Hex.encodeHex(digest.digest(bytes));
         return String.copyValueOf(encoded);
     }
 
-    byte[] getBytes(File file) throws IOException {
-        return Files.readAllBytes(file.toPath());
-    }
-
-    @InputFiles
-    public FileCollection getDependencies() {
-        return dependencies;
-    }
-
-    public void setDependencies(FileCollection dependencies) {
-        this.dependencies = dependencies;
-    }
-
-    @Optional
-    @InputDirectory
-    public File getLicensesDir() {
-        if (licensesDir.exists()) {
-            return licensesDir;
-        }
-
-        return null;
-    }
-
-    public void setLicensesDir(File licensesDir) {
-        this.licensesDir = licensesDir;
-    }
 }

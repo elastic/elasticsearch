@@ -205,6 +205,14 @@ public class DependencyLicensesTaskTests extends GradleUnitTestCase {
         task.checkDependencies();
     }
 
+    @Test
+    public void givenProjectWithoutLicensesDirWhenAskingForShaFilesThenShouldThrowException() {
+        expectedException.expect(GradleException.class);
+        expectedException.expectMessage(containsString("isn't a valid directory"));
+
+        task.getShaFiles();
+    }
+
     private Project createProject() {
         Project project = ProjectBuilder.builder().build();
         project.getPlugins().apply(JavaPlugin.class);

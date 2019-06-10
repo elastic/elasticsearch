@@ -339,8 +339,8 @@ if (zdt1.isAfter(zdt2)) {
 
 There are several common ways datetimes are used as input for a script
 determined by the <<painless-contexts, Painless context>>. Typically, datetime
-input will be accessed from parameters specified by the user, from the original
-source, or from an index.
+input will be accessed from parameters specified by the user, from an original
+source document, or from an indexed document.
 
 ===== Datetime Input From User Parameters
 
@@ -352,7 +352,7 @@ through an input called `params`.
 
 *Examples*
 
-* Convert a numeric datetime from parameters to a complex datetime
+* Convert a numeric datetime from user parameters to a complex datetime
 +
 Input:
 +
@@ -377,7 +377,7 @@ Instant instant = Instant.ofEpochMilli(inputDateTime);
 ZonedDateTime zdt = ZonedDateTime.ofInstant(instant, ZoneId.of('Z'));
 ----
 +
-* Convert a string datetime from parameters to a complex datetime
+* Convert a string datetime from user parameters to a complex datetime
 +
 Input:
 +
@@ -403,18 +403,18 @@ DateTimeFormatter dtf = DateTimeFormatter.ofPattern(
 ZonedDateTime zdt = ZonedDateTime.parse(datetime, dtf);
 ----
 
-===== Datetime Input From Source
+===== Datetime Input From a Source Document
 
-Use the original {ref}/mapping-source-field.html[source] used to index a
-document as a script input to access a numeric datetime or string datetime for
-a specific field within that document. Access to the original source within a
-script is dependent on the Painless context and is not always available. The
-original source is most commonly accessible through an input called `_source`
-or `ctx['_source']`.
+Use the original {ref}/mapping-source-field.html[source] document as a script
+input to access a numeric datetime or string datetime for a specific field
+within that document. Access to the original source within a script is
+dependent on the Painless context and is not always available. The original
+source is most commonly accessible through an input called `_source` or
+`ctx['_source']`.
 
 *Examples*
 
-* Convert a numeric datetime from source to a complex datetime
+* Convert a numeric datetime from a sourced document to a complex datetime
 +
 Input:
 +
@@ -436,7 +436,7 @@ Instant instant = Instant.ofEpochMilli(inputDateTime);
 ZonedDateTime zdt = ZonedDateTime.ofInstant(instant, ZoneId.of('Z'));
 ----
 +
-* Convert a string datetime from source to a complex datetime
+* Convert a string datetime from a sourced document to a complex datetime
 +
 Input:
 +
@@ -459,6 +459,6 @@ DateTimeFormatter dtf = DateTimeFormatter.ofPattern(
 ZonedDateTime zdt = ZonedDateTime.parse(datetime, dtf);
 ----
 
-===== Datetime Input From an Index
+===== Datetime Input From an Indexed Document
 
 outline

@@ -20,7 +20,7 @@ public final class DataFrameStrings {
      * The string may start and end only in lower case characters or digits.
      * Note that '.' is allowed but not documented.
      */
-    private static final Pattern VALID_ID_CHAR_PATTERN = Pattern.compile("[a-z0-9](?:[a-z0-9_\\-\\.]*[a-z0-9])?");
+    private static final Pattern VALID_ID_CHAR_PATTERN = Pattern.compile("[a-zA-Z0-9](?:[a-zA-Z0-9_\\-\\.]*[a-zA-Z0-9])?");
 
     public static final int ID_LENGTH_LIMIT = 64;
 

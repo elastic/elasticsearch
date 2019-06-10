@@ -40,7 +40,7 @@ Might respond with:
 id                     host      ip        node
 u_n93zwxThWHi1PDBJAGAg 127.0.0.1 127.0.0.1 u_n93zw
 --------------------------------------------------
-// TESTRESPONSE[s/u_n93zw(xThWHi1PDBJAGAg)?/.+/ _cat]
+// TESTRESPONSE[s/u_n93zw(xThWHi1PDBJAGAg)?/.+/ non_json]
 
 [float]
 [[help]]
@@ -64,7 +64,7 @@ host | h | host name
 ip   |   | ip address
 node | n | node name
 --------------------------------------------------
-// TESTRESPONSE[s/[|]/[|]/ _cat]
+// TESTRESPONSE[s/[|]/[|]/ non_json]
 
 NOTE: `help` is not supported if any optional url parameter is used.
 For example `GET _cat/shards/twitter?help` or `GET _cat/indices/twi*?help`
@@ -90,7 +90,7 @@ Responds with:
 --------------------------------------------------
 127.0.0.1 9300 27 sLBaIGK
 --------------------------------------------------
-// TESTRESPONSE[s/9300 27 sLBaIGK/\\d+ \\d+ .+/ _cat]
+// TESTRESPONSE[s/9300 27 sLBaIGK/\\d+ \\d+ .+/ non_json]
 
 You can also request multiple columns using simple wildcards like
 `/_cat/thread_pool?h=ip,queue*` to get all headers (or aliases) starting

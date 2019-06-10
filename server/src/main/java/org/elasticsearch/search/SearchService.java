@@ -548,19 +548,35 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         }
 
         SearchContext context = createContext(request);
+        onNewContext(context);
         boolean success = false;
         try {
             putContext(context);
-            if (request.scroll() != null) {
+            success = true;
+            return context;
+        } finally {
+            if (success == false) {
+                freeContext(context.id());
+            }
+        }
+    }
+
+    private void onNewContext(SearchContext context) {
+        boolean success = false;
+        try {
+            if (context.scrollContext() != null) {
                 openScrollContexts.incrementAndGet();
                 context.indexShard().getSearchOperationListener().onNewScrollContext(context);
             }
             context.indexShard().getSearchOperationListener().onNewContext(context);
             success = true;
-            return context;
         } finally {
-            if (!success) {
-                freeContext(context.id());
+            // currently, the concrete listener is CompositeListener, which swallows exceptions, but here we anyway try to do the
+            // right thing by closing and notifying onFreeXXX in case one of the listeners fails with an exception in the future.
+            if (success == false) {
+                try (context) {
+                    onFreeContext(context);
+                }
             }
         }
     }
@@ -648,15 +664,20 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     public boolean freeContext(long id) {
         try (SearchContext context = removeContext(id)) {
             if (context != null) {
-                assert context.refCount() > 0 : " refCount must be > 0: " + context.refCount();
-                context.indexShard().getSearchOperationListener().onFreeContext(context);
-                if (context.scrollContext() != null) {
-                    openScrollContexts.decrementAndGet();
-                    context.indexShard().getSearchOperationListener().onFreeScrollContext(context);
-                }
+                onFreeContext(context);
                 return true;
             }
             return false;
+        }
+    }
+
+    private void onFreeContext(SearchContext context) {
+        assert context.refCount() > 0 : " refCount must be > 0: " + context.refCount();
+        assert activeContexts.containsKey(context.id()) == false;
+        context.indexShard().getSearchOperationListener().onFreeContext(context);
+        if (context.scrollContext() != null) {
+            openScrollContexts.decrementAndGet();
+            context.indexShard().getSearchOperationListener().onFreeScrollContext(context);
         }
     }
 

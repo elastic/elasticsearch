@@ -7,8 +7,6 @@
 package org.elasticsearch.xpack.core.ssl;
 
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
@@ -21,7 +19,6 @@ import javax.net.ssl.X509ExtendedKeyManager;
 import javax.net.ssl.X509ExtendedTrustManager;
 import java.io.IOException;
 import java.io.InputStream;
-
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.Key;
@@ -51,16 +48,9 @@ public class CertParsingUtils {
     private CertParsingUtils() {
         throw new IllegalStateException("Utility class should not be instantiated");
     }
-    /**
-     * Resolves a path with or without an {@link Environment} as we may be running in a transport client where we do not have access to
-     * the environment
-     */
-    @SuppressForbidden(reason = "we don't have the environment to resolve files from when running in a transport client")
-    static Path resolvePath(String path, @Nullable Environment environment) {
-        if (environment != null) {
-            return environment.configFile().resolve(path);
-        }
-        return PathUtils.get(path).normalize();
+
+    static Path resolvePath(String path, Environment environment) {
+        return environment.configFile().resolve(path);
     }
 
     public static KeyStore readKeyStore(Path path, String type, char[] password)
@@ -82,7 +72,7 @@ public class CertParsingUtils {
      */
     public static Certificate[] readCertificates(List<String> certPaths, @Nullable Environment environment)
             throws CertificateException, IOException {
-        final List<Path> resolvedPaths = certPaths.stream().map(p -> resolvePath(p, environment)).collect(Collectors.toList());
+        final List<Path> resolvedPaths = certPaths.stream().map(p -> environment.configFile().resolve(p)).collect(Collectors.toList());
         return readCertificates(resolvedPaths);
     }
 
@@ -264,9 +254,9 @@ public class CertParsingUtils {
      * @return a trust manager with the trust material from the store
      */
     public static X509ExtendedTrustManager trustManager(String trustStorePath, String trustStoreType, char[] trustStorePassword,
-                                                        String trustStoreAlgorithm, @Nullable Environment env)
+                                                        String trustStoreAlgorithm, Environment env)
             throws NoSuchAlgorithmException, KeyStoreException, IOException, CertificateException {
-        KeyStore trustStore = readKeyStore(resolvePath(trustStorePath, env), trustStoreType, trustStorePassword);
+        KeyStore trustStore = readKeyStore(env.configFile().resolve(trustStorePath), trustStoreType, trustStorePassword);
         return trustManager(trustStore, trustStoreAlgorithm);
     }
 

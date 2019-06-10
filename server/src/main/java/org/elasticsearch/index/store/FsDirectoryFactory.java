@@ -22,6 +22,7 @@ package org.elasticsearch.index.store;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.store.FileSwitchDirectory;
+import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.LockFactory;
@@ -119,6 +120,14 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
             };
         }
         return directory;
+    }
+
+    /**
+     * Returns true iff the directory is a hybrid fs directory
+     */
+    public static boolean isHybridFs(Directory directory) {
+        Directory unwrap = FilterDirectory.unwrap(directory);
+        return unwrap instanceof HybridDirectory;
     }
 
     static final class HybridDirectory extends NIOFSDirectory {

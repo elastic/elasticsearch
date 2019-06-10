@@ -39,6 +39,8 @@ include::cluster.asciidoc[]
 
 include::query-dsl.asciidoc[]
 
+include::scripting.asciidoc[]
+
 include::mapping.asciidoc[]
 
 include::analysis.asciidoc[]

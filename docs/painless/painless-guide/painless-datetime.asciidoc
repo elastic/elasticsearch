@@ -15,37 +15,38 @@ from the following Java packages are available to use in Painless scripts:
 
 ==== Datetime Representation
 
-Datetimes in Painless are most commonly represented as a
-<<primitive-types, long>>, a <<string-type, String>>, or a
-<<painless-api-reference-shared-ZonedDateTime, ZonedDateTime>>.
+Datetimes in Painless are most commonly represented as a numeric value, a
+string value, or a complex value.
 
-long:: represents a datetime as the number of milliseconds or nanoseconds since
-epoch (1970-01-01T00:00:00Z)
-String:: represents a datetime as a sequence of characters defined by a
-well-known standard such as https://en.wikipedia.org/wiki/ISO_8601[ISO 8601] or
-defined by the source of input in a custom way
-ZonedDateTime:: a <<reference-types, reference type>> (object) that contains an
-internal representation of a datetime and provides numerous
-<<painless-api-reference-shared-ZonedDateTime, methods>> for
-modification and comparison.
+numeric:: a datetime representation as a number from a starting offset called
+an epoch; in Painless this is typically a <<primitive-types, long>> as
+milliseconds since an epoch of 1970-01-01 00:00:00 Zulu Time
+string:: a datetime representation as a sequence of characters defined by
+a standard format or a custom format; in Painless this is typically a
+<<string-type, String>> of the standard format
+https://en.wikipedia.org/wiki/ISO_8601[ISO 8601]
+complex:: a datetime representation as a complex type
+(<<reference-types, object>>) that abstracts away internal details of how the
+datetime is stored and often provides utilities for modification and
+comparison; in Painless this is typically a
+<<painless-api-reference-shared-ZonedDateTime>>
 
 Switching between different representations of datetimes is often necessary to
 achieve a script's objective(s). A typical pattern in a script is to switch a
-long or String representation of a datetime to a ZonedDateTime representation,
-modify or compare the ZonedDateTime representation, and then switch it back to
-a long or String representation for storage or as a returned result.
+numeric or string datetime to a complex datetime, modify or compare the complex
+datetime, and then switch it back to a numeric or string datetime for storage
+or to return a result.
 
 ==== Datetime Parsing and Formatting
 
-Datetime parsing is a switch from a String representation to a ZonedDateTime
-representation, and datetime formatting is a switch from a ZonedDateTime
-representation to a String representation.
+Datetime parsing is a switch from a string datetime to a complex datetime, and
+datetime formatting is a switch from a complex datetime to a string datetime.
 
 A <<painless-api-reference-shared-DateTimeFormatter, DateTimeFormatter>> is a
-<<reference-types, reference type>> (object) that defines the allowed sequence
-of characters for a String representation of a datetime. Datetime parsing and
-formatting often requires a DateTimeFormatter. For more information about how
-to use a DateTimeFormatter see the
+complex type (<<reference-types, object>>) that defines the allowed sequence
+of characters for a string datetime. Datetime parsing and formatting often
+requires a DateTimeFormatter. For more information about how to use a
+DateTimeFormatter see the
 {java11-javadoc}/java.base/java/time/format/DateTimeFormatter.html[Java documentation].
 
 ===== Datetime Parsing Examples
@@ -92,7 +93,7 @@ Note the use of a custom DateTimeFormatter.
 
 ===== Datetime Formatting Examples
 
-* format to a String (ISO 8601)
+* format to ISO 8601
 +
 [source,Painless]
 ----
@@ -102,7 +103,7 @@ String datetime = zdt.format(DateTimeFormatter.ISO_INSTANT);
 ----
 Note the use of a built-in DateTimeFormatter.
 +
-* format to a String (custom)
+* format to a custom format
 +
 [source,Painless]
 ----
@@ -116,8 +117,8 @@ Note the use of a custom DateTimeFormatter.
 
 ==== Datetime Conversion
 
-Datetime conversion is a switch from a long representation to a ZonedDateTime
-representation and vice versa.
+Datetime conversion is a switch from a numeric datetime to a complex datetime
+and vice versa.
 
 ===== Datetime Conversion Examples
 
@@ -141,16 +142,14 @@ long milliSinceEpoch = zdt.toInstant().toEpochMilli();
 
 ==== Datetime Pieces
 
-Use the ZonedDateTime
-<<painless-api-reference-shared-ZonedDateTime, method of>> to create a new
-ZonedDateTime from pieces (year, month, day, hour, minute, second, nano,
-time zone). Use ZonedDateTime
-<<painless-api-reference-shared-ZonedDateTime, methods>> to extract pieces from
-a ZonedDateTime.
+Datetime representations often contain the data to extract individual datetime
+pieces such as year, hour, timezone, etc. Use individual pieces of a datetime
+to create a complex datetime, and use a complex datetime to extract individual
+pieces.
 
 ===== Datetime Pieces Examples
 
-* create a ZonedDateTime from pieces
+* create a complex datetime from pieces
 +
 [source,Painless]
 ----
@@ -165,7 +164,7 @@ ZonedDateTime zdt = ZonedDateTime.of(
         year, month, day, hour, minutes, seconds, nanos, ZoneId.of('Z'));
 ----
 +
-* extract pieces from a ZonedDateTime
+* extract pieces from a complex datetime
 +
 [source,Painless]
 ----
@@ -182,17 +181,18 @@ int nanos = zdt.getNano();
 
 ==== Datetime Modification
 
-Use either a long or a ZonedDateTime to do datetime modification such as adding
-several seconds to a datetime or subtracting several days from a datetime. Use
-standard <<painless-operators-numeric, numeric operators>> to modify a long
-representation of a datetime. Use ZonedDateTime
-<<painless-api-reference-shared-ZonedDateTime, methods>> to modify a
-ZonedDateTime representation of a datetime. Note most modification methods for
-a ZonedDateTime return a new instance for assignment or immediate use.
+Use either a numeric datetime or a complex datetime to do modification such as
+adding several seconds to a datetime or subtracting several days from a
+datetime. Use standard <<painless-operators-numeric, numeric operators>> to
+modify a numeric datetime. Use
+<<painless-api-reference-shared-ZonedDateTime, methods>> (or fields) to modify
+a complex datetime. Note many complex datetimes are immutable so upon
+modification a new complex datetime is created that requires
+<<variable-assignment, assignment>> or immediate use.
 
 ===== Datetime Modification Examples
 
-* Subtract three seconds from milliseconds
+* Subtract three seconds from a numeric datetime in milliseconds
 +
 [source,Painless]
 ----
@@ -200,7 +200,7 @@ long milliSinceEpoch = 434931330000L;
 milliSinceEpoch = milliSinceEpoch - 1000L*3L;
 ----
 +
-* Add three days to a datetime
+* Add three days to a complex datetime
 +
 [source,Painless]
 ----
@@ -209,7 +209,7 @@ ZonedDateTime zdt =
 ZonedDateTime updatedZdt = zdt.plusDays(3);
 ----
 +
-* Subtract 125 minutes from a datetime
+* Subtract 125 minutes from a complex datetime
 +
 [source,Painless]
 ----
@@ -218,7 +218,7 @@ ZonedDateTime zdt =
 ZonedDateTime updatedZdt = zdt.minusMinutes(125);
 ----
 +
-* Set the year on a datetime
+* Set the year on a complex datetime
 +
 [source,Painless]
 ----
@@ -227,18 +227,20 @@ ZonedDateTime zdt =
 ZonedDateTime updatedZdt = zdt.withYear(1976);
 ----
 
-==== Elapsed Time
+==== Datetime Difference (Elapsed Time)
 
-Use either two longs or two ZonedDateTimes to calculate an elapsed
-time (difference) between two datetimes. Use
-<<subtraction-operator, subtraction>> to calculate an elapsed time
-between two longs of the same time unit such as milliseconds. For more complex
-datetimes. use <<painless-api-reference-shared-ChronoUnit, ChronoUnit>> to
-calculate the difference between two ZonedDateTimes.
+Use either two numeric datetimes or two complex datetimes to calculate the
+difference (elapsed time) between two different datetimes. Use
+<<subtraction-operator, subtraction>> to calculate the difference between
+between two numeric datetimes of the same time unit such as milliseconds. For
+complex datetimes there is often a method or another complex type
+(<<reference-types, object>>) available to calculate the difference. Use
+<<painless-api-reference-shared-ChronoUnit, ChronoUnit>>
+to calculate the difference between two complex datetimes if supported.
 
 ===== Elapsed Time Examples
 
-* Elapsed time for two millisecond datetimes
+* Difference in milliseconds between two numeric datetimes
 +
 [source,Painless]
 ----
@@ -247,7 +249,7 @@ long endTimestamp = 434931330000L;
 long differenceInMillis = endTimestamp - startTimestamp;
 ----
 +
-* Elapsed time in milliseconds for two datetimes
+* Difference in milliseconds between two complex datetimes
 +
 [source,Painless]
 ----
@@ -258,7 +260,7 @@ ZonedDateTime zdt2 =
 long differenceInMillis = ChronoUnit.MILLIS.between(zdt1, zdt2);
 ----
 +
-* Elapsed time in days for two datetimes
+* Difference in days between two complex datetimes
 +
 [source,Painless]
 ----
@@ -271,15 +273,15 @@ long differenceInDays = ChronoUnit.DAYS.between(zdt1, zdt2);
 
 ==== Datetime Comparison
 
-Use either two longs or two ZonedDateTimes to do a datetime comparison. Use
-standard <<painless-operators-boolean, comparison operators>> to compare two
-longs of the same time unit such as milliseconds. For more complex datetimes,
-use ZonedDateTime <<painless-api-reference-shared-ZonedDateTime, methods>> to
-compare two ZonedDateTimes.
+Use either two numeric datetimes or two complex datetimes to do a datetime
+comparison. Use standard <<painless-operators-boolean, comparison operators>>
+to compare two numeric datetimes of the same time unit such as milliseconds.
+For complex datetimes there is often a method or another complex type
+(<<reference-types, object>>) available to do the comparison.
 
 ===== Datetime Comparison Examples
 
-* Comparison of two millisecond datetimes
+* Greater than comparison of two numeric datetimes in milliseconds
 +
 [source,Painless]
 ----
@@ -291,7 +293,21 @@ if (timestamp1 > timestamp2) {
 }
 ----
 +
-* Before comparision of two datetimes
+* Equality comparision of two complex datetimes
++
+[source,Painless]
+----
+ZonedDateTime zdt1 =
+        ZonedDateTime.of(1983, 10, 13, 22, 15, 30, 0, ZoneId.of('Z'));
+ZonedDateTime zdt2 =
+        ZonedDateTime.of(1983, 10, 13, 22, 15, 30, 0, ZoneId.of('Z'));
+
+if (zdt1.equals(zdt2)) {
+    // handle condition
+}
+----
++
+* Less than comparision of two complex datetimes
 +
 [source,Painless]
 ----
@@ -305,7 +321,7 @@ if (zdt1.isBefore(zdt2)) {
 }
 ----
 +
-* After comparision of two datetimes
+* Greater than comparision of two complex datetimes
 +
 [source,Painless]
 ----

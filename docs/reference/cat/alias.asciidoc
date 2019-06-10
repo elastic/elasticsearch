@@ -49,7 +49,7 @@ alias2 test1 *      -            -
 alias3 test1 -      1            1
 alias4 test1 -      2            1,2
 --------------------------------------------------
-// TESTRESPONSE[s/[*]/[*]/ _cat]
+// TESTRESPONSE[s/[*]/[*]/ non_json]
 
 The output shows that `alias2` has configured a filter, and specific routing
 configurations in `alias3` and `alias4`.

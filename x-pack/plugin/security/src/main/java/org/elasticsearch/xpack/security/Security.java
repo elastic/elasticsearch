@@ -841,7 +841,6 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
     @Override
     public List<TransportInterceptor> getTransportInterceptors(NamedWriteableRegistry namedWriteableRegistry, ThreadContext threadContext) {
         if (enabled == false) { // don't register anything if we are not enabled
-            // interceptors are not installed if we are running on the transport client
             return Collections.emptyList();
         }
        return Collections.singletonList(new TransportInterceptor() {
@@ -865,7 +864,7 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
     public Map<String, Supplier<Transport>> getTransports(Settings settings, ThreadPool threadPool, PageCacheRecycler pageCacheRecycler,
                                                           CircuitBreakerService circuitBreakerService,
                                                           NamedWriteableRegistry namedWriteableRegistry, NetworkService networkService) {
-        if (enabled == false) { // don't register anything if we are not enabled, or in transport client mode
+        if (enabled == false) { // don't register anything if we are not enabled
             return Collections.emptyMap();
         }
 

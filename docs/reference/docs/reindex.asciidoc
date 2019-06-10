@@ -190,14 +190,14 @@ not a good idea to rely on this behavior. Instead, make sure that IDs are unique
 using a script.
 
 It's also possible to limit the number of processed documents by setting
-`size`. This will only copy a single document from `twitter` to
+`max_docs`. This will only copy a single document from `twitter` to
 `new_twitter`:
 
 [source,js]
 --------------------------------------------------
 POST _reindex
 {
-  "size": 1,
+  "max_docs": 1,
   "source": {
     "index": "twitter"
   },
@@ -211,14 +211,14 @@ POST _reindex
 
 If you want a particular set of documents from the `twitter` index you'll
 need to use `sort`. Sorting makes the scroll less efficient but in some contexts
-it's worth it. If possible, prefer a more selective query to `size` and `sort`.
+it's worth it. If possible, prefer a more selective query to `max_docs` and `sort`.
 This will copy 10000 documents from `twitter` into `new_twitter`:
 
 [source,js]
 --------------------------------------------------
 POST _reindex
 {
-  "size": 10000,
+  "max_docs": 10000,
   "source": {
     "index": "twitter",
     "sort": { "date": "desc" }
@@ -1115,11 +1115,11 @@ sub-request proportionally.
 * Due to the nature of `slices` each sub-request won't get a perfectly even
 portion of the documents. All documents will be addressed, but some slices may
 be larger than others. Expect larger slices to have a more even distribution.
-* Parameters like `requests_per_second` and `size` on a request with `slices`
-are distributed proportionally to each sub-request. Combine that with the point
-above about distribution being uneven and you should conclude that the using
-`size` with `slices` might not result in exactly `size` documents being
-reindexed.
+* Parameters like `requests_per_second` and `max_docs` on a request with
+`slices` are distributed proportionally to each sub-request. Combine that with
+the point above about distribution being uneven and you should conclude that
+using `max_docs` with `slices` might not result in exactly `max_docs` documents
+being reindexed.
 * Each sub-request gets a slightly different snapshot of the source index,
 though these are all taken at approximately the same time.
 
@@ -1236,7 +1236,7 @@ to load only the existing data into the new index and rename any fields if neede
 ----------------------------------------------------------------
 POST _reindex
 {
-  "size": 10,
+  "max_docs": 10,
   "source": {
     "index": "twitter",
     "query": {

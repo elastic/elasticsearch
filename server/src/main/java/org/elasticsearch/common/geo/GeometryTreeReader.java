@@ -44,11 +44,7 @@ public class GeometryTreeReader {
         input.position(0);
         boolean hasExtent = input.readBoolean();
         if (hasExtent) {
-            int thisMinLon = input.readInt();
-            int thisMinLat = input.readInt();
-            int thisMaxLon = input.readInt();
-            int thisMaxLat = input.readInt();
-            return new Extent(thisMinLon, thisMinLat, thisMaxLon, thisMaxLat);
+            return new Extent(input);
         }
         assert input.readVInt() == 1;
         ShapeType shapeType = input.readEnum(ShapeType.class);

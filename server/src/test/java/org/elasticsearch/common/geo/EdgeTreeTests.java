@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.common.geo;
 
+import org.apache.lucene.geo.GeoEncodingUtils;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.common.io.stream.ByteBufferStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -28,6 +29,7 @@ import org.locationtech.spatial4j.shape.Rectangle;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.function.Function;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -90,13 +92,13 @@ public class EdgeTreeTests extends ESTestCase {
             ShapeBuilder builder = RandomShapeGenerator.createShape(random(), RandomShapeGenerator.ShapeType.POLYGON);
             Polygon geo = (Polygon) builder.buildGeometry();
             Rectangle box = builder.buildS4J().getBoundingBox();
-            int minXBox = (int) box.getMinX();
-            int minYBox = (int) box.getMinY();
-            int maxXBox = (int) box.getMaxX();
-            int maxYBox = (int) box.getMaxY();
+            int minXBox = GeoEncodingUtils.encodeLongitude(box.getMinX());
+            int minYBox = GeoEncodingUtils.encodeLatitude(box.getMinY());
+            int maxXBox = GeoEncodingUtils.encodeLongitude(box.getMaxX());
+            int maxYBox = GeoEncodingUtils.encodeLatitude(box.getMaxY());
 
-            int[] x = asIntArray(geo.getPolygon().getLons());
-            int[] y = asIntArray(geo.getPolygon().getLats());
+            int[] x = asIntArray(geo.getPolygon().getLons(), GeoEncodingUtils::encodeLongitude);
+            int[] y = asIntArray(geo.getPolygon().getLats(), GeoEncodingUtils::encodeLatitude);
 
             EdgeTreeWriter writer = new EdgeTreeWriter(x, y);
             BytesStreamOutput output = new BytesStreamOutput();
@@ -138,10 +140,10 @@ public class EdgeTreeTests extends ESTestCase {
         assertTrue(reader.containsBottomLeft(new Extent(xMin, yMin, xMax, yMax)));
     }
 
-    private int[] asIntArray(double[] doub) {
+    private int[] asIntArray(double[] doub, Function<Double, Integer> encode) {
         int[] intArr = new int[doub.length];
         for (int i = 0; i < intArr.length; i++) {
-            intArr[i] = (int) doub[i];
+            intArr[i] = encode.apply(doub[i]);
         }
         return intArr;
     }

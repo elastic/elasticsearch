@@ -40,7 +40,7 @@ Dan Simmons    |Hyperion       |482            |1989-05-26T00:00:00.000Z
 Frank Herbert  |Dune           |604            |1965-06-01T00:00:00.000Z
 --------------------------------------------------
 // TESTRESPONSE[s/\|/\\|/ s/\+/\\+/]
-// TESTRESPONSE[_cat]
+// TESTRESPONSE[non_json]
 
 You can also use the <<sql-cli>>. There is a script to start it
 shipped in x-pack's bin directory:

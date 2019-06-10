@@ -26,7 +26,7 @@ snap2 SUCCESS 1445634298  23:04:58   1445634672 23:11:12     6.2m       2       
 // TESTRESPONSE[s/\d+:\d+:\d+/\\d+:\\d+:\\d+/]
 // TESTRESPONSE[s/1                 4             1            5/\\d+ \\d+ \\d+ \\d+/]
 // TESTRESPONSE[s/2                10             0           10/\\d+ \\d+ \\d+ \\d+/]
-// TESTRESPONSE[_cat]
+// TESTRESPONSE[non_json]
 
 Each snapshot contains information about when it was started and stopped.
 Start and stop timestamps are available in two formats.

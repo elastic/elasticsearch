@@ -62,9 +62,9 @@ for its modifiers:
     them" which looks like `// TESTRESPONSE[s/\d+/$body.$_path/]`.
   * You can't use `// TESTRESPONSE` immediately after `// TESTSETUP`. Instead,
   consider using `// TEST[continued]` or rearrange your snippets.
-  * `// TESTRESPONSE[_cat]`: Add substitutions for testing `_cat` responses. Use
-  this after all other substitutions so it doesn't make other substitutions
-  difficult.
+  * `// TESTRESPONSE[non_json]`: Add substitutions for testing responses in a
+  format other than JSON. Use this after all other substitutions so it doesn't
+  make other substitutions difficult.
   * `// TESTRESPONSE[skip:reason]`: Skip the assertions specified by this
   response.
 * `// TESTSETUP`: Marks this snippet as the "setup" for all other snippets in

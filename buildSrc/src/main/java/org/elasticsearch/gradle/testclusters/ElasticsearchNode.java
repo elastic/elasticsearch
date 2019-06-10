@@ -23,7 +23,6 @@ import org.elasticsearch.gradle.Distribution;
 import org.elasticsearch.gradle.FileSupplier;
 import org.elasticsearch.gradle.OS;
 import org.elasticsearch.gradle.Version;
-import org.gradle.api.file.DuplicatesStrategy;
 import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.Logging;
 
@@ -398,28 +397,23 @@ public class ElasticsearchNode implements TestClusterConfiguration {
 
     private void installModules() {
         if (distribution == Distribution.INTEG_TEST) {
-            modules.forEach(module -> services.copy(spec -> {
-                // ensure we don't override any existing JARs, since these are hardlinks other clusters might be using those files
-                spec.setDuplicatesStrategy(DuplicatesStrategy.EXCLUDE);
+            for (File module : modules) {
+                Path destination = workingDir.resolve("modules").resolve(module.getName().replace(".zip", "").replace("-" + version, ""));
 
-                if (module.getName().toLowerCase().endsWith(".zip")) {
-                    spec.from(services.zipTree(module));
-                } else if (module.isDirectory()) {
-                    spec.from(module);
-                } else {
-                    throw new IllegalArgumentException("Not a valid module " + module + " for " + this);
+                // only install modules that are not already bundled with the integ-test distribution
+                if (Files.exists(destination) == false) {
+                    services.copy(spec -> {
+                        if (module.getName().toLowerCase().endsWith(".zip")) {
+                            spec.from(services.zipTree(module));
+                        } else if (module.isDirectory()) {
+                            spec.from(module);
+                        } else {
+                            throw new IllegalArgumentException("Not a valid module " + module + " for " + this);
+                        }
+                        spec.into(destination);
+                    });
                 }
-                spec.into(
-                    workingDir
-                        .resolve("modules")
-                        .resolve(
-                            module.getName()
-                                .replace(".zip", "")
-                                .replace("-" + version, "")
-                        )
-                        .toFile()
-                );
-            }));
+            }
         } else {
             LOGGER.info("Not installing " + modules.size() + "(s) since the " + distribution + " distribution already " +
                 "has them");

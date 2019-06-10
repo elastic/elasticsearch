@@ -89,11 +89,14 @@
   - skip:
           version:     "8.0.0 - "
           reason:      "old deprecation message for pre 8.0"
+          features:    "node_selector"
   - do:
       indices.create:
         index: test_index
 
   - do:
+      node_selector:
+        version: " - 7.99.99"
       catch: bad_request
       indices.put_mapping:
         index: test_index

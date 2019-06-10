@@ -305,10 +305,11 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
                         aliasActions.add(IndicesAliasesRequest.AliasActions.remove().index(followerIndex.getName()).alias(aliasName));
                     }
 
-                    final IndicesAliasesRequest request = new IndicesAliasesRequest();
                     if (aliasActions.isEmpty()) {
                         handler.accept(leaderIndexMetaData.getAliasesVersion());
                     } else {
+                        final IndicesAliasesRequest request = new IndicesAliasesRequest();
+                        request.origin("ccr");
                         aliasActions.forEach(request::addAliasAction);
                         followerClient.admin().indices().aliases(
                                 request,

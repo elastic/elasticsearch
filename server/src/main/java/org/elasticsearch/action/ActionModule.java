@@ -85,6 +85,7 @@ import org.elasticsearch.action.admin.cluster.storedscripts.TransportPutStoredSc
 import org.elasticsearch.action.admin.cluster.tasks.PendingClusterTasksAction;
 import org.elasticsearch.action.admin.cluster.tasks.TransportPendingClusterTasksAction;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesAction;
+import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.TransportIndicesAliasesAction;
 import org.elasticsearch.action.admin.indices.alias.exists.AliasesExistAction;
 import org.elasticsearch.action.admin.indices.alias.exists.TransportAliasesExistAction;
@@ -362,6 +363,7 @@ public class ActionModule extends AbstractModule {
     private final DestructiveOperations destructiveOperations;
     private final RestController restController;
     private final RequestValidators<PutMappingRequest> mappingRequestValidators;
+    private final RequestValidators<IndicesAliasesRequest> indicesAliasesRequestRequestValidators;
 
     public ActionModule(boolean transportClient, Settings settings, IndexNameExpressionResolver indexNameExpressionResolver,
                         IndexScopedSettings indexScopedSettings, ClusterSettings clusterSettings, SettingsFilter settingsFilter,
@@ -395,6 +397,8 @@ public class ActionModule extends AbstractModule {
         }
         mappingRequestValidators = new RequestValidators<>(
             actionPlugins.stream().flatMap(p -> p.mappingRequestValidators().stream()).collect(Collectors.toList()));
+        indicesAliasesRequestRequestValidators = new RequestValidators<>(
+                actionPlugins.stream().flatMap(p -> p.indicesAliasesRequestValidators().stream()).collect(Collectors.toList()));
 
         if (transportClient) {
             restController = null;
@@ -692,6 +696,7 @@ public class ActionModule extends AbstractModule {
         bind(ActionFilters.class).toInstance(actionFilters);
         bind(DestructiveOperations.class).toInstance(destructiveOperations);
         bind(new TypeLiteral<RequestValidators<PutMappingRequest>>() {}).toInstance(mappingRequestValidators);
+        bind(new TypeLiteral<RequestValidators<IndicesAliasesRequest>>() {}).toInstance(indicesAliasesRequestRequestValidators);
 
         if (false == transportClient) {
             // Supporting classes only used when not a transport client

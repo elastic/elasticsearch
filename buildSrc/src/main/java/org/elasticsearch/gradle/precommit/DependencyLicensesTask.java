@@ -298,8 +298,8 @@ public class DependencyLicensesTask extends DefaultTask {
     }
 
     @Input
-    public Map<String, String> getMappings() {
-        return new HashMap<>(mappings);
+    public LinkedHashMap<String, String> getMappings() {
+        return new LinkedHashMap<>(mappings);
     }
 
     File getShaFile(String jarName) {

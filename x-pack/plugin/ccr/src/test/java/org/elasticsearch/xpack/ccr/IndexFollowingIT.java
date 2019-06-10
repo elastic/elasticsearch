@@ -120,7 +120,6 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class IndexFollowingIT extends CcrIntegTestCase {
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/41037")
     public void testFollowIndex() throws Exception {
         final int numberOfPrimaryShards = randomIntBetween(1, 3);
         int numberOfReplicas = between(0, 1);

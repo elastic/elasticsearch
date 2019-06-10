@@ -67,7 +67,7 @@ public abstract class NamedExpression extends Expression {
 
     @Override
     public int hashCode() {
-        return Objects.hash(id, name, synthetic);
+        return Objects.hash(super.hashCode(), name, synthetic);
     }
 
     @Override

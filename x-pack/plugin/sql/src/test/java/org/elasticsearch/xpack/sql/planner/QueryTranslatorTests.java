@@ -1132,6 +1132,85 @@ public class QueryTranslatorTests extends ESTestCase {
                         + "\"gap_policy\":\"skip\"}}}}}"));
     }
 
+    public void testGroupSelection() {
+        {
+            PhysicalPlan p = optimizeAndPlan("SELECT EXTRACT(MINUTE FROM CONVERT(date, SQL_TIMESTAMP)) x FROM test GROUP BY x");
+            assertEquals(EsQueryExec.class, p.getClass());
+            assertEquals(1, p.output().size());
+            assertEquals("x", p.output().get(0).qualifiedName());
+            assertEquals(DataType.INTEGER, p.output().get(0).dataType());
+            assertThat(
+                ((EsQueryExec) p).queryContainer().aggs().asAggBuilder().toString()
+                    .replaceAll("\\s+", ""),
+                endsWith("{\"source\":\"InternalSqlScriptUtils.dateTimeChrono(" +
+                    "InternalSqlScriptUtils.docValue(doc,params.v0),params.v1,params.v2)\",\"lang\":\"painless\"," +
+                    "\"params\":{\"v0\":\"date\",\"v1\":\"Z\",\"v2\":\"MINUTE_OF_HOUR\"}}," +
+                    "\"missing_bucket\":true,\"value_type\":\"long\",\"order\":\"asc\"}}}]}}}")
+            );
+        }
+        {
+            PhysicalPlan p = optimizeAndPlan("SELECT EXTRACT(HOUR FROM CONVERT(date, SQL_TIMESTAMP)) FROM test GROUP BY " +
+                "EXTRACT(HOUR FROM CONVERT(date, SQL_TIMESTAMP))");
+            assertEquals(EsQueryExec.class, p.getClass());
+            assertEquals(1, p.output().size());
+            assertEquals("EXTRACT(HOUR FROM CONVERT(date, SQL_TIMESTAMP))", p.output().get(0).qualifiedName());
+            assertEquals(DataType.INTEGER, p.output().get(0).dataType());
+            assertThat(
+                ((EsQueryExec) p).queryContainer().aggs().asAggBuilder().toString()
+                    .replaceAll("\\s+", ""),
+                endsWith("{\"source\":\"InternalSqlScriptUtils.dateTimeChrono(" +
+                    "InternalSqlScriptUtils.docValue(doc,params.v0),params.v1,params.v2)\",\"lang\":\"painless\"," +
+                    "\"params\":{\"v0\":\"date\",\"v1\":\"Z\",\"v2\":\"HOUR_OF_DAY\"}},\"missing_bucket\":true," +
+                    "\"value_type\":\"long\",\"order\":\"asc\"}}}]}}}")
+            );
+        }
+        {
+            PhysicalPlan p = optimizeAndPlan("SELECT PI() * int FROM test GROUP BY 1");
+            assertEquals(EsQueryExec.class, p.getClass());
+            assertEquals(1, p.output().size());
+            assertEquals("PI() * int", p.output().get(0).qualifiedName());
+            assertEquals(DataType.DOUBLE, p.output().get(0).dataType());
+            assertThat(
+                ((EsQueryExec) p).queryContainer().aggs().asAggBuilder().toString()
+                    .replaceAll("\\s+", ""),
+                endsWith("{\"source\":\"InternalSqlScriptUtils.mul(params.v0,InternalSqlScriptUtils.docValue(doc,params.v1))\"," +
+                    "\"lang\":\"painless\",\"params\":{\"v0\":3.141592653589793,\"v1\":\"int\"}}," +
+                    "\"missing_bucket\":true,\"value_type\":\"double\",\"order\":\"asc\"}}}]}}}")
+            );
+        }
+        {
+            PhysicalPlan p = optimizeAndPlan("SELECT date + 1 * INTERVAL '1' DAY FROM test GROUP BY 1");
+            assertEquals(EsQueryExec.class, p.getClass());
+            assertEquals(1, p.output().size());
+            assertEquals("date + 1 * INTERVAL '1' DAY", p.output().get(0).qualifiedName());
+            assertEquals(DataType.DATETIME, p.output().get(0).dataType());
+            assertThat(
+                ((EsQueryExec) p).queryContainer().aggs().asAggBuilder().toString()
+                    .replaceAll("\\s+", ""),
+                endsWith("{\"source\":\"InternalSqlScriptUtils.add(InternalSqlScriptUtils.docValue(doc,params.v0)," +
+                    "InternalSqlScriptUtils.intervalDayTime(params.v1,params.v2))\"," +
+                    "\"lang\":\"painless\",\"params\":{\"v0\":\"date\",\"v1\":\"PT24H\",\"v2\":\"INTERVAL_DAY\"}}," +
+                    "\"missing_bucket\":true,\"value_type\":\"long\",\"order\":\"asc\"}}}]}}}")
+            );
+        }
+        {
+            PhysicalPlan p = optimizeAndPlan("select (3 < int) as multi_language, count(*) from test group by multi_language");
+            assertEquals(EsQueryExec.class, p.getClass());
+            assertEquals(2, p.output().size());
+            assertEquals("multi_language", p.output().get(0).qualifiedName());
+            assertEquals(DataType.BOOLEAN, p.output().get(0).dataType());
+            assertEquals("count(*)", p.output().get(1).qualifiedName());
+            assertEquals(DataType.LONG, p.output().get(1).dataType());
+            assertThat(
+                ((EsQueryExec) p).queryContainer().aggs().asAggBuilder().toString()
+                    .replaceAll("\\s+", ""),
+                endsWith("{\"source\":\"InternalSqlScriptUtils.gt(InternalSqlScriptUtils.docValue(doc,params.v0),params.v1)\"," +
+                    "\"lang\":\"painless\",\"params\":{\"v0\":\"int\",\"v1\":3}}," +
+                    "\"missing_bucket\":true,\"value_type\":\"boolean\",\"order\":\"asc\"}}}]}}}")
+            );
+        }
+    }
+
     public void testTopHitsAggregationWithOneArg() {
         {
             PhysicalPlan p = optimizeAndPlan("SELECT FIRST(keyword) FROM test");

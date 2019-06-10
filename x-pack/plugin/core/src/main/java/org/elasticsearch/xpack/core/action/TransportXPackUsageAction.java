@@ -31,6 +31,7 @@ import java.util.function.BiConsumer;
 public class TransportXPackUsageAction extends TransportMasterNodeAction<XPackUsageRequest, XPackUsageResponse> {
 
     private final NodeClient client;
+    private final List<XPackUsageFeatureAction> usageActions;
 
     @Inject
     public TransportXPackUsageAction(ThreadPool threadPool, TransportService transportService,
@@ -39,6 +40,12 @@ public class TransportXPackUsageAction extends TransportMasterNodeAction<XPackUs
         super(XPackUsageAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver,
                 XPackUsageRequest::new);
         this.client = client;
+        this.usageActions = usageActions();
+    }
+
+    // overrideable for tests
+    protected List<XPackUsageFeatureAction> usageActions() {
+        return XPackUsageFeatureAction.ALL;
     }
 
     @Override
@@ -64,7 +71,7 @@ public class TransportXPackUsageAction extends TransportMasterNodeAction<XPackUs
                 listener.onFailure(e);
             }
         };
-        final AtomicReferenceArray<Usage> featureSetUsages = new AtomicReferenceArray<>(XPackUsageFeatureAction.ALL.size());
+        final AtomicReferenceArray<Usage> featureSetUsages = new AtomicReferenceArray<>(usageActions.size());
         final AtomicInteger position = new AtomicInteger(0);
         final BiConsumer<XPackUsageFeatureAction, ActionListener<List<Usage>>> consumer = (featureUsageAction, iteratingListener) -> {
             client.executeLocally(featureUsageAction, request, new ActionListener<>() {
@@ -82,7 +89,7 @@ public class TransportXPackUsageAction extends TransportMasterNodeAction<XPackUs
             });
         };
         IteratingActionListener<List<XPackFeatureSet.Usage>, XPackUsageFeatureAction> iteratingActionListener =
-                new IteratingActionListener<>(usageActionListener, consumer, XPackUsageFeatureAction.ALL,
+                new IteratingActionListener<>(usageActionListener, consumer, usageActions,
                         threadPool.getThreadContext(), (ignore) -> {
                     final List<Usage> usageList = new ArrayList<>(featureSetUsages.length());
                     for (int i = 0; i < featureSetUsages.length(); i++) {

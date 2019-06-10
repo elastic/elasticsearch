@@ -47,6 +47,7 @@ integTestRunner {
     'ml/filter_crud/Test invalid param combinations',
     'ml/filter_crud/Test non-existing filter',
     'ml/filter_crud/Test update filter given remove item is not present',
+    'ml/filter_crud/Test get all filter given index exists but no mapping for filter_id',
     'ml/get_datafeed_stats/Test get datafeed stats given missing datafeed_id',
     'ml/get_datafeeds/Test get datafeed given missing datafeed_id',
     'ml/jobs_crud/Test cannot create job with existing categorizer state document',

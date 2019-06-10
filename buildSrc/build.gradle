@@ -182,7 +182,9 @@ if (project != rootProject) {
     if (isLuceneSnapshot) {
       systemProperty 'test.lucene-snapshot-revision', isLuceneSnapshot[0][1]
     }
-    maxParallelForks System.getProperty('tI', project.rootProject.ext.defaultParallel.toString()) as Integer
+    maxParallelForks System.getProperty('tests.jvms', project.rootProject.ext.defaultParallel.toString()) as Integer
+    // These tests run Gradle which doesn't have FIPS support
+    onlyIf { project.inFipsJvm == false }
   }
   check.dependsOn(integTest)
 

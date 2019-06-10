@@ -144,7 +144,6 @@ public class TransportStartReindexJobAction
 
     private class ReindexDonePredicate implements Predicate<PersistentTasksCustomMetaData.PersistentTask<?>> {
 
-
         @Override
         public boolean test(PersistentTasksCustomMetaData.PersistentTask<?> persistentTask) {
             if (persistentTask == null) {
@@ -157,7 +156,7 @@ public class TransportStartReindexJobAction
 
         private boolean isDone(PersistentTasksCustomMetaData.PersistentTask<?> task) {
             ReindexJob state = (ReindexJob) task.getState();
-            return state != null && state.getReindexResponse() != null;
+            return state != null && (state.getReindexResponse() != null || state.getJobException() != null);
         }
     }
 }

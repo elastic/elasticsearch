@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.reindex;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -37,18 +38,34 @@ public class ReindexJob implements PersistentTaskParams {
 
     @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<ReindexJob, Void> PARSER
-        = new ConstructingObjectParser<>(NAME, a -> new ReindexJob((ReindexRequest) a[0]));
+        = new ConstructingObjectParser<>(NAME,
+        a -> new ReindexJob((ReindexRequest) a[0], (BulkByScrollResponse) a[1], (ElasticsearchException) a[3]));
 
-    private static ParseField REINDEX_REQUEST = new ParseField("reindex_request");
+    private static String REINDEX_REQUEST = "reindex_request";
+    private static String REINDEX_RESPONSE = "reindex_response";
+    private static String REINDEX_EXCEPTION = "reindex_exception";
 
     static {
-        PARSER.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> ReindexRequest.fromXContent(p), REINDEX_REQUEST);
+        PARSER.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> ReindexRequest.fromXContent(p),
+            new ParseField(REINDEX_REQUEST));
+        PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> BulkByScrollResponse.fromXContent(p),
+            new ParseField(REINDEX_RESPONSE));
+        PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> ElasticsearchException.fromXContent(p),
+            new ParseField(REINDEX_EXCEPTION));
     }
 
-    private ReindexRequest reindexRequest;
+    private final ReindexRequest reindexRequest;
+    private BulkByScrollResponse reindexResponse;
+    private ElasticsearchException jobException;
 
     public ReindexJob(ReindexRequest reindexRequest) {
+        this(reindexRequest, null, null);
+    }
+
+    private ReindexJob(ReindexRequest reindexRequest, BulkByScrollResponse reindexResponse, ElasticsearchException jobException) {
         this.reindexRequest = reindexRequest;
+        this.reindexResponse = reindexResponse;
+        this.jobException = jobException;
     }
 
     public ReindexJob(StreamInput in) throws IOException {
@@ -69,13 +86,23 @@ public class ReindexJob implements PersistentTaskParams {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         reindexRequest.writeTo(out);
+        out.writeOptionalWriteable(jobException);
+        out.writeOptionalWriteable(reindexResponse);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field("reindex_request");
+        builder.field(REINDEX_REQUEST);
         reindexRequest.toXContent(builder, params);
+        if (reindexResponse != null) {
+            builder.field(REINDEX_RESPONSE);
+            reindexResponse.toXContent(builder, params);
+        }
+        if (jobException != null) {
+            builder.field(REINDEX_EXCEPTION);
+            reindexResponse.toXContent(builder, params);
+        }
         return builder.endObject();
     }
 
@@ -83,11 +110,15 @@ public class ReindexJob implements PersistentTaskParams {
         return reindexRequest;
     }
 
-    public static ReindexJob fromXContent(XContentParser parser) {
-        return PARSER.apply(parser, null);
+    public BulkByScrollResponse getReindexResponse() {
+        return reindexResponse;
     }
 
-    public BulkByScrollResponse getReindexResponse() {
-        return null;
+    public ElasticsearchException getJobException() {
+        return jobException;
+    }
+
+    public static ReindexJob fromXContent(XContentParser parser) {
+        return PARSER.apply(parser, null);
     }
 }

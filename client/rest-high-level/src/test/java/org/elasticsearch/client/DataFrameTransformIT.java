@@ -140,7 +140,7 @@ public class DataFrameTransformIT extends ESRestHighLevelClientTestCase {
     }
 
     @After
-    public void cleanUpTransforms() throws IOException {
+    public void cleanUpTransforms() throws Exception {
         for (String transformId : transformsToClean) {
             highLevelClient().dataFrame().stopDataFrameTransform(
                     new StopDataFrameTransformRequest(transformId, Boolean.TRUE, null), RequestOptions.DEFAULT);
@@ -152,6 +152,7 @@ public class DataFrameTransformIT extends ESRestHighLevelClientTestCase {
         }
 
         transformsToClean = new ArrayList<>();
+        waitForPendingTasks(adminClient());
     }
 
     public void testCreateDelete() throws IOException {

@@ -159,6 +159,22 @@ Nested documents can be:
 * sorted with <<nested-sorting,nested sorting>>.
 * retrieved and highlighted with <<nested-inner-hits,nested inner hits>>.
 
+[IMPORTANT]
+=============================================
+
+Because nested documents are indexed as separate documents, they can only be
+accessed  within the scope of the `nested` query, the
+`nested`/`reverse_nested` aggregations, or <<nested-inner-hits,nested inner hits>>.
+
+For instance, if a string field within a nested document has
+<<index-options,`index_options`>> set to `offsets` to allow use of the postings
+during the highlighting, these offsets will not be available during the main highlighting
+phase.  Instead, highlighting needs to be performed via
+<<nested-inner-hits,nested inner hits>>. The same consideration applies when loading
+fields during a search through <<search-request-docvalue-fields, `docvalue_fields`>>
+or <<search-request-stored-fields, `stored_fields`>>.
+
+=============================================
 
 [[nested-params]]
 ==== Parameters for `nested` fields
@@ -177,21 +193,6 @@ The following parameters are accepted by `nested` fields:
     <<mapping-types,datatype>>, including `nested`. New properties
     may be added to an existing nested object.
 
-
-[IMPORTANT]
-=============================================
-
-Because nested documents are indexed as separate documents, they can only be
-accessed  within the scope of the `nested` query, the
-`nested`/`reverse_nested` aggregations, or <<nested-inner-hits,nested inner hits>>.
-
-For instance, if a string field within a nested document has
-<<index-options,`index_options`>> set to `offsets` to allow use of the postings
-during the highlighting, these offsets will not be available during the main highlighting
-phase.  Instead, highlighting needs to be performed via
-<<nested-inner-hits,nested inner hits>>.
-
-=============================================
 
 [float]
 === Limits on `nested` mappings and objects

@@ -70,9 +70,9 @@ dependencies {
     compile "com.fasterxml.jackson.module:jackson-module-jaxb-annotations:${versions.jackson}"
     compile "org.apache.logging.log4j:log4j-api:${versions.log4j}"
     compile "org.apache.logging.log4j:log4j-core:${versions.log4j}"
-    compile project(path: ':client:rest-high-level')
+    compile project(':client:rest-high-level')
     wildfly "org.jboss:wildfly:${wildflyVersion}@zip"
-    testCompile "org.elasticsearch.test:framework:${VersionProperties.elasticsearch}"
+    testCompile project(':test:framework')
 }
 
 task unzipWildfly(type: Sync) {

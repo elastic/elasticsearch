@@ -403,7 +403,7 @@ public abstract class AbstractTermVectorsTestCase extends ESIntegTestCase {
     }
 
     protected TermVectorsRequestBuilder getRequestForConfig(TestConfig config) {
-        return client().prepareTermVectors(randomBoolean() ? config.doc.index : config.doc.alias, config.doc.type, config.doc.id)
+        return client().prepareTermVectors(randomBoolean() ? config.doc.index : config.doc.alias, config.doc.id)
             .setPayloads(config.requestPayloads)
             .setOffsets(config.requestOffsets).setPositions(config.requestPositions).setFieldStatistics(true).setTermStatistics(true)
             .setSelectedFields(config.selectedFields).setRealtime(false);

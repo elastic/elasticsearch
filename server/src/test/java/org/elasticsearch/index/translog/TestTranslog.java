@@ -47,6 +47,8 @@ import java.util.regex.Pattern;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.core.Is.is;
 import static org.hamcrest.core.IsNot.not;
 
@@ -54,7 +56,7 @@ import static org.hamcrest.core.IsNot.not;
  * Helpers for testing translog.
  */
 public class TestTranslog {
-    static final Pattern TRANSLOG_FILE_PATTERN = Pattern.compile("translog-(\\d+)\\.tlog");
+    private static final Pattern TRANSLOG_FILE_PATTERN = Pattern.compile("translog-(\\d+)\\.tlog");
 
     public static void corruptRandomTranslogFile(Logger logger, Random random, Collection<Path> translogDirs) throws IOException {
         for (Path translogDir : translogDirs) {
@@ -65,12 +67,11 @@ public class TestTranslog {
 
     /**
      * Corrupts random translog file (translog-N.tlog) from the given translog directory.
-     *
-     * @return a translog file which has been corrupted.
      */
-    public static Path corruptRandomTranslogFile(Logger logger, Random random, Path translogDir, long minGeneration) throws IOException {
+    public static void corruptRandomTranslogFile(Logger logger, Random random, Path translogDir, long minGeneration)
+            throws IOException {
         Set<Path> candidates = new TreeSet<>(); // TreeSet makes sure iteration order is deterministic
-        logger.info("--> Translog dir [{}], minUsedTranslogGen [{}]", translogDir, minGeneration);
+        logger.info("--> corruptRandomTranslogFile: translogDir [{}], minUsedTranslogGen [{}]", translogDir, minGeneration);
         try (DirectoryStream<Path> stream = Files.newDirectoryStream(translogDir)) {
             for (Path item : stream) {
                 if (Files.isRegularFile(item)) {
@@ -81,41 +82,51 @@ public class TestTranslog {
                 }
             }
         }
-        assertThat(candidates, is(not(empty())));
+        assertThat("no translog files found in " + translogDir, candidates, is(not(empty())));
 
         Path corruptedFile = RandomPicks.randomFrom(random, candidates);
         corruptFile(logger, random, corruptedFile);
-        return corruptedFile;
     }
 
+    static void corruptFile(Logger logger, Random random, Path fileToCorrupt) throws IOException {
+        final long fileSize = Files.size(fileToCorrupt);
+        assertThat("cannot corrupt empty file " + fileToCorrupt, fileSize, greaterThan(0L));
 
-     static void corruptFile(Logger logger, Random random, Path fileToCorrupt) throws IOException {
-        try (FileChannel raf = FileChannel.open(fileToCorrupt, StandardOpenOption.READ, StandardOpenOption.WRITE)) {
-            // read
-            raf.position(RandomNumbers.randomLongBetween(random, 0, raf.size() - 1));
-            long filePointer = raf.position();
-            ByteBuffer bb = ByteBuffer.wrap(new byte[1]);
-            raf.read(bb);
-            bb.flip();
+        try (FileChannel fileChannel = FileChannel.open(fileToCorrupt, StandardOpenOption.READ, StandardOpenOption.WRITE)) {
+            final long corruptPosition = RandomNumbers.randomLongBetween(random, 0, fileSize - 1);
 
-            // corrupt
-            byte oldValue = bb.get(0);
-            byte newValue = (byte) (oldValue + 1);
-            bb.put(0, newValue);
+            if (random.nextBoolean()) {
+                // read
+                fileChannel.position(corruptPosition);
+                assertThat(fileChannel.position(), equalTo(corruptPosition));
+                ByteBuffer bb = ByteBuffer.wrap(new byte[1]);
+                fileChannel.read(bb);
+                bb.flip();
 
-            // rewrite
-            raf.position(filePointer);
-            raf.write(bb);
-            logger.info("--> corrupting file {} --  flipping at position {} from {} to {} file: {}",
-                fileToCorrupt, filePointer, Integer.toHexString(oldValue),
-                Integer.toHexString(newValue), fileToCorrupt);
+                // corrupt
+                byte oldValue = bb.get(0);
+                byte newValue;
+                do {
+                    newValue = (byte) random.nextInt(0x100);
+                } while (newValue == oldValue);
+                bb.put(0, newValue);
+
+                // rewrite
+                fileChannel.position(corruptPosition);
+                fileChannel.write(bb);
+                logger.info("--> corrupting file {} at position {} turning 0x{} into 0x{}", fileToCorrupt, corruptPosition,
+                    Integer.toHexString(oldValue & 0xff), Integer.toHexString(newValue & 0xff));
+            } else {
+                logger.info("--> truncating file {} from length {} to length {}", fileToCorrupt, fileSize, corruptPosition);
+                fileChannel.truncate(corruptPosition);
+            }
         }
     }
 
     /**
      * Lists all existing commits in a given index path, then read the minimum translog generation that will be used in recoverFromTranslog.
      */
-    public static long minTranslogGenUsedInRecovery(Path translogPath) throws IOException {
+    private static long minTranslogGenUsedInRecovery(Path translogPath) throws IOException {
         try (NIOFSDirectory directory = new NIOFSDirectory(translogPath.getParent().resolve("index"))) {
             List<IndexCommit> commits = DirectoryReader.listCommits(directory);
             final String translogUUID = commits.get(commits.size() - 1).getUserData().get(Translog.TRANSLOG_UUID_KEY);

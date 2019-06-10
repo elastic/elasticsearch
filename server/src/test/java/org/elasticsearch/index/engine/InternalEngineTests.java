@@ -5844,17 +5844,22 @@ public class InternalEngineTests extends EngineTestCase {
         IOUtils.close(engine, store);
         Settings settings = Settings.builder()
             .put(defaultSettings.getSettings())
-            .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true).build();
+            .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
+            .put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING.getKey(), 10000)
+            .build();
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(
             IndexMetaData.builder(defaultSettings.getIndexMetaData()).settings(settings).build());
         store = createStore(indexSettings, newDirectory());
         LogDocMergePolicy policy = new LogDocMergePolicy();
         policy.setMinMergeDocs(10000);
-        try (InternalEngine engine = createEngine(indexSettings, store, createTempDir(), policy)) {
+        AtomicLong globalCheckpoint = new AtomicLong();
+        try (InternalEngine engine = createEngine(indexSettings, store, createTempDir(), policy, null, null, globalCheckpoint::get)) {
             int numDocs = between(1, 20);
             for (int i = 0; i < numDocs; i++) {
                 index(engine, i);
             }
+            globalCheckpoint.set(engine.getLocalCheckpoint());
+            engine.flush(true, true);
             engine.forceMerge(true);
             engine.delete(new Engine.Delete("_doc", "0", newUid("0"), primaryTerm.get()));
             engine.refresh("test");
@@ -5874,6 +5879,8 @@ public class InternalEngineTests extends EngineTestCase {
             }
 
             // lets force merge the tombstone and the original segment and make sure the doc is still there but the ID term is gone
+            globalCheckpoint.set(engine.getLocalCheckpoint());
+            engine.flush(true, true);
             engine.forceMerge(true);
             engine.refresh("test");
             try (Searcher searcher = engine.acquireSearcher("test")) {

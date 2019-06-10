@@ -131,10 +131,10 @@ public class NetworkDisruptionIT extends ESIntegTestCase {
 
         CountDownLatch latch = new CountDownLatch(100);
         for (int i = 0; i < 100; ++i) {
-            TransportService transportService = internalCluster().getInstance(TransportService.class);
+            TransportService source = internalCluster().getInstance(TransportService.class);
             TransportService target = internalCluster().getInstance(TransportService.class);
 
-            transportService.sendRequest(target.getLocalNode(), ClusterHealthAction.NAME, new ClusterHealthRequest(),
+            source.sendRequest(target.getLocalNode(), ClusterHealthAction.NAME, new ClusterHealthRequest(),
                 new TransportResponseHandler<>() {
                     private AtomicBoolean responded = new AtomicBoolean();
                     @Override

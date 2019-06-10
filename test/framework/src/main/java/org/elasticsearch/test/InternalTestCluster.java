@@ -945,8 +945,8 @@ public final class InternalTestCluster extends TestCluster {
                 markNodeDataDirsAsPendingForWipe(node);
                 node.close();
                 try {
-                    if (node.awaitClose(10, TimeUnit.SECONDS) == false) {
-                        throw new IOException("Node didn't close within 10 seconds.");
+                    if (node.awaitClose(1L, TimeUnit.MINUTES) == false) {
+                        throw new IOException("Node didn't close within 1 minute.");
                     }
                 } catch (InterruptedException e) {
                     throw new AssertionError("Interruption while waiting for the node to close", e);

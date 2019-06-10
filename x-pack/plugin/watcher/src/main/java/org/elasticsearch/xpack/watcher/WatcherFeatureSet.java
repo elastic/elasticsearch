@@ -11,7 +11,6 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -45,7 +44,7 @@ public class WatcherFeatureSet implements XPackFeatureSet {
     private final XPackLicenseState licenseState;
 
     @Inject
-    public WatcherFeatureSet(Settings settings, @Nullable XPackLicenseState licenseState) {
+    public WatcherFeatureSet(Settings settings, XPackLicenseState licenseState) {
         this.enabled = XPackSettings.WATCHER_ENABLED.get(settings);
         this.licenseState = licenseState;
     }

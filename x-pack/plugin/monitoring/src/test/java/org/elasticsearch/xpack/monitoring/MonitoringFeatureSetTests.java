@@ -45,7 +45,7 @@ public class MonitoringFeatureSetTests extends ESTestCase {
     private final Exporters exporters = mock(Exporters.class);
 
     public void testAvailable() {
-        MonitoringFeatureSet featureSet = new MonitoringFeatureSet(Settings.EMPTY, monitoring, licenseState, exporters);
+        MonitoringFeatureSet featureSet = new MonitoringFeatureSet(Settings.EMPTY, licenseState);
         boolean available = randomBoolean();
         when(licenseState.isMonitoringAllowed()).thenReturn(available);
         assertThat(featureSet.available(), is(available));
@@ -55,12 +55,12 @@ public class MonitoringFeatureSetTests extends ESTestCase {
         boolean enabled = randomBoolean();
         Settings.Builder settings = Settings.builder();
         settings.put("xpack.monitoring.enabled", enabled);
-        MonitoringFeatureSet featureSet = new MonitoringFeatureSet(settings.build(), monitoring, licenseState, exporters);
+        MonitoringFeatureSet featureSet = new MonitoringFeatureSet(settings.build(), licenseState);
         assertThat(featureSet.enabled(), is(enabled));
     }
 
     public void testEnabledDefault() {
-        MonitoringFeatureSet featureSet = new MonitoringFeatureSet(Settings.EMPTY, monitoring, licenseState, exporters);
+        MonitoringFeatureSet featureSet = new MonitoringFeatureSet(Settings.EMPTY, licenseState);
         assertThat(featureSet.enabled(), is(true));
     }
 

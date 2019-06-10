@@ -110,8 +110,9 @@ public class SecurityFeatureSet implements XPackFeatureSet {
         @Inject
         public UsageTransportAction(TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
                                     ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                                    Settings settings, XPackLicenseState licenseState, Realms realms,
-                                    CompositeRolesStore rolesStore, NativeRoleMappingStore roleMappingStore, IPFilter ipFilter) {
+                                    Settings settings, XPackLicenseState licenseState, @Nullable Realms realms,
+                                    @Nullable CompositeRolesStore rolesStore, @Nullable NativeRoleMappingStore roleMappingStore,
+                                    @Nullable IPFilter ipFilter) {
             super(XPackUsageFeatureAction.SECURITY.name(), transportService, clusterService, threadPool,
                   actionFilters, indexNameExpressionResolver);
             this.settings = settings;

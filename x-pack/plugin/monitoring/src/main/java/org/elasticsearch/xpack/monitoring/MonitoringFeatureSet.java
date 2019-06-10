@@ -33,19 +33,12 @@ import java.util.Map;
 public class MonitoringFeatureSet implements XPackFeatureSet {
 
     private final boolean enabled;
-    private final MonitoringService monitoring;
     private final XPackLicenseState licenseState;
-    private final Exporters exporters;
 
     @Inject
-    public MonitoringFeatureSet(Settings settings,
-                                @Nullable MonitoringService monitoring,
-                                @Nullable XPackLicenseState licenseState,
-                                @Nullable Exporters exporters) {
+    public MonitoringFeatureSet(Settings settings, XPackLicenseState licenseState) {
         this.enabled = XPackSettings.MONITORING_ENABLED.get(settings);
-        this.monitoring = monitoring;
         this.licenseState = licenseState;
-        this.exporters = exporters;
     }
 
     @Override

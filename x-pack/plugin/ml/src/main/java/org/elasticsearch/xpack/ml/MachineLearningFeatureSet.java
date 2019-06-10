@@ -51,7 +51,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Objects;
 import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
 
@@ -65,19 +64,12 @@ public class MachineLearningFeatureSet implements XPackFeatureSet {
 
     private final boolean enabled;
     private final XPackLicenseState licenseState;
-    private final ClusterService clusterService;
-    private final Client client;
-    private final JobManagerHolder jobManagerHolder;
     private final Map<String, Object> nativeCodeInfo;
 
     @Inject
-    public MachineLearningFeatureSet(Environment environment, ClusterService clusterService, Client client,
-                                     XPackLicenseState licenseState, JobManagerHolder jobManagerHolder) {
+    public MachineLearningFeatureSet(Environment environment, ClusterService clusterService, XPackLicenseState licenseState) {
         this.enabled = XPackSettings.MACHINE_LEARNING_ENABLED.get(environment.settings());
-        this.clusterService = Objects.requireNonNull(clusterService);
-        this.client = Objects.requireNonNull(client);
         this.licenseState = licenseState;
-        this.jobManagerHolder = jobManagerHolder;
         Map<String, Object> nativeCodeInfo = NativeController.UNKNOWN_NATIVE_CODE_INFO;
         // Don't try to get the native code version if ML is disabled - it causes too much controversy
         // if ML has been disabled because of some OS incompatibility.

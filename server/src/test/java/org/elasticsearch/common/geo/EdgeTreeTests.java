@@ -19,14 +19,17 @@
 package org.elasticsearch.common.geo;
 
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
+import org.elasticsearch.common.io.stream.ByteBufferStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.geo.geometry.Polygon;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.geo.RandomShapeGenerator;
 import org.locationtech.spatial4j.shape.Rectangle;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
+
+import static org.hamcrest.Matchers.equalTo;
 
 public class EdgeTreeTests extends ESTestCase {
 
@@ -42,7 +45,7 @@ public class EdgeTreeTests extends ESTestCase {
             BytesStreamOutput output = new BytesStreamOutput();
             writer.writeTo(output);
             output.close();
-            EdgeTreeReader reader = new EdgeTreeReader(StreamInput.wrap(output.bytes().toBytesRef().bytes));
+            EdgeTreeReader reader = new EdgeTreeReader(new ByteBufferStreamInput(ByteBuffer.wrap(output.bytes().toBytesRef().bytes)));
 
             // box-query touches bottom-left corner
             assertTrue(reader.containedInOrCrosses(minX - randomIntBetween(1, 180), minY - randomIntBetween(1, 180), minX, minY));
@@ -99,7 +102,8 @@ public class EdgeTreeTests extends ESTestCase {
             BytesStreamOutput output = new BytesStreamOutput();
             writer.writeTo(output);
             output.close();
-            EdgeTreeReader reader = new EdgeTreeReader(StreamInput.wrap(output.bytes().toBytesRef().bytes));
+            EdgeTreeReader reader = new EdgeTreeReader(new ByteBufferStreamInput(ByteBuffer.wrap(output.bytes().toBytesRef().bytes)));
+            assertThat(reader.getExtent(), equalTo(new Extent(minXBox, minYBox, maxXBox, maxYBox)));
             // polygon fully contained within box
             assertTrue(reader.containedInOrCrosses(minXBox, minYBox, maxXBox, maxYBox));
             // containedInOrCrosses
@@ -130,8 +134,8 @@ public class EdgeTreeTests extends ESTestCase {
         BytesStreamOutput output = new BytesStreamOutput();
         writer.writeTo(output);
         output.close();
-        EdgeTreeReader reader = new EdgeTreeReader(StreamInput.wrap(output.bytes().toBytesRef().bytes));
-        assertTrue(reader.containsBottomLeft(xMin, yMin, xMax, yMax));
+        EdgeTreeReader reader = new EdgeTreeReader(new ByteBufferStreamInput(ByteBuffer.wrap(output.bytes().toBytesRef().bytes)));
+        assertTrue(reader.containsBottomLeft(new Extent(xMin, yMin, xMax, yMax)));
     }
 
     private int[] asIntArray(double[] doub) {

@@ -24,6 +24,7 @@ import org.elasticsearch.geo.geometry.ShapeType;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.Optional;
 
 /**
  * A tree reader.
@@ -33,28 +34,36 @@ import java.nio.ByteBuffer;
  */
 public class GeometryTreeReader {
 
-    private final BytesRef bytesRef;
+    private final ByteBufferStreamInput input;
 
     public GeometryTreeReader(BytesRef bytesRef) {
-        this.bytesRef = bytesRef;
+        this.input = new ByteBufferStreamInput(ByteBuffer.wrap(bytesRef.bytes, bytesRef.offset, bytesRef.length));
+    }
+
+    public Extent getExtent() throws IOException {
+        input.position(0);
+        boolean hasExtent = input.readBoolean();
+        if (hasExtent) {
+            return new Extent(input);
+        }
+        assert input.readVInt() == 1;
+        ShapeType shapeType = input.readEnum(ShapeType.class);
+        if (ShapeType.POLYGON.equals(shapeType)) {
+            EdgeTreeReader reader = new EdgeTreeReader(input);
+            return reader.getExtent();
+        } else {
+            throw new UnsupportedOperationException("only polygons supported -- TODO");
+        }
     }
 
     public boolean containedInOrCrosses(int minLon, int minLat, int maxLon, int maxLat) throws IOException {
-        ByteBufferStreamInput input = new ByteBufferStreamInput(
-            ByteBuffer.wrap(bytesRef.bytes, bytesRef.offset, bytesRef.length));
+        input.position(0);
         boolean hasExtent = input.readBoolean();
         if (hasExtent) {
-            int thisMinLon = input.readInt();
-            int thisMinLat = input.readInt();
-            int thisMaxLon = input.readInt();
-            int thisMaxLat = input.readInt();
-
-            if (thisMinLat > maxLat || thisMaxLon < minLon || thisMaxLat < minLat || thisMinLon > maxLon) {
-                return false; // tree and bbox-query are disjoint
-            }
-
-            if (minLon <= thisMinLon && minLat <= thisMinLat && maxLon >= thisMaxLon && maxLat >= thisMaxLat) {
-                return true; // bbox-query fully contains tree's extent.
+            Optional<Boolean> extentCheck = EdgeTreeReader.checkExtent(input,
+                new Extent(minLon, minLat, maxLon, maxLat));
+            if (extentCheck.isPresent()) {
+                return extentCheck.get();
             }
         }
 

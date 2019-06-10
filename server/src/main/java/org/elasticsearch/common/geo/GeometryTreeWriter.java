@@ -87,10 +87,10 @@ public class GeometryTreeWriter implements Writeable {
         }
 
         private void addWriter(EdgeTreeWriter writer) {
-            minLon = Math.min(minLon, writer.minX);
-            minLat = Math.min(minLat, writer.minY);
-            maxLon = Math.max(maxLon, writer.maxX);
-            maxLat = Math.max(maxLat, writer.maxY);
+            minLon = Math.min(minLon, writer.extent.minX);
+            minLat = Math.min(minLat, writer.extent.minY);
+            maxLon = Math.max(maxLon, writer.extent.maxX);
+            maxLat = Math.max(maxLat, writer.extent.maxY);
             shapeWriters.add(writer);
         }
 

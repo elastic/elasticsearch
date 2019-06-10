@@ -26,6 +26,8 @@ import org.elasticsearch.test.ESTestCase;
 import java.io.IOException;
 import java.util.Collections;
 
+import static org.hamcrest.Matchers.equalTo;
+
 public class GeometryTreeTests extends ESTestCase {
 
     public void testRectangleShape() throws IOException {
@@ -42,6 +44,8 @@ public class GeometryTreeTests extends ESTestCase {
             writer.writeTo(output);
             output.close();
             GeometryTreeReader reader = new GeometryTreeReader(output.bytes().toBytesRef());
+
+            assertThat(reader.getExtent(), equalTo(new Extent(minX, minY, maxX, maxY)));
 
             // box-query touches bottom-left corner
             assertTrue(reader.containedInOrCrosses(minX - randomIntBetween(1, 180), minY - randomIntBetween(1, 180), minX, minY));

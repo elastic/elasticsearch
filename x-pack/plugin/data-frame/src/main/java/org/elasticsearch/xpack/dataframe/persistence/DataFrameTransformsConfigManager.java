@@ -249,8 +249,7 @@ public class DataFrameTransformsConfigManager {
      */
     public void deleteTransform(String transformId, ActionListener<Boolean> listener) {
         DeleteByQueryRequest request = new DeleteByQueryRequest()
-                .setAbortOnVersionConflict(false) //since these documents are not updated, a conflict just means it was deleted previously
-                .setSlices(5);
+                .setAbortOnVersionConflict(false); //since these documents are not updated, a conflict just means it was deleted previously
 
         request.indices(DataFrameInternalIndex.INDEX_NAME);
         QueryBuilder query = QueryBuilders.termQuery(DataFrameField.ID.getPreferredName(), transformId);

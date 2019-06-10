@@ -80,7 +80,7 @@ public class TransportStartReindexJobAction
                     if (waitForReindexToComplete) {
                         waitForReindexDone(taskId, listener);
                     } else {
-                        waitForReindexTask(taskId, request, listener);
+                        waitForReindexTask(taskId, listener);
                     }
                 }
 
@@ -96,10 +96,9 @@ public class TransportStartReindexJobAction
             });
     }
 
-    private void waitForReindexTask(String taskId, StartReindexJobAction.Request request,
-                                    ActionListener<StartReindexJobAction.Response> listener) {
+    private void waitForReindexTask(String taskId, ActionListener<StartReindexJobAction.Response> listener) {
         // TODO: Configurable timeout?
-        persistentTasksService.waitForPersistentTaskCondition(taskId, Objects::nonNull, TimeValue.timeValueSeconds(20),
+        persistentTasksService.waitForPersistentTaskCondition(taskId, Objects::nonNull, TimeValue.timeValueSeconds(15),
                 new PersistentTasksService.WaitForPersistentTaskListener<ReindexJob>() {
                     @Override
                     public void onResponse(PersistentTasksCustomMetaData.PersistentTask<ReindexJob> task) {
@@ -120,14 +119,17 @@ public class TransportStartReindexJobAction
     }
 
     private void waitForReindexDone(String taskId, ActionListener<StartReindexJobAction.Response> listener) {
-        // TODO: timeout?
-        persistentTasksService.waitForPersistentTaskCondition(taskId, new ReindexDonePredicate(), null,
+        // TODO: Configurable timeout? This currently has a low timeout to prevent tests from hanging.
+        persistentTasksService.waitForPersistentTaskCondition(taskId, new ReindexDonePredicate(), TimeValue.timeValueSeconds(15),
             new PersistentTasksService.WaitForPersistentTaskListener<ReindexJob>() {
                 @Override
                 public void onResponse(PersistentTasksCustomMetaData.PersistentTask<ReindexJob> task) {
-                    BulkByScrollResponse response = (BulkByScrollResponse) task.getState();
-
-                    listener.onResponse(new StartReindexJobAction.Response(true, taskId, response));
+                    ReindexJobState state = (ReindexJobState) task.getState();
+                    if (state.getJobException() == null) {
+                        listener.onResponse(new StartReindexJobAction.Response(true, taskId, state.getReindexResponse()));
+                    } else {
+                        listener.onFailure(state.getJobException());
+                    }
                 }
 
                 @Override
@@ -155,7 +157,7 @@ public class TransportStartReindexJobAction
         }
 
         private boolean isDone(PersistentTasksCustomMetaData.PersistentTask<?> task) {
-            ReindexJob state = (ReindexJob) task.getState();
+            ReindexJobState state = (ReindexJobState) task.getState();
             return state != null && (state.getReindexResponse() != null || state.getJobException() != null);
         }
     }

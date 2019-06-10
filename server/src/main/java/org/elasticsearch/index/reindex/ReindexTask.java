@@ -19,6 +19,9 @@
 
 package org.elasticsearch.index.reindex;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
@@ -29,14 +32,14 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicReference;
 
 public class ReindexTask extends AllocatedPersistentTask {
+
+    private static final Logger logger = LogManager.getLogger(ReindexTask.class);
 
     // TODO: Name
     public static final String NAME = "reindex/job";
 
-    private final AtomicReference<ReindexJob> taskState = new AtomicReference<>();
     private final Client client;
 
     public static class ReindexPersistentTasksExecutor extends PersistentTasksExecutor<ReindexJob> {
@@ -51,7 +54,7 @@ public class ReindexTask extends AllocatedPersistentTask {
         @Override
         protected void nodeOperation(AllocatedPersistentTask task, ReindexJob reindexJob, PersistentTaskState state) {
             ReindexTask reindexTask = (ReindexTask) task;
-            reindexTask.doReindex();
+            reindexTask.doReindex(reindexJob);
 
         }
 
@@ -59,48 +62,57 @@ public class ReindexTask extends AllocatedPersistentTask {
         protected AllocatedPersistentTask createTask(long id, String type, String action, TaskId parentTaskId,
                                                      PersistentTasksCustomMetaData.PersistentTask<ReindexJob> taskInProgress,
                                                      Map<String, String> headers) {
-            return new ReindexTask(id, type, action, parentTaskId, headers, taskInProgress.getParams(), client);
+            return new ReindexTask(id, type, action, parentTaskId, headers, client);
         }
     }
 
-    private ReindexTask(long id, String type, String action, TaskId parentTask, Map<String, String> headers, ReindexJob reindexJob,
+    private ReindexTask(long id, String type, String action, TaskId parentTask, Map<String, String> headers,
                         Client client) {
         super(id, type, action, "reindex_" + id, parentTask, headers);
-        taskState.set(reindexJob);
         this.client = client;
     }
 
-    private void doReindex() {
-        client.execute(ReindexAction.INSTANCE, taskState.get().getReindexRequest(), new ActionListener<>() {
+    private void doReindex(ReindexJob reindexJob) {
+        client.execute(ReindexAction.INSTANCE, reindexJob.getReindexRequest(), new ActionListener<>() {
             @Override
             public void onResponse(BulkByScrollResponse response) {
-                updatePersistentTaskState(null, new ActionListener<>() {
+                updatePersistentTaskState(new ReindexJobState(response, null), new ActionListener<>() {
                     @Override
                     public void onResponse(PersistentTasksCustomMetaData.PersistentTask<?> persistentTask) {
-
+                        markAsCompleted();
                     }
 
                     @Override
                     public void onFailure(Exception e) {
-
+                        logger.error("Failed to update task state.", e);
+                        markAsCompleted();
                     }
                 });
             }
 
             @Override
             public void onFailure(Exception e) {
-                updatePersistentTaskState(null, new ActionListener<>() {
+                updatePersistentTaskState(new ReindexJobState(null, wrapException(e)), new ActionListener<>() {
                     @Override
                     public void onResponse(PersistentTasksCustomMetaData.PersistentTask<?> persistentTask) {
-
+                        markAsCompleted();
                     }
 
                     @Override
                     public void onFailure(Exception e) {
-
+                        logger.error("Failed to update task state.", e);
+                        markAsCompleted();
                     }
                 });
             }
         });
+    }
+
+    private ElasticsearchException wrapException(Exception e) {
+        if (e instanceof ElasticsearchException) {
+            return (ElasticsearchException) e;
+        } else {
+            return new ElasticsearchException(e);
+        }
     }
 }

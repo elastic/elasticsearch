@@ -567,7 +567,7 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         allAliasActions = in.readList(AliasActions::new);
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (in.getVersion().onOrAfter(Version.V_7_3_0)) {
             origin = in.readOptionalString();
         } else {
             origin = null;
@@ -579,7 +579,7 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
         super.writeTo(out);
         out.writeList(allAliasActions);
         // noinspection StatementWithEmptyBody
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_7_3_0)) {
             out.writeOptionalString(origin);
         } else {
             // nothing to do here, here for symmetry with IndicesAliasesRequest#readFrom

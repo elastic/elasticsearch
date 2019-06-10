@@ -23,7 +23,7 @@ node-0 flush               0 0 0
 node-0 write               0 0 0
 --------------------------------------------------
 // TESTRESPONSE[s/\.\.\./(node-0 \\S+ 0 0 0\n)*/]
-// TESTRESPONSE[s/\d+/\\d+/ _cat]
+// TESTRESPONSE[s/\d+/\\d+/ non_json]
 // The substitutions do two things:
 // 1. Expect any number of extra thread pools. This allows us to only list a
 //    few thread pools. The list would be super long otherwise. In addition,
@@ -107,7 +107,7 @@ which looks like:
 id                     name    active rejected completed
 0EWUhXeBQtaVGlexUeVwMg generic      0        0        70
 --------------------------------------------------
-// TESTRESPONSE[s/0EWUhXeBQtaVGlexUeVwMg/[\\w-]+/ s/\d+/\\d+/ _cat]
+// TESTRESPONSE[s/0EWUhXeBQtaVGlexUeVwMg/[\\w-]+/ s/\d+/\\d+/ non_json]
 
 Here the host columns and the active, rejected and completed suggest thread pool statistics are displayed.
 

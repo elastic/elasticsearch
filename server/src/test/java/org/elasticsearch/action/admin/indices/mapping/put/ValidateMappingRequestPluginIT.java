@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.admin.indices.mapping.put;
 
+import org.elasticsearch.action.RequestValidators;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.plugins.ActionPlugin;
@@ -29,6 +30,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
+import java.util.Optional;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.containsString;
@@ -38,14 +40,15 @@ public class ValidateMappingRequestPluginIT extends ESSingleNodeTestCase {
     static final Map<String, Collection<String>> allowedOrigins = ConcurrentCollections.newConcurrentMap();
     public static class TestPlugin extends Plugin implements ActionPlugin {
         @Override
-        public Collection<MappingRequestValidator> mappingRequestValidators() {
+        public Collection<RequestValidators.RequestValidator<PutMappingRequest>> mappingRequestValidators() {
             return Collections.singletonList((request, state, indices) -> {
                 for (Index index : indices) {
                     if (allowedOrigins.getOrDefault(index.getName(), Collections.emptySet()).contains(request.origin()) == false) {
-                        return new IllegalStateException("not allowed: index[" + index.getName() + "] origin[" + request.origin() + "]");
+                        return Optional.of(
+                                new IllegalStateException("not allowed: index[" + index.getName() + "] origin[" + request.origin() + "]"));
                     }
                 }
-                return null;
+                return Optional.empty();
             });
         }
     }

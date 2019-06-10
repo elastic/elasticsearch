@@ -238,7 +238,7 @@ complex datetimes there is often a method or another complex type
 <<painless-api-reference-shared-ChronoUnit, ChronoUnit>>
 to calculate the difference between two complex datetimes if supported.
 
-===== Elapsed Time Examples
+===== Datetime Difference Examples
 
 * Difference in milliseconds between two numeric datetimes
 +
@@ -334,3 +334,131 @@ if (zdt1.isAfter(zdt2)) {
     // handle condition
 }
 ----
+
+==== Datetime Input
+
+There are several common ways datetimes are used as input for a script
+determined by the <<painless-contexts, Painless context>>. Typically, datetime
+input will be accessed from parameters specified by the user, from the original
+source, or from an index.
+
+===== Datetime Input From User Parameters
+
+Use the {ref}/modules-scripting-using.html#_script_parameters[params section]
+during script specification to pass in a numeric datetime or string datetime as
+a script input. Access to user-defined parameters within a script is dependent
+on the Painless context, though, the parameters are most commonly accessible
+through an input called `params`.
+
+*Examples*
+
+* Convert a numeric datetime from parameters to a complex datetime
++
+Input:
++
+[source,JSON]
+----
+...
+"script": {
+    ...
+    "params": {
+        "input_datetime": 434931327000
+    }
+}
+...
+----
++
+Script:
++
+[source,Painless]
+----
+long inputDatetime = params['input_datetime'];
+Instant instant = Instant.ofEpochMilli(inputDateTime);
+ZonedDateTime zdt = ZonedDateTime.ofInstant(instant, ZoneId.of('Z'));
+----
++
+* Convert a string datetime from parameters to a complex datetime
++
+Input:
++
+[source,JSON]
+----
+...
+"script": {
+    ...
+    "params": {
+        "input_datetime": "custom y 1983 m 10 d 13 22:15:30 Z"
+    }
+}
+...
+----
++
+Script:
++
+[source,Painless]
+----
+String datetime = params['input_datetime'];
+DateTimeFormatter dtf = DateTimeFormatter.ofPattern(
+        "'custom' 'y' yyyy 'm' MM 'd' dd HH:mm:ss VV");
+ZonedDateTime zdt = ZonedDateTime.parse(datetime, dtf);
+----
+
+===== Datetime Input From Source
+
+Use the original {ref}/mapping-source-field.html[source] used to index a
+document as a script input to access a numeric datetime or string datetime for
+a specific field within that document. Access to the original source within a
+script is dependent on the Painless context and is not always available. The
+original source is most commonly accessible through an input called `_source`
+or `ctx['_source']`.
+
+*Examples*
+
+* Convert a numeric datetime from source to a complex datetime
++
+Input:
++
+[source,JSON]
+----
+{
+    ...
+    "input_datetime": 434931327000
+    ...
+}
+----
++
+Script:
++
+[source,Painless]
+----
+long inputDatetime = _source['input_datetime'];
+Instant instant = Instant.ofEpochMilli(inputDateTime);
+ZonedDateTime zdt = ZonedDateTime.ofInstant(instant, ZoneId.of('Z'));
+----
++
+* Convert a string datetime from source to a complex datetime
++
+Input:
++
+[source,JSON]
+----
+{
+    ...
+    "input_datetime": "1983-10-13T22:15:30Z"
+    ...
+}
+----
++
+Script:
++
+[source,Painless]
+----
+String datetime = ctx['_source']['input_datetime'];
+DateTimeFormatter dtf = DateTimeFormatter.ofPattern(
+        "'custom' 'y' yyyy 'm' MM 'd' dd HH:mm:ss VV");
+ZonedDateTime zdt = ZonedDateTime.parse(datetime, dtf);
+----
+
+===== Datetime Input From an Index
+
+outline

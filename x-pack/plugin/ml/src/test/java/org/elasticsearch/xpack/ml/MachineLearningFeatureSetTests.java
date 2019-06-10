@@ -119,8 +119,8 @@ public class MachineLearningFeatureSetTests extends ESTestCase {
     }
 
     public void testAvailable() throws Exception {
-        MachineLearningFeatureSet featureSet = new MachineLearningFeatureSet(TestEnvironment.newEnvironment(commonSettings), clusterService,
-                client, licenseState, jobManagerHolder);
+        MachineLearningFeatureSet featureSet = new MachineLearningFeatureSet(TestEnvironment.newEnvironment(commonSettings),
+            clusterService, licenseState);
         boolean available = randomBoolean();
         when(licenseState.isMachineLearningAllowed()).thenReturn(available);
         assertThat(featureSet.available(), is(available));
@@ -146,7 +146,7 @@ public class MachineLearningFeatureSetTests extends ESTestCase {
         }
         boolean expected = enabled || useDefault;
         MachineLearningFeatureSet featureSet = new MachineLearningFeatureSet(TestEnvironment.newEnvironment(settings.build()),
-                clusterService, client, licenseState, jobManagerHolder);
+                clusterService, licenseState);
         assertThat(featureSet.enabled(), is(expected));
         var usageAction = newUsageAction(settings.build());
         PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();

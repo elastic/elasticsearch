@@ -21,6 +21,8 @@ package org.elasticsearch.action.admin.indices;
 import org.apache.lucene.analysis.MockTokenFilter;
 import org.apache.lucene.analysis.MockTokenizer;
 import org.apache.lucene.analysis.TokenStream;
+import org.apache.lucene.util.automaton.Automata;
+import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeAction;
 import org.elasticsearch.action.admin.indices.analyze.TransportAnalyzeAction;
@@ -65,7 +67,6 @@ public class TransportAnalyzeActionTests extends ESTestCase {
 
     private IndexAnalyzers indexAnalyzers;
     private AnalysisRegistry registry;
-    private Environment environment;
     private int maxTokenCount;
     private int idxMaxTokenCount;
 
@@ -80,30 +81,45 @@ public class TransportAnalyzeActionTests extends ESTestCase {
                 .put("index.analysis.analyzer.custom_analyzer.tokenizer", "standard")
                 .put("index.analysis.analyzer.custom_analyzer.filter", "mock")
                 .put("index.analysis.normalizer.my_normalizer.type", "custom")
+                .put("index.analysis.char_filter.my_append.type", "append")
+                .put("index.analysis.char_filter.my_append.suffix", "baz")
                 .put("index.analyze.max_token_count", 100)
                 .putList("index.analysis.normalizer.my_normalizer.filter", "lowercase").build();
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", indexSettings);
-        environment = TestEnvironment.newEnvironment(settings);
+        Environment environment = TestEnvironment.newEnvironment(settings);
         AnalysisPlugin plugin = new AnalysisPlugin() {
             class MockFactory extends AbstractTokenFilterFactory {
+
+                final CharacterRunAutomaton stopset;
+
                 MockFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {
                     super(indexSettings, name, settings);
+                    if (settings.hasValue("stopword")) {
+                        this.stopset = new CharacterRunAutomaton(Automata.makeString(settings.get("stopword")));
+                    }
+                    else {
+                        this.stopset = MockTokenFilter.ENGLISH_STOPSET;
+                    }
                 }
 
                 @Override
                 public TokenStream create(TokenStream tokenStream) {
-                    return new MockTokenFilter(tokenStream, MockTokenFilter.ENGLISH_STOPSET);
+                    return new MockTokenFilter(tokenStream, this.stopset);
                 }
             }
 
             class AppendCharFilterFactory extends AbstractCharFilterFactory {
+
+                final String suffix;
+
                 AppendCharFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
                     super(indexSettings, name);
+                    this.suffix = settings.get("suffix", "bar");
                 }
 
                 @Override
                 public Reader create(Reader reader) {
-                    return new AppendCharFilter(reader, "bar");
+                    return new AppendCharFilter(reader, suffix);
                 }
             }
 
@@ -149,7 +165,7 @@ public class TransportAnalyzeActionTests extends ESTestCase {
         request.text("the quick brown fox");
         request.analyzer("standard");
         AnalyzeAction.Response analyze
-            = TransportAnalyzeAction.analyze(request, registry, environment, mockIndexService(), maxTokenCount);
+            = TransportAnalyzeAction.analyze(request, registry, null, maxTokenCount);
         List<AnalyzeAction.AnalyzeToken> tokens = analyze.getTokens();
         assertEquals(4, tokens.size());
 
@@ -159,7 +175,7 @@ public class TransportAnalyzeActionTests extends ESTestCase {
         request.tokenizer("standard");
         request.addTokenFilter("mock");
         analyze
-            = TransportAnalyzeAction.analyze(request, registry, environment, randomBoolean() ? mockIndexService() : null, maxTokenCount);
+            = TransportAnalyzeAction.analyze(request, registry, null, maxTokenCount);
         tokens = analyze.getTokens();
         assertEquals(3, tokens.size());
         assertEquals("qu1ck", tokens.get(0).getTerm());
@@ -172,7 +188,7 @@ public class TransportAnalyzeActionTests extends ESTestCase {
         request.tokenizer("standard");
         request.addCharFilter("append_foo");
         analyze
-            = TransportAnalyzeAction.analyze(request, registry, environment, randomBoolean() ? mockIndexService() : null, maxTokenCount);
+            = TransportAnalyzeAction.analyze(request, registry, null, maxTokenCount);
         tokens = analyze.getTokens();
         assertEquals(4, tokens.size());
         assertEquals("the", tokens.get(0).getTerm());
@@ -187,20 +203,35 @@ public class TransportAnalyzeActionTests extends ESTestCase {
         request.addCharFilter("append");
         request.text("the qu1ck brown fox");
         analyze
-            = TransportAnalyzeAction.analyze(request, registry, environment, randomBoolean() ? mockIndexService() : null, maxTokenCount);
+            = TransportAnalyzeAction.analyze(request, registry, null, maxTokenCount);
         tokens = analyze.getTokens();
         assertEquals(4, tokens.size());
         assertEquals("the", tokens.get(0).getTerm());
         assertEquals("qu1ck", tokens.get(1).getTerm());
         assertEquals("brown", tokens.get(2).getTerm());
         assertEquals("foxbar", tokens.get(3).getTerm());
+
+        // We can pass a new configuration
+        request = new AnalyzeAction.Request();
+        request.text("the qu1ck brown fox");
+        request.tokenizer("standard");
+        request.addTokenFilter(Map.of("type", "mock", "stopword", "brown"));
+        request.addCharFilter("append");
+        request.text("the qu1ck brown fox");
+        analyze
+            = TransportAnalyzeAction.analyze(request, registry, null, maxTokenCount);
+        tokens = analyze.getTokens();
+        assertEquals(3, tokens.size());
+        assertEquals("the", tokens.get(0).getTerm());
+        assertEquals("qu1ck", tokens.get(1).getTerm());
+        assertEquals("foxbar", tokens.get(2).getTerm());
     }
 
     public void testFillsAttributes() throws IOException {
         AnalyzeAction.Request request = new AnalyzeAction.Request();
         request.analyzer("standard");
         request.text("the 1 brown fox");
-        AnalyzeAction.Response analyze = TransportAnalyzeAction.analyze(request, registry, environment, null, maxTokenCount);
+        AnalyzeAction.Response analyze = TransportAnalyzeAction.analyze(request, registry, null, maxTokenCount);
         List<AnalyzeAction.AnalyzeToken> tokens = analyze.getTokens();
         assertEquals(4, tokens.size());
         assertEquals("the", tokens.get(0).getTerm());
@@ -233,7 +264,7 @@ public class TransportAnalyzeActionTests extends ESTestCase {
         request.text("the quick brown fox");
         request.analyzer("custom_analyzer");
         AnalyzeAction.Response analyze
-            = TransportAnalyzeAction.analyze(request, registry, environment, mockIndexService(), maxTokenCount);
+            = TransportAnalyzeAction.analyze(request, registry, mockIndexService(), maxTokenCount);
         List<AnalyzeAction.AnalyzeToken> tokens = analyze.getTokens();
         assertEquals(3, tokens.size());
         assertEquals("quick", tokens.get(0).getTerm());
@@ -241,7 +272,7 @@ public class TransportAnalyzeActionTests extends ESTestCase {
         assertEquals("fox", tokens.get(2).getTerm());
 
         request.analyzer("standard");
-        analyze = TransportAnalyzeAction.analyze(request, registry, environment, mockIndexService(), maxTokenCount);
+        analyze = TransportAnalyzeAction.analyze(request, registry, mockIndexService(), maxTokenCount);
         tokens = analyze.getTokens();
         assertEquals(4, tokens.size());
         assertEquals("the", tokens.get(0).getTerm());
@@ -252,7 +283,7 @@ public class TransportAnalyzeActionTests extends ESTestCase {
         // Switch the analyzer out for just a tokenizer
         request.analyzer(null);
         request.tokenizer("standard");
-        analyze = TransportAnalyzeAction.analyze(request, registry, environment, mockIndexService(), maxTokenCount);
+        analyze = TransportAnalyzeAction.analyze(request, registry, mockIndexService(), maxTokenCount);
         tokens = analyze.getTokens();
         assertEquals(4, tokens.size());
         assertEquals("the", tokens.get(0).getTerm());
@@ -262,12 +293,30 @@ public class TransportAnalyzeActionTests extends ESTestCase {
 
         // Now try applying our token filter
         request.addTokenFilter("mock");
-        analyze = TransportAnalyzeAction.analyze(request, registry, environment, mockIndexService(), maxTokenCount);
+        analyze = TransportAnalyzeAction.analyze(request, registry, mockIndexService(), maxTokenCount);
         tokens = analyze.getTokens();
         assertEquals(3, tokens.size());
         assertEquals("quick", tokens.get(0).getTerm());
         assertEquals("brown", tokens.get(1).getTerm());
         assertEquals("fox", tokens.get(2).getTerm());
+
+        // Apply the char filter, checking that the correct configuration gets passed on
+        request.addCharFilter("my_append");
+        analyze = TransportAnalyzeAction.analyze(request, registry, mockIndexService(), maxTokenCount);
+        tokens = analyze.getTokens();
+        assertEquals(3, tokens.size());
+        assertEquals("quick", tokens.get(0).getTerm());
+        assertEquals("brown", tokens.get(1).getTerm());
+        assertEquals("foxbaz", tokens.get(2).getTerm());
+
+        // Apply a token filter with parameters
+        request.addTokenFilter(Map.of("type", "mock", "stopword", "brown"));
+        analyze = TransportAnalyzeAction.analyze(request, registry, mockIndexService(), maxTokenCount);
+        tokens = analyze.getTokens();
+        assertEquals(2, tokens.size());
+        assertEquals("quick", tokens.get(0).getTerm());
+        assertEquals("foxbaz", tokens.get(1).getTerm());
+
     }
 
     public void testGetIndexAnalyserWithoutIndexAnalyzers() {
@@ -276,14 +325,14 @@ public class TransportAnalyzeActionTests extends ESTestCase {
                 new AnalyzeAction.Request()
                     .analyzer("custom_analyzer")
                     .text("the qu1ck brown fox-dog"),
-                registry, environment, null, maxTokenCount));
+                registry, null, maxTokenCount));
         assertEquals(e.getMessage(), "failed to find global analyzer [custom_analyzer]");
     }
 
     public void testGetFieldAnalyzerWithoutIndexAnalyzers() {
         AnalyzeAction.Request req = new AnalyzeAction.Request().field("field").text("text");
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
-            TransportAnalyzeAction.analyze(req, registry, environment, null, maxTokenCount);
+            TransportAnalyzeAction.analyze(req, registry, null, maxTokenCount);
         });
         assertEquals(e.getMessage(), "analysis based on a specific field requires an index");
     }
@@ -295,7 +344,7 @@ public class TransportAnalyzeActionTests extends ESTestCase {
                 new AnalyzeAction.Request()
                     .analyzer("foobar")
                     .text("the qu1ck brown fox"),
-                registry, environment, notGlobal ? mockIndexService() : null, maxTokenCount));
+                registry, notGlobal ? mockIndexService() : null, maxTokenCount));
         if (notGlobal) {
             assertEquals(e.getMessage(), "failed to find analyzer [foobar]");
         } else {
@@ -307,7 +356,7 @@ public class TransportAnalyzeActionTests extends ESTestCase {
                 new AnalyzeAction.Request()
                     .tokenizer("foobar")
                     .text("the qu1ck brown fox"),
-                registry, environment, notGlobal ? mockIndexService() : null, maxTokenCount));
+                registry, notGlobal ? mockIndexService() : null, maxTokenCount));
         if (notGlobal) {
             assertEquals(e.getMessage(), "failed to find tokenizer under [foobar]");
         } else {
@@ -320,11 +369,11 @@ public class TransportAnalyzeActionTests extends ESTestCase {
                     .tokenizer("standard")
                     .addTokenFilter("foobar")
                     .text("the qu1ck brown fox"),
-                registry, environment, notGlobal ? mockIndexService() : null, maxTokenCount));
+                registry, notGlobal ? mockIndexService() : null, maxTokenCount));
         if (notGlobal) {
-            assertEquals(e.getMessage(), "failed to find token filter under [foobar]");
+            assertEquals(e.getMessage(), "failed to find filter under [foobar]");
         } else {
-            assertEquals(e.getMessage(), "failed to find global token filter under [foobar]");
+            assertEquals(e.getMessage(), "failed to find global filter under [foobar]");
         }
 
         e = expectThrows(IllegalArgumentException.class,
@@ -334,11 +383,11 @@ public class TransportAnalyzeActionTests extends ESTestCase {
                     .addTokenFilter("lowercase")
                     .addCharFilter("foobar")
                     .text("the qu1ck brown fox"),
-                registry, environment, notGlobal ? mockIndexService() : null, maxTokenCount));
+                registry, notGlobal ? mockIndexService() : null, maxTokenCount));
         if (notGlobal) {
-            assertEquals(e.getMessage(), "failed to find char filter under [foobar]");
+            assertEquals(e.getMessage(), "failed to find char_filter under [foobar]");
         } else {
-            assertEquals(e.getMessage(), "failed to find global char filter under [foobar]");
+            assertEquals(e.getMessage(), "failed to find global char_filter under [foobar]");
         }
 
         e = expectThrows(IllegalArgumentException.class,
@@ -346,7 +395,7 @@ public class TransportAnalyzeActionTests extends ESTestCase {
                 new AnalyzeAction.Request()
                     .normalizer("foobar")
                     .text("the qu1ck brown fox"),
-                registry, environment, mockIndexService(), maxTokenCount));
+                registry, mockIndexService(), maxTokenCount));
         assertEquals(e.getMessage(), "failed to find normalizer under [foobar]");
     }
 
@@ -356,7 +405,7 @@ public class TransportAnalyzeActionTests extends ESTestCase {
         request.addTokenFilter("stop"); // stop token filter is not prebuilt in AnalysisModule#setupPreConfiguredTokenFilters()
         request.text("the quick brown fox");
         AnalyzeAction.Response analyze
-            = TransportAnalyzeAction.analyze(request, registry, environment, mockIndexService(), maxTokenCount);
+            = TransportAnalyzeAction.analyze(request, registry, mockIndexService(), maxTokenCount);
         List<AnalyzeAction.AnalyzeToken> tokens = analyze.getTokens();
         assertEquals(3, tokens.size());
         assertEquals("quick", tokens.get(0).getTerm());
@@ -364,12 +413,25 @@ public class TransportAnalyzeActionTests extends ESTestCase {
         assertEquals("fox", tokens.get(2).getTerm());
     }
 
+    public void testCustomCharFilterWithParameters() throws IOException {
+        AnalyzeAction.Request request = new AnalyzeAction.Request();
+        request.tokenizer("standard");
+        request.addCharFilter(Map.of("type", "append", "suffix", "foo"));
+        request.text("quick brown");
+        AnalyzeAction.Response analyze =
+            TransportAnalyzeAction.analyze(request, registry, mockIndexService(), maxTokenCount);
+        List<AnalyzeAction.AnalyzeToken> tokens = analyze.getTokens();
+        assertEquals(2, tokens.size());
+        assertEquals("quick", tokens.get(0).getTerm());
+        assertEquals("brownfoo", tokens.get(1).getTerm());
+    }
+
     public void testNormalizerWithIndex() throws IOException {
         AnalyzeAction.Request request = new AnalyzeAction.Request("index");
         request.normalizer("my_normalizer");
         request.text("ABc");
         AnalyzeAction.Response analyze
-            = TransportAnalyzeAction.analyze(request, registry, environment, mockIndexService(), maxTokenCount);
+            = TransportAnalyzeAction.analyze(request, registry, mockIndexService(), maxTokenCount);
         List<AnalyzeAction.AnalyzeToken> tokens = analyze.getTokens();
 
         assertEquals(1, tokens.size());
@@ -394,7 +456,7 @@ public class TransportAnalyzeActionTests extends ESTestCase {
         request.text(text);
         request.analyzer("standard");
         IllegalStateException e = expectThrows(IllegalStateException.class,
-            () -> TransportAnalyzeAction.analyze(request, registry, environment, null, maxTokenCount));
+            () -> TransportAnalyzeAction.analyze(request, registry, null, maxTokenCount));
         assertEquals(e.getMessage(), "The number of tokens produced by calling _analyze has exceeded the allowed maximum of ["
             + maxTokenCount + "]." + " This limit can be set by changing the [index.analyze.max_token_count] index level setting.");
 
@@ -404,7 +466,7 @@ public class TransportAnalyzeActionTests extends ESTestCase {
         request2.analyzer("standard");
         request2.explain(true);
         IllegalStateException e2 = expectThrows(IllegalStateException.class,
-            () -> TransportAnalyzeAction.analyze(request2, registry, environment, null, maxTokenCount));
+            () -> TransportAnalyzeAction.analyze(request2, registry, null, maxTokenCount));
         assertEquals(e2.getMessage(), "The number of tokens produced by calling _analyze has exceeded the allowed maximum of ["
             + maxTokenCount + "]." + " This limit can be set by changing the [index.analyze.max_token_count] index level setting.");
     }
@@ -426,7 +488,7 @@ public class TransportAnalyzeActionTests extends ESTestCase {
         request.text(text);
         request.analyzer("standard");
         IllegalStateException e = expectThrows(IllegalStateException.class,
-            () -> TransportAnalyzeAction.analyze(request, registry, environment, null, idxMaxTokenCount));
+            () -> TransportAnalyzeAction.analyze(request, registry, null, idxMaxTokenCount));
         assertEquals(e.getMessage(), "The number of tokens produced by calling _analyze has exceeded the allowed maximum of ["
             + idxMaxTokenCount + "]." + " This limit can be set by changing the [index.analyze.max_token_count] index level setting.");
     }

@@ -169,21 +169,15 @@ if (useFixture) {
 
   File minioAddressFile = new File(project.buildDir, 'generated-resources/s3Fixture.address')
 
-  // We can't lazy evaluate a system property for the Minio address passed to JUnit so we write it to a resource file
-  // and pass its name instead.
-  task writeMinioAddress {
+  thirdPartyTest {
     dependsOn tasks.bundlePlugin, tasks.postProcessFixture
-    doLast {
+    outputs.file(minioAddressFile)
+    doFirst {
       file(minioAddressFile).text = "${ -> minioAddress.call() }"
     }
-  }
-
-  thirdPartyTest {
-    dependsOn writeMinioAddress
+    // TODO: this could be a nonInputProperties.systemProperty so we don't need a file
     systemProperty 'test.s3.endpoint', minioAddressFile.name
   }
-
-  BuildPlugin.requireDocker(tasks.thirdPartyTest)
 
   task integTestMinio(type: RestIntegTestTask) {
     description = "Runs REST tests using the Minio repository."
@@ -198,7 +192,6 @@ if (useFixture) {
     }
   }
   check.dependsOn(integTestMinio)
-  BuildPlugin.requireDocker(tasks.integTestMinio)
 
   testClusters.integTestMinio {
     keystore 's3.client.integration_test_permanent.access_key', s3PermanentAccessKey

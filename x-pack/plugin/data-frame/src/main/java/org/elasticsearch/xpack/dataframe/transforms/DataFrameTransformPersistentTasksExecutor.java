@@ -131,7 +131,7 @@ public class DataFrameTransformPersistentTasksExecutor extends PersistentTasksEx
                     .setInitialPosition(stateAndStats.getTransformState().getPosition())
                     .setProgress(stateAndStats.getTransformState().getProgress())
                     .setIndexerState(currentIndexerState(stateAndStats.getTransformState()));
-                logger.info("[{}] Loading existing state: [{}], position [{}]",
+                logger.debug("[{}] Loading existing state: [{}], position [{}]",
                     transformId,
                     stateAndStats.getTransformState(),
                     stateAndStats.getTransformState().getPosition());

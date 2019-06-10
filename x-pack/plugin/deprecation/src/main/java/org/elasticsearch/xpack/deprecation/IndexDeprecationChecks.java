@@ -89,10 +89,6 @@ public class IndexDeprecationChecks {
             + JodaDeprecationPatterns.formatSuggestion((String)value.get("format"));
     }
 
-    private static String formatField(String type, Map.Entry<?, ?> entry) {
-        return "type: " + type + ", field: " + entry.getKey();
-    }
-
     static DeprecationIssue oldIndicesCheck(IndexMetaData indexMetaData) {
         Version createdWith = indexMetaData.getCreationVersion();
         if (createdWith.before(Version.V_7_0_0)) {
@@ -155,34 +151,6 @@ public class IndexDeprecationChecks {
         return "date".equals(property.get("type")) &&
             property.containsKey("format") &&
             JodaDeprecationPatterns.isDeprecatedPattern((String) property.get("format"));
-    }
-
-    static DeprecationIssue chainedMultiFieldsCheck(IndexMetaData indexMetaData) {
-        List<String> issues = new ArrayList<>();
-        fieldLevelMappingIssue(indexMetaData, ((mappingMetaData, sourceAsMap) -> issues.addAll(
-            findInPropertiesRecursively(mappingMetaData.type(), sourceAsMap,
-                IndexDeprecationChecks::containsChainedMultiFields, IndexDeprecationChecks::formatField))));
-        if (issues.size() > 0) {
-            return new DeprecationIssue(DeprecationIssue.Level.WARNING,
-                "Multi-fields within multi-fields",
-                "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-8.0.html" +
-                    "#_defining_multi_fields_within_multi_fields",
-                "The names of fields that contain chained multi-fields: " + issues.toString());
-        }
-        return null;
-    }
-
-    private static boolean containsChainedMultiFields(Map<?, ?> property) {
-        if (property.containsKey("fields")) {
-            Map<?, ?> fields = (Map<?, ?>) property.get("fields");
-            for (Object rawSubField: fields.values()) {
-                Map<?, ?> subField = (Map<?, ?>) rawSubField;
-                if (subField.containsKey("fields")) {
-                    return true;
-                }
-            }
-        }
-        return false;
     }
 
     private static final Set<String> TYPES_THAT_DONT_COUNT;

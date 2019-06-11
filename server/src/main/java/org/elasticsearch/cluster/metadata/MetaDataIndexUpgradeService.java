@@ -179,6 +179,7 @@ public class MetaDataIndexUpgradeService {
                     throw new UnsupportedOperationException("shouldn't be here");
                 }
             });
+            final Map<String, NamedAnalyzer> analyzers = Map.of("default",  fakeDefault);
 
             final Map<String, NamedAnalyzer> analyzerMap = new AbstractMap<String, NamedAnalyzer>() {
                 @Override
@@ -188,10 +189,11 @@ public class MetaDataIndexUpgradeService {
                 }
 
                 // this entrySet impl isn't fully correct but necessary as IndexAnalyzers will iterate
-                // over all analyzers to close them
+                // over all analyzers to close them. Also Map.of() calls that take this fake map as input
+                // need this method
                 @Override
                 public Set<Entry<String, NamedAnalyzer>> entrySet() {
-                    return Collections.emptySet();
+                    return analyzers.entrySet();
                 }
             };
             try (IndexAnalyzers fakeIndexAnalzyers =

@@ -27,8 +27,10 @@ Deletes an existing {dataframe-transform}.
 ==== Authorization
 
 If the {es} {security-features} are enabled, you must have
-`manage_data_frame_transforms` cluster privileges to use this API.
-For more information, see {stack-ov}/security-privileges.html[Security privileges].
+`manage_data_frame_transforms` cluster privileges to use this API. The built-in
+`data_frame_transforms_admin` role has these privileges. For more information,
+see {stack-ov}/security-privileges.html[Security privileges] and
+{stack-ov}/built-in-roles.html[Built-in roles].
 
 ==== Examples
 

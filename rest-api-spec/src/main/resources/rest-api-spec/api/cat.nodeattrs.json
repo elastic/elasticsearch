@@ -3,7 +3,6 @@
     "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/cat-nodeattrs.html",
     "methods": ["GET"],
     "url": {
-      "path": "/_cat/nodeattrs",
       "paths": ["/_cat/nodeattrs"],
       "parts": {
       },

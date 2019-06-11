@@ -26,10 +26,11 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 
+import static org.hamcrest.CoreMatchers.containsString;
 
 public class AnalyzeRequestTests extends ESTestCase {
 
-    public void testValidation() throws Exception {
+    public void testValidation() {
         AnalyzeAction.Request request = new AnalyzeAction.Request();
 
         ActionRequestValidationException e = request.validate();
@@ -66,6 +67,35 @@ public class AnalyzeRequestTests extends ESTestCase {
         requestAnalyzer.analyzer("analyzer");
         e = requestAnalyzer.validate();
         assertTrue(e.getMessage().contains("tokenizer/analyze should be null if normalizer is specified"));
+
+        {
+            AnalyzeAction.Request analyzerPlusDefs = new AnalyzeAction.Request("index");
+            analyzerPlusDefs.text("text");
+            analyzerPlusDefs.analyzer("analyzer");
+            analyzerPlusDefs.addTokenFilter("tokenfilter");
+            e = analyzerPlusDefs.validate();
+            assertNotNull(e);
+            assertThat(e.getMessage(), containsString("cannot define extra components on a named analyzer"));
+        }
+
+        {
+            AnalyzeAction.Request analyzerPlusDefs = new AnalyzeAction.Request("index");
+            analyzerPlusDefs.text("text");
+            analyzerPlusDefs.normalizer("normalizer");
+            analyzerPlusDefs.addTokenFilter("tokenfilter");
+            e = analyzerPlusDefs.validate();
+            assertNotNull(e);
+            assertThat(e.getMessage(), containsString("cannot define extra components on a named normalizer"));
+        }
+        {
+            AnalyzeAction.Request analyzerPlusDefs = new AnalyzeAction.Request("index");
+            analyzerPlusDefs.text("text");
+            analyzerPlusDefs.field("field");
+            analyzerPlusDefs.addTokenFilter("tokenfilter");
+            e = analyzerPlusDefs.validate();
+            assertNotNull(e);
+            assertThat(e.getMessage(), containsString("cannot define extra components on a field-specific analyzer"));
+        }
     }
 
     public void testSerialization() throws IOException {

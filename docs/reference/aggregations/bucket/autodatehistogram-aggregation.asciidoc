@@ -261,6 +261,17 @@ scripts and value level scripts are supported. This aggregation does not however
 ==== Minimum Interval parameter
 
 The `minimum_interval` allows the caller to specify the minimum rounding interval that should be used.
+This can make the collection process more efficient, as the aggregation will not attempt to round at
+any interval lower than `minimum_interval`.
+
+The accepted units for `minimum_interval` are:
+
+* year
+* month
+* day
+* hour
+* minute
+* second
 
 [source,js]
 --------------------------------------------------

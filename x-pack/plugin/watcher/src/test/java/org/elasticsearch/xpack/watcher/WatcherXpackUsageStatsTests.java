@@ -5,11 +5,12 @@
  */
 package org.elasticsearch.xpack.watcher;
 
+import org.elasticsearch.protocol.xpack.XPackUsageRequest;
 import org.elasticsearch.xpack.core.XPackFeatureSet;
 import org.elasticsearch.xpack.core.action.XPackUsageAction;
-import org.elasticsearch.protocol.xpack.XPackUsageRequest;
 import org.elasticsearch.xpack.core.action.XPackUsageResponse;
 import org.elasticsearch.xpack.core.watcher.WatcherFeatureSetUsage;
+import org.elasticsearch.xpack.core.watcher.transport.actions.put.PutWatchRequestBuilder;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
 
 import java.util.Map;
@@ -30,7 +31,7 @@ public class WatcherXpackUsageStatsTests extends AbstractWatcherIntegrationTestC
     public void testWatcherUsageStatsTests() {
         long watchCount = randomLongBetween(5, 20);
         for (int i = 0; i < watchCount; i++) {
-            watcherClient().preparePutWatch("_id" + i).setSource(watchBuilder()
+            new PutWatchRequestBuilder(client(), "_id" + i).setSource(watchBuilder()
                     .trigger(schedule(cron("0/5 * * * * ? 2050")))
                     .input(simpleInput())
                     .addAction("_id", loggingAction("whatever " + i)))

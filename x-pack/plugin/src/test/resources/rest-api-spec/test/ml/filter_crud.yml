@@ -328,3 +328,18 @@ setup:
       ml.get_filters: {}
   - match: { count: 0 }
   - match: { filters: [] }
+
+---
+"Test get all filter given index exists but no mapping for filter_id":
+
+  - do:
+      indices.delete:
+        index: ".ml-meta"
+  - do:
+      indices.create:
+        index: ".ml-meta"
+
+  - do:
+      ml.get_filters: {}
+  - match: { count: 0 }
+  - match: { filters: [] }

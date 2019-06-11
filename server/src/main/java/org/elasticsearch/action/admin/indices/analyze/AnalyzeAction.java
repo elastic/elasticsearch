@@ -28,15 +28,12 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParseException;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.analysis.NameOrDefinition;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -82,60 +79,6 @@ public class AnalyzeAction extends Action<AnalyzeAction.Response> {
         private boolean explain = false;
         private String[] attributes = Strings.EMPTY_ARRAY;
         private String normalizer;
-
-        public static class NameOrDefinition implements Writeable {
-            // exactly one of these two members is not null
-            public final String name;
-            public final Settings definition;
-
-            NameOrDefinition(String name) {
-                this.name = Objects.requireNonNull(name);
-                this.definition = null;
-            }
-
-            NameOrDefinition(Map<String, ?> definition) {
-                this.name = null;
-                Objects.requireNonNull(definition);
-                try {
-                    XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
-                    builder.map(definition);
-                    this.definition = Settings.builder().loadFromSource(Strings.toString(builder), builder.contentType()).build();
-                } catch (IOException e) {
-                    throw new IllegalArgumentException("Failed to parse [" + definition + "]", e);
-                }
-            }
-
-            NameOrDefinition(StreamInput in) throws IOException {
-                name = in.readOptionalString();
-                if (in.readBoolean()) {
-                    definition = Settings.readSettingsFromStream(in);
-                } else {
-                    definition = null;
-                }
-            }
-
-            @Override
-            public void writeTo(StreamOutput out) throws IOException {
-                out.writeOptionalString(name);
-                boolean isNotNullDefinition = this.definition != null;
-                out.writeBoolean(isNotNullDefinition);
-                if (isNotNullDefinition) {
-                    Settings.writeSettingsToStream(definition, out);
-                }
-            }
-
-            public static NameOrDefinition fromXContent(XContentParser parser) throws IOException {
-                if (parser.currentToken() == XContentParser.Token.VALUE_STRING) {
-                    return new NameOrDefinition(parser.text());
-                }
-                if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
-                    return new NameOrDefinition(parser.map());
-                }
-                throw new XContentParseException(parser.getTokenLocation(),
-                    "Expected [VALUE_STRING] or [START_OBJECT], got " + parser.currentToken());
-            }
-
-        }
 
         public Request() {
         }

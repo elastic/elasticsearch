@@ -226,7 +226,7 @@ public class JobManager {
         CategorizationAnalyzerConfig categorizationAnalyzerConfig = jobBuilder.getAnalysisConfig().getCategorizationAnalyzerConfig();
         if (categorizationAnalyzerConfig != null) {
             CategorizationAnalyzer.verifyConfigBuilder(new CategorizationAnalyzerConfig.Builder(categorizationAnalyzerConfig),
-                analysisRegistry, environment);
+                analysisRegistry);
         }
     }
 

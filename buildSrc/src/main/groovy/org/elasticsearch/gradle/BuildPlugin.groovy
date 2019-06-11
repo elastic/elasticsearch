@@ -256,11 +256,7 @@ class BuildPlugin implements Plugin<Project> {
             }
         }
 
-        if (ext.get('buildDocker')) {
-            (ext.get('requiresDocker') as List<Task>).add(task)
-        } else {
-            task.onlyIf { false }
-        }
+        (ext.get('requiresDocker') as List<Task>).add(task)
     }
 
     protected static void checkDockerVersionRecent(String dockerVersion) {
@@ -695,8 +691,11 @@ class BuildPlugin implements Plugin<Project> {
             // we put all our distributable files under distributions
             jarTask.destinationDir = new File(project.buildDir, 'distributions')
             project.plugins.withType(ShadowPlugin).whenPluginAdded {
-                // ensure the original jar task places its output in 'libs' so we don't overwrite it with the shadowjar
-                if (jarTask instanceof ShadowJar == false) {
+                /*
+                 * Ensure the original jar task places its output in 'libs' so that we don't overwrite it with the shadow jar. We only do
+                 * this for tasks named jar to exclude javadoc and sources jars.
+                 */
+                if (jarTask instanceof ShadowJar == false && jarTask.name == JavaPlugin.JAR_TASK_NAME) {
                     jarTask.destinationDir = new File(project.buildDir, 'libs')
                 }
             }

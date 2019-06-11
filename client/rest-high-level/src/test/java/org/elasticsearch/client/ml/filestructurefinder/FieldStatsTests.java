@@ -43,6 +43,8 @@ public class FieldStatsTests extends AbstractXContentTestCase<FieldStats> {
         Double maxValue = null;
         Double meanValue = null;
         Double medianValue = null;
+        String earliestTimestamp = null;
+        String latestTimestamp = null;
         boolean isMetric = randomBoolean();
         if (isMetric) {
             if (randomBoolean()) {
@@ -54,6 +56,12 @@ public class FieldStatsTests extends AbstractXContentTestCase<FieldStats> {
             }
             meanValue = randomDouble();
             medianValue = randomDouble();
+        } else {
+            boolean isDate = randomBoolean();
+            if (isDate) {
+                earliestTimestamp = randomAlphaOfLength(20);
+                latestTimestamp = randomAlphaOfLength(20);
+            }
         }
 
         List<Map<String, Object>> topHits = new ArrayList<>();
@@ -68,7 +76,7 @@ public class FieldStatsTests extends AbstractXContentTestCase<FieldStats> {
             topHits.add(topHit);
         }
 
-        return new FieldStats(count, cardinality, minValue, maxValue, meanValue, medianValue, topHits);
+        return new FieldStats(count, cardinality, minValue, maxValue, meanValue, medianValue, earliestTimestamp, latestTimestamp, topHits);
     }
 
     @Override

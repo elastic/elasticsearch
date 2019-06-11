@@ -281,6 +281,56 @@
 
 ---
 "Limit by size":
+  - skip:
+      version: " - 7.1.99"
+      reason: "deprecation warnings only emitted on 7.2+"
+      features: warnings
+
+  - do:
+      index:
+        index:  twitter
+        id:     1
+        body:   { "user": "kimchy" }
+  - do:
+      index:
+        index:  twitter
+        id:     2
+        body:   { "user": "kimchy" }
+  - do:
+      indices.refresh: {}
+
+  - do:
+      warnings:
+        - Deprecated field [size] used, expected [max_docs] instead
+      delete_by_query:
+        index: twitter
+        size: 1
+        body:
+          query:
+            match_all: {}
+
+  - match: {deleted: 1}
+  - match: {version_conflicts: 0}
+  - match: {batches: 1}
+  - match: {failures: []}
+  - match: {throttled_millis: 0}
+  - gte: { took: 0 }
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      count:
+        index: twitter
+
+  - match: {count: 1}
+
+---
+"Limit by size pre 7.2":
+  - skip:
+      version: "7.2.0 - "
+      reason: "7.2 should use max_docs or get deprecation warning"
+
   - do:
       index:
         index:  twitter
@@ -301,6 +351,93 @@
         body:
           query:
             match_all: {}
+
+  - match: {deleted: 1}
+  - match: {version_conflicts: 0}
+  - match: {batches: 1}
+  - match: {failures: []}
+  - match: {throttled_millis: 0}
+  - gte: { took: 0 }
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      count:
+        index: twitter
+
+  - match: {count: 1}
+
+---
+"Limit by max_docs in URL":
+  - skip:
+      version: " - 7.1.99"
+      reason: "max_docs introduced in 7.2.0"
+
+  - do:
+      index:
+        index:  twitter
+        id:     1
+        body:   { "user": "kimchy" }
+  - do:
+      index:
+        index:  twitter
+        id:     2
+        body:   { "user": "kimchy" }
+  - do:
+      indices.refresh: {}
+
+  - do:
+      delete_by_query:
+        index: twitter
+        max_docs: 1
+        body:
+          query:
+            match_all: {}
+
+  - match: {deleted: 1}
+  - match: {version_conflicts: 0}
+  - match: {batches: 1}
+  - match: {failures: []}
+  - match: {throttled_millis: 0}
+  - gte: { took: 0 }
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      count:
+        index: twitter
+
+  - match: {count: 1}
+
+---
+"Limit by max_docs in body":
+  - skip:
+      version: " - 7.1.99"
+      reason: "max_docs introduced in 7.2.0"
+
+  - do:
+      index:
+        index:  twitter
+        id:     1
+        body:   { "user": "kimchy" }
+  - do:
+      index:
+        index:  twitter
+        id:     2
+        body:   { "user": "kimchy" }
+  - do:
+      indices.refresh: {}
+
+  - do:
+      delete_by_query:
+        index: twitter
+        body:
+          max_docs: 1
+          query:
+            match:
+              user: "kimchy"
 
   - match: {deleted: 1}
   - match: {version_conflicts: 0}

@@ -337,16 +337,16 @@ public class AllocationService {
         allocation.debugDecision(true);
         // we ignore disable allocation, because commands are explicit
         allocation.ignoreDisable(true);
-        RoutingExplanations explanations = commands.execute(allocation, explain);
-        // we revert the ignore disable flag, since when rerouting, we want the original setting to take place
-        allocation.ignoreDisable(false);
-        // the assumption is that commands will move / act on shards (or fail through exceptions)
-        // so, there will always be shard "movements", so no need to check on reroute
 
         if (retryFailed) {
             resetFailedAllocationCounter(allocation);
         }
 
+        RoutingExplanations explanations = commands.execute(allocation, explain);
+        // we revert the ignore disable flag, since when rerouting, we want the original setting to take place
+        allocation.ignoreDisable(false);
+        // the assumption is that commands will move / act on shards (or fail through exceptions)
+        // so, there will always be shard "movements", so no need to check on reroute
         reroute(allocation);
         return new CommandsResult(explanations, buildResultAndLogHealthChange(clusterState, allocation, "reroute commands"));
     }

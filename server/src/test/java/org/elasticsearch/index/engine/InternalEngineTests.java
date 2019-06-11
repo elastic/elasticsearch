@@ -178,6 +178,7 @@ import java.util.function.Supplier;
 import java.util.function.ToLongBiFunction;
 import java.util.stream.Collectors;
 import java.util.stream.LongStream;
+import java.util.stream.Stream;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.shuffle;
@@ -1109,6 +1110,7 @@ public class InternalEngineTests extends EngineTestCase {
             globalCheckpointSupplier));
         ParsedDocument doc = testParsedDocument("1", null, testDocumentWithTextField(), B_1, null);
         engine.index(indexForDoc(doc));
+        engine.syncTranslog(); // to advance local checkpoint
         boolean inSync = randomBoolean();
         if (inSync) {
             globalCheckpoint.set(engine.getLocalCheckpoint());
@@ -2388,6 +2390,8 @@ public class InternalEngineTests extends EngineTestCase {
                     }
                 }
 
+                initialEngine.syncTranslog(); // to advance local checkpoint
+
                 if (randomInt(10) < 3) {
                     // only update rarely as we do it every doc
                     replicaLocalCheckpoint = randomIntBetween(Math.toIntExact(replicaLocalCheckpoint), Math.toIntExact(primarySeqNo));
@@ -2758,6 +2762,7 @@ public class InternalEngineTests extends EngineTestCase {
 
                 try (InternalEngine engine = createEngine(config)) {
                     engine.index(firstIndexRequest);
+                    engine.syncTranslog(); // to advance local checkpoint
                     globalCheckpoint.set(engine.getLocalCheckpoint());
                     expectThrows(IllegalStateException.class, () -> engine.recoverFromTranslog(translogHandler, Long.MAX_VALUE));
                     Map<String, String> userData = engine.getLastCommittedSegmentInfos().getUserData();
@@ -2920,6 +2925,7 @@ public class InternalEngineTests extends EngineTestCase {
                 final ParsedDocument doc1 = testParsedDocument("1", null,
                     testDocumentWithTextField(), SOURCE, null);
                 engine.index(indexForDoc(doc1));
+                engine.syncTranslog(); // to advance local checkpoint
                 globalCheckpoint.set(engine.getLocalCheckpoint());
                 throwErrorOnCommit.set(true);
                 FlushFailedEngineException e = expectThrows(FlushFailedEngineException.class, engine::flush);
@@ -3074,7 +3080,7 @@ public class InternalEngineTests extends EngineTestCase {
         final String badUUID = Translog.createEmptyTranslog(badTranslogLog, SequenceNumbers.NO_OPS_PERFORMED, shardId, primaryTerm.get());
         Translog translog = new Translog(
             new TranslogConfig(shardId, badTranslogLog, INDEX_SETTINGS, BigArrays.NON_RECYCLING_INSTANCE),
-            badUUID, createTranslogDeletionPolicy(INDEX_SETTINGS), () -> SequenceNumbers.NO_OPS_PERFORMED, primaryTerm::get);
+            badUUID, createTranslogDeletionPolicy(INDEX_SETTINGS), () -> SequenceNumbers.NO_OPS_PERFORMED, primaryTerm::get, seqNo -> {});
         translog.add(new Translog.Index("test", "SomeBogusId", 0, primaryTerm.get(),
             "{}".getBytes(Charset.forName("UTF-8"))));
         assertEquals(generation.translogFileGeneration, translog.currentFileGeneration());
@@ -4100,7 +4106,8 @@ public class InternalEngineTests extends EngineTestCase {
                 stall.set(randomBoolean());
                 final Thread thread = new Thread(() -> {
                     try {
-                        finalInitialEngine.index(indexForDoc(doc));
+                        final Engine.IndexResult indexResult = finalInitialEngine.index(indexForDoc(doc));
+                        finalInitialEngine.ensureTranslogSynced(Stream.of(indexResult.getTranslogLocation())); // to advance checkpoint
                     } catch (IOException e) {
                         throw new AssertionError(e);
                     }
@@ -4189,6 +4196,8 @@ public class InternalEngineTests extends EngineTestCase {
             }
         }
 
+        engine.syncTranslog(); // to advance local checkpoint
+
         final long expectedLocalCheckpoint;
         if (origin == PRIMARY) {
             // we can only advance as far as the number of operations that did not conflict
@@ -4240,12 +4249,14 @@ public class InternalEngineTests extends EngineTestCase {
             noOpEngine.recoverFromTranslog(translogHandler, Long.MAX_VALUE);
             final int gapsFilled = noOpEngine.fillSeqNoGaps(primaryTerm.get());
             final String reason = "filling gaps";
-            noOpEngine.noOp(new Engine.NoOp(maxSeqNo + 1, primaryTerm.get(), LOCAL_TRANSLOG_RECOVERY, System.nanoTime(), reason));
+            noOpEngine.noOp(new Engine.NoOp(maxSeqNo + 1, primaryTerm.get(), LOCAL_TRANSLOG_RECOVERY,
+                System.nanoTime(), reason));
             assertThat(noOpEngine.getLocalCheckpoint(), equalTo((long) (maxSeqNo + 1)));
             assertThat(noOpEngine.getTranslog().stats().getUncommittedOperations(), equalTo(gapsFilled));
-            noOpEngine.noOp(
+            Engine.NoOpResult result = noOpEngine.noOp(
                 new Engine.NoOp(maxSeqNo + 2, primaryTerm.get(),
                     randomFrom(PRIMARY, REPLICA, PEER_RECOVERY), System.nanoTime(), reason));
+            noOpEngine.ensureTranslogSynced(Stream.of(result.getTranslogLocation()));
             assertThat(noOpEngine.getLocalCheckpoint(), equalTo((long) (maxSeqNo + 2)));
             assertThat(noOpEngine.getTranslog().stats().getUncommittedOperations(), equalTo(gapsFilled + 1));
             // skip to the op that we added to the translog
@@ -4502,6 +4513,8 @@ public class InternalEngineTests extends EngineTestCase {
                     replicaEngine.index(replicaIndexForDoc(doc, 1, indexResult.getSeqNo(), false));
                 }
             }
+            engine.syncTranslog(); // to advance local checkpoint
+            replicaEngine.syncTranslog(); // to advance local checkpoint
             checkpointOnReplica = replicaEngine.getLocalCheckpoint();
         } finally {
             IOUtils.close(replicaEngine);
@@ -5106,6 +5119,7 @@ public class InternalEngineTests extends EngineTestCase {
                     engine.delete(replicaDeleteForDoc(UUIDs.randomBase64UUID(), 1, seqno, threadPool.relativeTimeInMillis()));
                 }
             }
+            engine.syncTranslog(); // to advance local checkpoint
             List<DeleteVersionValue> tombstones = new ArrayList<>(engine.getDeletedTombstones());
             engine.config().setEnableGcDeletes(true);
             // Prune tombstones whose seqno < gap_seqno and timestamp < clock-gcInterval.
@@ -5127,6 +5141,7 @@ public class InternalEngineTests extends EngineTestCase {
                 engine.delete(replicaDeleteForDoc(UUIDs.randomBase64UUID(), Versions.MATCH_ANY,
                     gapSeqNo, threadPool.relativeTimeInMillis()));
             }
+            engine.syncTranslog(); // to advance local checkpoint
             clock.set(randomLongBetween(100 + gcInterval * 4/3, Long.MAX_VALUE)); // Need a margin for gcInterval/4.
             engine.refresh("test");
             assertThat(engine.getDeletedTombstones(), empty());
@@ -5186,8 +5201,8 @@ public class InternalEngineTests extends EngineTestCase {
             }
             appendOnlyIndexer.join(120_000);
             assertThat(engine.getMaxSeqNoOfNonAppendOnlyOperations(), equalTo(maxSeqNoOfNonAppendOnly));
-            globalCheckpoint.set(engine.getLocalCheckpoint());
             engine.syncTranslog();
+            globalCheckpoint.set(engine.getLocalCheckpoint());
             engine.flush();
         }
         try (InternalEngine engine = createEngine(store, translogPath, globalCheckpoint::get)) {
@@ -5480,6 +5495,8 @@ public class InternalEngineTests extends EngineTestCase {
                     new BytesArray("{}".getBytes(Charset.defaultCharset())), null);
                 engine.index(replicaIndexForDoc(doc, 1, seqNo, randomBoolean()));
             }
+
+            engine.syncTranslog(); // to advance local checkpoint
 
             final long initialRefreshCount = refreshCounter.get();
             final Thread[] snapshotThreads = new Thread[between(1, 3)];

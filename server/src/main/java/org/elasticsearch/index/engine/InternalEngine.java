@@ -108,6 +108,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.BiFunction;
+import java.util.function.LongConsumer;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
@@ -196,7 +197,12 @@ public class InternalEngine extends Engine {
             throttle = new IndexThrottle();
             try {
                 trimUnsafeCommits(engineConfig);
-                translog = openTranslog(engineConfig, translogDeletionPolicy, engineConfig.getGlobalCheckpointSupplier());
+                translog = openTranslog(engineConfig, translogDeletionPolicy, engineConfig.getGlobalCheckpointSupplier(),
+                    seqNo -> {
+                        final LocalCheckpointTracker tracker = getLocalCheckpointTracker();
+                        assert tracker != null;
+                        tracker.markSeqNoAsCompleted(seqNo);
+                    });
                 assert translog.getGeneration() != null;
                 this.translog = translog;
                 this.softDeleteEnabled = engineConfig.getIndexSettings().isSoftDeleteEnabled();
@@ -384,11 +390,16 @@ public class InternalEngine extends Engine {
                     seqNo <= maxSeqNo;
                     seqNo = localCheckpointTracker.getCheckpoint() + 1 /* the local checkpoint might have advanced so we leap-frog */) {
                 innerNoOp(new NoOp(seqNo, primaryTerm, Operation.Origin.PRIMARY, System.nanoTime(), "filling gaps"));
+                // the local checkpoint, which is used here after inserting each noop in order to find the next free slot, only advances
+                // after fsyncing the operation. In order to avoid doing an fsync per operation, we manually mark the operation as
+                // completed, and do an explicit fsync of the translog at the end.
+                localCheckpointTracker.markSeqNoAsCompleted(seqNo);
                 numNoOpsAdded++;
                 assert seqNo <= localCheckpointTracker.getCheckpoint()
                         : "local checkpoint did not advance; was [" + seqNo + "], now [" + localCheckpointTracker.getCheckpoint() + "]";
 
             }
+            syncTranslog(); // to persist noops associated with the advancement of the local checkpoint
             return numNoOpsAdded;
         }
     }
@@ -466,13 +477,13 @@ public class InternalEngine extends Engine {
     }
 
     private Translog openTranslog(EngineConfig engineConfig, TranslogDeletionPolicy translogDeletionPolicy,
-                                        LongSupplier globalCheckpointSupplier) throws IOException {
+                                  LongSupplier globalCheckpointSupplier, LongConsumer persistedSequenceNumberConsumer) throws IOException {
 
         final TranslogConfig translogConfig = engineConfig.getTranslogConfig();
         final String translogUUID = loadTranslogUUIDFromLastCommit();
         // We expect that this shard already exists, so it must already have an existing translog else something is badly wrong!
         return new Translog(translogConfig, translogUUID, translogDeletionPolicy, globalCheckpointSupplier,
-            engineConfig.getPrimaryTermSupplier());
+            engineConfig.getPrimaryTermSupplier(), persistedSequenceNumberConsumer);
     }
 
     // Package private for testing purposes only
@@ -705,8 +716,8 @@ public class InternalEngine extends Engine {
                         status = OpVsLuceneDocStatus.LUCENE_DOC_NOT_FOUND;
                     }
                 } else if (op.seqNo() == docAndSeqNo.seqNo) {
-                    assert localCheckpointTracker.contains(op.seqNo()) || softDeleteEnabled == false :
-                        "local checkpoint tracker is not updated seq_no=" + op.seqNo() + " id=" + op.id();
+//                    assert localCheckpointTracker.contains(op.seqNo()) || softDeleteEnabled == false :
+//                        "local checkpoint tracker is not updated seq_no=" + op.seqNo() + " id=" + op.id();
                     status = OpVsLuceneDocStatus.OP_STALE_OR_EQUAL;
                 } else {
                     status = OpVsLuceneDocStatus.OP_STALE_OR_EQUAL;
@@ -908,7 +919,9 @@ public class InternalEngine extends Engine {
                     versionMap.maybePutIndexUnderLock(index.uid().bytes(),
                         new IndexVersionValue(translogLocation, plan.versionForIndexing, index.seqNo(), index.primaryTerm()));
                 }
-                localCheckpointTracker.markSeqNoAsCompleted(indexResult.getSeqNo());
+                if (indexResult.getTranslogLocation() == null) {
+                    localCheckpointTracker.markSeqNoAsCompleted(indexResult.getSeqNo());
+                }
                 indexResult.setTook(System.nanoTime() - index.startTime());
                 indexResult.freeze();
                 return indexResult;
@@ -1261,7 +1274,9 @@ public class InternalEngine extends Engine {
                 final Translog.Location location = translog.add(new Translog.Delete(delete, deleteResult));
                 deleteResult.setTranslogLocation(location);
             }
-            localCheckpointTracker.markSeqNoAsCompleted(deleteResult.getSeqNo());
+            if (deleteResult.getTranslogLocation() == null) {
+                localCheckpointTracker.markSeqNoAsCompleted(deleteResult.getSeqNo());
+            }
             deleteResult.setTook(System.nanoTime() - delete.startTime());
             deleteResult.freeze();
         } catch (RuntimeException | IOException e) {
@@ -1504,7 +1519,9 @@ public class InternalEngine extends Engine {
                     noOpResult.setTranslogLocation(location);
                 }
             }
-            localCheckpointTracker.markSeqNoAsCompleted(seqNo);
+            if (noOpResult.getTranslogLocation() == null) {
+                localCheckpointTracker.markSeqNoAsCompleted(noOpResult.getSeqNo());
+            }
             noOpResult.setTook(System.nanoTime() - noOp.startTime());
             noOpResult.freeze();
             return noOpResult;

@@ -410,7 +410,7 @@ public abstract class EngineTestCase extends ESTestCase {
         String translogUUID = Translog.createEmptyTranslog(translogPath, SequenceNumbers.NO_OPS_PERFORMED, shardId,
             primaryTermSupplier.getAsLong());
         return new Translog(translogConfig, translogUUID, createTranslogDeletionPolicy(INDEX_SETTINGS),
-            () -> SequenceNumbers.NO_OPS_PERFORMED, primaryTermSupplier);
+            () -> SequenceNumbers.NO_OPS_PERFORMED, primaryTermSupplier, seqNo -> {});
     }
 
     protected TranslogHandler createTranslogHandler(IndexSettings indexSettings) {

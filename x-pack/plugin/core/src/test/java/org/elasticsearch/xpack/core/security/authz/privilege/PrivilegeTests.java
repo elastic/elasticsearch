@@ -33,36 +33,36 @@ public class PrivilegeTests extends ESTestCase {
 
     public void testCluster() throws Exception {
         Set<String> name = Sets.newHashSet("monitor");
-        ClusterPrivilege cluster = ClusterPrivilege.get(name).v1();
-        assertThat(cluster, is(ClusterPrivilege.MONITOR));
+        ClusterPrivilege cluster = ClusterPrivilegeResolver.resolve(name).v1();
+        assertThat(cluster, is(DefaultClusterPrivilege.MONITOR.clusterPrivilege()));
 
         // since "all" implies "monitor", this should be the same language as All
         name = Sets.newHashSet("monitor", "all");
-        cluster = ClusterPrivilege.get(name).v1();
-        assertTrue(Operations.sameLanguage(ClusterPrivilege.ALL.automaton, cluster.automaton));
+        cluster = ClusterPrivilegeResolver.resolve(name).v1();
+        assertTrue(Operations.sameLanguage(DefaultClusterPrivilege.ALL.automaton(), cluster.automaton));
 
         name = Sets.newHashSet("monitor", "none");
-        cluster = ClusterPrivilege.get(name).v1();
-        assertTrue(Operations.sameLanguage(ClusterPrivilege.MONITOR.automaton, cluster.automaton));
+        cluster = ClusterPrivilegeResolver.resolve(name).v1();
+        assertTrue(Operations.sameLanguage(DefaultClusterPrivilege.MONITOR.automaton(), cluster.automaton));
 
         Set<String> name2 = Sets.newHashSet("none", "monitor");
-        ClusterPrivilege cluster2 = ClusterPrivilege.get(name2).v1();
+        ClusterPrivilege cluster2 = ClusterPrivilegeResolver.resolve(name2).v1();
         assertThat(cluster, is(cluster2));
     }
 
     public void testClusterTemplateActions() throws Exception {
         Set<String> name = Sets.newHashSet("indices:admin/template/delete");
-        ClusterPrivilege cluster = ClusterPrivilege.get(name).v1();
+        ClusterPrivilege cluster = ClusterPrivilegeResolver.resolve(name).v1();
         assertThat(cluster, notNullValue());
         assertThat(cluster.predicate().test("indices:admin/template/delete"), is(true));
 
         name = Sets.newHashSet("indices:admin/template/get");
-        cluster = ClusterPrivilege.get(name).v1();
+        cluster = ClusterPrivilegeResolver.resolve(name).v1();
         assertThat(cluster, notNullValue());
         assertThat(cluster.predicate().test("indices:admin/template/get"), is(true));
 
         name = Sets.newHashSet("indices:admin/template/put");
-        cluster = ClusterPrivilege.get(name).v1();
+        cluster = ClusterPrivilegeResolver.resolve(name).v1();
         assertThat(cluster, notNullValue());
         assertThat(cluster.predicate().test("indices:admin/template/put"), is(true));
     }
@@ -70,12 +70,12 @@ public class PrivilegeTests extends ESTestCase {
     public void testClusterInvalidName() throws Exception {
         thrown.expect(IllegalArgumentException.class);
         Set<String> actionName = Sets.newHashSet("foobar");
-        ClusterPrivilege.get(actionName);
+        ClusterPrivilegeResolver.resolve(actionName);
     }
 
     public void testClusterAction() throws Exception {
         Set<String> actionName = Sets.newHashSet("cluster:admin/snapshot/delete");
-        ClusterPrivilege cluster = ClusterPrivilege.get(actionName).v1();
+        ClusterPrivilege cluster = ClusterPrivilegeResolver.resolve(actionName).v1();
         assertThat(cluster, notNullValue());
         assertThat(cluster.predicate().test("cluster:admin/snapshot/delete"), is(true));
         assertThat(cluster.predicate().test("cluster:admin/snapshot/dele"), is(false));
@@ -145,7 +145,7 @@ public class PrivilegeTests extends ESTestCase {
     }
 
     public void testManageCcrPrivilege() {
-        Predicate<String> predicate = ClusterPrivilege.MANAGE_CCR.predicate();
+        Predicate<String> predicate = DefaultClusterPrivilege.MANAGE_CCR.predicate();
         assertThat(predicate.test("cluster:admin/xpack/ccr/follow_index"), is(true));
         assertThat(predicate.test("cluster:admin/xpack/ccr/unfollow_index"), is(true));
         assertThat(predicate.test("cluster:admin/xpack/ccr/brand_new_api"), is(true));
@@ -154,7 +154,7 @@ public class PrivilegeTests extends ESTestCase {
 
     public void testIlmPrivileges() {
         {
-            Predicate<String> predicate = ClusterPrivilege.MANAGE_ILM.predicate();
+            Predicate<String> predicate = DefaultClusterPrivilege.MANAGE_ILM.predicate();
             // check cluster actions
             assertThat(predicate.test("cluster:admin/ilm/delete"), is(true));
             assertThat(predicate.test("cluster:admin/ilm/_move/post"), is(true));
@@ -169,7 +169,7 @@ public class PrivilegeTests extends ESTestCase {
         }
 
         {
-            Predicate<String> predicate = ClusterPrivilege.READ_ILM.predicate();
+            Predicate<String> predicate = DefaultClusterPrivilege.READ_ILM.predicate();
             // check cluster actions
             assertThat(predicate.test("cluster:admin/ilm/delete"), is(false));
             assertThat(predicate.test("cluster:admin/ilm/_move/post"), is(false));
@@ -208,7 +208,7 @@ public class PrivilegeTests extends ESTestCase {
 
     public void testClusterPrivilegeAndPlainConditionalClusterPrivilege() {
         Set<String> actionName = Sets.newHashSet("cluster:admin/snapshot/delete", "manage_own_api_key");
-        Tuple<ClusterPrivilege, Set<ConditionalClusterPrivilege>> tuple = ClusterPrivilege.get(actionName);
+        Tuple<ClusterPrivilege, Set<ConditionalClusterPrivilege>> tuple = ClusterPrivilegeResolver.resolve(actionName);
         ClusterPrivilege cluster = tuple.v1();
         Set<ConditionalClusterPrivilege> plainConditionalClusterPrivilege = tuple.v2();
         assertThat(cluster, notNullValue());
@@ -218,12 +218,12 @@ public class PrivilegeTests extends ESTestCase {
         assertThat(plainConditionalClusterPrivilege.size(), is(1));
         ConditionalClusterPrivilege manageOwnApiKeysConditionalClusterPrivilege = plainConditionalClusterPrivilege.stream().findFirst()
                 .get();
-        assertThat(manageOwnApiKeysConditionalClusterPrivilege.getPrivilege().predicate().test("cluster:admin/xpack/security/api_key/create"),
+        assertThat(
+                manageOwnApiKeysConditionalClusterPrivilege.getPrivilege().predicate().test("cluster:admin/xpack/security/api_key/create"),
                 is(true));
         assertThat(manageOwnApiKeysConditionalClusterPrivilege.getPrivilege().predicate().test("cluster:admin/xpack/security/api_key/get"),
                 is(true));
-        assertThat(
-                manageOwnApiKeysConditionalClusterPrivilege.getPrivilege().predicate().test("cluster:admin/xpack/security/api_key/invalidate"),
-                is(true));
+        assertThat(manageOwnApiKeysConditionalClusterPrivilege.getPrivilege().predicate()
+                .test("cluster:admin/xpack/security/api_key/invalidate"), is(true));
     }
 }

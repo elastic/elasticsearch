@@ -15,12 +15,11 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.ApplicationResourcePrivileges;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.IndicesPrivileges;
-import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilege;
+import org.elasticsearch.xpack.core.security.authz.privilege.DefaultClusterPrivilege;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
-import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
@@ -87,9 +86,10 @@ public class HasPrivilegesRequestTests extends ESTestCase {
         final HasPrivilegesRequest request = new HasPrivilegesRequest();
         request.username(randomAlphaOfLength(8));
 
-        final List<String> clusterPrivileges = randomSubsetOf(Arrays.asList(ClusterPrivilege.MONITOR, ClusterPrivilege.MANAGE,
-            ClusterPrivilege.MANAGE_ML, ClusterPrivilege.MANAGE_SECURITY, ClusterPrivilege.MANAGE_PIPELINE, ClusterPrivilege.ALL))
-            .stream().flatMap(p -> p.name().stream()).collect(Collectors.toList());
+        final List<String> clusterPrivileges = randomSubsetOf(
+                Arrays.asList(DefaultClusterPrivilege.MONITOR.privilegeName(), DefaultClusterPrivilege.MANAGE.privilegeName(),
+                        DefaultClusterPrivilege.MANAGE_ML.privilegeName(), DefaultClusterPrivilege.MANAGE_SECURITY.privilegeName(),
+                        DefaultClusterPrivilege.MANAGE_PIPELINE.privilegeName(), DefaultClusterPrivilege.ALL.privilegeName()));
         request.clusterPrivileges(clusterPrivileges.toArray(Strings.EMPTY_ARRAY));
 
         IndicesPrivileges[] indicesPrivileges = new IndicesPrivileges[randomInt(5)];

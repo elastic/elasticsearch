@@ -114,7 +114,7 @@ import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsCa
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
-import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilege;
+import org.elasticsearch.xpack.core.security.authz.privilege.DefaultClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.GlobalClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
@@ -318,7 +318,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         final GlobalClusterPrivilege conditionalClusterPrivilege = Mockito.mock(GlobalClusterPrivilege.class);
         final BiPredicate<TransportRequest, Authentication> requestPredicate = (r, a) -> r == request;
         Mockito.when(conditionalClusterPrivilege.getRequestPredicate()).thenReturn(requestPredicate);
-        Mockito.when(conditionalClusterPrivilege.getPrivilege()).thenReturn(ClusterPrivilege.MANAGE_SECURITY);
+        Mockito.when(conditionalClusterPrivilege.getPrivilege()).thenReturn(DefaultClusterPrivilege.MANAGE_SECURITY.clusterPrivilege());
         final GlobalClusterPrivilege[] conditionalClusterPrivileges = new GlobalClusterPrivilege[] {
             conditionalClusterPrivilege
         };
@@ -339,7 +339,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         final GlobalClusterPrivilege conditionalClusterPrivilege = Mockito.mock(GlobalClusterPrivilege.class);
         final BiPredicate<TransportRequest, Authentication> requestPredicate = (r, a) -> false;
         Mockito.when(conditionalClusterPrivilege.getRequestPredicate()).thenReturn(requestPredicate);
-        Mockito.when(conditionalClusterPrivilege.getPrivilege()).thenReturn(ClusterPrivilege.MANAGE_SECURITY);
+        Mockito.when(conditionalClusterPrivilege.getPrivilege()).thenReturn(DefaultClusterPrivilege.MANAGE_SECURITY.clusterPrivilege());
         final GlobalClusterPrivilege[] conditionalClusterPrivileges = new GlobalClusterPrivilege[] {
             conditionalClusterPrivilege
         };

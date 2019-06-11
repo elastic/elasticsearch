@@ -146,7 +146,7 @@ public class ManageApiKeyConditionalClusterPrivilegeTests extends ESTestCase {
         }
 
         public static ManageApiKeyConditionalClusterPrivilege manageApiKeysOnlyForOwner() {
-            return (ManageApiKeyConditionalClusterPrivilege) ClusterPrivilege.DefaultConditionalClusterPrivilege.MANAGE_OWN_API_KEY
+            return (ManageApiKeyConditionalClusterPrivilege) DefaultConditionalClusterPrivilege.MANAGE_OWN_API_KEY
                     .conditionalClusterPrivilege();
         }
 

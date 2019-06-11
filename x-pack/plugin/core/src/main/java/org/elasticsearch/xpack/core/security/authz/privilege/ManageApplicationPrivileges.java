@@ -35,7 +35,7 @@ import java.util.function.Predicate;
  */
 public final class ManageApplicationPrivileges implements GlobalClusterPrivilege {
 
-    private static final ClusterPrivilege PRIVILEGE = ClusterPrivilege.get(
+    private static final ClusterPrivilege PRIVILEGE = ClusterPrivilegeResolver.resolve(
         Collections.singleton("cluster:admin/xpack/security/privilege/*")
     ).v1();
     public static final String WRITEABLE_NAME = "manage-application-privileges";

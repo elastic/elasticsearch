@@ -59,9 +59,11 @@ import org.elasticsearch.xpack.core.security.authz.permission.Role;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilege;
+import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeResolver;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConditionalClusterPrivilege;
-import org.elasticsearch.xpack.core.security.authz.privilege.Privilege;
+import org.elasticsearch.xpack.core.security.authz.privilege.DefaultConditionalClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.GlobalClusterPrivilege;
+import org.elasticsearch.xpack.core.security.authz.privilege.Privilege;
 import org.elasticsearch.xpack.core.security.support.Automatons;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
@@ -373,7 +375,7 @@ public class RBACEngine implements AuthorizationEngine {
 
         Map<String, Boolean> cluster = new HashMap<>();
         for (String checkAction : request.clusterPrivileges()) {
-            final ClusterPrivilege checkPrivilege = ClusterPrivilege.get(Collections.singleton(checkAction)).v1();
+            final ClusterPrivilege checkPrivilege = ClusterPrivilegeResolver.resolve(Collections.singleton(checkAction)).v1();
             // should we check for conditional as well?
             cluster.put(checkAction, userRole.grants(checkPrivilege));
         }
@@ -437,7 +439,7 @@ public class RBACEngine implements AuthorizationEngine {
                 conditionalCluster.add((GlobalClusterPrivilege) tup.v2());
             } else {
                 // non renderable predefined conditional cluster privilege names
-                cluster.add(ClusterPrivilege.DefaultConditionalClusterPrivilege.privilegeName(tup.v2()));
+                cluster.add(DefaultConditionalClusterPrivilege.privilegeName(tup.v2()));
             }
         }
 

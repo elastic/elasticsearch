@@ -10,7 +10,9 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilege;
+import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeResolver;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConditionalClusterPrivilege;
+import org.elasticsearch.xpack.core.security.authz.privilege.DefaultClusterPrivilege;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -46,7 +48,7 @@ public abstract class ClusterPermission {
      */
     public static class SimpleClusterPermission extends ClusterPermission {
 
-        public static final SimpleClusterPermission NONE = new SimpleClusterPermission(ClusterPrivilege.NONE);
+        public static final SimpleClusterPermission NONE = new SimpleClusterPermission(DefaultClusterPrivilege.NONE.clusterPrivilege());
 
         private final Predicate<String> predicate;
 
@@ -105,7 +107,7 @@ public abstract class ClusterPermission {
                 .map(ClusterPrivilege::name)
                 .flatMap(Set::stream)
                 .collect(Collectors.toSet());
-            return ClusterPrivilege.get(names).v1();
+            return ClusterPrivilegeResolver.resolve(names).v1();
         }
 
         @Override

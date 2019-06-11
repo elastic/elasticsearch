@@ -43,12 +43,12 @@ public final class ManageApiKeyConditionalClusterPrivilege implements Conditiona
     public ManageApiKeyConditionalClusterPrivilege(Set<String> actions, boolean restrictActionsToAuthenticatedUser) {
         // validate allowed actions
         for (String action : actions) {
-            if (ClusterPrivilege.MANAGE_API_KEY.predicate().test(action) == false) {
+            if (DefaultClusterPrivilege.MANAGE_API_KEY.clusterPrivilege().predicate().test(action) == false) {
                 throw new IllegalArgumentException("invalid action [ " + action + " ] specified, expected API key privilege actions from [ "
                         + API_KEY_ACTION_PATTERNS + " ]");
             }
         }
-        this.privilege = ClusterPrivilege.get(actions).v1();
+        this.privilege = ClusterPrivilegeResolver.resolve(actions).v1();
         this.restrictActionsToAuthenticatedUser = restrictActionsToAuthenticatedUser;
 
         this.requestPredicate = (request, authentication) -> {

@@ -76,6 +76,7 @@ String azureAccount = System.getenv("azure_storage_account")
 String azureKey = System.getenv("azure_storage_key")
 String azureContainer = System.getenv("azure_storage_container")
 String azureBasePath = System.getenv("azure_storage_base_path")
+String azureSasToken = System.getenv("azure_storage_sas_token")
 
 test {
   exclude '**/AzureStorageCleanupThirdPartyTests.class'
@@ -85,10 +86,11 @@ task thirdPartyTest(type: Test) {
   include '**/AzureStorageCleanupThirdPartyTests.class'
   systemProperty 'test.azure.account', azureAccount ? azureAccount : ""
   systemProperty 'test.azure.key', azureKey ? azureKey : ""
+  systemProperty 'test.azure.sas_token', azureSasToken ? azureSasToken : ""
   systemProperty 'test.azure.container', azureContainer ? azureContainer : ""
   systemProperty 'test.azure.base', azureBasePath ? azureBasePath : ""
 }
 
-if (azureAccount || azureKey || azureContainer || azureBasePath) {
+if (azureAccount || azureKey || azureContainer || azureBasePath || azureSasToken) {
   check.dependsOn(thirdPartyTest)
 }

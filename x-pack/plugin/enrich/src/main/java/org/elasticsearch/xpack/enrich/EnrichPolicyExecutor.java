@@ -28,6 +28,8 @@ public class EnrichPolicyExecutor {
     private final LongSupplier nowSupplier;
     private final int fetchSize;
     private final ConcurrentHashMap<String, Semaphore> policyLocks = new ConcurrentHashMap<>();
+    private final int maximumConcurrentPolicyExecutions;
+    private final Semaphore policyExecutionPermits;
 
     EnrichPolicyExecutor(Settings settings,
                          ClusterService clusterService,
@@ -41,6 +43,8 @@ public class EnrichPolicyExecutor {
         this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.nowSupplier = nowSupplier;
         this.fetchSize = EnrichPlugin.ENRICH_FETCH_SIZE_SETTING.get(settings);
+        this.maximumConcurrentPolicyExecutions = EnrichPlugin.ENRICH_POLICY_MAX_CONCURRENT_RUNS.get(settings);
+        this.policyExecutionPermits = new Semaphore(maximumConcurrentPolicyExecutions);
     }
 
     private void tryLockingPolicy(String policyName) {
@@ -49,10 +53,20 @@ public class EnrichPolicyExecutor {
             throw new EsRejectedExecutionException("Policy execution failed. Policy execution for [" + policyName +
                 "] is already in progress.");
         }
+        if (policyExecutionPermits.tryAcquire() == false) {
+            // Release policy lock, and throw a different exception
+            policyLocks.remove(policyName);
+            throw new EsRejectedExecutionException("Policy execution failed. Exceeded maximum concurrent policy executions [" +
+                maximumConcurrentPolicyExecutions + "]");
+        }
     }
 
     private void releasePolicy(String policyName) {
-        policyLocks.remove(policyName);
+        try {
+            policyExecutionPermits.release();
+        } finally {
+            policyLocks.remove(policyName);
+        }
     }
 
     private class PolicyUnlockingListener implements ActionListener<PolicyExecutionResult> {

@@ -51,6 +51,7 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.test.InternalTestCluster.RestartCallback;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 
 import java.io.IOException;
 import java.util.List;
@@ -340,6 +341,8 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
      * allocated in our metadata that we recover. In that case we now have the ability to check the index on local recovery from disk
      * if it is sane and if we can successfully create an IndexService. This also includes plugins etc.
      */
+    // temporarily enabling TRACE to aid debugging https://github.com/elastic/elasticsearch/issues/43034
+    @TestLogging("_root:TRACE")
     public void testRecoverBrokenIndexMetadata() throws Exception {
         logger.info("--> starting one node");
         internalCluster().startNode();

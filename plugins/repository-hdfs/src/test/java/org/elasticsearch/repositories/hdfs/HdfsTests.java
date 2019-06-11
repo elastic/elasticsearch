@@ -19,17 +19,12 @@
 package org.elasticsearch.repositories.hdfs;
 
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
-import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
-import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
-import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.bootstrap.JavaVersion;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.common.blobstore.BlobPath;
-import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.RepositoriesService;
@@ -40,9 +35,7 @@ import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 
-import java.io.ByteArrayInputStream;
 import java.util.Collection;
-import java.util.concurrent.Executor;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -159,80 +152,6 @@ public class HdfsTests extends ESSingleNodeTestCase {
         final BlobStoreRepository repo =
             (BlobStoreRepository) getInstanceFromNode(RepositoriesService.class).repository("test-repo");
         BlobStoreTestUtil.assertConsistency(repo, repo.threadPool().executor(ThreadPool.Names.GENERIC));
-    }
-
-    public void testCleanup() {
-        assumeFalse("https://github.com/elastic/elasticsearch/issues/31498", JavaVersion.current().equals(JavaVersion.parse("11")));
-        Client client = client();
-
-        AcknowledgedResponse putRepositoryResponse = client.admin().cluster().preparePutRepository("test-repo")
-            .setType("hdfs")
-            .setSettings(Settings.builder()
-                .put("uri", "hdfs:///")
-                .put("conf.fs.AbstractFileSystem.hdfs.impl", TestingFs.class.getName())
-                .put("path", "foo")
-                .put("chunk_size", randomIntBetween(100, 1000) + "k")
-                .put("compress", randomBoolean())
-            ).get();
-        assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
-
-        createIndex("test-idx-1");
-        createIndex("test-idx-2");
-        createIndex("test-idx-3");
-        ensureGreen();
-
-        logger.info("--> indexing some data");
-        for (int i = 0; i < 100; i++) {
-            client().prepareIndex("test-idx-1", "doc", Integer.toString(i)).setSource("foo", "bar" + i).get();
-            client().prepareIndex("test-idx-2", "doc", Integer.toString(i)).setSource("foo", "bar" + i).get();
-            client().prepareIndex("test-idx-3", "doc", Integer.toString(i)).setSource("foo", "bar" + i).get();
-        }
-        client().admin().indices().prepareRefresh().get();
-        assertThat(count(client, "test-idx-1"), equalTo(100L));
-        assertThat(count(client, "test-idx-2"), equalTo(100L));
-        assertThat(count(client, "test-idx-3"), equalTo(100L));
-
-        logger.info("--> snapshot");
-        CreateSnapshotResponse createSnapshotResponse = client.admin()
-            .cluster()
-            .prepareCreateSnapshot("test-repo", "test-snap")
-            .setWaitForCompletion(true)
-            .setIndices("test-idx-*", "-test-idx-3")
-            .get();
-        assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), greaterThan(0));
-        assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(),
-            equalTo(createSnapshotResponse.getSnapshotInfo().totalShards()));
-
-        assertThat(client.admin()
-                .cluster()
-                .prepareGetSnapshots("test-repo")
-                .setSnapshots("test-snap")
-                .get()
-                .getSnapshots()
-                .get(0)
-                .state(),
-            equalTo(SnapshotState.SUCCESS));
-
-        logger.info("--> creating a dangling index folder");
-        final HdfsRepository repo =
-            (HdfsRepository) getInstanceFromNode(RepositoriesService.class).repository("test-repo");
-        final PlainActionFuture<Void> future = PlainActionFuture.newFuture();
-        final Executor genericExec = repo.threadPool().executor(ThreadPool.Names.GENERIC);
-        genericExec.execute(new ActionRunnable<>(future) {
-            @Override
-            protected void doRun() throws Exception {
-                final BlobStore blobStore = repo.blobStore();
-                blobStore.blobContainer(BlobPath.cleanPath().add("indices").add("foo"))
-                    .writeBlob("bar", new ByteArrayInputStream(new byte[0]), 0, false);
-                future.onResponse(null);
-            }
-        });
-        future.actionGet();
-
-        logger.info("--> deleting a snapshot to trigger repository cleanup");
-        client.admin().cluster().deleteSnapshot(new DeleteSnapshotRequest("test-repo", "test-snap")).actionGet();
-
-        BlobStoreTestUtil.assertConsistency(repo, genericExec);
     }
 
     public void testMissingUri() {

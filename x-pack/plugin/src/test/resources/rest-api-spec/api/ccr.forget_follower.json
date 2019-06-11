@@ -3,7 +3,6 @@
     "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/current",
     "methods": [ "POST" ],
     "url": {
-      "path": "/{index}/_ccr/forget_follower",
       "paths": [ "/{index}/_ccr/forget_follower" ],
       "parts": {
         "index": {

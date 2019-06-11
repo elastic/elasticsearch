@@ -3,7 +3,6 @@
     "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/indices-stats.html",
     "methods": ["GET"],
     "url": {
-      "path": "/_stats",
       "paths": [
         "/_stats",
         "/_stats/{metric}",

@@ -786,27 +786,36 @@ public class QueryStringQueryBuilderTests extends FullTextQueryTestCase<QueryStr
     }
 
     public void testToQueryFuzzyQueryAutoFuziness() throws Exception {
-        int length = randomIntBetween(1, 10);
-        StringBuilder queryString = new StringBuilder();
-        for (int i = 0; i < length; i++) {
-            queryString.append("a");
-        }
-        queryString.append("~");
+        for (int i = 0; i < 3; i++) {
+            final int expectedEdits;
+            String queryString;
+            switch (i) {
+                case 0:
+                    queryString = randomAlphaOfLengthBetween(1, 2);
+                    expectedEdits = 0;
+                    break;
 
-        int expectedEdits;
-        if (length <= 2) {
-            expectedEdits = 0;
-        } else if (3 <= length && length <= 5) {
-            expectedEdits = 1;
-        } else {
-            expectedEdits = 2;
-        }
+                case 1:
+                    queryString = randomAlphaOfLengthBetween(3, 5);
+                    expectedEdits = 1;
+                    break;
 
-        Query query = queryStringQuery(queryString.toString()).defaultField(STRING_FIELD_NAME).fuzziness(Fuzziness.AUTO)
-            .toQuery(createShardContext());
-        assertThat(query, instanceOf(FuzzyQuery.class));
-        FuzzyQuery fuzzyQuery = (FuzzyQuery) query;
-        assertEquals(expectedEdits, fuzzyQuery.getMaxEdits());
+                default:
+                    queryString = randomAlphaOfLengthBetween(6, 20);
+                    expectedEdits = 2;
+                    break;
+            }
+
+            for (int j = 0; j < 2; j++) {
+                Query query = queryStringQuery(queryString + (j == 0 ? "~" : "~auto"))
+                    .defaultField(STRING_FIELD_NAME)
+                    .fuzziness(Fuzziness.AUTO)
+                    .toQuery(createShardContext());
+                assertThat(query, instanceOf(FuzzyQuery.class));
+                FuzzyQuery fuzzyQuery = (FuzzyQuery) query;
+                assertEquals(expectedEdits, fuzzyQuery.getMaxEdits());
+            }
+        }
     }
 
     public void testFuzzyNumeric() throws Exception {

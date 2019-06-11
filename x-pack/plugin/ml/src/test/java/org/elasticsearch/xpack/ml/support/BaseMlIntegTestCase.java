@@ -27,6 +27,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.MockHttpTransport;
 import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.action.CloseJobAction;
 import org.elasticsearch.xpack.core.ml.action.DeleteDatafeedAction;
@@ -36,8 +37,6 @@ import org.elasticsearch.xpack.core.ml.action.GetDatafeedsStatsAction;
 import org.elasticsearch.xpack.core.ml.action.GetJobsAction;
 import org.elasticsearch.xpack.core.ml.action.GetJobsStatsAction;
 import org.elasticsearch.xpack.core.ml.action.StopDatafeedAction;
-import org.elasticsearch.xpack.core.action.util.QueryPage;
-import org.elasticsearch.xpack.core.ml.client.MachineLearningClient;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedState;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
@@ -255,9 +254,8 @@ public abstract class BaseMlIntegTestCase extends ESIntegTestCase {
     }
 
     public static void deleteAllDatafeeds(Logger logger, Client client) throws Exception {
-        final MachineLearningClient mlClient = new MachineLearningClient(client);
         final QueryPage<DatafeedConfig> datafeeds =
-                mlClient.getDatafeeds(new GetDatafeedsAction.Request(GetDatafeedsAction.ALL)).actionGet().getResponse();
+            client.execute(GetDatafeedsAction.INSTANCE, new GetDatafeedsAction.Request(GetDatafeedsAction.ALL)).actionGet().getResponse();
         try {
             logger.info("Closing all datafeeds (using _all)");
             StopDatafeedAction.Response stopResponse = client
@@ -295,8 +293,8 @@ public abstract class BaseMlIntegTestCase extends ESIntegTestCase {
     }
 
     public static void deleteAllJobs(Logger logger, Client client) throws Exception {
-        final MachineLearningClient mlClient = new MachineLearningClient(client);
-        final QueryPage<Job> jobs = mlClient.getJobs(new GetJobsAction.Request(MetaData.ALL)).actionGet().getResponse();
+        final QueryPage<Job> jobs =
+            client.execute(GetJobsAction.INSTANCE, new GetJobsAction.Request(MetaData.ALL)).actionGet().getResponse();
 
         try {
             CloseJobAction.Request closeRequest = new CloseJobAction.Request(MetaData.ALL);

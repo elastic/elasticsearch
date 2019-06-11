@@ -36,6 +36,43 @@
   - match: { count: 1 }
 
 ---
+"Test get old cluster categorization job":
+  - do:
+      ml.get_jobs:
+        job_id: old-cluster-categorization-job
+  - match: { count: 1 }
+
+  - do:
+      ml.get_job_stats:
+        job_id: old-cluster-categorization-job
+  - match: { jobs.0.state: "closed" }
+  - match: { jobs.0.data_counts.processed_record_count: 2 }
+  - is_true: jobs.0.model_size_stats
+  - is_false: node
+
+  - do:
+      ml.open_job:
+        job_id: old-cluster-categorization-job
+
+  - do:
+      ml.get_job_stats:
+        job_id: old-cluster-categorization-job
+  - match: { jobs.0.state: "opened" }
+  - match: { jobs.0.data_counts.processed_record_count: 2 }
+  - is_true: jobs.0.model_size_stats
+  - is_true: jobs.0.node
+  - is_true: jobs.0.open_time
+
+  - do:
+      ml.close_job:
+        job_id: old-cluster-categorization-job
+
+  - do:
+      ml.get_categories:
+        job_id: old-cluster-categorization-job
+  - match: { count: 1 }
+
+---
 "Create a job in the mixed cluster and write some data":
   - do:
       ml.put_job:

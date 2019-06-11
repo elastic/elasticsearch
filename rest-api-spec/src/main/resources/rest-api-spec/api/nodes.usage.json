@@ -4,7 +4,6 @@
     "stability": "stable",
     "methods": ["GET"],
     "url": {
-      "path": "/_nodes/usage",
       "paths": [
         "/_nodes/usage",
         "/_nodes/{node_id}/usage",

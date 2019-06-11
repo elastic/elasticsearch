@@ -240,7 +240,14 @@ setup:
 
 ---
 "Composite aggregation with format":
+  - skip:
+      version: " - 7.1.99"
+      reason:  calendar_interval introduced in 7.2.0
+      features: warnings
+
   - do:
+      warnings:
+        - '[interval] on [date_histogram] is deprecated, use [fixed_interval] or [calendar_interval] in the future.'
       search:
         rest_total_hits_as_int: true
         index: test
@@ -254,6 +261,69 @@ setup:
                       "date_histogram": {
                         "field": "date",
                         "interval": "1d",
+                        "format": "yyyy-MM-dd"
+                      }
+                    }
+                  }
+                ]
+
+  - match: {hits.total: 6}
+  - length: { aggregations.test.buckets: 2 }
+  - match: { aggregations.test.buckets.0.key.date: "2017-10-20" }
+  - match: { aggregations.test.buckets.0.doc_count: 1 }
+  - match: { aggregations.test.buckets.1.key.date: "2017-10-21" }
+  - match: { aggregations.test.buckets.1.doc_count: 1 }
+
+  - do:
+        warnings:
+          - '[interval] on [date_histogram] is deprecated, use [fixed_interval] or [calendar_interval] in the future.'
+        search:
+          rest_total_hits_as_int: true
+          index: test
+          body:
+            aggregations:
+              test:
+                composite:
+                  after: {
+                    date: "2017-10-20"
+                  }
+                  sources: [
+                    {
+                      "date": {
+                        "date_histogram": {
+                          "field": "date",
+                          "interval": "1d",
+                          "format": "yyyy-MM-dd"
+                        }
+                      }
+                    }
+                  ]
+
+  - match: {hits.total: 6}
+  - length: { aggregations.test.buckets: 1 }
+  - match: { aggregations.test.buckets.0.key.date: "2017-10-21" }
+  - match: { aggregations.test.buckets.0.doc_count: 1 }
+
+---
+"Composite aggregation with format and calendar_interval":
+  - skip:
+      version: " - 7.1.99"
+      reason:  calendar_interval introduced in 7.2.0
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          aggregations:
+            test:
+              composite:
+                sources: [
+                  {
+                    "date": {
+                      "date_histogram": {
+                        "field": "date",
+                        "calendar_interval": "1d",
                         "format": "yyyy-MM-dd"
                       }
                     }
@@ -283,7 +353,7 @@ setup:
                       "date": {
                         "date_histogram": {
                           "field": "date",
-                          "interval": "1d",
+                          "calendar_interval": "1d",
                           "format": "yyyy-MM-dd"
                         }
                       }
@@ -483,3 +553,65 @@ setup:
   - match: { aggregations.test.buckets.0.key.long: 1000 }
   - match: { aggregations.test.buckets.0.key.kw: "bar" }
   - match: { aggregations.test.buckets.0.doc_count: 1 }
+
+---
+"Missing source":
+  - skip:
+      version: " - 7.1.99"
+      reason:  null/empty sources disallowed in 7.2
+
+  - do:
+        catch: /Composite \[sources\] cannot be null or empty/
+        search:
+          rest_total_hits_as_int: true
+          index: test
+          body:
+            aggregations:
+              test:
+                composite:
+                  sources: []
+
+  - do:
+        catch: /Required \[sources\]/
+        search:
+          rest_total_hits_as_int: true
+          index: test
+          body:
+            aggregations:
+              test:
+                composite:
+                  size: 1
+
+
+---
+"Duplicate sources":
+  - skip:
+      version: " - 7.1.99"
+      reason:  duplicate names disallowed in 7.2
+
+  - do:
+        catch: /Composite source names must be unique, found duplicates[:] \[keyword\]/
+        search:
+          rest_total_hits_as_int: true
+          index: test
+          body:
+            aggregations:
+              test:
+                composite:
+                  sources: [
+                    {
+                      "keyword": {
+                        "terms": {
+                          "field": "keyword",
+                        }
+                      }
+                    },
+                    {
+                      "keyword": {
+                        "terms": {
+                          "field": "keyword",
+                        }
+                      }
+                    }
+                  ]
+

@@ -4,7 +4,6 @@
     "stability": "stable",
     "methods": ["GET"],
     "url": {
-      "path": "/_cat/fielddata",
       "paths": ["/_cat/fielddata", "/_cat/fielddata/{fields}"],
       "parts": {
         "fields": {

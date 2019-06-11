@@ -4,7 +4,6 @@
     "stability": "stable",
     "methods": ["POST"],
     "url": {
-      "path": "/_forcemerge",
       "paths": ["/_forcemerge", "/{index}/_forcemerge"],
       "parts": {
         "index": {

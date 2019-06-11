@@ -4,7 +4,6 @@
     "stability": "stable",
     "methods": ["DELETE"],
     "url": {
-      "path": "/_snapshot/{repository}/{snapshot}",
       "paths": ["/_snapshot/{repository}/{snapshot}"],
       "parts": {
         "repository": {

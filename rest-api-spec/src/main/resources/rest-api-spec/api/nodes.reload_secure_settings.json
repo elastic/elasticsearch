@@ -4,7 +4,6 @@
     "stability": "stable",
     "methods": ["POST"],
     "url": {
-      "path": "/_nodes/reload_secure_settings",
       "paths": ["/_nodes/reload_secure_settings", "/_nodes/{node_id}/reload_secure_settings"],
       "parts": {
         "node_id": {

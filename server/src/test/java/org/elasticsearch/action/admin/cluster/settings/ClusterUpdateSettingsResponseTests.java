@@ -19,16 +19,13 @@
 
 package org.elasticsearch.action.admin.cluster.settings;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.Settings.Builder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractStreamableXContentTestCase;
-import org.elasticsearch.test.VersionUtils;
 
-import java.io.IOException;
 import java.util.List;
 import java.util.Set;
 import java.util.function.Predicate;
@@ -100,8 +97,4 @@ public class ClusterUpdateSettingsResponseTests extends AbstractStreamableXConte
         return new ClusterUpdateSettingsResponse();
     }
 
-    public void testOldSerialisation() throws IOException {
-        ClusterUpdateSettingsResponse original = createTestInstance();
-        assertSerialization(original, VersionUtils.randomVersionBetween(random(), Version.V_6_0_0, Version.V_6_4_0));
-    }
 }

@@ -4,7 +4,6 @@
     "stability": "stable",
     "methods": ["GET"],
     "url": {
-      "path": "/_template/{name}",
       "paths": [
         "/_template",
         "/_template/{name}"

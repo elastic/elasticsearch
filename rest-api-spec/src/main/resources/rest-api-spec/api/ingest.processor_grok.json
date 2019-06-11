@@ -4,7 +4,6 @@
     "stability": "stable",
     "methods": [ "GET" ],
     "url": {
-      "path": "/_ingest/processor/grok",
       "paths": ["/_ingest/processor/grok"],
       "parts": {
       },

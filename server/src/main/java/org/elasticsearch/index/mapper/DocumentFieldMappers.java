@@ -34,8 +34,6 @@ public final class DocumentFieldMappers implements Iterable<Mapper> {
     private final Map<String, Mapper> fieldMappers;
 
     private final FieldNameAnalyzer indexAnalyzer;
-    private final FieldNameAnalyzer searchAnalyzer;
-    private final FieldNameAnalyzer searchQuoteAnalyzer;
 
     private static void put(Map<String, Analyzer> analyzers, String key, Analyzer value, Analyzer defaultValue) {
         if (value == null) {
@@ -67,8 +65,6 @@ public final class DocumentFieldMappers implements Iterable<Mapper> {
 
         this.fieldMappers = Collections.unmodifiableMap(fieldMappers);
         this.indexAnalyzer = new FieldNameAnalyzer(indexAnalyzers);
-        this.searchAnalyzer = new FieldNameAnalyzer(searchAnalyzers);
-        this.searchQuoteAnalyzer = new FieldNameAnalyzer(searchQuoteAnalyzers);
     }
 
     /**
@@ -89,18 +85,7 @@ public final class DocumentFieldMappers implements Iterable<Mapper> {
         return this.indexAnalyzer;
     }
 
-    /**
-     * A smart analyzer used for searching that takes into account specific analyzers configured
-     * per {@link FieldMapper}.
-     */
-    public Analyzer searchAnalyzer() {
-        return this.searchAnalyzer;
-    }
-
-    public Analyzer searchQuoteAnalyzer() {
-        return this.searchQuoteAnalyzer;
-    }
-
+    @Override
     public Iterator<Mapper> iterator() {
         return fieldMappers.values().iterator();
     }

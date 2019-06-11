@@ -4,7 +4,6 @@
     "stability": "stable",
     "methods": [ "POST" ],
     "url": {
-      "path": "/_ml/datafeeds/{datafeed_id}/_start",
       "paths": [ "/_ml/datafeeds/{datafeed_id}/_start" ],
       "parts": {
         "datafeed_id": {

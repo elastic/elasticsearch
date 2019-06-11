@@ -4,7 +4,6 @@
     "stability": "stable",
     "methods": [ "DELETE" ],
     "url": {
-      "path": "/_ml/anomaly_detectors/{job_id}/model_snapshots/{snapshot_id}",
       "paths": [ "/_ml/anomaly_detectors/{job_id}/model_snapshots/{snapshot_id}" ],
       "parts": {
         "job_id": {

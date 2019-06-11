@@ -67,11 +67,6 @@ import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.common.settings.Setting.boolSetting;
 
-/**
- * This class activates/deactivates the monitoring modules depending if we're running a node client, transport client:
- * - node clients: all modules are bound
- * - transport clients: only action/transport actions are bound
- */
 public class Monitoring extends Plugin implements ActionPlugin {
 
     /**
@@ -83,11 +78,9 @@ public class Monitoring extends Plugin implements ActionPlugin {
 
     protected final Settings settings;
     private final boolean enabled;
-    private final boolean transportClientMode;
 
     public Monitoring(Settings settings) {
         this.settings = settings;
-        this.transportClientMode = XPackPlugin.transportClientMode(settings);
         this.enabled = XPackSettings.MONITORING_ENABLED.get(settings);
     }
 
@@ -100,16 +93,12 @@ public class Monitoring extends Plugin implements ActionPlugin {
         return enabled;
     }
 
-    boolean isTransportClient() {
-        return transportClientMode;
-    }
-
     @Override
     public Collection<Module> createGuiceModules() {
         List<Module> modules = new ArrayList<>();
         modules.add(b -> {
             XPackPlugin.bindFeatureSet(b, MonitoringFeatureSet.class);
-            if (transportClientMode || enabled == false) {
+            if (enabled == false) {
                 b.bind(MonitoringService.class).toProvider(Providers.of(null));
                 b.bind(Exporters.class).toProvider(Providers.of(null));
             }
@@ -191,6 +180,6 @@ public class Monitoring extends Plugin implements ActionPlugin {
     @Override
     public List<String> getSettingsFilter() {
         final String exportersKey = "xpack.monitoring.exporters.";
-        return Collections.unmodifiableList(Arrays.asList(exportersKey + "*.auth.*", exportersKey + "*.ssl.*"));
+        return List.of(exportersKey + "*.auth.*", exportersKey + "*.ssl.*");
     }
 }

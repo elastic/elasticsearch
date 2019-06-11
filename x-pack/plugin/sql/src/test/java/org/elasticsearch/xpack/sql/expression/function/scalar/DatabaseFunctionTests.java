@@ -29,9 +29,9 @@ public class DatabaseFunctionTests extends ESTestCase {
         EsIndex test = new EsIndex("test", TypesTests.loadMapping("mapping-basic.json", true));
         Analyzer analyzer = new Analyzer(
                 new Configuration(DateUtils.UTC, Protocol.FETCH_SIZE, Protocol.REQUEST_TIMEOUT,
-                                  Protocol.PAGE_TIMEOUT, null, 
+                                  Protocol.PAGE_TIMEOUT, null,
                                   randomFrom(Mode.values()), randomAlphaOfLength(10),
-                                  null, clusterName, randomBoolean()),
+                                  null, clusterName, randomBoolean(), randomBoolean()),
                 new FunctionRegistry(),
                 IndexResolution.valid(test),
                 new Verifier(new Metrics())

@@ -4,7 +4,6 @@
     "stability": "stable",
     "methods": ["GET", "POST"],
     "url": {
-      "path": "/{index}/_graph/explore",
       "paths": ["/{index}/_graph/explore"],
       "deprecated_paths" : [
         {

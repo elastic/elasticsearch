@@ -4,7 +4,6 @@
     "stability" : "stable",
     "methods": [ "GET" ],
     "url": {
-      "path": "/_ccr/stats",
       "paths": [ "/_ccr/stats" ],
       "parts": {},
       "body": null

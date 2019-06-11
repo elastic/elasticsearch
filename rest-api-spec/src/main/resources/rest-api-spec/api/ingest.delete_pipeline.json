@@ -4,7 +4,6 @@
     "stability": "stable",
     "methods": [ "DELETE" ],
     "url": {
-      "path": "/_ingest/pipeline/{id}",
       "paths": [ "/_ingest/pipeline/{id}" ],
       "parts": {
         "id": {

@@ -39,6 +39,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.rest.action.admin.indices.AliasesNotFoundException;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
@@ -49,6 +50,7 @@ import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -81,14 +83,18 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 public class IndexAliasesIT extends ESIntegTestCase {
+
     public void testAliases() throws Exception {
         logger.info("--> creating index [test]");
         createIndex("test");
 
         ensureGreen();
 
-        logger.info("--> aliasing index [test] with [alias1]");
-        assertAcked(admin().indices().prepareAliases().addAlias("test", "alias1", false));
+        assertAliasesVersionIncreases(
+                "test", () -> {
+                    logger.info("--> aliasing index [test] with [alias1]");
+                    assertAcked(admin().indices().prepareAliases().addAlias("test", "alias1", false));
+                });
 
         logger.info("--> indexing against [alias1], should fail now");
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
@@ -98,8 +104,13 @@ public class IndexAliasesIT extends ESIntegTestCase {
             " The write index may be explicitly disabled using is_write_index=false or the alias points to multiple" +
             " indices without one being designated as a write index"));
 
-        logger.info("--> aliasing index [test] with [alias1]");
-        assertAcked(admin().indices().prepareAliases().addAlias("test", "alias1"));
+        assertAliasesVersionIncreases(
+                "test",
+                () -> {
+                    logger.info("--> aliasing index [test] with [alias1]");
+                    assertAcked(admin().indices().prepareAliases().addAlias("test", "alias1"));
+                }
+        );
 
         logger.info("--> indexing against [alias1], should work now");
         IndexResponse indexResponse = client().index(indexRequest("alias1").type("type1").id("1")
@@ -111,8 +122,10 @@ public class IndexAliasesIT extends ESIntegTestCase {
 
         ensureGreen();
 
-        logger.info("--> add index [test_x] with [alias1]");
-        assertAcked(admin().indices().prepareAliases().addAlias("test_x", "alias1"));
+        assertAliasesVersionIncreases("test_x", () -> {
+            logger.info("--> add index [test_x] with [alias1]");
+            assertAcked(admin().indices().prepareAliases().addAlias("test_x", "alias1"));
+        });
 
         logger.info("--> indexing against [alias1], should fail now");
         exception = expectThrows(IllegalArgumentException.class,
@@ -129,16 +142,20 @@ public class IndexAliasesIT extends ESIntegTestCase {
             " The write index may be explicitly disabled using is_write_index=false or the alias points to multiple" +
             " indices without one being designated as a write index"));
 
-        logger.info("--> remove aliasing index [test_x] with [alias1]");
-        assertAcked(admin().indices().prepareAliases().removeAlias("test_x", "alias1"));
+        assertAliasesVersionIncreases("test_x", () -> {
+            logger.info("--> remove aliasing index [test_x] with [alias1]");
+            assertAcked(admin().indices().prepareAliases().removeAlias("test_x", "alias1"));
+        });
 
         logger.info("--> indexing against [alias1], should work now");
         indexResponse = client().index(indexRequest("alias1").type("type1").id("1")
             .source(source("1", "test"), XContentType.JSON)).actionGet();
         assertThat(indexResponse.getIndex(), equalTo("test"));
 
-        logger.info("--> add index [test_x] with [alias1] as write-index");
-        assertAcked(admin().indices().prepareAliases().addAlias("test_x", "alias1", true));
+        assertAliasesVersionIncreases("test_x", () -> {
+            logger.info("--> add index [test_x] with [alias1] as write-index");
+            assertAcked(admin().indices().prepareAliases().addAlias("test_x", "alias1", true));
+        });
 
         logger.info("--> indexing against [alias1], should work now");
         indexResponse = client().index(indexRequest("alias1").type("type1").id("1")
@@ -149,8 +166,10 @@ public class IndexAliasesIT extends ESIntegTestCase {
         DeleteResponse deleteResponse = client().delete(deleteRequest("alias1").type("type1").id("1")).actionGet();
         assertThat(deleteResponse.getIndex(), equalTo("test_x"));
 
-        logger.info("--> remove [alias1], Aliasing index [test_x] with [alias1]");
-        assertAcked(admin().indices().prepareAliases().removeAlias("test", "alias1").addAlias("test_x", "alias1"));
+        assertAliasesVersionIncreases("test_x", () -> {
+            logger.info("--> remove [alias1], Aliasing index [test_x] with [alias1]");
+            assertAcked(admin().indices().prepareAliases().removeAlias("test", "alias1").addAlias("test_x", "alias1"));
+        });
 
         logger.info("--> indexing against [alias1], should work against [test_x]");
         indexResponse = client().index(indexRequest("alias1").type("type1").id("1")
@@ -181,7 +200,7 @@ public class IndexAliasesIT extends ESIntegTestCase {
 
         logger.info("--> aliasing index [test] with [alias1] and filter [user:kimchy]");
         QueryBuilder filter = termQuery("user", "kimchy");
-        assertAcked(admin().indices().prepareAliases().addAlias("test", "alias1", filter));
+        assertAliasesVersionIncreases("test", () -> assertAcked(admin().indices().prepareAliases().addAlias("test", "alias1", filter)));
 
         // For now just making sure that filter was stored with the alias
         logger.info("--> making sure that filter was stored with alias [alias1] and filter [user:kimchy]");
@@ -210,11 +229,18 @@ public class IndexAliasesIT extends ESIntegTestCase {
         ensureGreen();
 
         logger.info("--> adding filtering aliases to index [test]");
-        assertAcked(admin().indices().prepareAliases().addAlias("test", "alias1"));
-        assertAcked(admin().indices().prepareAliases().addAlias("test", "alias2"));
-        assertAcked(admin().indices().prepareAliases().addAlias("test", "foos", termQuery("name", "foo")));
-        assertAcked(admin().indices().prepareAliases().addAlias("test", "bars", termQuery("name", "bar")));
-        assertAcked(admin().indices().prepareAliases().addAlias("test", "tests", termQuery("name", "test")));
+
+        assertAliasesVersionIncreases("test", () -> assertAcked(admin().indices().prepareAliases().addAlias("test", "alias1")));
+        assertAliasesVersionIncreases("test", () -> assertAcked(admin().indices().prepareAliases().addAlias("test", "alias2")));
+        assertAliasesVersionIncreases(
+                "test",
+                () -> assertAcked(admin().indices().prepareAliases().addAlias("test", "foos", termQuery("name", "foo"))));
+        assertAliasesVersionIncreases(
+                "test",
+                () -> assertAcked(admin().indices().prepareAliases().addAlias("test", "bars", termQuery("name", "bar"))));
+        assertAliasesVersionIncreases(
+                "test",
+                () -> assertAcked(admin().indices().prepareAliases().addAlias("test", "tests", termQuery("name", "test"))));
 
         logger.info("--> indexing against [test]");
         client().index(indexRequest("test").type("type1").id("1").source(source("1", "foo test"), XContentType.JSON)
@@ -295,15 +321,21 @@ public class IndexAliasesIT extends ESIntegTestCase {
         ensureGreen();
 
         logger.info("--> adding filtering aliases to index [test1]");
-        assertAcked(admin().indices().prepareAliases().addAlias("test1", "aliasToTest1"));
-        assertAcked(admin().indices().prepareAliases().addAlias("test1", "aliasToTests"));
-        assertAcked(admin().indices().prepareAliases().addAlias("test1", "foos", termQuery("name", "foo")));
-        assertAcked(admin().indices().prepareAliases().addAlias("test1", "bars", termQuery("name", "bar")));
+        assertAliasesVersionIncreases("test1", () -> assertAcked(admin().indices().prepareAliases().addAlias("test1", "aliasToTest1")));
+        assertAliasesVersionIncreases("test1", () -> assertAcked(admin().indices().prepareAliases().addAlias("test1", "aliasToTests")));
+        assertAliasesVersionIncreases(
+                "test1",
+                () -> assertAcked(admin().indices().prepareAliases().addAlias("test1", "foos", termQuery("name", "foo"))));
+        assertAliasesVersionIncreases(
+                "test1",
+                () -> assertAcked(admin().indices().prepareAliases().addAlias("test1", "bars", termQuery("name", "bar"))));
 
         logger.info("--> adding filtering aliases to index [test2]");
-        assertAcked(admin().indices().prepareAliases().addAlias("test2", "aliasToTest2"));
-        assertAcked(admin().indices().prepareAliases().addAlias("test2", "aliasToTests"));
-        assertAcked(admin().indices().prepareAliases().addAlias("test2", "foos", termQuery("name", "foo")));
+        assertAliasesVersionIncreases("test2", () -> assertAcked(admin().indices().prepareAliases().addAlias("test2", "aliasToTest2")));
+        assertAliasesVersionIncreases("test2", () -> assertAcked(admin().indices().prepareAliases().addAlias("test2", "aliasToTests")));
+        assertAliasesVersionIncreases(
+                "test2",
+                () -> assertAcked(admin().indices().prepareAliases().addAlias("test2", "foos", termQuery("name", "foo"))));
 
         logger.info("--> indexing against [test1]");
         client().index(indexRequest("test1").type("type1").id("1").source(source("1", "foo test"), XContentType.JSON)).get();
@@ -367,17 +399,27 @@ public class IndexAliasesIT extends ESIntegTestCase {
         ensureGreen();
 
         logger.info("--> adding aliases to indices");
-        assertAcked(admin().indices().prepareAliases().addAlias("test1", "alias12"));
-        assertAcked(admin().indices().prepareAliases().addAlias("test2", "alias12"));
+        assertAliasesVersionIncreases("test1", () -> assertAcked(admin().indices().prepareAliases().addAlias("test1", "alias12")));
+        assertAliasesVersionIncreases("test2", () -> assertAcked(admin().indices().prepareAliases().addAlias("test2", "alias12")));
 
         logger.info("--> adding filtering aliases to indices");
-        assertAcked(admin().indices().prepareAliases().addAlias("test1", "filter1", termQuery("name", "test1")));
+        assertAliasesVersionIncreases(
+                "test1",
+                () -> assertAcked(admin().indices().prepareAliases().addAlias("test1", "filter1", termQuery("name", "test1"))));
 
-        assertAcked(admin().indices().prepareAliases().addAlias("test2", "filter23", termQuery("name", "foo")));
-        assertAcked(admin().indices().prepareAliases().addAlias("test3", "filter23", termQuery("name", "foo")));
+        assertAliasesVersionIncreases(
+                "test2",
+                () -> assertAcked(admin().indices().prepareAliases().addAlias("test2", "filter23", termQuery("name", "foo"))));
+        assertAliasesVersionIncreases(
+                "test3",
+                () -> assertAcked(admin().indices().prepareAliases().addAlias("test3", "filter23", termQuery("name", "foo"))));
 
-        assertAcked(admin().indices().prepareAliases().addAlias("test1", "filter13", termQuery("name", "baz")));
-        assertAcked(admin().indices().prepareAliases().addAlias("test3", "filter13", termQuery("name", "baz")));
+        assertAliasesVersionIncreases(
+                "test1",
+                () -> assertAcked(admin().indices().prepareAliases().addAlias("test1", "filter13", termQuery("name", "baz"))));
+        assertAliasesVersionIncreases(
+                "test3",
+                () -> assertAcked(admin().indices().prepareAliases().addAlias("test3", "filter13", termQuery("name", "baz"))));
 
         logger.info("--> indexing against [test1]");
         client().index(indexRequest("test1").type("type1").id("11").source(source("11", "foo test1"), XContentType.JSON)).get();
@@ -433,17 +475,27 @@ public class IndexAliasesIT extends ESIntegTestCase {
         ensureGreen();
 
         logger.info("--> adding filtering aliases to index [test1]");
-        assertAcked(admin().indices().prepareAliases().addAlias("test1", "aliasToTest1"));
-        assertAcked(admin().indices().prepareAliases().addAlias("test1", "aliasToTests"));
-        assertAcked(admin().indices().prepareAliases().addAlias("test1", "foos", termQuery("name", "foo")));
-        assertAcked(admin().indices().prepareAliases().addAlias("test1", "bars", termQuery("name", "bar")));
-        assertAcked(admin().indices().prepareAliases().addAlias("test1", "tests", termQuery("name", "test")));
+        assertAliasesVersionIncreases("test1", () -> assertAcked(admin().indices().prepareAliases().addAlias("test1", "aliasToTest1")));
+        assertAliasesVersionIncreases("test1", () -> assertAcked(admin().indices().prepareAliases().addAlias("test1", "aliasToTests")));
+        assertAliasesVersionIncreases(
+                "test1",
+                () -> assertAcked(admin().indices().prepareAliases().addAlias("test1", "foos", termQuery("name", "foo"))));
+        assertAliasesVersionIncreases(
+                "test1",
+                () -> assertAcked(admin().indices().prepareAliases().addAlias("test1", "bars", termQuery("name", "bar"))));
+        assertAliasesVersionIncreases(
+                "test1",
+                () -> assertAcked(admin().indices().prepareAliases().addAlias("test1", "tests", termQuery("name", "test"))));
 
         logger.info("--> adding filtering aliases to index [test2]");
-        assertAcked(admin().indices().prepareAliases().addAlias("test2", "aliasToTest2"));
-        assertAcked(admin().indices().prepareAliases().addAlias("test2", "aliasToTests"));
-        assertAcked(admin().indices().prepareAliases().addAlias("test2", "foos", termQuery("name", "foo")));
-        assertAcked(admin().indices().prepareAliases().addAlias("test2", "tests", termQuery("name", "test")));
+        assertAliasesVersionIncreases("test2", () -> assertAcked(admin().indices().prepareAliases().addAlias("test2", "aliasToTest2")));
+        assertAliasesVersionIncreases("test2", () -> assertAcked(admin().indices().prepareAliases().addAlias("test2", "aliasToTests")));
+        assertAliasesVersionIncreases(
+                "test2",
+                () -> assertAcked(admin().indices().prepareAliases().addAlias("test2", "foos", termQuery("name", "foo"))));
+        assertAliasesVersionIncreases(
+                "test2",
+                () -> assertAcked(admin().indices().prepareAliases().addAlias("test2", "tests", termQuery("name", "test"))));
 
         logger.info("--> indexing against [test1]");
         client().index(indexRequest("test1").type("type1").id("1").source(source("1", "foo test"), XContentType.JSON)).get();
@@ -471,22 +523,30 @@ public class IndexAliasesIT extends ESIntegTestCase {
         ensureGreen();
 
         logger.info("--> adding filtering aliases to index [test1]");
-        assertAcked(admin().indices().prepareAliases().addAlias("test1", "aliasToTest1")
-                .addAlias("test1", "aliasToTests")
-                .addAlias("test1", "foos", termQuery("name", "foo"))
-                .addAlias("test1", "bars", termQuery("name", "bar"))
-                .addAlias("test1", "tests", termQuery("name", "test")));
+        assertAliasesVersionIncreases(
+                "test1",
+                () -> assertAcked(admin().indices()
+                        .prepareAliases()
+                        .addAlias("test1", "aliasToTest1")
+                        .addAlias("test1", "aliasToTests")
+                        .addAlias("test1", "foos", termQuery("name", "foo"))
+                        .addAlias("test1", "bars", termQuery("name", "bar"))
+                        .addAlias("test1", "tests", termQuery("name", "test"))));
 
         logger.info("--> adding filtering aliases to index [test2]");
-        assertAcked(admin().indices().prepareAliases().addAlias("test2", "aliasToTest2")
-                .addAlias("test2", "aliasToTests")
-                .addAlias("test2", "foos", termQuery("name", "foo"))
-                .addAlias("test2", "tests", termQuery("name", "test")));
+        assertAliasesVersionIncreases(
+                "test2",
+                () -> assertAcked(admin().indices()
+                        .prepareAliases()
+                        .addAlias("test2", "aliasToTest2")
+                        .addAlias("test2", "aliasToTests")
+                        .addAlias("test2", "foos", termQuery("name", "foo"))
+                        .addAlias("test2", "tests", termQuery("name", "test"))));
 
         String[] indices = {"test1", "test2"};
         String[] aliases = {"aliasToTest1", "foos", "bars", "tests", "aliasToTest2", "aliasToTests"};
 
-        admin().indices().prepareAliases().removeAlias(indices, aliases).get();
+        assertAliasesVersionIncreases(indices, () -> admin().indices().prepareAliases().removeAlias(indices, aliases).get());
 
         AliasesExistResponse response = admin().indices().prepareAliasesExist(aliases).get();
         assertThat(response.exists(), equalTo(false));
@@ -497,10 +557,12 @@ public class IndexAliasesIT extends ESIntegTestCase {
         ensureGreen();
 
         logger.info("--> adding [foo] alias to [foo_foo] and [bar_bar]");
-        assertAcked(admin().indices().prepareAliases().addAlias("foo_foo", "foo"));
-        assertAcked(admin().indices().prepareAliases().addAlias("bar_bar", "foo"));
+        assertAliasesVersionIncreases("foo_foo", () -> assertAcked(admin().indices().prepareAliases().addAlias("foo_foo", "foo")));
+        assertAliasesVersionIncreases("bar_bar", () -> assertAcked(admin().indices().prepareAliases().addAlias("bar_bar", "foo")));
 
-        assertAcked(admin().indices().prepareAliases().addAliasAction(AliasActions.remove().index("foo*").alias("foo")).execute().get());
+        assertAliasesVersionIncreases(
+                "foo_foo",
+                () -> assertAcked(admin().indices().prepareAliases().addAliasAction(AliasActions.remove().index("foo*").alias("foo"))));
 
         assertTrue(admin().indices().prepareAliasesExist("foo").get().exists());
         assertFalse(admin().indices().prepareAliasesExist("foo").setIndices("foo_foo").get().exists());
@@ -518,8 +580,9 @@ public class IndexAliasesIT extends ESIntegTestCase {
         ensureGreen();
 
         for (int i = 0; i < 10; i++) {
-            assertAcked(admin().indices().prepareAliases().addAlias("test", "alias" + i));
-            client().index(indexRequest("alias" + i).type("type1").id("1").source(source("1", "test"), XContentType.JSON)).get();
+            final String aliasName = "alias" + i;
+            assertAliasesVersionIncreases("test", () -> assertAcked(admin().indices().prepareAliases().addAlias("test", aliasName)));
+            client().index(indexRequest(aliasName).type("type1").id("1").source(source("1", "test"), XContentType.JSON)).get();
         }
     }
 
@@ -533,8 +596,9 @@ public class IndexAliasesIT extends ESIntegTestCase {
         ensureGreen();
 
         for (int i = 0; i < 10; i++) {
-            assertAcked(admin().indices().prepareAliases().addAlias("test", "alias" + i));
-            client().index(indexRequest("alias" + i).type("type1").id("1").source(source("1", "test"),
+            final String aliasName = "alias" + i;
+            assertAliasesVersionIncreases("test", () -> assertAcked(admin().indices().prepareAliases().addAlias("test", aliasName)));
+            client().index(indexRequest(aliasName).type("type1").id("1").source(source("1", "test"),
                 XContentType.JSON)).get();
         }
     }
@@ -553,7 +617,9 @@ public class IndexAliasesIT extends ESIntegTestCase {
             executor.submit(new Runnable() {
                 @Override
                 public void run() {
-                    assertAcked(admin().indices().prepareAliases().addAlias("test", aliasName));
+                    assertAliasesVersionIncreases(
+                            "test",
+                            () -> assertAcked(admin().indices().prepareAliases().addAlias("test", aliasName)));
                     client().index(indexRequest(aliasName).type("type1").id("1").source(source("1", "test"), XContentType.JSON))
                         .actionGet();
                 }
@@ -573,27 +639,37 @@ public class IndexAliasesIT extends ESIntegTestCase {
         ensureGreen();
 
         logger.info("--> creating alias1 ");
-        assertAcked((admin().indices().prepareAliases().addAlias("test", "alias1")));
+        assertAliasesVersionIncreases("test", () -> assertAcked((admin().indices().prepareAliases().addAlias("test", "alias1"))));
         TimeValue timeout = TimeValue.timeValueSeconds(2);
         logger.info("--> recreating alias1 ");
         StopWatch stopWatch = new StopWatch();
         stopWatch.start();
-        assertAcked((admin().indices().prepareAliases().addAlias("test", "alias1").setTimeout(timeout)));
+        assertAliasesVersionUnchanged(
+                "test",
+                () -> assertAcked((admin().indices().prepareAliases().addAlias("test", "alias1").setTimeout(timeout))));
         assertThat(stopWatch.stop().lastTaskTime().millis(), lessThan(timeout.millis()));
 
         logger.info("--> modifying alias1 to have a filter");
         stopWatch.start();
-        assertAcked((admin().indices().prepareAliases().addAlias("test", "alias1", termQuery("name", "foo")).setTimeout(timeout)));
+        final TermQueryBuilder fooFilter = termQuery("name", "foo");
+        assertAliasesVersionIncreases(
+                "test",
+                () -> assertAcked(admin().indices().prepareAliases().addAlias("test", "alias1", fooFilter).setTimeout(timeout)));
         assertThat(stopWatch.stop().lastTaskTime().millis(), lessThan(timeout.millis()));
 
         logger.info("--> recreating alias1 with the same filter");
         stopWatch.start();
-        assertAcked((admin().indices().prepareAliases().addAlias("test", "alias1", termQuery("name", "foo")).setTimeout(timeout)));
+        assertAliasesVersionUnchanged(
+                "test",
+                () -> assertAcked((admin().indices().prepareAliases().addAlias("test", "alias1", fooFilter).setTimeout(timeout))));
         assertThat(stopWatch.stop().lastTaskTime().millis(), lessThan(timeout.millis()));
 
         logger.info("--> recreating alias1 with a different filter");
         stopWatch.start();
-        assertAcked((admin().indices().prepareAliases().addAlias("test", "alias1", termQuery("name", "bar")).setTimeout(timeout)));
+        final TermQueryBuilder barFilter = termQuery("name", "bar");
+        assertAliasesVersionIncreases(
+                "test",
+                () -> assertAcked((admin().indices().prepareAliases().addAlias("test", "alias1", barFilter).setTimeout(timeout))));
         assertThat(stopWatch.stop().lastTaskTime().millis(), lessThan(timeout.millis()));
 
         logger.info("--> verify that filter was updated");
@@ -603,10 +679,10 @@ public class IndexAliasesIT extends ESIntegTestCase {
 
         logger.info("--> deleting alias1");
         stopWatch.start();
-        assertAcked((admin().indices().prepareAliases().removeAlias("test", "alias1").setTimeout(timeout)));
+        assertAliasesVersionIncreases(
+                "test",
+                () -> assertAcked((admin().indices().prepareAliases().removeAlias("test", "alias1").setTimeout(timeout))));
         assertThat(stopWatch.stop().lastTaskTime().millis(), lessThan(timeout.millis()));
-
-
     }
 
     public void testIndicesRemoveNonExistingAliasResponds404() throws Exception {
@@ -635,7 +711,9 @@ public class IndexAliasesIT extends ESIntegTestCase {
         ensureGreen();
 
         logger.info("--> creating aliases [alias1, alias2]");
-        assertAcked(admin().indices().prepareAliases().addAlias("foobar", "alias1").addAlias("foobar", "alias2"));
+        assertAliasesVersionIncreases(
+                "foobar",
+                () -> assertAcked(admin().indices().prepareAliases().addAlias("foobar", "alias1").addAlias("foobar", "alias2")));
 
         logger.info("--> getting alias1");
         GetAliasesResponse getResponse = admin().indices().prepareGetAliases("alias1").get();
@@ -670,13 +748,19 @@ public class IndexAliasesIT extends ESIntegTestCase {
 
 
         logger.info("--> creating aliases [bar, baz, foo]");
-        assertAcked(admin().indices().prepareAliases()
-                .addAlias("bazbar", "bar")
-                .addAlias("bazbar", "bac", termQuery("field", "value"))
-                .addAlias("foobar", "foo"));
+        assertAliasesVersionIncreases(
+                new String[]{"bazbar", "foobar"},
+                () -> assertAcked(admin().indices()
+                        .prepareAliases()
+                        .addAlias("bazbar", "bar")
+                        .addAlias("bazbar", "bac", termQuery("field", "value"))
+                        .addAlias("foobar", "foo")));
 
-        assertAcked(admin().indices().prepareAliases()
-                .addAliasAction(AliasActions.add().index("foobar").alias("bac").routing("bla")));
+        assertAliasesVersionIncreases(
+                "foobar",
+                () -> assertAcked(admin().indices()
+                        .prepareAliases()
+                        .addAliasAction(AliasActions.add().index("foobar").alias("bac").routing("bla"))));
 
         logger.info("--> getting bar and baz for index bazbar");
         getResponse = admin().indices().prepareGetAliases("bar", "bac").addIndices("bazbar").get();
@@ -826,7 +910,9 @@ public class IndexAliasesIT extends ESIntegTestCase {
         createIndex("index1");
         createIndex("index2");
 
-        assertAcked(admin().indices().prepareAliases().addAlias("index1", "alias1").addAlias("index2", "alias2"));
+        assertAliasesVersionIncreases(
+                new String[]{"index1", "index2"},
+                () -> assertAcked(admin().indices().prepareAliases().addAlias("index1", "alias1").addAlias("index2", "alias2")));
 
         GetAliasesResponse response = admin().indices().prepareGetAliases().get();
         assertThat(response.getAliases(), hasKey("index1"));
@@ -911,23 +997,41 @@ public class IndexAliasesIT extends ESIntegTestCase {
     // fields mentioned in filters don't need to exist in the mapping.
     public void testAddAliasWithFilterNoMapping() throws Exception {
         assertAcked(prepareCreate("test"));
-        client().admin().indices().prepareAliases()
-                .addAlias("test", "a", QueryBuilders.termQuery("field1", "term"))
-                .get();
-        client().admin().indices().prepareAliases()
-                .addAlias("test", "a", QueryBuilders.rangeQuery("field2").from(0).to(1))
-                .get();
-        client().admin().indices().prepareAliases()
-                .addAlias("test", "a", QueryBuilders.matchAllQuery())
-                .get();
+        assertAliasesVersionIncreases(
+                "test",
+                () -> client().admin()
+                        .indices()
+                        .prepareAliases()
+                        .addAlias("test", "a", QueryBuilders.termQuery("field1", "term"))
+                        .get());
+        assertAliasesVersionIncreases(
+                "test",
+                () -> client().admin()
+                        .indices()
+                        .prepareAliases()
+                        .addAlias("test", "a", QueryBuilders.rangeQuery("field2").from(0).to(1))
+                        .get());
+        assertAliasesVersionIncreases(
+                "test",
+                () -> client().admin()
+                        .indices()
+                        .prepareAliases()
+                        .addAlias("test", "a", QueryBuilders.matchAllQuery())
+                        .get());
     }
 
     public void testAliasFilterWithNowInRangeFilterAndQuery() throws Exception {
         assertAcked(prepareCreate("my-index").addMapping("my-type", "timestamp", "type=date"));
-        assertAcked(admin().indices().prepareAliases()
-            .addAlias("my-index", "filter1", rangeQuery("timestamp").from("2016-12-01").to("2016-12-31")));
-        assertAcked(admin().indices().prepareAliases()
-            .addAlias("my-index", "filter2", rangeQuery("timestamp").from("2016-01-01").to("2016-12-31")));
+        assertAliasesVersionIncreases(
+                "my-index",
+                () -> assertAcked(admin().indices()
+                        .prepareAliases()
+                        .addAlias("my-index", "filter1", rangeQuery("timestamp").from("2016-12-01").to("2016-12-31"))));
+        assertAliasesVersionIncreases(
+                "my-index",
+                () -> assertAcked(admin().indices()
+                        .prepareAliases()
+                        .addAlias("my-index", "filter2", rangeQuery("timestamp").from("2016-01-01").to("2016-12-31"))));
 
         final int numDocs = scaledRandomIntBetween(5, 52);
         for (int i = 1; i <= numDocs; i++) {
@@ -951,8 +1055,10 @@ public class IndexAliasesIT extends ESIntegTestCase {
             try {
                 enableIndexBlock("test", block);
 
-                assertAcked(admin().indices().prepareAliases().addAlias("test", "alias1").addAlias("test", "alias2"));
-                assertAcked(admin().indices().prepareAliases().removeAlias("test", "alias1"));
+                assertAliasesVersionIncreases(
+                        "test",
+                        () -> assertAcked(admin().indices().prepareAliases().addAlias("test", "alias1").addAlias("test", "alias2")));
+                assertAliasesVersionIncreases("test", () -> assertAcked(admin().indices().prepareAliases().removeAlias("test", "alias1")));
                 assertThat(admin().indices().prepareGetAliases("alias2").execute().actionGet().getAliases().get("test").size(), equalTo(1));
                 assertThat(admin().indices().prepareAliasesExist("alias2").get().exists(), equalTo(true));
             } finally {
@@ -963,8 +1069,12 @@ public class IndexAliasesIT extends ESIntegTestCase {
         try {
             enableIndexBlock("test", SETTING_READ_ONLY);
 
-            assertBlocked(admin().indices().prepareAliases().addAlias("test", "alias3"), INDEX_READ_ONLY_BLOCK);
-            assertBlocked(admin().indices().prepareAliases().removeAlias("test", "alias2"), INDEX_READ_ONLY_BLOCK);
+            assertAliasesVersionUnchanged(
+                    "test",
+                    () -> assertBlocked(admin().indices().prepareAliases().addAlias("test", "alias3"), INDEX_READ_ONLY_BLOCK));
+            assertAliasesVersionUnchanged(
+                    "test",
+                    () -> assertBlocked(admin().indices().prepareAliases().removeAlias("test", "alias2"), INDEX_READ_ONLY_BLOCK));
             assertThat(admin().indices().prepareGetAliases("alias2").execute().actionGet().getAliases().get("test").size(), equalTo(1));
             assertThat(admin().indices().prepareAliasesExist("alias2").get().exists(), equalTo(true));
 
@@ -975,8 +1085,12 @@ public class IndexAliasesIT extends ESIntegTestCase {
         try {
             enableIndexBlock("test", SETTING_BLOCKS_METADATA);
 
-            assertBlocked(admin().indices().prepareAliases().addAlias("test", "alias3"), INDEX_METADATA_BLOCK);
-            assertBlocked(admin().indices().prepareAliases().removeAlias("test", "alias2"), INDEX_METADATA_BLOCK);
+            assertAliasesVersionUnchanged(
+                    "test",
+                    () -> assertBlocked(admin().indices().prepareAliases().addAlias("test", "alias3"), INDEX_METADATA_BLOCK));
+            assertAliasesVersionUnchanged(
+                    "test",
+                    () -> assertBlocked(admin().indices().prepareAliases().removeAlias("test", "alias2"), INDEX_METADATA_BLOCK));
             assertBlocked(admin().indices().prepareGetAliases("alias2"), INDEX_METADATA_BLOCK);
             assertBlocked(admin().indices().prepareAliasesExist("alias2"), INDEX_METADATA_BLOCK);
 
@@ -988,15 +1102,19 @@ public class IndexAliasesIT extends ESIntegTestCase {
     public void testAliasActionRemoveIndex() throws InterruptedException, ExecutionException {
         assertAcked(prepareCreate("foo_foo"));
         assertAcked(prepareCreate("bar_bar"));
-        assertAcked(admin().indices().prepareAliases().addAlias("foo_foo", "foo"));
-        assertAcked(admin().indices().prepareAliases().addAlias("bar_bar", "foo"));
+        assertAliasesVersionIncreases(
+                new String[]{"foo_foo", "bar_bar"},
+                () -> {
+                    assertAcked(admin().indices().prepareAliases().addAlias("foo_foo", "foo"));
+                    assertAcked(admin().indices().prepareAliases().addAlias("bar_bar", "foo"));
+                });
 
         IllegalArgumentException iae = expectThrows(IllegalArgumentException.class,
                 () -> client().admin().indices().prepareAliases().removeIndex("foo").execute().actionGet());
         assertEquals("The provided expression [foo] matches an alias, specify the corresponding concrete indices instead.",
                 iae.getMessage());
 
-        assertAcked(client().admin().indices().prepareAliases().removeIndex("foo*").execute().get());
+        assertAcked(client().admin().indices().prepareAliases().removeIndex("foo*"));
         assertFalse(client().admin().indices().prepareExists("foo_foo").execute().actionGet().isExists());
         assertTrue(admin().indices().prepareAliasesExist("foo").get().exists());
         assertTrue(client().admin().indices().prepareExists("bar_bar").execute().actionGet().isExists());
@@ -1010,7 +1128,9 @@ public class IndexAliasesIT extends ESIntegTestCase {
     public void testRemoveIndexAndReplaceWithAlias() throws InterruptedException, ExecutionException {
         assertAcked(client().admin().indices().prepareCreate("test"));
         indexRandom(true, client().prepareIndex("test_2", "test", "test").setSource("test", "test"));
-        assertAcked(client().admin().indices().prepareAliases().addAlias("test_2", "test").removeIndex("test"));
+        assertAliasesVersionIncreases(
+                "test_2",
+                () -> assertAcked(client().admin().indices().prepareAliases().addAlias("test_2", "test").removeIndex("test")));
         assertHitCount(client().prepareSearch("test").get(), 1);
     }
 
@@ -1052,4 +1172,31 @@ public class IndexAliasesIT extends ESIntegTestCase {
     private String source(String id, String nameValue) {
         return "{ \"id\" : \"" + id + "\", \"name\" : \"" + nameValue + "\" }";
     }
+
+    private void assertAliasesVersionIncreases(final String index, final Runnable runnable) {
+        assertAliasesVersionIncreases(new String[]{index}, runnable);
+    }
+
+    private void assertAliasesVersionIncreases(final String[] indices, final Runnable runnable) {
+        final var beforeAliasesVersions = new HashMap<String, Long>(indices.length);
+        final var beforeMetaData = admin().cluster().prepareState().get().getState().metaData();
+        for (final var index : indices) {
+            beforeAliasesVersions.put(index, beforeMetaData.index(index).getAliasesVersion());
+        }
+        runnable.run();
+        final var afterMetaData = admin().cluster().prepareState().get().getState().metaData();
+        for (final String index : indices) {
+            assertThat(afterMetaData.index(index).getAliasesVersion(), equalTo(1 + beforeAliasesVersions.get(index)));
+        }
+    }
+
+    private void assertAliasesVersionUnchanged(final String index, final Runnable runnable) {
+        final long beforeAliasesVersion =
+                admin().cluster().prepareState().get().getState().metaData().index(index).getAliasesVersion();
+        runnable.run();
+        final long afterAliasesVersion =
+                admin().cluster().prepareState().get().getState().metaData().index(index).getAliasesVersion();
+        assertThat(afterAliasesVersion, equalTo(beforeAliasesVersion));
+    }
+
 }

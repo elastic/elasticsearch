@@ -4,7 +4,6 @@
     "stability": "stable",
     "methods": ["POST"],
     "url": {
-      "path": "/_cache/clear",
       "paths": ["/_cache/clear", "/{index}/_cache/clear"],
       "parts": {
         "index": {

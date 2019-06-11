@@ -4,7 +4,6 @@
     "stability": "stable",
     "methods": [ "PUT", "POST" ],
     "url": {
-      "path": "/_watcher/watch/{watch_id}/_deactivate",
       "paths": [ "/_watcher/watch/{watch_id}/_deactivate" ],
       "parts": {
         "watch_id": {

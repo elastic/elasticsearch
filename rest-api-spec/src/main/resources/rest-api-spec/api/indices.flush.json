@@ -4,7 +4,6 @@
     "stability": "stable",
     "methods": ["POST", "GET"],
     "url": {
-      "path": "/_flush",
       "paths": ["/_flush", "/{index}/_flush"],
       "parts": {
         "index": {

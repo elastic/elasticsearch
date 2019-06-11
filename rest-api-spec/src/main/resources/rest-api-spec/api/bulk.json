@@ -4,7 +4,6 @@
     "stability": "stable",
     "methods": ["POST", "PUT"],
     "url": {
-      "path": "/_bulk",
       "paths": ["/_bulk", "/{index}/_bulk", "/{index}/{type}/_bulk"],
       "parts": {
         "index": {

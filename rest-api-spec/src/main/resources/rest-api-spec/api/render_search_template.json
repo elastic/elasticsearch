@@ -4,7 +4,6 @@
     "stability": "stable",
     "methods": ["GET", "POST"],
     "url": {
-      "path": "/_render/template",
       "paths": [ "/_render/template", "/_render/template/{id}" ],
       "parts": {
         "id": {

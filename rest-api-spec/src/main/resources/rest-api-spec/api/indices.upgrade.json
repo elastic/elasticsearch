@@ -4,7 +4,6 @@
     "stability": "stable",
     "methods": ["POST"],
     "url": {
-      "path": "/_upgrade",
       "paths": ["/_upgrade", "/{index}/_upgrade"],
       "parts": {
         "index": {

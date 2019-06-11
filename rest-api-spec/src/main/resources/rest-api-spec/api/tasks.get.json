@@ -4,7 +4,6 @@
     "stability": "stable",
     "methods": ["GET"],
     "url": {
-      "path": "/_tasks/{task_id}",
       "paths": ["/_tasks/{task_id}"],
       "parts": {
         "task_id": {

@@ -16,7 +16,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.dataframe.DataFrameField;
-import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.core.dataframe.utils.ExceptionsHelper;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -33,25 +33,28 @@ public class StartDataFrameTransformAction extends Action<StartDataFrameTransfor
 
     @Override
     public Response newResponse() {
-        return new Response();
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
+    }
+
+    @Override
+    public Writeable.Reader<Response> getResponseReader() {
+        return Response::new;
     }
 
     public static class Request extends AcknowledgedRequest<Request> {
 
-        private String id;
-        private boolean force;
+        private final String id;
+        private final boolean force;
 
         public Request(String id, boolean force) {
             this.id = ExceptionsHelper.requireNonNull(id, DataFrameField.ID.getPreferredName());
             this.force = force;
         }
 
-        public Request() {
-        }
-
         public Request(StreamInput in) throws IOException {
             super(in);
             id = in.readString();
+            force = in.readBoolean();
         }
 
         public String getId() {
@@ -66,6 +69,7 @@ public class StartDataFrameTransformAction extends Action<StartDataFrameTransfor
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeString(id);
+            out.writeBoolean(force);
         }
 
         @Override
@@ -91,44 +95,34 @@ public class StartDataFrameTransformAction extends Action<StartDataFrameTransfor
         }
     }
 
-    public static class Response extends BaseTasksResponse implements Writeable, ToXContentObject {
-        private boolean started;
-
-        public Response() {
-            super(Collections.emptyList(), Collections.emptyList());
-        }
+    public static class Response extends BaseTasksResponse implements ToXContentObject {
+        private final boolean acknowledged;
 
         public Response(StreamInput in) throws IOException {
             super(in);
-            readFrom(in);
+            acknowledged = in.readBoolean();
         }
 
-        public Response(boolean started) {
+        public Response(boolean acknowledged) {
             super(Collections.emptyList(), Collections.emptyList());
-            this.started = started;
+            this.acknowledged = acknowledged;
         }
 
-        public boolean isStarted() {
-            return started;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            started = in.readBoolean();
+        public boolean isAcknowledged() {
+            return acknowledged;
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            out.writeBoolean(started);
+            out.writeBoolean(acknowledged);
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             toXContentCommon(builder, params);
-            builder.field("started", started);
+            builder.field("acknowledged", acknowledged);
             builder.endObject();
             return builder;
         }
@@ -143,12 +137,12 @@ public class StartDataFrameTransformAction extends Action<StartDataFrameTransfor
                 return false;
             }
             Response response = (Response) obj;
-            return started == response.started;
+            return acknowledged == response.acknowledged;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(started);
+            return Objects.hash(acknowledged);
         }
     }
 }

@@ -4,7 +4,6 @@
     "stability": "stable",
     "methods": ["GET"],
     "url": {
-      "path": "/_cat/health",
       "paths": ["/_cat/health"],
       "parts": {
       },

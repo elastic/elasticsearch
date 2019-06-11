@@ -4,7 +4,6 @@
     "stability": "stable",
     "methods": ["GET", "POST"],
     "url": {
-      "path": "/_analyze",
       "paths": ["/_analyze", "/{index}/_analyze"],
       "parts": {
         "index": {

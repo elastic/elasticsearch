@@ -4,7 +4,6 @@
     "stability": "stable",
     "methods": ["GET"],
     "url": {
-      "path": "/_mapping/field/{fields}",
       "paths": ["/_mapping/field/{fields}", "/{index}/_mapping/field/{fields}"],
       "deprecated_paths" : [
         {

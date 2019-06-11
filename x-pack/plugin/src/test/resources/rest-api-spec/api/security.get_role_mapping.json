@@ -4,7 +4,6 @@
     "stability": "stable",
     "methods": [ "GET" ],
     "url": {
-      "path": "/_security/role_mapping/{name}",
       "paths": [
         "/_security/role_mapping/{name}",
         "/_security/role_mapping"

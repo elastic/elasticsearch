@@ -1,0 +1,79 @@
+//
+// CSV spec used by the geo docs
+//
+
+///////////////////////////////
+//
+// ST_AsWKT()
+//
+///////////////////////////////
+
+selectAsWKT
+// tag::aswkt
+SELECT city, ST_AsWKT(location) location FROM "geo" WHERE city = 'Amsterdam';
+
+     city:s    |     location:s
+Amsterdam      |point (4.850311987102032 52.347556999884546)
+// end::aswkt
+;
+
+selectWKTToSQL
+// tag::wkttosql
+SELECT CAST(ST_WKTToSQL('POINT (10 20)') AS STRING) location;
+
+   location:s
+point (10.0 20.0)
+// end::wkttosql
+;
+
+
+selectDistance
+// tag::distance
+SELECT ST_Distance(ST_WKTToSQL('POINT (10 20)'), ST_WKTToSQL('POINT (20 30)')) distance;
+
+   distance:d
+1499101.2889383635
+// end::distance
+;
+
+///////////////////////////////
+//
+// Geometry Properties
+//
+///////////////////////////////
+
+selectGeometryType
+// tag::geometrytype
+SELECT ST_GeometryType(ST_WKTToSQL('POINT (10 20)')) type;
+
+      type:s
+POINT
+// end::geometrytype
+;
+
+selectX
+// tag::x
+SELECT ST_X(ST_WKTToSQL('POINT (10 20)')) x;
+
+      x:d
+10.0
+// end::x
+;
+
+selectY
+// tag::y
+SELECT ST_Y(ST_WKTToSQL('POINT (10 20)')) y;
+
+      y:d
+20.0
+// end::y
+;
+
+selectZ
+// tag::z
+SELECT ST_Z(ST_WKTToSQL('POINT (10 20 30)')) z;
+
+      z:d
+30.0
+// end::z
+;

@@ -4,7 +4,6 @@
     "stability": "stable",
     "methods": ["GET"],
     "url": {
-      "path": "/_nodes/stats",
       "paths": [
         "/_nodes/stats",
         "/_nodes/{node_id}/stats",

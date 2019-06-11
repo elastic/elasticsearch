@@ -35,7 +35,6 @@ public class RestDeleteByQueryAction extends AbstractBulkByQueryRestHandler<Dele
     public RestDeleteByQueryAction(Settings settings, RestController controller) {
         super(settings, DeleteByQueryAction.INSTANCE);
         controller.registerHandler(POST, "/{index}/_delete_by_query", this);
-        controller.registerHandler(POST, "/{index}/{type}/_delete_by_query", this);
     }
 
     @Override
@@ -59,6 +58,7 @@ public class RestDeleteByQueryAction extends AbstractBulkByQueryRestHandler<Dele
 
         Map<String, Consumer<Object>> consumers = new HashMap<>();
         consumers.put("conflicts", o -> internal.setConflicts((String) o));
+        consumers.put("max_docs", s -> setMaxDocsValidateIdentical(internal, ((Number) s).intValue()));
 
         parseInternalRequest(internal, request, consumers);
 

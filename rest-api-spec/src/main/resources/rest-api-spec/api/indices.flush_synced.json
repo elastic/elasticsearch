@@ -4,7 +4,6 @@
     "stability": "stable",
     "methods": ["POST", "GET"],
     "url": {
-      "path": "/_flush/synced",
       "paths": [
         "/_flush/synced",
         "/{index}/_flush/synced"

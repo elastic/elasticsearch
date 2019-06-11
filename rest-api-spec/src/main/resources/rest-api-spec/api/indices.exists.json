@@ -4,7 +4,6 @@
     "stability": "stable",
     "methods": [ "HEAD" ],
     "url": {
-      "path": "/{index}",
       "paths": [ "/{index}" ],
       "parts": {
         "index": {

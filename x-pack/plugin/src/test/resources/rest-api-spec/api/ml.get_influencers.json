@@ -4,7 +4,6 @@
     "stability": "stable",
     "methods": [ "GET", "POST" ],
     "url": {
-      "path": "/_ml/anomaly_detectors/{job_id}/results/influencers",
       "paths": [ "/_ml/anomaly_detectors/{job_id}/results/influencers" ],
       "parts": {
         "job_id": {

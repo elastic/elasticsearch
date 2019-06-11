@@ -4,7 +4,6 @@
     "stability" : "stable",
     "methods": [ "POST" ],
     "url": {
-      "path": "/{index}/_ccr/pause_follow",
       "paths": [ "/{index}/_ccr/pause_follow" ],
       "parts": {
         "index": {

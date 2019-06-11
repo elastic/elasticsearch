@@ -4,7 +4,6 @@
     "stability": "stable",
     "methods": ["GET"],
     "url": {
-      "path": "/_cat/shards",
       "paths": ["/_cat/shards", "/_cat/shards/{index}"],
       "parts": {
         "index": {

@@ -1,7 +1,7 @@
 [[search-rank-eval]]
 == Ranking Evaluation API
 
-experimental[The ranking evaluation API is experimental and may be changed or removed completely in a future release, as well as change in non-backwards compatible ways on minor versions updates. Elastic will take a best effort approach to fix any issues, but experimental features are not subject to the support SLA of official GA features.]
+experimental["The ranking evaluation API is experimental and may be changed or removed completely in a future release, as well as change in non-backwards compatible ways on minor versions updates. Elastic will take a best effort approach to fix any issues, but experimental features are not subject to the support SLA of official GA features."]
 
 The ranking evaluation API allows to evaluate the quality of ranked search
 results over a set of typical search queries. Given this set of queries and a
@@ -111,7 +111,7 @@ GET /my_index/_rank_eval
   ], 
   "requests": [
       {
-         "id": "amsterdam_query"
+         "id": "amsterdam_query",
          "ratings": [ ... ],
          "template_id": "match_one_field_query", <3>
          "params": { <4>
@@ -136,6 +136,7 @@ The `metric` section determines which of the available evaluation metrics is goi
 Currently, the following metrics are supported:
 
 [float]
+[[k-precision]]
 ==== Precision at K (P@k)
 
 This metric measures the number of relevant results in the top k search results. Its a form of the well known https://en.wikipedia.org/wiki/Information_retrieval#Precision[Precision] metric that only looks at the top k documents. It is the fraction of relevant documents in those first k

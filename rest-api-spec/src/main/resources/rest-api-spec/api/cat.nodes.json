@@ -4,7 +4,6 @@
     "stability": "stable",
     "methods": ["GET"],
     "url": {
-      "path": "/_cat/nodes",
       "paths": ["/_cat/nodes"],
       "parts": {
       },

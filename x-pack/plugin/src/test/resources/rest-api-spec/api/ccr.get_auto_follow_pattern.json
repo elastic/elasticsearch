@@ -4,7 +4,6 @@
     "stability" : "stable",
     "methods": [ "GET" ],
     "url": {
-      "path": "/_ccr/auto_follow/{name}",
       "paths": [ "/_ccr/auto_follow", "/_ccr/auto_follow/{name}" ],
       "parts": {
         "name": {

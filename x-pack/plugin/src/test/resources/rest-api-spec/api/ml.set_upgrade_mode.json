@@ -4,7 +4,6 @@
     "stability": "stable",
     "methods": [ "POST" ],
     "url": {
-      "path": "/_ml/set_upgrade_mode",
       "paths": [ "/_ml/set_upgrade_mode" ],
       "params": {
         "enabled": {

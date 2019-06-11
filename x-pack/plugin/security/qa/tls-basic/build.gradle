@@ -4,10 +4,12 @@ apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
 
 dependencies {
-  // "org.elasticsearch.plugin:x-pack-core:${version}" doesn't work with idea because the testArtifacts are also here
   testCompile project(path: xpackModule('core'), configuration: 'default')
   testCompile project(path: xpackModule('security'), configuration: 'testArtifacts')
   testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
+  if (isEclipse) {
+    testCompile project(path: xpackModule('core-tests'), configuration: 'testArtifacts')
+  }
 }
 
 forbiddenPatterns {
@@ -45,4 +47,3 @@ integTestCluster {
     return http.wait(5000)
   }
 }
-

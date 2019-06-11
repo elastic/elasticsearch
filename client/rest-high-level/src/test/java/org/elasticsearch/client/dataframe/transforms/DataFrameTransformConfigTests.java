@@ -37,7 +37,7 @@ public class DataFrameTransformConfigTests extends AbstractXContentTestCase<Data
 
     public static DataFrameTransformConfig randomDataFrameTransformConfig() {
         return new DataFrameTransformConfig(randomAlphaOfLengthBetween(1, 10), randomSourceConfig(),
-                randomDestConfig(), PivotConfigTests.randomPivotConfig());
+                randomDestConfig(), PivotConfigTests.randomPivotConfig(), randomBoolean() ? null : randomAlphaOfLengthBetween(1, 100));
     }
 
     @Override
@@ -63,7 +63,7 @@ public class DataFrameTransformConfigTests extends AbstractXContentTestCase<Data
 
     @Override
     protected NamedXContentRegistry xContentRegistry() {
-        SearchModule searchModule = new SearchModule(Settings.EMPTY, false, Collections.emptyList());
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, Collections.emptyList());
         return new NamedXContentRegistry(searchModule.getNamedXContents());
     }
 }

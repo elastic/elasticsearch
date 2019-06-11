@@ -4,7 +4,6 @@
     "stability": "stable",
     "methods": ["GET"],
     "url": {
-      "path": "/_cluster/settings",
       "paths": ["/_cluster/settings"],
       "parts": {},
       "params": {

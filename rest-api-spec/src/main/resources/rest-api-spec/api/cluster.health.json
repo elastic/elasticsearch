@@ -4,7 +4,6 @@
     "stability": "stable",
     "methods": ["GET"],
     "url": {
-      "path": "/_cluster/health",
       "paths": ["/_cluster/health", "/_cluster/health/{index}"],
       "parts": {
         "index": {

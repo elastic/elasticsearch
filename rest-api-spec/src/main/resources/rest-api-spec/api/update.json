@@ -4,7 +4,6 @@
     "stability": "stable",
     "methods": ["POST"],
     "url": {
-      "path": "/{index}/_update/{id}",
       "paths": ["/{index}/_update/{id}"],
       "deprecated_paths" : [
         {
@@ -49,10 +48,6 @@
         "lang": {
           "type": "string",
           "description": "The script language (default: painless)"
-        },
-        "parent": {
-          "type": "string",
-          "description": "ID of the parent document. Is is only used for routing and when for the upsert request"
         },
         "refresh": {
           "type" : "enum",

@@ -22,6 +22,7 @@ import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.util.Collections;
@@ -49,7 +50,6 @@ public class BulkRejectionIT extends ESIntegTestCase {
         return 5;
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/41363")
     public void testBulkRejectionAfterDynamicMappingUpdate() throws Exception {
         final String index = "test";
         assertAcked(prepareCreate(index));
@@ -68,8 +68,12 @@ public class BulkRejectionIT extends ESIntegTestCase {
         }
         final ActionFuture<BulkResponse> bulkFuture1 = client().bulk(request1);
         final ActionFuture<BulkResponse> bulkFuture2 = client().bulk(request2);
-        bulkFuture1.actionGet();
-        bulkFuture2.actionGet();
+        try {
+            bulkFuture1.actionGet();
+            bulkFuture2.actionGet();
+        } catch (EsRejectedExecutionException e) {
+            // ignored, one of the two bulk requests was rejected outright due to the write queue being full
+        }
         internalCluster().assertSeqNos();
     }
 }

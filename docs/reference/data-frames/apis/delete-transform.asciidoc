@@ -2,6 +2,8 @@
 [testenv="basic"]
 [[delete-data-frame-transform]]
 === Delete {dataframe-transforms} API
+
+[subs="attributes"]
 ++++
 <titleabbrev>Delete {dataframe-transforms}</titleabbrev>
 ++++

@@ -4,7 +4,6 @@
     "stability": "stable",
     "methods": ["GET"],
     "url": {
-      "path": "/_cat/count",
       "paths": ["/_cat/count", "/_cat/count/{index}"],
       "parts": {
         "index": {

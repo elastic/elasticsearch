@@ -4,7 +4,6 @@
     "stability": "stable",
     "methods": [ "DELETE" ],
     "url": {
-      "path": "/_security/oauth2/token",
       "paths": [
         "/_security/oauth2/token"
       ],

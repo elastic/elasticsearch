@@ -4,7 +4,6 @@
     "stability": "stable",
     "methods": ["GET"],
     "url": {
-      "path": "/_cluster/stats",
       "paths": ["/_cluster/stats", "/_cluster/stats/nodes/{node_id}"],
       "parts": {
         "node_id": {

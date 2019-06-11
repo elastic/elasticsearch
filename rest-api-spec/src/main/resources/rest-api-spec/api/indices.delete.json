@@ -4,7 +4,6 @@
     "stability": "stable",
     "methods": ["DELETE"],
     "url": {
-      "path": "/{index}",
       "paths": ["/{index}"],
       "parts": {
         "index": {

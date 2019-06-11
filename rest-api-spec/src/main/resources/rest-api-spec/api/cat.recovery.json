@@ -4,7 +4,6 @@
     "stability": "stable",
     "methods": ["GET"],
     "url": {
-      "path": "/_cat/recovery",
       "paths": ["/_cat/recovery", "/_cat/recovery/{index}"],
       "parts": {
         "index": {

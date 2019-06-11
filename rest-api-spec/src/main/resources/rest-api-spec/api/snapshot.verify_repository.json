@@ -4,7 +4,6 @@
         "stability": "stable",
         "methods": ["POST"],
         "url": {
-            "path": "/_snapshot/{repository}/_verify",
             "paths": ["/_snapshot/{repository}/_verify"],
             "parts": {
                 "repository": {

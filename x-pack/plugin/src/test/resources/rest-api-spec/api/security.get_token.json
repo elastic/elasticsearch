@@ -4,7 +4,6 @@
     "stability": "stable",
     "methods": [ "POST" ],
     "url": {
-      "path": "/_security/oauth2/token",
       "paths": [
         "/_security/oauth2/token"
       ],

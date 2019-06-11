@@ -57,7 +57,7 @@ public class DataFrameTransformStateAndStats {
     private final DataFrameTransformCheckpointingInfo checkpointingInfo;
 
     public DataFrameTransformStateAndStats(String id, DataFrameTransformState state, DataFrameIndexerTransformStats stats,
-            DataFrameTransformCheckpointingInfo checkpointingInfo) {
+                                           DataFrameTransformCheckpointingInfo checkpointingInfo) {
         this.id = id;
         this.transformState = state;
         this.transformStats = stats;

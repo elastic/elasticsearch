@@ -4,7 +4,6 @@
     "stability": "stable",
     "methods": [ "POST" ],
     "url": {
-      "path": "/{index}/_unfreeze",
       "paths": [ "/{index}/_unfreeze" ],
       "parts": {
         "index": {

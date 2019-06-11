@@ -4,7 +4,6 @@
     "stability": "stable",
     "methods": [ "GET" ],
     "url": {
-      "path": "/_ilm/policy/{policy}",
       "paths": ["/_ilm/policy/{policy}", "/_ilm/policy"],
       "parts": {
         "policy": {

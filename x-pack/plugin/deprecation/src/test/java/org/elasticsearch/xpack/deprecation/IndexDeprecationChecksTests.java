@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.deprecation;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 
 import java.util.List;
@@ -19,8 +18,7 @@ import static org.elasticsearch.xpack.deprecation.DeprecationChecks.INDEX_SETTIN
 
 public class IndexDeprecationChecksTests extends ESTestCase {
     public void testOldIndicesCheck() {
-        Version createdWith = VersionUtils.randomVersionBetween(random(), Version.V_6_0_0,
-            VersionUtils.getPreviousVersion(Version.V_7_0_0));
+        Version createdWith = Version.fromString("1.0.0");
         IndexMetaData indexMetaData = IndexMetaData.builder("test")
             .settings(settings(createdWith))
             .numberOfShards(1)

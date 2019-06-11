@@ -4,7 +4,6 @@
     "stability": "stable",
     "methods": [ "POST" ],
     "url": {
-      "path": "/_ml/anomaly_detectors/{job_id}/_update",
       "paths": [ "/_ml/anomaly_detectors/{job_id}/_update" ],
       "parts": {
         "job_id": {

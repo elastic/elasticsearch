@@ -4,7 +4,6 @@
     "stability": "stable",
     "methods": [ "GET" ],
     "url": {
-      "path": "/{index}/_ilm/explain",
       "paths": ["/{index}/_ilm/explain"],
       "parts": {
         "index": {

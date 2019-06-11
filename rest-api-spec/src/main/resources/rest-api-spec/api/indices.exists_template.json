@@ -4,7 +4,6 @@
     "stability": "stable",
     "methods": ["HEAD"],
     "url": {
-      "path": "/_template/{name}",
       "paths": [ "/_template/{name}" ],
       "parts": {
         "name": {

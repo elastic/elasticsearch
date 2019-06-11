@@ -4,7 +4,6 @@
     "stability": "stable",
     "methods": ["GET"],
     "url": {
-      "path": "/_mapping",
       "paths": ["/_mapping", "/{index}/_mapping"],
       "deprecated_paths" : [
         {

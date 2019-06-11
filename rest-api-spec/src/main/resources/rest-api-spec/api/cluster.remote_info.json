@@ -4,7 +4,6 @@
     "stability": "stable",
     "methods": ["GET"],
     "url": {
-      "path": "/_remote/info",
       "paths": ["/_remote/info"],
       "params": {}
     },

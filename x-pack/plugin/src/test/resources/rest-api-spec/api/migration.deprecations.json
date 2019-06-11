@@ -4,7 +4,6 @@
     "stability": "stable",
     "methods": [ "GET" ],
     "url": {
-      "path": "/{index}/_migration/deprecations",
       "paths": ["/_migration/deprecations", "/{index}/_migration/deprecations"],
       "parts": {
         "index": {

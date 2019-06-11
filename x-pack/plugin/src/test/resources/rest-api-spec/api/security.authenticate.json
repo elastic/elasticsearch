@@ -4,7 +4,6 @@
     "stability": "stable",
     "methods": [ "GET" ],
     "url": {
-      "path": "/_security/_authenticate",
       "paths": [
         "/_security/_authenticate"
       ],

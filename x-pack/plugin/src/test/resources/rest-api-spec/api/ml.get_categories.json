@@ -4,7 +4,6 @@
     "stability": "stable",
     "methods": [ "GET", "POST" ],
     "url": {
-      "path": "/_ml/anomaly_detectors/{job_id}/results/categories/{category_id}",
       "paths": [
         "/_ml/anomaly_detectors/{job_id}/results/categories/{category_id}",
         "/_ml/anomaly_detectors/{job_id}/results/categories/"

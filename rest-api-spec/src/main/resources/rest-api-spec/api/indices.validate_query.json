@@ -4,7 +4,6 @@
     "stability": "stable",
     "methods": ["GET", "POST"],
     "url": {
-      "path": "/_validate/query",
       "paths": ["/_validate/query", "/{index}/_validate/query"],
       "deprecated_paths" : [
         {

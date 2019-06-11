@@ -4,7 +4,6 @@
     "stability": "stable",
     "methods": ["GET"],
     "url": {
-      "path": "/_license/basic_status",
       "paths": ["/_license/basic_status"],
       "parts" : {
       },

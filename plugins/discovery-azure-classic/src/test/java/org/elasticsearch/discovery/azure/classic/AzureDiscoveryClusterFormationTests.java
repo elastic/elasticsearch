@@ -25,6 +25,8 @@ import com.sun.net.httpserver.Headers;
 import com.sun.net.httpserver.HttpsConfigurator;
 import com.sun.net.httpserver.HttpsServer;
 import org.apache.logging.log4j.LogManager;
+import org.apache.lucene.util.LuceneTestCase;
+import org.elasticsearch.bootstrap.JavaVersion;
 import org.elasticsearch.cloud.azure.classic.management.AzureComputeService;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.FileSystemUtils;
@@ -59,7 +61,9 @@ import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.AccessController;
 import java.security.KeyStore;
+import java.security.PrivilegedAction;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -67,6 +71,7 @@ import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.ExecutionException;
 
+@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/43048")
 @ESIntegTestCase.ClusterScope(numDataNodes = 2, numClientNodes = 0)
 @SuppressForbidden(reason = "use http server")
 // TODO this should be a IT but currently all ITs in this project run against a real cluster
@@ -262,9 +267,27 @@ public class AzureDiscoveryClusterFormationTests extends ESIntegTestCase {
         kmf.init(ks, passphrase);
         TrustManagerFactory tmf = TrustManagerFactory.getInstance("SunX509");
         tmf.init(ks);
-        SSLContext ssl = SSLContext.getInstance("TLS");
+        SSLContext ssl = SSLContext.getInstance(getProtocol());
         ssl.init(kmf.getKeyManagers(), tmf.getTrustManagers(), null);
         return ssl;
+    }
+
+    /**
+     * The {@link HttpsServer} in the JDK has issues with TLSv1.3 when running in a JDK prior to
+     * 12.0.1 so we pin to TLSv1.2 when running on an earlier JDK
+     */
+    private static String getProtocol() {
+        if (JavaVersion.current().compareTo(JavaVersion.parse("12")) < 0) {
+            return "TLSv1.2";
+        } else {
+            JavaVersion full =
+                AccessController.doPrivileged(
+                        (PrivilegedAction<JavaVersion>) () -> JavaVersion.parse(System.getProperty("java.specification.version")));
+            if (full.compareTo(JavaVersion.parse("12.0.1")) < 0) {
+                return "TLSv1.2";
+            }
+        }
+        return "TLS";
     }
 
     @AfterClass

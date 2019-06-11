@@ -3,7 +3,6 @@
     "stability": "stable",
     "methods": [ "GET" ],
     "url": {
-      "path": "/_ml/calendars/{calendar_id}/events",
       "paths": [
         "/_ml/calendars/{calendar_id}/events"
       ],

@@ -45,7 +45,6 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.IdentityHashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -467,6 +466,11 @@ public class Setting<T> implements ToXContentObject {
      * @return the raw string representation of the setting value
      */
     String innerGetRaw(final Settings settings) {
+        SecureSettings secureSettings = settings.getSecureSettings();
+        if (secureSettings != null && secureSettings.getSettingNames().contains(getKey())) {
+            throw new IllegalArgumentException("Setting [" + getKey() + "] is a non-secure setting" +
+                " and must be stored inside elasticsearch.yml, but was found inside the Elasticsearch keystore");
+        }
         return settings.get(getKey(), defaultValue.apply(settings));
     }
 
@@ -650,7 +654,7 @@ public class Setting<T> implements ToXContentObject {
             super(key, delegate.defaultValue, delegate.parser, delegate.properties.toArray(new Property[0]));
             this.key = key;
             this.delegateFactory = delegateFactory;
-            this.dependencies = Collections.unmodifiableSet(new HashSet<>(Arrays.asList(dependencies)));
+            this.dependencies = Set.of(dependencies);
         }
 
         boolean isGroupSetting() {

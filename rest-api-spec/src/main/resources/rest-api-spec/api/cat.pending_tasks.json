@@ -4,7 +4,6 @@
     "stability": "stable",
     "methods": ["GET"],
     "url": {
-      "path": "/_cat/pending_tasks",
       "paths": ["/_cat/pending_tasks"],
       "parts": {
       },

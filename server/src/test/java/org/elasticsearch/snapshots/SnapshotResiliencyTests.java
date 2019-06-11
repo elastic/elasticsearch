@@ -24,6 +24,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.RequestValidators;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryAction;
 import org.elasticsearch.action.admin.cluster.repositories.put.TransportPutRepositoryAction;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteAction;
@@ -433,7 +434,6 @@ public class SnapshotResiliencyTests extends ESTestCase {
      * Simulates concurrent restarts of data and master nodes as well as relocating a primary shard, while starting and subsequently
      * deleting a snapshot.
      */
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/41326")
     public void testSnapshotPrimaryRelocations() {
         final int masterNodeCount = randomFrom(1, 3, 5);
         setupTestCluster(masterNodeCount, randomIntBetween(2, 10));
@@ -1155,7 +1155,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
             );
             actions.put(PutMappingAction.INSTANCE,
                 new TransportPutMappingAction(transportService, clusterService, threadPool, metaDataMappingService,
-                    actionFilters, indexNameExpressionResolver, new TransportPutMappingAction.RequestValidators(Collections.emptyList())));
+                    actionFilters, indexNameExpressionResolver, new RequestValidators<>(Collections.emptyList())));
             final ResponseCollectorService responseCollectorService = new ResponseCollectorService(clusterService);
             final SearchTransportService searchTransportService = new SearchTransportService(transportService,
                 SearchExecutionStatsCollector.makeWrapper(responseCollectorService));

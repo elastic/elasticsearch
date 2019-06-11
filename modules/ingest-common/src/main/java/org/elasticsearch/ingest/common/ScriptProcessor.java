@@ -39,7 +39,6 @@ import org.elasticsearch.script.ScriptService;
 import java.io.InputStream;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.Map;
 
 import static org.elasticsearch.ingest.ConfigurationUtils.newConfigurationException;
@@ -49,15 +48,8 @@ import static org.elasticsearch.ingest.ConfigurationUtils.newConfigurationExcept
  */
 public final class ScriptProcessor extends AbstractProcessor {
 
-    private static final Map<String, String> DEPRECATIONS;
-    static {
-        Map<String, String> deprecations = new HashMap<>();
-        deprecations.put(
-                "_type",
-                "[types removal] Looking up doc types [_type] in scripts is deprecated."
-        );
-        DEPRECATIONS = Collections.unmodifiableMap(deprecations);
-    }
+    private static final Map<String, String> DEPRECATIONS =
+            Collections.singletonMap("_type", "[types removal] Looking up doc types [_type] in scripts is deprecated.");
 
     public static final String TYPE = "script";
 

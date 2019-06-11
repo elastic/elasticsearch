@@ -4,7 +4,6 @@
     "stability": "stable",
     "methods": ["GET"],
     "url": {
-      "path": "/_snapshot/{repository}/{snapshot}",
       "paths": ["/_snapshot/{repository}/{snapshot}"],
       "parts": {
         "repository": {

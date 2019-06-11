@@ -4,7 +4,6 @@
     "stability" : "stable",
     "methods": [ "POST" ],
     "url": {
-      "path": "/{index}/_ccr/unfollow",
       "paths": [ "/{index}/_ccr/unfollow" ],
       "parts": {
         "index": {

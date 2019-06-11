@@ -4,7 +4,6 @@
     "stability": "stable",
     "methods": [ "GET" ],
     "url": {
-      "path": "/_ilm/status",
       "paths": ["/_ilm/status"],
       "parts": {},
       "params": {}

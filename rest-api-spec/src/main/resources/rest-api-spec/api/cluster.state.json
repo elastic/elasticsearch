@@ -4,7 +4,6 @@
     "stability" : "internal",
     "methods": ["GET"],
     "url": {
-      "path": "/_cluster/state",
       "paths": [
         "/_cluster/state",
         "/_cluster/state/{metric}",

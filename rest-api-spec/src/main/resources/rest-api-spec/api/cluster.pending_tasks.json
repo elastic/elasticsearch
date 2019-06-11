@@ -4,7 +4,6 @@
     "stability": "stable",
     "methods": ["GET"],
     "url": {
-      "path": "/_cluster/pending_tasks",
       "paths": ["/_cluster/pending_tasks"],
       "parts": {
       },

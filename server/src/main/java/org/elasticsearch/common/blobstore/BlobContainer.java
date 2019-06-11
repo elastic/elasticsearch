@@ -100,7 +100,7 @@ public interface BlobContainer {
 
     /**
      * Deletes the blob with the given name, if the blob exists. If the blob does not exist,
-     * this method throws a NoSuchFileException.
+     * this method may throw a {@link NoSuchFileException} if the underlying implementation supports an existence check before delete.
      *
      * @param   blobName
      *          The name of the blob to delete.
@@ -120,9 +120,7 @@ public interface BlobContainer {
         IOException ioe = null;
         for (String blobName : blobNames) {
             try {
-                deleteBlob(blobName);
-            } catch (NoSuchFileException e) {
-                // ignored
+                deleteBlobIgnoringIfNotExists(blobName);
             } catch (IOException e) {
                 if (ioe == null) {
                     ioe = e;
@@ -159,6 +157,16 @@ public interface BlobContainer {
      * @throws  IOException if there were any failures in reading from the blob container.
      */
     Map<String, BlobMetaData> listBlobs() throws IOException;
+
+    /**
+     * Lists all child containers under this container. A child container is defined as a container whose {@link #path()} method returns
+     * a path that has this containers {@link #path()} return as its prefix and has one more path element than the current
+     * container's path.
+     *
+     * @return Map of name of the child container to child container
+     * @throws IOException on failure to list child containers
+     */
+    Map<String, BlobContainer> children() throws IOException;
 
     /**
      * Lists all blobs in the container that match the specified prefix.

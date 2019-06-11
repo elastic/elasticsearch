@@ -18,51 +18,12 @@ buildRestTests.expectedUnconvertedCandidates = [
 ]
 
 dependencies {
-    // "org.elasticsearch.plugin:x-pack-core:${version}" doesn't work with idea because the testArtifacts are also here
     testCompile project(path: xpackModule('core'), configuration: 'default')
     testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
+    if (isEclipse) {
+      testCompile project(path: xpackModule('core-tests'), configuration: 'testArtifacts')
+    }
     testCompile project(path: xpackProject('plugin').path, configuration: 'testArtifacts')
-}
-
-Closure waitWithAuth = { NodeInfo node, AntBuilder ant ->
-    File tmpFile = new File(node.cwd, 'wait.success')
-    // wait up to twenty seconds
-    final long stopTime = System.currentTimeMillis() + 20000L;
-    Exception lastException = null;
-    while (System.currentTimeMillis() < stopTime) {
-        lastException = null;
-        // we use custom wait logic here as the elastic user is not available immediately and ant.get will fail when a 401 is returned
-        HttpURLConnection httpURLConnection = null;
-        try {
-            httpURLConnection = (HttpURLConnection) new URL("http://${node.httpUri()}/_cluster/health").openConnection();
-            httpURLConnection.setRequestProperty("Authorization", "Basic " +
-                    Base64.getEncoder().encodeToString("test_admin:x-pack-test-password".getBytes(StandardCharsets.UTF_8)));
-            httpURLConnection.setRequestMethod("GET");
-            httpURLConnection.setConnectTimeout(1000);
-            httpURLConnection.setReadTimeout(30000);
-            httpURLConnection.connect();
-            if (httpURLConnection.getResponseCode() == 200) {
-                tmpFile.withWriter StandardCharsets.UTF_8.name(), {
-                    it.write(httpURLConnection.getInputStream().getText(StandardCharsets.UTF_8.name()))
-                }
-                break;
-            }
-        } catch (Exception e) {
-            logger.debug("failed to call cluster health", e)
-            lastException = e
-        } finally {
-            if (httpURLConnection != null) {
-                httpURLConnection.disconnect();
-            }
-        }
-
-        // did not start, so wait a bit before trying again
-        Thread.sleep(500L);
-    }
-    if (tmpFile.exists() == false && lastException != null) {
-        logger.error("final attempt of calling cluster health failed", lastException)
-    }
-    return tmpFile.exists()
 }
 
 // copy xpack rest api
@@ -70,7 +31,9 @@ File xpackResources = new File(xpackProject('plugin').projectDir, 'src/test/reso
 project.copyRestSpec.from(xpackResources) {
   include 'rest-api-spec/api/**'
 }
-integTestCluster {
+
+testClusters.integTest {
+    extraConfigFile 'op-jwks.json', xpackProject('test:idp-fixture').file("oidc/op-jwks.json")
     setting 'xpack.security.enabled', 'true'
     setting 'xpack.security.authc.api_key.enabled', 'true'
     setting 'xpack.security.authc.token.enabled', 'true'
@@ -78,11 +41,20 @@ integTestCluster {
     setting 'xpack.monitoring.exporters._local.type', 'local'
     setting 'xpack.monitoring.exporters._local.enabled', 'false'
     setting 'xpack.license.self_generated.type', 'trial'
-    setupCommand 'setupTestAdmin',
-            'bin/elasticsearch-users', 'useradd', 'test_admin', '-p', 'x-pack-test-password', '-r', 'superuser'
-    waitCondition = waitWithAuth
+    setting 'xpack.security.authc.realms.file.file.order', '0'
+    setting 'xpack.security.authc.realms.native.native.order', '1'
+    setting 'xpack.security.authc.realms.oidc.oidc1.order', '2'
+    setting 'xpack.security.authc.realms.oidc.oidc1.op.issuer', 'http://127.0.0.1:8080'
+    setting 'xpack.security.authc.realms.oidc.oidc1.op.authorization_endpoint', "http://127.0.0.1:8080/c2id-login"
+    setting 'xpack.security.authc.realms.oidc.oidc1.op.token_endpoint', "http://127.0.0.1:8080/c2id/token"
+    setting 'xpack.security.authc.realms.oidc.oidc1.op.jwkset_path', 'op-jwks.json'
+    setting 'xpack.security.authc.realms.oidc.oidc1.rp.redirect_uri', 'https://my.fantastic.rp/cb'
+    setting 'xpack.security.authc.realms.oidc.oidc1.rp.client_id', 'elasticsearch-rp'
+    keystore 'xpack.security.authc.realms.oidc.oidc1.rp.client_secret', 'b07efb7a1cf6ec9462afe7b6d3ab55c6c7880262aa61ac28dded292aca47c9a2'
+    setting 'xpack.security.authc.realms.oidc.oidc1.rp.response_type', 'id_token'
+    setting 'xpack.security.authc.realms.oidc.oidc1.claims.principal', 'sub'
+    user username: 'test_admin'
 }
-
 
 
 buildRestTests.docs = fileTree(projectDir) {
@@ -741,11 +713,11 @@ setups['app0102_privileges'] = '''
                   "name": "read",
                   "actions": [
                     "data:read/*",
-                    "action:login" ], 
+                    "action:login" ],
                   "metadata": {
                     "description": "Read access to myapp"
                   }
                 }
-              } 
+              }
             }
 '''

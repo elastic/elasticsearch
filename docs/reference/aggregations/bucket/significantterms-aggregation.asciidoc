@@ -436,6 +436,7 @@ Available parameters in the script are
 `_subset_size`:: Number of documents in the subset.
 `_superset_size`:: Number of documents in the superset.
 
+[[sig-terms-shard-size]]
 ===== Size & Shard Size
 
 The `size` parameter can be set to define how many term buckets should be returned out of the overall terms list. By

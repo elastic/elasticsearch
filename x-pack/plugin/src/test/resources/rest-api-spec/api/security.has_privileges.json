@@ -4,7 +4,6 @@
     "stability": "stable",
     "methods": [ "GET", "POST" ],
     "url": {
-      "path": "/_security/user/_has_privileges",
       "paths": [
         "/_security/user/_has_privileges",
         "/_security/user/{user}/_has_privileges"

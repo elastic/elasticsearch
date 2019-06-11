@@ -4,7 +4,6 @@
     "stability": "stable",
     "methods": ["DELETE"],
     "url": {
-      "path": "/_search/scroll",
       "paths": [ "/_search/scroll"],
       "deprecated_paths" : [
         {

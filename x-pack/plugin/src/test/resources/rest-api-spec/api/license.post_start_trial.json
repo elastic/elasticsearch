@@ -4,7 +4,6 @@
     "stability": "stable",
     "methods": ["POST"],
     "url": {
-      "path": "/_license/start_trial",
       "paths": ["/_license/start_trial"],
       "parts" : {
       },

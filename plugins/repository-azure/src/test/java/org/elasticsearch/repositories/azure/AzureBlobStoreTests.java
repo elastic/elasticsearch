@@ -18,25 +18,35 @@
  */
 package org.elasticsearch.repositories.azure;
 
-import com.microsoft.azure.storage.StorageException;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.repositories.ESBlobStoreTestCase;
+import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.threadpool.ThreadPool;
 
-import java.io.IOException;
-import java.net.URISyntaxException;
+import java.util.concurrent.TimeUnit;
 
 public class AzureBlobStoreTests extends ESBlobStoreTestCase {
 
+    private ThreadPool threadPool;
+
     @Override
-    protected BlobStore newBlobStore() throws IOException {
-        try {
-            RepositoryMetaData repositoryMetaData = new RepositoryMetaData("azure", "ittest", Settings.EMPTY);
-            AzureStorageServiceMock client = new AzureStorageServiceMock();
-            return new AzureBlobStore(repositoryMetaData, client);
-        } catch (URISyntaxException | StorageException e) {
-            throw new IOException(e);
-        }
+    public void setUp() throws Exception {
+        super.setUp();
+        threadPool = new TestThreadPool("AzureBlobStoreTests", AzureRepositoryPlugin.executorBuilder());
+    }
+
+    @Override
+    public void tearDown() throws Exception {
+        super.tearDown();
+        ThreadPool.terminate(threadPool, 10L, TimeUnit.SECONDS);
+    }
+
+    @Override
+    protected BlobStore newBlobStore() {
+        RepositoryMetaData repositoryMetaData = new RepositoryMetaData("azure", "ittest", Settings.EMPTY);
+        AzureStorageServiceMock client = new AzureStorageServiceMock();
+        return new AzureBlobStore(repositoryMetaData, client, threadPool);
     }
 }

@@ -4,7 +4,6 @@
     "stability": "stable",
     "methods": ["POST"],
     "url": {
-      "path": "/{index}/_open",
       "paths": ["/{index}/_open"],
       "parts": {
         "index": {

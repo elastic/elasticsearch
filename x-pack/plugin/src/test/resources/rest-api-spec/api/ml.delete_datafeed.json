@@ -4,7 +4,6 @@
     "stability": "stable",
     "methods": [ "DELETE" ],
     "url": {
-      "path": "/_ml/datafeeds/{datafeed_id}",
       "paths": [ "/_ml/datafeeds/{datafeed_id}" ],
       "parts": {
         "datafeed_id": {

@@ -4,7 +4,6 @@
     "stability": "stable",
     "methods": ["PUT", "POST"],
     "url": {
-      "path": "{index}/_mapping",
       "paths": ["{index}/_mapping"],
       "deprecated_paths" : [
         {

@@ -216,6 +216,7 @@ GET twitter/_search
 <1> The explicit `type` field takes the place of the implicit `_type` field.
 
 [float]
+[[parent-child-mapping-types]]
 ==== Parent/Child without mapping types
 
 Previously, a parent-child relationship was represented by making one mapping
@@ -269,7 +270,8 @@ Elasticsearch 7.x::
 * Specifying types in requests is deprecated. For instance, indexing a
   document no longer requires a document `type`.  The new index APIs
   are `PUT {index}/_doc/{id}` in case of explicit ids and `POST {index}/_doc`
-  for auto-generated ids.
+  for auto-generated ids. Note that in 7.0, `_doc` is a permanent part of the
+  path, and represents the endpoint name rather than the document type.
 
 * The `include_type_name` parameter in the index creation, index template,
   and mapping APIs will default to `false`. Setting the parameter at all will
@@ -431,7 +433,7 @@ In Elasticsearch 7.0, each API will support typeless requests,
 and specifying a type will produce a deprecation warning.
 
 NOTE: Typeless APIs work even if the target index contains a custom type.
-For example, if an index has the the custom type name `my_type`, we can add
+For example, if an index has the custom type name `my_type`, we can add
 documents to it using typeless `index` calls, and load documents with typeless
 `get` calls.
 
@@ -552,6 +554,10 @@ GET index/_doc/1
 --------------------------------------------------
 // CONSOLE
 // TEST[continued]
+
+NOTE: In 7.0, `_doc` represents the endpoint name instead of the document type.
+The `_doc` component is a permanent part of the path for the document `index`,
+`get`, and `delete` APIs going forward, and will not be removed in 8.0.
 
 For API paths that contain both a type and endpoint name like `_update`,
 in 7.0 the endpoint will immediately follow the index name:

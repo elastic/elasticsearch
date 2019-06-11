@@ -472,7 +472,8 @@ public class RestHighLevelClient implements Closeable {
      * are shipped with the Elastic Stack distribution of Elasticsearch. All of
      * these APIs will 404 if run against the OSS distribution of Elasticsearch.
      * <p>
-     * See the <a href="TODO">Data Frame APIs on elastic.co</a> for more information.
+     * See the <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/data-frame-apis.html">
+     *     Data Frame APIs on elastic.co</a> for more information.
      *
      * @return the client wrapper for making Data Frame API calls
      */

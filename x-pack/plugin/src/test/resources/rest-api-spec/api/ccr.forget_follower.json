@@ -4,7 +4,6 @@
     "stability" : "stable",
     "methods": [ "POST" ],
     "url": {
-      "path": "/{index}/_ccr/forget_follower",
       "paths": [ "/{index}/_ccr/forget_follower" ],
       "parts": {
         "index": {

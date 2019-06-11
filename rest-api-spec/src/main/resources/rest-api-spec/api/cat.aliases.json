@@ -4,7 +4,6 @@
     "stability": "stable",
     "methods": ["GET"],
     "url": {
-      "path": "/_cat/aliases",
       "paths": ["/_cat/aliases", "/_cat/aliases/{name}"],
       "parts": {
         "name": {

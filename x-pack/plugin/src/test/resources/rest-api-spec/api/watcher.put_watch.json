@@ -4,7 +4,6 @@
     "stability": "stable",
     "methods": [ "PUT", "POST" ],
     "url": {
-      "path": "/_watcher/watch/{id}",
       "paths": [ "/_watcher/watch/{id}" ],
       "parts": {
         "id": {

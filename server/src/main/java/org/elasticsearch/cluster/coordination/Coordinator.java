@@ -164,7 +164,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             new HandshakingTransportAddressConnector(settings, transportService), configuredHostsResolver);
         this.publicationHandler = new PublicationTransportHandler(transportService, namedWriteableRegistry,
             this::handlePublishRequest, this::handleApplyCommit);
-        this.leaderChecker = new LeaderChecker(settings, transportService, getOnLeaderFailure());
+        this.leaderChecker = new LeaderChecker(settings, transportService, this::onLeaderFailure);
         this.followersChecker = new FollowersChecker(settings, transportService, this::onFollowerCheckRequest, this::removeNode);
         this.nodeRemovalExecutor = new NodeRemovalClusterStateTaskExecutor(allocationService, logger);
         this.clusterApplier = clusterApplier;
@@ -183,20 +183,14 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             StreamSupport.stream(peerFinder.getFoundPeers().spliterator(), false).collect(Collectors.toList()), getCurrentTerm());
     }
 
-    private Runnable getOnLeaderFailure() {
-        return new Runnable() {
-            @Override
-            public void run() {
-                synchronized (mutex) {
-                    becomeCandidate("onLeaderFailure");
-                }
+    private void onLeaderFailure(Exception e) {
+        synchronized (mutex) {
+            if (mode != Mode.CANDIDATE) {
+                assert lastKnownLeader.isPresent();
+                logger.info(new ParameterizedMessage("master node [{}] failed, restarting discovery", lastKnownLeader.get()), e);
             }
-
-            @Override
-            public String toString() {
-                return "notification of leader failure";
-            }
-        };
+            becomeCandidate("onLeaderFailure");
+        }
     }
 
     private void removeNode(DiscoveryNode discoveryNode, String reason) {
@@ -478,7 +472,6 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         });
     }
 
-
     private void processJoinRequest(JoinRequest joinRequest, JoinHelper.JoinCallback joinCallback) {
         final Optional<Join> optionalJoin = joinRequest.getOptionalJoin();
         synchronized (mutex) {
@@ -648,7 +641,11 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             coordinationState.set(new CoordinationState(settings, getLocalNode(), persistedState));
             peerFinder.setCurrentTerm(getCurrentTerm());
             configuredHostsResolver.start();
-            VotingConfiguration votingConfiguration = coordinationState.get().getLastAcceptedState().getLastCommittedConfiguration();
+            final ClusterState lastAcceptedState = coordinationState.get().getLastAcceptedState();
+            if (lastAcceptedState.metaData().clusterUUIDCommitted()) {
+                logger.info("cluster UUID [{}]", lastAcceptedState.metaData().clusterUUID());
+            }
+            final VotingConfiguration votingConfiguration = lastAcceptedState.getLastCommittedConfiguration();
             if (singleNodeDiscovery &&
                 votingConfiguration.isEmpty() == false &&
                 votingConfiguration.hasQuorum(Collections.singleton(getLocalNode().getId())) == false) {
@@ -696,7 +693,6 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             assert followersChecker.getFastResponseState().term == getCurrentTerm() : followersChecker.getFastResponseState();
             assert followersChecker.getFastResponseState().mode == getMode() : followersChecker.getFastResponseState();
             assert (applierState.nodes().getMasterNodeId() == null) == applierState.blocks().hasGlobalBlockWithId(NO_MASTER_BLOCK_ID);
-            assert applierState.nodes().getMasterNodeId() == null || applierState.metaData().clusterUUIDCommitted();
             assert preVoteCollector.getPreVoteResponse().equals(getPreVoteResponse())
                 : preVoteCollector + " vs " + getPreVoteResponse();
 
@@ -997,9 +993,10 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                 assert getLocalNode().equals(clusterState.getNodes().get(getLocalNode().getId())) :
                     getLocalNode() + " should be in published " + clusterState;
 
-                final PublishRequest publishRequest = coordinationState.get().handleClientValue(clusterState);
                 final PublicationTransportHandler.PublicationContext publicationContext =
                     publicationHandler.newPublicationContext(clusterChangedEvent);
+
+                final PublishRequest publishRequest = coordinationState.get().handleClientValue(clusterState);
                 final CoordinatorPublication publication = new CoordinatorPublication(publishRequest, publicationContext,
                     new ListenableFuture<>(), ackListener, publishListener);
                 currentPublication = Optional.of(publication);
@@ -1161,9 +1158,13 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
      */
     boolean cancelCommittedPublication() {
         synchronized (mutex) {
-            if (currentPublication.isPresent() && currentPublication.get().isCommitted()) {
-                currentPublication.get().cancel("cancelCommittedPublication");
-                return true;
+            if (currentPublication.isPresent()) {
+                final CoordinatorPublication publication = currentPublication.get();
+                if (publication.isCommitted()) {
+                    publication.cancel("cancelCommittedPublication");
+                    logger.debug("Cancelled publication of [{}].", publication);
+                    return true;
+                }
             }
             return false;
         }
@@ -1227,7 +1228,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
 
                 @Override
                 public String toString() {
-                    return "scheduled timeout for " + this;
+                    return "scheduled timeout for " + CoordinatorPublication.this;
                 }
             }, publishTimeout, Names.GENERIC);
         }

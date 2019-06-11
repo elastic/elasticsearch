@@ -4,7 +4,6 @@
     "stability": "stable",
     "methods": ["GET"],
     "url": {
-      "path": "/_segments",
       "paths": ["/_segments", "/{index}/_segments"],
       "parts": {
         "index": {

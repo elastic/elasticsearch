@@ -4,7 +4,6 @@
     "stability": "private",
     "methods": [ "POST" ],
     "url": {
-      "path": "/_data_frame/transforms/_preview",
       "paths": [ "/_data_frame/transforms/_preview" ]
     },
     "body": {

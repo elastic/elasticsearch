@@ -4,7 +4,6 @@
     "stability" : "experimental",
     "methods": ["GET", "POST"],
     "url": {
-      "path": "/_rank_eval",
       "paths": ["/_rank_eval", "/{index}/_rank_eval"],
       "parts": {
         "index": {

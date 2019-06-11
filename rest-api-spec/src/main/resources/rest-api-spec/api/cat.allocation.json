@@ -4,7 +4,6 @@
     "stability": "stable",
     "methods": ["GET"],
     "url": {
-      "path": "/_cat/allocation",
       "paths": ["/_cat/allocation", "/_cat/allocation/{node_id}"],
       "parts": {
         "node_id": {

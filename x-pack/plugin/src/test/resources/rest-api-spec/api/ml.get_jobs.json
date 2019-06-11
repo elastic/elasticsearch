@@ -4,7 +4,6 @@
     "stability": "stable",
     "methods": [ "GET"],
     "url": {
-      "path": "/_ml/anomaly_detectors/{job_id}",
       "paths": [
         "/_ml/anomaly_detectors/{job_id}",
         "/_ml/anomaly_detectors"

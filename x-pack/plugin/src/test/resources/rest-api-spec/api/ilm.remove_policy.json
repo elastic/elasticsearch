@@ -4,7 +4,6 @@
     "stability": "stable",
     "methods": [ "POST" ],
     "url": {
-      "path": "/{index}/_ilm/remove",
       "paths": ["/{index}/_ilm/remove"],
       "parts": {
         "index": {

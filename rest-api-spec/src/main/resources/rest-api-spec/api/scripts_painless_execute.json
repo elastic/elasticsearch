@@ -4,7 +4,6 @@
     "stability" : "experimental",
     "methods": ["GET", "POST"],
     "url": {
-      "path": "/_scripts/painless/_execute",
       "paths": ["/_scripts/painless/_execute"],
       "parts": {
       },

@@ -4,7 +4,6 @@
     "stability": "stable",
     "methods": ["GET", "POST"],
     "url": {
-      "path": "/_search/scroll",
       "paths": ["/_search/scroll"],
       "deprecated_paths" : [
         {

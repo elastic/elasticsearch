@@ -4,7 +4,6 @@
     "stability": "stable",
     "methods": [ "POST" ],
     "url": {
-      "path": "/_watcher/_start",
       "paths": [ "/_watcher/_start" ],
       "parts": {
       },

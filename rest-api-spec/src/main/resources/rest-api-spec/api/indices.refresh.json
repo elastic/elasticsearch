@@ -4,7 +4,6 @@
     "stability": "stable",
     "methods": ["POST", "GET"],
     "url": {
-      "path": "/_refresh",
       "paths": ["/_refresh", "/{index}/_refresh"],
       "parts": {
         "index": {

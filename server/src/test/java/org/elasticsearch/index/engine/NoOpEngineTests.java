@@ -75,7 +75,7 @@ public class NoOpEngineTests extends EngineTestCase {
         ShardRouting routing = TestShardRouting.newShardRouting("test", shardId.id(), "node",
             null, true, ShardRoutingState.STARTED, allocationId);
         IndexShardRoutingTable table = new IndexShardRoutingTable.Builder(shardId).addShard(routing).build();
-        tracker.updateFromMaster(1L, Collections.singleton(allocationId.getId()), table, Collections.emptySet());
+        tracker.updateFromMaster(1L, Collections.singleton(allocationId.getId()), table);
         tracker.activatePrimaryMode(SequenceNumbers.NO_OPS_PERFORMED);
         for (int i = 0; i < docs; i++) {
             ParsedDocument doc = testParsedDocument("" + i, null, testDocumentWithTextField(), B_1, null);
@@ -144,7 +144,7 @@ public class NoOpEngineTests extends EngineTestCase {
                 assertEquals(expectedDocStats.getTotalSizeInBytes(), noOpEngine.docStats().getTotalSizeInBytes());
                 assertEquals(expectedDocStats.getAverageSizeInBytes(), noOpEngine.docStats().getAverageSizeInBytes());
                 assertEquals(expectedSegmentStats.getCount(), noOpEngine.segmentsStats(includeFileSize, true).getCount());
-                assertEquals(expectedSegmentStats.getMemoryInBytes(), noOpEngine.segmentsStats(includeFileSize, true).getMemoryInBytes());
+                // don't compare memory in bytes since we load the index with term-dict off-heap
                 assertEquals(expectedSegmentStats.getFileSizes().size(),
                     noOpEngine.segmentsStats(includeFileSize, true).getFileSizes().size());
 

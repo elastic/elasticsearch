@@ -16,8 +16,8 @@ import org.elasticsearch.xpack.core.XPackFeatureSet;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.watcher.WatcherFeatureSetUsage;
-import org.elasticsearch.xpack.core.watcher.client.WatcherClient;
 import org.elasticsearch.xpack.core.watcher.common.stats.Counters;
+import org.elasticsearch.xpack.core.watcher.transport.actions.stats.WatcherStatsAction;
 import org.elasticsearch.xpack.core.watcher.transport.actions.stats.WatcherStatsRequest;
 import org.elasticsearch.xpack.core.watcher.transport.actions.stats.WatcherStatsResponse;
 
@@ -28,7 +28,6 @@ import java.util.Objects;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.core.ClientHelper.WATCHER_ORIGIN;
-import static org.elasticsearch.xpack.core.ClientHelper.stashWithOrigin;
 
 public class WatcherFeatureSet implements XPackFeatureSet {
 
@@ -72,11 +71,10 @@ public class WatcherFeatureSet implements XPackFeatureSet {
     public void usage(ActionListener<XPackFeatureSet.Usage> listener) {
         if (enabled) {
             try (ThreadContext.StoredContext ignore =
-                         stashWithOrigin(client.threadPool().getThreadContext(), WATCHER_ORIGIN)) {
-                WatcherClient watcherClient = new WatcherClient(client);
+                    client.threadPool().getThreadContext().stashWithOrigin(WATCHER_ORIGIN)) {
                 WatcherStatsRequest request = new WatcherStatsRequest();
                 request.includeStats(true);
-                watcherClient.watcherStats(request, ActionListener.wrap(r -> {
+                client.execute(WatcherStatsAction.INSTANCE, request, ActionListener.wrap(r -> {
                     List<Counters> countersPerNode = r.getNodes()
                             .stream()
                             .map(WatcherStatsResponse.Node::getStats)

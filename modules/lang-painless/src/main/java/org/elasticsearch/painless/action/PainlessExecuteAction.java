@@ -30,7 +30,6 @@ import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.RAMDirectory;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
@@ -83,8 +82,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
-import java.util.Collections;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
@@ -103,7 +100,7 @@ public class PainlessExecuteAction extends Action<PainlessExecuteAction.Response
 
     @Override
     public Response newResponse() {
-        return new Response();
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     public static class Request extends SingleShardRequest<Request> implements ToXContentObject {
@@ -120,15 +117,10 @@ public class PainlessExecuteAction extends Action<PainlessExecuteAction.Response
             PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), ContextSetup::parse, CONTEXT_SETUP_FIELD);
         }
 
-        static final Map<String, ScriptContext<?>> SUPPORTED_CONTEXTS;
-
-        static {
-            Map<String, ScriptContext<?>> supportedContexts = new HashMap<>();
-            supportedContexts.put("painless_test", PainlessTestScript.CONTEXT);
-            supportedContexts.put("filter", FilterScript.CONTEXT);
-            supportedContexts.put("score", ScoreScript.CONTEXT);
-            SUPPORTED_CONTEXTS = Collections.unmodifiableMap(supportedContexts);
-        }
+        static final Map<String, ScriptContext<?>> SUPPORTED_CONTEXTS = Map.of(
+                "painless_test", PainlessTestScript.CONTEXT,
+                "filter", FilterScript.CONTEXT,
+                "score", ScoreScript.CONTEXT);
 
         static ScriptContext<?> fromScriptContextName(String name) {
             ScriptContext<?> scriptContext = SUPPORTED_CONTEXTS.get(name);
@@ -320,25 +312,16 @@ public class PainlessExecuteAction extends Action<PainlessExecuteAction.Response
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
             script = new Script(in);
-            if (in.getVersion().before(Version.V_6_4_0)) {
-                byte scriptContextId = in.readByte();
-                assert scriptContextId == 0;
-            } else {
-                context = fromScriptContextName(in.readString());
-                contextSetup = in.readOptionalWriteable(ContextSetup::new);
-            }
+            context = fromScriptContextName(in.readString());
+            contextSetup = in.readOptionalWriteable(ContextSetup::new);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             script.writeTo(out);
-            if (out.getVersion().before(Version.V_6_4_0)) {
-                out.writeByte((byte) 0);
-            } else {
-                out.writeString(context.name);
-                out.writeOptionalWriteable(contextSetup);
-            }
+            out.writeString(context.name);
+            out.writeOptionalWriteable(contextSetup);
         }
 
         // For testing only:
@@ -388,10 +371,13 @@ public class PainlessExecuteAction extends Action<PainlessExecuteAction.Response
 
         private Object result;
 
-        Response() {}
-
         Response(Object result) {
             this.result = result;
+        }
+
+        Response(StreamInput in) throws IOException {
+            super(in);
+            result = in.readGenericValue();
         }
 
         public Object getResult() {
@@ -400,8 +386,7 @@ public class PainlessExecuteAction extends Action<PainlessExecuteAction.Response
 
         @Override
         public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            result = in.readGenericValue();
+            throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
         }
 
         @Override
@@ -476,8 +461,8 @@ public class PainlessExecuteAction extends Action<PainlessExecuteAction.Response
         }
 
         @Override
-        protected Response newResponse() {
-            return new Response();
+        protected Writeable.Reader<Response> getResponseReader() {
+            return Response::new;
         }
 
         @Override

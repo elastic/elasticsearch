@@ -1,8 +1,8 @@
 ---
 "Internal version":
  - skip:
-      version: " - 6.6.99"
-      reason:  versioned operations were deprecated in 6.7
+      version: " - 6.8.0"
+      reason:  versioned operations were deprecated in 6.7 but deprecation warnings are not consistent until all nodes on 6.8.1+
       features: warnings
 
  - do:

@@ -43,7 +43,7 @@ public class AzureStorageCleanupThirdPartyTests extends AbstractThirdPartyReposi
     @Override
     protected SecureSettings credentials() {
         assertThat(System.getProperty("test.azure.account"), not(blankOrNullString()));
-        final boolean hasSasToken = Strings.hasText(System.getProperty("test.azure.sas"));
+        final boolean hasSasToken = Strings.hasText(System.getProperty("test.azure.sas_token"));
         if (hasSasToken == false) {
             assertThat(System.getProperty("test.azure.key"), not(blankOrNullString()));
         } else {
@@ -55,7 +55,7 @@ public class AzureStorageCleanupThirdPartyTests extends AbstractThirdPartyReposi
         MockSecureSettings secureSettings = new MockSecureSettings();
         secureSettings.setString("azure.client.default.account", System.getProperty("test.azure.account"));
         if (hasSasToken) {
-            secureSettings.setString("azure.client.default.sas_token", System.getProperty("test.azure.sas"));
+            secureSettings.setString("azure.client.default.sas_token", System.getProperty("test.azure.sas_token"));
         } else {
             secureSettings.setString("azure.client.default.key", System.getProperty("test.azure.key"));
         }

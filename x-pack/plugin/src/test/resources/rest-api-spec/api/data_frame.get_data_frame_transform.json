@@ -3,7 +3,6 @@
     "documentation": "https://www.elastic.co/guide/en/elasticsearch/reference/current/get-data-frame-transform.html",
     "methods": [ "GET" ],
     "url": {
-      "path": "/_data_frame/transforms/{transform_id}",
       "paths": [ "/_data_frame/transforms/{transform_id}", "/_data_frame/transforms"],
       "parts": {
         "transform_id": {

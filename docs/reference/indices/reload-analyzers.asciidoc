@@ -18,7 +18,7 @@ PUT /test_index
         "index" : {
             "analysis" : {
                 "analyzer" : {
-                    "synonym" : {
+                    "my_synonyms" : {
                         "tokenizer" : "whitespace",
                         "filter" : ["synonym"]
                     }
@@ -37,7 +37,8 @@ PUT /test_index
         "properties": {
             "text": {
                 "type": "text",
-                "search_analyzer": "synonym" <2>
+                "analyzer" : "standard",
+                "search_analyzer": "my_synonyms" <2>
             }
         }
     }
@@ -46,7 +47,7 @@ PUT /test_index
 // CONSOLE
 
 <1> Mark the synonym filter as updateable.
-<2> Synonym filter is usable as a search_analyzer.
+<2> Synonym analyzer is usable as a search_analyzer.
 
 Calling the `_reload_search_analyzers` endpoint will now trigger reloading the
 synonyms from the configured "synonym.txt" file.

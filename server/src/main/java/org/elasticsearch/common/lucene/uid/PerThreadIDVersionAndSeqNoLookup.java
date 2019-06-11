@@ -74,7 +74,9 @@ final class PerThreadIDVersionAndSeqNoLookup {
             // If a segment contains only no-ops, it does not have _uid but has both _soft_deletes and _tombstone fields.
             final NumericDocValues softDeletesDV = reader.getNumericDocValues(Lucene.SOFT_DELETES_FIELD);
             final NumericDocValues tombstoneDV = reader.getNumericDocValues(SeqNoFieldMapper.TOMBSTONE_NAME);
-            if (softDeletesDV == null || tombstoneDV == null) {
+            // this is a special case when we pruned away all IDs in a segment since all docs are deleted.
+            final boolean allDocsDeleted = (softDeletesDV != null && reader.numDocs() == 0);
+            if ((softDeletesDV == null || tombstoneDV == null) && allDocsDeleted == false) {
                 throw new IllegalArgumentException("reader does not have _uid terms but not a no-op segment; " +
                     "_soft_deletes [" + softDeletesDV + "], _tombstone [" + tombstoneDV + "]");
             }

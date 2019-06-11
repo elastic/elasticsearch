@@ -128,6 +128,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasToString;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.isIn;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
@@ -882,7 +883,8 @@ public class TranslogTests extends ESTestCase {
             for (int i = 0; i < locations.size(); i++) {
                 try {
                     assertNotNull(snap.next());
-                } catch (EOFException e) {
+                } catch (TranslogCorruptedException e) {
+                    assertThat(e.getCause(), instanceOf(EOFException.class));
                     truncations.incrementAndGet();
                 }
             }

@@ -35,6 +35,9 @@ public class ElisionTokenFilterFactory extends AbstractTokenFilterFactory implem
 
     ElisionTokenFilterFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(indexSettings, name, settings);
+        if (settings.get("articles") == null) {
+            throw new IllegalArgumentException("elision filter requires [articles] setting");
+        }
         this.articles = Analysis.parseArticles(env, settings);
     }
 

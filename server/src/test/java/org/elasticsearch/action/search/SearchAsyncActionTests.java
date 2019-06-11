@@ -38,7 +38,6 @@ import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestOptions;
-import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.util.ArrayList;

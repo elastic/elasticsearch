@@ -3,7 +3,6 @@
     "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/cat-snapshots.html",
     "methods": ["GET"],
     "url": {
-      "path": "/_cat/snapshots",
       "paths": [
         "/_cat/snapshots",
         "/_cat/snapshots/{repository}"],

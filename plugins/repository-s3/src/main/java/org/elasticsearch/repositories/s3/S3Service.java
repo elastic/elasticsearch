@@ -154,15 +154,9 @@ class S3Service implements Closeable {
         // We do this because directly constructing the client is deprecated (was already deprecated in 1.1.223 too)
         // so this change removes that usage of a deprecated API.
         builder.withEndpointConfiguration(new AwsClientBuilder.EndpointConfiguration(endpoint, null));
-        if (clientSettings.pathStyleAccess == S3ClientSettings.PathStyleAccess.ENABLED) {
+        if (clientSettings.pathStyleAccess) {
             builder.enablePathStyleAccess();
-        } else if (clientSettings.pathStyleAccess == S3ClientSettings.PathStyleAccess.DISABLED) {
-            builder.setPathStyleAccessEnabled(false);
-        } else {
-            assert clientSettings.pathStyleAccess == S3ClientSettings.PathStyleAccess.DEFAULT;
-            assert builder.isPathStyleAccessEnabled() == null;
         }
-
         return builder.build();
     }
 

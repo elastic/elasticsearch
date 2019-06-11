@@ -144,4 +144,11 @@ public class S3ClientSettingsTests extends ESTestCase {
             assertThat(credentials.getSessionToken(), is("session_token"));
         }
     }
+
+    public void testPathStyleAccessCanBeSet() {
+        final Map<String, S3ClientSettings> settings = S3ClientSettings.load(
+            Settings.builder().put("s3.client.other.path_style_access", true).build());
+        assertThat(settings.get("default").pathStyleAccess, is(false));
+        assertThat(settings.get("other").pathStyleAccess, is(true));
+    }
 }

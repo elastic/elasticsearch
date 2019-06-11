@@ -21,7 +21,6 @@ package org.elasticsearch.repositories.s3;
 
 import com.amazonaws.ClientConfiguration;
 import com.amazonaws.Protocol;
-import com.amazonaws.services.s3.AmazonS3Builder;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.common.settings.SecureSetting;
 import org.elasticsearch.common.settings.SecureString;
@@ -97,10 +96,8 @@ final class S3ClientSettings {
         key -> Setting.boolSetting(key, ClientConfiguration.DEFAULT_THROTTLE_RETRIES, Property.NodeScope));
 
     /** Whether the s3 client should use path style access. */
-    static final Setting.AffixSetting<S3ClientSettings.PathStyleAccess> USE_PATH_STYLE_ACCESS = Setting.affixKeySetting(
-        PREFIX, "path_style_access",
-        key -> new Setting<>(key, s -> "default", s -> Boolean.parseBoolean(s) ? PathStyleAccess.ENABLED : PathStyleAccess.DISABLED,
-            Property.NodeScope));
+    static final Setting.AffixSetting<Boolean> USE_PATH_STYLE_ACCESS = Setting.affixKeySetting(PREFIX, "path_style_access",
+        key -> Setting.boolSetting(key, false, Property.NodeScope));
 
     /** Credentials to authenticate with s3. */
     final S3BasicCredentials credentials;
@@ -135,12 +132,12 @@ final class S3ClientSettings {
     final boolean throttleRetries;
 
     /** Whether the s3 client should use path style access. */
-    final PathStyleAccess pathStyleAccess;
+    final boolean pathStyleAccess;
 
     private S3ClientSettings(S3BasicCredentials credentials, String endpoint, Protocol protocol,
                              String proxyHost, int proxyPort, String proxyUsername, String proxyPassword,
                              int readTimeoutMillis, int maxRetries, boolean throttleRetries,
-                             PathStyleAccess pathStyleAccess) {
+                             boolean pathStyleAccess) {
         this.credentials = credentials;
         this.endpoint = endpoint;
         this.protocol = protocol;
@@ -174,7 +171,7 @@ final class S3ClientSettings {
             getRepoSettingOrDefault(READ_TIMEOUT_SETTING, normalizedSettings, TimeValue.timeValueMillis(readTimeoutMillis)).millis());
         final int newMaxRetries = getRepoSettingOrDefault(MAX_RETRIES_SETTING, normalizedSettings, maxRetries);
         final boolean newThrottleRetries = getRepoSettingOrDefault(USE_THROTTLE_RETRIES_SETTING, normalizedSettings, throttleRetries);
-        final PathStyleAccess usePathStyleAccess = getRepoSettingOrDefault(USE_PATH_STYLE_ACCESS, normalizedSettings, pathStyleAccess);
+        final boolean usePathStyleAccess = getRepoSettingOrDefault(USE_PATH_STYLE_ACCESS, normalizedSettings, pathStyleAccess);
         final S3BasicCredentials newCredentials;
         if (checkDeprecatedCredentials(repoSettings)) {
             newCredentials = loadDeprecatedCredentials(repoSettings);
@@ -328,23 +325,5 @@ final class S3ClientSettings {
             return getConfigValue(normalizedSettings, PLACEHOLDER_CLIENT, setting);
         }
         return defaultValue;
-    }
-
-    /**
-     * Settings for path style access behavior.
-     */
-    enum PathStyleAccess {
-        /**
-         * Let SDK decide whether to use path style access.
-         */
-        DEFAULT,
-        /**
-         * Force use of path style access, i.e set {@link AmazonS3Builder#setPathStyleAccessEnabled(Boolean)} to {@code true}.
-         */
-        ENABLED,
-        /**
-         * Don't use path style access, i.e set {@link AmazonS3Builder#setPathStyleAccessEnabled(Boolean)} to {@code false}.
-         */
-        DISABLED
     }
 }

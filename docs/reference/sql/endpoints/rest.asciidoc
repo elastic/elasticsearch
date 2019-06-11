@@ -129,7 +129,7 @@ Frank Herbert,Dune,604,1965-06-01T00:00:00.000Z
 Alastair Reynolds,Revelation Space,585,2000-03-15T00:00:00.000Z
 James S.A. Corey,Leviathan Wakes,561,2011-06-02T00:00:00.000Z
 --------------------------------------------------
-// TESTRESPONSE[_cat]
+// TESTRESPONSE[non_json]
 
 ==== JSON
 
@@ -192,7 +192,7 @@ Alastair Reynolds	Revelation Space	585	2000-03-15T00:00:00.000Z
 James S.A. Corey	Leviathan Wakes	561	2011-06-02T00:00:00.000Z
 --------------------------------------------------
 // TESTRESPONSE[s/\t/ /]
-// TESTRESPONSE[_cat]
+// TESTRESPONSE[non_json]
 
 ==== TXT
 
@@ -220,7 +220,7 @@ Alastair Reynolds|Revelation Space    |585            |2000-03-15T00:00:00.000Z
 James S.A. Corey |Leviathan Wakes     |561            |2011-06-02T00:00:00.000Z
 --------------------------------------------------
 // TESTRESPONSE[s/\|/\\|/ s/\+/\\+/]
-// TESTRESPONSE[_cat]
+// TESTRESPONSE[non_json]
 
 ==== YAML
 

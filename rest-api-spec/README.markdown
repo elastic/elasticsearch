@@ -85,7 +85,10 @@ The spec allows for deprecations of:
           "path" : "/_monitoring/{type}/bulk",
           "description" : "Specifying types in urls has been deprecated"
         }
-      ],
+      ]
+    }
+  }
+}
 ```
 
 Here `paths` describes the preferred paths and `deprecated_paths` indicates `paths` that will still work but are now 
@@ -106,8 +109,12 @@ deprecated.
           "deprecated" : {
             "version" : "7.0.0",
             "description" : "Reason parameter is being deprecated"
-          },
-        },
+          }
+        }
+      }
+    }
+  }
+}
 ```
 
 ## License

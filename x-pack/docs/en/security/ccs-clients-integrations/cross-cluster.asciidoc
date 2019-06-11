@@ -52,10 +52,10 @@ PUT _cluster/settings
   "persistent": {
     "cluster": {
       "remote": {
-        "cluster_one": {
+        "one": {
           "seeds": [ "10.0.1.1:9300" ]
         },
-        "cluster_two": {
+        "two": {
           "seeds": [ "10.0.2.1:9300" ]
         }
       }

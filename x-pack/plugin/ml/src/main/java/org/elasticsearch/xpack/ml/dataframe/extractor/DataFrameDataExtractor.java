@@ -19,6 +19,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.fetch.StoredFieldsContext;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.ml.datafeed.extractor.fields.ExtractedField;
@@ -128,14 +129,28 @@ public class DataFrameDataExtractor {
                 .addSort(DataFrameAnalyticsFields.ID, SortOrder.ASC)
                 .setIndices(context.indices)
                 .setSize(context.scrollSize)
-                .setQuery(context.query)
-                .setFetchSource(context.includeSource);
+                .setQuery(context.query);
+        setFetchSource(searchRequestBuilder);
 
         for (ExtractedField docValueField : context.extractedFields.getDocValueFields()) {
             searchRequestBuilder.addDocValueField(docValueField.getName(), docValueField.getDocValueFormat());
         }
 
         return searchRequestBuilder;
+    }
+
+    private void setFetchSource(SearchRequestBuilder searchRequestBuilder) {
+        if (context.includeSource) {
+            searchRequestBuilder.setFetchSource(true);
+        } else {
+            String[] sourceFields = context.extractedFields.getSourceFields();
+            if (sourceFields.length == 0) {
+                searchRequestBuilder.setFetchSource(false);
+                searchRequestBuilder.storedFields(StoredFieldsContext._NONE_);
+            } else {
+                searchRequestBuilder.setFetchSource(sourceFields, null);
+            }
+        }
     }
 
     private List<Row> processSearchResponse(SearchResponse searchResponse) throws IOException {

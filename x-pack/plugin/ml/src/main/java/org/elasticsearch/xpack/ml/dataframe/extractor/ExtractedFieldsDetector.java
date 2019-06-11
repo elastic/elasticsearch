@@ -57,13 +57,15 @@ public class ExtractedFieldsDetector {
     private final String index;
     private final DataFrameAnalyticsConfig config;
     private final boolean isTaskRestarting;
+    private final int docValueFieldsLimit;
     private final FieldCapabilitiesResponse fieldCapabilitiesResponse;
 
-    ExtractedFieldsDetector(String index, DataFrameAnalyticsConfig config, boolean isTaskRestarting,
+    ExtractedFieldsDetector(String index, DataFrameAnalyticsConfig config, boolean isTaskRestarting, int docValueFieldsLimit,
                             FieldCapabilitiesResponse fieldCapabilitiesResponse) {
         this.index = Objects.requireNonNull(index);
         this.config = Objects.requireNonNull(config);
         this.isTaskRestarting = isTaskRestarting;
+        this.docValueFieldsLimit = docValueFieldsLimit;
         this.fieldCapabilitiesResponse = Objects.requireNonNull(fieldCapabilitiesResponse);
     }
 
@@ -85,6 +87,10 @@ public class ExtractedFieldsDetector {
             .filterFields(ExtractedField.ExtractionMethod.DOC_VALUE);
         if (extractedFields.getAllFields().isEmpty()) {
             throw ExceptionsHelper.badRequestException("No compatible fields could be detected in index [{}]", index);
+        }
+        if (extractedFields.getAllFields().size() > docValueFieldsLimit) {
+            extractedFields = new ExtractedFields(extractedFields.getAllFields().stream().map(ExtractedField::newFromSource)
+                .collect(Collectors.toList()));
         }
         return extractedFields;
     }

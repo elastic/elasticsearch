@@ -58,6 +58,8 @@ public abstract class ExtractedField {
 
     public abstract Object[] value(SearchHit hit);
 
+    protected abstract boolean supportsFromSource();
+
     public String getDocValueFormat() {
         return null;
     }
@@ -93,6 +95,14 @@ public abstract class ExtractedField {
         }
     }
 
+    public ExtractedField newFromSource() {
+        if (supportsFromSource() == false) {
+            throw new IllegalStateException("Field (alias [" + alias + "], name [" + name + "]) should be extracted via ["
+                + extractionMethod + "] and cannot be extracted from source");
+        }
+        return new FromSource(alias, name);
+    }
+
     private static class FromFields extends ExtractedField {
 
         FromFields(String alias, String name, ExtractionMethod extractionMethod) {
@@ -107,6 +117,11 @@ public abstract class ExtractedField {
                 return values.toArray(new Object[0]);
             }
             return new Object[0];
+        }
+
+        @Override
+        protected boolean supportsFromSource() {
+            return getExtractionMethod() == ExtractionMethod.DOC_VALUE;
         }
     }
 
@@ -255,6 +270,11 @@ public abstract class ExtractedField {
                 }
             }
             return new Object[0];
+        }
+
+        @Override
+        protected boolean supportsFromSource() {
+            return true;
         }
 
         @SuppressWarnings("unchecked")

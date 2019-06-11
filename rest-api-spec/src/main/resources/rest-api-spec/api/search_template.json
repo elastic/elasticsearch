@@ -3,7 +3,6 @@
     "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/current/search-template.html",
     "methods": ["GET", "POST"],
     "url": {
-      "path": "/_search/template",
       "paths": ["/_search/template", "/{index}/_search/template"],
       "parts": {
         "index": {

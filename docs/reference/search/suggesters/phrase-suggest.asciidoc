@@ -267,7 +267,10 @@ POST _search
 
 The `phrase` suggester supports multiple smoothing models to balance
 weight between infrequent grams (grams (shingles) are not existing in
-the index) and frequent grams (appear at least once in the index).
+the index) and frequent grams (appear at least once in the index). The
+smoothing model can be selected by setting the `smoothing` parameter
+to one of the following options. Each smoothing model supports specific
+properties that can be configured.
 
 [horizontal]
 `stupid_backoff`::
@@ -287,6 +290,28 @@ the index) and frequent grams (appear at least once in the index).
     weights (lambdas). Linear Interpolation doesn't have any default values.
     All parameters (`trigram_lambda`, `bigram_lambda`, `unigram_lambda`)
     must be supplied.
+
+[source,js]
+--------------------------------------------------
+POST _search
+{
+  "suggest": {
+    "text" : "obel prize",
+    "simple_phrase" : {
+      "phrase" : {
+        "field" : "title.trigram",
+        "size" : 1,
+        "smoothing" : {
+          "laplace" : {
+            "alpha" : 0.7
+          }
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
+// CONSOLE
 
 ==== Candidate Generators
 

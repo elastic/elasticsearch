@@ -36,10 +36,10 @@ The following example deletes the `ecommerce_transform` {dataframe-transform}:
 
 [source,js]
 --------------------------------------------------
-DELETE _data_frame/transforms/airline-transform
+DELETE _data_frame/transforms/ecommerce_transform
 --------------------------------------------------
 // CONSOLE
-// TEST[setup:setup kibana sample data]
+// TEST[skip:setup kibana sample data]
 
 When the {dataframe-transform} is deleted, you receive the following results:
 [source,js]

@@ -3,7 +3,6 @@
     "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/cluster-nodes-info.html",
     "methods": ["GET"],
     "url": {
-      "path": "/_nodes",
       "paths": ["/_nodes", "/_nodes/{node_id}", "/_nodes/{metric}", "/_nodes/{node_id}/{metric}"],
       "parts": {
         "node_id": {

@@ -3,7 +3,6 @@
     "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/cluster-pending.html",
     "methods": ["GET"],
     "url": {
-      "path": "/_cluster/pending_tasks",
       "paths": ["/_cluster/pending_tasks"],
       "parts": {
       },

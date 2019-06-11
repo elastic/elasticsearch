@@ -3,7 +3,6 @@
     "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/search-shards.html",
     "methods": ["GET", "POST"],
     "url": {
-      "path": "/{index}/_search_shards",
       "paths": ["/_search_shards", "/{index}/_search_shards"],
       "parts": {
         "index": {

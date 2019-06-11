@@ -3,7 +3,6 @@
     "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/cluster-update-settings.html",
     "methods": ["GET"],
     "url": {
-      "path": "/_cluster/settings",
       "paths": ["/_cluster/settings"],
       "parts": {},
       "params": {

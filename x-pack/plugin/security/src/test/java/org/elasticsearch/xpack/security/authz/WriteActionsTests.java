@@ -53,6 +53,7 @@ public class WriteActionsTests extends SecurityIntegTestCase {
         //the missing index gets automatically created (user has permissions for that), but indexing fails due to missing authorization
         assertThrowsAuthorizationExceptionDefaultUsers(client().prepareIndex("missing", "type", "id").setSource("field", "value")::get,
                 BulkAction.NAME + "[s]");
+        ensureGreen();
     }
 
     public void testDelete() {
@@ -63,6 +64,7 @@ public class WriteActionsTests extends SecurityIntegTestCase {
         assertThrowsAuthorizationExceptionDefaultUsers(client().prepareDelete("index1", "type", "id")::get, BulkAction.NAME + "[s]");
 
         expectThrows(IndexNotFoundException.class, () -> client().prepareDelete("test4", "type", "id").get());
+        ensureGreen();
     }
 
     public void testUpdate() {
@@ -79,6 +81,7 @@ public class WriteActionsTests extends SecurityIntegTestCase {
 
         assertThrowsAuthorizationExceptionDefaultUsers(client().prepareUpdate("missing", "type", "id")
                         .setDoc(Requests.INDEX_CONTENT_TYPE, "field2", "value2")::get, UpdateAction.NAME);
+        ensureGreen();
     }
 
     public void testBulk() {
@@ -160,5 +163,6 @@ public class WriteActionsTests extends SecurityIntegTestCase {
         assertAuthorizationExceptionDefaultUsers(bulkResponse.getItems()[12].getFailure().getCause(), BulkAction.NAME + "[s]");
         assertThat(bulkResponse.getItems()[12].getFailure().getCause().getMessage(),
                 containsString("[indices:data/write/bulk[s]] is unauthorized"));
+        ensureGreen();
     }
 }

@@ -13,6 +13,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.create.CreateIndexAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.dataframe.DataFrameField;
@@ -46,7 +47,8 @@ public final class DataframeIndex {
 
         // TODO: revisit number of shards, number of replicas
         request.settings(Settings.builder() // <1>
-                .put("index.number_of_shards", 1).put("index.number_of_replicas", 0));
+                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS, "0-1"));
 
         request.mapping(SINGLE_MAPPING_NAME, createMappingXContent(mappings,
             transformConfig.getPivotConfig().getGroupConfig().getGroups(),

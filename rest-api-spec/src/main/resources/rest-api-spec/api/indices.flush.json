@@ -3,7 +3,6 @@
     "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/indices-flush.html",
     "methods": ["POST", "GET"],
     "url": {
-      "path": "/_flush",
       "paths": ["/_flush", "/{index}/_flush"],
       "parts": {
         "index": {

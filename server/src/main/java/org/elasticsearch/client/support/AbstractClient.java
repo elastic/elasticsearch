@@ -312,7 +312,6 @@ import org.elasticsearch.action.search.SearchScrollAction;
 import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.action.search.SearchScrollRequestBuilder;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.termvectors.MultiTermVectorsAction;
 import org.elasticsearch.action.termvectors.MultiTermVectorsRequest;
@@ -349,14 +348,12 @@ public abstract class AbstractClient implements Client {
     protected final Settings settings;
     private final ThreadPool threadPool;
     private final Admin admin;
-    private final ThreadedActionListener.Wrapper threadedWrapper;
 
     public AbstractClient(Settings settings, ThreadPool threadPool) {
         this.settings = settings;
         this.threadPool = threadPool;
         this.admin = new Admin(this);
         this.logger =LogManager.getLogger(this.getClass());
-        this.threadedWrapper = new ThreadedActionListener.Wrapper(logger, settings, threadPool);
     }
 
     @Override
@@ -388,7 +385,6 @@ public abstract class AbstractClient implements Client {
     @Override
     public final <Request extends ActionRequest, Response extends ActionResponse> void execute(
         Action<Response> action, Request request, ActionListener<Response> listener) {
-        listener = threadedWrapper.wrap(listener);
         doExecute(action, request, listener);
     }
 

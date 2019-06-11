@@ -64,11 +64,6 @@ public class SecurityFeatureSet implements XPackFeatureSet {
     }
 
     @Override
-    public String description() {
-        return "Security for the Elastic Stack";
-    }
-
-    @Override
     public boolean available() {
         return licenseState != null && licenseState.isSecurityAvailable();
     }

@@ -52,11 +52,6 @@ public class IndexLifecycleFeatureSet implements XPackFeatureSet {
     }
 
     @Override
-    public String description() {
-        return "Index lifecycle management for the Elastic Stack";
-    }
-
-    @Override
     public boolean available() {
         return licenseState != null && licenseState.isIndexLifecycleAllowed();
     }

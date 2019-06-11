@@ -88,11 +88,6 @@ public class DataFrameFeatureSet implements XPackFeatureSet {
     }
 
     @Override
-    public String description() {
-        return "Data Frame for the Elastic Stack";
-    }
-
-    @Override
     public boolean available() {
         return licenseState != null && licenseState.isDataFrameAllowed();
     }

@@ -3,7 +3,6 @@
     "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/current/watcher-api-ack-watch.html",
     "methods": [ "PUT", "POST" ],
     "url": {
-      "path": "/_watcher/watch/{watch_id}/_ack",
       "paths": [ "/_watcher/watch/{watch_id}/_ack", "/_watcher/watch/{watch_id}/_ack/{action_id}"],
       "parts": {
         "watch_id": {

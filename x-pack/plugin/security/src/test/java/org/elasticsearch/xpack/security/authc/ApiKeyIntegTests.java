@@ -97,8 +97,6 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
                 "  cluster: [\"manage_api_key\"]\n" +
                 "manage_own_api_key_role:\n" +
                 "  cluster: [\"manage_own_api_key\"]\n" +
-                "only_create_get_own_api_key_role:\n" +
-                "  cluster: [\"create_get_own_api_key\"]\n" +
                 "no_manage_api_key_role:\n" +
                 "  indices:\n" +
                 "     - names: '*'\n" +
@@ -112,7 +110,6 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
                 getFastStoredHashAlgoForTests().hash(SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING));
         return super.configUsers() +
             "user_with_manage_api_key_role:" + usersPasswdHashed + "\n" +
-            "user_with_only_create_get_api_key_role:" + usersPasswdHashed + "\n" +
             "user_with_owner_manage_api_key_role:" + usersPasswdHashed + "\n" +
             "user_with_no_manage_api_key_role:" + usersPasswdHashed + "\n";
     }
@@ -121,7 +118,6 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
     public String configUsersRoles() {
         return super.configUsersRoles() +
                 "manage_api_key_role:user_with_manage_api_key_role\n" +
-                "only_create_get_own_api_key_role:user_with_only_create_get_api_key_role\n" +
                 "manage_own_api_key_role:user_with_owner_manage_api_key_role\n" +
                 "no_manage_api_key_role:user_with_no_manage_api_key_role";
     }

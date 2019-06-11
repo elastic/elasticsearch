@@ -108,16 +108,8 @@ public final class ClusterPrivilege extends Privilege {
     public enum DefaultConditionalClusterPrivilege {
         MANAGE_OWN_API_KEY("manage_own_api_key", new ManageApiKeyConditionalClusterPrivilege(
                 Set.of("cluster:admin/xpack/security/api_key/*"),
-                Set.of("_self"),
-                Set.of("_self"))),
-        CREATE_GET_OWN_API_KEY("create_get_own_api_key", new ManageApiKeyConditionalClusterPrivilege(
-                Set.of("cluster:admin/xpack/security/api_key/create", "cluster:admin/xpack/security/api_key/get"),
-                Set.of("_self"),
-                Set.of("_self"))),
-        GET_API_KEY("get_api_key", new ManageApiKeyConditionalClusterPrivilege(
-                Set.of("cluster:admin/xpack/security/api_key/get"),
-                Set.of("*"),
-                Set.of("*")));
+                true))
+        ;
 
         private final PlainConditionalClusterPrivilege conditionalClusterPrivilege;
         private final String privilegeName;

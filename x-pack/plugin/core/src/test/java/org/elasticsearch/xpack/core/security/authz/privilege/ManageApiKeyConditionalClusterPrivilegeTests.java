@@ -63,54 +63,6 @@ public class ManageApiKeyConditionalClusterPrivilegeTests extends ESTestCase {
         assertThat(accessAllowed, is(true));
     }
 
-    public void testManagePrivilegeRestrictedForRealmsAndUsers() {
-        final ManageApiKeyConditionalClusterPrivilege condPrivilege = ManageApiKeyConditionalPrivilegesBuilder.builder().allowCreate()
-                .allowGet().allowInvalidate().forRealms("realm1", "realm2").forUsers("user1", "user2").build();
-
-        boolean accessAllowed = checkAccess(condPrivilege, CREATE_ACTION, new CreateApiKeyRequest(), authentication);
-        assertThat(accessAllowed, is(true));
-
-        accessAllowed = checkAccess(condPrivilege, GET_ACTION, GetApiKeyRequest.usingRealmAndUserName("realm1", "user1"), authentication);
-        assertThat(accessAllowed, is(true));
-
-        accessAllowed = checkAccess(condPrivilege, GET_ACTION,
-                GetApiKeyRequest.usingRealmAndUserName(randomAlphaOfLength(7), randomAlphaOfLength(7)), authentication);
-        assertThat(accessAllowed, is(false));
-
-        accessAllowed = checkAccess(condPrivilege, INVALIDATE_ACTION, InvalidateApiKeyRequest.usingRealmAndUserName("realm2", "user2"),
-                authentication);
-        assertThat(accessAllowed, is(true));
-
-        accessAllowed = checkAccess(condPrivilege, INVALIDATE_ACTION,
-                InvalidateApiKeyRequest.usingRealmAndUserName(randomAlphaOfLength(7), randomAlphaOfLength(7)), authentication);
-        assertThat(accessAllowed, is(false));
-
-    }
-
-    public void testManagePrivilegeRestrictedReadOnlyForRealmsAndUsers() {
-        final ManageApiKeyConditionalClusterPrivilege condPrivilege = ManageApiKeyConditionalPrivilegesBuilder.builder().allowGet()
-                .forRealms("realm1", "realm2").forUsers("user1", "user2").build();
-
-        boolean accessAllowed = checkAccess(condPrivilege, CREATE_ACTION, new CreateApiKeyRequest(), authentication);
-        assertThat(accessAllowed, is(false));
-
-        accessAllowed = checkAccess(condPrivilege, GET_ACTION, GetApiKeyRequest.usingRealmAndUserName("realm1", "user1"), authentication);
-        assertThat(accessAllowed, is(true));
-
-        accessAllowed = checkAccess(condPrivilege, GET_ACTION,
-                GetApiKeyRequest.usingRealmAndUserName(randomAlphaOfLength(7), randomAlphaOfLength(7)), authentication);
-        assertThat(accessAllowed, is(false));
-
-        accessAllowed = checkAccess(condPrivilege, INVALIDATE_ACTION, InvalidateApiKeyRequest.usingRealmAndUserName("realm2", "user2"),
-                authentication);
-        assertThat(accessAllowed, is(false));
-
-        accessAllowed = checkAccess(condPrivilege, INVALIDATE_ACTION,
-                InvalidateApiKeyRequest.usingRealmAndUserName(randomAlphaOfLength(7), randomAlphaOfLength(7)), authentication);
-        assertThat(accessAllowed, is(false));
-
-    }
-
     public void testManagePrivilegeOwnerOnly() {
         final ManageApiKeyConditionalClusterPrivilege condPrivilege = ManageApiKeyConditionalPrivilegesBuilder.manageApiKeysOnlyForOwner();
 
@@ -161,56 +113,6 @@ public class ManageApiKeyConditionalClusterPrivilegeTests extends ESTestCase {
         assertThat(accessAllowed, is(false));
     }
 
-    public void testManagePrivilegeOwnerAndReadOnly() {
-        final ManageApiKeyConditionalClusterPrivilege condPrivilege = ManageApiKeyConditionalPrivilegesBuilder.builder().allowGet()
-                .forRealms("_self").forUsers("_self").build();
-
-        boolean accessAllowed = checkAccess(condPrivilege, CREATE_ACTION, new CreateApiKeyRequest(), authentication);
-        assertThat(accessAllowed, is(false));
-
-        // Username and realm name is always required to evaluate condition if authenticated by user
-        accessAllowed = checkAccess(condPrivilege, GET_ACTION, GetApiKeyRequest.usingRealmAndUserName("realm1", "user1"), authentication);
-        assertThat(accessAllowed, is(true));
-        accessAllowed = checkAccess(condPrivilege, GET_ACTION, GetApiKeyRequest.usingRealmAndUserName("realm1", randomAlphaOfLength(4)),
-                authentication);
-        assertThat(accessAllowed, is(false));
-        accessAllowed = checkAccess(condPrivilege, GET_ACTION, GetApiKeyRequest.usingRealmAndUserName(randomAlphaOfLength(4), "user1"),
-                authentication);
-        assertThat(accessAllowed, is(false));
-        accessAllowed = checkAccess(condPrivilege, INVALIDATE_ACTION, InvalidateApiKeyRequest.usingRealmAndUserName("realm1", "user1"),
-                authentication);
-        assertThat(accessAllowed, is(false));
-        accessAllowed = checkAccess(condPrivilege, INVALIDATE_ACTION,
-                InvalidateApiKeyRequest.usingRealmAndUserName("realm2", randomAlphaOfLength(4)), authentication);
-        assertThat(accessAllowed, is(false));
-        accessAllowed = checkAccess(condPrivilege, GET_ACTION, GetApiKeyRequest.usingApiKeyName("api-key-name"), authentication);
-        assertThat(accessAllowed, is(false));
-        accessAllowed = checkAccess(condPrivilege, INVALIDATE_ACTION, InvalidateApiKeyRequest.usingApiKeyName("api-key-name"),
-                authentication);
-        assertThat(accessAllowed, is(false));
-
-        // API key id is always required to evaluate condition if authenticated by API key id
-        when(authenticatedBy.getName()).thenReturn("_es_api_key");
-        when(authenticatedBy.getType()).thenReturn("_es_api_key");
-        when(authentication.getMetadata()).thenReturn(Map.of("_security_api_key_id", "user1-api-key-id"));
-
-        accessAllowed = checkAccess(condPrivilege, GET_ACTION, GetApiKeyRequest.usingApiKeyId("user1-api-key-id"), authentication);
-        assertThat(accessAllowed, is(true));
-        accessAllowed = checkAccess(condPrivilege, GET_ACTION, GetApiKeyRequest.usingApiKeyId(randomAlphaOfLength(5)), authentication);
-        assertThat(accessAllowed, is(false));
-        accessAllowed = checkAccess(condPrivilege, INVALIDATE_ACTION, InvalidateApiKeyRequest.usingApiKeyId("user1-api-key-id"),
-                authentication);
-        assertThat(accessAllowed, is(false));
-        accessAllowed = checkAccess(condPrivilege, INVALIDATE_ACTION, InvalidateApiKeyRequest.usingApiKeyId(randomAlphaOfLength(5)),
-                authentication);
-        assertThat(accessAllowed, is(false));
-        accessAllowed = checkAccess(condPrivilege, GET_ACTION, GetApiKeyRequest.usingApiKeyName("api-key-name"), authentication);
-        assertThat(accessAllowed, is(false));
-        accessAllowed = checkAccess(condPrivilege, INVALIDATE_ACTION, InvalidateApiKeyRequest.usingApiKeyName("api-key-name"),
-                authentication);
-        assertThat(accessAllowed, is(false));
-    }
-
     private boolean checkAccess(ManageApiKeyConditionalClusterPrivilege privilege, String action, TransportRequest request,
             Authentication authentication) {
         return privilege.getPrivilege().predicate().test(action) && privilege.getRequestPredicate().test(request, authentication);
@@ -218,8 +120,7 @@ public class ManageApiKeyConditionalClusterPrivilegeTests extends ESTestCase {
 
     public static class ManageApiKeyConditionalPrivilegesBuilder {
         private Set<String> actions = new HashSet<>();
-        private Set<String> realms;
-        private Set<String> users;
+        private boolean restrictActionsToAuthenticatedUser;
 
         public ManageApiKeyConditionalPrivilegesBuilder allowCreate() {
             actions.add(CREATE_ACTION);
@@ -231,28 +132,8 @@ public class ManageApiKeyConditionalClusterPrivilegeTests extends ESTestCase {
             return this;
         }
 
-        public ManageApiKeyConditionalPrivilegesBuilder allowInvalidate() {
-            actions.add(INVALIDATE_ACTION);
-            return this;
-        }
-
-        public ManageApiKeyConditionalPrivilegesBuilder allowAllRealms() {
-            this.realms = Set.of("*");
-            return this;
-        }
-
-        public ManageApiKeyConditionalPrivilegesBuilder allowAllUsers() {
-            this.users = Set.of("*");
-            return this;
-        }
-
-        public ManageApiKeyConditionalPrivilegesBuilder forRealms(String... realms) {
-            this.realms = Set.of(realms);
-            return this;
-        }
-
-        public ManageApiKeyConditionalPrivilegesBuilder forUsers(String... users) {
-            this.users = Set.of(users);
+        public ManageApiKeyConditionalPrivilegesBuilder restrictActionsToAuthenticatedUser() {
+            this.restrictActionsToAuthenticatedUser = true;
             return this;
         }
 
@@ -261,7 +142,7 @@ public class ManageApiKeyConditionalClusterPrivilegeTests extends ESTestCase {
         }
 
         public static ManageApiKeyConditionalClusterPrivilege manageApiKeysUnrestricted() {
-            return new ManageApiKeyConditionalClusterPrivilege(Set.of("cluster:admin/xpack/security/api_key/*"), Set.of("*"), Set.of("*"));
+            return new ManageApiKeyConditionalClusterPrivilege(Set.of("cluster:admin/xpack/security/api_key/*"), false);
         }
 
         public static ManageApiKeyConditionalClusterPrivilege manageApiKeysOnlyForOwner() {
@@ -270,7 +151,7 @@ public class ManageApiKeyConditionalClusterPrivilegeTests extends ESTestCase {
         }
 
         public ManageApiKeyConditionalClusterPrivilege build() {
-            return new ManageApiKeyConditionalClusterPrivilege(actions, realms, users);
+            return new ManageApiKeyConditionalClusterPrivilege(actions, restrictActionsToAuthenticatedUser);
         }
     }
 }

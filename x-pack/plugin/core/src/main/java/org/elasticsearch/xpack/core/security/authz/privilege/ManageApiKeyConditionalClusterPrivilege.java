@@ -12,14 +12,11 @@ import org.elasticsearch.xpack.core.security.action.CreateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.GetApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.InvalidateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
-import org.elasticsearch.xpack.core.security.support.Automatons;
 
-import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.BiPredicate;
-import java.util.function.Predicate;
 
 /**
  * Conditional cluster privilege for managing API keys
@@ -33,10 +30,7 @@ public final class ManageApiKeyConditionalClusterPrivilege implements PlainCondi
     private static final List<String> API_KEY_ACTION_PATTERNS = List.of(MANAGE_API_KEY_PATTERN, CREATE_API_KEY_PATTERN, GET_API_KEY_PATTERN,
             INVALIDATE_API_KEY_PATTERN);
 
-    private final Set<String> realms;
-    private final Predicate<String> realmsPredicate;
-    private final Set<String> users;
-    private final Predicate<String> usersPredicate;
+    private final boolean restrictActionsToAuthenticatedUser;
     private final ClusterPrivilege privilege;
     private final BiPredicate<TransportRequest, Authentication> requestPredicate;
 
@@ -44,14 +38,9 @@ public final class ManageApiKeyConditionalClusterPrivilege implements PlainCondi
      * Constructor for {@link ManageApiKeyConditionalClusterPrivilege}
      *
      * @param actions set of API key cluster actions
-     * @param realms set of realm names such that the privilege to manage API keys is restricted for given realm names.<br>
-     *        `_self` can be used to restrict access to the authenticated user's realm.<br>
-     *        `*` can be used to allow all realms.
-     * @param users set of user names such that the privilege to manage API keys is restricted for given users.<br>
-     *        `_self` can be used to restrict access to the authenticated user.<br>
-     *        `*` can be used to allow all users.
+     * @param restrictActionsToAuthenticatedUser if {@code true} privileges will be restricted to current authenticated user.
      */
-    public ManageApiKeyConditionalClusterPrivilege(Set<String> actions, Set<String> realms, Set<String> users) {
+    public ManageApiKeyConditionalClusterPrivilege(Set<String> actions, boolean restrictActionsToAuthenticatedUser) {
         // validate allowed actions
         for (String action : actions) {
             if (ClusterPrivilege.MANAGE_API_KEY.predicate().test(action) == false) {
@@ -60,44 +49,26 @@ public final class ManageApiKeyConditionalClusterPrivilege implements PlainCondi
             }
         }
         this.privilege = ClusterPrivilege.get(actions).v1();
-
-        this.realms = (realms == null) ? Collections.emptySet() : Set.copyOf(realms);
-        this.realmsPredicate = Automatons.predicate(this.realms);
-        this.users = (users == null) ? Collections.emptySet() : Set.copyOf(users);
-        this.usersPredicate = Automatons.predicate(this.users);
-
-        if (this.realms.contains("_self") && this.users.contains("_self") == false
-                || this.users.contains("_self") && this.realms.contains("_self") == false) {
-            throw new IllegalArgumentException(
-                    "both realms and users must contain only `_self` when restricting access of API keys to the owner");
-        }
-        if (this.realms.contains("_self") && this.users.contains("_self")) {
-            if (this.realms.size() > 1 || this.users.size() > 1) {
-                throw new IllegalArgumentException(
-                        "both realms and users must contain only `_self` when restricting access of API keys to the owner");
-            }
-        }
+        this.restrictActionsToAuthenticatedUser = restrictActionsToAuthenticatedUser;
 
         this.requestPredicate = (request, authentication) -> {
             if (request instanceof CreateApiKeyRequest) {
                 return true;
             } else if (request instanceof GetApiKeyRequest) {
                 final GetApiKeyRequest getApiKeyRequest = (GetApiKeyRequest) request;
-                if (this.realms.contains("_self") && this.users.contains("_self")) {
+                if (this.restrictActionsToAuthenticatedUser) {
                     return checkIfUserIsOwnerOfApiKeys(authentication, getApiKeyRequest.getApiKeyId(), getApiKeyRequest.getUserName(),
                             getApiKeyRequest.getRealmName());
                 } else {
-                    return checkIfAccessAllowed(realms, getApiKeyRequest.getRealmName(), realmsPredicate)
-                            && checkIfAccessAllowed(users, getApiKeyRequest.getUserName(), usersPredicate);
+                    return true;
                 }
             } else if (request instanceof InvalidateApiKeyRequest) {
                 final InvalidateApiKeyRequest invalidateApiKeyRequest = (InvalidateApiKeyRequest) request;
-                if (this.realms.contains("_self") && this.users.contains("_self")) {
+                if (this.restrictActionsToAuthenticatedUser) {
                     return checkIfUserIsOwnerOfApiKeys(authentication, invalidateApiKeyRequest.getId(),
                             invalidateApiKeyRequest.getUserName(), invalidateApiKeyRequest.getRealmName());
                 } else {
-                    return checkIfAccessAllowed(realms, invalidateApiKeyRequest.getRealmName(), realmsPredicate)
-                            && checkIfAccessAllowed(users, invalidateApiKeyRequest.getUserName(), usersPredicate);
+                    return true;
                 }
             }
             return false;
@@ -121,10 +92,6 @@ public final class ManageApiKeyConditionalClusterPrivilege implements PlainCondi
         return false;
     }
 
-    private static boolean checkIfAccessAllowed(Set<String> names, String requestName, Predicate<String> predicate) {
-        return (Strings.hasText(requestName) == false) ? names.contains("*") : predicate.test(requestName);
-    }
-
     @Override
     public ClusterPrivilege getPrivilege() {
         return privilege;
@@ -137,7 +104,7 @@ public final class ManageApiKeyConditionalClusterPrivilege implements PlainCondi
 
     @Override
     public int hashCode() {
-        return Objects.hash(privilege, users, realms);
+        return Objects.hash(privilege, restrictActionsToAuthenticatedUser);
     }
 
     @Override
@@ -149,8 +116,8 @@ public final class ManageApiKeyConditionalClusterPrivilege implements PlainCondi
             return false;
         }
         final ManageApiKeyConditionalClusterPrivilege that = (ManageApiKeyConditionalClusterPrivilege) o;
-        return Objects.equals(this.privilege, that.privilege) && Objects.equals(this.realms, that.realms)
-                && Objects.equals(this.users, that.users);
+        return Objects.equals(this.privilege, that.privilege)
+                && Objects.equals(this.restrictActionsToAuthenticatedUser, that.restrictActionsToAuthenticatedUser);
     }
 
 }

@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.protocol.xpack;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
@@ -331,28 +332,37 @@ public class XPackInfoResponse extends ActionResponse implements ToXContentObjec
 
         public static class FeatureSet implements ToXContentObject, Writeable {
             private final String name;
-            @Nullable private final String description;
             private final boolean available;
             private final boolean enabled;
             @Nullable private final Map<String, Object> nativeCodeInfo;
 
-            public FeatureSet(String name, @Nullable String description, boolean available, boolean enabled,
+            public FeatureSet(String name, boolean available, boolean enabled,
                               @Nullable Map<String, Object> nativeCodeInfo) {
                 this.name = name;
-                this.description = description;
                 this.available = available;
                 this.enabled = enabled;
                 this.nativeCodeInfo = nativeCodeInfo;
             }
 
             public FeatureSet(StreamInput in) throws IOException {
-                this(in.readString(), in.readOptionalString(), in.readBoolean(), in.readBoolean(), in.readMap());
+                this(in.readString(), readAvailable(in), in.readBoolean(), in.readMap());
+            }
+
+            // this is separated out so that the removed description can be read from the stream on construction
+            // TODO: remove this for 8.0
+            private static boolean readAvailable(StreamInput in) throws IOException {
+                if (in.getVersion().before(Version.V_7_3_0)) {
+                    in.readOptionalString();
+                }
+                return in.readBoolean();
             }
 
             @Override
             public void writeTo(StreamOutput out) throws IOException {
                 out.writeString(name);
-                out.writeOptionalString(description);
+                if (out.getVersion().before(Version.V_7_3_0)) {
+                    out.writeOptionalString(null);
+                }
                 out.writeBoolean(available);
                 out.writeBoolean(enabled);
                 out.writeMap(nativeCodeInfo);
@@ -360,11 +370,6 @@ public class XPackInfoResponse extends ActionResponse implements ToXContentObjec
 
             public String name() {
                 return name;
-            }
-
-            @Nullable
-            public String description() {
-                return description;
             }
 
             public boolean available() {
@@ -386,7 +391,6 @@ public class XPackInfoResponse extends ActionResponse implements ToXContentObjec
                 if (this == other) return true;
                 FeatureSet rhs = (FeatureSet) other;
                 return Objects.equals(name, rhs.name)
-                        && Objects.equals(description, rhs.description)
                         && available == rhs.available
                         && enabled == rhs.enabled
                         && Objects.equals(nativeCodeInfo, rhs.nativeCodeInfo);
@@ -394,15 +398,12 @@ public class XPackInfoResponse extends ActionResponse implements ToXContentObjec
 
             @Override
             public int hashCode() {
-                return Objects.hash(name, description, available, enabled, nativeCodeInfo);
+                return Objects.hash(name, available, enabled, nativeCodeInfo);
             }
 
             @Override
             public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
                 builder.startObject();
-                if (description != null) {
-                    builder.field("description", description);
-                }
                 builder.field("available", available);
                 builder.field("enabled", enabled);
                 if (nativeCodeInfo != null) {

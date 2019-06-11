@@ -35,11 +35,6 @@ public class LogstashFeatureSet implements XPackFeatureSet {
     }
 
     @Override
-    public String description() {
-        return "Logstash management component for X-Pack";
-    }
-
-    @Override
     public boolean available() {
         return licenseState != null && licenseState.isLogstashAllowed();
     }

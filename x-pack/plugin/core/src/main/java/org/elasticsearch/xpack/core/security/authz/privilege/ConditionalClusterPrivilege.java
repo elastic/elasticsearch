@@ -6,44 +6,28 @@
 
 package org.elasticsearch.xpack.core.security.authz.privilege;
 
-import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.io.stream.NamedWriteable;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.xpack.core.security.authc.Authentication;
 
-import java.io.IOException;
-import java.util.Collection;
+import java.util.function.BiPredicate;
 
 /**
- * A ConditionalClusterPrivilege is a {@link PlainConditionalClusterPrivilege} that can be serialized / rendered as `XContent`.
+ * A ConditionalClusterPrivilege is a composition of a {@link ClusterPrivilege} (that determines which actions may be executed) with a
+ * {@link BiPredicate} for a {@link TransportRequest} (that determines which requests may be executed) and a {@link Authentication} (for
+ * current authenticated user). The a given execution of an action is considered to be permitted if both the action and the request are
+ * permitted in the context of given authentication.
  */
-public interface ConditionalClusterPrivilege extends NamedWriteable, ToXContentFragment, PlainConditionalClusterPrivilege {
+public interface ConditionalClusterPrivilege {
 
     /**
-     * The category under which this privilege should be rendered when output as XContent.
+     * The action-level privilege that is required by this conditional privilege.
      */
-    Category getCategory();
+    ClusterPrivilege getPrivilege();
 
     /**
-     * A {@link PlainConditionalClusterPrivilege} should generate a fragment of {@code XContent}, which consists of
-     * a single field name, followed by its value (which may be an object, an array, or a simple value).
+     * The request-level privilege (as a {@link BiPredicate}) that is required by this conditional privilege.
+     * Conditions can also be evaluated based on the {@link Authentication} details.
      */
-    @Override
-    XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException;
+    BiPredicate<TransportRequest, Authentication> getRequestPredicate();
 
-    /**
-     * Categories exist for to segment privileges for the purposes of rendering to XContent.
-     * {@link ConditionalClusterPrivileges#toXContent(XContentBuilder, Params, Collection)} builds one XContent
-     * object for a collection of {@link PlainConditionalClusterPrivilege} instances, with the top level fields built
-     * from the categories.
-     */
-    enum Category {
-        APPLICATION(new ParseField("application"));
-
-        public final ParseField field;
-
-        Category(ParseField field) {
-            this.field = field;
-        }
-    }
 }

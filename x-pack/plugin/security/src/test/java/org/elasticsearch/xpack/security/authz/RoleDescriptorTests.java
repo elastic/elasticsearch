@@ -22,7 +22,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xpack.core.XPackClientPlugin;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
-import org.elasticsearch.xpack.core.security.authz.privilege.ConditionalClusterPrivilege;
+import org.elasticsearch.xpack.core.security.authz.privilege.GlobalClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ManageApplicationPrivileges;
 import org.elasticsearch.xpack.core.security.support.MetadataUtils;
 import org.hamcrest.Matchers;
@@ -72,7 +72,7 @@ public class RoleDescriptorTests extends ESTestCase {
                 .build()
         };
 
-        final ConditionalClusterPrivilege[] conditionalClusterPrivileges = new ConditionalClusterPrivilege[]{
+        final GlobalClusterPrivilege[] conditionalClusterPrivileges = new GlobalClusterPrivilege[]{
             new ManageApplicationPrivileges(new LinkedHashSet<>(Arrays.asList("app01", "app02")))
         };
 
@@ -104,7 +104,7 @@ public class RoleDescriptorTests extends ESTestCase {
                 .resources("*")
                 .build()
         };
-        final ConditionalClusterPrivilege[] conditionalClusterPrivileges = {
+        final GlobalClusterPrivilege[] conditionalClusterPrivileges = {
             new ManageApplicationPrivileges(new LinkedHashSet<>(Arrays.asList("app01", "app02")))
         };
 
@@ -189,8 +189,8 @@ public class RoleDescriptorTests extends ESTestCase {
         assertThat(rd.getApplicationPrivileges()[1].getApplication(), equalTo("app2"));
         assertThat(rd.getConditionalClusterPrivileges(), Matchers.arrayWithSize(1));
 
-        final ConditionalClusterPrivilege conditionalPrivilege = rd.getConditionalClusterPrivileges()[0];
-        assertThat(conditionalPrivilege.getCategory(), equalTo(ConditionalClusterPrivilege.Category.APPLICATION));
+        final GlobalClusterPrivilege conditionalPrivilege = rd.getConditionalClusterPrivileges()[0];
+        assertThat(conditionalPrivilege.getCategory(), equalTo(GlobalClusterPrivilege.Category.APPLICATION));
         assertThat(conditionalPrivilege, instanceOf(ManageApplicationPrivileges.class));
         assertThat(((ManageApplicationPrivileges) conditionalPrivilege).getApplicationNames(),
             containsInAnyOrder("kibana", "logstash"));
@@ -233,7 +233,7 @@ public class RoleDescriptorTests extends ESTestCase {
                 .resources("*")
                 .build()
         };
-        final ConditionalClusterPrivilege[] conditionalClusterPrivileges = {
+        final GlobalClusterPrivilege[] conditionalClusterPrivileges = {
             new ManageApplicationPrivileges(new LinkedHashSet<>(Arrays.asList("app01", "app02")))
         };
 

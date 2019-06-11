@@ -208,15 +208,15 @@ public class PrivilegeTests extends ESTestCase {
 
     public void testClusterPrivilegeAndPlainConditionalClusterPrivilege() {
         Set<String> actionName = Sets.newHashSet("cluster:admin/snapshot/delete", "manage_own_api_key");
-        Tuple<ClusterPrivilege, Set<PlainConditionalClusterPrivilege>> tuple = ClusterPrivilege.get(actionName);
+        Tuple<ClusterPrivilege, Set<ConditionalClusterPrivilege>> tuple = ClusterPrivilege.get(actionName);
         ClusterPrivilege cluster = tuple.v1();
-        Set<PlainConditionalClusterPrivilege> plainConditionalClusterPrivilege = tuple.v2();
+        Set<ConditionalClusterPrivilege> plainConditionalClusterPrivilege = tuple.v2();
         assertThat(cluster, notNullValue());
         assertThat(cluster.predicate().test("cluster:admin/snapshot/delete"), is(true));
         assertThat(cluster.predicate().test("cluster:admin/snapshot/dele"), is(false));
         assertThat(plainConditionalClusterPrivilege, notNullValue());
         assertThat(plainConditionalClusterPrivilege.size(), is(1));
-        PlainConditionalClusterPrivilege manageOwnApiKeysConditionalClusterPrivilege = plainConditionalClusterPrivilege.stream().findFirst()
+        ConditionalClusterPrivilege manageOwnApiKeysConditionalClusterPrivilege = plainConditionalClusterPrivilege.stream().findFirst()
                 .get();
         assertThat(manageOwnApiKeysConditionalClusterPrivilege.getPrivilege().predicate().test("cluster:admin/xpack/security/api_key/create"),
                 is(true));

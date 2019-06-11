@@ -30,12 +30,12 @@ import static org.hamcrest.Matchers.equalTo;
 public class ConditionalClusterPrivilegesTests extends ESTestCase {
 
     public void testSerialization() throws Exception {
-        final ConditionalClusterPrivilege[] original = buildSecurityPrivileges();
+        final GlobalClusterPrivilege[] original = buildSecurityPrivileges();
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             ConditionalClusterPrivileges.writeArray(out, original);
             final NamedWriteableRegistry registry = new NamedWriteableRegistry(new XPackClientPlugin(Settings.EMPTY).getNamedWriteables());
             try (StreamInput in = new NamedWriteableAwareStreamInput(out.bytes().streamInput(), registry)) {
-                final ConditionalClusterPrivilege[] copy = ConditionalClusterPrivileges.readArray(in);
+                final GlobalClusterPrivilege[] copy = ConditionalClusterPrivileges.readArray(in);
                 assertThat(copy, equalTo(original));
                 assertThat(original, equalTo(copy));
             }
@@ -47,26 +47,26 @@ public class ConditionalClusterPrivilegesTests extends ESTestCase {
         try (ByteArrayOutputStream out = new ByteArrayOutputStream()) {
             final XContentBuilder builder = new XContentBuilder(xContent, out);
 
-            final List<ConditionalClusterPrivilege> original = Arrays.asList(buildSecurityPrivileges());
+            final List<GlobalClusterPrivilege> original = Arrays.asList(buildSecurityPrivileges());
             ConditionalClusterPrivileges.toXContent(builder, ToXContent.EMPTY_PARAMS, original);
             builder.flush();
 
             final byte[] bytes = out.toByteArray();
             try (XContentParser parser = xContent.createParser(NamedXContentRegistry.EMPTY, THROW_UNSUPPORTED_OPERATION, bytes)) {
                 assertThat(parser.nextToken(), equalTo(XContentParser.Token.START_OBJECT));
-                final List<ConditionalClusterPrivilege> clone = ConditionalClusterPrivileges.parse(parser);
+                final List<GlobalClusterPrivilege> clone = ConditionalClusterPrivileges.parse(parser);
                 assertThat(clone, equalTo(original));
                 assertThat(original, equalTo(clone));
             }
         }
     }
 
-    private ConditionalClusterPrivilege[] buildSecurityPrivileges() {
+    private GlobalClusterPrivilege[] buildSecurityPrivileges() {
         return buildSecurityPrivileges(randomIntBetween(4, 7));
     }
 
-    private ConditionalClusterPrivilege[] buildSecurityPrivileges(int applicationNameLength) {
-        return new ConditionalClusterPrivilege[] {
+    private GlobalClusterPrivilege[] buildSecurityPrivileges(int applicationNameLength) {
+        return new GlobalClusterPrivilege[] {
             ManageApplicationPrivilegesTests.buildPrivileges(applicationNameLength)
         };
     }

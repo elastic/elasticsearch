@@ -15,7 +15,7 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParseException;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.xpack.core.security.authz.privilege.ConditionalClusterPrivilege.Category;
+import org.elasticsearch.xpack.core.security.authz.privilege.GlobalClusterPrivilege.Category;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -24,44 +24,44 @@ import java.util.Collection;
 import java.util.List;
 
 /**
- * Static utility class for working with {@link ConditionalClusterPrivilege} instances
+ * Static utility class for working with {@link GlobalClusterPrivilege} instances
  */
 public final class ConditionalClusterPrivileges {
 
-    public static final ConditionalClusterPrivilege[] EMPTY_ARRAY = new ConditionalClusterPrivilege[0];
+    public static final GlobalClusterPrivilege[] EMPTY_ARRAY = new GlobalClusterPrivilege[0];
 
-    public static final Writeable.Reader<ConditionalClusterPrivilege> READER =
-        in1 -> in1.readNamedWriteable(ConditionalClusterPrivilege.class);
-    public static final Writeable.Writer<ConditionalClusterPrivilege> WRITER =
+    public static final Writeable.Reader<GlobalClusterPrivilege> READER =
+        in1 -> in1.readNamedWriteable(GlobalClusterPrivilege.class);
+    public static final Writeable.Writer<GlobalClusterPrivilege> WRITER =
         (out1, value) -> out1.writeNamedWriteable(value);
 
     private ConditionalClusterPrivileges() {
     }
 
     /**
-     * Utility method to read an array of {@link ConditionalClusterPrivilege} objects from a {@link StreamInput}
+     * Utility method to read an array of {@link GlobalClusterPrivilege} objects from a {@link StreamInput}
      */
-    public static ConditionalClusterPrivilege[] readArray(StreamInput in) throws IOException {
-        return in.readArray(READER, ConditionalClusterPrivilege[]::new);
+    public static GlobalClusterPrivilege[] readArray(StreamInput in) throws IOException {
+        return in.readArray(READER, GlobalClusterPrivilege[]::new);
     }
 
     /**
-     * Utility method to write an array of {@link ConditionalClusterPrivilege} objects to a {@link StreamOutput}
+     * Utility method to write an array of {@link GlobalClusterPrivilege} objects to a {@link StreamOutput}
      */
-    public static void writeArray(StreamOutput out, ConditionalClusterPrivilege[] privileges) throws IOException {
+    public static void writeArray(StreamOutput out, GlobalClusterPrivilege[] privileges) throws IOException {
         out.writeArray(WRITER, privileges);
     }
 
     /**
      * Writes a single object value to the {@code builder} that contains each of the provided privileges.
-     * The privileges are grouped according to their {@link ConditionalClusterPrivilege#getCategory() categories}
+     * The privileges are grouped according to their {@link GlobalClusterPrivilege#getCategory() categories}
      */
     public static XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params,
-                                             Collection<ConditionalClusterPrivilege> privileges) throws IOException {
+                                             Collection<GlobalClusterPrivilege> privileges) throws IOException {
         builder.startObject();
         for (Category category : Category.values()) {
             builder.startObject(category.field.getPreferredName());
-            for (ConditionalClusterPrivilege privilege : privileges) {
+            for (GlobalClusterPrivilege privilege : privileges) {
                 if (category == privilege.getCategory()) {
                     privilege.toXContent(builder, params);
                 }
@@ -75,8 +75,8 @@ public final class ConditionalClusterPrivileges {
      * Read a list of privileges from the parser. The parser should be positioned at the
      * {@link XContentParser.Token#START_OBJECT} token for the privileges value
      */
-    public static List<ConditionalClusterPrivilege> parse(XContentParser parser) throws IOException {
-        List<ConditionalClusterPrivilege> privileges = new ArrayList<>();
+    public static List<GlobalClusterPrivilege> parse(XContentParser parser) throws IOException {
+        List<GlobalClusterPrivilege> privileges = new ArrayList<>();
 
         expectedToken(parser.currentToken(), parser, XContentParser.Token.START_OBJECT);
         while (parser.nextToken() != XContentParser.Token.END_OBJECT) {

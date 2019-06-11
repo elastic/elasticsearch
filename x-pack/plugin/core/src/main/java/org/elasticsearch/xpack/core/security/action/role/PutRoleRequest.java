@@ -15,7 +15,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilege;
-import org.elasticsearch.xpack.core.security.authz.privilege.ConditionalClusterPrivilege;
+import org.elasticsearch.xpack.core.security.authz.privilege.GlobalClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConditionalClusterPrivileges;
 import org.elasticsearch.xpack.core.security.support.MetadataUtils;
 
@@ -35,7 +35,7 @@ public class PutRoleRequest extends ActionRequest implements WriteRequest<PutRol
 
     private String name;
     private String[] clusterPrivileges = Strings.EMPTY_ARRAY;
-    private ConditionalClusterPrivilege[] conditionalClusterPrivileges = ConditionalClusterPrivileges.EMPTY_ARRAY;
+    private GlobalClusterPrivilege[] conditionalClusterPrivileges = ConditionalClusterPrivileges.EMPTY_ARRAY;
     private List<RoleDescriptor.IndicesPrivileges> indicesPrivileges = new ArrayList<>();
     private List<RoleDescriptor.ApplicationResourcePrivileges> applicationPrivileges = new ArrayList<>();
     private String[] runAs = Strings.EMPTY_ARRAY;
@@ -82,7 +82,7 @@ public class PutRoleRequest extends ActionRequest implements WriteRequest<PutRol
         this.clusterPrivileges = clusterPrivileges;
     }
 
-    void conditionalCluster(ConditionalClusterPrivilege... conditionalClusterPrivileges) {
+    void conditionalCluster(GlobalClusterPrivilege... conditionalClusterPrivileges) {
         this.conditionalClusterPrivileges = conditionalClusterPrivileges;
     }
 
@@ -145,7 +145,7 @@ public class PutRoleRequest extends ActionRequest implements WriteRequest<PutRol
         return Collections.unmodifiableList(applicationPrivileges);
     }
 
-    public ConditionalClusterPrivilege[] conditionalClusterPrivileges() {
+    public GlobalClusterPrivilege[] conditionalClusterPrivileges() {
         return conditionalClusterPrivileges;
     }
 

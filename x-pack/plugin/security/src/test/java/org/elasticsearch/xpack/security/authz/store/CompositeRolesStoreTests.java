@@ -42,7 +42,7 @@ import org.elasticsearch.xpack.core.security.authz.permission.Role;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilege;
-import org.elasticsearch.xpack.core.security.authz.privilege.ConditionalClusterPrivilege;
+import org.elasticsearch.xpack.core.security.authz.privilege.GlobalClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.core.security.authz.store.RoleRetrievalResult;
@@ -543,7 +543,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
         final TransportRequest request2 = mock(TransportRequest.class);
         final TransportRequest request3 = mock(TransportRequest.class);
 
-        ConditionalClusterPrivilege ccp1 = mock(ConditionalClusterPrivilege.class);
+        GlobalClusterPrivilege ccp1 = mock(GlobalClusterPrivilege.class);
         when(ccp1.getPrivilege()).thenReturn(ClusterPrivilege.MANAGE_SECURITY);
         when(ccp1.getRequestPredicate()).thenReturn((req, authn) -> req == request1);
         RoleDescriptor role1 = new RoleDescriptor("r1", new String[]{"monitor"}, new IndicesPrivileges[]{
@@ -566,10 +566,10 @@ public class CompositeRolesStoreTests extends ESTestCase {
                 .resources("settings/*")
                 .privileges("read")
                 .build()
-        }, new ConditionalClusterPrivilege[] { ccp1 },
+        }, new GlobalClusterPrivilege[] { ccp1 },
         new String[]{"app-user-1"}, null, null);
 
-        ConditionalClusterPrivilege ccp2 = mock(ConditionalClusterPrivilege.class);
+        GlobalClusterPrivilege ccp2 = mock(GlobalClusterPrivilege.class);
         when(ccp2.getPrivilege()).thenReturn(ClusterPrivilege.MANAGE_SECURITY);
         when(ccp2.getRequestPredicate()).thenReturn((req, authn) -> req == request2);
         RoleDescriptor role2 = new RoleDescriptor("r2", new String[]{"manage_saml"}, new IndicesPrivileges[]{
@@ -588,7 +588,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
                 .resources("*")
                 .privileges("read")
                 .build()
-        }, new ConditionalClusterPrivilege[] { ccp2 },
+        }, new GlobalClusterPrivilege[] { ccp2 },
         new String[]{"app-user-2"}, null, null);
 
         FieldPermissionsCache cache = new FieldPermissionsCache(Settings.EMPTY);

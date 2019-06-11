@@ -15,7 +15,7 @@ import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsDefinition;
-import org.elasticsearch.xpack.core.security.authz.privilege.ConditionalClusterPrivilege;
+import org.elasticsearch.xpack.core.security.authz.privilege.GlobalClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConditionalClusterPrivileges;
 
 import java.io.IOException;
@@ -32,7 +32,7 @@ import java.util.stream.Collectors;
 public final class GetUserPrivilegesResponse extends ActionResponse {
 
     private Set<String> cluster;
-    private Set<ConditionalClusterPrivilege> conditionalCluster;
+    private Set<GlobalClusterPrivilege> conditionalCluster;
     private Set<Indices> index;
     private Set<RoleDescriptor.ApplicationResourcePrivileges> application;
     private Set<String> runAs;
@@ -41,7 +41,7 @@ public final class GetUserPrivilegesResponse extends ActionResponse {
         this(Collections.emptySet(), Collections.emptySet(), Collections.emptySet(), Collections.emptySet(), Collections.emptySet());
     }
 
-    public GetUserPrivilegesResponse(Set<String> cluster, Set<ConditionalClusterPrivilege> conditionalCluster,
+    public GetUserPrivilegesResponse(Set<String> cluster, Set<GlobalClusterPrivilege> conditionalCluster,
                                      Set<Indices> index,
                                      Set<RoleDescriptor.ApplicationResourcePrivileges> application,
                                      Set<String> runAs) {
@@ -56,7 +56,7 @@ public final class GetUserPrivilegesResponse extends ActionResponse {
         return cluster;
     }
 
-    public Set<ConditionalClusterPrivilege> getConditionalClusterPrivileges() {
+    public Set<GlobalClusterPrivilege> getConditionalClusterPrivileges() {
         return conditionalCluster;
     }
 

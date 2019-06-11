@@ -89,6 +89,8 @@ import org.elasticsearch.xpack.indexlifecycle.action.TransportStartILMAction;
 import org.elasticsearch.xpack.indexlifecycle.action.TransportStopILMAction;
 import org.elasticsearch.xpack.snapshotlifecycle.SnapshotLifecycleService;
 import org.elasticsearch.xpack.snapshotlifecycle.SnapshotLifecycleTask;
+import org.elasticsearch.xpack.snapshotlifecycle.SnapshotRetentionService;
+import org.elasticsearch.xpack.snapshotlifecycle.SnapshotRetentionTask;
 import org.elasticsearch.xpack.snapshotlifecycle.action.RestDeleteSnapshotLifecycleAction;
 import org.elasticsearch.xpack.snapshotlifecycle.action.RestExecuteSnapshotLifecycleAction;
 import org.elasticsearch.xpack.snapshotlifecycle.action.RestGetSnapshotLifecycleAction;
@@ -111,6 +113,7 @@ import static java.util.Collections.emptyList;
 public class IndexLifecycle extends Plugin implements ActionPlugin {
     private final SetOnce<IndexLifecycleService> indexLifecycleInitialisationService = new SetOnce<>();
     private final SetOnce<SnapshotLifecycleService> snapshotLifecycleService = new SetOnce<>();
+    private final SetOnce<SnapshotRetentionService> snapshotRetentionService = new SetOnce<>();
     private final SetOnce<SnapshotHistoryStore> snapshotHistoryStore = new SetOnce<>();
     private Settings settings;
     private boolean enabled;
@@ -132,7 +135,8 @@ public class IndexLifecycle extends Plugin implements ActionPlugin {
             LifecycleSettings.LIFECYCLE_NAME_SETTING,
             LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE_SETTING,
             RolloverAction.LIFECYCLE_ROLLOVER_ALIAS_SETTING,
-            LifecycleSettings.SLM_HISTORY_INDEX_ENABLED_SETTING);
+            LifecycleSettings.SLM_HISTORY_INDEX_ENABLED_SETTING,
+            LifecycleSettings.SLM_RETENTION_SCHEDULE_SETTING);
     }
 
     @Override
@@ -150,7 +154,10 @@ public class IndexLifecycle extends Plugin implements ActionPlugin {
         snapshotHistoryStore.set(new SnapshotHistoryStore(settings, client, getClock().getZone()));
         snapshotLifecycleService.set(new SnapshotLifecycleService(settings,
             () -> new SnapshotLifecycleTask(client, clusterService, snapshotHistoryStore.get()), clusterService, getClock()));
-        return Arrays.asList(indexLifecycleInitialisationService.get(), snapshotLifecycleService.get(), snapshotHistoryStore.get());
+        snapshotRetentionService.set(new SnapshotRetentionService(settings, () -> new SnapshotRetentionTask(client, clusterService),
+            clusterService, getClock()));
+        return Arrays.asList(indexLifecycleInitialisationService.get(), snapshotLifecycleService.get(), snapshotHistoryStore.get(),
+            snapshotRetentionService.get());
     }
 
     @Override
@@ -240,7 +247,7 @@ public class IndexLifecycle extends Plugin implements ActionPlugin {
     @Override
     public void close() {
         try {
-            IOUtils.close(indexLifecycleInitialisationService.get(), snapshotLifecycleService.get());
+            IOUtils.close(indexLifecycleInitialisationService.get(), snapshotLifecycleService.get(), snapshotRetentionService.get());
         } catch (IOException e) {
             throw new ElasticsearchException("unable to close index lifecycle services", e);
         }

@@ -12,7 +12,6 @@ Example for the ["Create Index"](http://www.elastic.co/guide/en/elasticsearch/re
     "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/indices-create-index.html",
     "methods": ["PUT", "POST"],
     "url": {
-      "path": "/{index}",
       "paths": ["/{index}"],
       "parts": {
         "index": {
@@ -90,7 +89,7 @@ The spec allows for deprecations of:
       ],
 ```
 
-Here `paths` describes the prefered paths and `deprecated_paths` indicates `paths` that will still work but are now 
+Here `paths` describes the preferred paths and `deprecated_paths` indicates `paths` that will still work but are now 
 deprecated.
 
 #### Parameters 
@@ -104,11 +103,11 @@ deprecated.
       "params": {
         "stored_fields": {
           "type": "list",
-          "description" : ""
-            "deprecated" : {
-              "version" : "7.0.0",
-              "description" : "Reason parameter is being deprecated"
-            },
+          "description" : "",
+          "deprecated" : {
+            "version" : "7.0.0",
+            "description" : "Reason parameter is being deprecated"
+          },
         },
 ```
 

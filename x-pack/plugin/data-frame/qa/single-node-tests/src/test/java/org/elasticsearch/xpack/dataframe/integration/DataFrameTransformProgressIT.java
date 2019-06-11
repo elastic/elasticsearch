@@ -170,6 +170,7 @@ public class DataFrameTransformProgressIT extends ESRestTestCase {
             sourceConfig,
             destConfig,
             null,
+            null,
             pivotConfig,
             null);
 

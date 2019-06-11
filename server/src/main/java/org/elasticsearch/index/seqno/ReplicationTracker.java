@@ -393,13 +393,14 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
     public static class CheckpointState implements Writeable {
 
         /**
-         * the last local checkpoint information that we have for this shard
+         * the last local checkpoint information that we have for this shard. All operations up to this point are properly fsynced to disk.
          */
         long localCheckpoint;
 
         /**
          * the last global checkpoint information that we have for this shard. This information is computed for the primary if
-         * the tracker is in primary mode and received from the primary if in replica mode.
+         * the tracker is in primary mode and received from the primary if in replica mode. For all shard copies except the current one,
+         * this is the global checkpoint that's fsynced to disk. For the current copy, it is the in-memory global checkpoint. TODO: fix this
          */
         long globalCheckpoint;
         /**

@@ -526,7 +526,7 @@ public abstract class TransportReplicationAction<
                 final ReplicaResult replicaResult = shardOperationOnReplica(replicaRequest.getRequest(), replica);
                 releasable.close(); // release shard operation lock before responding to caller
                 final TransportReplicationAction.ReplicaResponse response =
-                        new ReplicaResponse(replica.getLocalCheckpoint(), replica.getGlobalCheckpoint());
+                        new ReplicaResponse(replica.getLocalCheckpoint(), replica.getLastSyncedGlobalCheckpoint());
                 replicaResult.respond(new ResponseListener(response));
             } catch (final Exception e) {
                 Releasables.closeWhileHandlingException(releasable); // release shard operation lock before responding to caller

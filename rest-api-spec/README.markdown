@@ -78,7 +78,6 @@ The spec allows for deprecations of:
   "api": {
     "documentation": "",
     "url": {
-      "path": "/_monitoring/bulk",
       "paths": ["/_monitoring/bulk"],
       "deprecated_paths" : [
         {

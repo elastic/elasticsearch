@@ -98,6 +98,7 @@ You can't use `ignore_malformed` with the following datatypes:
 * <<nested, Nested datatype>>
 * <<object, Object datatype>>
 * <<range, Range datatypes>>
+* <<text, Text datatype>>
 
 You also can't use `ignore_malformed` to ignore JSON objects submitted to fields
 of the wrong datatype. A JSON object is any data surrounded by curly brackets

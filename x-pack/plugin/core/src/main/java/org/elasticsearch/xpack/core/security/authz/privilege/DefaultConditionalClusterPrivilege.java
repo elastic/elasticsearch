@@ -10,7 +10,9 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 
-/* Conditional Cluster Privileges */
+/**
+ * Enum that defines default conditional cluster privileges
+ */
 public enum DefaultConditionalClusterPrivilege {
     MANAGE_OWN_API_KEY("manage_own_api_key",
             new ManageApiKeyConditionalClusterPrivilege(Set.of("cluster:admin/xpack/security/api_key/*"), true));

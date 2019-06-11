@@ -15,7 +15,7 @@ import java.io.IOException;
 import java.util.Collection;
 
 /**
- * A ConditionalClusterPrivilege is a {@link ConditionalClusterPrivilege} that can be serialized / rendered as `XContent`.
+ * A GlobalClusterPrivilege is a {@link ConditionalClusterPrivilege} that can be serialized / rendered as `XContent`.
  */
 public interface GlobalClusterPrivilege extends NamedWriteable, ToXContentFragment, ConditionalClusterPrivilege {
 

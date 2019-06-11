@@ -27,6 +27,9 @@ import java.util.function.Predicate;
 import static org.elasticsearch.xpack.core.security.support.Automatons.minusAndMinimize;
 import static org.elasticsearch.xpack.core.security.support.Automatons.patterns;
 
+/**
+ * Enum that defines default cluster privileges
+ */
 public enum DefaultClusterPrivilege {
 
     NONE("none", Automatons.EMPTY),

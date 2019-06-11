@@ -62,6 +62,24 @@ public class TermsSliceQueryTests extends ESTestCase {
         QueryUtils.checkUnequal(query1, query4);
     }
 
+    public void testEmpty() throws Exception {
+        final Directory dir = newDirectory();
+        final RandomIndexWriter w = new RandomIndexWriter(random(), dir, new KeywordAnalyzer());
+        for (int i = 0; i < 10; ++i) {
+            Document doc = new Document();
+            doc.add(new StringField("field", Integer.toString(i), Field.Store.YES));
+            w.addDocument(doc);
+        }
+        final IndexReader reader = w.getReader();
+        final IndexSearcher searcher = newSearcher(reader);
+        TermsSliceQuery query =
+            new TermsSliceQuery("unknown", 1, 1);
+        assertThat(searcher.count(query), equalTo(0));
+        w.close();
+        reader.close();
+        dir.close();
+    }
+
     public void testSearch() throws Exception {
         final int numDocs = randomIntBetween(100, 200);
         final Directory dir = newDirectory();

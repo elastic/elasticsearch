@@ -61,7 +61,6 @@ public class IndexLifecycleFeatureSet implements XPackFeatureSet {
         return enabled;
     }
 
-    @Override
     public Map<String, Object> nativeCodeInfo() {
         return null;
     }

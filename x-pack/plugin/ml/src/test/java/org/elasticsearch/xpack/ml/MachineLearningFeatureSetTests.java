@@ -98,7 +98,7 @@ public class MachineLearningFeatureSetTests extends ESTestCase {
     }
 
     private MachineLearningFeatureSet.UsageTransportAction newUsageAction(Settings settings) {
-        return new MachineLearningFeatureSet.UsageTransportAction(mock(TransportService.class), null,
+        return new MachineLearningFeatureSet.UsageTransportAction(mock(TransportService.class), clusterService,
             null, mock(ActionFilters.class), mock(IndexNameExpressionResolver.class),
             TestEnvironment.newEnvironment(settings), client, licenseState, jobManagerHolder);
     }
@@ -119,8 +119,7 @@ public class MachineLearningFeatureSetTests extends ESTestCase {
     }
 
     public void testAvailable() throws Exception {
-        MachineLearningFeatureSet featureSet = new MachineLearningFeatureSet(TestEnvironment.newEnvironment(commonSettings),
-            clusterService, licenseState);
+        MachineLearningFeatureSet featureSet = new MachineLearningFeatureSet(commonSettings, licenseState);
         boolean available = randomBoolean();
         when(licenseState.isMachineLearningAllowed()).thenReturn(available);
         assertThat(featureSet.available(), is(available));
@@ -145,8 +144,7 @@ public class MachineLearningFeatureSetTests extends ESTestCase {
             settings.put("xpack.ml.enabled", enabled);
         }
         boolean expected = enabled || useDefault;
-        MachineLearningFeatureSet featureSet = new MachineLearningFeatureSet(TestEnvironment.newEnvironment(settings.build()),
-                clusterService, licenseState);
+        MachineLearningFeatureSet featureSet = new MachineLearningFeatureSet(settings.build(), licenseState);
         assertThat(featureSet.enabled(), is(expected));
         var usageAction = newUsageAction(settings.build());
         PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();

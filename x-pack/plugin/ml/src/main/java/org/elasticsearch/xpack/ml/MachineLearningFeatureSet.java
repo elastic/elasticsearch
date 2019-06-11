@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.Platforms;
@@ -64,30 +65,11 @@ public class MachineLearningFeatureSet implements XPackFeatureSet {
 
     private final boolean enabled;
     private final XPackLicenseState licenseState;
-    private final Map<String, Object> nativeCodeInfo;
 
     @Inject
-    public MachineLearningFeatureSet(Environment environment, ClusterService clusterService, XPackLicenseState licenseState) {
-        this.enabled = XPackSettings.MACHINE_LEARNING_ENABLED.get(environment.settings());
+    public MachineLearningFeatureSet(Settings settings, XPackLicenseState licenseState) {
+        this.enabled = XPackSettings.MACHINE_LEARNING_ENABLED.get(settings);
         this.licenseState = licenseState;
-        Map<String, Object> nativeCodeInfo = NativeController.UNKNOWN_NATIVE_CODE_INFO;
-        // Don't try to get the native code version if ML is disabled - it causes too much controversy
-        // if ML has been disabled because of some OS incompatibility.
-        if (enabled) {
-            try {
-                if (isRunningOnMlPlatform(true)) {
-                    NativeController nativeController = NativeControllerHolder.getNativeController(clusterService.getNodeName(),
-                        environment);
-                    if (nativeController != null) {
-                        nativeCodeInfo = nativeController.getNativeCodeInfo();
-                    }
-                }
-            } catch (IOException | TimeoutException e) {
-                LogManager.getLogger(MachineLearningFeatureSet.class).error("Cannot get native code info for Machine Learning", e);
-                throw new ElasticsearchException("Cannot communicate with Machine Learning native code");
-            }
-        }
-        this.nativeCodeInfo = nativeCodeInfo;
     }
 
     static boolean isRunningOnMlPlatform(boolean fatalIfNot) {
@@ -121,11 +103,6 @@ public class MachineLearningFeatureSet implements XPackFeatureSet {
         return enabled;
     }
 
-    @Override
-    public Map<String, Object> nativeCodeInfo() {
-        return nativeCodeInfo;
-    }
-
     public static class UsageTransportAction extends XPackUsageFeatureTransportAction {
 
         private final Environment environment;
@@ -133,6 +110,7 @@ public class MachineLearningFeatureSet implements XPackFeatureSet {
         private final XPackLicenseState licenseState;
         private final JobManagerHolder jobManagerHolder;
         private final boolean enabled;
+        private final Map<String, Object> nativeCodeInfo;
 
         @Inject
         public UsageTransportAction(TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
@@ -146,13 +124,32 @@ public class MachineLearningFeatureSet implements XPackFeatureSet {
             this.licenseState = licenseState;
             this.jobManagerHolder = jobManagerHolder;
             this.enabled = XPackSettings.MACHINE_LEARNING_ENABLED.get(environment.settings());
+
+            Map<String, Object> nativeCodeInfo = NativeController.UNKNOWN_NATIVE_CODE_INFO;
+            // Don't try to get the native code version if ML is disabled - it causes too much controversy
+            // if ML has been disabled because of some OS incompatibility.
+            if (enabled) {
+                try {
+                    if (isRunningOnMlPlatform(true)) {
+                        NativeController nativeController = NativeControllerHolder.getNativeController(clusterService.getNodeName(),
+                            environment);
+                        if (nativeController != null) {
+                            nativeCodeInfo = nativeController.getNativeCodeInfo();
+                        }
+                    }
+                } catch (IOException | TimeoutException e) {
+                    LogManager.getLogger(MachineLearningFeatureSet.class).error("Cannot get native code info for Machine Learning", e);
+                    throw new ElasticsearchException("Cannot communicate with Machine Learning native code");
+                }
+            }
+            this.nativeCodeInfo = nativeCodeInfo;
         }
 
         @Override
         protected void masterOperation(XPackUsageRequest request, ClusterState state, ActionListener<XPackUsageFeatureResponse> listener) {
             if (enabled == false) {
                 MachineLearningFeatureSetUsage usage = new MachineLearningFeatureSetUsage(licenseState.isMachineLearningAllowed(), enabled,
-                    Collections.emptyMap(), Collections.emptyMap(), 0);
+                    Collections.emptyMap(), Collections.emptyMap(), 0, nativeCodeInfo);
                 listener.onResponse(new XPackUsageFeatureResponse(usage));
                 return;
             }
@@ -166,7 +163,7 @@ public class MachineLearningFeatureSet implements XPackFeatureSet {
                 ActionListener.wrap(response -> {
                     addDatafeedsUsage(response, datafeedsUsage);
                     MachineLearningFeatureSetUsage usage = new MachineLearningFeatureSetUsage(licenseState.isMachineLearningAllowed(),
-                        enabled, jobsUsage, datafeedsUsage, nodeCount);
+                        enabled, jobsUsage, datafeedsUsage, nodeCount, nativeCodeInfo);
                     listener.onResponse(new XPackUsageFeatureResponse(usage));
                 },
                 listener::onFailure);

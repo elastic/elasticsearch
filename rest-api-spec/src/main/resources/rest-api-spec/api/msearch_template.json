@@ -3,7 +3,6 @@
     "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/current/search-multi-search.html",
     "methods": ["GET", "POST"],
     "url": {
-      "path": "/_msearch/template",
       "paths": ["/_msearch/template", "/{index}/_msearch/template"],
       "parts": {
         "index": {

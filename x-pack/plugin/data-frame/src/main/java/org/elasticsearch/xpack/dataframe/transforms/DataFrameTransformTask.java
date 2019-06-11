@@ -53,6 +53,8 @@ import java.util.concurrent.atomic.AtomicReference;
 
 public class DataFrameTransformTask extends AllocatedPersistentTask implements SchedulerEngine.Listener {
 
+    // interval the scheduler sends an event
+    private static final int SCHEDULER_NEXT_MILLISECONDS = 10000;
     private static final Logger logger = LogManager.getLogger(DataFrameTransformTask.class);
     // TODO consider moving to dynamic cluster setting
     private static final int MAX_CONTINUOUS_FAILURES = 10;
@@ -87,12 +89,10 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
         String initialReason = null;
         long initialGeneration = 0;
         Map<String, Object> initialPosition = null;
-        logger.trace("[{}] init, got state: [{}]", transform.getId(), state != null);
         if (state != null) {
             initialTaskState = state.getTaskState();
             initialReason = state.getReason();
             final IndexerState existingState = state.getIndexerState();
-            logger.info("[{}] Loading existing state: [{}], position [{}]", transform.getId(), existingState, state.getPosition());
             if (existingState.equals(IndexerState.INDEXING)) {
                 // reset to started as no indexer is running
                 initialState = IndexerState.STARTED;
@@ -211,6 +211,10 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
             getIndexer().getProgress());
 
         logger.info("Updating state for data frame transform [{}] to [{}]", transform.getId(), state.toString());
+        // Even though the indexer information is persisted to an index, we still need DataFrameTransformTaskState in the clusterstate
+        // This keeps track of STARTED, FAILED, STOPPED
+        // This is because a FAILED state can occur because we cannot read the config from the internal index, which would imply that
+        //   we could not read the previous state information from said index.
         persistStateToClusterState(state, ActionListener.wrap(
             task -> {
                 auditor.info(transform.getId(),
@@ -299,6 +303,10 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
         taskState.set(DataFrameTransformTaskState.FAILED);
         stateReason.set(reason);
         auditor.error(transform.getId(), reason);
+        // Even though the indexer information is persisted to an index, we still need DataFrameTransformTaskState in the clusterstate
+        // This keeps track of STARTED, FAILED, STOPPED
+        // This is because a FAILED state can occur because we cannot read the config from the internal index, which would imply that
+        //   we could not read the previous state information from said index.
         persistStateToClusterState(getState(), ActionListener.wrap(
             r -> listener.onResponse(null),
             listener::onFailure
@@ -337,7 +345,7 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
 
     private SchedulerEngine.Schedule next() {
         return (startTime, now) -> {
-            return now + 1000; // to be fixed, hardcode something
+            return now + SCHEDULER_NEXT_MILLISECONDS;
         };
     }
 
@@ -512,6 +520,13 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
         public synchronized boolean maybeTriggerAsyncJob(long now) {
             if (transformTask.taskState.get() == DataFrameTransformTaskState.FAILED) {
                 logger.debug("Schedule was triggered for transform [{}] but task is failed. Ignoring trigger.", getJobId());
+                return false;
+            }
+
+            // ignore trigger if indexer is running, prevents log spam in A2P indexer
+            IndexerState indexerState = getState();
+            if (IndexerState.INDEXING.equals(indexerState) || IndexerState.STOPPING.equals(indexerState)) {
+                logger.debug("Indexer for transform [{}] has state [{}], ignoring trigger", getJobId(), indexerState);
                 return false;
             }
 

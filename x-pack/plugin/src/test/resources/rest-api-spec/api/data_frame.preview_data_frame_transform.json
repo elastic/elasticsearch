@@ -3,7 +3,6 @@
     "documentation": "https://www.elastic.co/guide/en/elasticsearch/reference/current/preview-data-frame-transform.html",
     "methods": [ "POST" ],
     "url": {
-      "path": "/_data_frame/transforms/_preview",
       "paths": [ "/_data_frame/transforms/_preview" ]
     },
     "body": {

@@ -31,13 +31,13 @@ public class AggProviderTests extends AbstractSerializingTestCase<AggProvider> {
 
     @Override
     protected NamedXContentRegistry xContentRegistry() {
-        SearchModule searchModule = new SearchModule(Settings.EMPTY, false, Collections.emptyList());
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, Collections.emptyList());
         return new NamedXContentRegistry(searchModule.getNamedXContents());
     }
 
     @Override
     protected NamedWriteableRegistry writableRegistry() {
-        SearchModule searchModule = new SearchModule(Settings.EMPTY, false, Collections.emptyList());
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, Collections.emptyList());
         return new NamedWriteableRegistry(searchModule.getNamedWriteables());
     }
 
@@ -69,7 +69,7 @@ public class AggProviderTests extends AbstractSerializingTestCase<AggProvider> {
         Map<String, Object> agg = Collections.singletonMap(name,
             Collections.singletonMap("avg", Collections.singletonMap("field", field)));
         try {
-            SearchModule searchModule = new SearchModule(Settings.EMPTY, false, Collections.emptyList());
+            SearchModule searchModule = new SearchModule(Settings.EMPTY, Collections.emptyList());
             AggregatorFactories.Builder aggs =
                 XContentObjectTransformer.aggregatorTransformer(new NamedXContentRegistry(searchModule.getNamedXContents()))
                     .fromMap(agg);

@@ -148,7 +148,6 @@ public class InternalTestClusterTests extends ESTestCase {
             bootstrapMasterNodeIndex = maxNumDataNodes == 0 ? -1 : randomIntBetween(0, maxNumDataNodes - 1);
         }
         final int numClientNodes = randomIntBetween(0, 2);
-        String transportClient = getTestTransportType();
         NodeConfigurationSource nodeConfigurationSource = new NodeConfigurationSource() {
             @Override
             public Settings nodeSettings(int nodeOrdinal) {
@@ -166,12 +165,6 @@ public class InternalTestClusterTests extends ESTestCase {
             @Override
             public Path nodeConfigPath(int nodeOrdinal) {
                 return null;
-            }
-
-            @Override
-            public Settings transportClientSettings() {
-                return Settings.builder()
-                    .put(NetworkModule.TRANSPORT_TYPE_KEY, transportClient).build();
             }
         };
 
@@ -220,7 +213,6 @@ public class InternalTestClusterTests extends ESTestCase {
         final int maxNumDataNodes = 2;
         final int numClientNodes = randomIntBetween(0, 2);
         final String clusterName1 = "shared1";
-        String transportClient = getTestTransportType();
         NodeConfigurationSource nodeConfigurationSource = new NodeConfigurationSource() {
             @Override
             public Settings nodeSettings(int nodeOrdinal) {
@@ -234,12 +226,6 @@ public class InternalTestClusterTests extends ESTestCase {
             @Override
             public Path nodeConfigPath(int nodeOrdinal) {
                 return null;
-            }
-
-            @Override
-            public Settings transportClientSettings() {
-                return Settings.builder()
-                    .put(NetworkModule.TRANSPORT_TYPE_KEY, transportClient).build();
             }
         };
         String nodePrefix = "test";
@@ -311,7 +297,6 @@ public class InternalTestClusterTests extends ESTestCase {
         final Path baseDir = createTempDir();
         final int numNodes = 5;
 
-        String transportClient = getTestTransportType();
         InternalTestCluster cluster = new InternalTestCluster(randomLong(), baseDir, false,
                 false, 0, 0, "test", new NodeConfigurationSource() {
 
@@ -328,12 +313,6 @@ public class InternalTestClusterTests extends ESTestCase {
             @Override
             public Path nodeConfigPath(int nodeOrdinal) {
                 return null;
-            }
-
-            @Override
-            public Settings transportClientSettings() {
-                return Settings.builder()
-                        .put(NetworkModule.TRANSPORT_TYPE_KEY, transportClient).build();
             }
         }, 0, "", mockPlugins(), Function.identity());
         cluster.beforeTest(random());
@@ -396,7 +375,6 @@ public class InternalTestClusterTests extends ESTestCase {
     }
 
     public void testTwoNodeCluster() throws Exception {
-        String transportClient = getTestTransportType();
         NodeConfigurationSource nodeConfigurationSource = new NodeConfigurationSource() {
             @Override
             public Settings nodeSettings(int nodeOrdinal) {
@@ -410,12 +388,6 @@ public class InternalTestClusterTests extends ESTestCase {
             @Override
             public Path nodeConfigPath(int nodeOrdinal) {
                 return null;
-            }
-
-            @Override
-            public Settings transportClientSettings() {
-                return Settings.builder()
-                    .put(NetworkModule.TRANSPORT_TYPE_KEY, transportClient).build();
             }
         };
         String nodePrefix = "test";

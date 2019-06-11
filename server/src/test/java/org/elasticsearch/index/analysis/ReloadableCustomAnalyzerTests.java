@@ -40,7 +40,7 @@ import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.index.analysis.AnalyzerComponents.createComponents;
 
-public class ReloadableCustomAnalyzerTest extends ESTestCase {
+public class ReloadableCustomAnalyzerTests extends ESTestCase {
 
     private static TestAnalysis testAnalysis;
     private static Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();

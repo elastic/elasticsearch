@@ -19,7 +19,11 @@ bin/elasticsearch-keystore add azure.client.default.account
 bin/elasticsearch-keystore add azure.client.default.key
 ----------------------------------------------------------------
 
-Where `account` is the azure account name and `key` the azure secret key.
+Where `account` is the azure account name and `key` the azure secret key. Instead of an azure secret key under `key`, you can alternatively
+define a shared access signatures (SAS) token under `sas_token` to use for authentication instead. When using an SAS token instead of an
+account key, the SAS token must have read (r), write (w), list (l), and delete (d) permissions for the repository base path and
+all its contents. These permissions need to be granted for the blob service (b) and apply to resource types service (s), container (c), and
+object (o).
 These settings are used by the repository's internal azure client.
 
 Note that you can also define more than one account:
@@ -29,14 +33,14 @@ Note that you can also define more than one account:
 bin/elasticsearch-keystore add azure.client.default.account
 bin/elasticsearch-keystore add azure.client.default.key
 bin/elasticsearch-keystore add azure.client.secondary.account
-bin/elasticsearch-keystore add azure.client.secondary.key
+bin/elasticsearch-keystore add azure.client.secondary.sas_token
 ----------------------------------------------------------------
 
 `default` is the default account name which will be used by a repository,
 unless you set an explicit one in the
 <<repository-azure-repository-settings, repository settings>>.
 
-Both `account` and `key` storage settings are
+The `account`, `key`, and `sas_token` storage settings are
 {ref}/secure-settings.html#reloadable-secure-settings[reloadable]. After you
 reload the settings, the internal azure clients, which are used to transfer the
 snapshot, will utilize the latest settings from the keystore.

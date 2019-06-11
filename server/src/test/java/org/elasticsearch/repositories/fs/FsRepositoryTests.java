@@ -75,7 +75,6 @@ import static java.util.Collections.emptySet;
 
 public class FsRepositoryTests extends ESTestCase {
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/42905")
     public void testSnapshotAndRestore() throws IOException, InterruptedException {
         ThreadPool threadPool = new TestThreadPool(getClass().getSimpleName());
         try (Directory directory = newDirectory()) {
@@ -149,7 +148,7 @@ public class FsRepositoryTests extends ESTestCase {
                 secondState.getIndex().fileDetails().stream().filter(f -> f.reused() == false).collect(Collectors.toList());
             Collections.sort(recoveredFiles, Comparator.comparing(RecoveryState.File::name));
             assertTrue(recoveredFiles.get(0).name(), recoveredFiles.get(0).name().endsWith(".liv"));
-            assertTrue(recoveredFiles.get(1).name(), recoveredFiles.get(1).name().endsWith("segments_2"));
+            assertTrue(recoveredFiles.get(1).name(), recoveredFiles.get(1).name().endsWith("segments_" + incIndexCommit.getGeneration()));
         } finally {
             terminate(threadPool);
         }

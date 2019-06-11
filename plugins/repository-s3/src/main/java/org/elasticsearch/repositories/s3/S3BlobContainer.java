@@ -195,7 +195,8 @@ class S3BlobContainer extends AbstractBlobContainer {
     @Override
     public Map<String, BlobMetaData> listBlobsByPrefix(@Nullable String blobNamePrefix) throws IOException {
         try (AmazonS3Reference clientReference = blobStore.clientReference()) {
-            return executeListing(clientReference, listObjectsRequest(keyPath)).stream()
+            return executeListing(clientReference, listObjectsRequest(blobNamePrefix == null ? keyPath : buildKey(blobNamePrefix)))
+                .stream()
                 .flatMap(listing -> listing.getObjectSummaries().stream())
                 .map(summary -> new PlainBlobMetaData(summary.getKey().substring(keyPath.length()), summary.getSize()))
                 .collect(Collectors.toMap(PlainBlobMetaData::name, Function.identity()));

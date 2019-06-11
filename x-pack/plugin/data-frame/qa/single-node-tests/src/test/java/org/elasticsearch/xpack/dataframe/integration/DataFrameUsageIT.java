@@ -105,8 +105,8 @@ public class DataFrameUsageIT extends DataFrameRestTestCase {
         usageAsMap = entityAsMap(usageResponse);
         // we should see some stats
         assertEquals(3, XContentMapValues.extractValue("data_frame.transforms._all", usageAsMap));
-        assertEquals(1, XContentMapValues.extractValue("data_frame.transforms.started", usageAsMap));
-        assertEquals(2, XContentMapValues.extractValue("data_frame.transforms.stopped", usageAsMap));
+        // TODO: due to auto-stop we only see stopped data frames
+        assertEquals(3, XContentMapValues.extractValue("data_frame.transforms.stopped", usageAsMap));
         for(String statName : PROVIDED_STATS) {
             assertEquals("Incorrect stat " +  statName,
                     expectedStats.get(statName), XContentMapValues.extractValue("data_frame.stats." + statName, usageAsMap));

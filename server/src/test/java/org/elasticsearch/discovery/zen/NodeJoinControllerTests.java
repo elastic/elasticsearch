@@ -142,7 +142,7 @@ public class NodeJoinControllerTests extends ESTestCase {
         }
         masterService = ClusterServiceUtils.createMasterService(threadPool, initialState);
         nodeJoinController = new NodeJoinController(Settings.EMPTY, masterService, createAllocationService(Settings.EMPTY),
-            new ElectMasterService(Settings.EMPTY));
+            new ElectMasterService(Settings.EMPTY), s -> {});
     }
 
     public void testSimpleJoinAccumulation() throws InterruptedException, ExecutionException {

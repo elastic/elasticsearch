@@ -164,7 +164,8 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
     public ZenDiscovery(Settings settings, ThreadPool threadPool, TransportService transportService,
                         NamedWriteableRegistry namedWriteableRegistry, MasterService masterService, ClusterApplier clusterApplier,
                         ClusterSettings clusterSettings, SeedHostsProvider hostsProvider, AllocationService allocationService,
-                        Collection<BiConsumer<DiscoveryNode, ClusterState>> onJoinValidators, GatewayMetaState gatewayMetaState) {
+                        Collection<BiConsumer<DiscoveryNode, ClusterState>> onJoinValidators, GatewayMetaState gatewayMetaState,
+                        Consumer<String> reroute) {
         this.onJoinValidators = JoinTaskExecutor.addBuiltInJoinValidators(onJoinValidators);
         this.masterService = masterService;
         this.clusterApplier = clusterApplier;
@@ -225,7 +226,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
         this.membership = new MembershipAction(transportService, new MembershipListener(), onJoinValidators);
         this.joinThreadControl = new JoinThreadControl();
 
-        this.nodeJoinController = new NodeJoinController(settings, masterService, allocationService, electMaster);
+        this.nodeJoinController = new NodeJoinController(settings, masterService, allocationService, electMaster, reroute);
         this.nodeRemovalExecutor = new ZenNodeRemovalClusterStateTaskExecutor(allocationService, electMaster, this::submitRejoin, logger);
 
         masterService.setClusterStateSupplier(this::clusterState);

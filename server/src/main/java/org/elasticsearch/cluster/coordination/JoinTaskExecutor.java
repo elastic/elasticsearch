@@ -38,6 +38,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 
 import static org.elasticsearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK;
 
@@ -46,6 +47,7 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
     private final AllocationService allocationService;
 
     private final Logger logger;
+    private final Consumer<String> reroute;
 
     private final int minimumMasterNodesOnLocalNode;
 
@@ -84,10 +86,11 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
         private static final String FINISH_ELECTION_TASK_REASON = "_FINISH_ELECTION_";
     }
 
-    public JoinTaskExecutor(Settings settings, AllocationService allocationService, Logger logger) {
+    public JoinTaskExecutor(Settings settings, AllocationService allocationService, Logger logger, Consumer<String> reroute) {
         this.allocationService = allocationService;
         this.logger = logger;
         minimumMasterNodesOnLocalNode = ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.get(settings);
+        this.reroute = reroute;
     }
 
     @Override
@@ -151,8 +154,8 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
             results.success(joinTask);
         }
         if (nodesChanged) {
-            newState.nodes(nodesBuilder);
-            return results.build(allocationService.reroute(newState.build(), "node_join"));
+            reroute.accept("post-join reroute");
+            return results.build(allocationService.adaptAutoExpandReplicas(newState.nodes(nodesBuilder).build()));
         } else {
             // we must return a new cluster state instance to force publishing. This is important
             // for the joining node to finalize its join and set us as a master

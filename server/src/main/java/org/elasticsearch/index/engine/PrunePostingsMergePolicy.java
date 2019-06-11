@@ -273,10 +273,13 @@ final class PrunePostingsMergePolicy extends OneMergeWrappingMergePolicy {
         } else {
             final FixedBitSet liveDocs = FixedBitSet.copyOf(reader.getLiveDocs());
             final DocIdSetIterator iterator = scorer.iterator();
+            int numDocs = reader.numDocs();
             while (iterator.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
-                liveDocs.set(iterator.docID());
+                if (liveDocs.getAndSet(iterator.docID()) == false) {
+                    numDocs++;
+                }
             }
-            return Tuple.tuple(liveDocs, false);
+            return Tuple.tuple(liveDocs, numDocs == 0);
         }
     }
 }

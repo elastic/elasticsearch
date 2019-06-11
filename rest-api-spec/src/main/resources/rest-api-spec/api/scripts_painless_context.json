@@ -1,6 +1,6 @@
 {
   "scripts_painless_context": {
-    "stability": "private",
+    "stability": "experimental",
     "methods": ["GET"],
     "url": {
       "paths": ["/_scripts/painless/_context"],

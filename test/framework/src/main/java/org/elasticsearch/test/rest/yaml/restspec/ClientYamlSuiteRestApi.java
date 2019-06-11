@@ -44,7 +44,7 @@ public class ClientYamlSuiteRestApi {
 
     public enum Stability
     {
-        UNKNOWN, PRIVATE, EXPERIMENTAL, BETA, INTERNAL, STABLE
+        UNKNOWN, BETA, INTERNAL, STABLE
     }
 
     public enum Body {

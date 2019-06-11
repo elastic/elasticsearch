@@ -163,7 +163,7 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
         return validationException;
     }
 
-    private static int metadataSize(Map<String, Object> userMetadata) {
+    public static int metadataSize(Map<String, Object> userMetadata) {
         if (userMetadata == null) {
             return 0;
         }

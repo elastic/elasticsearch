@@ -239,7 +239,8 @@ class S3BlobContainer extends AbstractBlobContainer {
         while (true) {
             ObjectListing list;
             if (prevListing != null) {
-                list = nextListing(clientReference, prevListing);
+                final ObjectListing finalPrevListing = prevListing;
+                list = SocketAccess.doPrivileged(() -> clientReference.client().listNextBatchOfObjects(finalPrevListing));
             } else {
                 list = SocketAccess.doPrivileged(() -> clientReference.client().listObjects(listObjectsRequest));
             }
@@ -259,10 +260,6 @@ class S3BlobContainer extends AbstractBlobContainer {
         listObjectsRequest.setPrefix(keyPath);
         listObjectsRequest.setDelimiter("/");
         return listObjectsRequest;
-    }
-
-    private ObjectListing nextListing(AmazonS3Reference clientReference, ObjectListing previous) {
-        return SocketAccess.doPrivileged(() -> clientReference.client().listNextBatchOfObjects(previous));
     }
 
     private String buildKey(String blobName) {

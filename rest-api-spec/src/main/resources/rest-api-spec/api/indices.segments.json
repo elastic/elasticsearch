@@ -3,7 +3,6 @@
     "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/indices-segments.html",
     "methods": ["GET"],
     "url": {
-      "path": "/_segments",
       "paths": ["/_segments", "/{index}/_segments"],
       "parts": {
         "index": {

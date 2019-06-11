@@ -159,6 +159,16 @@ public interface BlobContainer {
     Map<String, BlobMetaData> listBlobs() throws IOException;
 
     /**
+     * Lists all child containers under this container. A child container is defined as a container whose {@link #path()} method returns
+     * a path that has this containers {@link #path()} return as its prefix and has one more path element than the current
+     * container's path.
+     *
+     * @return Map of name of the child container to child container
+     * @throws IOException on failure to list child containers
+     */
+    Map<String, BlobContainer> children() throws IOException;
+
+    /**
      * Lists all blobs in the container that match the specified prefix.
      *
      * @param   blobNamePrefix

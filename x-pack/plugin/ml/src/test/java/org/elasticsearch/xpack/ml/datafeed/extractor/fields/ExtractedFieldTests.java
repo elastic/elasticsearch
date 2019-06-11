@@ -62,6 +62,34 @@ public class ExtractedFieldTests extends ESTestCase {
         assertThat(nested.value(hit), equalTo(new String[] { "bar" }));
     }
 
+    public void testGeoPoint() {
+        double lat = 38.897676;
+        double lon = -77.03653;
+        String[] expected = new String[] {lat + "," + lon};
+
+        // doc_value field
+        ExtractedField geo = ExtractedField.newGeoPointField("geo", "geo", ExtractedField.ExtractionMethod.DOC_VALUE);
+        SearchHit hit = new SearchHitBuilder(42).addField("geo", lat + ", " + lon).build();
+        assertThat(geo.value(hit), equalTo(expected));
+    }
+
+    public void testGeoShape() {
+        double lat = 38.897676;
+        double lon = -77.03653;
+        String[] expected = new String[] {lat + "," + lon};
+        // object format
+        SearchHit hit = new SearchHitBuilder(42)
+            .setSource("{\"geo\":{\"type\":\"point\", \"coordinates\": [" + lon + ", " + lat + "]}}")
+            .build();
+        ExtractedField geo = ExtractedField.newGeoShapeField("geo", "geo", ExtractedField.ExtractionMethod.SOURCE);
+        assertThat(geo.value(hit), equalTo(expected));
+
+        // WKT format
+        hit = new SearchHitBuilder(42).setSource("{\"geo\":\"POINT ("+ lon + " " + lat + ")\"}").build();
+        geo = ExtractedField.newGeoShapeField("geo", "geo", ExtractedField.ExtractionMethod.SOURCE);
+        assertThat(geo.value(hit), equalTo(expected));
+    }
+
     public void testValueGivenSourceAndHitWithNoSource() {
         ExtractedField missing = ExtractedField.newField("missing", ExtractedField.ExtractionMethod.SOURCE);
         assertThat(missing.value(new SearchHitBuilder(3).build()), equalTo(new Object[0]));

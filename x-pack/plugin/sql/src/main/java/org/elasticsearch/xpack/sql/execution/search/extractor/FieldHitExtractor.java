@@ -165,7 +165,11 @@ public class FieldHitExtractor implements HitExtractor {
                 return DateUtils.asDateTime(Long.parseLong(values.toString()), zoneId);
             }
         }
-        if (values instanceof Long || values instanceof Double || values instanceof String || values instanceof Boolean) {
+        // The Jackson json parser can generate for numerics - Integers, Longs, BigIntegers (if Long is not enough)
+        // and BigDecimal (if Double is not enough)
+        if (values instanceof Number
+                || values instanceof String
+                || values instanceof Boolean) {
             return values;
         }
         throw new SqlIllegalArgumentException("Type {} (returned by [{}]) is not supported", values.getClass().getSimpleName(), fieldName);

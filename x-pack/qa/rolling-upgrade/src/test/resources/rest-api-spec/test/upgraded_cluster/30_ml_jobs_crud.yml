@@ -23,6 +23,19 @@ setup:
 
   - do:
       ml.open_job:
+        job_id: old-cluster-categorization-job
+
+  - do:
+      ml.get_job_stats:
+        job_id: old-cluster-categorization-job
+  - match: { jobs.0.state: "opened" }
+  - match: { jobs.0.data_counts.processed_record_count: 2 }
+  - is_true: jobs.0.model_size_stats
+  - is_true: jobs.0.node
+  - is_true: jobs.0.open_time
+
+  - do:
+      ml.open_job:
         job_id: mixed-cluster-job
 
   - do:
@@ -40,11 +53,20 @@ setup:
 
   - do:
       ml.close_job:
+        job_id: old-cluster-categorization-job
+
+  - do:
+      ml.close_job:
         job_id: mixed-cluster-job
 
   - do:
       ml.get_buckets:
         job_id: old-cluster-job
+  - match: { count: 1 }
+
+  - do:
+      ml.get_categories:
+        job_id: old-cluster-categorization-job
   - match: { count: 1 }
 
   - do:
@@ -61,6 +83,16 @@ setup:
       catch: missing
       ml.get_jobs:
         job_id: old-cluster-job
+
+  - do:
+      ml.delete_job:
+        job_id: old-cluster-categorization-job
+  - match: { acknowledged: true }
+
+  - do:
+      catch: missing
+      ml.get_jobs:
+        job_id: old-cluster-categorization-job
 
   - do:
       ml.delete_job:

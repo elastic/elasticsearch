@@ -1,9 +1,11 @@
 [[modules-scripting]]
-== Scripting
+= Scripting
 
-The scripting module enables you to use scripts to evaluate custom
-expressions. For example, you could use a script to return "script fields"
-as part of a search request or evaluate a custom score for a query.
+[partintro]
+--
+With scripting, you can evaluate custom expressions in {es}. For example, you
+could use a script to return "script fields" as part of a search request or
+evaluate a custom score for a query.
 
 The default scripting language is <<modules-scripting-painless, `Painless`>>.
 Additional `lang` plugins enable you to run scripts written in other languages.
@@ -11,7 +13,7 @@ Everywhere a script can be used, you can include a `lang` parameter
 to specify the language of the script.
 
 [float]
-=== General-purpose languages:
+== General-purpose languages
 
 These languages can be used for any purpose in the scripting APIs,
 and give the most flexibility.
@@ -29,7 +31,7 @@ and give the most flexibility.
 |=======================================================================
 
 [float]
-=== Special-purpose languages:
+== Special-purpose languages
 
 These languages are less flexible, but typically have higher performance for
 certain tasks.
@@ -67,7 +69,7 @@ sandboxed languages can be a security issue, please read
 <<modules-scripting-security, Scripting and security>> for more details.
 
 =================================================
-
+--
 
 include::scripting/using.asciidoc[]
 

@@ -3,7 +3,6 @@
     "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/current/ml-get-datafeed.html",
     "methods": [ "GET"],
     "url": {
-      "path": "/_ml/datafeeds/{datafeed_id}",
       "paths": [
         "/_ml/datafeeds/{datafeed_id}",
         "/_ml/datafeeds"

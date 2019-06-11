@@ -3,7 +3,6 @@
     "documentation": "https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-disable-user.html",
     "methods": [ "PUT", "POST" ],
     "url": {
-      "path": "/_security/user/{username}/_disable",
       "paths": [
         "/_security/user/{username}/_disable"
       ],

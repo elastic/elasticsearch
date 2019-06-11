@@ -34,9 +34,9 @@ For more information on the compress option, see <<modules-snapshots>>
 
 Starting in version 7.3 using the path style access pattern with the S3 repository is deprecated.
 In versions 7.0, 7.1, and 7.2 the S3 repository plugin was exclusively using the path style access pattern. This is a breaking
-change for deployments that do not also allow for the DNS style access pattern. For short-term compatibility with these deployments users
-must configure the S3 client setting `path_style_access` to `true` to retain the previous behaviour.
-
+change for deployments that do not also allow for the DNS style but are recognized as supporting DNS style access by the AWS SDK.
+If your deployment does only support path style access and is affected by this change you must configure the S3 client setting
+`path_style_access` to `true` to return to the behaviour of always using path style access.
 This breaking change was made necessary by
 https://aws.amazon.com/blogs/aws/amazon-s3-path-deprecation-plan-the-rest-of-the-story[AWS's announcement] to no longer support
 the path-style API past September 30th, 2020 for newly created buckets.

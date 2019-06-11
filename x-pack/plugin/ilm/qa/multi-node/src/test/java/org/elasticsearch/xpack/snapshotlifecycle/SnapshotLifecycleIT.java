@@ -280,8 +280,7 @@ public class SnapshotLifecycleIT extends ESRestTestCase {
         Map<String, Object> snapConfig = new HashMap<>();
         snapConfig.put("indices", Collections.singletonList(indexPattern));
         snapConfig.put("ignore_unavailable", ignoreUnavailable);
-//        if (randomBoolean()) {
-        if (true) {
+        if (randomBoolean()) {
             Map<String, Object> metadata = new HashMap<>();
             int fieldCount = randomIntBetween(2,5);
             for (int i = 0; i < fieldCount; i++) {

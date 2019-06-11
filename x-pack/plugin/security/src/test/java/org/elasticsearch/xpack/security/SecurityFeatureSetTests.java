@@ -160,7 +160,6 @@ public class SecurityFeatureSetTests extends ESTestCase {
             assertThat(usage.enabled(), is(enabled));
             assertThat(usage.available(), is(authcAuthzAvailable));
             XContentSource source = getXContentSource(usage);
-            System.out.println(source.toString());
 
             if (enabled) {
                 if (authcAuthzAvailable) {

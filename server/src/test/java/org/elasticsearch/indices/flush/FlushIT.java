@@ -278,6 +278,7 @@ public class FlushIT extends ESIntegTestCase {
             engine.getLocalCheckpoint() + 1, 1L, 1L, null, Engine.Operation.Origin.REPLICA, randomLong(), -1L, false,
             SequenceNumbers.UNASSIGNED_SEQ_NO, 0));
         assertThat(indexResult.getFailure(), nullValue());
+        engine.syncTranslog();
     }
 
     @TestLogging("_root:TRACE")

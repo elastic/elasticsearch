@@ -17,7 +17,9 @@ Deletes an existing {dataframe-transform}.
 
 `DELETE _data_frame/transforms/<data_frame_transform_id>`
 
-//==== Description
+==== Description
+
+NOTE: Before you can delete the {dataframe-transform}, you must stop it.
 
 ==== Path Parameters
 

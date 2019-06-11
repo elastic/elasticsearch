@@ -34,11 +34,6 @@ public class GraphFeatureSet implements XPackFeatureSet {
     }
 
     @Override
-    public String description() {
-        return "Graph Data Exploration for the Elastic Stack";
-    }
-
-    @Override
     public boolean available() {
         return licenseState != null && licenseState.isGraphAllowed();
     }

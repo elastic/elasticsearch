@@ -16,8 +16,8 @@ public final class DataFrameStrings {
 
     /**
      * Valid user id pattern.
-     * Matches a string that contains lower case characters, digits, hyphens, underscores or dots.
-     * The string may start and end only in lower case characters or digits.
+     * Matches a string that contains characters, digits, hyphens, underscores or dots.
+     * The string may start and end only in characters or digits.
      * Note that '.' is allowed but not documented.
      */
     private static final Pattern VALID_ID_CHAR_PATTERN = Pattern.compile("[a-zA-Z0-9](?:[a-zA-Z0-9_\\-\\.]*[a-zA-Z0-9])?");

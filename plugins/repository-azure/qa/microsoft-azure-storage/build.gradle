@@ -29,12 +29,14 @@ String azureAccount = System.getenv("azure_storage_account")
 String azureKey = System.getenv("azure_storage_key")
 String azureContainer = System.getenv("azure_storage_container")
 String azureBasePath = System.getenv("azure_storage_base_path")
+String azureSasToken = System.getenv("azure_storage_sas_token")
 
-if (!azureAccount && !azureKey && !azureContainer && !azureBasePath) {
+if (!azureAccount && !azureKey && !azureContainer && !azureBasePath && !azureSasToken) {
     azureAccount = 'azure_integration_test_account'
     azureKey = 'YXp1cmVfaW50ZWdyYXRpb25fdGVzdF9rZXk=' // The key is "azure_integration_test_key" encoded using base64
     azureContainer = 'container_test'
     azureBasePath = 'integration_test'
+    azureSasToken = ''
     useFixture = true
 }
 
@@ -63,7 +65,14 @@ integTest {
 testClusters.integTest {
     plugin file(project(':plugins:repository-azure').bundlePlugin.archiveFile)
     keystore 'azure.client.integration_test.account', azureAccount
-    keystore 'azure.client.integration_test.key', azureKey
+    if (azureKey != null && azureKey.isEmpty() == false) {
+        println "Using access key in external service tests."
+        keystore 'azure.client.integration_test.key', azureKey
+    }
+    if (azureSasToken != null && azureSasToken.isEmpty() == false) {
+        println "Using SAS token in external service tests."
+        keystore 'azure.client.integration_test.sas_token', azureSasToken
+    }
 
     if (useFixture) {
         tasks.integTest.dependsOn azureStorageFixture

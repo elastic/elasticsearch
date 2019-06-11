@@ -3,7 +3,6 @@
     "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/cluster-allocation-explain.html",
     "methods": ["GET", "POST"],
     "url": {
-      "path": "/_cluster/allocation/explain",
       "paths": ["/_cluster/allocation/explain"],
       "parts": {},
       "params": {

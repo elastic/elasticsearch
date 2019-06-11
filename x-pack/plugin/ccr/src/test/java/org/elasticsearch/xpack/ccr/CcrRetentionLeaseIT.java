@@ -188,6 +188,7 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
             assertThat(stats.getShards(), arrayWithSize(numberOfShards * (1 + numberOfReplicas)));
             final List<ShardStats> shardsStats = getShardsStats(stats);
             for (int i = 0; i < numberOfShards * (1 + numberOfReplicas); i++) {
+                assertNotNull(shardsStats.get(i).getRetentionLeaseStats());
                 final RetentionLeases currentRetentionLeases = shardsStats.get(i).getRetentionLeaseStats().retentionLeases();
                 assertThat(Strings.toString(shardsStats.get(i)), currentRetentionLeases.leases(), hasSize(1));
                 final RetentionLease retentionLease =
@@ -318,6 +319,7 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
                 assertThat(stats.getShards(), arrayWithSize(numberOfShards * (1 + numberOfReplicas)));
                 final List<ShardStats> shardsStats = getShardsStats(stats);
                 for (int i = 0; i < numberOfShards * (1 + numberOfReplicas); i++) {
+                    assertNotNull(shardsStats.get(i).getRetentionLeaseStats());
                     final RetentionLeases currentRetentionLeases = shardsStats.get(i).getRetentionLeaseStats().retentionLeases();
                     assertThat(Strings.toString(shardsStats.get(i)), currentRetentionLeases.leases(), hasSize(1));
                     final ClusterStateResponse followerIndexClusterState =
@@ -350,6 +352,7 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
                 if (shardsStats.get(i).getShardRouting().primary() == false) {
                     continue;
                 }
+                assertNotNull(shardsStats.get(i).getRetentionLeaseStats());
                 final RetentionLeases currentRetentionLeases = shardsStats.get(i).getRetentionLeaseStats().retentionLeases();
                 assertThat(Strings.toString(shardsStats.get(i)), currentRetentionLeases.leases(), hasSize(1));
                 final ClusterStateResponse followerIndexClusterState =
@@ -601,6 +604,7 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
             assertThat(stats.getShards(), arrayWithSize(numberOfShards * (1 + numberOfReplicas)));
             final List<ShardStats> shardsStats = getShardsStats(stats);
             for (int i = 0; i < numberOfShards * (1 + numberOfReplicas); i++) {
+                assertNotNull(shardsStats.get(i).getRetentionLeaseStats());
                 final RetentionLeases currentRetentionLeases = shardsStats.get(i).getRetentionLeaseStats().retentionLeases();
                 assertThat(Strings.toString(shardsStats.get(i)), currentRetentionLeases.leases(), hasSize(1));
                 final RetentionLease retentionLease =
@@ -670,6 +674,7 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
                 assertThat(stats.getShards(), arrayWithSize(numberOfShards * (1 + numberOfReplicas)));
                 final List<ShardStats> shardsStats = getShardsStats(stats);
                 for (int i = 0; i < numberOfShards * (1 + numberOfReplicas); i++) {
+                    assertNotNull(shardsStats.get(i).getRetentionLeaseStats());
                     final RetentionLeases currentRetentionLeases = shardsStats.get(i).getRetentionLeaseStats().retentionLeases();
                     assertThat(Strings.toString(shardsStats.get(i)), currentRetentionLeases.leases(), hasSize(1));
                     final ClusterStateResponse followerIndexClusterState =
@@ -702,6 +707,7 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
                 if (shardsStats.get(i).getShardRouting().primary() == false) {
                     continue;
                 }
+                assertNotNull(shardsStats.get(i).getRetentionLeaseStats());
                 final RetentionLeases currentRetentionLeases = shardsStats.get(i).getRetentionLeaseStats().retentionLeases();
                 assertThat(Strings.toString(shardsStats.get(i)), currentRetentionLeases.leases(), hasSize(1));
                 final ClusterStateResponse followerIndexClusterState =
@@ -917,6 +923,7 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
                     leaderClient().admin().indices().stats(new IndicesStatsRequest().clear().indices(leaderIndex)).actionGet();
             final List<ShardStats> afterUnfollowShardsStats = getShardsStats(afterUnfollowStats);
             for (final ShardStats shardStats : afterUnfollowShardsStats) {
+                assertNotNull(shardStats.getRetentionLeaseStats());
                 assertThat(Strings.toString(shardStats), shardStats.getRetentionLeaseStats().retentionLeases().leases(), empty());
             }
         } finally {
@@ -967,6 +974,7 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
                 leaderClient().admin().indices().stats(new IndicesStatsRequest().clear().indices(leaderIndex)).actionGet();
         final List<ShardStats> afterForgetFollowerShardsStats = getShardsStats(afterForgetFollowerStats);
         for (final ShardStats shardStats : afterForgetFollowerShardsStats) {
+            assertNotNull(shardStats.getRetentionLeaseStats());
             assertThat(Strings.toString(shardStats), shardStats.getRetentionLeaseStats().retentionLeases().leases(), empty());
         }
     }
@@ -986,6 +994,7 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
             assertThat(stats.getShards(), arrayWithSize(numberOfShards * (1 + numberOfReplicas)));
             final List<ShardStats> shardsStats = getShardsStats(stats);
             for (int i = 0; i < numberOfShards * (1 + numberOfReplicas); i++) {
+                assertNotNull(shardsStats.get(i).getRetentionLeaseStats());
                 final RetentionLeases currentRetentionLeases = shardsStats.get(i).getRetentionLeaseStats().retentionLeases();
                 assertThat(Strings.toString(shardsStats.get(i)), currentRetentionLeases.leases(), hasSize(1));
                 final RetentionLease retentionLease =
@@ -1003,6 +1012,7 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
             assertThat(stats.getShards(), arrayWithSize(numberOfShards * (1 + numberOfReplicas)));
             final List<ShardStats> shardsStats = getShardsStats(stats);
             for (int i = 0; i < numberOfShards * (1 + numberOfReplicas); i++) {
+                assertNotNull(shardsStats.get(i).getRetentionLeaseStats());
                 final RetentionLeases currentRetentionLeases = shardsStats.get(i).getRetentionLeaseStats().retentionLeases();
                 assertThat(Strings.toString(shardsStats.get(i)), currentRetentionLeases.leases(), hasSize(1));
                 final RetentionLease retentionLease =

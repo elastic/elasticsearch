@@ -31,6 +31,7 @@ import org.apache.lucene.document.StringField;
 import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NoMergePolicy;
@@ -88,6 +89,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
+import static org.elasticsearch.search.query.QueryPhase.indexFieldHasDuplicateData;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -652,9 +654,9 @@ public class QueryPhaseTests extends IndexShardTestCase {
         TestSearchContext searchContext = spy(new TestSearchContext(null, indexShard));
         when(searchContext.mapperService()).thenReturn(mapperService);
 
-        final int numDocs = scaledRandomIntBetween(50, 100);
+        final int numDocs = 10000;
         Directory dir = newDirectory();
-        RandomIndexWriter writer = new RandomIndexWriter(random(), dir);
+        IndexWriter writer = new IndexWriter(dir, new IndexWriterConfig(null));
         for (int i = 0; i < numDocs; ++i) {
             Document doc = new Document();
             long longValue = randomLongBetween(-10000000L, 10000000L);
@@ -704,6 +706,39 @@ public class QueryPhaseTests extends IndexShardTestCase {
         searchContext.sort(sortAndFormats);
         QueryPhase.execute(searchContext, searcher, checkCancelled -> {});
         assertSortResults(searchContext.queryResult().topDocs().topDocs, (long) numDocs, true);
+        reader.close();
+        dir.close();
+    }
+
+    public void testIndexFieldHasDuplicateData() throws IOException {
+        final int numDocs = 10000;
+        final int threshold1 = numDocs * 60 / 100;
+        final int threshold2 = numDocs * 40 / 100;
+        final int threshold3 = numDocs * 5 / 100;
+
+        final String fieldName = "duplicateField";
+        final String fieldName2 = "notMuchDuplicateField";
+        final String fieldName3 = "notDuplicateField";
+
+        long duplicateValue = randomLongBetween(-10000000L, 10000000L);
+        long value, value2, value3;
+        Directory dir = newDirectory();
+        IndexWriter writer = new IndexWriter(dir, new IndexWriterConfig(null));
+        for (int i = 0; i < numDocs; ++i) {
+            value = i < threshold1 ? duplicateValue : i;
+            value2 = i < threshold2 ? duplicateValue : i;
+            value3 = i < threshold3 ? duplicateValue : i;
+            Document doc = new Document();
+            doc.add(new LongPoint(fieldName, value));
+            doc.add(new LongPoint(fieldName2, value2));
+            doc.add(new LongPoint(fieldName3, value3));
+            writer.addDocument(doc);
+        }
+        writer.close();
+        final IndexReader reader = DirectoryReader.open(dir);
+        assertTrue(indexFieldHasDuplicateData(reader, fieldName));
+        assertFalse(indexFieldHasDuplicateData(reader, fieldName2));
+        assertFalse(indexFieldHasDuplicateData(reader, fieldName3));
         reader.close();
         dir.close();
     }
@@ -758,42 +793,6 @@ public class QueryPhaseTests extends IndexShardTestCase {
                 assertFalse(TopDocsCollectorContext.hasInfMaxScore(query));
             }
         }
-    }
-
-    public void testNumericLongSortOptimizationDocsHaveTheSameValue() throws Exception {
-        final String fieldNameLong = "long-field";
-        MappedFieldType fieldTypeLong = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG);
-        MapperService mapperService = mock(MapperService.class);
-        when(mapperService.fullName(fieldNameLong)).thenReturn(fieldTypeLong);
-        TestSearchContext searchContext = spy(new TestSearchContext(null, indexShard));
-        when(searchContext.mapperService()).thenReturn(mapperService);
-
-        final int numDocs = scaledRandomIntBetween(5, 10);
-        long longValue = randomLongBetween(-10000000L, 10000000L); // all docs have the same value
-        Directory dir = newDirectory();
-        RandomIndexWriter writer = new RandomIndexWriter(random(), dir);
-        for (int i = 0; i < numDocs; ++i) {
-            Document doc = new Document();
-            doc.add(new LongPoint(fieldNameLong, longValue));
-            doc.add(new NumericDocValuesField(fieldNameLong, longValue));
-            writer.addDocument(doc);
-        }
-        writer.close();
-        final IndexReader reader = DirectoryReader.open(dir);
-        IndexSearcher searcher = getAssertingSortOptimizedSearcher(reader, 1);
-
-        final SortField sortFieldLong = new SortField(fieldNameLong, SortField.Type.LONG);
-        sortFieldLong.setMissingValue(Long.MAX_VALUE);
-        final Sort longSort = new Sort(sortFieldLong);
-        SortAndFormats sortAndFormats = new SortAndFormats(longSort, new DocValueFormat[]{DocValueFormat.RAW});
-        searchContext.sort(sortAndFormats);
-        searchContext.parsedQuery(new ParsedQuery(new MatchAllDocsQuery()));
-        searchContext.setTask(new SearchTask(123L, "", "", "", null, Collections.emptyMap()));
-        searchContext.setSize(10);
-        QueryPhase.execute(searchContext, searcher, checkCancelled -> {});
-        assertSortResults(searchContext.queryResult().topDocs().topDocs, (long) numDocs, false);
-        reader.close();
-        dir.close();
     }
 
     // used to check that numeric long or date sort optimization was run

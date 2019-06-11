@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.core;
 
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -24,8 +23,6 @@ public interface XPackFeatureSet {
     boolean enabled();
 
     Map<String, Object> nativeCodeInfo();
-
-    void usage(ActionListener<Usage> listener);
 
     abstract class Usage implements ToXContentObject, NamedWriteable {
 

@@ -3,22 +3,31 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.core.ccr;
+package org.elasticsearch.xpack.ccr;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.protocol.xpack.XPackUsageRequest;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackFeatureSet;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
+import org.elasticsearch.xpack.core.action.XPackUsageFeatureResponse;
+import org.elasticsearch.xpack.core.action.XPackUsageFeatureTransportAction;
+import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -29,13 +38,11 @@ public class CCRFeatureSet implements XPackFeatureSet {
 
     private final boolean enabled;
     private final XPackLicenseState licenseState;
-    private final ClusterService clusterService;
 
     @Inject
-    public CCRFeatureSet(Settings settings, @Nullable XPackLicenseState licenseState, ClusterService clusterService) {
+    public CCRFeatureSet(Settings settings, XPackLicenseState licenseState) {
         this.enabled = XPackSettings.CCR_ENABLED_SETTING.get(settings);
         this.licenseState = licenseState;
-        this.clusterService = clusterService;
     }
 
     @Override
@@ -58,34 +65,50 @@ public class CCRFeatureSet implements XPackFeatureSet {
         return null;
     }
 
-    @Override
-    public void usage(ActionListener<XPackFeatureSet.Usage> listener) {
-        MetaData metaData = clusterService.state().metaData();
+    public static class UsageTransportAction extends XPackUsageFeatureTransportAction {
 
-        int numberOfFollowerIndices = 0;
-        long lastFollowerIndexCreationDate = 0L;
-        for (IndexMetaData imd : metaData) {
-            if (imd.getCustomData("ccr") != null) {
-                numberOfFollowerIndices++;
-                if (lastFollowerIndexCreationDate < imd.getCreationDate()) {
-                    lastFollowerIndexCreationDate = imd.getCreationDate();
+        private final Settings settings;
+        private final XPackLicenseState licenseState;
+
+        @Inject
+        public UsageTransportAction(TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
+                                    ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
+                                    Settings settings, XPackLicenseState licenseState) {
+            super(XPackUsageFeatureAction.CCR.name(), transportService, clusterService,
+                threadPool, actionFilters, indexNameExpressionResolver);
+            this.settings = settings;
+            this.licenseState = licenseState;
+        }
+
+        @Override
+        protected void masterOperation(XPackUsageRequest request, ClusterState state, ActionListener<XPackUsageFeatureResponse> listener) {
+            MetaData metaData = state.metaData();
+
+            int numberOfFollowerIndices = 0;
+            long lastFollowerIndexCreationDate = 0L;
+            for (IndexMetaData imd : metaData) {
+                if (imd.getCustomData("ccr") != null) {
+                    numberOfFollowerIndices++;
+                    if (lastFollowerIndexCreationDate < imd.getCreationDate()) {
+                        lastFollowerIndexCreationDate = imd.getCreationDate();
+                    }
                 }
             }
-        }
-        AutoFollowMetadata autoFollowMetadata = metaData.custom(AutoFollowMetadata.TYPE);
-        int numberOfAutoFollowPatterns = autoFollowMetadata != null ? autoFollowMetadata.getPatterns().size() : 0;
+            AutoFollowMetadata autoFollowMetadata = metaData.custom(AutoFollowMetadata.TYPE);
+            int numberOfAutoFollowPatterns = autoFollowMetadata != null ? autoFollowMetadata.getPatterns().size() : 0;
 
-        Long lastFollowTimeInMillis;
-        if (numberOfFollowerIndices == 0) {
-            // Otherwise we would return a value that makes no sense.
-            lastFollowTimeInMillis = null;
-        } else {
-            lastFollowTimeInMillis = Math.max(0, Instant.now().toEpochMilli() - lastFollowerIndexCreationDate);
-        }
+            Long lastFollowTimeInMillis;
+            if (numberOfFollowerIndices == 0) {
+                // Otherwise we would return a value that makes no sense.
+                lastFollowTimeInMillis = null;
+            } else {
+                lastFollowTimeInMillis = Math.max(0, Instant.now().toEpochMilli() - lastFollowerIndexCreationDate);
+            }
 
-        Usage usage =
-            new Usage(available(), enabled(), numberOfFollowerIndices, numberOfAutoFollowPatterns, lastFollowTimeInMillis);
-        listener.onResponse(usage);
+            Usage usage = new Usage(licenseState.isCcrAllowed(), XPackSettings.CCR_ENABLED_SETTING.get(settings),
+                numberOfFollowerIndices, numberOfAutoFollowPatterns, lastFollowTimeInMillis);
+            listener.onResponse(new XPackUsageFeatureResponse(usage));
+        }
     }
 
     public static class Usage extends XPackFeatureSet.Usage {

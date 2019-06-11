@@ -63,10 +63,10 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
         Job.Builder job = createJob("fail-over-basics-job", new ByteSizeValue(2, ByteSizeUnit.MB));
         PutJobAction.Request putJobRequest = new PutJobAction.Request(job);
         client().execute(PutJobAction.INSTANCE, putJobRequest).actionGet();
-        ensureGreen();
         OpenJobAction.Request openJobRequest = new OpenJobAction.Request(job.getId());
         client().execute(OpenJobAction.INSTANCE, openJobRequest).actionGet();
         awaitJobOpenedAndAssigned(job.getId(), null);
+        ensureGreen();
 
         internalCluster().stopRandomDataNode();
         ensureStableCluster(3);

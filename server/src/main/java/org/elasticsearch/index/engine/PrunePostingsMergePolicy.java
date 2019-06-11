@@ -38,8 +38,7 @@ import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.FixedBitSet;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.lucene.Lucene;
 
 import java.io.IOException;
 import java.util.Iterator;
@@ -71,9 +70,8 @@ final class PrunePostingsMergePolicy extends OneMergeWrappingMergePolicy {
         if (reader.getLiveDocs() == null) {
             return reader; // no deleted docs - we are good!
         }
-        final Tuple<Bits, Boolean> liveDocsAndFullyDeletedSegment = applyRetentionQuery(reader, retentionQuery.get());
-        final Bits liveDocs = liveDocsAndFullyDeletedSegment.v1();
-        final boolean fullyDeletedSegment = liveDocsAndFullyDeletedSegment.v2();
+        final Bits liveDocs = applyRetentionQuery(reader, retentionQuery.get());
+        final boolean fullyDeletedSegment = liveDocs instanceof Bits.MatchNoBits;
         return new FilterCodecReader(reader) {
 
             @Override
@@ -231,10 +229,9 @@ final class PrunePostingsMergePolicy extends OneMergeWrappingMergePolicy {
         }
     }
 
-    private static Tuple<Bits, Boolean> applyRetentionQuery(CodecReader reader, Query retentionQuery) throws IOException {
+    private static Bits applyRetentionQuery(CodecReader reader, Query retentionQuery) throws IOException {
+        final Bits liveDocs = reader.getLiveDocs();
         final IndexSearcher searcher = new IndexSearcher(new FilterCodecReader(reader) {
-            private final Bits liveDocs = reader.getLiveDocs();
-
             @Override
             public CacheHelper getCoreCacheHelper() {
                 return reader.getCoreCacheHelper();
@@ -268,18 +265,11 @@ final class PrunePostingsMergePolicy extends OneMergeWrappingMergePolicy {
         searcher.setQueryCache(null);
         final Weight weight = searcher.createWeight(searcher.rewrite(retentionQuery), ScoreMode.COMPLETE_NO_SCORES, 1.0f);
         final Scorer scorer = weight.scorer(reader.getContext());
-        if (scorer == null) {
-            return Tuple.tuple(reader.getLiveDocs(), reader.numDocs() == 0);
+        final Bits bits = Lucene.union(liveDocs, scorer == null ? DocIdSetIterator.empty() : scorer.iterator());
+        if (bits == liveDocs && reader.numDocs() == 0) {
+            return new Bits.MatchNoBits(liveDocs.length()); // fully deleted segment
         } else {
-            final FixedBitSet liveDocs = FixedBitSet.copyOf(reader.getLiveDocs());
-            final DocIdSetIterator iterator = scorer.iterator();
-            int numDocs = reader.numDocs();
-            while (iterator.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
-                if (liveDocs.getAndSet(iterator.docID()) == false) {
-                    numDocs++;
-                }
-            }
-            return Tuple.tuple(liveDocs, numDocs == 0);
+            return bits;
         }
     }
 }

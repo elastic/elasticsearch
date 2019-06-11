@@ -98,6 +98,7 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.text.ParseException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -1083,6 +1084,35 @@ public class Lucene {
                 assert fromSeqNo <= seqNo && seqNo <= toSeqNo : "from_seq_no=" + fromSeqNo + " seq_no=" + seqNo + " to_seq_no=" + toSeqNo;
                 onNewSeqNo.accept(seqNo);
             }
+        }
+    }
+
+    /**
+     * Returns a new Bits which is the union of the given Bits and a DocIdSetIterator.
+     * If the DocIdSetIterator is empty, the same Bits instance will be returned.
+     */
+    public static Bits union(Bits bits, DocIdSetIterator iterator) throws IOException {
+        iterator.nextDoc();
+        if (iterator.docID() == DocIdSetIterator.NO_MORE_DOCS) {
+            return bits;
+        } else {
+            return new Bits() {
+                @Override
+                public boolean get(int index) {
+                    if (bits.get(index)) {
+                        return true;
+                    }
+                    try {
+                        return iterator.advance(index) == index;
+                    } catch (IOException e) {
+                        throw new UncheckedIOException(e);
+                    }
+                }
+                @Override
+                public int length() {
+                    return bits.length();
+                }
+            };
         }
     }
 }

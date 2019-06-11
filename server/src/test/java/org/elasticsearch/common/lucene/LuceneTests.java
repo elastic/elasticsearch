@@ -50,8 +50,10 @@ import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.MMapDirectory;
 import org.apache.lucene.store.MockDirectoryWrapper;
+import org.apache.lucene.util.BitSetIterator;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.core.internal.io.IOUtils;
@@ -75,6 +77,8 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.sameInstance;
 
 public class LuceneTests extends ESTestCase {
     private static final NamedWriteableRegistry EMPTY_REGISTRY = new NamedWriteableRegistry(Collections.emptyList());
@@ -659,6 +663,29 @@ public class LuceneTests extends ESTestCase {
                 return randomBoolean() ? SortField.STRING_FIRST : SortField.STRING_LAST;
             default:
                 return null;
+        }
+    }
+
+    public void testUnionDocIdSet() throws Exception {
+        int length = randomIntBetween(1, 1000);
+        FixedBitSet s1 = new FixedBitSet(length);
+        FixedBitSet s2 = new FixedBitSet(length);
+        for (int i = 0; i < length; i++) {
+            if (randomBoolean()) {
+                s1.set(i);
+            }
+            if (randomBoolean()) {
+                s2.set(i);
+            }
+        }
+        Bits merged = Lucene.union(s1, new BitSetIterator(s2, randomNonNegativeLong()));
+        if (s2.cardinality() == 0) {
+            assertThat(merged, sameInstance(s1));
+        } else {
+            assertThat(merged, not(sameInstance(s1)));
+        }
+        for (int i = 0; i < length; i++) {
+            assertThat("index=" + i, merged.get(i), equalTo(s1.get(i) || s2.get(i)));
         }
     }
 }

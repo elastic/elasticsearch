@@ -32,6 +32,7 @@ import org.elasticsearch.index.fielddata.AtomicOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.IndexOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.ordinals.GlobalOrdinalsBuilder;
+import org.elasticsearch.index.fielddata.ordinals.GlobalOrdinalsIndexFieldData;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 
 import java.io.IOException;
@@ -60,6 +61,14 @@ public abstract class AbstractIndexOrdinalsFieldData extends AbstractIndexFieldD
 
     @Override
     public IndexOrdinalsFieldData loadGlobal(DirectoryReader indexReader) {
+        @SuppressWarnings("unchecked")
+        GlobalOrdinalsIndexFieldData fieldData = (GlobalOrdinalsIndexFieldData) loadGlobalInternal(indexReader);
+        // we create a new instance of the cached value for each consumer in order to avoid creating
+        // new TermsEnums for each segment in the cached instance
+        return fieldData.newConsumer(indexReader);
+    }
+
+    private IndexOrdinalsFieldData loadGlobalInternal(DirectoryReader indexReader) {
         if (indexReader.leaves().size() <= 1) {
             // ordinals are already global
             return this;

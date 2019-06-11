@@ -61,11 +61,14 @@ public abstract class AbstractIndexOrdinalsFieldData extends AbstractIndexFieldD
 
     @Override
     public IndexOrdinalsFieldData loadGlobal(DirectoryReader indexReader) {
-        @SuppressWarnings("unchecked")
-        GlobalOrdinalsIndexFieldData fieldData = (GlobalOrdinalsIndexFieldData) loadGlobalInternal(indexReader);
-        // we create a new instance of the cached value for each consumer in order to avoid creating
-        // new TermsEnums for each segment in the cached instance
-        return fieldData.newConsumer(indexReader);
+        IndexOrdinalsFieldData fieldData = loadGlobalInternal(indexReader);
+        if (fieldData instanceof GlobalOrdinalsIndexFieldData) {
+            // we create a new instance of the cached value for each consumer in order
+            // to avoid creating new TermsEnums for each segment in the cached instance
+            return ((GlobalOrdinalsIndexFieldData) fieldData).newConsumer(indexReader);
+        } else {
+            return fieldData;
+        }
     }
 
     private IndexOrdinalsFieldData loadGlobalInternal(DirectoryReader indexReader) {

@@ -108,7 +108,7 @@ Here are some examples for the human readable formats:
 
 [source,js]
 --------------------------------------------------
-POST /_sql?format=csv
+POST /_xpack/sql?format=csv
 {
     "query": "SELECT * FROM library ORDER BY page_count DESC",
     "fetch_size": 5
@@ -170,7 +170,7 @@ Which returns:
 
 [source,js]
 --------------------------------------------------
-POST /_sql?format=tsv
+POST /_xpack/sql?format=tsv
 {
     "query": "SELECT * FROM library ORDER BY page_count DESC",
     "fetch_size": 5
@@ -197,7 +197,7 @@ James S.A. Corey	Leviathan Wakes	561	2011-06-02T00:00:00.000Z
 
 [source,js]
 --------------------------------------------------
-POST /_sql?format=txt
+POST /_xpack/sql?format=txt
 {
     "query": "SELECT * FROM library ORDER BY page_count DESC",
     "fetch_size": 5
@@ -225,7 +225,7 @@ James S.A. Corey |Leviathan Wakes     |561            |2011-06-02T00:00:00.000Z
 
 [source,js]
 --------------------------------------------------
-POST /_sql?format=yaml
+POST /_xpack/sql?format=yaml
 {
     "query": "SELECT * FROM library ORDER BY page_count DESC",
     "fetch_size": 5

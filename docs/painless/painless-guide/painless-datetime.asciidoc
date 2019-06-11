@@ -352,9 +352,9 @@ through an input called `params`.
 
 *Examples*
 
-* Convert a numeric datetime from user parameters to a complex datetime
+* Parse a numeric datetime from user parameters to a complex datetime
 +
-Input:
+** Input:
 +
 [source,JSON]
 ----
@@ -368,7 +368,7 @@ Input:
 ...
 ----
 +
-Script:
+** Script:
 +
 [source,Painless]
 ----
@@ -377,9 +377,9 @@ Instant instant = Instant.ofEpochMilli(inputDateTime);
 ZonedDateTime zdt = ZonedDateTime.ofInstant(instant, ZoneId.of('Z'));
 ----
 +
-* Convert a string datetime from user parameters to a complex datetime
+* Parse a string datetime from user parameters to a complex datetime
 +
-Input:
+** Input:
 +
 [source,JSON]
 ----
@@ -393,7 +393,7 @@ Input:
 ...
 ----
 +
-Script:
+** Script:
 +
 [source,Painless]
 ----
@@ -415,9 +415,9 @@ or `ctx['_source']`.
 
 *Examples*
 
-* Convert a numeric datetime from a sourced document to a complex datetime
+* Parse a numeric datetime from a sourced document to a complex datetime
 +
-Input:
+** Input:
 +
 [source,JSON]
 ----
@@ -428,7 +428,7 @@ Input:
 }
 ----
 +
-Script:
+** Script:
 +
 [source,Painless]
 ----
@@ -437,9 +437,9 @@ Instant instant = Instant.ofEpochMilli(inputDateTime);
 ZonedDateTime zdt = ZonedDateTime.ofInstant(instant, ZoneId.of('Z'));
 ----
 +
-* Convert a string datetime from a sourced document to a complex datetime
+* Parse a string datetime from a sourced document to a complex datetime
 +
-Input:
+** Input:
 +
 [source,JSON]
 ----
@@ -450,7 +450,7 @@ Input:
 }
 ----
 +
-Script:
+** Script:
 +
 [source,Painless]
 ----
@@ -472,46 +472,92 @@ document is most commonly accessible through an input called `doc`.
 
 *Examples*
 
-* Convert a numeric datetime from a sourced document to a complex datetime
+* Format a complex datetime from an indexed document to a string datetime
 +
-Mappings:
+** Assumptions:
 +
-[source,JSON]
-----
-{
-    ...
-    "input_datetime": 434931327000
-    ...
-}
-----
+*** The field `input_datetime` exists in all indexes as part of the query
+*** All indexed documents contain the field `input_datetime`
 +
-Script:
-+
-[source,Painless]
-----
-long inputDatetime = _source['input_datetime'];
-Instant instant = Instant.ofEpochMilli(inputDateTime);
-ZonedDateTime zdt = ZonedDateTime.ofInstant(instant, ZoneId.of('Z'));
-----
-+
-* Convert a string datetime from a sourced document to a complex datetime
-+
-Input:
+** Mappings:
 +
 [source,JSON]
 ----
 {
-    ...
-    "input_datetime": "1983-10-13T22:15:30Z"
-    ...
+    "mappings": {
+        ...
+        "properties": {
+            ...
+            "input_datetime": {
+                "type": "date"
+            }
+            ...
+        }
+        ...
+    }
 }
 ----
 +
-Script:
+** Script:
 +
 [source,Painless]
 ----
-String datetime = ctx['_source']['input_datetime'];
-ZonedDateTime zdt = ZonedDateTime.parse(datetime);
+def inputDatetime = doc['input_datetime'].value;
+String datetime = inputDateTime.format(DateTimeFormatter.ISO_INSTANT);
 ----
-Note the parse method uses ISO 8601 by default.
+Note the use of a built-in DateTimeFormatter.
++
+* Find the difference between two complex datetimes from an indexed document
++
+** Assumptions:
++
+*** The fields `start_datetime` and `end_datetime` may *not* exist in all
+indexes as part of the query
+*** The fields `start_datetime` and `end_datetime` may *not* have values in all
+indexed documents
++
+** Mappings:
++
+[source,JSON]
+----
+{
+    "mappings": {
+        ...
+        "properties": {
+            ...
+            "start_datetime": {
+                "type": "date"
+            },
+            "end_datetime": {
+                "type": "date"
+            }
+            ...
+        }
+        ...
+    }
+}
+----
++
+** Script:
++
+[source,Painless]
+----
+// check for the existence of fields within the current document
+if (doc.containsKey('start_datetime') && doc.containsKey('end_datetime')) {
+
+    // check for the existence of values for fields within the current document
+    if (doc['start_datetime'].size() > 0 && doc['end_datetime'].size() > 0) {
+
+        def startDatetime = doc['start_datetime'].value;
+        def endDatetime = doc['end_datetime'].value;
+        long differenceInMillis =
+            ChronoUnit.MILLIS.between(startDateTime, endDateTime);
+
+        // handle the difference in datetimes
+    } else {
+        // handle documents with missing start or end datetime values
+    }
+} else {
+    // handle indexes without start or end datetime fields
+}
+----

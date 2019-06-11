@@ -402,15 +402,16 @@ DateTimeFormatter dtf = DateTimeFormatter.ofPattern(
         "'custom' 'y' yyyy 'm' MM 'd' dd HH:mm:ss VV");
 ZonedDateTime zdt = ZonedDateTime.parse(datetime, dtf);
 ----
+Note the use of a custom DateTimeFormatter.
 
 ===== Datetime Input From a Source Document
 
-Use the original {ref}/mapping-source-field.html[source] document as a script
+Use an original {ref}/mapping-source-field.html[source] document as a script
 input to access a numeric datetime or string datetime for a specific field
-within that document. Access to the original source within a script is
-dependent on the Painless context and is not always available. The original
-source is most commonly accessible through an input called `_source` or
-`ctx['_source']`.
+within that document. Access to an original source document within a script is
+dependent on the Painless context and is not always available. An original
+source document is most commonly accessible through an input called `_source`
+or `ctx['_source']`.
 
 *Examples*
 
@@ -454,11 +455,63 @@ Script:
 [source,Painless]
 ----
 String datetime = ctx['_source']['input_datetime'];
-DateTimeFormatter dtf = DateTimeFormatter.ofPattern(
-        "'custom' 'y' yyyy 'm' MM 'd' dd HH:mm:ss VV");
-ZonedDateTime zdt = ZonedDateTime.parse(datetime, dtf);
+ZonedDateTime zdt = ZonedDateTime.parse(datetime);
 ----
+Note the parse method uses ISO 8601 by default.
 
 ===== Datetime Input From an Indexed Document
 
-outline
+Use an indexed document as a script input to access a complex datetime for a
+specific field within that document where the field is mapped as a
+{ref}/date.html[standard date] or a {ref}/date_nanos.html[nanosecond date].
+Numeric datetime fields mapped as {ref}/number.html[numeric] and string
+datetime fields mapped as {ref}/keyword.html[keyword] are accessible through an
+indexed document as well. Access to an indexed document within a script is
+dependent on the Painless context and is not always available. An indexed
+document is most commonly accessible through an input called `doc`.
+
+*Examples*
+
+* Convert a numeric datetime from a sourced document to a complex datetime
++
+Mappings:
++
+[source,JSON]
+----
+{
+    ...
+    "input_datetime": 434931327000
+    ...
+}
+----
++
+Script:
++
+[source,Painless]
+----
+long inputDatetime = _source['input_datetime'];
+Instant instant = Instant.ofEpochMilli(inputDateTime);
+ZonedDateTime zdt = ZonedDateTime.ofInstant(instant, ZoneId.of('Z'));
+----
++
+* Convert a string datetime from a sourced document to a complex datetime
++
+Input:
++
+[source,JSON]
+----
+{
+    ...
+    "input_datetime": "1983-10-13T22:15:30Z"
+    ...
+}
+----
++
+Script:
++
+[source,Painless]
+----
+String datetime = ctx['_source']['input_datetime'];
+ZonedDateTime zdt = ZonedDateTime.parse(datetime);
+----
+Note the parse method uses ISO 8601 by default.

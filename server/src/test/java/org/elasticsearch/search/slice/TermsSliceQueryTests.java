@@ -46,7 +46,6 @@ import java.util.Set;
 import static org.hamcrest.Matchers.equalTo;
 
 public class TermsSliceQueryTests extends ESTestCase {
-
     public void testBasics() {
         TermsSliceQuery query1 =
             new TermsSliceQuery("field1", 1, 10);

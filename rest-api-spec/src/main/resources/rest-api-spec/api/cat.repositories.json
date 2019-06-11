@@ -3,7 +3,6 @@
     "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/cat-repositories.html",
     "methods": ["GET"],
     "url": {
-      "path": "/_cat/repositories",
       "paths": ["/_cat/repositories"],
       "parts": {
       },

@@ -282,7 +282,7 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeAc
             TokenFilterFactory[] tokenFilterFactories;
             String tokenizerName;
             if (customAnalyzer instanceof CustomAnalyzer) {
-                CustomAnalyzer casted = (CustomAnalyzer) analyzer;
+                CustomAnalyzer casted = (CustomAnalyzer) customAnalyzer;
                 charFilterFactories = casted.charFilters();
                 tokenizerFactory = casted.tokenizerFactory();
                 tokenFilterFactories = casted.tokenFilters();

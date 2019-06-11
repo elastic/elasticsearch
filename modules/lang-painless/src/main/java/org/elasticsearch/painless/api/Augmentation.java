@@ -25,6 +25,7 @@ import java.util.Base64;
 import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.TreeMap;
 import java.util.function.BiConsumer;
@@ -552,4 +553,78 @@ public class Augmentation {
         // O(N) or faster depending on implementation
         return result.toArray(new String[0]);
     }
+
+    /**
+     * Access values in nested containers with a dot separated path.  Path elements are treated
+     * as strings for Maps and integers for Lists.  Throws 'IllegalArgumentException' if path does
+     * not exist. Throws 'NumberFormatException' if an path element for a List is not an integer.
+     */
+    private static Object getByPath(Object receiver, String path) {
+        Object value = getByPath(receiver, path, new missingValue());
+        if (value instanceof missingValue) {
+            throw new IllegalArgumentException("Could not find value at path [" + path + "]");
+        }
+        return value;
+    }
+
+    /**
+     * Same as 'getByPath(object, String)' but returns defaultValue if path does not exist.
+     */
+    private static Object getByPath(Object receiver, String path, Object defaultValue) {
+        Object next = receiver;
+        String[] elements = path.split("\\.");
+        for (int i = 0; i < elements.length; i ++) {
+            String element = elements[i];
+            if (next instanceof Map && (((Map) next).containsKey(element))) {
+                next = ((Map) next).get(element);
+            } else if (next instanceof List<?>) {
+                List<?> list = (List<?>)next;
+                try {
+                    int elemInt = Integer.parseInt(element);
+                    if (list.size() < elemInt) {
+                        return defaultValue;
+                    }
+                    next = list.get(elemInt);
+                } catch (NumberFormatException e) {
+                    String format = "Could not parse [%s] as a int index into list at path [%s] and index [%d]";
+                    throw new NumberFormatException(String.format(Locale.ROOT, format, element, path, i));
+                }
+            } else {
+                return defaultValue;
+            }
+        }
+        return next;
+    }
+
+
+    /**
+     * getByPath for Lists without default
+     */
+    public static <T> Object getByPath(List<T> receiver, String path) {
+        return getByPath((Object)receiver, path);
+    }
+
+    /**
+     * getByPath for Maps without default
+     */
+    public static <K,V> Object getByPath(Map<K,V> receiver, String path) {
+        return getByPath((Object)receiver, path);
+    }
+
+    /**
+     * getByPath for Lists with default
+     */
+    public static <T> Object getByPath(List<T> receiver, String path, Object defaultValue) {
+        return getByPath((Object)receiver, path, defaultValue);
+    }
+
+    /**
+     * getByPath for Maps with default
+     */
+    public static <K,V> Object getByPath(Map<K,V> receiver, String path, Object defaultValue) {
+        return getByPath((Object)receiver, path, defaultValue);
+    }
+
+    // missingValue indicates a value is missing in getByPath, used by 'getByPath(object, String)'
+    private static class missingValue {}
 }

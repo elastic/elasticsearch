@@ -183,9 +183,3 @@ The following mapping parameters are accepted:
     Whether <<full-text-queries,full text queries>> should split the input on
     whitespace when building a query for this field. Accepts `true` or `false`
     (default).
-
-<<mapping-store,`store`>>::
-
-    Whether the field value should be stored and retrievable separately from
-    the <<mapping-source-field,`_source`>> field. Accepts `true` or `false`
-    (default).

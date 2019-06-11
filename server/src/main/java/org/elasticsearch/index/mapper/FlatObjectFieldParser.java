@@ -36,7 +36,7 @@ import java.util.List;
  * A helper class for {@link FlatObjectFieldMapper} parses a JSON object
  * and produces a pair of indexable fields for each leaf value.
  */
-public class FlatObjectFieldParser {
+class FlatObjectFieldParser {
     static final String SEPARATOR = "\0";
     private static final byte SEPARATOR_BYTE = '\0';
 

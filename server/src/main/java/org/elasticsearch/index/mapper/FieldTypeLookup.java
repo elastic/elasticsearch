@@ -106,18 +106,18 @@ class FieldTypeLookup implements Iterable<MappedFieldType> {
     }
 
     private static int getMaxFlatObjectDepth(CopyOnWriteHashMap<String, String> aliases,
-                                             CopyOnWriteHashMap<String, FlatObjectFieldMapper> jsonMappers) {
+                                             CopyOnWriteHashMap<String, FlatObjectFieldMapper> flatObjectMappers) {
         int maxFieldDepth = 0;
         for (Map.Entry<String, String> entry : aliases.entrySet()) {
             String aliasName = entry.getKey();
             String path = entry.getValue();
-            if (jsonMappers.containsKey(path)) {
+            if (flatObjectMappers.containsKey(path)) {
                 maxFieldDepth = Math.max(maxFieldDepth, fieldDepth(aliasName));
             }
         }
 
-        for (String fieldName : jsonMappers.keySet()) {
-            if (jsonMappers.containsKey(fieldName)) {
+        for (String fieldName : flatObjectMappers.keySet()) {
+            if (flatObjectMappers.containsKey(fieldName)) {
                 maxFieldDepth = Math.max(maxFieldDepth, fieldDepth(fieldName));
             }
         }

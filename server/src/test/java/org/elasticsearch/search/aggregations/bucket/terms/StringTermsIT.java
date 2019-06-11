@@ -78,7 +78,7 @@ public class StringTermsIT extends AbstractTermsTestCase {
 
     private static final String SINGLE_VALUED_FIELD_NAME = "s_value";
     private static final String MULTI_VALUED_FIELD_NAME = "s_values";
-    private static final String JSON_FIELD_NAME = "labels";
+    private static final String FLAT_OBJECT_FIELD_NAME = "labels";
     private static Map<String, Map<String, Object>> expectedMultiSortBuckets;
 
     @Override
@@ -128,7 +128,7 @@ public class StringTermsIT extends AbstractTermsTestCase {
                 .addMapping("type", SINGLE_VALUED_FIELD_NAME, "type=keyword",
                         MULTI_VALUED_FIELD_NAME, "type=keyword",
                         "tag", "type=keyword",
-                        JSON_FIELD_NAME, "type=flattened").get());
+                    FLAT_OBJECT_FIELD_NAME, "type=flattened").get());
         List<IndexRequestBuilder> builders = new ArrayList<>();
         for (int i = 0; i < 5; i++) {
             builders.add(client().prepareIndex("idx", "type").setSource(
@@ -141,7 +141,7 @@ public class StringTermsIT extends AbstractTermsTestCase {
                                 .value("val" + i)
                                 .value("val" + (i + 1))
                             .endArray()
-                            .startObject(JSON_FIELD_NAME)
+                            .startObject(FLAT_OBJECT_FIELD_NAME)
                                 .field("priority", "urgent")
                                 .field("release", "v1.2." + i)
                             .endObject()
@@ -1118,7 +1118,7 @@ public class StringTermsIT extends AbstractTermsTestCase {
 
     public void testFlatObjectField() {
         TermsAggregationBuilder builder = terms("terms")
-            .field(JSON_FIELD_NAME)
+            .field(FLAT_OBJECT_FIELD_NAME)
             .collectMode(randomFrom(SubAggCollectionMode.values()))
             .executionHint(randomExecutionHint());
 
@@ -1144,7 +1144,7 @@ public class StringTermsIT extends AbstractTermsTestCase {
     public void testKeyedFlatObject() {
         // Aggregate on the 'priority' subfield.
         TermsAggregationBuilder priorityAgg = terms("terms")
-            .field(JSON_FIELD_NAME + ".priority")
+            .field(FLAT_OBJECT_FIELD_NAME + ".priority")
             .collectMode(randomFrom(SubAggCollectionMode.values()))
             .executionHint(randomExecutionHint());
 
@@ -1164,7 +1164,7 @@ public class StringTermsIT extends AbstractTermsTestCase {
 
         // Aggregate on the 'release' subfield.
         TermsAggregationBuilder releaseAgg = terms("terms")
-            .field(JSON_FIELD_NAME + ".release")
+            .field(FLAT_OBJECT_FIELD_NAME + ".release")
             .collectMode(randomFrom(SubAggCollectionMode.values()))
             .executionHint(randomExecutionHint());
 
@@ -1186,7 +1186,7 @@ public class StringTermsIT extends AbstractTermsTestCase {
 
     public void testKeyedFlatObjectWithMinDocCount() {
         TermsAggregationBuilder priorityAgg = terms("terms")
-            .field(JSON_FIELD_NAME + ".priority")
+            .field(FLAT_OBJECT_FIELD_NAME + ".priority")
             .collectMode(randomFrom(SubAggCollectionMode.values()))
             .executionHint(randomExecutionHint())
             .minDocCount(0);

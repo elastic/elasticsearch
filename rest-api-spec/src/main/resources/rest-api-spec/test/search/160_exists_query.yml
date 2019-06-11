@@ -1340,7 +1340,6 @@ setup:
         index:  flat_object_test
         body:
           mappings:
-            dynamic: false
             properties:
               flat_object:
                 type: flattened

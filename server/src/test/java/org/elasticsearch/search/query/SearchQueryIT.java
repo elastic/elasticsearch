@@ -1721,7 +1721,7 @@ public class SearchQueryIT extends ESIntegTestCase {
         assertHitCount(searchResponse, 1);
     }
 
-    public void testFieldAliasesForMetaFields() throws Exception {
+   public void testFieldAliasesForMetaFields() throws Exception {
         XContentBuilder mapping = XContentFactory.jsonBuilder()
             .startObject()
                 .startObject("type")
@@ -1757,5 +1757,5 @@ public class SearchQueryIT extends ESIntegTestCase {
 
         DocumentField field = hit.getFields().get("id-alias");
         assertThat(field.getValue().toString(), equalTo("1"));
-    }
+   }
 }

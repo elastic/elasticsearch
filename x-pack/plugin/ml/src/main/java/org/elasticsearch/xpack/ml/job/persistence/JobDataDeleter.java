@@ -16,6 +16,7 @@ import org.elasticsearch.index.query.ConstantScoreQueryBuilder;
 import org.elasticsearch.index.query.IdsQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.reindex.AbstractBulkByScrollRequest;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.BulkByScrollTask;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
@@ -129,7 +130,7 @@ public class JobDataDeleter {
         private DeleteByQueryHolder(String index) {
             dbqRequest = new DeleteByQueryRequest();
             dbqRequest.indices(index);
-            dbqRequest.setSlices(5);
+            dbqRequest.setSlices(AbstractBulkByScrollRequest.AUTO_SLICES);
             dbqRequest.setAbortOnVersionConflict(false);
         }
     }

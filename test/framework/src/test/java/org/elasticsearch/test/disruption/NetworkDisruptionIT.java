@@ -41,6 +41,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashSet;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -129,43 +130,64 @@ public class NetworkDisruptionIT extends ESIntegTestCase {
 
         networkDisruption.startDisrupting();
 
-        CountDownLatch latch = new CountDownLatch(100);
-        for (int i = 0; i < 100; ++i) {
-            TransportService source = internalCluster().getInstance(TransportService.class);
-            TransportService target = internalCluster().getInstance(TransportService.class);
-
-            source.sendRequest(target.getLocalNode(), ClusterHealthAction.NAME, new ClusterHealthRequest(),
-                new TransportResponseHandler<>() {
-                    private AtomicBoolean responded = new AtomicBoolean();
-                    @Override
-                    public void handleResponse(TransportResponse response) {
-                        assertTrue(responded.compareAndSet(false, true));
-                        latch.countDown();
-                    }
-
-                    @Override
-                    public void handleException(TransportException exp) {
-                        assertTrue(responded.compareAndSet(false, true));
-                        latch.countDown();
-                    }
-
-                    @Override
-                    public String executor() {
-                        return ThreadPool.Names.SAME;
-                    }
-
-                    @Override
-                    public TransportResponse read(StreamInput in) throws IOException {
-                        return ClusterHealthResponse.readResponseFrom(in);
-                    }
-                });
+        int requests = randomIntBetween(1, 200);
+        CountDownLatch latch = new CountDownLatch(requests);
+        for (int i = 0; i < requests - 1; ++i) {
+            sendRequest(
+                internalCluster().getInstance(TransportService.class), internalCluster().getInstance(TransportService.class),
+                latch);
         }
 
+        // send a request that is guaranteed disrupted.
+        Tuple<TransportService, TransportService> disruptedPair = findDisruptedPair(disruptedLinks);
+        sendRequest(disruptedPair.v1(), disruptedPair.v2(), latch);
+
         // give a bit of time to send something under disruption.
-        latch.await(500, TimeUnit.MILLISECONDS);
+        assertFalse(latch.await(500, TimeUnit.MILLISECONDS)
+            && networkDisruption.getNetworkLinkDisruptionType() instanceof NetworkDisruption.NetworkDisconnect == false);
         networkDisruption.stopDisrupting();
 
         latch.await(30, TimeUnit.SECONDS);
-        assertEquals("All requests must respond", 0, latch.getCount());
+        assertEquals("All requests must respond, requests: " + requests, 0, latch.getCount());
+    }
+
+    private Tuple<TransportService, TransportService> findDisruptedPair(NetworkDisruption.DisruptedLinks disruptedLinks) {
+        Optional<Tuple<TransportService, TransportService>> disruptedPair = disruptedLinks.nodes().stream()
+            .flatMap(n1 -> disruptedLinks.nodes().stream().map(n2 -> Tuple.tuple(n1, n2)))
+            .filter(pair -> disruptedLinks.disrupt(pair.v1(), pair.v2()))
+            .map(pair -> Tuple.tuple(internalCluster().getInstance(TransportService.class, pair.v1()),
+                internalCluster().getInstance(TransportService.class, pair.v2())))
+            .findFirst();
+        // since we have 3+ nodes, we are sure to find a disrupted pair, also for bridge disruptions.
+        assertTrue(disruptedPair.isPresent());
+        return disruptedPair.get();
+    }
+
+    private void sendRequest(TransportService source, TransportService target, CountDownLatch latch) {
+        source.sendRequest(target.getLocalNode(), ClusterHealthAction.NAME, new ClusterHealthRequest(),
+            new TransportResponseHandler<>() {
+                private AtomicBoolean responded = new AtomicBoolean();
+                @Override
+                public void handleResponse(TransportResponse response) {
+                    assertTrue(responded.compareAndSet(false, true));
+                    latch.countDown();
+                }
+
+                @Override
+                public void handleException(TransportException exp) {
+                    assertTrue(responded.compareAndSet(false, true));
+                    latch.countDown();
+                }
+
+                @Override
+                public String executor() {
+                    return ThreadPool.Names.SAME;
+                }
+
+                @Override
+                public TransportResponse read(StreamInput in) throws IOException {
+                    return ClusterHealthResponse.readResponseFrom(in);
+                }
+            });
     }
 }

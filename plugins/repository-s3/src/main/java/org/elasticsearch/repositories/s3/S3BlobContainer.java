@@ -226,6 +226,7 @@ class S3BlobContainer extends AbstractBlobContainer {
                 })
                 .map(prefix -> prefix.substring(keyPath.length()))
                 .filter(name -> name.isEmpty() == false)
+                // Stripping the trailing slash off of the common prefix
                 .map(name -> name.substring(0, name.length() - 1))
                 .collect(Collectors.toMap(Function.identity(), name -> blobStore.blobContainer(path().add(name))));
         } catch (final AmazonClientException e) {
@@ -233,7 +234,7 @@ class S3BlobContainer extends AbstractBlobContainer {
         }
     }
 
-    private List<ObjectListing> executeListing(AmazonS3Reference clientReference, ListObjectsRequest listObjectsRequest) {
+    private static List<ObjectListing> executeListing(AmazonS3Reference clientReference, ListObjectsRequest listObjectsRequest) {
         final List<ObjectListing> results = new ArrayList<>();
         ObjectListing prevListing = null;
         while (true) {
@@ -255,11 +256,7 @@ class S3BlobContainer extends AbstractBlobContainer {
     }
 
     private ListObjectsRequest listObjectsRequest(String keyPath) {
-        final ListObjectsRequest listObjectsRequest = new ListObjectsRequest();
-        listObjectsRequest.setBucketName(blobStore.bucket());
-        listObjectsRequest.setPrefix(keyPath);
-        listObjectsRequest.setDelimiter("/");
-        return listObjectsRequest;
+        return new ListObjectsRequest().withBucketName(blobStore.bucket()).withPrefix(keyPath).withDelimiter("/");
     }
 
     private String buildKey(String blobName) {

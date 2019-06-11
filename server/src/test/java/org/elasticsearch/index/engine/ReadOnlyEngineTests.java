@@ -129,6 +129,7 @@ public class ReadOnlyEngineTests extends EngineTestCase {
                     if (rarely()) {
                         engine.flush();
                     }
+                    engine.syncTranslog(); // advance local checkpoint
                     globalCheckpoint.set(engine.getLocalCheckpoint());
                 }
                 globalCheckpoint.set(engine.getLocalCheckpoint());
@@ -155,6 +156,7 @@ public class ReadOnlyEngineTests extends EngineTestCase {
                     ParsedDocument doc = testParsedDocument(Integer.toString(i), null, testDocument(), new BytesArray("{}"), null);
                     engine.index(new Engine.Index(newUid(doc), doc, i, primaryTerm.get(), 1, null, Engine.Operation.Origin.REPLICA,
                         System.nanoTime(), -1, false, SequenceNumbers.UNASSIGNED_SEQ_NO, 0));
+                    engine.syncTranslog(); // advance local checkpoint
                     maxSeqNo = engine.getLocalCheckpoint();
                 }
                 globalCheckpoint.set(engine.getLocalCheckpoint() - 1);

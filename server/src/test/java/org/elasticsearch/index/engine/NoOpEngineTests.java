@@ -114,6 +114,7 @@ public class NoOpEngineTests extends EngineTestCase {
                     if (rarely()) {
                         engine.flush();
                     }
+                    engine.syncTranslog(); // advance local checkpoint
                     globalCheckpoint.set(engine.getLocalCheckpoint());
                 }
 
@@ -122,6 +123,7 @@ public class NoOpEngineTests extends EngineTestCase {
                         String delId = Integer.toString(i);
                         Engine.DeleteResult result = engine.delete(new Engine.Delete("test", delId, newUid(delId), primaryTerm.get()));
                         assertTrue(result.isFound());
+                        engine.syncTranslog(); // advance local checkpoint
                         globalCheckpoint.set(engine.getLocalCheckpoint());
                         deletions += 1;
                     }

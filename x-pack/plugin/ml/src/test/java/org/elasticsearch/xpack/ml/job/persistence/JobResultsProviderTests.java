@@ -851,10 +851,9 @@ public class JobResultsProviderTests extends ESTestCase {
             stats -> assertThat(stats, equalTo(new TimingStats("foo", 7, 1.0, 1000.0, 666.0))),
             e -> { throw new AssertionError(); });
 
-        ArgumentCaptor<SearchRequest> searchRequestCaptor = ArgumentCaptor.forClass(SearchRequest.class);
         verify(client).prepareSearch(indexName);
         verify(client).threadPool();
-        verify(client).search(searchRequestCaptor.capture(), any());
+        verify(client).search(any(SearchRequest.class), any(ActionListener.class));
         verifyNoMoreInteractions(client);
     }
 
@@ -873,9 +872,9 @@ public class JobResultsProviderTests extends ESTestCase {
             stats -> assertThat(stats, equalTo(new TimingStats("foo"))),
             e -> { throw new AssertionError(); });
 
-        verify(client).prepareSearch(AnomalyDetectorsIndex.jobResultsAliasedName("foo"));
+        verify(client).prepareSearch(indexName);
         verify(client).threadPool();
-        verify(client).search(any(), any());
+        verify(client).search(any(SearchRequest.class), any(ActionListener.class));
         verifyNoMoreInteractions(client);
     }
 

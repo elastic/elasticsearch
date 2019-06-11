@@ -130,7 +130,6 @@ public class IndexFollowingIT extends CcrIntegTestCase {
         return Stream.concat(super.nodePlugins().stream(), Stream.of(PrivateSettingPlugin.class)).collect(Collectors.toList());
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/41037")
     public void testFollowIndex() throws Exception {
         final int numberOfPrimaryShards = randomIntBetween(1, 3);
         int numberOfReplicas = between(0, 1);

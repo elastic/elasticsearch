@@ -218,6 +218,9 @@ public abstract class DataFrameRestTestCase extends ESRestTestCase {
         assertTrue(indexExists(dataFrameIndex));
         // wait until the dataframe has been created and all data is available
         waitForDataFrameCheckpoint(transformId);
+
+        // TODO: assuming non-continuous data frames, so transform should auto-stop
+        waitForDataFrameStopped(transformId);
         refreshIndex(dataFrameIndex);
     }
 
@@ -231,6 +234,12 @@ public abstract class DataFrameRestTestCase extends ESRestTestCase {
         }
 
         return request;
+    }
+
+    void waitForDataFrameStopped(String transformId) throws Exception {
+        assertBusy(() -> {
+            assertEquals("stopped", getDataFrameTaskState(transformId));
+        }, 5, TimeUnit.SECONDS);
     }
 
     void waitForDataFrameCheckpoint(String transformId) throws Exception {

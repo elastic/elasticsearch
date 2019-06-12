@@ -27,6 +27,7 @@ import org.apache.lucene.search.BoostAttribute;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.CharsRefBuilder;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.termvectors.TermVectorsRequest.Flag;
 import org.elasticsearch.common.Nullable;
@@ -38,6 +39,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.search.dfs.AggregatedDfs;
 
 import java.io.IOException;
@@ -79,7 +81,6 @@ public class TermVectorsResponse extends ActionResponse implements ToXContentObj
     private BytesReference termVectors;
     private BytesReference headerRef;
     private String index;
-    private String type;
     private String id;
     private long docVersion;
     private boolean exists = false;
@@ -94,9 +95,8 @@ public class TermVectorsResponse extends ActionResponse implements ToXContentObj
     int[] currentEndOffset = new int[0];
     BytesReference[] currentPayloads = new BytesReference[0];
 
-    public TermVectorsResponse(String index, String type, String id) {
+    public TermVectorsResponse(String index, String id) {
         this.index = index;
-        this.type = type;
         this.id = id;
     }
 
@@ -105,7 +105,10 @@ public class TermVectorsResponse extends ActionResponse implements ToXContentObj
 
     TermVectorsResponse(StreamInput in) throws IOException {
         index = in.readString();
-        type = in.readString();
+        if (in.getVersion().before(Version.V_8_0_0)) {
+            // types no longer relevant so ignore
+            in.readString();
+        }
         id = in.readString();
         docVersion = in.readVLong();
         exists = in.readBoolean();
@@ -120,7 +123,10 @@ public class TermVectorsResponse extends ActionResponse implements ToXContentObj
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(index);
-        out.writeString(type);
+        if (out.getVersion().before(Version.V_8_0_0)) {
+            // types not supported so send an empty array to previous versions
+            out.writeString(MapperService.SINGLE_MAPPING_NAME);
+        }
         out.writeString(id);
         out.writeVLong(docVersion);
         final boolean docExists = isExists();
@@ -176,11 +182,9 @@ public class TermVectorsResponse extends ActionResponse implements ToXContentObj
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         assert index != null;
-        assert type != null;
         assert id != null;
         builder.startObject();
         builder.field(FieldStrings._INDEX, index);
-        builder.field(FieldStrings._TYPE, type);
         if (!isArtificial()) {
             builder.field(FieldStrings._ID, id);
         }
@@ -389,10 +393,6 @@ public class TermVectorsResponse extends ActionResponse implements ToXContentObj
 
     public String getIndex() {
         return index;
-    }
-
-    public String getType() {
-        return type;
     }
 
     public String getId() {

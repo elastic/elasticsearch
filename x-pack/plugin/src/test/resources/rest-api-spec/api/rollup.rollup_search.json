@@ -3,7 +3,6 @@
     "documentation": "",
     "methods": [ "GET", "POST" ],
     "url": {
-      "path": "/{index}/_rollup_search",
       "paths": [ "{index}/_rollup_search"],
       "deprecated_paths" : [
         {

@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.dataframe.integration;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.core.IndexerState;
 import org.elasticsearch.client.dataframe.transforms.DataFrameTransformConfig;
-import org.elasticsearch.client.dataframe.transforms.DataFrameTransformStateAndStats;
 import org.elasticsearch.client.dataframe.transforms.pivot.SingleGroupSource;
 import org.elasticsearch.client.dataframe.transforms.pivot.TermsGroupSource;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
@@ -30,7 +29,6 @@ public class DataFrameTransformIT extends DataFrameIntegTestCase {
         cleanUp();
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/43139")
     public void testDataFrameTransformCrud() throws Exception {
         createReviewsIndex();
 
@@ -54,9 +52,10 @@ public class DataFrameTransformIT extends DataFrameIntegTestCase {
 
         waitUntilCheckpoint(config.getId(), 1L);
 
-        DataFrameTransformStateAndStats stats = getDataFrameTransformStats(config.getId()).getTransformsStateAndStats().get(0);
-
-        assertThat(stats.getTransformState().getIndexerState(), equalTo(IndexerState.STOPPED));
+        // It will eventually be stopped
+        assertBusy(() ->
+            assertThat(getDataFrameTransformStats(config.getId()).getTransformsStateAndStats().get(0).getTransformState().getIndexerState(),
+                equalTo(IndexerState.STOPPED)));
     }
 
 

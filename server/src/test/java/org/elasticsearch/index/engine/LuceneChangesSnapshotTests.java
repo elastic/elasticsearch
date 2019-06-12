@@ -229,7 +229,7 @@ public class LuceneChangesSnapshotTests extends EngineTestCase {
         readyLatch.await();
         concurrentlyApplyOps(operations, engine);
         engine.syncTranslog(); // advance local checkpoint
-        assertThat(engine.getLocalCheckpointTracker().getCheckpoint(), equalTo(operations.size() - 1L));
+        assertThat(engine.getLocalCheckpointTracker().getProcessedCheckpoint(), equalTo(operations.size() - 1L));
         isDone.set(true);
         for (Follower follower : followers) {
             follower.join();
@@ -272,7 +272,7 @@ public class LuceneChangesSnapshotTests extends EngineTestCase {
                 readLatch.countDown();
                 readLatch.await();
                 while (isDone.get() == false ||
-                    engine.getLocalCheckpointTracker().getCheckpoint() < leader.getLocalCheckpoint()) {
+                    engine.getLocalCheckpointTracker().getProcessedCheckpoint() < leader.getLocalCheckpoint()) {
                     pullOperations(engine);
                 }
                 assertConsistentHistoryBetweenTranslogAndLuceneIndex(engine, mapperService);

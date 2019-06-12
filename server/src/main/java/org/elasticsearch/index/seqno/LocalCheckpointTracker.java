@@ -49,7 +49,7 @@ public class LocalCheckpointTracker {
     /**
      * The current local checkpoint, i.e., all sequence numbers no more than this number have been processed.
      */
-    volatile long checkpoint;
+    volatile long processedCheckpoint;
 
     /**
      * The current persisted local checkpoint, i.e., all sequence numbers no more than this number have been durably persisted.
@@ -80,7 +80,7 @@ public class LocalCheckpointTracker {
                 "max seq. no. must be non-negative or [" + SequenceNumbers.NO_OPS_PERFORMED + "] but was [" + maxSeqNo + "]");
         }
         nextSeqNo = maxSeqNo == SequenceNumbers.NO_OPS_PERFORMED ? 0 : maxSeqNo + 1;
-        checkpoint = localCheckpoint;
+        processedCheckpoint = localCheckpoint;
         persistedCheckpoint = localCheckpoint;
     }
 
@@ -107,19 +107,19 @@ public class LocalCheckpointTracker {
      *
      * @param seqNo the sequence number to mark as completed
      */
-    public synchronized void markSeqNoAsCompleted(final long seqNo) {
+    public synchronized void markSeqNoAsProcessed(final long seqNo) {
         // make sure we track highest seen sequence number
         if (seqNo >= nextSeqNo) {
             nextSeqNo = seqNo + 1;
         }
-        if (seqNo <= checkpoint) {
+        if (seqNo <= processedCheckpoint) {
             // this is possible during recovery where we might replay an operation that was also replicated
             return;
         }
         final CountedBitSet bitSet = getBitSetForSeqNo(processedSeqNo, seqNo);
         final int offset = seqNoToBitSetOffset(seqNo);
         bitSet.set(offset);
-        if (seqNo == checkpoint + 1) {
+        if (seqNo == processedCheckpoint + 1) {
             updateCheckpoint();
         }
     }
@@ -130,7 +130,7 @@ public class LocalCheckpointTracker {
      * @param seqNo the sequence number to mark as completed
      */
     public synchronized void markSeqNoAsPersisted(final long seqNo) {
-        markSeqNoAsCompleted(seqNo);
+        markSeqNoAsProcessed(seqNo);
         // make sure we track highest seen sequence number
         if (seqNo >= nextSeqNo) {
             nextSeqNo = seqNo + 1;
@@ -148,12 +148,12 @@ public class LocalCheckpointTracker {
     }
 
     /**
-     * The current checkpoint which can be advanced by {@link #markSeqNoAsCompleted(long)}.
+     * The current checkpoint which can be advanced by {@link #markSeqNoAsProcessed(long)}.
      *
      * @return the current checkpoint
      */
-    public long getCheckpoint() {
-        return checkpoint;
+    public long getProcessedCheckpoint() {
+        return processedCheckpoint;
     }
 
     /**
@@ -192,7 +192,7 @@ public class LocalCheckpointTracker {
      */
     @SuppressForbidden(reason = "Object#wait")
     public synchronized void waitForProcessedOpsToComplete(final long seqNo) throws InterruptedException {
-        while (checkpoint < seqNo) {
+        while (processedCheckpoint < seqNo) {
             // notified by updateCheckpoint
             this.wait();
         }
@@ -206,7 +206,7 @@ public class LocalCheckpointTracker {
         if (seqNo >= nextSeqNo) {
             return false;
         }
-        if (seqNo <= checkpoint) {
+        if (seqNo <= processedCheckpoint) {
             return true;
         }
         final long bitSetKey = getBitSetKey(seqNo);
@@ -224,32 +224,32 @@ public class LocalCheckpointTracker {
     @SuppressForbidden(reason = "Object#notifyAll")
     private void updateCheckpoint() {
         assert Thread.holdsLock(this);
-        assert getBitSetForSeqNo(processedSeqNo, checkpoint + 1).get(seqNoToBitSetOffset(checkpoint + 1)) :
+        assert getBitSetForSeqNo(processedSeqNo, processedCheckpoint + 1).get(seqNoToBitSetOffset(processedCheckpoint + 1)) :
             "updateCheckpoint is called but the bit following the checkpoint is not set";
         try {
             // keep it simple for now, get the checkpoint one by one; in the future we can optimize and read words
-            long bitSetKey = getBitSetKey(checkpoint);
+            long bitSetKey = getBitSetKey(processedCheckpoint);
             CountedBitSet current = processedSeqNo.get(bitSetKey);
             if (current == null) {
                 // the bit set corresponding to the checkpoint has already been removed, set ourselves up for the next bit set
-                assert checkpoint % BIT_SET_SIZE == BIT_SET_SIZE - 1;
+                assert processedCheckpoint % BIT_SET_SIZE == BIT_SET_SIZE - 1;
                 current = processedSeqNo.get(++bitSetKey);
             }
             do {
-                checkpoint++;
+                processedCheckpoint++;
                 /*
                  * The checkpoint always falls in the current bit set or we have already cleaned it; if it falls on the last bit of the
                  * current bit set, we can clean it.
                  */
-                if (checkpoint == lastSeqNoInBitSet(bitSetKey)) {
+                if (processedCheckpoint == lastSeqNoInBitSet(bitSetKey)) {
                     assert current != null;
                     final CountedBitSet removed = processedSeqNo.remove(bitSetKey);
                     assert removed == current;
                     current = processedSeqNo.get(++bitSetKey);
                 }
-            } while (current != null && current.get(seqNoToBitSetOffset(checkpoint + 1)));
+            } while (current != null && current.get(seqNoToBitSetOffset(processedCheckpoint + 1)));
         } finally {
-            // notifies waiters in waitForOpsToComplete
+            // notifies waiters in waitForProcessedOpsToComplete
             this.notifyAll();
         }
     }
@@ -263,35 +263,30 @@ public class LocalCheckpointTracker {
         assert Thread.holdsLock(this);
         assert getBitSetForSeqNo(persistedSeqNo, persistedCheckpoint + 1).get(seqNoToBitSetOffset(persistedCheckpoint + 1)) :
             "updateCheckpoint is called but the bit following the checkpoint is not set";
-        try {
-            // keep it simple for now, get the checkpoint one by one; in the future we can optimize and read words
-            long bitSetKey = getBitSetKey(persistedCheckpoint);
-            CountedBitSet current = persistedSeqNo.get(bitSetKey);
-            if (current == null) {
-                // the bit set corresponding to the checkpoint has already been removed, set ourselves up for the next bit set
-                assert persistedCheckpoint % BIT_SET_SIZE == BIT_SET_SIZE - 1;
+        // keep it simple for now, get the checkpoint one by one; in the future we can optimize and read words
+        long bitSetKey = getBitSetKey(persistedCheckpoint);
+        CountedBitSet current = persistedSeqNo.get(bitSetKey);
+        if (current == null) {
+            // the bit set corresponding to the checkpoint has already been removed, set ourselves up for the next bit set
+            assert persistedCheckpoint % BIT_SET_SIZE == BIT_SET_SIZE - 1;
+            current = persistedSeqNo.get(++bitSetKey);
+        }
+        do {
+            persistedCheckpoint++;
+            /*
+             * The checkpoint always falls in the current bit set or we have already cleaned it; if it falls on the last bit of the
+             * current bit set, we can clean it.
+             */
+            if (persistedCheckpoint == lastSeqNoInBitSet(bitSetKey)) {
+                assert current != null;
+                final CountedBitSet removed = persistedSeqNo.remove(bitSetKey);
+                assert removed == current;
                 current = persistedSeqNo.get(++bitSetKey);
             }
-            do {
-                persistedCheckpoint++;
-                /*
-                 * The checkpoint always falls in the current bit set or we have already cleaned it; if it falls on the last bit of the
-                 * current bit set, we can clean it.
-                 */
-                if (persistedCheckpoint == lastSeqNoInBitSet(bitSetKey)) {
-                    assert current != null;
-                    final CountedBitSet removed = persistedSeqNo.remove(bitSetKey);
-                    assert removed == current;
-                    current = persistedSeqNo.get(++bitSetKey);
-                }
-            } while (current != null && current.get(seqNoToBitSetOffset(persistedCheckpoint + 1)));
-        } finally {
-            // notifies waiters in waitForOpsToComplete
-            this.notifyAll();
-        }
+        } while (current != null && current.get(seqNoToBitSetOffset(persistedCheckpoint + 1)));
     }
 
-    private long lastSeqNoInBitSet(final long bitSetKey) {
+    private static long lastSeqNoInBitSet(final long bitSetKey) {
         return (1 + bitSetKey) * BIT_SET_SIZE - 1;
     }
 

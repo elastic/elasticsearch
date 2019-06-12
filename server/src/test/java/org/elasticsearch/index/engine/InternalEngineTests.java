@@ -617,7 +617,7 @@ public class InternalEngineTests extends EngineTestCase {
                         }
 
                         @Override
-                        public long getCheckpoint() {
+                        public long getProcessedCheckpoint() {
                             return localCheckpoint.get();
                         }
                     }
@@ -5386,7 +5386,7 @@ public class InternalEngineTests extends EngineTestCase {
             }
             existingSeqNos.add(result.getSeqNo());
             if (randomBoolean()) {
-                globalCheckpoint.set(randomLongBetween(globalCheckpoint.get(), engine.getLocalCheckpointTracker().getCheckpoint()));
+                globalCheckpoint.set(randomLongBetween(globalCheckpoint.get(), engine.getLocalCheckpointTracker().getProcessedCheckpoint()));
             }
             if (randomBoolean()) {
                 retentionLeasesVersion.incrementAndGet();
@@ -5604,7 +5604,7 @@ public class InternalEngineTests extends EngineTestCase {
                 final LocalCheckpointTracker tracker = engine.getLocalCheckpointTracker();
                 for (Engine.Operation op : operations) {
                     assertThat(
-                        "seq_no=" + op.seqNo() + " max_seq_no=" + tracker.getMaxSeqNo() + "checkpoint=" + tracker.getCheckpoint(),
+                        "seq_no=" + op.seqNo() + " max_seq_no=" + tracker.getMaxSeqNo() + "checkpoint=" + tracker.getProcessedCheckpoint(),
                         tracker.hasProcessed(op.seqNo()), equalTo(seqNosInSafeCommit.contains(op.seqNo())));
                 }
                 engine.recoverFromTranslog(translogHandler, Long.MAX_VALUE);

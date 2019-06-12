@@ -718,10 +718,10 @@ public class RecoverySourceHandler {
                     cancellableThreads.executeIO(() ->
                         recoveryTarget.writeFileChunk(md, requestFilePosition, content, lastChunk, translogOps.get(),
                             ActionListener.wrap(
-                                r -> requestSeqIdTracker.markSeqNoAsCompleted(requestSeqId),
+                                r -> requestSeqIdTracker.markSeqNoAsProcessed(requestSeqId),
                                 e -> {
                                     error.compareAndSet(null, Tuple.tuple(md, e));
-                                    requestSeqIdTracker.markSeqNoAsCompleted(requestSeqId);
+                                    requestSeqIdTracker.markSeqNoAsProcessed(requestSeqId);
                                 }
                             )));
                     position += content.length();

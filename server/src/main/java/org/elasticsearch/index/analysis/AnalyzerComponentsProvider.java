@@ -25,4 +25,5 @@ package org.elasticsearch.index.analysis;
 public interface AnalyzerComponentsProvider {
 
     AnalyzerComponents getComponents();
+
 }

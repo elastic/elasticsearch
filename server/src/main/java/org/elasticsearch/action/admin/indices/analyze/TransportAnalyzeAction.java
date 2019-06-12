@@ -45,11 +45,9 @@ import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.analysis.AnalyzerComponents;
 import org.elasticsearch.index.analysis.AnalyzerComponentsProvider;
 import org.elasticsearch.index.analysis.CharFilterFactory;
-import org.elasticsearch.index.analysis.CustomAnalyzer;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NameOrDefinition;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
-import org.elasticsearch.index.analysis.ReloadableCustomAnalyzer;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenizerFactory;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
@@ -266,18 +264,18 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeAc
             }
         }
 
-        Analyzer customAnalyzer = null;
         // maybe unwrap analyzer from NamedAnalyzer
         Analyzer potentialCustomAnalyzer = analyzer;
         if (analyzer instanceof NamedAnalyzer) {
             potentialCustomAnalyzer = ((NamedAnalyzer) analyzer).analyzer();
         }
-        if (potentialCustomAnalyzer instanceof CustomAnalyzer || potentialCustomAnalyzer instanceof ReloadableCustomAnalyzer) {
-            customAnalyzer = potentialCustomAnalyzer;
-        }
 
-        if (customAnalyzer != null) {
-            AnalyzerComponents components = ((AnalyzerComponentsProvider) customAnalyzer).getComponents();
+        if (potentialCustomAnalyzer instanceof AnalyzerComponentsProvider) {
+            AnalyzerComponentsProvider customAnalyzer = (AnalyzerComponentsProvider) potentialCustomAnalyzer;
+            // note: this is not field-name dependent in our cases so we can leave out the argument
+            int positionIncrementGap = potentialCustomAnalyzer.getPositionIncrementGap("");
+            int offsetGap = potentialCustomAnalyzer.getOffsetGap("");
+            AnalyzerComponents components = customAnalyzer.getComponents();
             // divide charfilter, tokenizer tokenfilters
             CharFilterFactory[] charFilterFactories = components.getCharFilters();
             TokenizerFactory tokenizerFactory = components.getTokenizerFactory();
@@ -308,7 +306,7 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeAc
                 // analyzing only tokenizer
                 Tokenizer tokenizer = tokenizerFactory.create();
                 tokenizer.setReader(reader);
-                tokenizerTokenListCreator.analyze(tokenizer, customAnalyzer, includeAttributes);
+                tokenizerTokenListCreator.analyze(tokenizer, includeAttributes, positionIncrementGap, offsetGap);
 
                 // analyzing each tokenfilter
                 if (tokenFilterFactories != null) {
@@ -318,7 +316,7 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeAc
                         }
                         TokenStream stream = createStackedTokenStream(request.text()[textIndex],
                             charFilterFactories, tokenizerFactory, tokenFilterFactories, tokenFilterIndex + 1);
-                        tokenFiltersTokenListCreator[tokenFilterIndex].analyze(stream, customAnalyzer, includeAttributes);
+                        tokenFiltersTokenListCreator[tokenFilterIndex].analyze(stream, includeAttributes, positionIncrementGap, offsetGap);
                     }
                 }
             }
@@ -353,8 +351,8 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeAc
 
             TokenListCreator tokenListCreator = new TokenListCreator(maxTokenCount);
             for (String text : request.text()) {
-                tokenListCreator.analyze(analyzer.tokenStream("", text), analyzer,
-                    includeAttributes);
+                tokenListCreator.analyze(analyzer.tokenStream("", text), includeAttributes, analyzer.getPositionIncrementGap(""),
+                        analyzer.getOffsetGap(""));
             }
             detailResponse
                 = new AnalyzeAction.DetailAnalyzeResponse(new AnalyzeAction.AnalyzeTokenList(name, tokenListCreator.getArrayTokens()));
@@ -424,7 +422,7 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeAc
             tc = new TokenCounter(maxTokenCount);
         }
 
-        private void analyze(TokenStream stream, Analyzer analyzer, Set<String> includeAttributes) {
+        private void analyze(TokenStream stream, Set<String> includeAttributes, int positionIncrementGap, int offsetGap) {
             try {
                 stream.reset();
                 CharTermAttribute term = stream.addAttribute(CharTermAttribute.class);
@@ -447,8 +445,8 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeAc
                 lastOffset += offset.endOffset();
                 lastPosition += posIncr.getPositionIncrement();
 
-                lastPosition += analyzer.getPositionIncrementGap("");
-                lastOffset += analyzer.getOffsetGap("");
+                lastPosition += positionIncrementGap;
+                lastOffset += offsetGap;
 
             } catch (IOException e) {
                 throw new ElasticsearchException("failed to analyze", e);

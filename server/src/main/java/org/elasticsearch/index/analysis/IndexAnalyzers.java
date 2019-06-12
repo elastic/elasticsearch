@@ -53,7 +53,7 @@ public final class IndexAnalyzers extends AbstractIndexComponent implements Clos
             throw new IllegalStateException(
                     "default analyzer must have the name [default] but was: [" + analyzers.get(DEFAULT_ANALYZER_NAME).name() + "]");
         }
-        this.analyzers =  unmodifiableMap(analyzers);
+        this.analyzers = unmodifiableMap(analyzers);
         this.normalizers = unmodifiableMap(normalizers);
         this.whitespaceNormalizers = unmodifiableMap(whitespaceNormalizers);
     }

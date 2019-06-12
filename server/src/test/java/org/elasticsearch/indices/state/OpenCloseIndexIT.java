@@ -56,7 +56,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
 public class OpenCloseIndexIT extends ESIntegTestCase {
-
     public void testSimpleCloseOpen() {
         Client client = client();
         createIndex("test1");

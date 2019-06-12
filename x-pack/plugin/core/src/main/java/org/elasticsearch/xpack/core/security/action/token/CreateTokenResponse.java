@@ -55,7 +55,7 @@ public final class CreateTokenResponse extends ActionResponse implements ToXCont
         return refreshToken;
     }
 
-    public String getKerberosAuthenticationResponseData() {
+    public String getKerberosAuthenticationResponseToken() {
         return kerberosAuthenticationResponseToken;
     }
 

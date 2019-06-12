@@ -486,12 +486,12 @@ public class SearchAsyncActionTests extends ESTestCase {
                     RecoverySource.PeerRecoverySource.INSTANCE, new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foobar"));
                 if (replicaNode != null) {
                     routing = routing.initialize(replicaNode.getId(), i + "r", 0);
-                    //if (randomBoolean()) {
+                    if (randomBoolean()) {
                         routing.started();
                         started.add(routing);
-                    //} else {
-                      //  initializing.add(routing);
-                    //}
+                    } else {
+                        initializing.add(routing);
+                    }
                 } else {
                     unassigned.add(routing); // unused yet
                 }

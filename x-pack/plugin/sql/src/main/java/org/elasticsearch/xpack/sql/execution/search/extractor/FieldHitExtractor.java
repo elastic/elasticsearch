@@ -13,6 +13,8 @@ import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.index.mapper.IgnoredFieldMapper;
+import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.expression.function.scalar.geo.GeoShape;
@@ -115,6 +117,12 @@ public class FieldHitExtractor implements HitExtractor {
                 value = unwrapMultiValue(field.getValues());
             }
         } else {
+            // if the field was ignored because it was malformed and ignore_malformed was turned on
+            if (hit.getFields().containsKey(IgnoredFieldMapper.NAME)) {
+                if (hit.getFields().get(IgnoredFieldMapper.NAME).getValues().contains(fieldName)) {
+                    return null;
+                }
+            }
             Map<String, Object> source = hit.getSourceAsMap();
             if (source != null) {
                 value = extractFromSource(source);
@@ -165,12 +173,46 @@ public class FieldHitExtractor implements HitExtractor {
                 return DateUtils.asDateTime(Long.parseLong(values.toString()), zoneId);
             }
         }
+        
         // The Jackson json parser can generate for numerics - Integers, Longs, BigIntegers (if Long is not enough)
         // and BigDecimal (if Double is not enough)
-        if (values instanceof Number
-                || values instanceof String
-                || values instanceof Boolean) {
-            return values;
+        if (values instanceof Number || values instanceof String || values instanceof Boolean) {
+            if (dataType == null) {
+                return values;
+            }
+            if (dataType.isNumeric() && dataType.isFromDocValuesOnly() == false) {
+                if (dataType == DataType.DOUBLE || dataType == DataType.FLOAT || dataType == DataType.HALF_FLOAT) {
+                    return NumberType.DOUBLE.parse(values, true);
+                } else {
+                    long l = (long) NumberType.LONG.parse(values, true);
+                    switch (dataType) {
+                        case BYTE:
+                            if (l > Byte.MAX_VALUE || l < Byte.MIN_VALUE) {
+                                return l;
+                            } else {
+                                return NumberType.BYTE.parse(values, true);
+                            }
+                        case SHORT:
+                            if (l > Short.MAX_VALUE || l < Short.MIN_VALUE) {
+                                return l;
+                            } else {
+                                return NumberType.SHORT.parse(values, true);
+                            }
+                        case INTEGER:
+                            if (l > Integer.MAX_VALUE || l < Integer.MIN_VALUE) {
+                                return l;
+                            } else {
+                                return NumberType.INTEGER.parse(values, true);
+                            }
+                        case LONG:
+                            return l;
+                    }
+                }
+            } else if (dataType.isString()) {
+                return values.toString();
+            } else {
+                return values;
+            }
         }
         throw new SqlIllegalArgumentException("Type {} (returned by [{}]) is not supported", values.getClass().getSimpleName(), fieldName);
     }

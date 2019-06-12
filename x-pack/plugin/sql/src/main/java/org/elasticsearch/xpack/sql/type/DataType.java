@@ -18,7 +18,7 @@ import java.util.Map.Entry;
 /**
  * Elasticsearch SQL data types.
  * This class also implements JDBC {@link SQLType} for properly receiving and setting values.
- * Where possible, please use the build-in, JDBC {@link Types} and {@link JDBCType} to avoid coupling
+ * Where possible, please use the built-in, JDBC {@link Types} and {@link JDBCType} to avoid coupling
  * to the API.
  */
 public enum DataType {
@@ -143,7 +143,6 @@ public enum DataType {
             SQL_TO_ES.put(entry.getKey().substring(4), entry.getValue());
         }
 
-
         // special ones
         SQL_TO_ES.put("BOOL", DataType.BOOLEAN);
         SQL_TO_ES.put("INT", DataType.INTEGER);
@@ -180,7 +179,6 @@ public enum DataType {
      * String representation (assuming the maximum allowed defaultPrecision of the fractional milliseconds component).
      */
     public final int defaultPrecision;
-
 
     /**
      * Display Size
@@ -268,6 +266,15 @@ public enum DataType {
 
     public boolean isDateOrTimeBased() {
         return isDateBased() || isTimeBased();
+    }
+    
+    public boolean isFromDocValuesOnly() {
+        return this == KEYWORD
+                || this == DATE
+                || this == DATETIME
+                || this == SCALED_FLOAT
+                || this == GEO_POINT
+                || this == GEO_SHAPE;
     }
     
     public static DataType fromOdbcType(String odbcType) {

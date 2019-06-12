@@ -161,3 +161,11 @@ By default,`geo_points` fields are indexed and have doc values. However only lat
 indexed with some loss of precision from the original values (4.190951585769653E-8 for the latitude and
 8.381903171539307E-8 for longitude). The altitude component is accepted but not stored in doc values nor indexed.
 Therefore calling `ST_Z` function in the filtering, grouping or sorting will return `null`.
+
+[float]
+[[fields-from-source]]
+=== Retrieving from _source
+
+Most of {es-sql}'s columns are retrieved from `_source`, even though the mapping may disable the <<mapping-source-field,`_source`>> field.
+If such a column is explicitly asked for in a query, {es-sql} will not return it. Field types NOT returned from `_source` include: `keyword`,
+`date`, `scaled_float`, `geo_point`, `geo_shape`.

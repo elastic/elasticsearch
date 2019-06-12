@@ -349,7 +349,7 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
             }, containsString("unknown field [columnar], parser not found"));
     }
 
-    protected void expectBadRequest(CheckedSupplier<Map<String, Object>, Exception> code, Matcher<String> errorMessageMatcher) {
+    public static void expectBadRequest(CheckedSupplier<Map<String, Object>, Exception> code, Matcher<String> errorMessageMatcher) {
         try {
             Map<String, Object> result = code.get();
             fail("expected ResponseException but got " + result);
@@ -774,7 +774,7 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
         );
     }
 
-    private void assertResponse(Map<String, Object> expected, Map<String, Object> actual) {
+    public static void assertResponse(Map<String, Object> expected, Map<String, Object> actual) {
         if (false == expected.equals(actual)) {
             NotEqualMessageBuilder message = new NotEqualMessageBuilder();
             message.compareMaps(actual, expected);

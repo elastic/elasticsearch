@@ -291,7 +291,7 @@ public class FieldHitExtractorTests extends AbstractWireSerializingTestCase<Fiel
     }
 
     @SuppressWarnings({ "rawtypes", "unchecked" })
-    public void testNestedFieldsWithDotsAndRandomHiearachy() {
+    public void testNestedFieldsWithDotsAndRandomHierarchy() {
         String[] path = new String[100];
         StringJoiner sj = new StringJoiner(".");
         for (int i = 0; i < 100; i++) {

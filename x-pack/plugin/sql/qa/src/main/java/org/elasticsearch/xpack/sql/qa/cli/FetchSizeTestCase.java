@@ -49,4 +49,32 @@ public abstract class FetchSizeTestCase extends CliIntegrationTestCase {
         assertEquals(ErrorsTestCase.START + "Invalid fetch size [[3;33;22m" + Long.MAX_VALUE + ErrorsTestCase.END,
             command("fetch size = " + Long.MAX_VALUE));
     }
+
+    // Test for issue: https://github.com/elastic/elasticsearch/issues/42851
+    // Even though fetch size and limit are smaller than the noRows, all buckets
+    // should be processed to achieve the global ordering of the aggregate function.
+    public void testOrderingOnAggregate() throws IOException {
+        Request request = new Request("PUT", "/test/_bulk");
+        request.addParameter("refresh", "true");
+        StringBuilder bulk = new StringBuilder();
+        for (int i = 1; i <= 5000; i++) {
+            bulk.append("{\"index\":{}}\n");
+            bulk.append("{\"a\":" + i + ", \"b\" : " + i + "}\n");
+        }
+        request.setJsonEntity(bulk.toString());
+        client().performRequest(request);
+
+        assertEquals("[?1l>[?1000l[?2004lfetch size set to [90m50[0m", command("fetch size = 50"));
+        assertEquals("[?1l>[?1000l[?2004lfetch separator set to \"[90m -- fetch sep -- [0m\"",
+            command("fetch separator = \" -- fetch sep -- \""));
+        assertThat(command("SELECT max(b) FROM test GROUP BY a ORDER BY max(b) DESC LIMIT 200"), containsString("max(b)"));
+        assertThat(readLine(), containsString("----------"));
+        for (int i = 5000; i > 4800; i--) {
+            if (i < 5000 && i % 50 == 0) {
+                assertThat(readLine(), containsString(" -- fetch sep -- "));
+            }
+            assertThat(readLine(), containsString(Integer.toString(i)));
+        }
+        assertEquals("", readLine());
+    }
 }

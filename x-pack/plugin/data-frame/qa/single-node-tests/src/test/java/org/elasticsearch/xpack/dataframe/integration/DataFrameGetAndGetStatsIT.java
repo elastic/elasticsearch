@@ -163,7 +163,7 @@ public class DataFrameGetAndGetStatsIT extends DataFrameRestTestCase {
 
     @SuppressWarnings("unchecked")
     public void testGetProgressStatsWithPivotQuery() throws Exception {
-        String transformId = "simpleStatsPivotWithQuery";
+        String transformId = "simple_stats_pivot_with_query";
         String dataFrameIndex = "pivot_stats_reviews_user_id_above_20";
         String query = "\"match\": {\"user_id\": \"user_26\"}";
         createPivotReviewsTransform(transformId, dataFrameIndex, query);
@@ -172,7 +172,7 @@ public class DataFrameGetAndGetStatsIT extends DataFrameRestTestCase {
         // Alternate testing between admin and lowly user, as both should be able to get the configs and stats
         String authHeader = randomFrom(BASIC_AUTH_VALUE_DATA_FRAME_USER, BASIC_AUTH_VALUE_DATA_FRAME_ADMIN);
 
-        Request getRequest = createRequestWithAuth("GET", DATAFRAME_ENDPOINT + "simpleStatsPivotWithQuery/_stats", authHeader);
+        Request getRequest = createRequestWithAuth("GET", DATAFRAME_ENDPOINT + transformId + "/_stats", authHeader);
         Map<String, Object> stats = entityAsMap(client().performRequest(getRequest));
         assertEquals(1, XContentMapValues.extractValue("count", stats));
         List<Map<String, Object>> transformsStats = (List<Map<String, Object>>)XContentMapValues.extractValue("transforms", stats);

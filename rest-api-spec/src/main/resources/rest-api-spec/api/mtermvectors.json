@@ -3,7 +3,6 @@
     "documentation" : "http://www.elastic.co/guide/en/elasticsearch/reference/master/docs-multi-termvectors.html",
     "methods" : ["GET", "POST"],
     "url" : {
-      "path" : "/_mtermvectors",
       "paths" : ["/_mtermvectors", "/{index}/_mtermvectors"],
       "parts" : {
         "index" : {

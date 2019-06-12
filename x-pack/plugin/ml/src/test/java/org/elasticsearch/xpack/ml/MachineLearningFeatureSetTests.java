@@ -8,9 +8,11 @@ package org.elasticsearch.xpack.ml;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -25,9 +27,10 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackFeatureSet;
-import org.elasticsearch.xpack.core.XPackFeatureSet.Usage;
 import org.elasticsearch.xpack.core.XPackField;
+import org.elasticsearch.xpack.core.action.XPackUsageFeatureResponse;
 import org.elasticsearch.xpack.core.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.MachineLearningFeatureSetUsage;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
@@ -94,6 +97,12 @@ public class MachineLearningFeatureSetTests extends ESTestCase {
         givenDatafeeds(Collections.emptyList());
     }
 
+    private MachineLearningFeatureSet.UsageTransportAction newUsageAction(Settings settings) {
+        return new MachineLearningFeatureSet.UsageTransportAction(mock(TransportService.class), null,
+            null, mock(ActionFilters.class), mock(IndexNameExpressionResolver.class),
+            TestEnvironment.newEnvironment(settings), client, licenseState, jobManagerHolder);
+    }
+
     public void testIsRunningOnMlPlatform() {
         assertTrue(MachineLearningFeatureSet.isRunningOnMlPlatform("Linux", "amd64", true));
         assertTrue(MachineLearningFeatureSet.isRunningOnMlPlatform("Windows 10", "amd64", true));
@@ -110,14 +119,15 @@ public class MachineLearningFeatureSetTests extends ESTestCase {
     }
 
     public void testAvailable() throws Exception {
-        MachineLearningFeatureSet featureSet = new MachineLearningFeatureSet(TestEnvironment.newEnvironment(commonSettings), clusterService,
-                client, licenseState, jobManagerHolder);
+        MachineLearningFeatureSet featureSet = new MachineLearningFeatureSet(TestEnvironment.newEnvironment(commonSettings),
+            clusterService, licenseState);
         boolean available = randomBoolean();
         when(licenseState.isMachineLearningAllowed()).thenReturn(available);
         assertThat(featureSet.available(), is(available));
-        PlainActionFuture<Usage> future = new PlainActionFuture<>();
-        featureSet.usage(future);
-        XPackFeatureSet.Usage usage = future.get();
+        var usageAction = newUsageAction(commonSettings);
+        PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();
+        usageAction.masterOperation(null, ClusterState.EMPTY_STATE, future);
+        XPackFeatureSet.Usage usage = future.get().getUsage();
         assertThat(usage.available(), is(available));
 
         BytesStreamOutput out = new BytesStreamOutput();
@@ -136,11 +146,12 @@ public class MachineLearningFeatureSetTests extends ESTestCase {
         }
         boolean expected = enabled || useDefault;
         MachineLearningFeatureSet featureSet = new MachineLearningFeatureSet(TestEnvironment.newEnvironment(settings.build()),
-                clusterService, client, licenseState, jobManagerHolder);
+                clusterService, licenseState);
         assertThat(featureSet.enabled(), is(expected));
-        PlainActionFuture<Usage> future = new PlainActionFuture<>();
-        featureSet.usage(future);
-        XPackFeatureSet.Usage usage = future.get();
+        var usageAction = newUsageAction(settings.build());
+        PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();
+        usageAction.masterOperation(null, ClusterState.EMPTY_STATE, future);
+        XPackFeatureSet.Usage usage = future.get().getUsage();
         assertThat(usage.enabled(), is(expected));
 
         BytesStreamOutput out = new BytesStreamOutput();
@@ -170,11 +181,10 @@ public class MachineLearningFeatureSetTests extends ESTestCase {
                 buildDatafeedStats(DatafeedState.STOPPED)
         ));
 
-        MachineLearningFeatureSet featureSet = new MachineLearningFeatureSet(TestEnvironment.newEnvironment(settings.build()),
-                clusterService, client, licenseState, jobManagerHolder);
-        PlainActionFuture<Usage> future = new PlainActionFuture<>();
-        featureSet.usage(future);
-        XPackFeatureSet.Usage mlUsage = future.get();
+        var usageAction = newUsageAction(settings.build());
+        PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();
+        usageAction.masterOperation(null, ClusterState.EMPTY_STATE, future);
+        XPackFeatureSet.Usage mlUsage = future.get().getUsage();
 
         BytesStreamOutput out = new BytesStreamOutput();
         mlUsage.writeTo(out);
@@ -251,12 +261,10 @@ public class MachineLearningFeatureSetTests extends ESTestCase {
         Settings.Builder settings = Settings.builder().put(commonSettings);
         settings.put("xpack.ml.enabled", false);
 
-        JobManagerHolder emptyJobManagerHolder = new JobManagerHolder();
-        MachineLearningFeatureSet featureSet = new MachineLearningFeatureSet(TestEnvironment.newEnvironment(settings.build()),
-                clusterService, client, licenseState, emptyJobManagerHolder);
-        PlainActionFuture<Usage> future = new PlainActionFuture<>();
-        featureSet.usage(future);
-        XPackFeatureSet.Usage mlUsage = future.get();
+        var usageAction = newUsageAction(settings.build());
+        PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();
+        usageAction.masterOperation(null, ClusterState.EMPTY_STATE, future);
+        XPackFeatureSet.Usage mlUsage = future.get().getUsage();
         BytesStreamOutput out = new BytesStreamOutput();
         mlUsage.writeTo(out);
         XPackFeatureSet.Usage serializedUsage = new MachineLearningFeatureSetUsage(out.bytes().streamInput());
@@ -271,15 +279,14 @@ public class MachineLearningFeatureSetTests extends ESTestCase {
     public void testNodeCount() throws Exception {
         when(licenseState.isMachineLearningAllowed()).thenReturn(true);
         int nodeCount = randomIntBetween(1, 3);
-        givenNodeCount(nodeCount);
+        ClusterState clusterState = givenNodeCount(nodeCount);
         Settings.Builder settings = Settings.builder().put(commonSettings);
         settings.put("xpack.ml.enabled", true);
-        MachineLearningFeatureSet featureSet = new MachineLearningFeatureSet(TestEnvironment.newEnvironment(settings.build()),
-            clusterService, client, licenseState, jobManagerHolder);
 
-        PlainActionFuture<Usage> future = new PlainActionFuture<>();
-        featureSet.usage(future);
-        XPackFeatureSet.Usage usage = future.get();
+        var usageAction = newUsageAction(settings.build());
+        PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();
+        usageAction.masterOperation(null, clusterState, future);
+        XPackFeatureSet.Usage usage = future.get().getUsage();
 
         assertThat(usage.available(), is(true));
         assertThat(usage.enabled(), is(true));
@@ -302,11 +309,10 @@ public class MachineLearningFeatureSetTests extends ESTestCase {
         settings.put("xpack.ml.enabled", true);
         when(clusterService.state()).thenReturn(ClusterState.EMPTY_STATE);
 
-        MachineLearningFeatureSet featureSet = new MachineLearningFeatureSet(TestEnvironment.newEnvironment(settings.build()),
-                clusterService, client, licenseState, jobManagerHolder);
-        PlainActionFuture<Usage> future = new PlainActionFuture<>();
-        featureSet.usage(future);
-        XPackFeatureSet.Usage usage = future.get();
+        var usageAction = newUsageAction(settings.build());
+        PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();
+        usageAction.masterOperation(null, ClusterState.EMPTY_STATE, future);
+        XPackFeatureSet.Usage usage = future.get().getUsage();
 
         assertThat(usage.available(), is(true));
         assertThat(usage.enabled(), is(true));
@@ -359,7 +365,7 @@ public class MachineLearningFeatureSetTests extends ESTestCase {
         }).when(client).execute(same(GetJobsStatsAction.INSTANCE), any(), any());
     }
 
-    private void givenNodeCount(int nodeCount) {
+    private ClusterState givenNodeCount(int nodeCount) {
         DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder();
         for (int i = 0; i < nodeCount; i++) {
             Map<String, String> attrs = new HashMap<>();
@@ -386,8 +392,7 @@ public class MachineLearningFeatureSetTests extends ESTestCase {
                 roles,
                 Version.CURRENT));
         }
-        ClusterState clusterState = new ClusterState.Builder(ClusterState.EMPTY_STATE).nodes(nodesBuilder.build()).build();
-        when(clusterService.state()).thenReturn(clusterState);
+        return new ClusterState.Builder(ClusterState.EMPTY_STATE).nodes(nodesBuilder.build()).build();
     }
 
     private void givenDatafeeds(List<GetDatafeedsStatsAction.Response.DatafeedStats> datafeedStats) {

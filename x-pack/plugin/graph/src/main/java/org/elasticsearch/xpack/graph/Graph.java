@@ -20,10 +20,12 @@ import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 import org.elasticsearch.xpack.core.graph.action.GraphExploreAction;
 import org.elasticsearch.xpack.graph.action.TransportGraphExploreAction;
 import org.elasticsearch.xpack.graph.rest.action.RestGraphAction;
 
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -50,10 +52,13 @@ public class Graph extends Plugin implements ActionPlugin {
 
     @Override
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
+        var usageAction = new ActionHandler<>(XPackUsageFeatureAction.GRAPH, GraphFeatureSet.UsageTransportAction.class);
         if (false == enabled) {
-            return emptyList();
+            return singletonList(usageAction);
         }
-        return singletonList(new ActionHandler<>(GraphExploreAction.INSTANCE, TransportGraphExploreAction.class));
+        return Arrays.asList(
+            new ActionHandler<>(GraphExploreAction.INSTANCE, TransportGraphExploreAction.class),
+            usageAction);
     }
 
     @Override

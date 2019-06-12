@@ -29,7 +29,6 @@ public class DataFrameTransformIT extends DataFrameIntegTestCase {
         cleanUp();
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/43139")
     public void testDataFrameTransformCrud() throws Exception {
         createReviewsIndex();
 

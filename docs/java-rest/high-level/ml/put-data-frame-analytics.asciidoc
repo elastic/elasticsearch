@@ -6,7 +6,7 @@
 [id="{upid}-{api}"]
 === Put Data Frame Analytics API
 
-The Put Data Frame Analytics API is used to create a new {dataframe-analytics}.
+The Put Data Frame Analytics API is used to create a new {dataframe-analytics-config}.
 The API accepts a +{request}+ object as a request and returns a +{response}+.
 
 [id="{upid}-{api}-request"]
@@ -30,7 +30,7 @@ configuration and contains the following arguments:
 --------------------------------------------------
 include-tagged::{doc-tests-file}[{api}-config]
 --------------------------------------------------
-<1> The {dataframe-analytics} id
+<1> The {dataframe-analytics-config} id
 <2> The source index and query from which to gather data
 <3> The destination index
 <4> The analysis to be performed
@@ -107,7 +107,7 @@ include::../execution.asciidoc[]
 [id="{upid}-{api}-response"]
 ==== Response
 
-The returned +{response}+ contains the newly created {dataframe-analytics}.
+The returned +{response}+ contains the newly created {dataframe-analytics-config}.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------

@@ -356,7 +356,7 @@ public class SeedHostsResolverTests extends ESTestCase {
                     try {
                         conditionLatch.countDown();
                         latch.await();
-                        return new TransportAddress[]{new TransportAddress(TransportAddress.META_ADDRESS, 9300)};
+                        throw new AssertionError("should never be called");
                     } catch (InterruptedException e) {
                         throw new RuntimeException(e);
                     }

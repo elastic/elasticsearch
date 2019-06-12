@@ -102,9 +102,8 @@ public class SeedHostsResolver extends AbstractLifecycleComponent implements Con
                 .collect(Collectors.toList());
         final SetOnce<List<Future<TransportAddress[]>>> futures = new SetOnce<>();
         try {
-            cancellableThreads.execute(()  -> {
-                futures.set(executorService.get().invokeAll(callables, resolveTimeout.nanos(), TimeUnit.NANOSECONDS));
-            });
+            cancellableThreads.execute(() ->
+                futures.set(executorService.get().invokeAll(callables, resolveTimeout.nanos(), TimeUnit.NANOSECONDS)));
         } catch (CancellableThreads.ExecutionCancelledException e) {
             return Collections.emptyList();
         }

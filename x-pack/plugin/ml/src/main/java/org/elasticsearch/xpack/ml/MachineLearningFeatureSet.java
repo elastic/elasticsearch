@@ -5,10 +5,7 @@
  */
 package org.elasticsearch.xpack.ml;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.Counter;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.client.Client;
@@ -21,7 +18,6 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.plugins.Platforms;
 import org.elasticsearch.protocol.xpack.XPackUsageRequest;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -41,27 +37,16 @@ import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSizeSta
 import org.elasticsearch.xpack.core.ml.stats.ForecastStats;
 import org.elasticsearch.xpack.core.ml.stats.StatsAccumulator;
 import org.elasticsearch.xpack.ml.job.JobManagerHolder;
-import org.elasticsearch.xpack.ml.process.NativeController;
-import org.elasticsearch.xpack.ml.process.NativeControllerHolder;
 
-import java.io.IOException;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
 
 public class MachineLearningFeatureSet implements XPackFeatureSet {
-
-    /**
-     * List of platforms for which the native processes are available
-     */
-    private static final List<String> mlPlatforms =
-            Arrays.asList("darwin-x86_64", "linux-x86_64", "windows-x86_64");
 
     private final boolean enabled;
     private final XPackLicenseState licenseState;
@@ -70,22 +55,6 @@ public class MachineLearningFeatureSet implements XPackFeatureSet {
     public MachineLearningFeatureSet(Settings settings, XPackLicenseState licenseState) {
         this.enabled = XPackSettings.MACHINE_LEARNING_ENABLED.get(settings);
         this.licenseState = licenseState;
-    }
-
-    static boolean isRunningOnMlPlatform(boolean fatalIfNot) {
-        return isRunningOnMlPlatform(Constants.OS_NAME, Constants.OS_ARCH, fatalIfNot);
-    }
-
-    static boolean isRunningOnMlPlatform(String osName, String osArch, boolean fatalIfNot) {
-        String platformName = Platforms.platformName(osName, osArch);
-        if (mlPlatforms.contains(platformName)) {
-            return true;
-        }
-        if (fatalIfNot) {
-            throw new ElasticsearchException("X-Pack is not supported and Machine Learning is not available for [" + platformName
-                    + "]; you can use the other X-Pack features (unsupported) by setting xpack.ml.enabled: false in elasticsearch.yml");
-        }
-        return false;
     }
 
     @Override
@@ -105,12 +74,10 @@ public class MachineLearningFeatureSet implements XPackFeatureSet {
 
     public static class UsageTransportAction extends XPackUsageFeatureTransportAction {
 
-        private final Environment environment;
         private final Client client;
         private final XPackLicenseState licenseState;
         private final JobManagerHolder jobManagerHolder;
         private final boolean enabled;
-        private final Map<String, Object> nativeCodeInfo;
 
         @Inject
         public UsageTransportAction(TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
@@ -119,37 +86,17 @@ public class MachineLearningFeatureSet implements XPackFeatureSet {
                                     XPackLicenseState licenseState, JobManagerHolder jobManagerHolder) {
             super(XPackUsageFeatureAction.MACHINE_LEARNING.name(), transportService, clusterService,
                   threadPool, actionFilters, indexNameExpressionResolver);
-            this.environment = environment;
             this.client = client;
             this.licenseState = licenseState;
             this.jobManagerHolder = jobManagerHolder;
             this.enabled = XPackSettings.MACHINE_LEARNING_ENABLED.get(environment.settings());
-
-            Map<String, Object> nativeCodeInfo = NativeController.UNKNOWN_NATIVE_CODE_INFO;
-            // Don't try to get the native code version if ML is disabled - it causes too much controversy
-            // if ML has been disabled because of some OS incompatibility.
-            if (enabled) {
-                try {
-                    if (isRunningOnMlPlatform(true)) {
-                        NativeController nativeController = NativeControllerHolder.getNativeController(clusterService.getNodeName(),
-                            environment);
-                        if (nativeController != null) {
-                            nativeCodeInfo = nativeController.getNativeCodeInfo();
-                        }
-                    }
-                } catch (IOException | TimeoutException e) {
-                    LogManager.getLogger(MachineLearningFeatureSet.class).error("Cannot get native code info for Machine Learning", e);
-                    throw new ElasticsearchException("Cannot communicate with Machine Learning native code");
-                }
-            }
-            this.nativeCodeInfo = nativeCodeInfo;
         }
 
         @Override
         protected void masterOperation(XPackUsageRequest request, ClusterState state, ActionListener<XPackUsageFeatureResponse> listener) {
             if (enabled == false) {
                 MachineLearningFeatureSetUsage usage = new MachineLearningFeatureSetUsage(licenseState.isMachineLearningAllowed(), enabled,
-                    Collections.emptyMap(), Collections.emptyMap(), 0, nativeCodeInfo);
+                    Collections.emptyMap(), Collections.emptyMap(), 0);
                 listener.onResponse(new XPackUsageFeatureResponse(usage));
                 return;
             }
@@ -163,7 +110,7 @@ public class MachineLearningFeatureSet implements XPackFeatureSet {
                 ActionListener.wrap(response -> {
                     addDatafeedsUsage(response, datafeedsUsage);
                     MachineLearningFeatureSetUsage usage = new MachineLearningFeatureSetUsage(licenseState.isMachineLearningAllowed(),
-                        enabled, jobsUsage, datafeedsUsage, nodeCount, nativeCodeInfo);
+                        enabled, jobsUsage, datafeedsUsage, nodeCount);
                     listener.onResponse(new XPackUsageFeatureResponse(usage));
                 },
                 listener::onFailure);

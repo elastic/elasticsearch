@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.core.ml;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -13,7 +12,6 @@ import org.elasticsearch.xpack.core.XPackFeatureSet;
 import org.elasticsearch.xpack.core.XPackField;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
 
@@ -32,15 +30,13 @@ public class MachineLearningFeatureSetUsage extends XPackFeatureSet.Usage {
     private final Map<String, Object> jobsUsage;
     private final Map<String, Object> datafeedsUsage;
     private final int nodeCount;
-    private final Map<String, Object> nativeCodeInfo;
 
     public MachineLearningFeatureSetUsage(boolean available, boolean enabled, Map<String, Object> jobsUsage,
-                                          Map<String, Object> datafeedsUsage, int nodeCount, Map<String, Object> nativeCodeInfo) {
+                                          Map<String, Object> datafeedsUsage, int nodeCount) {
         super(XPackField.MACHINE_LEARNING, available, enabled);
         this.jobsUsage = Objects.requireNonNull(jobsUsage);
         this.datafeedsUsage = Objects.requireNonNull(datafeedsUsage);
         this.nodeCount = nodeCount;
-        this.nativeCodeInfo = nativeCodeInfo;
     }
 
     public MachineLearningFeatureSetUsage(StreamInput in) throws IOException {
@@ -48,11 +44,6 @@ public class MachineLearningFeatureSetUsage extends XPackFeatureSet.Usage {
         this.jobsUsage = in.readMap();
         this.datafeedsUsage = in.readMap();
         this.nodeCount = in.readInt();
-        if (in.getVersion().onOrAfter(Version.V_7_3_0)) {
-            this.nativeCodeInfo = in.readMap();
-        } else {
-            this.nativeCodeInfo = Collections.emptyMap();
-        }
     }
 
     @Override
@@ -61,9 +52,6 @@ public class MachineLearningFeatureSetUsage extends XPackFeatureSet.Usage {
         out.writeMap(jobsUsage);
         out.writeMap(datafeedsUsage);
         out.writeInt(nodeCount);
-        if (out.getVersion().onOrAfter(Version.V_7_3_0)) {
-            out.writeMap(nativeCodeInfo);
-        }
     }
 
     @Override
@@ -78,7 +66,6 @@ public class MachineLearningFeatureSetUsage extends XPackFeatureSet.Usage {
         if (nodeCount >= 0) {
             builder.field(NODE_COUNT, nodeCount);
         }
-        builder.field("native_code_info", nativeCodeInfo);
     }
 
 }

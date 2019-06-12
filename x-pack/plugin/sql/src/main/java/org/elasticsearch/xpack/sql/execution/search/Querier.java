@@ -206,7 +206,6 @@ public class Querier {
         }
 
         private void consumeRowSet(RowSet rowSet) {
-            // use a synchronized block for visibility purposes (there's no concurrency)
             ResultRowSet<?> rrs = (ResultRowSet<?>) rowSet;
             for (boolean hasRows = rrs.hasCurrentRow(); hasRows; hasRows = rrs.advanceRow()) {
                 List<Object> row = new ArrayList<>(rrs.columnCount());

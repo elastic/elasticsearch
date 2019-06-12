@@ -156,6 +156,7 @@ if (project != rootProject) {
   dependencyLicenses.enabled = false
   dependenciesInfo.enabled = false
   forbiddenApisMain.enabled = false
+  forbiddenApisMinimumRuntime.enabled = false
   forbiddenApisTest.enabled = false
   jarHell.enabled = false
   thirdPartyAudit.enabled = false

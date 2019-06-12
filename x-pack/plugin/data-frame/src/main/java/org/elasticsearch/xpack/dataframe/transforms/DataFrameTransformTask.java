@@ -247,7 +247,8 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
 
         IndexerState state = getIndexer().stop();
         if (state == IndexerState.STOPPED) {
-            getIndexer().doSaveState(state, getIndexer().getPosition(), () -> getIndexer().onStop());
+            //doSaveState calls `onStop` when the task state is `STOPPED`
+            getIndexer().doSaveState(state, getIndexer().getPosition(), () -> {});
         }
     }
 
@@ -489,8 +490,6 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
 
         @Override
         protected void onStart(long now, ActionListener<Void> listener) {
-            // Reset our failure count as we are starting again
-            failureCount.set(0);
             // On each run, we need to get the total number of docs and reset the count of processed docs
             // Since multiple checkpoints can be executed in the task while it is running on the same node, we need to gather
             // the progress here, and not in the executor.
@@ -559,8 +558,20 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
                 transformTask.setTaskStateStopped();
             }
 
+            DataFrameTransformTaskState taskState = transformTask.taskState.get();
+
+            // TODO: check whether continuous data frames is enabled when available
+            if (indexerState.equals(IndexerState.STARTED) && transformTask.currentCheckpoint.get() == 1) {
+                // set both to stopped so they are persisted as such
+                taskState = DataFrameTransformTaskState.STOPPED;
+                indexerState = IndexerState.STOPPED;
+
+                auditor.info(transformConfig.getId(), "Data frame finished indexing all data, initiating stop");
+                logger.info("Data frame [{}] finished indexing all data, initiating stop", transformConfig.getId());
+            }
+
             final DataFrameTransformState state = new DataFrameTransformState(
-                transformTask.taskState.get(),
+                taskState,
                 indexerState,
                 position,
                 transformTask.currentCheckpoint.get(),
@@ -575,12 +586,20 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
                             DataFrameTransformCheckpointingInfo.EMPTY), // TODO should this be null
                     ActionListener.wrap(
                             r -> {
+                                // for auto stop shutdown the task
+                                if (state.getTaskState().equals(DataFrameTransformTaskState.STOPPED)) {
+                                    onStop();
+                                }
                                 next.run();
                             },
                             statsExc -> {
                                 logger.error("Updating stats of transform [" + transformConfig.getId() + "] failed", statsExc);
                                 auditor.warning(getJobId(),
                                     "Failure updating stats of transform: " + statsExc.getMessage());
+                                // for auto stop shutdown the task
+                                if (state.getTaskState().equals(DataFrameTransformTaskState.STOPPED)) {
+                                    onStop();
+                                }
                                 next.run();
                             }
                     ));
@@ -609,6 +628,8 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
             try {
                 super.onFinish(listener);
                 long checkpoint = transformTask.currentCheckpoint.incrementAndGet();
+                // Reset our failure count as we have finished and may start again with a new checkpoint
+                failureCount.set(0);
                 auditor.info(transformTask.getTransformId(), "Finished indexing for data frame transform checkpoint [" + checkpoint + "].");
                 logger.info(
                     "Finished indexing for data frame transform [" + transformTask.getTransformId() + "] checkpoint [" + checkpoint + "]");

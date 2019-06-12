@@ -12,6 +12,7 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BulkAction;
+import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.search.SearchAction;
@@ -454,6 +455,7 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
         private final String transformId;
         private final DataFrameTransformTask transformTask;
         private final AtomicInteger failureCount;
+        private volatile boolean auditBulkFailures = true;
         // Keeps track of the last exception that was written to our audit, keeps us from spamming the audit index
         private volatile String lastAuditedExceptionMessage = null;
 
@@ -540,8 +542,28 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
 
         @Override
         protected void doNextBulk(BulkRequest request, ActionListener<BulkResponse> nextPhase) {
-            ClientHelper.executeWithHeadersAsync(transformConfig.getHeaders(), ClientHelper.DATA_FRAME_ORIGIN, client, BulkAction.INSTANCE,
-                    request, nextPhase);
+            ClientHelper.executeWithHeadersAsync(transformConfig.getHeaders(),
+                ClientHelper.DATA_FRAME_ORIGIN,
+                client,
+                BulkAction.INSTANCE,
+                request,
+                ActionListener.wrap(bulkResponse -> {
+                    if (bulkResponse.hasFailures() && auditBulkFailures) {
+                        int failureCount = 0;
+                        for(BulkItemResponse item : bulkResponse.getItems()) {
+                            if (item.isFailed()) {
+                                failureCount++;
+                            }
+                        }
+                        auditor.warning(transformId,
+                            "Experienced at least [" +
+                                failureCount +
+                                "] bulk index failures. See the logs of the node running the transform for details. " +
+                                bulkResponse.buildFailureMessage());
+                        auditBulkFailures = false;
+                    }
+                    nextPhase.onResponse(bulkResponse);
+                }, nextPhase::onFailure));
         }
 
         @Override
@@ -633,6 +655,7 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
                 auditor.info(transformTask.getTransformId(), "Finished indexing for data frame transform checkpoint [" + checkpoint + "].");
                 logger.info(
                     "Finished indexing for data frame transform [" + transformTask.getTransformId() + "] checkpoint [" + checkpoint + "]");
+                auditBulkFailures = true;
                 listener.onResponse(null);
             } catch (Exception e) {
                 listener.onFailure(e);

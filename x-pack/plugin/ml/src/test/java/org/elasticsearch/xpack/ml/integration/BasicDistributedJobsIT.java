@@ -372,7 +372,6 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
         PutJobAction.Request putJobRequest = new PutJobAction.Request(job);
         client().execute(PutJobAction.INSTANCE, putJobRequest).actionGet();
 
-        ensureYellow(); // at least the primary shards of the indices a job uses should be started
         OpenJobAction.Request openJobRequest = new OpenJobAction.Request(job.getId());
         client().execute(OpenJobAction.INSTANCE, openJobRequest).actionGet();
 
@@ -391,12 +390,10 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
             PersistentTasksCustomMetaData tasks = clusterState.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
             assertEquals(0, tasks.taskMap().size());
         });
-        ensureGreen(); // replicas must be assigned, otherwise we could lose a whole index
         logger.info("Stop non ml node");
         internalCluster().stopRandomNode(settings -> settings.getAsBoolean(MachineLearning.ML_ENABLED.getKey(), false) == false);
         ensureStableCluster(1);
 
-        ensureYellow(); // at least the primary shards of the indices a job uses should be started
         Exception e = expectThrows(ElasticsearchStatusException.class,
                 () -> client().execute(OpenJobAction.INSTANCE, openJobRequest).actionGet());
         assertEquals("Could not open job because no ML nodes with sufficient capacity were found", e.getMessage());

@@ -38,6 +38,7 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.ScrollHelper;
+import org.elasticsearch.xpack.core.security.action.realm.ClearRealmCacheAction;
 import org.elasticsearch.xpack.core.security.action.realm.ClearRealmCacheRequest;
 import org.elasticsearch.xpack.core.security.action.realm.ClearRealmCacheResponse;
 import org.elasticsearch.xpack.core.security.action.user.ChangePasswordRequest;
@@ -46,7 +47,6 @@ import org.elasticsearch.xpack.core.security.action.user.PutUserRequest;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.esnative.ClientReservedRealm;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
-import org.elasticsearch.xpack.core.security.client.SecurityClient;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.security.user.User.Fields;
@@ -617,11 +617,9 @@ public class NativeUsersStore {
     }
 
     private <Response> void clearRealmCache(String username, ActionListener<Response> listener, Response response) {
-        SecurityClient securityClient = new SecurityClient(client);
-        ClearRealmCacheRequest request = securityClient.prepareClearRealmCache()
-                .usernames(username).request();
-        executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN, request,
-                new ActionListener<ClearRealmCacheResponse>() {
+        ClearRealmCacheRequest request = new ClearRealmCacheRequest().usernames(username);
+        executeAsyncWithOrigin(client, SECURITY_ORIGIN, ClearRealmCacheAction.INSTANCE, request,
+                new ActionListener<>() {
                     @Override
                     public void onResponse(ClearRealmCacheResponse nodes) {
                         listener.onResponse(response);
@@ -634,7 +632,7 @@ public class NativeUsersStore {
                                 + "] failed. please clear the realm cache manually", e);
                         listener.onFailure(exception);
                     }
-                }, securityClient::clearRealmCache);
+                });
     }
 
     @Nullable

@@ -38,15 +38,15 @@ abstract class TrustConfig {
 
     /**
      * Creates a {@link X509ExtendedTrustManager} based on the provided configuration
-     * @param environment the environment to resolve files against or null in the case of running in a transport client
+     * @param environment the environment to resolve files against
      */
-    abstract X509ExtendedTrustManager createTrustManager(@Nullable Environment environment);
+    abstract X509ExtendedTrustManager createTrustManager(Environment environment);
 
-    abstract Collection<CertificateInfo> certificates(@Nullable Environment environment) throws GeneralSecurityException, IOException;
+    abstract Collection<CertificateInfo> certificates(Environment environment) throws GeneralSecurityException, IOException;
 
     /**
      * Returns a list of files that should be monitored for changes
-     * @param environment the environment to resolve files against or null in the case of running in a transport client
+     * @param environment the environment to resolve files against
      */
     abstract List<Path> filesToMonitor(@Nullable Environment environment);
 
@@ -70,7 +70,7 @@ abstract class TrustConfig {
      * in any format that the Security Provider might support, or a cryptographic software or hardware token in the case
      * of a PKCS#11 Provider.
      *
-     * @param environment   the environment to resolve files against or null in the case of running in a transport client
+     * @param environment   the environment to resolve files against
      * @param storePath     the path to the {@link KeyStore} to load, or null if a PKCS11 token is configured as the keystore/truststore
      *                      of the JVM
      * @param storeType     the type of the {@link KeyStore}
@@ -81,7 +81,7 @@ abstract class TrustConfig {
      * @throws NoSuchAlgorithmException if the algorithm used to check the integrity of the keystore cannot be found
      * @throws IOException              if there is an I/O issue with the KeyStore data or the password is incorrect
      */
-    KeyStore getStore(@Nullable Environment environment, @Nullable String storePath, String storeType, SecureString storePassword)
+    KeyStore getStore(Environment environment, @Nullable String storePath, String storeType, SecureString storePassword)
         throws KeyStoreException, CertificateException, NoSuchAlgorithmException, IOException {
         if (null != storePath) {
             try (InputStream in = Files.newInputStream(CertParsingUtils.resolvePath(storePath, environment))) {
@@ -136,7 +136,7 @@ abstract class TrustConfig {
         }
 
         @Override
-        List<Path> filesToMonitor(@Nullable Environment environment) {
+        List<Path> filesToMonitor(Environment environment) {
             return trustConfigs.stream().flatMap((tc) -> tc.filesToMonitor(environment).stream()).collect(Collectors.toList());
         }
 

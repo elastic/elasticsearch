@@ -10,7 +10,6 @@ esplugin {
 archivesBaseName = 'x-pack-graph'
 
 dependencies {
-    // "org.elasticsearch.plugin:x-pack-core:${version}" doesn't work with idea because the testArtifacts are also here
     compileOnly project(path: xpackModule('core'), configuration: 'default')
     testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
     if (isEclipse) {

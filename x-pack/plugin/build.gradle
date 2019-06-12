@@ -22,9 +22,7 @@ subprojects {
       // see the root Gradle file for additional logic regarding this configuration
       project.configurations.create('featureAwarePlugin')
       project.dependencies.add('featureAwarePlugin', project.configurations.compileClasspath)
-      project.dependencies.add(
-              'featureAwarePlugin',
-              "org.elasticsearch.xpack.test:feature-aware:${org.elasticsearch.gradle.VersionProperties.elasticsearch}")
+      project.dependencies.add('featureAwarePlugin', project(':x-pack:test:feature-aware'))
       project.dependencies.add('featureAwarePlugin', project.sourceSets.main.output.getClassesDirs())
 
       final Task featureAwareTask = project.tasks.create("featureAwareCheck", LoggedExec) {

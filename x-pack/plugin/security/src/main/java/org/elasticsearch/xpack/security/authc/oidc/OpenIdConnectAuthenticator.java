@@ -777,6 +777,7 @@ public class OpenIdConnectAuthenticator {
                                     StandardCharsets.UTF_8));
                                 reloadFutureRef.set(null);
                                 LOGGER.trace("Successfully refreshed and cached remote JWKSet");
+                                future.onResponse(null);
                             } catch (IOException | ParseException e) {
                                 failed(e);
                             }

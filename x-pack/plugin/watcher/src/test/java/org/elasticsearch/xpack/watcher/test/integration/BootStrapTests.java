@@ -18,6 +18,8 @@ import org.elasticsearch.xpack.core.watcher.execution.TriggeredWatchStoreField;
 import org.elasticsearch.xpack.core.watcher.execution.Wid;
 import org.elasticsearch.xpack.core.watcher.history.HistoryStoreField;
 import org.elasticsearch.xpack.core.watcher.history.WatchRecord;
+import org.elasticsearch.xpack.core.watcher.transport.actions.put.PutWatchRequestBuilder;
+import org.elasticsearch.xpack.core.watcher.transport.actions.stats.WatcherStatsRequestBuilder;
 import org.elasticsearch.xpack.core.watcher.transport.actions.stats.WatcherStatsResponse;
 import org.elasticsearch.xpack.core.watcher.watch.Watch;
 import org.elasticsearch.xpack.core.watcher.watch.WatchField;
@@ -135,7 +137,7 @@ public class BootStrapTests extends AbstractWatcherIntegrationTestCase {
         startWatcher();
 
         assertBusy(() -> {
-            WatcherStatsResponse response = watcherClient().prepareWatcherStats().get();
+            WatcherStatsResponse response = new WatcherStatsRequestBuilder(client()).get();
             assertThat(response.getWatchesCount(), equalTo(1L));
         });
     }
@@ -165,7 +167,7 @@ public class BootStrapTests extends AbstractWatcherIntegrationTestCase {
         startWatcher();
 
         assertBusy(() -> {
-            WatcherStatsResponse response = watcherClient().prepareWatcherStats().get();
+            WatcherStatsResponse response = new WatcherStatsRequestBuilder(client()).get();
             assertThat(response.getWatchesCount(), equalTo((long) numWatches));
         });
     }
@@ -176,7 +178,7 @@ public class BootStrapTests extends AbstractWatcherIntegrationTestCase {
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
                 .setSource("field", "value").get();
 
-        WatcherStatsResponse response = watcherClient().prepareWatcherStats().get();
+        WatcherStatsResponse response = new WatcherStatsRequestBuilder(client()).get();
         assertThat(response.getWatchesCount(), equalTo(0L));
 
         WatcherSearchTemplateRequest request = templateRequest(searchSource().query(termQuery("field", "value")), "my-index");
@@ -185,7 +187,7 @@ public class BootStrapTests extends AbstractWatcherIntegrationTestCase {
         int numWatches = 8;
         for (int i = 0; i < numWatches; i++) {
             String watchId = "_id" + i;
-            watcherClient().preparePutWatch(watchId).setSource(watchBuilder()
+            new PutWatchRequestBuilder(client()).setId(watchId).setSource(watchBuilder()
                     .trigger(schedule(cron("0/5 * * * * ? 2050")))
                     .input(searchInput(request))
                     .condition(InternalAlwaysCondition.INSTANCE)
@@ -225,12 +227,12 @@ public class BootStrapTests extends AbstractWatcherIntegrationTestCase {
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
                 .setSource("field", "value").get();
 
-        WatcherStatsResponse response = watcherClient().prepareWatcherStats().get();
+        WatcherStatsResponse response = new WatcherStatsRequestBuilder(client()).get();
         assertThat(response.getWatchesCount(), equalTo(0L));
 
         String watchId = "_id";
         WatcherSearchTemplateRequest request = templateRequest(searchSource().query(termQuery("field", "value")), "my-index");
-        watcherClient().preparePutWatch(watchId).setSource(watchBuilder()
+        new PutWatchRequestBuilder(client()).setId(watchId).setSource(watchBuilder()
                 .trigger(schedule(cron("0/5 * * * * ? 2050")))
                 .input(searchInput(request))
                 .condition(InternalAlwaysCondition.INSTANCE)
@@ -266,7 +268,7 @@ public class BootStrapTests extends AbstractWatcherIntegrationTestCase {
         assertBusy(() -> {
             // We need to wait until all the records are processed from the internal execution queue, only then we can assert
             // that numRecords watch records have been processed as part of starting up.
-            WatcherStatsResponse response = watcherClient().prepareWatcherStats().setIncludeCurrentWatches(true).get();
+            WatcherStatsResponse response = new WatcherStatsRequestBuilder(client()).setIncludeCurrentWatches(true).get();
             long maxSize = response.getNodes().stream().map(WatcherStatsResponse.Node::getSnapshots).mapToLong(List::size).sum();
             assertThat(maxSize, equalTo(0L));
 
@@ -288,13 +290,13 @@ public class BootStrapTests extends AbstractWatcherIntegrationTestCase {
     }
 
     public void testManuallyStopped() throws Exception {
-        WatcherStatsResponse response = watcherClient().prepareWatcherStats().get();
+        WatcherStatsResponse response = new WatcherStatsRequestBuilder(client()).get();
         assertThat(response.watcherMetaData().manuallyStopped(), is(false));
         stopWatcher();
-        response = watcherClient().prepareWatcherStats().get();
+        response = new WatcherStatsRequestBuilder(client()).get();
         assertThat(response.watcherMetaData().manuallyStopped(), is(true));
         startWatcher();
-        response = watcherClient().prepareWatcherStats().get();
+        response = new WatcherStatsRequestBuilder(client()).get();
         assertThat(response.watcherMetaData().manuallyStopped(), is(false));
     }
 
@@ -339,7 +341,7 @@ public class BootStrapTests extends AbstractWatcherIntegrationTestCase {
         assertBusy(() -> {
             // We need to wait until all the records are processed from the internal execution queue, only then we can assert
             // that numRecords watch records have been processed as part of starting up.
-            WatcherStatsResponse response = watcherClient().prepareWatcherStats().setIncludeCurrentWatches(true).get();
+            WatcherStatsResponse response = new WatcherStatsRequestBuilder(client()).setIncludeCurrentWatches(true).get();
             long maxSize = response.getNodes().stream().map(WatcherStatsResponse.Node::getSnapshots).mapToLong(List::size).sum();
             assertThat(maxSize, equalTo(0L));
 

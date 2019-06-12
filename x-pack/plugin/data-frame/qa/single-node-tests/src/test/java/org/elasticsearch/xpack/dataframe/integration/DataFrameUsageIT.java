@@ -6,7 +6,6 @@
 
 package org.elasticsearch.xpack.dataframe.integration;
 
-import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
@@ -23,7 +22,6 @@ import java.util.Map;
 import static org.elasticsearch.xpack.core.dataframe.DataFrameField.INDEX_DOC_TYPE;
 import static org.elasticsearch.xpack.dataframe.DataFrameFeatureSet.PROVIDED_STATS;
 
-@LuceneTestCase.AwaitsFix( bugUrl = "https://github.com/elastic/elasticsearch/issues/42344")
 public class DataFrameUsageIT extends DataFrameRestTestCase {
     private boolean indicesCreated = false;
 
@@ -107,8 +105,8 @@ public class DataFrameUsageIT extends DataFrameRestTestCase {
         usageAsMap = entityAsMap(usageResponse);
         // we should see some stats
         assertEquals(3, XContentMapValues.extractValue("data_frame.transforms._all", usageAsMap));
-        assertEquals(1, XContentMapValues.extractValue("data_frame.transforms.started", usageAsMap));
-        assertEquals(2, XContentMapValues.extractValue("data_frame.transforms.stopped", usageAsMap));
+        // TODO: due to auto-stop we only see stopped data frames
+        assertEquals(3, XContentMapValues.extractValue("data_frame.transforms.stopped", usageAsMap));
         for(String statName : PROVIDED_STATS) {
             assertEquals("Incorrect stat " +  statName,
                     expectedStats.get(statName), XContentMapValues.extractValue("data_frame.stats." + statName, usageAsMap));

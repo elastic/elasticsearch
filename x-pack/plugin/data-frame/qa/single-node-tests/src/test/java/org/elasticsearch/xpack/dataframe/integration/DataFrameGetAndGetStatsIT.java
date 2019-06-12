@@ -6,7 +6,6 @@
 
 package org.elasticsearch.xpack.dataframe.integration;
 
-import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.xpack.core.dataframe.DataFrameField;
@@ -22,7 +21,6 @@ import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswo
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
-@LuceneTestCase.AwaitsFix( bugUrl = "https://github.com/elastic/elasticsearch/issues/42344")
 public class DataFrameGetAndGetStatsIT extends DataFrameRestTestCase {
 
     private static final String TEST_USER_NAME = "df_user";
@@ -109,7 +107,7 @@ public class DataFrameGetAndGetStatsIT extends DataFrameRestTestCase {
         assertEquals(1, transformsStats.size());
         Map<String, Object> state = (Map<String, Object>) XContentMapValues.extractValue("state", transformsStats.get(0));
         assertEquals(1, transformsStats.size());
-        assertEquals("started", XContentMapValues.extractValue("task_state", state));
+        assertEquals("stopped", XContentMapValues.extractValue("task_state", state));
         assertEquals(null, XContentMapValues.extractValue("current_position", state));
         assertEquals(1, XContentMapValues.extractValue("checkpoint", state));
 

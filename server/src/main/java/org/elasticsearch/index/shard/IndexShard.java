@@ -2479,7 +2479,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 Collections.singletonList(refreshListeners),
                 Collections.singletonList(new RefreshMetricUpdater(refreshMetric)),
                 indexSort, circuitBreakerService, replicationTracker, replicationTracker::getRetentionLeases,
-                () -> getOperationPrimaryTerm(), tombstoneDocSupplier());
+                () -> getOperationPrimaryTerm(), tombstoneDocSupplier(), mapperService);
     }
 
     /**

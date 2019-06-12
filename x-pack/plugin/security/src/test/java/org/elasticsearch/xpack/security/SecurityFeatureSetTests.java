@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.security;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -15,9 +16,11 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackFeatureSet;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.action.XPackUsageFeatureResponse;
 import org.elasticsearch.xpack.core.security.SecurityFeatureSetUsage;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.watcher.support.xcontent.XContentSource;
@@ -64,8 +67,7 @@ public class SecurityFeatureSetTests extends ESTestCase {
     }
 
     public void testAvailable() {
-        SecurityFeatureSet featureSet = new SecurityFeatureSet(settings, licenseState, realms,
-                rolesStore, roleMappingStore, ipFilter);
+        SecurityFeatureSet featureSet = new SecurityFeatureSet(settings, licenseState);
         when(licenseState.isSecurityAvailable()).thenReturn(true);
         assertThat(featureSet.available(), is(true));
 
@@ -74,13 +76,11 @@ public class SecurityFeatureSetTests extends ESTestCase {
     }
 
     public void testEnabled() {
-        SecurityFeatureSet featureSet = new SecurityFeatureSet(settings, licenseState, realms,
-                rolesStore, roleMappingStore, ipFilter);
+        SecurityFeatureSet featureSet = new SecurityFeatureSet(settings, licenseState);
         assertThat(featureSet.enabled(), is(true));
 
         when(licenseState.isSecurityDisabledByLicenseDefaults()).thenReturn(true);
-        featureSet = new SecurityFeatureSet(settings, licenseState, realms,
-                rolesStore, roleMappingStore, ipFilter);
+        featureSet = new SecurityFeatureSet(settings, licenseState);
         assertThat(featureSet.enabled(), is(false));
     }
 
@@ -147,11 +147,10 @@ public class SecurityFeatureSetTests extends ESTestCase {
             settings.put(AnonymousUser.ROLES_SETTING.getKey(), "foo");
         }
 
-        SecurityFeatureSet featureSet = new SecurityFeatureSet(settings.build(), licenseState,
-                realms, rolesStore, roleMappingStore, ipFilter);
-        PlainActionFuture<XPackFeatureSet.Usage> future = new PlainActionFuture<>();
-        featureSet.usage(future);
-        XPackFeatureSet.Usage securityUsage = future.get();
+        var usageAction = newUsageAction(settings.build());
+        PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();
+        usageAction.masterOperation(null, null, future);
+        SecurityFeatureSetUsage securityUsage = (SecurityFeatureSetUsage) future.get().getUsage();
         BytesStreamOutput out = new BytesStreamOutput();
         securityUsage.writeTo(out);
         XPackFeatureSet.Usage serializedUsage = new SecurityFeatureSetUsage(out.bytes().streamInput());
@@ -248,11 +247,10 @@ public class SecurityFeatureSetTests extends ESTestCase {
 
         configureRealmsUsage(Collections.emptyMap());
 
-        SecurityFeatureSet featureSet = new SecurityFeatureSet(settings.build(), licenseState,
-                realms, rolesStore, roleMappingStore, ipFilter);
-        PlainActionFuture<XPackFeatureSet.Usage> future = new PlainActionFuture<>();
-        featureSet.usage(future);
-        XPackFeatureSet.Usage securityUsage = future.get();
+        var usageAction = newUsageAction(settings.build());
+        PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();
+        usageAction.masterOperation(null, null, future);
+        SecurityFeatureSetUsage securityUsage = (SecurityFeatureSetUsage) future.get().getUsage();
         BytesStreamOutput out = new BytesStreamOutput();
         securityUsage.writeTo(out);
         XPackFeatureSet.Usage serializedUsage = new SecurityFeatureSetUsage(out.bytes().streamInput());
@@ -321,5 +319,11 @@ public class SecurityFeatureSetTests extends ESTestCase {
             }
             return Void.TYPE;
         }).when(roleMappingStore).usageStats(any(ActionListener.class));
+    }
+
+    private SecurityFeatureSet.UsageTransportAction newUsageAction(Settings settings) {
+        return new SecurityFeatureSet.UsageTransportAction(mock(TransportService.class),null,
+            null, mock(ActionFilters.class),null,
+            settings, licenseState, realms, rolesStore, roleMappingStore, ipFilter);
     }
 }

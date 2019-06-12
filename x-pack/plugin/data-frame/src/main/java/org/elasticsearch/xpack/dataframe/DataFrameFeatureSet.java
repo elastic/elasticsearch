@@ -13,22 +13,30 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
+import org.elasticsearch.protocol.xpack.XPackUsageRequest;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregation;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.XPackFeatureSet;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
+import org.elasticsearch.xpack.core.action.XPackUsageFeatureResponse;
+import org.elasticsearch.xpack.core.action.XPackUsageFeatureTransportAction;
 import org.elasticsearch.xpack.core.dataframe.DataFrameFeatureSetUsage;
 import org.elasticsearch.xpack.core.dataframe.DataFrameField;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameIndexerTransformStats;
@@ -46,15 +54,12 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 
 
 public class DataFrameFeatureSet implements XPackFeatureSet {
 
     private final boolean enabled;
-    private final Client client;
     private final XPackLicenseState licenseState;
-    private final ClusterService clusterService;
 
     private static final Logger logger = LogManager.getLogger(DataFrameFeatureSet.class);
 
@@ -72,10 +77,8 @@ public class DataFrameFeatureSet implements XPackFeatureSet {
     };
 
     @Inject
-    public DataFrameFeatureSet(Settings settings, ClusterService clusterService, Client client, @Nullable XPackLicenseState licenseState) {
+    public DataFrameFeatureSet(Settings settings, XPackLicenseState licenseState) {
         this.enabled = XPackSettings.DATA_FRAME_ENABLED.get(settings);
-        this.client = Objects.requireNonNull(client);
-        this.clusterService = Objects.requireNonNull(clusterService);
         this.licenseState = licenseState;
     }
 
@@ -99,72 +102,89 @@ public class DataFrameFeatureSet implements XPackFeatureSet {
         return null;
     }
 
-    @Override
-    public void usage(ActionListener<XPackFeatureSet.Usage> listener) {
-        if (enabled == false) {
-            listener.onResponse(new DataFrameFeatureSetUsage(available(),
-                enabled(),
-                Collections.emptyMap(),
-                DataFrameIndexerTransformStats.withDefaultTransformId()));
-            return;
+    public static class UsageTransportAction extends XPackUsageFeatureTransportAction {
+
+        private final boolean enabled;
+        private final XPackLicenseState licenseState;
+        private final Client client;
+
+        @Inject
+        public UsageTransportAction(TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
+                                    ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
+                                    Settings settings, XPackLicenseState licenseState, Client client) {
+            super(XPackUsageFeatureAction.DATA_FRAME.name(), transportService, clusterService,
+                threadPool, actionFilters, indexNameExpressionResolver);
+            this.enabled = XPackSettings.DATA_FRAME_ENABLED.get(settings);
+            this.licenseState = licenseState;
+            this.client = client;
         }
 
-        PersistentTasksCustomMetaData taskMetadata = PersistentTasksCustomMetaData.getPersistentTasksCustomMetaData(clusterService.state());
-        Collection<PersistentTasksCustomMetaData.PersistentTask<?>> dataFrameTasks = taskMetadata == null ?
-            Collections.emptyList() :
-            taskMetadata.findTasks(DataFrameTransform.NAME, (t) -> true);
-        final int taskCount = dataFrameTasks.size();
-        final Map<String, Long> transformsCountByState = new HashMap<>();
-        for(PersistentTasksCustomMetaData.PersistentTask<?> dataFrameTask : dataFrameTasks) {
-            DataFrameTransformState state = (DataFrameTransformState)dataFrameTask.getState();
-            transformsCountByState.merge(state.getTaskState().value(), 1L, Long::sum);
-        }
-
-        ActionListener<DataFrameIndexerTransformStats> totalStatsListener = ActionListener.wrap(
-            statSummations -> listener.onResponse(new DataFrameFeatureSetUsage(available(),
-                enabled(),
-                transformsCountByState,
-                statSummations)),
-            listener::onFailure
-        );
-
-        ActionListener<SearchResponse> totalTransformCountListener = ActionListener.wrap(
-            transformCountSuccess -> {
-                if (transformCountSuccess.getShardFailures().length > 0) {
-                    logger.error("total transform count search returned shard failures: {}",
-                        Arrays.toString(transformCountSuccess.getShardFailures()));
-                }
-                long totalTransforms = transformCountSuccess.getHits().getTotalHits().value;
-                if (totalTransforms == 0) {
-                    listener.onResponse(new DataFrameFeatureSetUsage(available(),
-                        enabled(),
-                        transformsCountByState,
-                        DataFrameIndexerTransformStats.withDefaultTransformId()));
-                    return;
-                }
-                transformsCountByState.merge(DataFrameTransformTaskState.STOPPED.value(), totalTransforms - taskCount, Long::sum);
-                getStatisticSummations(client, totalStatsListener);
-            },
-            transformCountFailure -> {
-               if (transformCountFailure instanceof ResourceNotFoundException) {
-                   getStatisticSummations(client, totalStatsListener);
-               } else {
-                   listener.onFailure(transformCountFailure);
-               }
+        @Override
+        protected void masterOperation(XPackUsageRequest request, ClusterState state, ActionListener<XPackUsageFeatureResponse> listener) {
+            boolean available = licenseState.isDataFrameAllowed();
+            if (enabled == false) {
+                var usage = new DataFrameFeatureSetUsage(available, enabled, Collections.emptyMap(),
+                    DataFrameIndexerTransformStats.withDefaultTransformId());
+                listener.onResponse(new XPackUsageFeatureResponse(usage));
+                return;
             }
-        );
 
-        SearchRequest totalTransformCount = client.prepareSearch(DataFrameInternalIndex.INDEX_NAME)
-            .setTrackTotalHits(true)
-            .setQuery(QueryBuilders.constantScoreQuery(QueryBuilders.boolQuery()
-                .filter(QueryBuilders.termQuery(DataFrameField.INDEX_DOC_TYPE.getPreferredName(), DataFrameTransformConfig.NAME))))
-            .request();
+            PersistentTasksCustomMetaData taskMetadata = PersistentTasksCustomMetaData.getPersistentTasksCustomMetaData(state);
+            Collection<PersistentTasksCustomMetaData.PersistentTask<?>> dataFrameTasks = taskMetadata == null ?
+                Collections.emptyList() :
+                taskMetadata.findTasks(DataFrameTransform.NAME, (t) -> true);
+            final int taskCount = dataFrameTasks.size();
+            final Map<String, Long> transformsCountByState = new HashMap<>();
+            for(PersistentTasksCustomMetaData.PersistentTask<?> dataFrameTask : dataFrameTasks) {
+                DataFrameTransformState transformState = (DataFrameTransformState)dataFrameTask.getState();
+                transformsCountByState.merge(transformState.getTaskState().value(), 1L, Long::sum);
+            }
 
-        ClientHelper.executeAsyncWithOrigin(client.threadPool().getThreadContext(),
-            ClientHelper.DATA_FRAME_ORIGIN,
-            totalTransformCount,
-            totalTransformCountListener,
-            client::search);
+            ActionListener<DataFrameIndexerTransformStats> totalStatsListener = ActionListener.wrap(
+                statSummations -> {
+                    var usage = new DataFrameFeatureSetUsage(available, enabled, transformsCountByState, statSummations);
+                    listener.onResponse(new XPackUsageFeatureResponse(usage));
+                },
+                listener::onFailure
+            );
+
+            ActionListener<SearchResponse> totalTransformCountListener = ActionListener.wrap(
+                transformCountSuccess -> {
+                    if (transformCountSuccess.getShardFailures().length > 0) {
+                        logger.error("total transform count search returned shard failures: {}",
+                            Arrays.toString(transformCountSuccess.getShardFailures()));
+                    }
+                    long totalTransforms = transformCountSuccess.getHits().getTotalHits().value;
+                    if (totalTransforms == 0) {
+                        var usage = new DataFrameFeatureSetUsage(available, enabled, transformsCountByState,
+                            DataFrameIndexerTransformStats.withDefaultTransformId());
+                        listener.onResponse(new XPackUsageFeatureResponse(usage));
+                        return;
+                    }
+                    transformsCountByState.merge(DataFrameTransformTaskState.STOPPED.value(), totalTransforms - taskCount, Long::sum);
+                    getStatisticSummations(client, totalStatsListener);
+                },
+                transformCountFailure -> {
+                    if (transformCountFailure instanceof ResourceNotFoundException) {
+                        getStatisticSummations(client, totalStatsListener);
+                    } else {
+                        listener.onFailure(transformCountFailure);
+                    }
+                }
+            );
+
+            SearchRequest totalTransformCount = client.prepareSearch(DataFrameInternalIndex.INDEX_NAME)
+                .setTrackTotalHits(true)
+                .setQuery(QueryBuilders.constantScoreQuery(QueryBuilders.boolQuery()
+                    .filter(QueryBuilders.termQuery(DataFrameField.INDEX_DOC_TYPE.getPreferredName(), DataFrameTransformConfig.NAME))))
+                .request();
+
+            ClientHelper.executeAsyncWithOrigin(client.threadPool().getThreadContext(),
+                ClientHelper.DATA_FRAME_ORIGIN,
+                totalTransformCount,
+                totalTransformCountListener,
+                client::search);
+        }
     }
 
     static DataFrameIndexerTransformStats parseSearchAggs(SearchResponse searchResponse) {

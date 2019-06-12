@@ -68,7 +68,7 @@ public class ExtractedFieldTests extends ESTestCase {
         String[] expected = new String[] {lat + "," + lon};
 
         // doc_value field
-        ExtractedField geo = ExtractedField.newGeoPointField("geo", "geo", ExtractedField.ExtractionMethod.DOC_VALUE);
+        ExtractedField geo = ExtractedField.newGeoPointField("geo", "geo");
         SearchHit hit = new SearchHitBuilder(42).addField("geo", lat + ", " + lon).build();
         assertThat(geo.value(hit), equalTo(expected));
     }
@@ -81,12 +81,12 @@ public class ExtractedFieldTests extends ESTestCase {
         SearchHit hit = new SearchHitBuilder(42)
             .setSource("{\"geo\":{\"type\":\"point\", \"coordinates\": [" + lon + ", " + lat + "]}}")
             .build();
-        ExtractedField geo = ExtractedField.newGeoShapeField("geo", "geo", ExtractedField.ExtractionMethod.SOURCE);
+        ExtractedField geo = ExtractedField.newGeoShapeField("geo", "geo");
         assertThat(geo.value(hit), equalTo(expected));
 
         // WKT format
         hit = new SearchHitBuilder(42).setSource("{\"geo\":\"POINT ("+ lon + " " + lat + ")\"}").build();
-        geo = ExtractedField.newGeoShapeField("geo", "geo", ExtractedField.ExtractionMethod.SOURCE);
+        geo = ExtractedField.newGeoShapeField("geo", "geo");
         assertThat(geo.value(hit), equalTo(expected));
     }
 

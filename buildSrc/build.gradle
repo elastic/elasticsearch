@@ -90,6 +90,10 @@ jar {
     from sourceSets.minimumRuntime.output
 }
 
+javadoc {
+    source sourceSets.minimumRuntime.allSource
+}
+
 /*****************************************************************************
  *                    Dependencies used by the entire build                  *
  *****************************************************************************/

@@ -147,38 +147,37 @@ NOTE: Transient settings are not considered for backup.
 [[backup-security-repos]]
 ===== Controlling access to the backup repository
 
-Simply exposing the contents of the `.security` index, by having a third party
-read the snapshot, does not equate to a compromised cluster security. This is
-because an attacker still needs to brute force cryptographic hashes before it
-can impersonate users or use API keys. But every document in the security index
-is sensitive to changes, meaning that any modification has the potential to
-compromise the integrity of all the data in the cluster. Therefore it is
-recommended to:
+Exposing the contents of the `.security` index by having a third party read the
+snapshot does not equate to compromised cluster security. An attacker would
+still need to brute force cryptographic hashes before it can impersonate users
+or use API keys. However, every document in the security index is sensitive to
+changes. Modifications to that index have the potential to compromise the
+integrity of all the data in the cluster. To prevent that situation:
 
-* snapshot `.security` in a dedicated repository, to which read and write
-access is strictly restricted and audited
-* if there are indications that the snapshot has been read, proceed to changing
-the passwords of the users in the native realm as well as revoking API keys
-* never restore a snapshot for which there are indications that it has been
-tampered with; there is currently no option for the restore process to detect
-malicious tampering
+* Snapshot the `.security` index in a dedicated repository, where read and write
+access is strictly restricted and audited.
+* If there are indications that the snapshot has been read, change the passwords
+of the users in the native realm and revoke API keys.
+* If there are indications that the snapshot has been tampered with, do not
+restore it. There is currently no option for the restore process to detect
+malicious tampering.
 
-The same recommendations are available for the storing of backups for
-configuration files. However, special caution must be employed when storing
-the `elasticsearch.keystore` and private key file backups, because currently
-the secure store is *not* password protected and any read access can compromise
-passwords of external systems and private keys.
+The same recommendations apply to storing backups for configuration files.
+However, use special caution when you store the `elasticsearch.keystore` and
+private key file backups. Currently, the secure store is *not* password
+protected and any read access can compromise the passwords of external systems
+and private keys.
 
 [float]
 [[restore-security-configuration]]
 ==== Restoring security configuration
 
-The first part of restoring a Security configuration backup is restoring the
-`.security` index. You can restore a snapshot of the `.security` index only if
-it has been created in the same major release version. The last minor version of
-every major release can convert and read both versions of the index.
-Log in to one of the node hosts, navigate to {es} installation directory, and
-follow these steps:
+NOTE: You can restore a snapshot of the `.security` index only if it was created
+in the same major release version. The last minor version of every major release
+can convert and read both versions of the index.
+
+To restore your security configuration from a backup, log in to one of the node
+hosts, navigate to {es} installation directory, and follow these steps:
 
 . Make sure the repository holding the `.security` snapshot is installed.
 +
@@ -189,7 +188,8 @@ For example:
 GET /_snapshot/my_backup
 --------------------------------------------------
 --
-. Add a new user with the `superuser` role to the file based realm.
+
+. Add a new user with the `superuser` built-in role to the file based realm.
 +
 --
 For example, create a user named `jacknich`:
@@ -198,7 +198,8 @@ For example, create a user named `jacknich`:
  bin/elasticsearch-users useradd jacknich -p password -r superuser
 --------------------------------------------------
 --
-. Using the previously create user, delete the existing `.security-6` or
+
+. Using the previously created user, delete the existing `.security-6` or
 `.security-7` index.
 +
 --
@@ -207,10 +208,11 @@ For example, create a user named `jacknich`:
 curl -u jacknich-X DELETE "localhost:9200/.security-7"
 --------------------------------------------------
 
-NOTE: After this step authentication will not work; all API calls will fail.
+WARNING: After this step authentication will not work; all API calls will fail.
 
 --
- . Using the same user, restore the `.security` index from the snapshot.
+
+. Using the same user, restore the `.security` index from the snapshot.
 +
 --
 [source,shell]
@@ -227,8 +229,12 @@ NOTE: Restoring the global state is optional, but it will help make sure the
 
 --
 
-The next part is really common to every other backup restore; copy the backed-up
-configuration overwriting the contents of `$ES_PATH_CONF` and restart the node.
+. Copy the backup configuration details by overwriting the contents of
+`$ES_PATH_CONF` and restart the node.
++
+--
+This step is common to every other backup restore.
+--
 
-Lastly, you can now cherry-pick and <<cluster-update-settings,  apply the
-persistent secure settings>> from earlier.
+. Cherry-pick and
+<<cluster-update-settings,apply the persistent secure settings>> from earlier.

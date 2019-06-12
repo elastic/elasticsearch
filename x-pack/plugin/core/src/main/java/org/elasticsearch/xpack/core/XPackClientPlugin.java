@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.core;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.ClusterState;
@@ -13,12 +12,9 @@ import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.license.DeleteLicenseAction;
 import org.elasticsearch.license.GetBasicStatusAction;
 import org.elasticsearch.license.GetLicenseAction;
@@ -34,16 +30,22 @@ import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.NetworkPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.Transport;
 import org.elasticsearch.xpack.core.action.TransportFreezeIndexAction;
 import org.elasticsearch.xpack.core.action.XPackInfoAction;
 import org.elasticsearch.xpack.core.action.XPackUsageAction;
 import org.elasticsearch.xpack.core.beats.BeatsFeatureSetUsage;
 import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata;
-import org.elasticsearch.xpack.core.ccr.CCRFeatureSet;
+import org.elasticsearch.xpack.ccr.CCRFeatureSet;
 import org.elasticsearch.xpack.core.dataframe.DataFrameFeatureSetUsage;
 import org.elasticsearch.xpack.core.dataframe.DataFrameField;
+import org.elasticsearch.xpack.core.dataframe.action.DeleteDataFrameTransformAction;
+import org.elasticsearch.xpack.core.dataframe.action.GetDataFrameTransformsAction;
+import org.elasticsearch.xpack.core.dataframe.action.GetDataFrameTransformsStatsAction;
+import org.elasticsearch.xpack.core.dataframe.action.PreviewDataFrameTransformAction;
+import org.elasticsearch.xpack.core.dataframe.action.PutDataFrameTransformAction;
+import org.elasticsearch.xpack.core.dataframe.action.StartDataFrameTransformAction;
+import org.elasticsearch.xpack.core.dataframe.action.StartDataFrameTransformTaskAction;
+import org.elasticsearch.xpack.core.dataframe.action.StopDataFrameTransformAction;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransform;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformState;
 import org.elasticsearch.xpack.core.deprecation.DeprecationInfoAction;
@@ -139,8 +141,6 @@ import org.elasticsearch.xpack.core.rollup.action.StopRollupJobAction;
 import org.elasticsearch.xpack.core.rollup.job.RollupJob;
 import org.elasticsearch.xpack.core.rollup.job.RollupJobStatus;
 import org.elasticsearch.xpack.core.security.SecurityFeatureSetUsage;
-import org.elasticsearch.xpack.core.security.SecurityField;
-import org.elasticsearch.xpack.core.security.SecuritySettings;
 import org.elasticsearch.xpack.core.security.action.CreateApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.GetApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.InvalidateApiKeyAction;
@@ -170,9 +170,7 @@ import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.
 import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.RoleMapperExpression;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConditionalClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConditionalClusterPrivileges;
-import org.elasticsearch.xpack.core.security.transport.netty4.SecurityNetty4Transport;
 import org.elasticsearch.xpack.core.sql.SqlFeatureSetUsage;
-import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.core.ssl.action.GetCertificateInfoAction;
 import org.elasticsearch.xpack.core.upgrade.actions.IndexUpgradeAction;
 import org.elasticsearch.xpack.core.upgrade.actions.IndexUpgradeInfoAction;
@@ -189,12 +187,10 @@ import org.elasticsearch.xpack.core.watcher.transport.actions.stats.WatcherStats
 
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
-import java.util.function.Supplier;
 
+// TODO: merge this into XPackPlugin
 public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPlugin {
 
     static Optional<String> X_PACK_FEATURE = Optional.of("x-pack");
@@ -225,22 +221,6 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
         settings.add(Setting.simpleString("index.xpack.version", Setting.Property.IndexScope));
 
         return settings;
-    }
-
-    @Override
-    public Settings additionalSettings() {
-        return additionalSettings(settings, XPackSettings.SECURITY_ENABLED.get(settings), XPackPlugin.transportClientMode(settings));
-    }
-
-    static Settings additionalSettings(final Settings settings, final boolean enabled, final boolean transportClientMode) {
-        if (enabled && transportClientMode) {
-            return Settings.builder()
-                    .put(SecuritySettings.addTransportSettings(settings))
-                    .put(SecuritySettings.addUserSettings(settings))
-                    .build();
-        } else {
-            return Settings.EMPTY;
-        }
     }
 
     @Override
@@ -363,7 +343,16 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
                 RemoveIndexLifecyclePolicyAction.INSTANCE,
                 MoveToStepAction.INSTANCE,
                 RetryAction.INSTANCE,
-                TransportFreezeIndexAction.FreezeIndexAction.INSTANCE
+                TransportFreezeIndexAction.FreezeIndexAction.INSTANCE,
+                // Data Frame
+                PutDataFrameTransformAction.INSTANCE,
+                StartDataFrameTransformAction.INSTANCE,
+                StartDataFrameTransformTaskAction.INSTANCE,
+                StopDataFrameTransformAction.INSTANCE,
+                DeleteDataFrameTransformAction.INSTANCE,
+                GetDataFrameTransformsAction.INSTANCE,
+                GetDataFrameTransformsStatsAction.INSTANCE,
+                PreviewDataFrameTransformAction.INSTANCE
         );
     }
 
@@ -488,27 +477,4 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
                         DataFrameTransformState::fromXContent)
             );
     }
-
-    @Override
-    public Map<String, Supplier<Transport>> getTransports(
-            final Settings settings,
-            final ThreadPool threadPool,
-            final PageCacheRecycler pageCacheRecycler,
-            final CircuitBreakerService circuitBreakerService,
-            final NamedWriteableRegistry namedWriteableRegistry,
-            final NetworkService networkService) {
-        // this should only be used in the transport layer, so do not add it if it is not in transport mode or we are disabled
-        if (XPackPlugin.transportClientMode(settings) == false || XPackSettings.SECURITY_ENABLED.get(settings) == false) {
-            return Collections.emptyMap();
-        }
-        final SSLService sslService;
-        try {
-            sslService = new SSLService(settings, null);
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
-        return Collections.singletonMap(SecurityField.NAME4, () -> new SecurityNetty4Transport(settings, Version.CURRENT, threadPool,
-                networkService, pageCacheRecycler, namedWriteableRegistry, circuitBreakerService, sslService));
-    }
-
 }

@@ -17,14 +17,13 @@
  * under the License.
  */
 
+subprojects  {
+  apply plugin: 'elasticsearch.testclusters'       
+}
+
 // only configure immediate children of plugins dir
 configure(subprojects.findAll { it.parent.path == project.path }) {
   group = 'org.elasticsearch.plugin'
-  // TODO exclude some plugins as they require features not yet supproted by testclusters
-  if (false ==  name in ['repository-hdfs']) {
-      apply plugin: 'elasticsearch.testclusters'       
-  }
-
   apply plugin: 'elasticsearch.esplugin'
 
   esplugin {

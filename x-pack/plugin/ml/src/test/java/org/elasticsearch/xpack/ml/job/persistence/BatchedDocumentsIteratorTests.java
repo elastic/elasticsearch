@@ -138,7 +138,6 @@ public class BatchedDocumentsIteratorTests extends ESTestCase {
         SearchRequest searchRequest = searchRequests.get(0);
         assertThat(searchRequest.indices(), equalTo(new String[] {INDEX_NAME}));
         assertThat(searchRequest.scroll().keepAlive(), equalTo(TimeValue.timeValueMinutes(5)));
-        assertThat(searchRequest.types().length, equalTo(0));
         assertThat(searchRequest.source().query(), equalTo(QueryBuilders.matchAllQuery()));
         assertThat(searchRequest.source().trackTotalHitsUpTo(), is(SearchContext.TRACK_TOTAL_HITS_ACCURATE));
     }

@@ -208,8 +208,7 @@ public class AzureSeedHostsProvider implements SeedHostsProvider {
                 }
 
                 try {
-                    // we only limit to 1 port per address, makes no sense to ping 100 ports
-                    TransportAddress[] addresses = transportService.addressesFromString(networkAddress, 1);
+                    TransportAddress[] addresses = transportService.addressesFromString(networkAddress);
                     for (TransportAddress address : addresses) {
                         logger.trace("adding {}, transport_address {}", networkAddress, address);
                         dynamicHosts.add(address);

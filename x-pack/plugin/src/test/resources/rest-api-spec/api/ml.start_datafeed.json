@@ -3,7 +3,6 @@
     "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/current/ml-start-datafeed.html",
     "methods": [ "POST" ],
     "url": {
-      "path": "/_ml/datafeeds/{datafeed_id}/_start",
       "paths": [ "/_ml/datafeeds/{datafeed_id}/_start" ],
       "parts": {
         "datafeed_id": {

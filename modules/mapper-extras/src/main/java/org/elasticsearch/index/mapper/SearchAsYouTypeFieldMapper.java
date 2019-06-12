@@ -160,8 +160,9 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
             final NamedAnalyzer searchQuoteAnalyzer = fieldType().searchQuoteAnalyzer();
 
             // set up the prefix field
-            final String prefixFieldName = name() + PREFIX_FIELD_SUFFIX;
-            final PrefixFieldType prefixFieldType = new PrefixFieldType(name(), prefixFieldName, Defaults.MIN_GRAM, Defaults.MAX_GRAM);
+            final String fullName = buildFullName(context);
+            final String prefixFieldName = fullName + PREFIX_FIELD_SUFFIX;
+            final PrefixFieldType prefixFieldType = new PrefixFieldType(fullName, prefixFieldName, Defaults.MIN_GRAM, Defaults.MAX_GRAM);
             prefixFieldType.setIndexOptions(fieldType().indexOptions());
             // wrap the root field's index analyzer with shingles and edge ngrams
             final SearchAsYouTypeAnalyzer prefixIndexWrapper =
@@ -180,7 +181,7 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
             for (int i = 0; i < shingleFieldMappers.length; i++) {
                 final int shingleSize = i + 2;
                 final ShingleFieldType shingleFieldType = new ShingleFieldType(fieldType(), shingleSize);
-                shingleFieldType.setName(getShingleFieldName(name(), shingleSize));
+                shingleFieldType.setName(getShingleFieldName(buildFullName(context), shingleSize));
                 // wrap the root field's index, search, and search quote analyzers with shingles
                 final SearchAsYouTypeAnalyzer shingleIndexWrapper =
                     SearchAsYouTypeAnalyzer.withShingle(indexAnalyzer.analyzer(), shingleSize);

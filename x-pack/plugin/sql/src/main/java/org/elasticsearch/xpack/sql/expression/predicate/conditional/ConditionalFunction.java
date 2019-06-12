@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.type.DataTypeConversion;
 
 import java.util.List;
+import java.util.Objects;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.sql.type.DataTypes.areTypesCompatible;
@@ -25,7 +26,7 @@ import static org.elasticsearch.xpack.sql.util.StringUtils.ordinal;
  */
 public abstract class ConditionalFunction extends ScalarFunction {
 
-    protected DataType dataType = DataType.NULL;
+    protected DataType dataType = null;
 
     ConditionalFunction(Source source, List<Expression> fields) {
         super(source, fields);
@@ -33,6 +34,12 @@ public abstract class ConditionalFunction extends ScalarFunction {
 
     @Override
     public DataType dataType() {
+        if (dataType == null) {
+            dataType = DataType.NULL;
+            for (Expression exp : children()) {
+                dataType = DataTypeConversion.commonType(dataType, exp.dataType());
+            }
+        }
         return dataType;
     }
 
@@ -61,7 +68,6 @@ public abstract class ConditionalFunction extends ScalarFunction {
                         child.dataType().typeName));
                 }
             }
-            dataType = DataTypeConversion.commonType(dataType, child.dataType());
         }
         return TypeResolution.TYPE_RESOLVED;
     }
@@ -69,5 +75,22 @@ public abstract class ConditionalFunction extends ScalarFunction {
     @Override
     public Nullability nullable() {
         return Nullability.UNKNOWN;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
+        ConditionalFunction that = (ConditionalFunction) o;
+        return children().equals(that.children());
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(children());
     }
 }

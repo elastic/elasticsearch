@@ -58,7 +58,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE,
-                              numDataNodes = 1, numClientNodes = 0, transportClientRatio = 0.0, supportsDedicatedMasters = false)
+                              numDataNodes = 1, numClientNodes = 0, supportsDedicatedMasters = false)
 public class LocalExporterIntegTests extends LocalExporterIntegTestCase {
     private final String indexTimeFormat = randomFrom("yy", "yyyy", "yyyy.MM", "yyyy-MM", "MM.yyyy", "MM", null);
 
@@ -105,7 +105,7 @@ public class LocalExporterIntegTests extends LocalExporterIntegTestCase {
                 }
 
                 assertBusy(() -> {
-                    MonitoringBulkRequestBuilder bulk = monitoringClient().prepareMonitoringBulk();
+                    MonitoringBulkRequestBuilder bulk = new MonitoringBulkRequestBuilder(client());
                     monitoringDocs.forEach(bulk::add);
                     assertEquals(RestStatus.OK, bulk.get().status());
                     refresh();

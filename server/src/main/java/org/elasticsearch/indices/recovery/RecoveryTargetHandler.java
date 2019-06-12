@@ -65,6 +65,11 @@ public interface RecoveryTargetHandler {
      *                                            the primary shard when capturing these operations. This value is at least as high as the
      *                                            max_seq_no_of_updates on the primary was when any of these ops were processed on it.
      * @param retentionLeases                     the retention leases on the primary
+     * @param mappingVersionOnPrimary             the mapping version which is at least as up to date as the mapping version that the
+     *                                            primary used to index translog {@code operations} in this request.
+     *                                            If the mapping version on the replica is not older this version, we should not retry on
+     *                                            {@link org.elasticsearch.index.mapper.MapperException}; otherwise we should wait for a
+     *                                            new mapping then retry.
      * @param listener                            a listener which will be notified with the local checkpoint on the target
      *                                            after these operations are successfully indexed on the target.
      */
@@ -74,6 +79,7 @@ public interface RecoveryTargetHandler {
             long maxSeenAutoIdTimestampOnPrimary,
             long maxSeqNoOfUpdatesOrDeletesOnPrimary,
             RetentionLeases retentionLeases,
+            long mappingVersionOnPrimary,
             ActionListener<Long> listener);
 
     /**

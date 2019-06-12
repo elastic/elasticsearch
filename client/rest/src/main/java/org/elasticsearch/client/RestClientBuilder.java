@@ -186,12 +186,8 @@ public final class RestClientBuilder {
         if (failureListener == null) {
             failureListener = new RestClient.FailureListener();
         }
-        CloseableHttpAsyncClient httpClient = AccessController.doPrivileged(new PrivilegedAction<CloseableHttpAsyncClient>() {
-            @Override
-            public CloseableHttpAsyncClient run() {
-                return createHttpClient();
-            }
-        });
+        CloseableHttpAsyncClient httpClient = AccessController.doPrivileged(
+            (PrivilegedAction<CloseableHttpAsyncClient>) this::createHttpClient);
         RestClient restClient = new RestClient(httpClient, defaultHeaders, nodes,
                 pathPrefix, failureListener, nodeSelector, strictDeprecationMode);
         httpClient.start();
@@ -218,12 +214,7 @@ public final class RestClientBuilder {
             }
 
             final HttpAsyncClientBuilder finalBuilder = httpClientBuilder;
-            return AccessController.doPrivileged(new PrivilegedAction<CloseableHttpAsyncClient>() {
-                @Override
-                public CloseableHttpAsyncClient run() {
-                    return finalBuilder.build();
-                }
-            });
+            return AccessController.doPrivileged((PrivilegedAction<CloseableHttpAsyncClient>) finalBuilder::build);
         } catch (NoSuchAlgorithmException e) {
             throw new IllegalStateException("could not create the default ssl context", e);
         }

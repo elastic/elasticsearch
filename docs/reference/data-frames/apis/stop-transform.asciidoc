@@ -2,6 +2,8 @@
 [testenv="basic"]
 [[stop-data-frame-transform]]
 === Stop {dataframe-transforms} API
+
+[subs="attributes"]
 ++++
 <titleabbrev>Stop {dataframe-transforms}</titleabbrev>
 ++++
@@ -59,7 +61,7 @@ When the {dataframe-transform} stops, you receive the following results:
 [source,js]
 ----
 {
-  "stopped" : true
+  "acknowledged" : true
 }
 ----
 // TESTRESPONSE

@@ -56,7 +56,7 @@ class UserAttributeGroupsResolver implements GroupsResolver {
                         if (entry == null || entry.hasAttribute(attribute) == false) {
                             listener.onResponse(Collections.emptyList());
                         } else {
-                            listener.onResponse(Collections.unmodifiableList(Arrays.asList(entry.getAttributeValues(attribute))));
+                            listener.onResponse(List.of(entry.getAttributeValues(attribute)));
                         }
                     }, listener::onFailure), attribute);
         }

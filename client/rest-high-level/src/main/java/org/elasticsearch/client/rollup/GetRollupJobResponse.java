@@ -48,7 +48,7 @@ public class GetRollupJobResponse {
     static final ParseField STATE = new ParseField("job_state");
     static final ParseField CURRENT_POSITION = new ParseField("current_position");
     static final ParseField ROLLUPS_INDEXED = new ParseField("rollups_indexed");
-    static final ParseField UPGRADED_DOC_ID = new ParseField("upgraded_doc_id");
+    private static final ParseField UPGRADED_DOC_ID = new ParseField("upgraded_doc_id");
 
     private List<JobWrapper> jobs;
 
@@ -207,12 +207,10 @@ public class GetRollupJobResponse {
     public static class RollupJobStatus {
         private final IndexerState state;
         private final Map<String, Object> currentPosition;
-        private final boolean upgradedDocumentId;
 
-        RollupJobStatus(IndexerState state, Map<String, Object> position, boolean upgradedDocumentId) {
+        RollupJobStatus(IndexerState state, Map<String, Object> position) {
             this.state = state;
             this.currentPosition = position;
-            this.upgradedDocumentId = upgradedDocumentId;
         }
 
         /**
@@ -227,13 +225,6 @@ public class GetRollupJobResponse {
         public Map<String, Object> getCurrentPosition() {
             return currentPosition;
         }
-        /**
-         * Flag holds the state of the ID scheme, e.g. if it has been upgraded
-         * to the concatenation scheme.
-         */
-        public boolean getUpgradedDocumentId() {
-            return upgradedDocumentId;
-        }
 
         private static final ConstructingObjectParser<RollupJobStatus, Void> PARSER = new ConstructingObjectParser<>(
                 STATUS.getPreferredName(),
@@ -242,8 +233,7 @@ public class GetRollupJobResponse {
                     IndexerState state = (IndexerState) args[0];
                     @SuppressWarnings("unchecked") // We're careful of the contents
                     Map<String, Object> currentPosition = (Map<String, Object>) args[1];
-                    Boolean upgradedDocumentId = (Boolean) args[2];
-                    return new RollupJobStatus(state, currentPosition, upgradedDocumentId == null ? false : upgradedDocumentId);
+                    return new RollupJobStatus(state, currentPosition);
                 });
         static {
             PARSER.declareField(constructorArg(), p -> IndexerState.fromString(p.text()), STATE, ObjectParser.ValueType.STRING);
@@ -257,7 +247,7 @@ public class GetRollupJobResponse {
                 throw new IllegalArgumentException("Unsupported token [" + p.currentToken() + "]");
             }, CURRENT_POSITION, ObjectParser.ValueType.VALUE_OBJECT_ARRAY);
 
-            // Optional to accommodate old versions of state
+            // Optional to accommodate old versions of state, not used
             PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), UPGRADED_DOC_ID);
         }
 
@@ -267,20 +257,18 @@ public class GetRollupJobResponse {
             if (other == null || getClass() != other.getClass()) return false;
             RollupJobStatus that = (RollupJobStatus) other;
             return Objects.equals(state, that.state)
-                    && Objects.equals(currentPosition, that.currentPosition)
-                    && upgradedDocumentId == that.upgradedDocumentId;
+                    && Objects.equals(currentPosition, that.currentPosition);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(state, currentPosition, upgradedDocumentId);
+            return Objects.hash(state, currentPosition);
         }
 
         @Override
         public final String toString() {
             return "{stats=" + state
-                    + ", currentPosition=" + currentPosition
-                    + ", upgradedDocumentId=" + upgradedDocumentId + "}";
+                    + ", currentPosition=" + currentPosition + "}";
         }
     }
 }

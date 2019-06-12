@@ -21,7 +21,6 @@ import org.elasticsearch.action.admin.indices.mapping.put.PutMappingAction;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsAction;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryAction;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.xpack.core.ccr.action.ForgetFollowerAction;
 import org.elasticsearch.xpack.core.ccr.action.PutFollowAction;
 import org.elasticsearch.xpack.core.ccr.action.UnfollowAction;
@@ -37,6 +36,7 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Predicate;
 
+import static java.util.Map.entry;
 import static org.elasticsearch.xpack.core.security.support.Automatons.patterns;
 import static org.elasticsearch.xpack.core.security.support.Automatons.unionAndMinimize;
 
@@ -83,24 +83,23 @@ public final class IndexPrivilege extends Privilege {
     public static final IndexPrivilege MANAGE_LEADER_INDEX = new IndexPrivilege("manage_leader_index", MANAGE_LEADER_INDEX_AUTOMATON);
     public static final IndexPrivilege MANAGE_ILM =          new IndexPrivilege("manage_ilm",          MANAGE_ILM_AUTOMATON);
 
-    private static final Map<String, IndexPrivilege> VALUES = MapBuilder.<String, IndexPrivilege>newMapBuilder()
-            .put("none", NONE)
-            .put("all", ALL)
-            .put("manage", MANAGE)
-            .put("create_index", CREATE_INDEX)
-            .put("monitor", MONITOR)
-            .put("read", READ)
-            .put("index", INDEX)
-            .put("delete", DELETE)
-            .put("write", WRITE)
-            .put("create", CREATE)
-            .put("delete_index", DELETE_INDEX)
-            .put("view_index_metadata", VIEW_METADATA)
-            .put("read_cross_cluster", READ_CROSS_CLUSTER)
-            .put("manage_follow_index", MANAGE_FOLLOW_INDEX)
-            .put("manage_leader_index", MANAGE_LEADER_INDEX)
-            .put("manage_ilm", MANAGE_ILM)
-            .immutableMap();
+    private static final Map<String, IndexPrivilege> VALUES = Map.ofEntries(
+            entry("none", NONE),
+            entry("all", ALL),
+            entry("manage", MANAGE),
+            entry("create_index", CREATE_INDEX),
+            entry("monitor", MONITOR),
+            entry("read", READ),
+            entry("index", INDEX),
+            entry("delete", DELETE),
+            entry("write", WRITE),
+            entry("create", CREATE),
+            entry("delete_index", DELETE_INDEX),
+            entry("view_index_metadata", VIEW_METADATA),
+            entry("read_cross_cluster", READ_CROSS_CLUSTER),
+            entry("manage_follow_index", MANAGE_FOLLOW_INDEX),
+            entry("manage_leader_index", MANAGE_LEADER_INDEX),
+            entry("manage_ilm", MANAGE_ILM));
 
     public static final Predicate<String> ACTION_MATCHER = ALL.predicate();
     public static final Predicate<String> CREATE_INDEX_MATCHER = CREATE_INDEX.predicate();

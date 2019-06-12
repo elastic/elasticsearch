@@ -32,6 +32,7 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.indexlifecycle.DeleteAction;
@@ -59,6 +60,7 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.mock.orig.Mockito.verify;
 import static org.elasticsearch.mock.orig.Mockito.when;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyObject;
@@ -164,7 +166,11 @@ public class WatcherIndexTemplateRegistryTests extends ESTestCase {
         DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
 
         Map<String, LifecyclePolicy> policyMap = new HashMap<>();
-        LifecyclePolicy policy = registry.loadWatcherHistoryPolicy();
+        List<LifecyclePolicy> policies = registry.getPolicyConfigs().stream()
+            .map(policyConfig -> policyConfig.load(xContentRegistry))
+            .collect(Collectors.toList());
+        assertThat(policies, hasSize(1));
+        LifecyclePolicy policy = policies.get(0);
         policyMap.put(policy.getName(), policy);
         ClusterChangedEvent event = createClusterChangedEvent(Collections.emptyList(), policyMap, nodes);
         registry.clusterChanged(event);
@@ -183,13 +189,17 @@ public class WatcherIndexTemplateRegistryTests extends ESTestCase {
         verify(client, times(0)).execute(eq(PutLifecycleAction.INSTANCE), anyObject(), anyObject());
     }
 
-    public void testPolicyAlreadyExistsButDiffers() throws IOException  {
+    public void testPolicyAlreadyExistsButDiffers() throws IOException {
         DiscoveryNode node = new DiscoveryNode("node", ESTestCase.buildNewFakeTransportAddress(), Version.CURRENT);
         DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
 
         Map<String, LifecyclePolicy> policyMap = new HashMap<>();
         String policyStr = "{\"phases\":{\"delete\":{\"min_age\":\"1m\",\"actions\":{\"delete\":{}}}}}";
-        LifecyclePolicy policy = registry.loadWatcherHistoryPolicy();
+        List<LifecyclePolicy> policies = registry.getPolicyConfigs().stream()
+            .map(policyConfig -> policyConfig.load(xContentRegistry))
+            .collect(Collectors.toList());
+        assertThat(policies, hasSize(1));
+        LifecyclePolicy policy = policies.get(0);
         try (XContentParser parser = XContentType.JSON.xContent()
             .createParser(xContentRegistry, LoggingDeprecationHandler.THROW_UNSUPPORTED_OPERATION, policyStr)) {
             LifecyclePolicy different = LifecyclePolicy.parse(parser, policy.getName());
@@ -214,7 +224,8 @@ public class WatcherIndexTemplateRegistryTests extends ESTestCase {
     // otherwise a rolling upgrade would not work as expected, when the node has a .watches shard on it
     public void testThatTemplatesAreAppliedOnNewerNodes() {
         DiscoveryNode localNode = new DiscoveryNode("node", ESTestCase.buildNewFakeTransportAddress(), Version.CURRENT);
-        DiscoveryNode masterNode = new DiscoveryNode("master", ESTestCase.buildNewFakeTransportAddress(), Version.V_6_0_0);
+        DiscoveryNode masterNode = new DiscoveryNode("master", ESTestCase.buildNewFakeTransportAddress(),
+            VersionUtils.randomPreviousCompatibleVersion(random(), Version.CURRENT));
         DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("master").add(localNode).add(masterNode).build();
 
         ClusterChangedEvent event = createClusterChangedEvent(Arrays.asList(WatcherIndexTemplateRegistryField.TRIGGERED_TEMPLATE_NAME,

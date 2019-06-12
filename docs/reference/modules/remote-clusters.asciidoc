@@ -79,6 +79,7 @@ cluster:
         cluster_two: 
             seeds: 127.0.0.1:9301
             transport.compress: true <3>
+            skip_unavailable: true <4>
 
 --------------------------------
 <1> `cluster_one` and `cluster_two` are arbitrary _cluster aliases_ representing
@@ -86,9 +87,11 @@ the connection to each cluster. These names are subsequently used to distinguish
 between local and remote indices.
 <2> A keep-alive ping is configured for `cluster_one`.
 <3> Compression is explicitly enabled for requests to `cluster_two`.
+<4> Disconnected remote clusters are optional for `cluster_two`.
 
 For more information about the optional transport settings, see
 <<modules-transport>>. 
+
 
 If you use <<cluster-update-settings,cluster settings>>, the remote clusters
 are available on every node in the cluster. For example:
@@ -110,7 +113,8 @@ PUT _cluster/settings
           "seeds": [
             "127.0.0.1:9301"
           ],
-          "transport.compress": true
+          "transport.compress": true,
+          "skip_unavailable": true
         },
         "cluster_three": {
           "seeds": [
@@ -160,8 +164,7 @@ NOTE: When the compression or ping schedule settings change, all the existing
 node connections must close and re-open, which can cause in-flight requests to
 fail.
 
-A remote cluster can be deleted from the cluster settings by setting its seeds
-to `null`:
+A remote cluster can be deleted from the cluster settings by setting its seeds and optional settings to `null` :
 
 [source,js]
 --------------------------------
@@ -170,8 +173,12 @@ PUT _cluster/settings
   "persistent": {
     "cluster": {
       "remote": {
-        "cluster_three": {
-          "seeds": null <1>
+        "cluster_two": { <1>
+          "seeds": null,
+          "skip_unavailable": null,
+          "transport": {
+            "compress": null
+          }
         }
       }
     }
@@ -180,8 +187,8 @@ PUT _cluster/settings
 --------------------------------
 // CONSOLE
 // TEST[continued]
-<1> `cluster_three` would be removed from the cluster settings, leaving
-`cluster_one` and `cluster_two` intact.
+<1> `cluster_two` would be removed from the cluster settings, leaving
+`cluster_one` and `cluster_three` intact.
 
 [float]
 [[remote-cluster-settings]]

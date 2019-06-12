@@ -40,9 +40,9 @@ public class DataFrameTransformStateAndStatsTests extends ESTestCase {
 
     public static DataFrameTransformStateAndStats randomInstance() {
         return new DataFrameTransformStateAndStats(randomAlphaOfLength(10),
-                DataFrameTransformStateTests.randomDataFrameTransformState(),
-                DataFrameIndexerTransformStatsTests.randomStats(),
-                DataFrameTransformCheckpointingInfoTests.randomDataFrameTransformCheckpointingInfo());
+            DataFrameTransformStateTests.randomDataFrameTransformState(),
+            DataFrameIndexerTransformStatsTests.randomStats(),
+            DataFrameTransformCheckpointingInfoTests.randomDataFrameTransformCheckpointingInfo());
     }
 
     public static void toXContent(DataFrameTransformStateAndStats stateAndStats, XContentBuilder builder) throws IOException {

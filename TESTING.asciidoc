@@ -71,7 +71,7 @@ password: `elastic-password`.
 ==== Other useful arguments
 
 In order to start a node with a different max heap space add: `-Dtests.heap.size=4G`
-In order to disable annotations add: `-Dtests.asserts=false`
+In order to disable assertions add: `-Dtests.asserts=false`
 In order to set an Elasticsearch setting, provide a setting with the following prefix: `-Dtests.es.`
 
 === Test case filtering.
@@ -305,12 +305,6 @@ e.g. -Dtests.rest.suite=index,get,create/10_with_id
 blacklisted and need to be skipped
 e.g. -Dtests.rest.blacklist=index/*/Index document,get/10_basic/*
 
-Note that the REST tests, like all the integration tests, can be run against an external
-cluster by specifying the `tests.cluster` property, which if present needs to contain a
-comma separated list of nodes to connect to (e.g. localhost:9300). A transport client will
-be created based on that and used for all the before|after test operations, and to extract
-the http addresses of the nodes so that REST requests can be sent to them.
-
 == Testing packaging
 
 The packaging tests use Vagrant virtual machines to verify that installing
@@ -374,6 +368,7 @@ These are the linux flavors supported, all of which we provide images for
 * debian-9 aka stretch, the current debian stable distribution
 * centos-6
 * centos-7
+* rhel-8
 * fedora-28
 * fedora-29
 * oel-6 aka Oracle Enterprise Linux 6

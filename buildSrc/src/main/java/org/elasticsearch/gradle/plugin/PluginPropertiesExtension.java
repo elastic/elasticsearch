@@ -43,9 +43,6 @@ public class PluginPropertiesExtension {
 
     private boolean hasNativeController;
 
-    /** Indicates whether the plugin jar should be made available for the transport client. */
-    private boolean hasClientJar;
-
     /** True if the plugin requires the elasticsearch keystore to exist, false otherwise. */
     private boolean requiresKeystore;
 
@@ -61,13 +58,11 @@ public class PluginPropertiesExtension {
     private final Project project;
 
     public PluginPropertiesExtension(Project project) {
-        this.name = project.getName();
-        this.version = project.getVersion().toString();
         this.project = project;
     }
 
     public String getName() {
-        return name;
+        return name == null ? project.getName() : name;
     }
 
     public void setName(String name) {
@@ -75,7 +70,7 @@ public class PluginPropertiesExtension {
     }
 
     public String getVersion() {
-        return version;
+        return version == null ? project.getVersion().toString() : version;
     }
 
     public void setVersion(String version) {
@@ -108,14 +103,6 @@ public class PluginPropertiesExtension {
 
     public void setHasNativeController(boolean hasNativeController) {
         this.hasNativeController = hasNativeController;
-    }
-
-    public boolean isHasClientJar() {
-        return hasClientJar;
-    }
-
-    public void setHasClientJar(boolean hasClientJar) {
-        this.hasClientJar = hasClientJar;
     }
 
     public boolean isRequiresKeystore() {

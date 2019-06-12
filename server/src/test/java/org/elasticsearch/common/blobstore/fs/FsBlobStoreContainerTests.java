@@ -37,6 +37,6 @@ public class FsBlobStoreContainerTests extends ESBlobStoreContainerTestCase {
         } else {
             settings = Settings.EMPTY;
         }
-        return new FsBlobStore(settings, createTempDir());
+        return new FsBlobStore(settings, createTempDir(), false);
     }
 }

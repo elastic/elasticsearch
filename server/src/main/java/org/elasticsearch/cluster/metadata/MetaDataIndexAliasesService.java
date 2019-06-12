@@ -115,6 +115,7 @@ public class MetaDataIndexAliasesService {
             }
             MetaData.Builder metadata = MetaData.builder(currentState.metaData());
             // Run the remaining alias actions
+            final Set<String> maybeModifiedIndices = new HashSet<>();
             for (AliasAction action : actions) {
                 if (action.removeIndex()) {
                     // Handled above
@@ -151,7 +152,20 @@ public class MetaDataIndexAliasesService {
                                 xContentRegistry);
                     }
                 };
-                changed |= action.apply(newAliasValidator, metadata, index);
+                if (action.apply(newAliasValidator, metadata, index)) {
+                    changed = true;
+                    maybeModifiedIndices.add(index.getIndex().getName());
+                }
+            }
+
+            for (final String maybeModifiedIndex : maybeModifiedIndices) {
+                final IndexMetaData currentIndexMetaData = currentState.metaData().index(maybeModifiedIndex);
+                final IndexMetaData newIndexMetaData = metadata.get(maybeModifiedIndex);
+                // only increment the aliases version if the aliases actually changed for this index
+                if (currentIndexMetaData.getAliases().equals(newIndexMetaData.getAliases()) == false) {
+                    assert currentIndexMetaData.getAliasesVersion() == newIndexMetaData.getAliasesVersion();
+                    metadata.put(new IndexMetaData.Builder(newIndexMetaData).aliasesVersion(1 + currentIndexMetaData.getAliasesVersion()));
+                }
             }
 
             if (changed) {

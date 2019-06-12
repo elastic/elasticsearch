@@ -10,6 +10,7 @@ import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.common.io.stream.Writeable;
 
 public class RollupSearchAction extends Action<SearchResponse> {
 
@@ -22,16 +23,17 @@ public class RollupSearchAction extends Action<SearchResponse> {
 
     @Override
     public SearchResponse newResponse() {
-        return new SearchResponse();
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
+    }
+
+    @Override
+    public Writeable.Reader<SearchResponse> getResponseReader() {
+        return SearchResponse::new;
     }
 
     public static class RequestBuilder extends ActionRequestBuilder<SearchRequest, SearchResponse> {
         public RequestBuilder(ElasticsearchClient client, SearchRequest searchRequest) {
             super(client, INSTANCE, searchRequest);
-        }
-
-        RequestBuilder(ElasticsearchClient client) {
-            super(client, INSTANCE, new SearchRequest());
         }
     }
 }

@@ -37,7 +37,7 @@ public class PutCcrRestoreSessionRequest extends SingleShardRequest<PutCcrRestor
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         sessionUUID = in.readString();
-        shardId = ShardId.readShardId(in);
+        shardId = new ShardId(in);
     }
 
     @Override

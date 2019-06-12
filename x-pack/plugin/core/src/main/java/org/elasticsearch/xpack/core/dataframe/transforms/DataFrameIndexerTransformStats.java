@@ -109,15 +109,6 @@ public class DataFrameIndexerTransformStats extends IndexerJobStats {
         out.writeString(transformId);
     }
 
-    /**
-     * Get the persisted stats document name from the Data Frame Transformer Id.
-     *
-     * @return The id of document the where the transform stats are persisted
-     */
-    public static String documentId(String transformId) {
-        return NAME + "-" + transformId;
-    }
-
     @Nullable
     public String getTransformId() {
         return transformId;

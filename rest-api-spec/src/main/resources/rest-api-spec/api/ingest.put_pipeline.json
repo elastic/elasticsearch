@@ -3,7 +3,6 @@
     "documentation": "https://www.elastic.co/guide/en/elasticsearch/reference/master/put-pipeline-api.html",
     "methods": [ "PUT" ],
     "url": {
-      "path": "/_ingest/pipeline/{id}",
       "paths": [ "/_ingest/pipeline/{id}" ],
       "parts": {
         "id": {

@@ -52,13 +52,16 @@ public class CompositeAggregationCursor implements Cursor {
     private final List<BucketExtractor> extractors;
     private final BitSet mask;
     private final int limit;
+    private final boolean includeFrozen;
 
-    CompositeAggregationCursor(byte[] next, List<BucketExtractor> exts, BitSet mask, int remainingLimit, String... indices) {
+    CompositeAggregationCursor(byte[] next, List<BucketExtractor> exts, BitSet mask, int remainingLimit, boolean includeFrozen,
+            String... indices) {
         this.indices = indices;
         this.nextQuery = next;
         this.extractors = exts;
         this.mask = mask;
         this.limit = remainingLimit;
+        this.includeFrozen = includeFrozen;
     }
 
     public CompositeAggregationCursor(StreamInput in) throws IOException {
@@ -68,6 +71,7 @@ public class CompositeAggregationCursor implements Cursor {
 
         extractors = in.readNamedWriteableList(BucketExtractor.class);
         mask = BitSet.valueOf(in.readByteArray());
+        includeFrozen = in.readBoolean();
     }
 
     @Override
@@ -78,6 +82,8 @@ public class CompositeAggregationCursor implements Cursor {
 
         out.writeNamedWriteableList(extractors);
         out.writeByteArray(mask.toByteArray());
+        out.writeBoolean(includeFrozen);
+
     }
 
     @Override
@@ -105,6 +111,10 @@ public class CompositeAggregationCursor implements Cursor {
         return limit;
     }
 
+    boolean includeFrozen() {
+        return includeFrozen;
+    }
+
     @Override
     public void nextPage(Configuration cfg, Client client, NamedWriteableRegistry registry, ActionListener<RowSet> listener) {
         SearchSourceBuilder q;
@@ -120,7 +130,7 @@ public class CompositeAggregationCursor implements Cursor {
             log.trace("About to execute composite query {} on {}", StringUtils.toString(query), indices);
         }
 
-        SearchRequest search = Querier.prepareRequest(client, query, cfg.pageTimeout(), indices);
+        SearchRequest search = Querier.prepareRequest(client, query, cfg.pageTimeout(), includeFrozen, indices);
 
         client.search(search, new ActionListener<SearchResponse>() {
             @Override
@@ -134,7 +144,8 @@ public class CompositeAggregationCursor implements Cursor {
                     }
 
                     updateCompositeAfterKey(r, query);
-                    CompositeAggsRowSet rowSet = new CompositeAggsRowSet(extractors, mask, r, limit, serializeQuery(query), indices);
+                    CompositeAggsRowSet rowSet = new CompositeAggsRowSet(extractors, mask, r, limit, serializeQuery(query), includeFrozen,
+                            indices);
                     listener.onResponse(rowSet);
                 } catch (Exception ex) {
                     listener.onFailure(ex);

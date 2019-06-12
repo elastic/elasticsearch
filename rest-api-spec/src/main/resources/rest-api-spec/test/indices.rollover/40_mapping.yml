@@ -1,9 +1,5 @@
 ---
 "Typeless mapping":
-  - skip:
-      version: " - 6.99.99"
-      reason:  include_type_name defaults to true before 7.0.0
-
   - do:
       indices.create:
         index: logs-1
@@ -44,10 +40,6 @@
 
 ---
 "Mappings with explicit _doc type":
-  - skip:
-      version: " - 6.99.99"
-      reason: include_type_name defaults to true before 7.0
-
   - do:
       indices.create:
         index: logs-1

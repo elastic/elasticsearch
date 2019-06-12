@@ -7,9 +7,10 @@
 package org.elasticsearch.xpack.dataframe;
 
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -21,8 +22,9 @@ import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregation;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackFeatureSet;
-import org.elasticsearch.xpack.core.XPackFeatureSet.Usage;
+import org.elasticsearch.xpack.core.action.XPackUsageFeatureResponse;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameIndexerTransformStats;
 import org.junit.Before;
 
@@ -48,10 +50,7 @@ public class DataFrameFeatureSetTests extends ESTestCase {
     }
 
     public void testAvailable() {
-        DataFrameFeatureSet featureSet = new DataFrameFeatureSet(Settings.EMPTY,
-            mock(ClusterService.class),
-            mock(Client.class),
-            licenseState);
+        DataFrameFeatureSet featureSet = new DataFrameFeatureSet(Settings.EMPTY, licenseState);
         boolean available = randomBoolean();
         when(licenseState.isDataFrameAllowed()).thenReturn(available);
         assertThat(featureSet.available(), is(available));
@@ -61,18 +60,12 @@ public class DataFrameFeatureSetTests extends ESTestCase {
         boolean enabled = randomBoolean();
         Settings.Builder settings = Settings.builder();
         settings.put("xpack.data_frame.enabled", enabled);
-        DataFrameFeatureSet featureSet = new DataFrameFeatureSet(settings.build(),
-            mock(ClusterService.class),
-            mock(Client.class),
-            licenseState);
+        DataFrameFeatureSet featureSet = new DataFrameFeatureSet(settings.build(), licenseState);
         assertThat(featureSet.enabled(), is(enabled));
     }
 
     public void testEnabledDefault() {
-        DataFrameFeatureSet featureSet = new DataFrameFeatureSet(Settings.EMPTY,
-            mock(ClusterService.class),
-            mock(Client.class),
-            licenseState);
+        DataFrameFeatureSet featureSet = new DataFrameFeatureSet(Settings.EMPTY, licenseState);
         assertTrue(featureSet.enabled());
     }
 
@@ -118,13 +111,11 @@ public class DataFrameFeatureSetTests extends ESTestCase {
         when(licenseState.isDataFrameAllowed()).thenReturn(true);
         Settings.Builder settings = Settings.builder();
         settings.put("xpack.data_frame.enabled", false);
-        DataFrameFeatureSet featureSet = new DataFrameFeatureSet(settings.build(),
-            mock(ClusterService.class),
-            mock(Client.class),
-            licenseState);
-        PlainActionFuture<Usage> future = new PlainActionFuture<>();
-        featureSet.usage(future);
-        XPackFeatureSet.Usage usage = future.get();
+        var usageAction = new DataFrameFeatureSet.UsageTransportAction(mock(TransportService.class), null, null,
+            mock(ActionFilters.class), null, settings.build(), licenseState, mock(Client.class));
+        PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();
+        usageAction.masterOperation(null, mock(ClusterState.class), future);
+        XPackFeatureSet.Usage usage = future.get().getUsage();
 
         assertFalse(usage.enabled());
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {

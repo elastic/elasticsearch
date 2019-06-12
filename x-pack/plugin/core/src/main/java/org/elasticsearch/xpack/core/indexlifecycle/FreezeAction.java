@@ -65,12 +65,6 @@ public class FreezeAction implements LifecycleAction {
     }
 
     @Override
-    public List<StepKey> toStepKeys(String phase) {
-        StepKey freezeStepKey = new StepKey(phase, NAME, FreezeStep.NAME);
-        return Arrays.asList(freezeStepKey);
-    }
-
-    @Override
     public int hashCode() {
         return 1;
     }

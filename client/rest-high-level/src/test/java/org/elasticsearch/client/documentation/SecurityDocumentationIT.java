@@ -97,12 +97,14 @@ import org.hamcrest.Matchers;
 
 import javax.crypto.SecretKeyFactory;
 import javax.crypto.spec.PBEKeySpec;
+
 import java.io.IOException;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -158,6 +160,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
 
             List<User> users = new ArrayList<>(3);
             users.addAll(response.getUsers());
+            users.sort(Comparator.comparing(User::getUsername));
             assertNotNull(response);
             assertThat(users.size(), equalTo(3));
             assertThat(users.get(0).getUsername(), equalTo(usernames[0]));
@@ -1635,13 +1638,13 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             privileges.add(ApplicationPrivilege.builder()
                 .application("app01")
                 .privilege("all")
-                .actions(Sets.newHashSet("action:login"))
+                .actions(List.of("action:login"))
                 .metadata(Collections.singletonMap("k1", "v1"))
                 .build());
             privileges.add(ApplicationPrivilege.builder()
                 .application("app01")
                 .privilege("write")
-                .actions(Sets.newHashSet("action:write"))
+                .actions(List.of("action:write"))
                 .build());
             final PutPrivilegesRequest putPrivilegesRequest = new PutPrivilegesRequest(privileges, RefreshPolicy.IMMEDIATE);
             // end::put-privileges-request
@@ -1664,7 +1667,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             privileges.add(ApplicationPrivilege.builder()
                 .application("app01")
                 .privilege("all")
-                .actions(Sets.newHashSet("action:login"))
+                .actions(List.of("action:login"))
                 .metadata(Collections.singletonMap("k1", "v1"))
                 .build());
             final PutPrivilegesRequest putPrivilegesRequest = new PutPrivilegesRequest(privileges, RefreshPolicy.IMMEDIATE);

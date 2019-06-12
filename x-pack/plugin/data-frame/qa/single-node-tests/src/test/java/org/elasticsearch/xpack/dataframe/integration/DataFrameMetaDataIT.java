@@ -37,9 +37,10 @@ public class DataFrameMetaDataIT extends DataFrameRestTestCase {
         indicesCreated = true;
     }
 
-    public void testMetaData() throws IOException {
+    public void testMetaData() throws Exception {
         long testStarted = System.currentTimeMillis();
         createPivotReviewsTransform("test_meta", "pivot_reviews", null);
+        startAndWaitForTransform("test_meta", "pivot_reviews");
 
         Response mappingResponse = client().performRequest(new Request("GET", "pivot_reviews/_mapping"));
 

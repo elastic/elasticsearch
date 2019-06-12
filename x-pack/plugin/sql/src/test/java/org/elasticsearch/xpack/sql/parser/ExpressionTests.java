@@ -11,6 +11,8 @@ import org.elasticsearch.xpack.sql.expression.Literal;
 import org.elasticsearch.xpack.sql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.sql.expression.function.scalar.Cast;
 import org.elasticsearch.xpack.sql.expression.literal.Interval;
+import org.elasticsearch.xpack.sql.expression.predicate.conditional.Case;
+import org.elasticsearch.xpack.sql.expression.predicate.conditional.IfConditional;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.Add;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.Mul;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.Neg;
@@ -26,6 +28,7 @@ import java.time.temporal.TemporalAmount;
 import java.util.Locale;
 
 import static java.lang.String.format;
+import static org.hamcrest.Matchers.startsWith;
 
 public class ExpressionTests extends ESTestCase {
 
@@ -398,12 +401,7 @@ public class ExpressionTests extends ESTestCase {
         assertEquals(1, ur.children().size());
         Expression child = ur.children().get(0);
         assertEquals(Literal.class, child.getClass());
-        assertEquals(Short.valueOf((short) 4), child.fold());
-    }
-
-    public void testCurrentTimestampInvalidPrecision() {
-        ParsingException ex = expectThrows(ParsingException.class, () -> parser.createExpression("CURRENT_TIMESTAMP(100)"));
-        assertEquals("line 1:20: Precision needs to be between [0-9], received [100]", ex.getMessage());
+        assertEquals(4, child.fold());
     }
 
     public void testCurrentDate() {
@@ -438,12 +436,7 @@ public class ExpressionTests extends ESTestCase {
         assertEquals(1, ur.children().size());
         Expression child = ur.children().get(0);
         assertEquals(Literal.class, child.getClass());
-        assertEquals(Short.valueOf((short) 7), child.fold());
-    }
-
-    public void testCurrentTimeInvalidPrecision() {
-        ParsingException ex = expectThrows(ParsingException.class, () -> parser.createExpression("CURRENT_TIME(100)"));
-        assertEquals("line 1:15: Precision needs to be between [0-9], received [100]", ex.getMessage());
+        assertEquals(7, child.fold());
     }
 
     public void testSourceKeyword() {
@@ -456,5 +449,64 @@ public class ExpressionTests extends ESTestCase {
         String s = "PerCentile_RaNK(fOO,    12 )";
         Expression expr = parser.createExpression(s);
         assertEquals(s, expr.sourceText());
+    }
+
+    public void testCaseWithoutOperand() {
+        Expression expr = parser.createExpression(
+            "CASE WHEN a = 1 THEN 'one'" +
+            "     WHEN a > 2 THEN 'a few'" +
+            "     WHEN a > 10 THEN 'many' " +
+            "END");
+
+        assertEquals(Case.class, expr.getClass());
+        Case c = (Case) expr;
+        assertEquals(3, c.conditions().size());
+        IfConditional ifc = c.conditions().get(0);
+        assertEquals("WHEN a = 1 THEN 'one'", ifc.sourceText());
+        assertThat(ifc.condition().toString(), startsWith("Equals[?a,1]#"));
+        assertEquals("'one'=one", ifc.result().toString());
+        assertEquals(Literal.NULL, c.elseResult());
+
+        expr = parser.createExpression(
+            "CASE WHEN a = 1 THEN 'one'" +
+            "     WHEN a <= 2 THEN 'a few'" +
+            "ELSE 'many' " +
+            "END");
+
+        assertEquals(Case.class, expr.getClass());
+        c = (Case) expr;
+        assertEquals(2, c.conditions().size());
+        ifc = c.conditions().get(0);
+        assertEquals("WHEN a = 1 THEN 'one'", ifc.sourceText());
+        assertEquals("'many'=many", c.elseResult().toString());
+    }
+
+    public void testCaseWithOperand() {
+        Expression expr = parser.createExpression(
+            "CASE a WHEN 1 THEN 'one'" +
+            "       WHEN 2 THEN 'two'" +
+            "       WHEN 3 THEN 'three' " +
+            "END");
+
+        assertEquals(Case.class, expr.getClass());
+        Case c = (Case) expr;
+        assertEquals(3, c.conditions().size());
+        IfConditional ifc = c.conditions().get(0);
+        assertEquals("WHEN 1 THEN 'one'", ifc.sourceText());
+        assertThat(ifc.condition().toString(), startsWith("Equals[?a,1]#"));
+        assertEquals("'one'=one", ifc.result().toString());
+        assertEquals(Literal.NULL, c.elseResult());
+
+        expr = parser.createExpression(
+            "CASE a WHEN 1 THEN 'one'" +
+            "       WHEN 2 THEN 'two'" +
+            "ELSE 'many' " +
+            "END");
+        assertEquals(Case.class, expr.getClass());
+        c = (Case) expr;
+        assertEquals(2, c.conditions().size());
+        ifc = c.conditions().get(0);
+        assertEquals("WHEN 1 THEN 'one'", ifc.sourceText());
+        assertEquals("'many'=many", c.elseResult().toString());
     }
 }

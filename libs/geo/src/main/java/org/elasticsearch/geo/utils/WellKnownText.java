@@ -56,19 +56,23 @@ public class WellKnownText {
     private static final String EOF = "END-OF-STREAM";
     private static final String EOL = "END-OF-LINE";
 
-    public static String toWKT(Geometry geometry) {
+    public WellKnownText() {
+
+    }
+
+    public String toWKT(Geometry geometry) {
         StringBuilder builder = new StringBuilder();
         toWKT(geometry, builder);
         return builder.toString();
     }
 
-    public static void toWKT(Geometry geometry, StringBuilder sb) {
+    public void toWKT(Geometry geometry, StringBuilder sb) {
         sb.append(getWKTName(geometry));
         sb.append(SPACE);
         if (geometry.isEmpty()) {
             sb.append(EMPTY);
         } else {
-            geometry.visit(new GeometryVisitor<Void>() {
+            geometry.visit(new GeometryVisitor<Void, RuntimeException>() {
                 @Override
                 public Void visit(Circle circle) {
                     sb.append(LPAREN);
@@ -216,7 +220,7 @@ public class WellKnownText {
         }
     }
 
-    public static Geometry fromWKT(String wkt) throws IOException, ParseException {
+    public Geometry fromWKT(String wkt) throws IOException, ParseException {
         StringReader reader = new StringReader(wkt);
         try {
             // setup the tokenizer; configured to read words w/o numbers
@@ -543,7 +547,7 @@ public class WellKnownText {
     }
 
     public static String getWKTName(Geometry geometry) {
-        return geometry.visit(new GeometryVisitor<String>() {
+        return geometry.visit(new GeometryVisitor<String, RuntimeException>() {
             @Override
             public String visit(Circle circle) {
                 return "circle";

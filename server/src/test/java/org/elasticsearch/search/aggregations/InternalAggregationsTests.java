@@ -45,7 +45,7 @@ import java.util.List;
 public class InternalAggregationsTests extends ESTestCase {
 
     private final NamedWriteableRegistry registry = new NamedWriteableRegistry(
-        new SearchModule(Settings.EMPTY, false, Collections.emptyList()).getNamedWriteables());
+        new SearchModule(Settings.EMPTY, Collections.emptyList()).getNamedWriteables());
 
     public void testReduceEmptyAggs() {
         List<InternalAggregations> aggs = Collections.emptyList();
@@ -132,7 +132,7 @@ public class InternalAggregationsTests extends ESTestCase {
             aggregations.writeTo(out);
             try (StreamInput in = new NamedWriteableAwareStreamInput(StreamInput.wrap(out.bytes().toBytesRef().bytes), registry)) {
                 in.setVersion(version);
-                InternalAggregations deserialized = InternalAggregations.readAggregations(in);
+                InternalAggregations deserialized = new InternalAggregations(in);
                 assertEquals(aggregations.aggregations, deserialized.aggregations);
                 if (aggregations.getTopLevelPipelineAggregators() == null) {
                     assertEquals(0, deserialized.getTopLevelPipelineAggregators().size());

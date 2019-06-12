@@ -16,9 +16,8 @@ import org.elasticsearch.client.ElasticsearchClient;
 public class DeleteRoleMappingRequestBuilder extends ActionRequestBuilder<DeleteRoleMappingRequest, DeleteRoleMappingResponse>
         implements WriteRequestBuilder<DeleteRoleMappingRequestBuilder> {
 
-    public DeleteRoleMappingRequestBuilder(ElasticsearchClient client,
-                                           DeleteRoleMappingAction action) {
-        super(client, action, new DeleteRoleMappingRequest());
+    public DeleteRoleMappingRequestBuilder(ElasticsearchClient client) {
+        super(client, DeleteRoleMappingAction.INSTANCE, new DeleteRoleMappingRequest());
     }
 
     public DeleteRoleMappingRequestBuilder name(String name) {

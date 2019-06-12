@@ -3,8 +3,7 @@
     "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/search-count.html",
     "methods": ["POST", "GET"],
     "url": {
-      "path": "/_count",
-      "paths": ["/_count", "/{index}/_count", "/{index}/{type}/_count"],
+      "paths": ["/_count", "/{index}/_count"],
       "parts": {
         "index": {
           "type" : "list",

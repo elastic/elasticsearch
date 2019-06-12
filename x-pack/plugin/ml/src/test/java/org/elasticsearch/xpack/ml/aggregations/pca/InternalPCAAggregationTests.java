@@ -29,11 +29,13 @@ import static org.elasticsearch.search.aggregations.matrix.AbstractMatrixStatsTe
 public class InternalPCAAggregationTests extends InternalAggregationTestCase<InternalPCAStats> {
     private ArrayList<String> fieldNames;
     private boolean hasPCAStatsResults;
+    private boolean useCovariance;
 
     @Override
     public void setUp() throws Exception {
         super.setUp();
         hasPCAStatsResults = frequently();
+        useCovariance = rarely();
         fieldNames =  hasPCAStatsResults ? AbstractMatrixStatsTestCase.randomNumericFields(randomIntBetween(2, 7)) : new ArrayList<>(0);
     }
 
@@ -65,8 +67,8 @@ public class InternalPCAAggregationTests extends InternalAggregationTestCase<Int
             runningStats.add(fieldNames.stream().toArray(n -> new String[n]), values);
         }
 
-        PCAStatsResults matrixStatsResults = hasPCAStatsResults ? new PCAStatsResults(runningStats) : null;
-        return new InternalPCAStats(name, 1L, runningStats, matrixStatsResults, Collections.emptyList(), metaData);
+        PCAStatsResults matrixStatsResults = hasPCAStatsResults ? new PCAStatsResults(runningStats, useCovariance) : null;
+        return new InternalPCAStats(name, 1L, runningStats, matrixStatsResults, Collections.emptyList(), metaData, useCovariance);
     }
 
     @Override
@@ -106,7 +108,7 @@ public class InternalPCAAggregationTests extends InternalAggregationTestCase<Int
                 break;
             case 2:
                 if (matrixStatsResults == null) {
-                    matrixStatsResults = new PCAStatsResults(runningStats);
+                    matrixStatsResults = new PCAStatsResults(runningStats, useCovariance);
                 } else {
                     matrixStatsResults = null;
                 }
@@ -121,6 +123,6 @@ public class InternalPCAAggregationTests extends InternalAggregationTestCase<Int
                 metaData.put(randomAlphaOfLength(15), randomInt());
                 break;
         }
-        return new InternalPCAStats(name, docCount, runningStats, matrixStatsResults, Collections.emptyList(), metaData);
+        return new InternalPCAStats(name, docCount, runningStats, matrixStatsResults, Collections.emptyList(), metaData, useCovariance);
     }
 }

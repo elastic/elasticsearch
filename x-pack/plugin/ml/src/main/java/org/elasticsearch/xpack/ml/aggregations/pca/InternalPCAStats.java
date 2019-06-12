@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.ml.aggregations.pca;
 
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.matrix.stats.BaseInternalMatrixStats;
 import org.elasticsearch.search.aggregations.matrix.stats.InternalMatrixStats;
@@ -19,10 +20,13 @@ import java.util.List;
 import java.util.Map;
 
 public class InternalPCAStats extends BaseInternalMatrixStats implements MatrixStats {
+    private final boolean useCovariance;
+
     /** per shard ctor */
     InternalPCAStats(String name, long count, RunningStats multiFieldStatsResults, MatrixStatsResults results,
-                     List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
+                     List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData, boolean useCovariance) {
         super(name, count, multiFieldStatsResults, results, pipelineAggregators, metaData);
+        this.useCovariance = useCovariance;
     }
 
     /**
@@ -30,6 +34,13 @@ public class InternalPCAStats extends BaseInternalMatrixStats implements MatrixS
      */
     public InternalPCAStats(StreamInput in) throws IOException {
         super(in);
+        this.useCovariance = in.readOptionalBoolean();
+    }
+
+    @Override
+    protected void doWriteTo(StreamOutput out) throws IOException {
+        super.doWriteTo(out);
+        out.writeOptionalBoolean(useCovariance);
     }
 
     @Override
@@ -45,12 +56,12 @@ public class InternalPCAStats extends BaseInternalMatrixStats implements MatrixS
     @Override
     public InternalPCAStats newInternalMatrixStats(String name, long count, RunningStats multiFieldStatsResults,
             MatrixStatsResults results, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
-        return new InternalPCAStats(name, count, multiFieldStatsResults, results, pipelineAggregators, metaData);
+        return new InternalPCAStats(name, count, multiFieldStatsResults, results, pipelineAggregators, metaData, useCovariance);
     }
 
     @Override
     public PCAStatsResults newMatrixStatsResults(RunningStats runningStats) {
-        return new PCAStatsResults(runningStats);
+        return new PCAStatsResults(runningStats, this.useCovariance);
     }
 
     @Override

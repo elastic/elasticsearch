@@ -25,17 +25,21 @@ public class PCAStatsResults extends MatrixStatsResults {
     protected final Map<String, Complex_F64> eigenVals;
     /** eigen vectors from PCA */
     protected final Map<String, DMatrixRMaj> eigenVectors;
+    /** use the covariance matrix, instead of correlation matrix (default) to compute PCA **/
+    protected boolean useCovariance;
 
     PCAStatsResults() {
         super();
         this.eigenVals = new HashMap<>();
         this.eigenVectors = new HashMap<>();
+        this.useCovariance = false;
     }
 
-    PCAStatsResults(RunningStats stats) {
+    PCAStatsResults(RunningStats stats, boolean useCovariance) {
         super(stats);
         this.eigenVals = new HashMap<>();
         this.eigenVectors = new HashMap<>();
+        this.useCovariance = useCovariance;
         this.compute();
     }
 
@@ -123,12 +127,13 @@ public class PCAStatsResults extends MatrixStatsResults {
             Iterator<Map.Entry<String, Double>> colNames = results.getMeans().entrySet().iterator();
             for (int c = 0; c < n; ++c) {
                 String colName = colNames.next().getKey();
-                double covariance = getCovariance(rowName, colName);
-                if (Double.isNaN(covariance) == true) {
-                    throw new ElasticsearchException("Unable to compute PCA. Covariance for fields ["
+                double val = useCovariance ? getCovariance(rowName, colName) : getCorrelation(rowName, colName);
+                if (Double.isNaN(val) == true) {
+                    String errorValue = useCovariance ? "Covariance" : "Correlation";
+                    throw new ElasticsearchException("Unable to compute PCA. " + errorValue + " for fields ["
                         +  rowName + "], [" + colName + "] is [NaN]");
                 }
-                A.set(r, c, getCovariance(rowName, colName));
+                A.set(r, c, val);
             }
         }
 

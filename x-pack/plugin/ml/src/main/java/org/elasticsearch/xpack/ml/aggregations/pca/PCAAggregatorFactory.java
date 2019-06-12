@@ -22,25 +22,27 @@ import java.util.Map;
 final class PCAAggregatorFactory
     extends ArrayValuesSourceAggregatorFactory<ValuesSource.Numeric, PCAAggregatorFactory> {
     private final MultiValueMode multiValueMode;
+    private final boolean useCovariance;
 
     PCAAggregatorFactory(String name,
                          Map<String, ValuesSourceConfig<ValuesSource.Numeric>> configs, MultiValueMode multiValueMode,
-                         SearchContext context, AggregatorFactory<?> parent, AggregatorFactories.Builder subFactoriesBuilder,
-                         Map<String, Object> metaData) throws IOException {
+                         boolean useCovariance, SearchContext context, AggregatorFactory<?> parent,
+                         AggregatorFactories.Builder subFactoriesBuilder, Map<String, Object> metaData) throws IOException {
         super(name, configs, context, parent, subFactoriesBuilder, metaData);
         this.multiValueMode = multiValueMode;
+        this.useCovariance = useCovariance;
     }
 
     @Override
     protected Aggregator createUnmapped(Aggregator parent, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData)
         throws IOException {
-        return new PCAAggregator(name, null, context, parent, multiValueMode, pipelineAggregators, metaData);
+        return new PCAAggregator(name, null, context, parent, multiValueMode, useCovariance, pipelineAggregators, metaData);
     }
 
     @Override
     protected Aggregator doCreateInternal(Map<String, ValuesSource.Numeric> valuesSources, Aggregator parent,
                                           boolean collectsFromSingleBucket, List<PipelineAggregator> pipelineAggregators,
                                           Map<String, Object> metaData) throws IOException {
-        return new PCAAggregator(name, valuesSources, context, parent, multiValueMode, pipelineAggregators, metaData);
+        return new PCAAggregator(name, valuesSources, context, parent, multiValueMode, useCovariance, pipelineAggregators, metaData);
     }
 }

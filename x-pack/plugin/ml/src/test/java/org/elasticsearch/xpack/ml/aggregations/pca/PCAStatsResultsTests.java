@@ -13,7 +13,7 @@ import java.util.List;
 public class PCAStatsResultsTests extends BasePCAStatsTestCase {
     /** test running stats */
     public void testRunningStats() throws Exception {
-        final MatrixStatsResults results = new PCAStatsResults(createRunningStats(fieldA, fieldB));
+        final MatrixStatsResults results = new PCAStatsResults(createRunningStats(fieldA, fieldB), useCovariance);
         actualStats.assertNearlyEqual(results);
     }
 
@@ -36,7 +36,7 @@ public class PCAStatsResultsTests extends BasePCAStatsTestCase {
         }
         stats.merge(createRunningStats(fieldA.subList(start, fieldA.size()), fieldB.subList(start, fieldB.size())));
 
-        final MatrixStatsResults results = new PCAStatsResults(stats);
+        final MatrixStatsResults results = new PCAStatsResults(stats, useCovariance);
         actualStats.assertNearlyEqual(results);
     }
 

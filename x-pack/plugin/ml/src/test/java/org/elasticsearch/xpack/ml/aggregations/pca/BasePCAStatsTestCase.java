@@ -18,10 +18,12 @@ public abstract class BasePCAStatsTestCase extends ESTestCase {
     protected final MultiPassStats actualStats = new MultiPassStats(fieldAKey, fieldBKey);
     protected static final String fieldAKey = "fieldA";
     protected static final String fieldBKey = "fieldB";
+    protected static boolean useCovariance;
 
     @Before
     public void setup() {
         createStats();
+        useCovariance = randomBoolean();
     }
 
     public void createStats() {

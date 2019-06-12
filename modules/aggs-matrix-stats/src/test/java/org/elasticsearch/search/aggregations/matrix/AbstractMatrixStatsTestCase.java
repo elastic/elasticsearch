@@ -108,6 +108,8 @@ public abstract class AbstractMatrixStatsTestCase extends AggregatorTestCase {
         }
     }
 
+    protected abstract void initializeTestParams();
+
     public abstract void testAggregationAccuracy() throws IOException;
 
     @SuppressWarnings({"unchecked", "rawtypes"})
@@ -134,6 +136,7 @@ public abstract class AbstractMatrixStatsTestCase extends AggregatorTestCase {
     protected void testCase(Query query,
                             Consumer<InternalAggregation> verify) throws IOException {
         initializeData();
+        initializeTestParams();
         IndexReader indexReader = DirectoryReader.open(directory);
         IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
         AggregationBuilder aggBuilder = getAggregatorBuilder("_name");

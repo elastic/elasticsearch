@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.ml.aggregations.pca;
 
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -27,7 +28,11 @@ public class PCAAggregationBuilder
         extends ArrayValuesSourceAggregationBuilder.LeafOnly<ValuesSource.Numeric, PCAAggregationBuilder> {
     public static final String NAME = "pca";
 
+    public static final ParseField USE_COVARIANCE_FIELD = new ParseField("useCovariance");
+
+
     private MultiValueMode multiValueMode = MultiValueMode.AVG;
+    private Boolean useCovariance = Boolean.valueOf(false);
 
     public PCAAggregationBuilder(String name) {
         super(name, ValuesSourceType.NUMERIC, ValueType.NUMERIC);
@@ -58,15 +63,21 @@ public class PCAAggregationBuilder
         return this;
     }
 
+    public PCAAggregationBuilder setUseCovariance(Boolean useCovariance) {
+        this.useCovariance = useCovariance;
+        return this;
+    }
+
     @Override
     protected PCAAggregatorFactory innerBuild(SearchContext context, Map<String, ValuesSourceConfig<ValuesSource.Numeric>> configs,
             AggregatorFactory<?> parent, AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
-        return new PCAAggregatorFactory(name, configs, multiValueMode, context, parent, subFactoriesBuilder, metaData);
+        return new PCAAggregatorFactory(name, configs, multiValueMode, useCovariance, context, parent, subFactoriesBuilder, metaData);
     }
 
     @Override
     public XContentBuilder doXContentBody(XContentBuilder builder, ToXContent.Params params) throws IOException {
         builder.field(MULTIVALUE_MODE_FIELD.getPreferredName(), multiValueMode);
+        builder.field(USE_COVARIANCE_FIELD.getPreferredName(), useCovariance);
         return builder;
     }
 

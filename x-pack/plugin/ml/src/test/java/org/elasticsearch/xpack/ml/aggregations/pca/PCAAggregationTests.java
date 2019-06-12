@@ -13,25 +13,32 @@ import java.io.IOException;
 
 public class PCAAggregationTests extends AbstractMatrixStatsTestCase {
 
+    private boolean useCovariance;
+
+    @Override
+    protected void initializeTestParams() {
+        this.useCovariance = randomBoolean();
+    }
+
     public void testAggregationAccuracy() throws IOException {
         testCase(new MatchAllDocsQuery(),
             pca -> {
                 PCAStatsResults truth = getResults();
                 InternalPCAStats pcaAgg = (InternalPCAStats) pca;
-                // note: we're not
                 assertNearlyEqual(truth, pcaAgg.getResults());
             });
     }
 
     @Override
     public PCAStatsResults computeResults() {
-        results = new PCAStatsResults(baseTruthStats);
+        results = new PCAStatsResults(baseTruthStats, useCovariance);
         return (PCAStatsResults) results;
     }
 
     @Override
     public PCAAggregationBuilder getAggregatorBuilder(String name) {
         PCAAggregationBuilder aggBuilder = new PCAAggregationBuilder(name);
+        aggBuilder.setUseCovariance(useCovariance);
         aggBuilder.fields(fieldNames);
         return aggBuilder;
     }

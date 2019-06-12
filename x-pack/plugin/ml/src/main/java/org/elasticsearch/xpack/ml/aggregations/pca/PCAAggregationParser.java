@@ -16,6 +16,7 @@ import java.io.IOException;
 import java.util.Map;
 
 import static org.elasticsearch.search.aggregations.support.ArrayValuesSourceAggregationBuilder.MULTIVALUE_MODE_FIELD;
+import static org.elasticsearch.xpack.ml.aggregations.pca.PCAAggregationBuilder.USE_COVARIANCE_FIELD;
 
 public class PCAAggregationParser extends ArrayValuesSourceParser.NumericValuesSourceParser {
     public PCAAggregationParser() {
@@ -30,6 +31,11 @@ public class PCAAggregationParser extends ArrayValuesSourceParser.NumericValuesS
                 otherOptions.put(MULTIVALUE_MODE_FIELD, parser.text());
                 return true;
             }
+        } else if (USE_COVARIANCE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
+            if (token == XContentParser.Token.VALUE_BOOLEAN) {
+                otherOptions.put(USE_COVARIANCE_FIELD, Boolean.valueOf(parser.booleanValue()));
+                return true;
+            }
         }
         return false;
     }
@@ -41,6 +47,10 @@ public class PCAAggregationParser extends ArrayValuesSourceParser.NumericValuesS
         String mode = (String)otherOptions.get(MULTIVALUE_MODE_FIELD);
         if (mode != null) {
             builder.multiValueMode(MultiValueMode.fromString(mode));
+        }
+        Boolean useCovariance = (Boolean)otherOptions.get(USE_COVARIANCE_FIELD);
+        if (useCovariance != null) {
+            builder.setUseCovariance(useCovariance);
         }
         return builder;
     }

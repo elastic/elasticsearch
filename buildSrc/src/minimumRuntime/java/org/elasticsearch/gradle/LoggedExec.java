@@ -17,7 +17,6 @@ import java.io.File;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.io.UnsupportedEncodingException;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.util.function.Consumer;
 import java.util.function.Function;

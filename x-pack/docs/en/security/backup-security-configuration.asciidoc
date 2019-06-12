@@ -9,7 +9,7 @@ until a special index, which holds most of the non-setting configuration, is
 also included.
 
 [float]
-[[backup-restore-security-location]]
+[[backup-security-location]]
 ==== Location of security configuration details
 
 The configuration files reside on every node and are usually identical across
@@ -45,7 +45,7 @@ the configuration information as a whole, rather than trying to cherry-pick only
 the security details.
 
 [float]
-[[backup-restore-security-file]]
+[[backup-security-files]]
 ==== Backing up configuration files
 
 The simplest way to backup configuration files is to copy the `$ES_PATH_CONF`
@@ -70,6 +70,7 @@ The binary and encoded files, such as the private keys and the secure store
 file, are extra sensitive; they require restricted read access.
 
 [float]
+[[backup-security-snapshots]]
 ==== Backing up API-based configuration
 
 To back up API-based configuration, you use the
@@ -143,7 +144,8 @@ NOTE: Transient settings are not considered for backup.
 --
 
 [float]
-==== Backup repository access
+[[backup-security-repos]]
+===== Controlling access to the backup repository
 
 Simply exposing the contents of the `.security` index, by having a third party
 read the snapshot, does not equate to a compromised cluster security. This is
@@ -168,7 +170,8 @@ the secure store is *not* password protected and any read access can compromise
 passwords of external systems and private keys.
 
 [float]
-==== Restore security configuration
+[[restore-security-configuration]]
+==== Restoring security configuration
 
 The first part of restoring a Security configuration backup is restoring the
 `.security` index. You can restore a snapshot of the `.security` index only if
@@ -177,34 +180,37 @@ every major release can convert and read both versions of the index.
 Log in to one of the node hosts, navigate to {es} installation directory, and
 follow these steps:
 
- . make sure the repository holding the `.security` snapshot is installed
- +
+. Make sure the repository holding the `.security` snapshot is installed.
++
 --
+For example:
 [source,shell]
 --------------------------------------------------
 GET /_snapshot/my_backup
 --------------------------------------------------
 --
- . add a new user with the `superuser` role to the file based realm
+. Add a new user with the `superuser` role to the file based realm.
 +
 --
+For example, create a user named `jacknich`:
 [source,shell]
 --------------------------------------------------
  bin/elasticsearch-users useradd jacknich -p password -r superuser
 --------------------------------------------------
 --
- . using the previously create user, delete the existing `.security-6` or
-`.security-7` index
+. Using the previously create user, delete the existing `.security-6` or
+`.security-7` index.
 +
 --
 [source,shell]
 --------------------------------------------------
-  curl -u jacknich-X DELETE "localhost:9200/.security-7"
+curl -u jacknich-X DELETE "localhost:9200/.security-7"
 --------------------------------------------------
 
-NOTE: after this step authentication will not work so all API calls will fail
+NOTE: After this step authentication will not work; all API calls will fail.
+
 --
- . using the same user, restore the `.security` index from the snapshot
+ . Using the same user, restore the `.security` index from the snapshot.
 +
 --
 [source,shell]
@@ -218,6 +224,7 @@ NOTE: after this step authentication will not work so all API calls will fail
 --------------------------------------------------
 
 NOTE: Restoring the global state is optional, but it will help make sure the
+
 --
 
 The next part is really common to every other backup restore; copy the backed-up

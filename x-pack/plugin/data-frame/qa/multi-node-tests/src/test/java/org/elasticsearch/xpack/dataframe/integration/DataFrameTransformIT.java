@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.dataframe.integration;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.core.IndexerState;
 import org.elasticsearch.client.dataframe.transforms.DataFrameTransformConfig;
-import org.elasticsearch.client.dataframe.transforms.DataFrameTransformStateAndStats;
 import org.elasticsearch.client.dataframe.transforms.pivot.SingleGroupSource;
 import org.elasticsearch.client.dataframe.transforms.pivot.TermsGroupSource;
 import org.elasticsearch.search.aggregations.AggregationBuilders;

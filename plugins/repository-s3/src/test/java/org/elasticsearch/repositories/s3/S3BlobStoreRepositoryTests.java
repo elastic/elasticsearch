@@ -37,7 +37,6 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.admin.cluster.RestGetRepositoriesAction;
 import org.elasticsearch.test.rest.FakeRestRequest;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
 import org.junit.BeforeClass;
 

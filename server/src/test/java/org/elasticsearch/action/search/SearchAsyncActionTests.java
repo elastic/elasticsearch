@@ -388,11 +388,7 @@ public class SearchAsyncActionTests extends ESTestCase {
         GroupShardsIterator<SearchShardIterator> shardsIter = getShardsIter("idx",
             new OriginalIndices(new String[]{"idx"}, SearchRequest.DEFAULT_INDICES_OPTIONS),
             numShards, true, primaryNode, replicaNode);
-        int numShardAttempts = 0;
-        for (SearchShardIterator it : shardsIter) {
-            numShardAttempts += it.remaining();
-        }
-        CountDownLatch latch = new CountDownLatch(numShardAttempts);
+        CountDownLatch latch = new CountDownLatch(1);
 
         SearchTransportService transportService = new SearchTransportService(null, null);
         Map<String, Transport.Connection> lookup = new HashMap<>();
@@ -450,14 +446,9 @@ public class SearchAsyncActionTests extends ESTestCase {
                         @Override
                         public void run() {
                             assertTrue(searchPhaseDidRun.compareAndSet(false, true));
+                            latch.countDown();
                         }
                     };
-                }
-
-                @Override
-                protected void executeNext(Runnable runnable, Thread originalThread) {
-                    super.executeNext(runnable, originalThread);
-                    latch.countDown();
                 }
             };
         asyncAction.start();

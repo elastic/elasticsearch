@@ -138,7 +138,7 @@ public class TransportVerifyShardBeforeCloseActionTests extends ESTestCase {
     private void executeOnPrimaryOrReplica() throws Throwable {
         final TaskId taskId = new TaskId("_node_id", randomNonNegativeLong());
         final TransportVerifyShardBeforeCloseAction.ShardRequest request =
-            new TransportVerifyShardBeforeCloseAction.ShardRequest(indexShard.shardId(), clusterBlock, taskId);
+            new TransportVerifyShardBeforeCloseAction.ShardRequest(indexShard.shardId(), clusterBlock, false, taskId);
         final PlainActionFuture<Void> res = PlainActionFuture.newFuture();
         action.shardOperationOnPrimary(request, indexShard, ActionListener.wrap(
             r -> {
@@ -227,7 +227,7 @@ public class TransportVerifyShardBeforeCloseActionTests extends ESTestCase {
         final PlainActionFuture<PrimaryResult> listener = new PlainActionFuture<>();
         TaskId taskId = new TaskId(clusterService.localNode().getId(), 0L);
         TransportVerifyShardBeforeCloseAction.ShardRequest request =
-            new TransportVerifyShardBeforeCloseAction.ShardRequest(shardId, clusterBlock, taskId);
+            new TransportVerifyShardBeforeCloseAction.ShardRequest(shardId, clusterBlock, false, taskId);
         ReplicationOperation.Replicas<TransportVerifyShardBeforeCloseAction.ShardRequest> proxy = action.newReplicasProxy();
         ReplicationOperation<TransportVerifyShardBeforeCloseAction.ShardRequest,
             TransportVerifyShardBeforeCloseAction.ShardRequest, PrimaryResult> operation = new ReplicationOperation<>(

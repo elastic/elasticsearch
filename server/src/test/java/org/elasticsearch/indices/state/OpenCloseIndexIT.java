@@ -33,9 +33,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexNotFoundException;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.io.IOException;
@@ -58,12 +56,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
 public class OpenCloseIndexIT extends ESIntegTestCase {
-
-    @Override
-    public Settings indexSettings() {
-        return Settings.builder().put(super.indexSettings())
-            .put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Translog.Durability.REQUEST).build();
-    }
 
     public void testSimpleCloseOpen() {
         Client client = client();

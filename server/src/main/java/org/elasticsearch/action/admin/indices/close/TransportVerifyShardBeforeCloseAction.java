@@ -94,12 +94,12 @@ public class TransportVerifyShardBeforeCloseAction extends TransportReplicationA
     }
 
     @Override
-    protected ReplicaResult shardOperationOnReplica(final ShardRequest shardRequest, final IndexShard replica) {
+    protected ReplicaResult shardOperationOnReplica(final ShardRequest shardRequest, final IndexShard replica) throws IOException {
         executeShardOperation(shardRequest, replica);
         return new ReplicaResult();
     }
 
-    private void executeShardOperation(final ShardRequest request, final IndexShard indexShard) {
+    private void executeShardOperation(final ShardRequest request, final IndexShard indexShard) throws IOException {
         final ShardId shardId = indexShard.shardId();
         if (indexShard.getActiveOperationsCount() != IndexShard.OPERATIONS_BLOCKED) {
             throw new IllegalStateException("Index shard " + shardId + " is not blocking all operations during closing");
@@ -109,9 +109,13 @@ public class TransportVerifyShardBeforeCloseAction extends TransportReplicationA
         if (clusterBlocks.hasIndexBlock(shardId.getIndexName(), request.clusterBlock()) == false) {
             throw new IllegalStateException("Index shard " + shardId + " must be blocked by " + request.clusterBlock() + " before closing");
         }
-        indexShard.verifyShardBeforeIndexClosing();
-        indexShard.flush(new FlushRequest().force(true).waitIfOngoing(true));
-        logger.trace("{} shard is ready for closing", shardId);
+        if (request.isPhase1()) {
+            indexShard.sync();
+        } else {
+            indexShard.verifyShardBeforeIndexClosing();
+            indexShard.flush(new FlushRequest().force(true).waitIfOngoing(true));
+            logger.trace("{} shard is ready for closing", shardId);
+        }
     }
 
     @Override
@@ -136,14 +140,18 @@ public class TransportVerifyShardBeforeCloseAction extends TransportReplicationA
 
         private final ClusterBlock clusterBlock;
 
+        private final boolean phase1;
+
         ShardRequest(StreamInput in) throws IOException {
             super(in);
             clusterBlock = new ClusterBlock(in);
+            phase1 = in.readBoolean();
         }
 
-        public ShardRequest(final ShardId shardId, final ClusterBlock clusterBlock, final TaskId parentTaskId) {
+        public ShardRequest(final ShardId shardId, final ClusterBlock clusterBlock, final boolean phase1, final TaskId parentTaskId) {
             super(shardId);
             this.clusterBlock = Objects.requireNonNull(clusterBlock);
+            this.phase1 = phase1;
             setParentTask(parentTaskId);
         }
 
@@ -161,10 +169,15 @@ public class TransportVerifyShardBeforeCloseAction extends TransportReplicationA
         public void writeTo(final StreamOutput out) throws IOException {
             super.writeTo(out);
             clusterBlock.writeTo(out);
+            out.writeBoolean(phase1);
         }
 
         public ClusterBlock clusterBlock() {
             return clusterBlock;
+        }
+
+        public boolean isPhase1() {
+            return phase1;
         }
     }
 }

@@ -38,7 +38,6 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.IndexShard;
-import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.recovery.RecoveryState;
@@ -77,8 +76,7 @@ public class CloseIndexIT extends ESIntegTestCase {
     public Settings indexSettings() {
         return Settings.builder().put(super.indexSettings())
             .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(),
-                new ByteSizeValue(randomIntBetween(1, 4096), ByteSizeUnit.KB))
-            .put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Translog.Durability.REQUEST).build();
+                new ByteSizeValue(randomIntBetween(1, 4096), ByteSizeUnit.KB)).build();
     }
 
     public void testCloseMissingIndex() {

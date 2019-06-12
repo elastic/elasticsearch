@@ -3,30 +3,32 @@
 === Backing up and restoring security configuration
 
 The {es} {security-features} are configured by files and by various API
-endpoints. All these settings are namespaced under `xpack.security.*`. These
-are ordinarily included in regular backups but the backup is not complete until
-a special index, which holds most of the non-setting configuration, is also
-included.
+endpoints. The security settings, which are prefixed with `xpack.security`, are
+ordinarily included in regular backups. However, the backup is not complete
+until a special index, which holds most of the non-setting configuration, is
+also included.
 
 [float]
-==== Security configuration explained
+[[backup-restore-security-location]]
+==== Location of security configuration details
 
 The configuration files reside on every node and are usually identical across
-nodes. They are formatted as YAML text files. Also on every node, there is a
-secure store file, named `elasticsearch.keystore`, which is binary formatted,
-and it is used only for sensitive settings such as service passwords. Some setting
-values may be paths pointing to other files, such as the keys and certificates to
-configure TLS. Reassuringly, all these files are stored inside the
-`$ES_PATH_CONF` directory, so backing-up the whole directory is sure to capture
-all of the file based configuration of {security-features}.
+nodes. They are formatted as YAML text files. Also, on every node there is a
+secure store file named `elasticsearch.keystore`, which is binary formatted.
+This file is used only for sensitive settings such as service passwords. Some
+setting values are paths pointing to other files, such as the keys and
+certificates to configure TLS. Reassuringly, all these files are stored inside
+the `$ES_PATH_CONF` directory, so when you back up the whole directory, you
+capture all of the file-based configuration for the {security-features}.
 
-The API calls act on configuration that is stored in the global cluster
-metadata as well as inside a dedicated {es} index. This index is named
-`.security-6` in the 6.x versions and `.security-7` in the 7.x releases, and it
-is always pointed to by the `.security` alias. This contains the data which is
-*not* part of an ordinary configuration backup. This data describes:
+The API calls act on configuration information that is stored in the global
+cluster metadata as well as inside a dedicated {es} index. This index is named
+`.security-6` in the 6.x versions and `.security-7` in the 7.x releases. The
+`.security` alias always points to the appropriate index. This index contains
+the data which is *not* part of an ordinary configuration backup. This data
+describes:
 
-* definition of users in the native realm (including hashed passwords)
+* the definition of users in the native realm (including hashed passwords)
 * role definitions
 * role mappings
 * application privileges
@@ -34,53 +36,66 @@ is always pointed to by the `.security` alias. This contains the data which is
 
 Be advised that the index format is only compatible over a single major version.
 
-The `elasticsearch.yml` and `elasticsearch.keystore` files in `$ES_PATH_CONF`,
-as well as the global cluster metadata contain settings for all the cluster's
-features, not only the {security-features}. It is easier to backup and restore
-all these configurations as a whole. Cherry-picking only {security-features}
-configurations complicates the procedure a bit, without many benefits because
-, after all, every configuration requires a backup! All the other
-<<security-files, configuration files>> and the `.security` index contain
-exclusively {security-features} configuration data.
+TIP: The `elasticsearch.yml` and `elasticsearch.keystore` files and the global
+cluster metadata contain settings for all the {stack} features. The
+`.security` index and all the other
+<<security-files,security configuration files>> contain configuration data
+exclusively for the {security-features}. It is easiest to backup and restore all
+the configuration information as a whole, rather than trying to cherry-pick only
+the security details.
 
 [float]
-==== Backup of file configuration
+[[backup-restore-security-file]]
+==== Backing up configuration files
 
-The simplest way to backup file based configuration is a trivial copy of the
-`$ES_PATH_CONF` directory.  Overall, this is the identical procedure as for a
-complete backup.  Also, remember that in a typical {es} deployment all files
-are identical on every node.
+The simplest way to backup configuration files is to copy the `$ES_PATH_CONF`
+directory. Overall, this procedure is identical to a complete backup.
 
-Because changes to the configuration files usually require a node restart for
-the changes to take effect, this configuration method is reserved for settings
-that change rarely (or are required for cluster formation, or require file
-system privileges for modifications). In a typical deployment, once a desired
-configuration is attained, subsequent changes will be infrequent.
+TIP: In a typical {es} deployment, all the configuration files are identical on
+each node.
 
-Given this, it is recommended to backup after every modification. For the YAML
-text files you also have the option of storing diffs against a baseline, or
-checking them into `git`, therefore making the changes more easi to review by
-the {es} administrator. The binary and encoded files, such as the private keys
-or the secure store file are extra sensitive; they require restricted read
-access.
+It is recommended that you back up the configuration files every time they are
+modified. In a typical deployment, after you achieve a desired configuration,
+you update these files infrequently. If you change the contents of the
+configuration files, the changes usually don't take effect until you restart
+the node. Therefore, configuration files should contain only the settings that
+change rarely or are required for cluster formation or require file system
+privileges.
+
+For the YAML text files, you also have the option of storing diffs against a
+baseline or checking them into `git`. This method makes it easier for the {es}
+administrator to review the changes.
+
+The binary and encoded files, such as the private keys and the secure store
+file, are extra sensitive; they require restricted read access.
 
 [float]
-==== Backup of API-based configuration
+==== Backing up API-based configuration
 
-The backup of API based configuration uses the <<modules-snapshots, regular
-snapshot functionality>>. The snapshot API saves the settings, the type
-mapping and the contents of any index, to a location of a cloud storage service
-or on a shared network file system. The snapshot operation can also optionally
-capture the persistent settings from the global cluster metadata.
+To back up API-based configuration, you use the
+<<modules-snapshots,regular snapshot functionality>>. The snapshot API saves the
+settings, the type mapping, and the contents of any index to a location on a
+cloud storage service or on a shared network file system. The snapshot operation
+can also optionally capture the persistent settings from the global cluster
+metadata.
 
- . To use the snapshot API to backup `.security` first create a repository.
-Creating it requires the elevated `manage` cluster privilege, yet it's a
+. Create a repository that you can use to backup the `.security` index.
++
+--
+You must have the elevated `manage` cluster privilege to create it, yet it's a
 relatively infrequent operation. The elevated privileges are required to prevent
 regular users from exfiltrating data to locations of their choosing.
- . Afterwards, all snapshots can be created inside that repository by a user with
-the limited `snapshot_user` role. This role grants privileges to create
+
+Afterwards, users with the limited `snapshot_user` built-in role can create
+snapshots inside that repository. This role grants privileges to create
 snapshots in any existing repositories. It also grants privileges to list and
-read settings for all indices (but no data).
+read settings for all indices (but not to read data).
+
+For more information, see {stack-ov}/security-privileges.html[Security privileges]
+and {stack-ov}/built-in-roles.html[Built-in roles].
+--
+
+. Create users that have the `snapshot_user` built-in role.
 +
 --
 The following example creates a new user `snapshot_user` in the native realm:
@@ -93,8 +108,12 @@ POST /_security/user/snapshot_user
   "roles" : [ "snapshot_user" ]
 }
 --------------------------------------------------
+--
 
-And the next one exemplifies the create snapshot operation, inside the
+. Create a snapshot.
++
+--
+The following example exemplifies the create snapshot operation, inside the
 `my_backup` repository:
 
 [source,js]
@@ -106,7 +125,7 @@ PUT /_snapshot/my_backup/snapshot_1
 }
 --------------------------------------------------
 
-<1> A few {security-features} settings are stored in the global cluster metadata as
+<1> A few security settings are stored in the global cluster metadata as
 persistent settings. These are included in the snapshot by, but for facilitating
 change reviews as well as restore convenience, we can pull them out to stand in
 their own file.
@@ -120,6 +139,7 @@ curl -X GET -u elastic "localhost:9200/_cluster/settings?pretty&flat_settings" |
 You can store the output of this together with the other configuration files.
 
 NOTE: Transient settings are not considered for backup.
+
 --
 
 [float]

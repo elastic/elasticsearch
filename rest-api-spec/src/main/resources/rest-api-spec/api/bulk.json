@@ -3,7 +3,6 @@
     "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/docs-bulk.html",
     "methods": ["POST", "PUT"],
     "url": {
-      "path": "/_bulk",
       "paths": ["/_bulk", "/{index}/_bulk", "/{index}/{type}/_bulk"],
       "parts": {
         "index": {

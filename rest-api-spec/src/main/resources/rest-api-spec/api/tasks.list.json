@@ -3,7 +3,6 @@
     "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/tasks.html",
     "methods": ["GET"],
     "url": {
-      "path": "/_tasks",
       "paths": ["/_tasks"],
       "parts": {},
       "params": {

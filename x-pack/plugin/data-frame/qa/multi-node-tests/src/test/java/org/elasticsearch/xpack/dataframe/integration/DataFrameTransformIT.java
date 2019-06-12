@@ -55,7 +55,7 @@ public class DataFrameTransformIT extends DataFrameIntegTestCase {
 
         DataFrameTransformStateAndStats stats = getDataFrameTransformStats(config.getId()).getTransformsStateAndStats().get(0);
 
-        assertThat(stats.getTransformState().getIndexerState(), equalTo(IndexerState.STARTED));
+        assertThat(stats.getTransformState().getIndexerState(), equalTo(IndexerState.STOPPED));
     }
 
 

@@ -446,13 +446,17 @@ public class ConcurrentSeqNoVersioningIT extends AbstractDisruptionTestCase {
             logger.info("--> Linearizability checking history of size: {} for key: {} and initialVersion: {}: {}", history.size(),
                 id, initialVersion, history);
             LinearizabilityChecker.SequentialSpec spec = new CASSequentialSpec(initialVersion);
-            boolean linearizable = new LinearizabilityChecker().isLinearizable(spec, history, missingResponseGenerator());
-            // implicitly test that we can serialize all histories.
-            String serializedHistory = base64Serialize(history);
-            if (linearizable == false) {
-                // we dump base64 encoded data, since the nature of this test is that it does not reproduce even with same seed.
-                logger.error("Linearizability check failed. Spec: {}, initial version: {}, serialized history: {}", spec, initialVersion,
-                    serializedHistory);
+            boolean linearizable = false;
+            try {
+                linearizable = new LinearizabilityChecker().isLinearizable(spec, history, missingResponseGenerator());
+            } finally {
+                // implicitly test that we can serialize all histories.
+                String serializedHistory = base64Serialize(history);
+                if (linearizable == false) {
+                    // we dump base64 encoded data, since the nature of this test is that it does not reproduce even with same seed.
+                    logger.error("Linearizability check failed. Spec: {}, initial version: {}, serialized history: {}",
+                        spec, initialVersion, serializedHistory);
+                }
             }
             return linearizable;
         }

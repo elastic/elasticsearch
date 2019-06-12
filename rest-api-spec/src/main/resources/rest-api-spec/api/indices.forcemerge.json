@@ -3,7 +3,6 @@
     "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/indices-forcemerge.html",
     "methods": ["POST"],
     "url": {
-      "path": "/_forcemerge",
       "paths": ["/_forcemerge", "/{index}/_forcemerge"],
       "parts": {
         "index": {

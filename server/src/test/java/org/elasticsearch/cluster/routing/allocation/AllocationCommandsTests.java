@@ -60,7 +60,6 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
 
 import java.util.Collections;
-import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -160,7 +159,7 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
                 .add(newNode("node1"))
                 .add(newNode("node2"))
                 .add(newNode("node3"))
-                .add(newNode("node4", singleton(DiscoveryNode.Role.MASTER)))
+                .add(newNode("node4", singleton(DiscoveryNode.MasterRole.INSTANCE)))
         ).build();
         clusterState = allocation.reroute(clusterState, "reroute");
         assertThat(clusterState.getRoutingNodes().shardsWithState(INITIALIZING).size(), equalTo(0));
@@ -620,7 +619,7 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
         DiscoveryNode node1 = new DiscoveryNode("node1", "node1", "node1", "test1", "test1", buildNewFakeTransportAddress(), emptyMap(),
             MASTER_DATA_ROLES, Version.CURRENT);
         DiscoveryNode node2 = new DiscoveryNode("node2", "node2", "node2", "test2", "test2", buildNewFakeTransportAddress(), emptyMap(),
-            new HashSet<>(randomSubsetOf(EnumSet.of(DiscoveryNode.Role.MASTER, DiscoveryNode.Role.INGEST))), Version.CURRENT);
+            new HashSet<>(randomSubsetOf(Set.of(DiscoveryNode.MasterRole.INSTANCE, DiscoveryNode.IngestRole.INSTANCE))), Version.CURRENT);
 
         clusterState = ClusterState.builder(clusterState).nodes(
             DiscoveryNodes.builder()
@@ -659,7 +658,7 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
         DiscoveryNode node1 = new DiscoveryNode("node1", "node1", "node1", "test1", "test1", buildNewFakeTransportAddress(), emptyMap(),
             MASTER_DATA_ROLES, Version.CURRENT);
         DiscoveryNode node2 = new DiscoveryNode("node2", "node2", "node2", "test2", "test2", buildNewFakeTransportAddress(), emptyMap(),
-            new HashSet<>(randomSubsetOf(EnumSet.of(DiscoveryNode.Role.MASTER, DiscoveryNode.Role.INGEST))), Version.CURRENT);
+            new HashSet<>(randomSubsetOf(Set.of(DiscoveryNode.MasterRole.INSTANCE, DiscoveryNode.IngestRole.INSTANCE))), Version.CURRENT);
 
         clusterState = ClusterState.builder(clusterState).nodes(
             DiscoveryNodes.builder()

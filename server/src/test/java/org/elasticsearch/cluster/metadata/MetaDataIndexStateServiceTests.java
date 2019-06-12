@@ -151,9 +151,9 @@ public class MetaDataIndexStateServiceTests extends ESTestCase {
         state = ClusterState.builder(state)
             .nodes(DiscoveryNodes.builder(state.nodes())
                 .add(new DiscoveryNode("old_node", buildNewFakeTransportAddress(), emptyMap(),
-                    new HashSet<>(Arrays.asList(DiscoveryNode.Role.values())), Version.V_7_0_0))
+                    new HashSet<>(DiscoveryNode.BUILT_IN_ROLES), Version.V_7_0_0))
                 .add(new DiscoveryNode("new_node", buildNewFakeTransportAddress(), emptyMap(),
-                    new HashSet<>(Arrays.asList(DiscoveryNode.Role.values())), Version.V_7_2_0)))
+                    new HashSet<>(DiscoveryNode.BUILT_IN_ROLES), Version.V_7_2_0)))
             .build();
 
         state = MetaDataIndexStateService.closeRoutingTable(state, blockedIndices, results).v1();

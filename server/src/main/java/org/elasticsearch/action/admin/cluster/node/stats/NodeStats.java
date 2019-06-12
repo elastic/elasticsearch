@@ -270,7 +270,7 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
 
         builder.startArray("roles");
         for (DiscoveryNode.Role role : getNode().getRoles()) {
-            builder.value(role.getRoleName());
+            builder.value(role.roleName());
         }
         builder.endArray();
 

@@ -22,9 +22,9 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.coordination.CoordinationMetaData.VotingConfiguration;
 import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.block.ClusterBlocks;
+import org.elasticsearch.cluster.coordination.CoordinationMetaData.VotingConfiguration;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -55,7 +55,6 @@ import org.junit.BeforeClass;
 
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Random;
@@ -189,9 +188,11 @@ public class NodeJoinTests extends ESTestCase {
     }
 
     protected DiscoveryNode newNode(int i, boolean master) {
-        Set<DiscoveryNode.Role> roles = new HashSet<>();
+        final Set<DiscoveryNode.Role> roles;
         if (master) {
-            roles.add(DiscoveryNode.Role.MASTER);
+            roles = Set.of(DiscoveryNode.MasterRole.INSTANCE);
+        } else {
+            roles = Set.of();
         }
         final String prefix = master ? "master_" : "data_";
         return new DiscoveryNode(prefix + i, i + "", buildNewFakeTransportAddress(), emptyMap(), roles, Version.CURRENT);

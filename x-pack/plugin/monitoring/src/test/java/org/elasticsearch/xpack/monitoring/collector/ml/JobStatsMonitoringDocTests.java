@@ -85,7 +85,7 @@ public class JobStatsMonitoringDocTests extends BaseMonitoringDocTestCase<JobSta
                                                              "_host_address",
                                                              new TransportAddress(TransportAddress.META_ADDRESS, 9300),
                                                              singletonMap("attr", "value"),
-                                                             singleton(DiscoveryNode.Role.MASTER),
+                                                             singleton(DiscoveryNode.MasterRole.INSTANCE),
                                                              Version.CURRENT);
 
         final ModelSizeStats modelStats = new ModelSizeStats.Builder("_model")

@@ -176,7 +176,7 @@ public class ListTasksResponse extends BaseTasksResponse implements ToXContentOb
 
                 builder.startArray("roles");
                 for (DiscoveryNode.Role role : node.getRoles()) {
-                    builder.value(role.getRoleName());
+                    builder.value(role.roleName());
                 }
                 builder.endArray();
 

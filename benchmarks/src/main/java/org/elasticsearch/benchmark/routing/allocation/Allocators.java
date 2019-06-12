@@ -92,7 +92,7 @@ public final class Allocators {
 
     public static DiscoveryNode newNode(String nodeId, Map<String, String> attributes) {
         return new DiscoveryNode("", nodeId, new TransportAddress(TransportAddress.META_ADDRESS,
-            portGenerator.incrementAndGet()), attributes, Sets.newHashSet(DiscoveryNode.Role.MASTER,
-            DiscoveryNode.Role.DATA), Version.CURRENT);
+            portGenerator.incrementAndGet()), attributes, Sets.newHashSet(DiscoveryNode.MasterRole.INSTANCE,
+            DiscoveryNode.DataRole.INSTANCE), Version.CURRENT);
     }
 }

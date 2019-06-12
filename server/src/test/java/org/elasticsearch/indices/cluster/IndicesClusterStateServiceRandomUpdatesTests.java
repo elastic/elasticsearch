@@ -257,11 +257,11 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
     public ClusterState randomInitialClusterState(Map<DiscoveryNode, IndicesClusterStateService> clusterStateServiceMap,
                                                   Supplier<MockIndicesService> indicesServiceSupplier) {
         List<DiscoveryNode> allNodes = new ArrayList<>();
-        DiscoveryNode localNode = createNode(DiscoveryNode.Role.MASTER); // local node is the master
+        DiscoveryNode localNode = createNode(DiscoveryNode.MasterRole.INSTANCE); // local node is the master
         allNodes.add(localNode);
         // at least two nodes that have the data role so that we can allocate shards
-        allNodes.add(createNode(DiscoveryNode.Role.DATA));
-        allNodes.add(createNode(DiscoveryNode.Role.DATA));
+        allNodes.add(createNode(DiscoveryNode.DataRole.INSTANCE));
+        allNodes.add(createNode(DiscoveryNode.DataRole.INSTANCE));
         for (int i = 0; i < randomIntBetween(2, 5); i++) {
             allNodes.add(createNode());
         }
@@ -437,10 +437,8 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
     private static final AtomicInteger nodeIdGenerator = new AtomicInteger();
 
     protected DiscoveryNode createNode(DiscoveryNode.Role... mustHaveRoles) {
-        Set<DiscoveryNode.Role> roles = new HashSet<>(randomSubsetOf(Sets.newHashSet(DiscoveryNode.Role.values())));
-        for (DiscoveryNode.Role mustHaveRole : mustHaveRoles) {
-            roles.add(mustHaveRole);
-        }
+        Set<DiscoveryNode.Role> roles = new HashSet<>(randomSubsetOf(DiscoveryNode.BUILT_IN_ROLES));
+        Collections.addAll(roles, mustHaveRoles);
         final String id = String.format(Locale.ROOT, "node_%03d", nodeIdGenerator.incrementAndGet());
         return new DiscoveryNode(id, id, buildNewFakeTransportAddress(), Collections.emptyMap(), roles,
             Version.CURRENT);

@@ -43,7 +43,6 @@ import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -188,7 +187,7 @@ public class TransportNodesActionTests extends ESTestCase {
         List<DiscoveryNode> discoveryNodes = new ArrayList<>();
         for (int i = 0; i < numNodes; i++) {
             Map<String, String> attributes = new HashMap<>();
-            Set<DiscoveryNode.Role> roles = new HashSet<>(randomSubsetOf(Arrays.asList(DiscoveryNode.Role.values())));
+            Set<DiscoveryNode.Role> roles = new HashSet<>(randomSubsetOf(DiscoveryNode.BUILT_IN_ROLES));
             if (frequently()) {
                 attributes.put("custom", randomBoolean() ? "match" : randomAlphaOfLengthBetween(3, 5));
             }

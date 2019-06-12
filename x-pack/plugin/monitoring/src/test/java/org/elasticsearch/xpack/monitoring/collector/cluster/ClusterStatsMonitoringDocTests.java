@@ -175,7 +175,7 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                                   randomAlphaOfLength(5),
                                   new TransportAddress(TransportAddress.META_ADDRESS, 9301 + i),
                                   randomBoolean() ? singletonMap("attr", randomAlphaOfLength(3)) : emptyMap,
-                                  singleton(randomFrom(DiscoveryNode.Role.values())),
+                                  singleton(randomFrom(DiscoveryNode.BUILT_IN_ROLES)),
                                   Version.CURRENT));
         }
 
@@ -201,7 +201,7 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                                                                 "_host_address",
                                                                 transportAddress,
                                                                 singletonMap("attr", "value"),
-                                                                singleton(DiscoveryNode.Role.MASTER),
+                                                                singleton(DiscoveryNode.MasterRole.INSTANCE),
                                                                 Version.CURRENT);
 
         final ClusterState clusterState = ClusterState.builder(clusterName)
@@ -586,7 +586,7 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                                  "_host_address",
                                  new TransportAddress(TransportAddress.META_ADDRESS, 9300),
                                  singletonMap("attr", "value"),
-                                 singleton(DiscoveryNode.Role.MASTER),
+                                 singleton(DiscoveryNode.MasterRole.INSTANCE),
                                  Version.CURRENT);
     }
 

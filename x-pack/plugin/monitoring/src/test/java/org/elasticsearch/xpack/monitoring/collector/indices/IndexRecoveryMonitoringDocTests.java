@@ -78,7 +78,7 @@ public class IndexRecoveryMonitoringDocTests extends BaseMonitoringDocTestCase<I
                                                                     "_host_address_0",
                                                                     new TransportAddress(TransportAddress.META_ADDRESS, 9300),
                                                                     singletonMap("attr", "value_0"),
-                                                                    singleton(DiscoveryNode.Role.MASTER),
+                                                                    singleton(DiscoveryNode.MasterRole.INSTANCE),
                                                                     Version.CURRENT);
 
         final DiscoveryNode discoveryNodeOne = new DiscoveryNode("_node_1",
@@ -88,7 +88,7 @@ public class IndexRecoveryMonitoringDocTests extends BaseMonitoringDocTestCase<I
                                                                     "_host_address_1",
                                                                     new TransportAddress(TransportAddress.META_ADDRESS, 9301),
                                                                     singletonMap("attr", "value_1"),
-                                                                    singleton(DiscoveryNode.Role.DATA),
+                                                                    singleton(DiscoveryNode.DataRole.INSTANCE),
                                                                     Version.CURRENT.minimumIndexCompatibilityVersion());
 
         final ShardId shardId = new ShardId("_index_a", "_uuid_a", 0);

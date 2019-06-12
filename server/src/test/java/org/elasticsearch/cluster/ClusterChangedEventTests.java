@@ -426,20 +426,20 @@ public class ClusterChangedEventTests extends ESTestCase {
             if (i == 0) {
                 // the master node
                 builder.masterNodeId(nodeId);
-                roles.add(DiscoveryNode.Role.MASTER);
+                roles.add(DiscoveryNode.MasterRole.INSTANCE);
             } else if (i == 1) {
                 // the alternate master node
-                roles.add(DiscoveryNode.Role.MASTER);
+                roles.add(DiscoveryNode.MasterRole.INSTANCE);
             } else if (i == 2) {
                 // we need at least one data node
-                roles.add(DiscoveryNode.Role.DATA);
+                roles.add(DiscoveryNode.DataRole.INSTANCE);
             } else {
                 // remaining nodes can be anything (except for master)
                 if (randomBoolean()) {
-                    roles.add(DiscoveryNode.Role.MASTER);
+                    roles.add(DiscoveryNode.MasterRole.INSTANCE);
                 }
                 if (randomBoolean()) {
-                    roles.add(DiscoveryNode.Role.DATA);
+                    roles.add(DiscoveryNode.DataRole.INSTANCE);
                 }
             }
             final DiscoveryNode node = newNode(nodeId, roles);

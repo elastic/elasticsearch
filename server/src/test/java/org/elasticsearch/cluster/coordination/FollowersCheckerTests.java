@@ -43,7 +43,6 @@ import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -577,7 +576,7 @@ public class FollowersCheckerTests extends ESTestCase {
                 attributes.put("custom", randomBoolean() ? "match" : randomAlphaOfLengthBetween(3, 5));
             }
             final DiscoveryNode node = newNode(i, attributes,
-                new HashSet<>(randomSubsetOf(Arrays.asList(DiscoveryNode.Role.values()))));
+                new HashSet<>(randomSubsetOf(DiscoveryNode.BUILT_IN_ROLES)));
             nodesList.add(node);
         }
         return nodesList;

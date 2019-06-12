@@ -37,7 +37,6 @@ import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -136,7 +135,7 @@ public abstract class RemoteClusterAware {
             TransportAddress transportAddress = new TransportAddress(TransportAddress.META_ADDRESS, 0);
             String hostName = address.substring(0, indexOfPortSeparator(address));
             return new DiscoveryNode("", clusterName + "#" + address, UUIDs.randomBase64UUID(), hostName, address,
-                    transportAddress, Collections.singletonMap("server_name", hostName), EnumSet.allOf(DiscoveryNode.Role.class),
+                    transportAddress, Collections.singletonMap("server_name", hostName), DiscoveryNode.BUILT_IN_ROLES,
                     Version.CURRENT.minimumCompatibilityVersion());
         } else {
             TransportAddress transportAddress = new TransportAddress(RemoteClusterAware.parseSeedAddress(address));

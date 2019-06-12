@@ -371,9 +371,9 @@ public class MachineLearningFeatureSetTests extends ESTestCase {
             Map<String, String> attrs = new HashMap<>();
             attrs.put(MachineLearning.MAX_OPEN_JOBS_NODE_ATTR, Integer.toString(20));
             Set<DiscoveryNode.Role> roles = new HashSet<>();
-            roles.add(DiscoveryNode.Role.DATA);
-            roles.add(DiscoveryNode.Role.MASTER);
-            roles.add(DiscoveryNode.Role.INGEST);
+            roles.add(DiscoveryNode.DataRole.INSTANCE);
+            roles.add(DiscoveryNode.MasterRole.INSTANCE);
+            roles.add(DiscoveryNode.IngestRole.INSTANCE);
             nodesBuilder.add(new DiscoveryNode("ml-feature-set-given-ml-node-" + i,
                 new TransportAddress(TransportAddress.META_ADDRESS, 9100 + i),
                 attrs,
@@ -383,9 +383,9 @@ public class MachineLearningFeatureSetTests extends ESTestCase {
         for (int i = 0; i < randomIntBetween(1, 3); i++) {
             Map<String, String> attrs = new HashMap<>();
             Set<DiscoveryNode.Role> roles = new HashSet<>();
-            roles.add(DiscoveryNode.Role.DATA);
-            roles.add(DiscoveryNode.Role.MASTER);
-            roles.add(DiscoveryNode.Role.INGEST);
+            roles.add(DiscoveryNode.DataRole.INSTANCE);
+            roles.add(DiscoveryNode.MasterRole.INSTANCE);
+            roles.add(DiscoveryNode.IngestRole.INSTANCE);
             nodesBuilder.add(new DiscoveryNode("ml-feature-set-given-non-ml-node-" + i,
                 new TransportAddress(TransportAddress.META_ADDRESS, 9300 + i),
                 attrs,

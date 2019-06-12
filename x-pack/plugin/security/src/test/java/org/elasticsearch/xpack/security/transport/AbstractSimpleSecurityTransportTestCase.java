@@ -45,6 +45,7 @@ import javax.net.ssl.SSLParameters;
 import javax.net.ssl.SSLServerSocket;
 import javax.net.ssl.SSLServerSocketFactory;
 import javax.net.ssl.SSLSocket;
+
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.net.InetAddress;
@@ -53,7 +54,6 @@ import java.net.SocketTimeoutException;
 import java.net.UnknownHostException;
 import java.nio.file.Path;
 import java.util.Collections;
-import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Locale;
@@ -259,7 +259,7 @@ public abstract class AbstractSimpleSecurityTransportTestCase extends AbstractSi
                 HashMap<String, String> attributes = new HashMap<>();
                 attributes.put("server_name", sniIp);
                 DiscoveryNode node = new DiscoveryNode("server_node_id", new TransportAddress(serverAddress), attributes,
-                    EnumSet.allOf(DiscoveryNode.Role.class), Version.CURRENT);
+                    DiscoveryNode.BUILT_IN_ROLES, Version.CURRENT);
 
                 new Thread(() -> {
                     try {
@@ -306,7 +306,7 @@ public abstract class AbstractSimpleSecurityTransportTestCase extends AbstractSi
                 HashMap<String, String> attributes = new HashMap<>();
                 attributes.put("server_name", sniIp);
                 DiscoveryNode node = new DiscoveryNode("server_node_id", new TransportAddress(serverAddress), attributes,
-                    EnumSet.allOf(DiscoveryNode.Role.class), Version.CURRENT);
+                    DiscoveryNode.BUILT_IN_ROLES, Version.CURRENT);
 
                 ConnectTransportException connectException = expectThrows(ConnectTransportException.class,
                     () -> serviceC.connectToNode(node, TestProfiles.LIGHT_PROFILE));

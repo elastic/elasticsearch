@@ -188,21 +188,16 @@ public class ClusterStatsNodes implements ToXContentFragment {
 
         private Counts(List<NodeInfo> nodeInfos) {
             this.roles = new HashMap<>();
-            for (DiscoveryNode.Role role : DiscoveryNode.Role.values()) {
-                this.roles.put(role.getRoleName(), 0);
-            }
             this.roles.put(COORDINATING_ONLY, 0);
 
             int total = 0;
             for (NodeInfo nodeInfo : nodeInfos) {
                 total++;
                 if (nodeInfo.getNode().getRoles().isEmpty()) {
-                    Integer count = roles.get(COORDINATING_ONLY);
-                    roles.put(COORDINATING_ONLY, ++count);
+                    roles.compute(COORDINATING_ONLY, (r, c) -> c == null ? 1 : c + 1);
                 } else {
                     for (DiscoveryNode.Role role : nodeInfo.getNode().getRoles()) {
-                        Integer count = roles.get(role.getRoleName());
-                        roles.put(role.getRoleName(), ++count);
+                        roles.compute(role.roleName(), (r, c) -> c == null ? 1 : c + 1);
                     }
                 }
             }

@@ -353,19 +353,19 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
                     if (index != -1) {
                         String matchAttrName = nodeId.substring(0, index);
                         String matchAttrValue = nodeId.substring(index + 1);
-                        if (DiscoveryNode.Role.DATA.getRoleName().equals(matchAttrName)) {
+                        if (DiscoveryNode.DataRole.INSTANCE.roleName().equals(matchAttrName)) {
                             if (Booleans.parseBoolean(matchAttrValue, true)) {
                                 resolvedNodesIds.addAll(dataNodes.keys());
                             } else {
                                 resolvedNodesIds.removeAll(dataNodes.keys());
                             }
-                        } else if (DiscoveryNode.Role.MASTER.getRoleName().equals(matchAttrName)) {
+                        } else if (DiscoveryNode.MasterRole.INSTANCE.roleName().equals(matchAttrName)) {
                             if (Booleans.parseBoolean(matchAttrValue, true)) {
                                 resolvedNodesIds.addAll(masterNodes.keys());
                             } else {
                                 resolvedNodesIds.removeAll(masterNodes.keys());
                             }
-                        } else if (DiscoveryNode.Role.INGEST.getRoleName().equals(matchAttrName)) {
+                        } else if (DiscoveryNode.IngestRole.INSTANCE.roleName().equals(matchAttrName)) {
                             if (Booleans.parseBoolean(matchAttrValue, true)) {
                                 resolvedNodesIds.addAll(ingestNodes.keys());
                             } else {

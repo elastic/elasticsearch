@@ -63,9 +63,9 @@ public class ClusterStatsIT extends ESIntegTestCase {
         int total = 1;
         internalCluster().startNode();
         Map<String, Integer> expectedCounts = new HashMap<>();
-        expectedCounts.put(DiscoveryNode.Role.DATA.getRoleName(), 1);
-        expectedCounts.put(DiscoveryNode.Role.MASTER.getRoleName(), 1);
-        expectedCounts.put(DiscoveryNode.Role.INGEST.getRoleName(), 1);
+        expectedCounts.put(DiscoveryNode.DataRole.INSTANCE.roleName(), 1);
+        expectedCounts.put(DiscoveryNode.MasterRole.INSTANCE.roleName(), 1);
+        expectedCounts.put(DiscoveryNode.IngestRole.INSTANCE.roleName(), 1);
         expectedCounts.put(ClusterStatsNodes.Counts.COORDINATING_ONLY, 0);
         int numNodes = randomIntBetween(1, 5);
 
@@ -84,13 +84,13 @@ public class ClusterStatsIT extends ESIntegTestCase {
             waitForNodes(total);
 
             if (isDataNode) {
-                incrementCountForRole(DiscoveryNode.Role.DATA.getRoleName(), expectedCounts);
+                incrementCountForRole(DiscoveryNode.DataRole.INSTANCE.roleName(), expectedCounts);
             }
             if (isMasterNode) {
-                incrementCountForRole(DiscoveryNode.Role.MASTER.getRoleName(), expectedCounts);
+                incrementCountForRole(DiscoveryNode.MasterRole.INSTANCE.roleName(), expectedCounts);
             }
             if (isIngestNode) {
-                incrementCountForRole(DiscoveryNode.Role.INGEST.getRoleName(), expectedCounts);
+                incrementCountForRole(DiscoveryNode.IngestRole.INSTANCE.roleName(), expectedCounts);
             }
             if (!isDataNode && !isMasterNode && !isIngestNode) {
                 incrementCountForRole(ClusterStatsNodes.Counts.COORDINATING_ONLY, expectedCounts);

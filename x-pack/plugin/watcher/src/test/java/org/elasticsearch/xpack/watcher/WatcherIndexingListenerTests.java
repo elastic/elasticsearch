@@ -432,14 +432,14 @@ public class WatcherIndexingListenerTests extends ESTestCase {
 
         DiscoveryNode node1 = new DiscoveryNode("node_1", ESTestCase.buildNewFakeTransportAddress(),
                 Collections.emptyMap(), new HashSet<>(Collections.singletonList(
-                        randomFrom(DiscoveryNode.Role.INGEST, DiscoveryNode.Role.MASTER))),
+                        randomFrom(DiscoveryNode.IngestRole.INSTANCE, DiscoveryNode.MasterRole.INSTANCE))),
                 Version.CURRENT);
 
         DiscoveryNode node2 = new DiscoveryNode("node_2", ESTestCase.buildNewFakeTransportAddress(), Collections.emptyMap(),
-                new HashSet<>(Collections.singletonList(DiscoveryNode.Role.DATA)), Version.CURRENT);
+                new HashSet<>(Collections.singletonList(DiscoveryNode.DataRole.INSTANCE)), Version.CURRENT);
 
         DiscoveryNode node3 = new DiscoveryNode("node_3", ESTestCase.buildNewFakeTransportAddress(), Collections.emptyMap(),
-                new HashSet<>(Collections.singletonList(DiscoveryNode.Role.DATA)), Version.CURRENT);
+                new HashSet<>(Collections.singletonList(DiscoveryNode.DataRole.INSTANCE)), Version.CURRENT);
 
         IndexMetaData.Builder indexMetaDataBuilder = createIndexBuilder(Watch.INDEX, 1 ,0);
 
@@ -698,6 +698,6 @@ public class WatcherIndexingListenerTests extends ESTestCase {
 
     private static DiscoveryNode newNode(String nodeId) {
         return new DiscoveryNode(nodeId, ESTestCase.buildNewFakeTransportAddress(), Collections.emptyMap(),
-                new HashSet<>(asList(DiscoveryNode.Role.values())), Version.CURRENT);
+                DiscoveryNode.BUILT_IN_ROLES, Version.CURRENT);
     }
 }

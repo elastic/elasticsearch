@@ -804,11 +804,11 @@ public class SnapshotResiliencyTests extends ESTestCase {
         }
 
         private TestClusterNode newMasterNode(String nodeName) throws IOException {
-            return newNode(nodeName, DiscoveryNode.Role.MASTER);
+            return newNode(nodeName, DiscoveryNode.MasterRole.INSTANCE);
         }
 
         private TestClusterNode newDataNode(String nodeName) throws IOException {
-            return newNode(nodeName, DiscoveryNode.Role.DATA);
+            return newNode(nodeName, DiscoveryNode.DataRole.INSTANCE);
         }
 
         private TestClusterNode newNode(String nodeName, DiscoveryNode.Role role) throws IOException {

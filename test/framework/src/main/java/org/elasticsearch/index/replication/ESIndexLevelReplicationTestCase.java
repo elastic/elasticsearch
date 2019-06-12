@@ -158,7 +158,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
 
     protected DiscoveryNode getDiscoveryNode(String id) {
         return new DiscoveryNode(id, id, buildNewFakeTransportAddress(), Collections.emptyMap(),
-            Collections.singleton(DiscoveryNode.Role.DATA), Version.CURRENT);
+            Collections.singleton(DiscoveryNode.DataRole.INSTANCE), Version.CURRENT);
     }
 
     protected class ReplicationGroup implements AutoCloseable, Iterable<IndexShard> {

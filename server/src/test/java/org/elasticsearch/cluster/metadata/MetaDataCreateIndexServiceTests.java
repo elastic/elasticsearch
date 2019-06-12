@@ -397,7 +397,7 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
                 nodeId,
                 buildNewFakeTransportAddress(),
                 emptyMap(),
-                Set.of(DiscoveryNode.Role.MASTER, DiscoveryNode.Role.DATA), Version.CURRENT);
+                Set.of(DiscoveryNode.MasterRole.INSTANCE, DiscoveryNode.DataRole.INSTANCE), Version.CURRENT);
     }
 
     public void testValidateIndexName() throws Exception {

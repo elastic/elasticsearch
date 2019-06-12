@@ -171,7 +171,7 @@ public class RestoreInProgressAllocationDeciderTests extends ESAllocationTestCas
             .build();
 
         DiscoveryNodes discoveryNodes = DiscoveryNodes.builder()
-            .add(newNode("master", Collections.singleton(DiscoveryNode.Role.MASTER)))
+            .add(newNode("master", Collections.singleton(DiscoveryNode.MasterRole.INSTANCE)))
             .localNodeId("master")
             .masterNodeId("master")
             .build();

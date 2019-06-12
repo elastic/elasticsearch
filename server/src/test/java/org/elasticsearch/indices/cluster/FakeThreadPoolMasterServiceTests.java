@@ -29,7 +29,6 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
@@ -44,7 +43,7 @@ public class FakeThreadPoolMasterServiceTests extends ESTestCase {
         List<Runnable> runnableTasks = new ArrayList<>();
         AtomicReference<ClusterState> lastClusterStateRef = new AtomicReference<>();
         DiscoveryNode discoveryNode = new DiscoveryNode("node", ESTestCase.buildNewFakeTransportAddress(), Collections.emptyMap(),
-            new HashSet<>(Arrays.asList(DiscoveryNode.Role.values())), Version.CURRENT);
+            new HashSet<>(DiscoveryNode.BUILT_IN_ROLES), Version.CURRENT);
         lastClusterStateRef.set(ClusterStateCreationUtils.state(discoveryNode, discoveryNode));
         long firstClusterStateVersion = lastClusterStateRef.get().version();
         AtomicReference<ActionListener<Void>> publishingCallback = new AtomicReference<>();

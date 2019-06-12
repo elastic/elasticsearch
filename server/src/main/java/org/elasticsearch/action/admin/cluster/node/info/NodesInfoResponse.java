@@ -75,7 +75,7 @@ public class NodesInfoResponse extends BaseNodesResponse<NodeInfo> implements To
 
             builder.startArray("roles");
             for (DiscoveryNode.Role role : nodeInfo.getNode().getRoles()) {
-                builder.value(role.getRoleName());
+                builder.value(role.roleName());
             }
             builder.endArray();
 

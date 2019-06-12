@@ -223,7 +223,7 @@ public class DelayedAllocationServiceTests extends ESAllocationTestCase {
         ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)).metaData(metaData)
             .routingTable(RoutingTable.builder().addAsNew(metaData.index("short_delay")).addAsNew(metaData.index("long_delay")).build())
             .nodes(DiscoveryNodes.builder()
-                .add(newNode("node0", singleton(DiscoveryNode.Role.MASTER))).localNodeId("node0").masterNodeId("node0")
+                .add(newNode("node0", singleton(DiscoveryNode.MasterRole.INSTANCE))).localNodeId("node0").masterNodeId("node0")
                 .add(newNode("node1")).add(newNode("node2")).add(newNode("node3")).add(newNode("node4"))).build();
         // allocate shards
         clusterState = allocationService.reroute(clusterState, "reroute");

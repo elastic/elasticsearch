@@ -50,7 +50,7 @@ public class GatewayMetaStatePersistedStateTests extends ESTestCase {
     public void setUp() throws Exception {
         nodeEnvironment = newNodeEnvironment();
         localNode = new DiscoveryNode("node1", buildNewFakeTransportAddress(), Collections.emptyMap(),
-                Sets.newHashSet(DiscoveryNode.Role.MASTER), Version.CURRENT);
+                Sets.newHashSet(DiscoveryNode.MasterRole.INSTANCE), Version.CURRENT);
         clusterName = new ClusterName(randomAlphaOfLength(10));
         settings = Settings.builder().put(ClusterName.CLUSTER_NAME_SETTING.getKey(), clusterName.value()).build();
         super.setUp();

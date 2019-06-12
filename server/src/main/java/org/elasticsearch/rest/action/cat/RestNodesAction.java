@@ -324,7 +324,7 @@ public class RestNodesAction extends AbstractCatAction {
             if (node.getRoles().isEmpty()) {
                 roles = "-";
             } else {
-                roles = node.getRoles().stream().map(DiscoveryNode.Role::getAbbreviation).collect(Collectors.joining());
+                roles = node.getRoles().stream().map(DiscoveryNode.Role::roleNameAbbreviation).sorted().collect(Collectors.joining());
             }
             table.addCell(roles);
             table.addCell(masterId == null ? "x" : masterId.equals(node.getId()) ? "*" : "-");

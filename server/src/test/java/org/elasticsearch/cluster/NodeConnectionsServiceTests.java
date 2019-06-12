@@ -51,7 +51,6 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
@@ -80,7 +79,7 @@ public class NodeConnectionsServiceTests extends ESTestCase {
     private List<DiscoveryNode> generateNodes() {
         List<DiscoveryNode> nodes = new ArrayList<>();
         for (int i = randomIntBetween(20, 50); i > 0; i--) {
-            Set<DiscoveryNode.Role> roles = new HashSet<>(randomSubsetOf(Arrays.asList(DiscoveryNode.Role.values())));
+            Set<DiscoveryNode.Role> roles = new HashSet<>(randomSubsetOf(DiscoveryNode.BUILT_IN_ROLES));
             nodes.add(new DiscoveryNode("node_" + i, "" + i, buildNewFakeTransportAddress(), Collections.emptyMap(),
                 roles, Version.CURRENT));
         }

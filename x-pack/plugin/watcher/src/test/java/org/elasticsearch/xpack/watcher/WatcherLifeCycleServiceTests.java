@@ -327,13 +327,13 @@ public class WatcherLifeCycleServiceTests extends ESTestCase {
         IndexRoutingTable.Builder indexRoutingTable = IndexRoutingTable.builder(index).addShard(shardRouting);
 
         DiscoveryNode node1 = new DiscoveryNode("node_1", ESTestCase.buildNewFakeTransportAddress(), Collections.emptyMap(),
-            new HashSet<>(asList(randomFrom(DiscoveryNode.Role.INGEST, DiscoveryNode.Role.MASTER))), Version.CURRENT);
+            new HashSet<>(asList(randomFrom(DiscoveryNode.IngestRole.INSTANCE, DiscoveryNode.MasterRole.INSTANCE))), Version.CURRENT);
 
         DiscoveryNode node2 = new DiscoveryNode("node_2", ESTestCase.buildNewFakeTransportAddress(), Collections.emptyMap(),
-            new HashSet<>(asList(DiscoveryNode.Role.DATA)), Version.CURRENT);
+            new HashSet<>(asList(DiscoveryNode.DataRole.INSTANCE)), Version.CURRENT);
 
         DiscoveryNode node3 = new DiscoveryNode("node_3", ESTestCase.buildNewFakeTransportAddress(), Collections.emptyMap(),
-            new HashSet<>(asList(DiscoveryNode.Role.DATA)), Version.CURRENT);
+            new HashSet<>(asList(DiscoveryNode.DataRole.INSTANCE)), Version.CURRENT);
 
         IndexMetaData.Builder indexMetaDataBuilder = IndexMetaData.builder(Watch.INDEX)
             .settings(Settings.builder()
@@ -465,7 +465,8 @@ public class WatcherLifeCycleServiceTests extends ESTestCase {
     }
 
     public void testMasterOnlyNodeCanStart() {
-        List<DiscoveryNode.Role> roles = Collections.singletonList(randomFrom(DiscoveryNode.Role.MASTER, DiscoveryNode.Role.INGEST));
+        List<DiscoveryNode.Role> roles =
+                Collections.singletonList(randomFrom(DiscoveryNode.MasterRole.INSTANCE, DiscoveryNode.IngestRole.INSTANCE));
         ClusterState state = ClusterState.builder(new ClusterName("my-cluster"))
             .nodes(new DiscoveryNodes.Builder().masterNodeId("node_1").localNodeId("node_1")
                 .add(new DiscoveryNode("node_1", ESTestCase.buildNewFakeTransportAddress(), Collections.emptyMap(),
@@ -596,6 +597,6 @@ public class WatcherLifeCycleServiceTests extends ESTestCase {
 
     private static DiscoveryNode newNode(String nodeName, Version version) {
         return new DiscoveryNode(nodeName, ESTestCase.buildNewFakeTransportAddress(), Collections.emptyMap(),
-            new HashSet<>(asList(DiscoveryNode.Role.values())), version);
+            DiscoveryNode.BUILT_IN_ROLES, version);
     }
 }

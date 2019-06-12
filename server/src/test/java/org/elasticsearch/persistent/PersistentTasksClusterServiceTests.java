@@ -793,7 +793,7 @@ public class PersistentTasksClusterServiceTests extends ESTestCase {
                 nodeId,
                 buildNewFakeTransportAddress(),
                 emptyMap(),
-                Set.of(DiscoveryNode.Role.MASTER, DiscoveryNode.Role.DATA),
+                Set.of(DiscoveryNode.MasterRole.INSTANCE, DiscoveryNode.DataRole.INSTANCE),
                 Version.CURRENT);
     }
 

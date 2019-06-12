@@ -46,7 +46,6 @@ import org.junit.Before;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -248,7 +247,7 @@ public class TemplateUpgradeServiceTests extends ESTestCase {
     }
 
     private static final Set<DiscoveryNode.Role> MASTER_DATA_ROLES =
-        Collections.unmodifiableSet(EnumSet.of(DiscoveryNode.Role.MASTER, DiscoveryNode.Role.DATA));
+            Set.of(DiscoveryNode.MasterRole.INSTANCE, DiscoveryNode.DataRole.INSTANCE);
 
     @SuppressWarnings("unchecked")
     public void testClusterStateUpdate() throws InterruptedException {

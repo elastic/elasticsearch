@@ -61,6 +61,7 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 
 import javax.crypto.SecretKey;
+
 import java.io.IOException;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
@@ -812,7 +813,7 @@ public class TokenServiceTests extends ESTestCase {
         final ClusterState currentState = clusterService.state();
         final DiscoveryNodes.Builder discoBuilder = DiscoveryNodes.builder(currentState.getNodes());
         final DiscoveryNode anotherDataNode = new DiscoveryNode("another_data_node#" + version, buildNewFakeTransportAddress(),
-                Collections.emptyMap(), Collections.singleton(DiscoveryNode.Role.DATA), version);
+                Collections.emptyMap(), Collections.singleton(DiscoveryNode.DataRole.INSTANCE), version);
         discoBuilder.add(anotherDataNode);
         final ClusterState.Builder newStateBuilder = ClusterState.builder(currentState);
         newStateBuilder.nodes(discoBuilder);

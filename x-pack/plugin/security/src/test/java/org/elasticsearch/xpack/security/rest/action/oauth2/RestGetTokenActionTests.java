@@ -100,7 +100,8 @@ public class RestGetTokenActionTests extends ESTestCase {
         CreateTokenResponseActionListener listener = new CreateTokenResponseActionListener(restChannel, restRequest, NoOpLogger.INSTANCE);
         String errorMessage = "failed to authenticate user, gss context negotiation not complete";
         ElasticsearchSecurityException ese = new ElasticsearchSecurityException(errorMessage, RestStatus.UNAUTHORIZED);
-        ese.addHeader(KerberosAuthenticationToken.WWW_AUTHENTICATE, "Negotiate FAIL");
+        boolean addBase64EncodedToken = randomBoolean();
+        ese.addHeader(KerberosAuthenticationToken.WWW_AUTHENTICATE, "Negotiate" + ((addBase64EncodedToken) ? " FAIL" : ""));
         listener.onFailure(ese);
 
         RestResponse response = responseSetOnce.get();
@@ -108,8 +109,12 @@ public class RestGetTokenActionTests extends ESTestCase {
 
         Map<String, Object> map = XContentHelper.convertToMap(response.content(), false,
                 XContentType.fromMediaType(response.contentType())).v2();
-        assertThat(map, hasEntry("error", RestGetTokenAction.TokenRequestError.UNAUTHORIZED_CLIENT.name().toLowerCase(Locale.ROOT)));
-        assertThat(map, hasEntry("error_description", "Negotiate FAIL"));
+        assertThat(map, hasEntry("error", RestGetTokenAction.TokenRequestError._UNAUTHORIZED.name().toLowerCase(Locale.ROOT)));
+        if (addBase64EncodedToken) {
+            assertThat(map, hasEntry("error_description", "FAIL"));
+        } else {
+            assertThat(map, hasEntry("error_description", null));
+        }
         assertEquals(2, map.size());
         assertEquals(RestStatus.BAD_REQUEST, response.status());
     }

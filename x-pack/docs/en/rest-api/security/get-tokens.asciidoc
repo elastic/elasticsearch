@@ -183,7 +183,8 @@ POST /_security/oauth2/token
 
 The API will return a new token and refresh token if kerberos authentication is successful. Each refresh token may only 
 be used one time. Along with this there might be an base64 encoded token for clients to consume and finalize the authentication.
-One must extract the token from the `kerberos_authentication_response_token` which is in the form `Negotiate <base64 encoded token>`.
+When the mutual authentication is requested on Spnego GSS context, this token will be presented by the server.
+`kerberos_authentication_response_token` is the field in the response containing the token.
 
 [source,js]
 --------------------------------------------------
@@ -192,7 +193,7 @@ One must extract the token from the `kerberos_authentication_response_token` whi
   "type" : "Bearer",
   "expires_in" : 1200,
   "refresh_token": "vLBPvmAB6KvwvJZr27cS"
-  "kerberos_authentication_response_token": "Negotiate YIIB6wYJKoZIhvcSAQICAQBuggHaMIIB1qADAg"
+  "kerberos_authentication_response_token": "YIIB6wYJKoZIhvcSAQICAQBuggHaMIIB1qADAg"
 }
 --------------------------------------------------
 // NOTCONSOLE

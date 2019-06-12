@@ -34,6 +34,7 @@ import org.elasticsearch.xpack.security.authc.kerberos.KerberosAuthenticationTok
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Locale;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
@@ -130,14 +131,25 @@ public final class RestGetTokenAction extends TokenBaseRestHandler {
                 sendTokenErrorResponse(TokenRequestError.INVALID_GRANT,
                         ((ElasticsearchSecurityException) e).getHeader("error_description").get(0), e);
             } else if (e instanceof ElasticsearchSecurityException
-                    && "failed to authenticate user, gss context negotiation not complete".equals(e.getMessage())
-                    && ((ElasticsearchSecurityException) e).getHeader(KerberosAuthenticationToken.WWW_AUTHENTICATE) != null
-                    && ((ElasticsearchSecurityException) e).getHeader(KerberosAuthenticationToken.WWW_AUTHENTICATE).size() == 1) {
-                sendTokenErrorResponse(TokenRequestError.UNAUTHORIZED_CLIENT,
-                        ((ElasticsearchSecurityException) e).getHeader(KerberosAuthenticationToken.WWW_AUTHENTICATE).get(0), e);
+                    && "failed to authenticate user, gss context negotiation not complete".equals(e.getMessage())) {
+                sendTokenErrorResponse(TokenRequestError._UNAUTHORIZED, extractBase64EncodedToken((ElasticsearchSecurityException) e), e);
             } else {
                 sendFailure(e);
             }
+        }
+
+        private String extractBase64EncodedToken(ElasticsearchSecurityException e) {
+            String base64EncodedToken = null;
+            List<String> values = e.getHeader(KerberosAuthenticationToken.WWW_AUTHENTICATE);
+            if (values != null && values.size() == 1) {
+                final String wwwAuthenticateHeaderValue = values.get(0);
+                // it may contain base64 encoded token that needs to be sent to client if Spnego GSS context negotiation failed
+                if (wwwAuthenticateHeaderValue.startsWith(KerberosAuthenticationToken.NEGOTIATE_AUTH_HEADER_PREFIX)) {
+                    base64EncodedToken = wwwAuthenticateHeaderValue
+                            .substring(KerberosAuthenticationToken.NEGOTIATE_AUTH_HEADER_PREFIX.length()).trim();
+                }
+            }
+            return base64EncodedToken;
         }
 
         void sendTokenErrorResponse(TokenRequestError error, String description, Exception e) {
@@ -211,6 +223,17 @@ public final class RestGetTokenAction extends TokenBaseRestHandler {
          * The requested scope is invalid, unknown, malformed, or exceeds the
          * scope granted by the resource owner.
          */
-        INVALID_SCOPE
+        INVALID_SCOPE,
+
+        // Custom error code
+        /**
+         * When the request for authentication fails using custom grant type for given
+         * credentials.
+         * If the client attempted to authenticate via the "Authorization" request
+         * the authorization server MAY respond with an HTTP 401
+         * (Unauthorized) status code and include the "WWW-Authenticate"
+         * response header field
+         */
+        _UNAUTHORIZED,
     }
 }

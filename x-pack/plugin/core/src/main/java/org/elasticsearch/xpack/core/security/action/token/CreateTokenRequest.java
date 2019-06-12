@@ -91,28 +91,28 @@ public final class CreateTokenRequest extends ActionRequest {
         if (type != null) {
             switch (type) {
                 case PASSWORD:
-                    validationException = unsupportedFieldValidation(type, "kerberos_ticket", kerberosTicket, validationException);
-                    validationException = unsupportedFieldValidation(type, "refresh_token", refreshToken, validationException);
+                    validationException = validateUnsupportedField(type, "kerberos_ticket", kerberosTicket, validationException);
+                    validationException = validateUnsupportedField(type, "refresh_token", refreshToken, validationException);
                     validationException = validateRequiredField("username", username, validationException);
                     validationException = validateRequiredField("password", password, validationException);
                     break;
                 case KERBEROS:
-                    validationException = unsupportedFieldValidation(type, "username", username, validationException);
-                    validationException = unsupportedFieldValidation(type, "password", password, validationException);
-                    validationException = unsupportedFieldValidation(type, "refresh_token", refreshToken, validationException);
+                    validationException = validateUnsupportedField(type, "username", username, validationException);
+                    validationException = validateUnsupportedField(type, "password", password, validationException);
+                    validationException = validateUnsupportedField(type, "refresh_token", refreshToken, validationException);
                     validationException = validateRequiredField("kerberos_ticket", kerberosTicket, validationException);
                     break;
                 case REFRESH_TOKEN:
-                    validationException = unsupportedFieldValidation(type, "username", username, validationException);
-                    validationException = unsupportedFieldValidation(type, "password", password, validationException);
-                    validationException = unsupportedFieldValidation(type, "kerberos_ticket", kerberosTicket, validationException);
+                    validationException = validateUnsupportedField(type, "username", username, validationException);
+                    validationException = validateUnsupportedField(type, "password", password, validationException);
+                    validationException = validateUnsupportedField(type, "kerberos_ticket", kerberosTicket, validationException);
                     validationException = validateRequiredField("refresh_token", refreshToken, validationException);
                     break;
                 case CLIENT_CREDENTIALS:
-                    validationException = unsupportedFieldValidation(type, "username", username, validationException);
-                    validationException = unsupportedFieldValidation(type, "password", password, validationException);
-                    validationException = unsupportedFieldValidation(type, "kerberos_ticket", kerberosTicket, validationException);
-                    validationException = unsupportedFieldValidation(type, "refresh_token", refreshToken, validationException);
+                    validationException = validateUnsupportedField(type, "username", username, validationException);
+                    validationException = validateUnsupportedField(type, "password", password, validationException);
+                    validationException = validateUnsupportedField(type, "kerberos_ticket", kerberosTicket, validationException);
+                    validationException = validateUnsupportedField(type, "refresh_token", refreshToken, validationException);
                     break;
                 default:
                     validationException = addValidationError("grant_type only supports the values: [" +
@@ -137,13 +137,13 @@ public final class CreateTokenRequest extends ActionRequest {
 
     private static ActionRequestValidationException validateRequiredField(String field, SecureString fieldValue,
                                                                           ActionRequestValidationException validationException) {
-        if (fieldValue == null || fieldValue.getChars() == null || fieldValue.getChars().length == 0) {
+        if (fieldValue == null || fieldValue.getChars() == null || fieldValue.length() == 0) {
             validationException = addValidationError(String.format(Locale.ROOT, "%s is missing", field), validationException);
         }
         return validationException;
     }
 
-    private static ActionRequestValidationException unsupportedFieldValidation(GrantType grantType, String field, Object fieldValue,
+    private static ActionRequestValidationException validateUnsupportedField(GrantType grantType, String field, Object fieldValue,
                                                                                ActionRequestValidationException validationException) {
         if (fieldValue != null) {
             validationException = addValidationError(

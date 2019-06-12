@@ -139,10 +139,18 @@ public final class TransportCreateTokenAction extends HandledTransportAction<Cre
     private String extractOutToken() {
         List<String> values = threadPool.getThreadContext().getResponseHeaders().get(KerberosAuthenticationToken.WWW_AUTHENTICATE);
         if (values != null && values.size() == 1) {
-            return values.get(0);
+            final String wwwAuthenticateHeaderValue = values.get(0);
+            // it may contain base64 encoded token that needs to be sent to client if mutual auth was requested
+            if (wwwAuthenticateHeaderValue.startsWith(KerberosAuthenticationToken.NEGOTIATE_AUTH_HEADER_PREFIX)) {
+                final String base64EncodedToken = wwwAuthenticateHeaderValue
+                        .substring(KerberosAuthenticationToken.NEGOTIATE_AUTH_HEADER_PREFIX.length()).trim();
+                return base64EncodedToken;
+            }
         }
+        threadPool.getThreadContext().getResponseHeaders().remove(KerberosAuthenticationToken.WWW_AUTHENTICATE);
         return null;
     }
+
     static String getResponseScopeValue(String requestScope) {
         final String scope;
         // the OAuth2.0 RFC requires the scope to be provided in the

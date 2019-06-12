@@ -253,7 +253,7 @@ public class TransportCreateTokenActionTests extends ESTestCase {
             assertNotNull(createTokenResponse.getRefreshToken());
             assertNotNull(createTokenResponse.getTokenString());
             assertNotNull(createTokenResponse.getKerberosAuthenticationResponseData());
-            assertThat(createTokenResponse.getKerberosAuthenticationResponseData(), is("Negotiate SUCCESS"));
+            assertThat(createTokenResponse.getKerberosAuthenticationResponseData(), is("SUCCESS"));
 
             assertNotNull(idxReqReference.get());
             Map<String, Object> sourceMap = idxReqReference.get().sourceAsMap();

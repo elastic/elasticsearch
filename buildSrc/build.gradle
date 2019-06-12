@@ -73,13 +73,6 @@ sourceCompatibility = '11'
 sourceSets {
     // We have a few classes that need to be compiled for older java versions
     minimumRuntime { }
-    main {
-        compileClasspath += minimumRuntime.output
-    }
-    test {
-        compileClasspath += minimumRuntime.output
-        runtimeClasspath += minimumRuntime.output
-    }
 }
 
 compileMinimumRuntimeJava {
@@ -103,11 +96,12 @@ repositories {
   jcenter()
 }
 
-configurations {
-    minimumRuntimeCompile.extendsFrom compile
-}
-
 dependencies {
+  if (project.ext.has("isEclipse") == false || project.ext.isEclipse == false) {
+    // eclipse is confused if this is set explicitly
+    compile sourceSets.minimumRuntime.output
+  }
+
   compile localGroovy()
   
   compile 'com.netflix.nebula:gradle-extra-configurations-plugin:3.0.3'
@@ -123,6 +117,9 @@ dependencies {
   testCompile "junit:junit:${props.getProperty('junit')}"
   testCompile "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${props.getProperty('randomizedrunner')}"
   testCompile 'com.github.tomakehurst:wiremock-jre8-standalone:2.23.2'
+  minimumRuntimeCompile "junit:junit:${props.getProperty('junit')}"
+  minimumRuntimeCompile localGroovy()
+  minimumRuntimeCompile gradleApi()
 }
 
 /*****************************************************************************

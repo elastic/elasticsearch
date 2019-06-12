@@ -157,6 +157,7 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
                 case "nvd":
                 case "dvd":
                 case "tim":
+                case "tip":
                 case "cfs":
                     return true;
                 default:

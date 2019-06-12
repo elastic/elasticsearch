@@ -1,6 +1,7 @@
 {
   "ingest.put_pipeline": {
     "documentation": "https://www.elastic.co/guide/en/elasticsearch/reference/master/put-pipeline-api.html",
+    "stability": "stable",
     "methods": [ "PUT" ],
     "url": {
       "paths": [ "/_ingest/pipeline/{id}" ],

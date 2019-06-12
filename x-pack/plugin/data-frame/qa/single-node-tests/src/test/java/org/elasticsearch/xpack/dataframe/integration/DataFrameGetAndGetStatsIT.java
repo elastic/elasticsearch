@@ -62,8 +62,11 @@ public class DataFrameGetAndGetStatsIT extends DataFrameRestTestCase {
         createPivotReviewsTransform("pivot_1", "pivot_reviews_1", null);
         createPivotReviewsTransform("pivot_2", "pivot_reviews_2", null);
 
+        // TODO: adjust when we support continuous
         startAndWaitForTransform("pivot_1", "pivot_reviews_1");
         startAndWaitForTransform("pivot_2", "pivot_reviews_2");
+        stopDataFrameTransform("pivot_1", false);
+        stopDataFrameTransform("pivot_2", false);
 
         // Alternate testing between admin and lowly user, as both should be able to get the configs and stats
         String authHeader = randomFrom(BASIC_AUTH_VALUE_DATA_FRAME_USER, BASIC_AUTH_VALUE_DATA_FRAME_ADMIN);

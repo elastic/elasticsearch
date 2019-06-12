@@ -91,7 +91,7 @@ public class ReindexBasicTests extends ReindexTestCase {
         assertHitCount(client().prepareSearch("dest_half").setSize(0).get(), half);
     }
 
-    public void testCopyManyNew() throws Exception {
+    public void testCopyManyPersistent() throws Exception {
         List<IndexRequestBuilder> docs = new ArrayList<>();
         int max = between(150, 500);
         for (int i = 0; i < max; i++) {

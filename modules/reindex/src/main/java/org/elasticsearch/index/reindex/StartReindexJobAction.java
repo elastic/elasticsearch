@@ -39,6 +39,7 @@ public class StartReindexJobAction extends Action<StartReindexJobAction.Response
     public static class Request extends AcknowledgedRequest<Request> implements ToXContentObject {
 
         private ReindexRequest reindexRequest;
+        private boolean waitForCompletion = false;
 
         public Request() {
 
@@ -51,6 +52,7 @@ public class StartReindexJobAction extends Action<StartReindexJobAction.Response
         public Request(StreamInput in) throws IOException {
             super(in);
             reindexRequest = new ReindexRequest(in);
+            waitForCompletion = in.readBoolean();
         }
 
 //        public static Request fromXContent(final XContentParser parser, final String id) throws IOException {
@@ -69,6 +71,7 @@ public class StartReindexJobAction extends Action<StartReindexJobAction.Response
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             reindexRequest.writeTo(out);
+            out.writeBoolean(waitForCompletion);
         }
 
         @Override
@@ -83,6 +86,14 @@ public class StartReindexJobAction extends Action<StartReindexJobAction.Response
 
         public ReindexRequest getReindexRequest() {
             return reindexRequest;
+        }
+
+        public void setWaitForCompletion(boolean waitForCompletion) {
+            this.waitForCompletion = waitForCompletion;
+        }
+
+        public boolean getWaitForCompletion() {
+            return waitForCompletion;
         }
     }
 

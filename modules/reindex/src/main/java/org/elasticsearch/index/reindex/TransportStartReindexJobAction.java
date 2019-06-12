@@ -75,9 +75,7 @@ public class TransportStartReindexJobAction
             new ActionListener<>() {
                 @Override
                 public void onResponse(PersistentTasksCustomMetaData.PersistentTask<ReindexJob> persistentTask) {
-                    boolean waitForReindexToComplete = true;
-
-                    if (waitForReindexToComplete) {
+                    if (request.getWaitForCompletion()) {
                         waitForReindexDone(taskId, listener);
                     } else {
                         waitForReindexTask(taskId, listener);

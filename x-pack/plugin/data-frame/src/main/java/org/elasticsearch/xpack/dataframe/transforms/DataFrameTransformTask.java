@@ -47,7 +47,6 @@ import org.elasticsearch.xpack.dataframe.transforms.pivot.AggregationResultUtils
 
 import java.util.Arrays;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
@@ -455,7 +454,7 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
         private final String transformId;
         private final DataFrameTransformTask transformTask;
         private final AtomicInteger failureCount;
-        private final AtomicBoolean auditBulkFailures = new AtomicBoolean(true);
+        private volatile boolean auditBulkFailures = true;
         // Keeps track of the last exception that was written to our audit, keeps us from spamming the audit index
         private volatile String lastAuditedExceptionMessage = null;
 
@@ -550,7 +549,7 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
                 BulkAction.INSTANCE,
                 request,
                 ActionListener.wrap(bulkResponse -> {
-                    if (bulkResponse.hasFailures() && auditBulkFailures.get()) {
+                    if (bulkResponse.hasFailures() && auditBulkFailures) {
                         int failureCount = 0;
                         for(BulkItemResponse item : bulkResponse.getItems()) {
                             if (item.isFailed()) {
@@ -560,8 +559,9 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
                         auditor.warning(transformId,
                             "Experienced at least [" +
                                 failureCount +
-                                "] bulk index failures. See the logs of the node running the transform for details.");
-                        auditBulkFailures.set(false);
+                                "] bulk index failures. See the logs of the node running the transform for details. " +
+                                bulkResponse.buildFailureMessage());
+                        auditBulkFailures = false;
                     }
                     nextPhase.onResponse(bulkResponse);
                 }, nextPhase::onFailure));
@@ -634,7 +634,7 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
                 auditor.info(transformTask.getTransformId(), "Finished indexing for data frame transform checkpoint [" + checkpoint + "].");
                 logger.info(
                     "Finished indexing for data frame transform [" + transformTask.getTransformId() + "] checkpoint [" + checkpoint + "]");
-                auditBulkFailures.set(true);
+                auditBulkFailures = true;
                 listener.onResponse(null);
             } catch (Exception e) {
                 listener.onFailure(e);

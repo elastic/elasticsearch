@@ -78,6 +78,7 @@ sourceSets {
     }
     test {
         compileClasspath += minimumRuntime.output
+        runtimeClasspath += minimumRuntime.output
     }
 }
 

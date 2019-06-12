@@ -2131,9 +2131,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         final boolean asyncDurability = indexSettings().getTranslogDurability() == Translog.Durability.ASYNC;
         if (stats.getMaxSeqNo() == stats.getGlobalCheckpoint() || asyncDurability) {
             final ObjectLongMap<String> globalCheckpoints = getInSyncGlobalCheckpoints();
-            final String allocationId = routingEntry().allocationId().getId();
-            assert globalCheckpoints.containsKey(allocationId);
-            final long globalCheckpoint = globalCheckpoints.get(allocationId);
+            final long globalCheckpoint = replicationTracker.getGlobalCheckpoint();
             // async durability means that the local checkpoint might lag (as it is only advanced on fsync)
             // periodically ask for the newest local checkpoint by syncing the global checkpoint, so that ultimately the global
             // checkpoint can be synced
@@ -2142,9 +2140,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     // check if the persisted global checkpoint
                     || StreamSupport
                             .stream(globalCheckpoints.values().spliterator(), false)
-                            .anyMatch(v -> v.value < globalCheckpoint)
-                    // special handling for global checkpoint of current shard copy as the entry is not the persisted global checkpoint
-                    || getLastSyncedGlobalCheckpoint() < globalCheckpoint;
+                            .anyMatch(v -> v.value < globalCheckpoint);
             // only sync if index is not closed and there is a shard lagging the primary
             if (syncNeeded && indexSettings.getIndexMetaData().getState() == IndexMetaData.State.OPEN) {
                 logger.trace("syncing global checkpoint for [{}]", reason);

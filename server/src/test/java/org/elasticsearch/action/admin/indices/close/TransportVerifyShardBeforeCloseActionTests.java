@@ -304,6 +304,11 @@ public class TransportVerifyShardBeforeCloseActionTests extends ESTestCase {
                     }
 
                     @Override
+                    public long computedGlobalCheckpoint() {
+                        return 0;
+                    }
+
+                    @Override
                     public long globalCheckpoint() {
                         return 0;
                     }

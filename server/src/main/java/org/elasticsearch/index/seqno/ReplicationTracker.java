@@ -146,9 +146,15 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
     final Map<String, CheckpointState> checkpoints;
 
     /**
-     * A callback invoked when the global checkpoint is updated. For primary mode this occurs if the computed global checkpoint advances on
-     * the basis of state changes tracked here. For non-primary mode this occurs if the local knowledge of the global checkpoint advances
-     * due to an update from the primary.
+     * The current in-memory global checkpoint. In primary mode, this is a cached version of the checkpoint computed from the local
+     * checkpoints. In replica mode, this is the in-memory global checkpoint that's communicated by the primary.
+     */
+    volatile long globalCheckpoint;
+
+    /**
+     * A callback invoked when the in-memory global checkpoint is updated. For primary mode this occurs if the computed global checkpoint
+     * advances on the basis of state changes tracked here. For non-primary mode this occurs if the local knowledge of the global checkpoint
+     * advances due to an update from the primary.
      */
     private final LongConsumer onGlobalCheckpointUpdated;
 
@@ -398,9 +404,8 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
         long localCheckpoint;
 
         /**
-         * the last global checkpoint information that we have for this shard. This information is computed for the primary if
-         * the tracker is in primary mode and received from the primary if in replica mode. For all shard copies except the current one,
-         * this is the global checkpoint that's fsynced to disk. For the current copy, it is the in-memory global checkpoint. TODO: fix this
+         * the last global checkpoint information that we have for this shard. This is the global checkpoint that's fsynced to disk on the
+         * respective shard, and all operations up to this point are properly fsynced to disk as well.
          */
         long globalCheckpoint;
         /**
@@ -484,9 +489,9 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
     }
 
     /**
-     * Get the local knowledge of the global checkpoints for all in-sync allocation IDs.
+     * Get the local knowledge of the persisted global checkpoints for all in-sync allocation IDs.
      *
-     * @return a map from allocation ID to the local knowledge of the global checkpoint for that allocation ID
+     * @return a map from allocation ID to the local knowledge of the persisted global checkpoint for that allocation ID
      */
     public synchronized ObjectLongMap<String> getInSyncGlobalCheckpoints() {
         assert primaryMode;
@@ -539,20 +544,11 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
      * as a logical operator, many of the invariants are written under the form (!A || B), they should be read as (A implies B) however.
      */
     private boolean invariant() {
-        assert checkpoints.get(shardAllocationId) != null :
-            "checkpoints map should always have an entry for the current shard";
-
         // local checkpoints only set during primary mode
         assert primaryMode || checkpoints.values().stream().allMatch(lcps -> lcps.localCheckpoint == SequenceNumbers.UNASSIGNED_SEQ_NO);
 
-        // global checkpoints for other shards only set during primary mode
-        assert primaryMode
-                || checkpoints
-                .entrySet()
-                .stream()
-                .filter(e -> e.getKey().equals(shardAllocationId) == false)
-                .map(Map.Entry::getValue)
-                .allMatch(cps -> cps.globalCheckpoint == SequenceNumbers.UNASSIGNED_SEQ_NO);
+        // global checkpoints only set during primary mode
+        assert primaryMode || checkpoints.values().stream().allMatch(cps -> cps.globalCheckpoint == SequenceNumbers.UNASSIGNED_SEQ_NO);
 
         // relocation handoff can only occur in primary mode
         assert !handoffInProgress || primaryMode;
@@ -581,14 +577,14 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
 
         // the computed global checkpoint is always up-to-date
         assert !primaryMode
-                || getGlobalCheckpoint() == computeGlobalCheckpoint(pendingInSync, checkpoints.values(), getGlobalCheckpoint())
+                || globalCheckpoint == computeGlobalCheckpoint(pendingInSync, checkpoints.values(), globalCheckpoint)
                 : "global checkpoint is not up-to-date, expected: " +
-                computeGlobalCheckpoint(pendingInSync, checkpoints.values(), getGlobalCheckpoint()) + " but was: " + getGlobalCheckpoint();
+                computeGlobalCheckpoint(pendingInSync, checkpoints.values(), globalCheckpoint) + " but was: " + globalCheckpoint;
 
         // when in primary mode, the global checkpoint is at most the minimum local checkpoint on all in-sync shard copies
         assert !primaryMode
-                || getGlobalCheckpoint() <= inSyncCheckpointStates(checkpoints, CheckpointState::getLocalCheckpoint, LongStream::min)
-                : "global checkpoint [" + getGlobalCheckpoint() + "] "
+                || globalCheckpoint <= inSyncCheckpointStates(checkpoints, CheckpointState::getLocalCheckpoint, LongStream::min)
+                : "global checkpoint [" + globalCheckpoint + "] "
                 + "for primary mode allocation ID [" + shardAllocationId + "] "
                 + "more than in-sync local checkpoints [" + checkpoints + "]";
 
@@ -662,8 +658,8 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
         this.operationPrimaryTerm = operationPrimaryTerm;
         this.handoffInProgress = false;
         this.appliedClusterStateVersion = -1L;
+        this.globalCheckpoint = globalCheckpoint;
         this.checkpoints = new HashMap<>(1 + indexSettings.getNumberOfReplicas());
-        checkpoints.put(allocationId, new CheckpointState(SequenceNumbers.UNASSIGNED_SEQ_NO, globalCheckpoint, false, false));
         this.onGlobalCheckpointUpdated = Objects.requireNonNull(onGlobalCheckpointUpdated);
         this.currentTimeMillisSupplier = Objects.requireNonNull(currentTimeMillisSupplier);
         this.onSyncRetentionLeases = Objects.requireNonNull(onSyncRetentionLeases);
@@ -695,9 +691,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
      * @return the global checkpoint
      */
     public synchronized long getGlobalCheckpoint() {
-        final CheckpointState cps = checkpoints.get(shardAllocationId);
-        assert cps != null;
-        return cps.globalCheckpoint;
+        return globalCheckpoint;
     }
 
     @Override
@@ -708,10 +702,10 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
     /**
      * Updates the global checkpoint on a replica shard after it has been updated by the primary.
      *
-     * @param globalCheckpoint the global checkpoint
-     * @param reason           the reason the global checkpoint was updated
+     * @param newGlobalCheckpoint the new global checkpoint
+     * @param reason              the reason the global checkpoint was updated
      */
-    public synchronized void updateGlobalCheckpointOnReplica(final long globalCheckpoint, final String reason) {
+    public synchronized void updateGlobalCheckpointOnReplica(final long newGlobalCheckpoint, final String reason) {
         assert invariant();
         assert primaryMode == false;
         /*
@@ -720,13 +714,12 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
          * replica shards). In these cases, the local knowledge of the global checkpoint could be higher than the sync from the lagging
          * primary.
          */
-        updateGlobalCheckpoint(
-                shardAllocationId,
-                globalCheckpoint,
-                current -> {
-                    logger.trace("updated global checkpoint from [{}] to [{}] due to [{}]", current, globalCheckpoint, reason);
-                    onGlobalCheckpointUpdated.accept(globalCheckpoint);
-                });
+        if (newGlobalCheckpoint > globalCheckpoint) {
+            final long previousGlobalCheckpoint = globalCheckpoint;
+            globalCheckpoint = newGlobalCheckpoint;
+            logger.trace("updated global checkpoint from [{}] to [{}] due to [{}]", previousGlobalCheckpoint, globalCheckpoint, reason);
+            onGlobalCheckpointUpdated.accept(globalCheckpoint);
+        }
         assert invariant();
     }
 
@@ -740,24 +733,14 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
         assert primaryMode;
         assert handoffInProgress == false;
         assert invariant();
-        updateGlobalCheckpoint(
-                allocationId,
-                globalCheckpoint,
-                current -> logger.trace(
-                        "updated local knowledge for [{}] on the primary of the global checkpoint from [{}] to [{}]",
-                        allocationId,
-                        current,
-                        globalCheckpoint));
-        assert invariant();
-    }
-
-    private void updateGlobalCheckpoint(final String allocationId, final long globalCheckpoint, LongConsumer ifUpdated) {
         final CheckpointState cps = checkpoints.get(allocationId);
         assert !this.shardAllocationId.equals(allocationId) || cps != null;
         if (cps != null && globalCheckpoint > cps.globalCheckpoint) {
             cps.globalCheckpoint = globalCheckpoint;
-            ifUpdated.accept(cps.globalCheckpoint);
+            logger.trace("updated local knowledge for [{}] on the primary of the global checkpoint from [{}] to [{}]",
+                allocationId, cps.globalCheckpoint, globalCheckpoint);
         }
+        assert invariant();
     }
 
     /**
@@ -815,23 +798,14 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
                 }
             } else {
                 for (String initializingId : initializingAllocationIds) {
-                    if (shardAllocationId.equals(initializingId) == false) {
-                        final long localCheckpoint = SequenceNumbers.UNASSIGNED_SEQ_NO;
-                        final long globalCheckpoint = localCheckpoint;
-                        checkpoints.put(initializingId, new CheckpointState(localCheckpoint, globalCheckpoint, false, false));
-                    }
+                    final long localCheckpoint = SequenceNumbers.UNASSIGNED_SEQ_NO;
+                    final long globalCheckpoint = localCheckpoint;
+                    checkpoints.put(initializingId, new CheckpointState(localCheckpoint, globalCheckpoint, false, false));
                 }
                 for (String inSyncId : inSyncAllocationIds) {
-                    if (shardAllocationId.equals(inSyncId)) {
-                        // current shard is initially marked as not in-sync because we don't know better at that point
-                        CheckpointState checkpointState = checkpoints.get(shardAllocationId);
-                        checkpointState.inSync = true;
-                        checkpointState.tracked = true;
-                    } else {
-                        final long localCheckpoint = SequenceNumbers.UNASSIGNED_SEQ_NO;
-                        final long globalCheckpoint = localCheckpoint;
-                        checkpoints.put(inSyncId, new CheckpointState(localCheckpoint, globalCheckpoint, true, true));
-                    }
+                    final long localCheckpoint = SequenceNumbers.UNASSIGNED_SEQ_NO;
+                    final long globalCheckpoint = localCheckpoint;
+                    checkpoints.put(inSyncId, new CheckpointState(localCheckpoint, globalCheckpoint, true, true));
                 }
             }
             appliedClusterStateVersion = applyingClusterStateVersion;
@@ -991,13 +965,11 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
      */
     private synchronized void updateGlobalCheckpointOnPrimary() {
         assert primaryMode;
-        final CheckpointState cps = checkpoints.get(shardAllocationId);
-        final long globalCheckpoint = cps.globalCheckpoint;
         final long computedGlobalCheckpoint = computeGlobalCheckpoint(pendingInSync, checkpoints.values(), getGlobalCheckpoint());
         assert computedGlobalCheckpoint >= globalCheckpoint : "new global checkpoint [" + computedGlobalCheckpoint +
             "] is lower than previous one [" + globalCheckpoint + "]";
         if (globalCheckpoint != computedGlobalCheckpoint) {
-            cps.globalCheckpoint = computedGlobalCheckpoint;
+            globalCheckpoint = computedGlobalCheckpoint;
             logger.trace("updated global checkpoint to [{}]", computedGlobalCheckpoint);
             onGlobalCheckpointUpdated.accept(computedGlobalCheckpoint);
         }
@@ -1047,13 +1019,10 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
         primaryMode = false;
         handoffInProgress = false;
         relocated = true;
-        // forget all checkpoint information except for global checkpoint of current shard
+        // forget all checkpoint information
         checkpoints.forEach((key, cps) -> {
             cps.localCheckpoint = SequenceNumbers.UNASSIGNED_SEQ_NO;
-            if (key.equals(shardAllocationId) == false) {
-                // don't throw global checkpoint information of current shard away
-                cps.globalCheckpoint = SequenceNumbers.UNASSIGNED_SEQ_NO;
-            }
+            cps.globalCheckpoint = SequenceNumbers.UNASSIGNED_SEQ_NO;
         });
         assert invariant();
     }

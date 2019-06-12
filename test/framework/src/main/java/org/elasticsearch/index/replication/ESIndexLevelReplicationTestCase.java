@@ -657,6 +657,11 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
 
             @Override
             public long globalCheckpoint() {
+                return getPrimaryShard().getLastSyncedGlobalCheckpoint();
+            }
+
+            @Override
+            public long computedGlobalCheckpoint() {
                 return getPrimaryShard().getGlobalCheckpoint();
             }
 

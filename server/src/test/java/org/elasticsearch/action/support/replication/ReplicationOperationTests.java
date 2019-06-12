@@ -534,6 +534,11 @@ public class ReplicationOperationTests extends ESTestCase {
         }
 
         @Override
+        public long computedGlobalCheckpoint() {
+            return globalCheckpoint;
+        }
+
+        @Override
         public long maxSeqNoOfUpdatesOrDeletes() {
             return maxSeqNoOfUpdatesOrDeletes;
         }

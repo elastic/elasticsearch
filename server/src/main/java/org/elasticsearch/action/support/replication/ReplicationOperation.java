@@ -111,6 +111,7 @@ public class ReplicationOperation<
     private void handlePrimaryResult(final PrimaryResultT primaryResult) {
         this.primaryResult = primaryResult;
         primary.updateLocalCheckpointForShard(primary.routingEntry().allocationId().getId(), primary.localCheckpoint());
+        primary.updateGlobalCheckpointForShard(primary.routingEntry().allocationId().getId(), primary.globalCheckpoint());
         final ReplicaRequest replicaRequest = primaryResult.replicaRequest();
         if (replicaRequest != null) {
             if (logger.isTraceEnabled()) {
@@ -123,7 +124,7 @@ public class ReplicationOperation<
             // is valid for this replication group. If we would sample in the reverse, the global checkpoint might be based on a subset
             // of the sampled replication group, and advanced further than what the given replication group would allow it to.
             // This would entail that some shards could learn about a global checkpoint that would be higher than its local checkpoint.
-            final long globalCheckpoint = primary.globalCheckpoint();
+            final long globalCheckpoint = primary.computedGlobalCheckpoint();
             // we have to capture the max_seq_no_of_updates after this request was completed on the primary to make sure the value of
             // max_seq_no_of_updates on replica when this request is executed is at least the value on the primary when it was executed
             // on.
@@ -346,6 +347,13 @@ public class ReplicationOperation<
          * @return the local checkpoint
          */
         long localCheckpoint();
+
+        /**
+         * Returns the global checkpoint on the primary shard.
+         *
+         * @return the global checkpoint
+         */
+        long computedGlobalCheckpoint();
 
         /**
          * Returns the global checkpoint on the primary shard.

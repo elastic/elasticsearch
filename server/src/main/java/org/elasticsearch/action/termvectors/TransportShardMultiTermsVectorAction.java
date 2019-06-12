@@ -88,10 +88,10 @@ public class TransportShardMultiTermsVectorAction extends
                 if (TransportActions.isShardNotAvailableException(e)) {
                     throw e;
                 } else {
-                    logger.debug(() -> new ParameterizedMessage("{} failed to execute multi term vectors for [{}]/[{}]",
-                        shardId, termVectorsRequest.type(), termVectorsRequest.id()), e);
+                    logger.debug(() -> new ParameterizedMessage("{} failed to execute multi term vectors for [{}]", shardId,
+                            termVectorsRequest.id()), e);
                     response.add(request.locations.get(i),
-                            new MultiTermVectorsResponse.Failure(request.index(), termVectorsRequest.type(), termVectorsRequest.id(), e));
+                            new MultiTermVectorsResponse.Failure(request.index(), termVectorsRequest.id(), e));
                 }
             }
         }

@@ -3,7 +3,6 @@
     "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/search-search.html",
     "methods": ["GET", "POST"],
     "url": {
-      "path": "/_search",
       "paths": ["/_search", "/{index}/_search"],
       "parts": {
         "index": {

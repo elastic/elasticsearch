@@ -236,8 +236,8 @@ public class SetupPasswordToolTests extends CommandTestCase {
         URL xpackSecurityPluginQueryURL = queryXPackSecurityFeatureConfigURL(url);
 
         Set<FeatureSet> featureSets = new HashSet<>();
-        featureSets.add(new FeatureSet("logstash", null, true, true, null));
-        featureSets.add(new FeatureSet("security", null, true, true, null));
+        featureSets.add(new FeatureSet("logstash", true, true, null));
+        featureSets.add(new FeatureSet("security", true, true, null));
         FeatureSetsInfo featureInfos = new FeatureSetsInfo(featureSets);
         XPackInfoResponse xpackInfo = new XPackInfoResponse(null, null, featureInfos);
         String securityPluginQueryResponseBody = null;
@@ -267,8 +267,8 @@ public class SetupPasswordToolTests extends CommandTestCase {
                 any(CheckedFunction.class))).thenReturn(httpResponse);
 
         Set<FeatureSet> featureSets = new HashSet<>();
-        featureSets.add(new FeatureSet("logstash", null, true, true, null));
-        featureSets.add(new FeatureSet("security", null, false, false, null));
+        featureSets.add(new FeatureSet("logstash", true, true, null));
+        featureSets.add(new FeatureSet("security", false, false, null));
         FeatureSetsInfo featureInfos = new FeatureSetsInfo(featureSets);
         XPackInfoResponse xpackInfo = new XPackInfoResponse(null, null, featureInfos);
         String securityPluginQueryResponseBody = null;
@@ -298,8 +298,8 @@ public class SetupPasswordToolTests extends CommandTestCase {
                 any(CheckedFunction.class))).thenReturn(httpResponse);
 
         Set<FeatureSet> featureSets = new HashSet<>();
-        featureSets.add(new FeatureSet("logstash", null, true, true, null));
-        featureSets.add(new FeatureSet("security", null, true, false, null));
+        featureSets.add(new FeatureSet("logstash", true, true, null));
+        featureSets.add(new FeatureSet("security", true, false, null));
         FeatureSetsInfo featureInfos = new FeatureSetsInfo(featureSets);
         XPackInfoResponse xpackInfo = new XPackInfoResponse(null, null, featureInfos);
         String securityPluginQueryResponseBody = null;

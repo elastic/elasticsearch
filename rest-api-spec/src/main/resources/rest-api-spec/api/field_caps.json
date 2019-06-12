@@ -3,7 +3,6 @@
     "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/search-field-caps.html",
     "methods": ["GET", "POST"],
     "url": {
-      "path": "/_field_caps",
       "paths": [
         "/_field_caps",
         "/{index}/_field_caps"

@@ -3,7 +3,6 @@
     "documentation": "https://www.elastic.co/guide/en/elasticsearch/reference/current/graph-explore-api.html",
     "methods": ["GET", "POST"],
     "url": {
-      "path": "/{index}/_graph/explore",
       "paths": ["/{index}/_graph/explore"],
       "deprecated_paths" : [
         {

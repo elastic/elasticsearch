@@ -3,7 +3,6 @@
     "documentation": "https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-delete-by-query.html",
     "methods": ["POST"],
     "url": {
-      "path": "/_delete_by_query/{task_id}/_rethrottle",
       "paths": ["/_delete_by_query/{task_id}/_rethrottle"],
       "parts": {
         "task_id": {

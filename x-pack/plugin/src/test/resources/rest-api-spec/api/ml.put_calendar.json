@@ -2,7 +2,6 @@
   "ml.put_calendar": {
     "methods": [ "PUT" ],
     "url": {
-      "path": "/_ml/calendars/{calendar_id}",
       "paths": [ "/_ml/calendars/{calendar_id}" ],
       "parts": {
         "calendar_id": {

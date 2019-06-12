@@ -3,7 +3,6 @@
     "documentation": "https://www.elastic.co/guide/en/elasticsearch/reference/current/info-api.html",
     "methods": [ "GET" ],
     "url": {
-      "path": "/_xpack",
       "paths": [ "/_xpack" ],
       "parts": {},
       "params": {

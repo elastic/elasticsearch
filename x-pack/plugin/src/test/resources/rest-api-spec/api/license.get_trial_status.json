@@ -3,7 +3,6 @@
     "documentation": "https://www.elastic.co/guide/en/elasticsearch/reference/master/get-trial-status.html",
     "methods": ["GET"],
     "url": {
-      "path": "/_license/trial_status",
       "paths": ["/_license/trial_status"],
       "parts" : {
       },

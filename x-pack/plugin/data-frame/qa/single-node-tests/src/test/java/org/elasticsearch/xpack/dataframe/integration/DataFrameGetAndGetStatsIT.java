@@ -107,7 +107,7 @@ public class DataFrameGetAndGetStatsIT extends DataFrameRestTestCase {
         assertEquals(1, transformsStats.size());
         Map<String, Object> state = (Map<String, Object>) XContentMapValues.extractValue("state", transformsStats.get(0));
         assertEquals(1, transformsStats.size());
-        assertEquals("started", XContentMapValues.extractValue("task_state", state));
+        assertEquals("stopped", XContentMapValues.extractValue("task_state", state));
         assertEquals(null, XContentMapValues.extractValue("current_position", state));
         assertEquals(1, XContentMapValues.extractValue("checkpoint", state));
 

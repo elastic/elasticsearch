@@ -53,7 +53,7 @@ public class DataFrameAuditorIT extends DataFrameRestTestCase {
 
     @SuppressWarnings("unchecked")
     public void testAuditorWritesAudits() throws Exception {
-        String transformId = "simplePivotForAudit";
+        String transformId = "simple_pivot_for_audit";
         String dataFrameIndex = "pivot_reviews_user_id_above_20";
         setupDataAccessRole(DATA_ACCESS_ROLE, REVIEWS_INDEX_NAME, dataFrameIndex);
         String query = "\"match\": {\"user_id\": \"user_26\"}";
@@ -64,7 +64,7 @@ public class DataFrameAuditorIT extends DataFrameRestTestCase {
 
         // Make sure we wrote to the audit
         final Request request = new Request("GET", DataFrameInternalIndex.AUDIT_INDEX + "/_search");
-        request.setJsonEntity("{\"query\":{\"term\":{\"transform_id\":\"simplePivotForAudit\"}}}");
+        request.setJsonEntity("{\"query\":{\"term\":{\"transform_id\":\"simple_pivot_for_audit\"}}}");
         assertBusy(() -> {
             assertTrue(indexExists(DataFrameInternalIndex.AUDIT_INDEX));
         });

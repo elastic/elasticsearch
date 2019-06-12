@@ -8,6 +8,8 @@
 <titleabbrev>Create {dataframe-transforms}</titleabbrev>
 ++++
 
+beta[]
+
 Instantiates a {dataframe-transform}.
 
 
@@ -44,7 +46,15 @@ reduce the data. See <<data-frame-transform-pivot, data frame transform pivot ob
 `description`:: Optional free text description of the data frame transform
 
 
-//==== Authorization
+==== Authorization
+
+If the {es} {security-features} are enabled, you must have
+`manage_data_frame_transforms` cluster privileges to use this API. The built-in
+`data_frame_transforms_admin` role has these privileges. You must also
+have `read` and `view_index_metadata` privileges on the source index and `read`,
+`create_index`, and `index` privileges on the destination index. For more
+information, see {stack-ov}/security-privileges.html[Security privileges] and
+{stack-ov}/built-in-roles.html[Built-in roles].
 
 ==== Examples
 
@@ -88,7 +98,7 @@ PUT _data_frame/transforms/ecommerce_transform
 }
 --------------------------------------------------
 // CONSOLE
-// TEST[skip:add sample kibana data]
+// TEST[setup:kibana_sample_data_ecommerce]
 
 When the transform is created, you receive the following results:
 [source,js]
@@ -97,4 +107,4 @@ When the transform is created, you receive the following results:
   "acknowledged" : true
 }
 ----
-// NOTCONSOLE
+// TESTRESPONSE

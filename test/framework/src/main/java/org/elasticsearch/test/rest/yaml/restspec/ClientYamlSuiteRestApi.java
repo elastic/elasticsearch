@@ -24,6 +24,7 @@ import org.apache.http.client.methods.HttpPut;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
@@ -39,6 +40,12 @@ public class ClientYamlSuiteRestApi {
     private Map<String, Boolean> pathParts = new HashMap<>();
     private Map<String, Boolean> params = new HashMap<>();
     private Body body = Body.NOT_SUPPORTED;
+    private Stability stability = Stability.UNKNOWN;
+
+    public enum Stability
+    {
+        UNKNOWN, EXPERIMENTAL, BETA, STABLE
+    }
 
     public enum Body {
         NOT_SUPPORTED, OPTIONAL, REQUIRED
@@ -138,6 +145,12 @@ public class ClientYamlSuiteRestApi {
     public boolean isBodyRequired() {
         return body == Body.REQUIRED;
     }
+
+    public void setStability(String stability) {
+        this.stability = ClientYamlSuiteRestApi.Stability.valueOf(stability.toUpperCase(Locale.ROOT));
+    }
+
+    public Stability getStability() { return this.stability; }
 
     /**
      * Finds the best matching rest path given the current parameters and replaces

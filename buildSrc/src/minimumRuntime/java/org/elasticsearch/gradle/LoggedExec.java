@@ -79,7 +79,13 @@ public class LoggedExec extends Exec {
             };
         } else {
             out = new ByteArrayOutputStream();
-            outputLogger = logger -> logger.error(((ByteArrayOutputStream) out).toString(StandardCharsets.UTF_8));
+            outputLogger = logger -> {
+                try {
+                    logger.error(((ByteArrayOutputStream) out).toString("UTF-8"));
+                } catch (UnsupportedEncodingException e) {
+                    throw new RuntimeException(e);
+                }
+            };
         }
         setStandardOutput(out);
         setErrorOutput(out);

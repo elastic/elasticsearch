@@ -67,8 +67,28 @@ if (JavaVersion.current() < JavaVersion.VERSION_11) {
 }
 
 // Keep compatibility with Java 8 for external users of build-tools that haven't migrated to Java 11
-targetCompatibility = '8'
-sourceCompatibility = '8'
+targetCompatibility = '11'
+sourceCompatibility = '11'
+
+sourceSets {
+    // We have a few classes that need to be compiled for older java versions
+    minimumRuntime { }
+    main {
+        compileClasspath += minimumRuntime.output
+    }
+    test {
+        compileClasspath += minimumRuntime.output
+    }
+}
+
+compileMinimumRuntimeJava {
+    targetCompatibility = 8
+    sourceCompatibility = 8
+}
+
+jar {
+    from sourceSets.minimumRuntime.output
+}
 
 /*****************************************************************************
  *                    Dependencies used by the entire build                  *
@@ -76,6 +96,10 @@ sourceCompatibility = '8'
 
 repositories {
   jcenter()
+}
+
+configurations {
+    minimumRuntimeCompile.extendsFrom compile
 }
 
 dependencies {
@@ -120,10 +144,6 @@ if (project != rootProject) {
   apply plugin: 'elasticsearch.build'
   apply plugin: 'nebula.maven-base-publish'
   apply plugin: 'nebula.maven-scm'
-
-  // we need to apply these again to override the build plugin
-  targetCompatibility = "10"
-  sourceCompatibility = "10"
 
   // groovydoc succeeds, but has some weird internal exception...
   groovydoc.enabled = false

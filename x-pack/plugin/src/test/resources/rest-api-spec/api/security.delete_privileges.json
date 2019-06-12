@@ -1,6 +1,7 @@
 {
   "security.delete_privileges": {
     "documentation": "TODO",
+    "stability": "stable",
     "methods": [ "DELETE" ],
     "url": {
       "paths": [

@@ -10,6 +10,7 @@ Example for the ["Create Index"](http://www.elastic.co/guide/en/elasticsearch/re
 {
   "indices.create": {
     "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/indices-create-index.html",
+    "stability": "stable",
     "methods": ["PUT", "POST"],
     "url": {
       "paths": ["/{index}"],
@@ -38,9 +39,29 @@ The specification contains:
 
 * The _name_ of the API (`indices.create`), which usually corresponds to the client calls
 * Link to the documentation at <http://elastic.co>
+* `stability` indicating the state of the API, has to be declared explicitly or YAML tests will fail
+    * `experimental` highly likely to break in the near future (minor/path), no bwc guarantees. 
+    Possibly removed in the future.
+    * `beta` less likely to break or be removed but still reserve the right to do so
+    * `stable` No backwards breaking changes in a minor 
 * List of HTTP methods for the endpoint
 * URL specification: path, parts, parameters
 * Whether body is allowed for the endpoint or not and its description
+
+**NOTE** 
+If an API is stable but it response should be treated as an arbitrary map of key values please notate this as followed
+
+```json
+{
+  "api.name": {
+    "stability" : "stable",
+    "response": {
+      "treat_json_as_key_value" : true
+    }
+  }
+}
+```
+
 
 The `methods` and `url.paths` elements list all possible HTTP methods and URLs for the endpoint;
 it is the responsibility of the developer to use this information for a sensible API on the target platform.

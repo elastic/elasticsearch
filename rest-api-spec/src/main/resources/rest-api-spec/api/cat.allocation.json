@@ -1,6 +1,7 @@
 {
   "cat.allocation": {
     "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/cat-allocation.html",
+    "stability": "stable",
     "methods": ["GET"],
     "url": {
       "paths": ["/_cat/allocation", "/_cat/allocation/{node_id}"],

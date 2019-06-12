@@ -43,6 +43,7 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.analysis.AnalyzerComponents;
+import org.elasticsearch.index.analysis.AnalyzerComponentsProvider;
 import org.elasticsearch.index.analysis.CharFilterFactory;
 import org.elasticsearch.index.analysis.CustomAnalyzer;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
@@ -276,25 +277,12 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeAc
         }
 
         if (customAnalyzer != null) {
+            AnalyzerComponents components = ((AnalyzerComponentsProvider) customAnalyzer).getComponents();
             // divide charfilter, tokenizer tokenfilters
-            CharFilterFactory[] charFilterFactories;
-            TokenizerFactory tokenizerFactory;
-            TokenFilterFactory[] tokenFilterFactories;
-            String tokenizerName;
-            if (customAnalyzer instanceof CustomAnalyzer) {
-                CustomAnalyzer casted = (CustomAnalyzer) customAnalyzer;
-                charFilterFactories = casted.charFilters();
-                tokenizerFactory = casted.tokenizerFactory();
-                tokenFilterFactories = casted.tokenFilters();
-                tokenizerName = casted.getTokenizerName();
-            } else {
-                // for ReloadableCustomAnalyzer we want to make sure we get the factories from the same components object
-                AnalyzerComponents components = ((ReloadableCustomAnalyzer) customAnalyzer).getComponents();
-                charFilterFactories = components.getCharFilters();
-                tokenizerFactory = components.getTokenizerFactory();
-                tokenFilterFactories = components.getTokenFilters();
-                tokenizerName = components.getTokenizerName();
-            }
+            CharFilterFactory[] charFilterFactories = components.getCharFilters();
+            TokenizerFactory tokenizerFactory = components.getTokenizerFactory();
+            TokenFilterFactory[] tokenFilterFactories = components.getTokenFilters();
+            String tokenizerName = components.getTokenizerName();
 
             String[][] charFiltersTexts = new String[charFilterFactories != null ? charFilterFactories.length : 0][request.text().length];
             TokenListCreator[] tokenFiltersTokenListCreator = new TokenListCreator[tokenFilterFactories != null ?

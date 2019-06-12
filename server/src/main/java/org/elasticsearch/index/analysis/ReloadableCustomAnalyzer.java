@@ -39,7 +39,7 @@ public final class ReloadableCustomAnalyzer extends Analyzer implements Analyzer
     private final int offsetGap;
 
     /**
-     * An alternative {@link ReuseStrategy} that allows swapping the stored the analyzer components when they change.
+     * An alternative {@link ReuseStrategy} that allows swapping the stored analyzer components when they change.
      * This is used to change e.g. token filters in search time analyzers.
      */
     private static final ReuseStrategy UPDATE_STRATEGY = new ReuseStrategy() {

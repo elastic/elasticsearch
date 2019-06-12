@@ -1,6 +1,6 @@
 [role="xpack"]
 [[backup-restore-security-configuration]]
-=== Backup and Restore Security Configuration
+=== Backing up and restoring security configuration
 
 The {es} {security-features} are configured by files and by various API
 endpoints. All these settings are namespaced under `xpack.security.*`. These
@@ -9,7 +9,7 @@ a special index, which holds most of the non-setting configuration, is also
 included.
 
 [float]
-==== Security Configuration Explained
+==== Security configuration explained
 
 The configuration files reside on every node and are usually identical across
 nodes. They are formatted as YAML text files. Also on every node, there is a
@@ -39,12 +39,12 @@ as well as the global cluster metadata contain settings for all the cluster's
 features, not only the {security-features}. It is easier to backup and restore
 all these configurations as a whole. Cherry-picking only {security-features}
 configurations complicates the procedure a bit, without many benefits because
-, after all, every configuration requires a backup! All the other <<security-files, configuration
-files>>  and the `.security` index contain exclusively {security-features}
-configuration data.
+, after all, every configuration requires a backup! All the other
+<<security-files, configuration files>> and the `.security` index contain
+exclusively {security-features} configuration data.
 
 [float]
-==== Backup of File Configuration
+==== Backup of file configuration
 
 The simplest way to backup file based configuration is a trivial copy of the
 `$ES_PATH_CONF` directory.  Overall, this is the identical procedure as for a
@@ -65,7 +65,7 @@ or the secure store file are extra sensitive; they require restricted read
 access.
 
 [float]
-==== Backup of API Based Configuration
+==== Backup of API-based configuration
 
 The backup of API based configuration uses the <<modules-snapshots, regular
 snapshot functionality>>. The snapshot API saves the settings, the type
@@ -123,7 +123,7 @@ NOTE: Transient settings are not considered for backup.
 --
 
 [float]
-==== Backup Repository Access
+==== Backup repository access
 
 Simply exposing the contents of the `.security` index, by having a third party
 read the snapshot, does not equate to a compromised cluster security. This is
@@ -148,7 +148,7 @@ the secure store is *not* password protected and any read access can compromise
 passwords of external systems and private keys.
 
 [float]
-==== Restore Security Configuration
+==== Restore security configuration
 
 The first part of restoring a Security configuration backup is restoring the
 `.security` index. You can restore a snapshot of the `.security` index only if
@@ -197,11 +197,11 @@ NOTE: after this step authentication will not work so all API calls will fail
  '
 --------------------------------------------------
 
-NOTE: restoring the global state is optional, but it will help make sure the
+NOTE: Restoring the global state is optional, but it will help make sure the
 --
 
 The next part is really common to every other backup restore; copy the backed-up
-configuration overwritting the contents of `$ES_PATH_CONF` and restart the node.
+configuration overwriting the contents of `$ES_PATH_CONF` and restart the node.
 
 Lastly, you can now cherry-pick and <<cluster-update-settings,  apply the
 persistent secure settings>> from earlier.

@@ -20,6 +20,7 @@ package org.elasticsearch.common.geo;
 
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.geo.geometry.ShapeType;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -27,14 +28,14 @@ import java.util.Arrays;
 /**
  * Shape edge-tree writer for use in doc-values
  */
-public class EdgeTreeWriter implements Writeable {
+public class EdgeTreeWriter extends ShapeTreeWriter {
 
     /**
      * | minY | maxY | x1 | y1 | x2 | y2 | right_offset |
      */
     static final int EDGE_SIZE_IN_BYTES = 28;
 
-    Extent extent;
+    private final Extent extent;
     final Edge tree;
 
     public EdgeTreeWriter(int[] x, int[] y) {
@@ -65,6 +66,16 @@ public class EdgeTreeWriter implements Writeable {
         Arrays.sort(edges);
         this.extent = new Extent(minX, minY, maxX, maxY);
         this.tree = createTree(edges, 0, edges.length - 1);
+    }
+
+    @Override
+    public Extent getExtent() {
+        return extent;
+    }
+
+    @Override
+    public ShapeType getShapeType() {
+        return ShapeType.POLYGON;
     }
 
     @Override

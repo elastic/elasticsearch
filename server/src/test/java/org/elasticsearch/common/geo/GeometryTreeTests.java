@@ -20,11 +20,15 @@ package org.elasticsearch.common.geo;
 
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.geo.geometry.LinearRing;
+import org.elasticsearch.geo.geometry.MultiPoint;
+import org.elasticsearch.geo.geometry.Point;
 import org.elasticsearch.geo.geometry.Polygon;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -98,6 +102,37 @@ public class GeometryTreeTests extends ESTestCase {
 
         // test cell crossing poly
         GeometryTreeWriter writer = new GeometryTreeWriter(new Polygon(new LinearRing(py, px), Collections.emptyList()));
+        BytesStreamOutput output = new BytesStreamOutput();
+        writer.writeTo(output);
+        output.close();
+        GeometryTreeReader reader = new GeometryTreeReader(output.bytes().toBytesRef());
+        assertTrue(reader.containedInOrCrosses(xMin, yMin, xMax, yMax));
+    }
+
+    public void testPacManPoints() throws Exception {
+        // pacman
+        List<Point> points = Arrays.asList(
+            new Point(0, 0),
+            new Point(5, 10),
+            new Point(9, 10),
+            new Point(10, 0),
+            new Point(9, -8),
+            new Point(0, -10),
+            new Point(-9, -8),
+            new Point(-10, 0),
+            new Point(-9, 10),
+            new Point(-5, 10)
+        );
+
+
+        // candidate containedInOrCrosses cell
+        int xMin = 0;
+        int xMax = 11;
+        int yMin = -10;
+        int yMax = 9;
+
+        // test cell crossing poly
+        GeometryTreeWriter writer = new GeometryTreeWriter(new MultiPoint(points));
         BytesStreamOutput output = new BytesStreamOutput();
         writer.writeTo(output);
         output.close();

@@ -16,36 +16,17 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+package org.elasticsearch.common.geo;
 
-package org.elasticsearch.geo.geometry;
-
-import java.util.List;
+import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.geo.geometry.ShapeType;
 
 /**
- * Represents a MultiPoint object on the earth's surface in decimal degrees and optional altitude in meters.
+ * Shape writer for use in doc-values
  */
-public class MultiPoint extends GeometryCollection<Point> {
-    public static final MultiPoint EMPTY = new MultiPoint();
+public abstract class ShapeTreeWriter implements Writeable {
 
-    private MultiPoint() {
-    }
+    public abstract Extent getExtent();
 
-    public MultiPoint(List<Point> points) {
-        super(points);
-    }
-
-    public List<Point> points() {
-        return shapes;
-    }
-
-    @Override
-    public ShapeType type() {
-        return ShapeType.MULTIPOINT;
-    }
-
-    @Override
-    public <T, E extends Exception> T visit(GeometryVisitor<T, E> visitor) throws E {
-        return visitor.visit(this);
-    }
-
+    public abstract ShapeType getShapeType();
 }

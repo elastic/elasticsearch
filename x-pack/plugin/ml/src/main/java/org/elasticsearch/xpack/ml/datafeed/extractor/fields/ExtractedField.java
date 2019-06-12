@@ -69,12 +69,12 @@ public abstract class ExtractedField {
         return new TimeField(name, extractionMethod);
     }
 
-    public static ExtractedField newGeoShapeField(String alias, String name, ExtractionMethod extractionMethod) {
-        return new GeoShapeField(alias, name, extractionMethod);
+    public static ExtractedField newGeoShapeField(String alias, String name) {
+        return new GeoShapeField(alias, name);
     }
 
-    public static ExtractedField newGeoPointField(String alias, String name, ExtractionMethod extractionMethod) {
-        return new GeoPointField(alias, name, extractionMethod);
+    public static ExtractedField newGeoPointField(String alias, String name) {
+        return new GeoPointField(alias, name);
     }
 
     public static ExtractedField newField(String name, ExtractionMethod extractionMethod) {
@@ -87,7 +87,7 @@ public abstract class ExtractedField {
             case SCRIPT_FIELD:
                 return new FromFields(alias, name, extractionMethod);
             case SOURCE:
-                return new FromSource(alias, name, extractionMethod);
+                return new FromSource(alias, name);
             default:
                 throw new IllegalArgumentException("Invalid extraction method [" + extractionMethod + "]");
         }
@@ -113,8 +113,8 @@ public abstract class ExtractedField {
     private static class GeoShapeField extends FromSource {
         private static final WellKnownText wkt = new WellKnownText();
 
-        GeoShapeField(String alias, String name, ExtractionMethod extractionMethod) {
-            super(alias, name, extractionMethod);
+        GeoShapeField(String alias, String name) {
+            super(alias, name);
         }
 
         @Override
@@ -170,11 +170,8 @@ public abstract class ExtractedField {
 
     private static class GeoPointField extends FromFields {
 
-        GeoPointField(String alias, String name, ExtractionMethod extractionMethod) {
-            super(alias, name, extractionMethod);
-            if (extractionMethod != ExtractionMethod.DOC_VALUE) {
-                throw new IllegalArgumentException("cannot use [geo_point] field with disabled doc values");
-            }
+        GeoPointField(String alias, String name) {
+            super(alias, name, ExtractionMethod.DOC_VALUE);
         }
 
         @Override
@@ -232,8 +229,8 @@ public abstract class ExtractedField {
 
         private String[] namePath;
 
-        FromSource(String alias, String name, ExtractionMethod extractionMethod) {
-            super(alias, name, extractionMethod);
+        FromSource(String alias, String name) {
+            super(alias, name, ExtractionMethod.SOURCE);
             namePath = name.split("\\.");
         }
 

@@ -20,9 +20,13 @@
 package org.elasticsearch.client;
 
 import org.apache.http.client.methods.HttpDelete;
+import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
+import org.elasticsearch.client.core.PageParams;
 import org.elasticsearch.client.dataframe.DeleteDataFrameTransformRequest;
+import org.elasticsearch.client.dataframe.GetDataFrameTransformRequest;
+import org.elasticsearch.client.dataframe.GetDataFrameTransformStatsRequest;
 import org.elasticsearch.client.dataframe.PreviewDataFrameTransformRequest;
 import org.elasticsearch.client.dataframe.PutDataFrameTransformRequest;
 import org.elasticsearch.client.dataframe.StartDataFrameTransformRequest;
@@ -40,13 +44,15 @@ import org.elasticsearch.test.ESTestCase;
 import java.io.IOException;
 import java.util.Collections;
 
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasEntry;
 
 public class DataFrameRequestConvertersTests extends ESTestCase {
 
     @Override
     protected NamedXContentRegistry xContentRegistry() {
-        SearchModule searchModule = new SearchModule(Settings.EMPTY, false, Collections.emptyList());
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, Collections.emptyList());
         return new NamedXContentRegistry(searchModule.getNamedXContents());
     }
 
@@ -136,5 +142,63 @@ public class DataFrameRequestConvertersTests extends ESTestCase {
             DataFrameTransformConfig parsedConfig = DataFrameTransformConfig.PARSER.apply(parser, null);
             assertThat(parsedConfig, equalTo(previewRequest.getConfig()));
         }
+    }
+
+    public void testGetDataFrameTransformStats() {
+        GetDataFrameTransformStatsRequest getStatsRequest = new GetDataFrameTransformStatsRequest("foo");
+        Request request = DataFrameRequestConverters.getDataFrameTransformStats(getStatsRequest);
+
+        assertEquals(HttpGet.METHOD_NAME, request.getMethod());
+        assertThat(request.getEndpoint(), equalTo("/_data_frame/transforms/foo/_stats"));
+
+        assertFalse(request.getParameters().containsKey("from"));
+        assertFalse(request.getParameters().containsKey("size"));
+
+        getStatsRequest.setPageParams(new PageParams(0, null));
+        request = DataFrameRequestConverters.getDataFrameTransformStats(getStatsRequest);
+        assertThat(request.getParameters(), hasEntry("from", "0"));
+        assertEquals(null, request.getParameters().get("size"));
+
+        getStatsRequest.setPageParams(new PageParams(null, 50));
+        request = DataFrameRequestConverters.getDataFrameTransformStats(getStatsRequest);
+        assertEquals(null, request.getParameters().get("from"));
+        assertThat(request.getParameters(), hasEntry("size", "50"));
+
+        getStatsRequest.setPageParams(new PageParams(0, 10));
+        request = DataFrameRequestConverters.getDataFrameTransformStats(getStatsRequest);
+        assertThat(request.getParameters(), allOf(hasEntry("from", "0"), hasEntry("size", "10")));
+    }
+
+    public void testGetDataFrameTransform() {
+        GetDataFrameTransformRequest getRequest = new GetDataFrameTransformRequest("bar");
+        Request request = DataFrameRequestConverters.getDataFrameTransform(getRequest);
+
+        assertEquals(HttpGet.METHOD_NAME, request.getMethod());
+        assertThat(request.getEndpoint(), equalTo("/_data_frame/transforms/bar"));
+
+        assertFalse(request.getParameters().containsKey("from"));
+        assertFalse(request.getParameters().containsKey("size"));
+
+        getRequest.setPageParams(new PageParams(0, null));
+        request = DataFrameRequestConverters.getDataFrameTransform(getRequest);
+        assertThat(request.getParameters(), hasEntry("from", "0"));
+        assertEquals(null, request.getParameters().get("size"));
+
+        getRequest.setPageParams(new PageParams(null, 50));
+        request = DataFrameRequestConverters.getDataFrameTransform(getRequest);
+        assertEquals(null, request.getParameters().get("from"));
+        assertThat(request.getParameters(), hasEntry("size", "50"));
+
+        getRequest.setPageParams(new PageParams(0, 10));
+        request = DataFrameRequestConverters.getDataFrameTransform(getRequest);
+        assertThat(request.getParameters(), allOf(hasEntry("from", "0"), hasEntry("size", "10")));
+    }
+
+    public void testGetDataFrameTransform_givenMulitpleIds() {
+        GetDataFrameTransformRequest getRequest = new GetDataFrameTransformRequest("foo", "bar", "baz");
+        Request request = DataFrameRequestConverters.getDataFrameTransform(getRequest);
+
+        assertEquals(HttpGet.METHOD_NAME, request.getMethod());
+        assertThat(request.getEndpoint(), equalTo("/_data_frame/transforms/foo,bar,baz"));
     }
 }

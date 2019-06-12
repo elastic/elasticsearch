@@ -2,6 +2,8 @@
 [testenv="basic"]
 [[start-data-frame-transform]]
 === Start {dataframe-transforms} API
+
+[subs="attributes"]
 ++++
 <titleabbrev>Start {dataframe-transforms}</titleabbrev>
 ++++
@@ -39,7 +41,7 @@ When the {dataframe-transform} starts, you receive the following results:
 [source,js]
 ----
 {
-  "started" : true
+  "acknowledged" : true
 }
 ----
 // TESTRESPONSE

@@ -128,9 +128,10 @@
 
 ---
 "Test with new response format":
+
   - skip:
-      version: " - 6.99.99"
-      reason: hits.total is returned as an object in 7.0.0
+      version: "all"
+      reason: "AwaitsFix https://github.com/elastic/elasticsearch/issues/42664"
 
   - do:
       index:

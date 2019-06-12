@@ -74,7 +74,7 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
         String mode = randomMode();
         boolean columnar = randomBoolean();
         
-        expected.put("columns", singletonList(columnInfo(mode, "test", "text", JDBCType.VARCHAR, 0)));
+        expected.put("columns", singletonList(columnInfo(mode, "test", "text", JDBCType.VARCHAR, Integer.MAX_VALUE)));
         if (columnar) {
             expected.put("values", singletonList(Arrays.asList("test", "test")));
         } else {
@@ -118,7 +118,7 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
             Map<String, Object> expected = new HashMap<>();
             if (i == 0) {
                 expected.put("columns", Arrays.asList(
-                        columnInfo(mode, "text", "text", JDBCType.VARCHAR, 0),
+                        columnInfo(mode, "text", "text", JDBCType.VARCHAR, Integer.MAX_VALUE),
                         columnInfo(mode, "number", "long", JDBCType.BIGINT, 20),
                         columnInfo(mode, "s", "double", JDBCType.DOUBLE, 25),
                         columnInfo(mode, "SCORE()", "float", JDBCType.REAL, 15)));
@@ -184,7 +184,7 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
         Map<String, Object> expected = new HashMap<>();
         boolean columnar = randomBoolean();
         expected.put("columns", Arrays.asList(
-            columnInfo(mode, "name", "text", JDBCType.VARCHAR, 0),
+            columnInfo(mode, "name", "text", JDBCType.VARCHAR, Integer.MAX_VALUE),
             columnInfo(mode, "score", "long", JDBCType.BIGINT, 20),
             columnInfo(mode, "SCORE()", "float", JDBCType.REAL, 15)));
         if (columnar) {
@@ -427,7 +427,7 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
             "{\"test\":\"bar\"}");
 
         Map<String, Object> expected = new HashMap<>();
-        expected.put("columns", singletonList(columnInfo(mode, "test", "text", JDBCType.VARCHAR, 0)));
+        expected.put("columns", singletonList(columnInfo(mode, "test", "text", JDBCType.VARCHAR, Integer.MAX_VALUE)));
         expected.put("rows", singletonList(singletonList("foo")));
         assertResponse(expected, runSql(new StringEntity("{\"query\":\"SELECT * FROM test\", " +
                 "\"filter\":{\"match\": {\"test\": \"foo\"}}" + mode(mode) + "}",
@@ -442,7 +442,7 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
 
         Map<String, Object> expected = new HashMap<>();
         expected.put("columns", Arrays.asList(
-                columnInfo(mode, "test", "text", JDBCType.VARCHAR, 0),
+                columnInfo(mode, "test", "text", JDBCType.VARCHAR, Integer.MAX_VALUE),
                 columnInfo(mode, "param", "integer", JDBCType.INTEGER, 11)
         ));
         if (columnar) {

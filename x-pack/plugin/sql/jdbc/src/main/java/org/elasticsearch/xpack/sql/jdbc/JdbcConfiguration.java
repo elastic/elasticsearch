@@ -35,7 +35,7 @@ import static org.elasticsearch.xpack.sql.client.UriUtils.removeQuery;
  / Additional properties can be specified either through the Properties object or in the URL. In case of duplicates, the URL wins.
  */
 //TODO: beef this up for Security/SSL
-class JdbcConfiguration extends ConnectionConfiguration {
+public class JdbcConfiguration extends ConnectionConfiguration {
     static final String URL_PREFIX = "jdbc:es://";
     public static URI DEFAULT_URI = URI.create("http://localhost:9200/");
 
@@ -47,7 +47,7 @@ class JdbcConfiguration extends ConnectionConfiguration {
     // can be out/err/url
     static final String DEBUG_OUTPUT_DEFAULT = "err";
 
-    static final String TIME_ZONE = "timezone";
+    public static final String TIME_ZONE = "timezone";
     // follow the JDBC spec and use the JVM default...
     // to avoid inconsistency, the default is picked up once at startup and reused across connections
     // to cater to the principle of least surprise
@@ -57,10 +57,13 @@ class JdbcConfiguration extends ConnectionConfiguration {
     static final String FIELD_MULTI_VALUE_LENIENCY = "field.multi.value.leniency";
     static final String FIELD_MULTI_VALUE_LENIENCY_DEFAULT = "true";
 
+    static final String INDEX_INCLUDE_FROZEN = "index.include.frozen";
+    static final String INDEX_INCLUDE_FROZEN_DEFAULT = "false";
+
 
     // options that don't change at runtime
     private static final Set<String> OPTION_NAMES = new LinkedHashSet<>(
-            Arrays.asList(TIME_ZONE, FIELD_MULTI_VALUE_LENIENCY, DEBUG, DEBUG_OUTPUT));
+            Arrays.asList(TIME_ZONE, FIELD_MULTI_VALUE_LENIENCY, INDEX_INCLUDE_FROZEN, DEBUG, DEBUG_OUTPUT));
 
     static {
         // trigger version initialization
@@ -77,6 +80,7 @@ class JdbcConfiguration extends ConnectionConfiguration {
     // mutable ones
     private ZoneId zoneId;
     private boolean fieldMultiValueLeniency;
+    private boolean includeFrozen;
 
     public static JdbcConfiguration create(String u, Properties props, int loginTimeoutSeconds) throws JdbcSQLException {
         URI uri = parseUrl(u);
@@ -159,10 +163,12 @@ class JdbcConfiguration extends ConnectionConfiguration {
                 s -> TimeZone.getTimeZone(s).toZoneId().normalized());
         this.fieldMultiValueLeniency = parseValue(FIELD_MULTI_VALUE_LENIENCY,
                 props.getProperty(FIELD_MULTI_VALUE_LENIENCY, FIELD_MULTI_VALUE_LENIENCY_DEFAULT), Boolean::parseBoolean);
+        this.includeFrozen = parseValue(INDEX_INCLUDE_FROZEN, props.getProperty(INDEX_INCLUDE_FROZEN, INDEX_INCLUDE_FROZEN_DEFAULT),
+                Boolean::parseBoolean);
     }
 
     @Override
-    protected Collection<? extends String> extraOptions() {
+    protected Collection<String> extraOptions() {
         return OPTION_NAMES;
     }
 
@@ -186,15 +192,18 @@ class JdbcConfiguration extends ConnectionConfiguration {
         return fieldMultiValueLeniency;
     }
 
+    public boolean indexIncludeFrozen() {
+        return includeFrozen;
+    }
+
     public static boolean canAccept(String url) {
         return (StringUtils.hasText(url) && url.trim().startsWith(JdbcConfiguration.URL_PREFIX));
     }
 
     public DriverPropertyInfo[] driverPropertyInfo() {
         List<DriverPropertyInfo> info = new ArrayList<>();
-        for (String option : OPTION_NAMES) {
-            String value = null;
-            DriverPropertyInfo prop = new DriverPropertyInfo(option, value);
+        for (String option : optionNames()) {
+            DriverPropertyInfo prop = new DriverPropertyInfo(option, null);
             info.add(prop);
         }
 

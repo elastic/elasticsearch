@@ -27,7 +27,6 @@ import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -51,7 +50,6 @@ public class RestoreInfo implements ToXContentObject, Streamable {
     private int successfulShards;
 
     RestoreInfo() {
-
     }
 
     public RestoreInfo(String name, List<String> indices, int totalShards, int successfulShards) {
@@ -104,15 +102,6 @@ public class RestoreInfo implements ToXContentObject, Streamable {
      */
     public int successfulShards() {
         return successfulShards;
-    }
-
-    /**
-     * REST status of the operation
-     *
-     * @return REST status
-     */
-    public RestStatus status() {
-        return RestStatus.OK;
     }
 
     static final class Fields {

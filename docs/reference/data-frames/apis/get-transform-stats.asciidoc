@@ -2,6 +2,8 @@
 [testenv="basic"]
 [[get-data-frame-transform-stats]]
 === Get {dataframe-transform} statistics API
+
+[subs="attributes"]
 ++++
 <titleabbrev>Get {dataframe-transform} statistics</titleabbrev>
 ++++
@@ -63,23 +65,32 @@ The API returns the following results:
     {
       "id" : "ecommerce_transform",
       "state" : {
-        "transform_state" : "started",
-        "current_position" : {
-          "customer_id" : "9"
-        },
-        "generation" : 1
+        "task_state" : "started",
+        "indexer_state" : "started",
+        "checkpoint" : 1,
+        "progress" : {
+          "total_docs" : 1220,
+          "docs_remaining" : 0,
+          "percent_complete" : 100.0
+        }
       },
       "stats" : {
-        "pages_processed" : 0,
-        "documents_processed" : 0,
-        "documents_indexed" : 0,
-        "trigger_count" : 0,
-        "index_time_in_ms" : 0,
-        "index_total" : 0,
+        "pages_processed" : 2,
+        "documents_processed" : 1220,
+        "documents_indexed" : 13,
+        "trigger_count" : 1,
+        "index_time_in_ms" : 19,
+        "index_total" : 1,
         "index_failures" : 0,
-        "search_time_in_ms" : 0,
-        "search_total" : 0,
+        "search_time_in_ms" : 52,
+        "search_total" : 2,
         "search_failures" : 0
+      },
+      "checkpointing" : {
+        "current" : {
+          "timestamp_millis" : 1557474786393
+        },
+        "operations_behind" : 0
       }
     }
   ]

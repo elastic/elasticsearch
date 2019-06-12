@@ -59,9 +59,10 @@ ifdef::include-xpack[]
 [TIP]
 ====
 If you use {ml-features} and your {ml} indices were created before
-{prev-major-version}, you must
-{stack-ov}/stopping-ml.html[stop all {dfeeds} and close all {ml} jobs] before
-you reindex the indices.
+{prev-major-version}, you must temporarily halt the tasks associated with your
+{ml} jobs and {dfeeds} and prevent new jobs from opening during the reindex. Use
+the <<ml-set-upgrade-mode,set upgrade mode API>> or
+{stack-ov}/stopping-ml.html[stop all {dfeeds} and close all {ml} jobs].
 
 If you use {es} {security-features}, before you reindex `.security*` internal
 indices it is a good idea to create a temporary superuser account in the `file`
@@ -111,6 +112,17 @@ from a pre-6.7 cluster without interrupting service.
 indices from the previous major version to be upgraded to the
 current major version. Skipping a major version means that you must
 resolve any backward compatibility issues yourself.
+
+ifdef::include-xpack[]
+If you use {ml-features} and you're migrating indices from a 6.5 or earlier
+cluster, the job and {dfeed} configuration information are not stored in an
+index. You must recreate your {ml} jobs in the new cluster. If you are migrating
+from a 6.6 or later cluster, it is a good idea to temporarily halt the tasks
+associated with your {ml} jobs and {dfeeds} to prevent inconsistencies between
+different {ml} indices that are reindexed at slightly different times. Use the
+<<ml-set-upgrade-mode,set upgrade mode API>> or 
+{stack-ov}/stopping-ml.html[stop all {dfeeds} and close all {ml} jobs].
+endif::include-xpack[]
 
 =============================================
 

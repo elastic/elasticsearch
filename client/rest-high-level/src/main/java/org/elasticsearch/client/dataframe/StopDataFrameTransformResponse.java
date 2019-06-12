@@ -21,7 +21,6 @@ package org.elasticsearch.client.dataframe;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.TaskOperationFailure;
-import org.elasticsearch.client.core.AcknowledgedTasksResponse;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -31,21 +30,18 @@ import java.util.List;
 
 public class StopDataFrameTransformResponse extends AcknowledgedTasksResponse {
 
-    private static final String STOPPED = "stopped";
+    private static final String ACKNOWLEDGED = "acknowledged";
 
-    private static final ConstructingObjectParser<StopDataFrameTransformResponse, Void> PARSER =
-            AcknowledgedTasksResponse.generateParser("stop_data_frame_transform_response", StopDataFrameTransformResponse::new, STOPPED);
+    private static final ConstructingObjectParser<StopDataFrameTransformResponse, Void> PARSER = AcknowledgedTasksResponse
+            .generateParser("stop_data_frame_transform_response", StopDataFrameTransformResponse::new, ACKNOWLEDGED);
 
     public static StopDataFrameTransformResponse fromXContent(final XContentParser parser) throws IOException {
         return PARSER.parse(parser, null);
     }
 
-    public StopDataFrameTransformResponse(boolean stopped, @Nullable List<TaskOperationFailure> taskFailures,
+    public StopDataFrameTransformResponse(boolean acknowledged, @Nullable List<TaskOperationFailure> taskFailures,
                                           @Nullable List<? extends ElasticsearchException> nodeFailures) {
-        super(stopped, taskFailures, nodeFailures);
+        super(acknowledged, taskFailures, nodeFailures);
     }
 
-    public boolean isStopped() {
-        return isAcknowledged();
-    }
 }

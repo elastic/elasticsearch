@@ -259,7 +259,7 @@ public abstract class DocWriteResponse extends ReplicationResponse implements Wr
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        shardId = ShardId.readShardId(in);
+        shardId = new ShardId(in);
         type = in.readString();
         id = in.readString();
         version = in.readZLong();

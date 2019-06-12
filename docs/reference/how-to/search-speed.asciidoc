@@ -161,6 +161,7 @@ GET index/_search
 // TEST[continued]
 
 [float]
+[[map-ids-as-keyword]]
 === Consider mapping identifiers as `keyword`
 
 The fact that some data is numeric does not mean it should always be mapped as a
@@ -354,6 +355,7 @@ conjunctions faster at the cost of slightly slower indexing. Read more about it
 in the <<index-modules-index-sorting-conjunctions,index sorting documentation>>.
 
 [float]
+[[preference-cache-optimization]]
 === Use `preference` to optimize cache utilization
 
 There are multiple caches that can help with search performance, such as the
@@ -411,6 +413,7 @@ Some caveats to the Profile API are that:
  - given the added overhead, the resulting took times are not reliable indicators of actual took time, but can be used comparatively between clauses for relative timing differences
  - the Profile API is best for exploring possible reasons behind the most costly clauses of a query but isn't intended for accurately measuring absolute timings of each clause 
 
+[[faster-phrase-queries]]
 === Faster phrase queries with `index_phrases`
 
 The <<text,`text`>> field has an <<index-phrases,`index_phrases`>> option that
@@ -418,6 +421,7 @@ indexes 2-shingles and is automatically leveraged by query parsers to run phrase
 queries that don't have a slop. If your use-case involves running lots of phrase
 queries, this can speed up queries significantly.
 
+[[faster-prefix-queries]]
 === Faster prefix queries with `index_prefixes`
 
 The <<text,`text`>> field has an <<index-phrases,`index_prefixes`>> option that

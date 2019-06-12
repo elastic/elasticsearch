@@ -7,7 +7,9 @@ package org.elasticsearch.xpack.core;
 
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.action.admin.indices.mapping.put.MappingRequestValidator;
+import org.elasticsearch.action.RequestValidators;
+import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
+import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.bootstrap.BootstrapCheck;
 import org.elasticsearch.client.Client;
@@ -256,7 +258,6 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin implements Scrip
     @Override
     public List<ScriptContext<?>> getContexts() {
         List<ScriptContext<?>> contexts = new ArrayList<>();
-        contexts.addAll(super.getContexts());
         filterPlugins(ScriptPlugin.class).stream().forEach(p -> contexts.addAll(p.getContexts()));
         return contexts;
     }
@@ -395,17 +396,20 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin implements Scrip
     }
 
     @Override
-    public Map<String, Repository.Factory> getRepositories(Environment env, NamedXContentRegistry namedXContentRegistry) {
-        HashMap<String, Repository.Factory> repositories = new HashMap<>(super.getRepositories(env, namedXContentRegistry));
-        filterPlugins(RepositoryPlugin.class).forEach(r -> repositories.putAll(r.getRepositories(env, namedXContentRegistry)));
+    public Map<String, Repository.Factory> getRepositories(Environment env, NamedXContentRegistry namedXContentRegistry,
+                                                           ThreadPool threadPool) {
+        HashMap<String, Repository.Factory> repositories = new HashMap<>(super.getRepositories(env, namedXContentRegistry, threadPool));
+        filterPlugins(RepositoryPlugin.class).forEach(r -> repositories.putAll(r.getRepositories(env, namedXContentRegistry, threadPool)));
         return repositories;
     }
 
     @Override
-    public Map<String, Repository.Factory> getInternalRepositories(Environment env, NamedXContentRegistry namedXContentRegistry) {
-        HashMap<String, Repository.Factory> internalRepositories = new HashMap<>(super.getInternalRepositories(env, namedXContentRegistry));
+    public Map<String, Repository.Factory> getInternalRepositories(Environment env, NamedXContentRegistry namedXContentRegistry,
+                                                                   ThreadPool threadPool) {
+        HashMap<String, Repository.Factory> internalRepositories =
+            new HashMap<>(super.getInternalRepositories(env, namedXContentRegistry, threadPool));
         filterPlugins(RepositoryPlugin.class).forEach(r ->
-            internalRepositories.putAll(r.getInternalRepositories(env, namedXContentRegistry)));
+            internalRepositories.putAll(r.getInternalRepositories(env, namedXContentRegistry, threadPool)));
         return internalRepositories;
     }
 
@@ -429,13 +433,24 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin implements Scrip
     }
 
     @Override
-    public Collection<MappingRequestValidator> mappingRequestValidators() {
-        return filterPlugins(ActionPlugin.class).stream().flatMap(p -> p.mappingRequestValidators().stream())
-            .collect(Collectors.toList());
+    public Collection<RequestValidators.RequestValidator<PutMappingRequest>> mappingRequestValidators() {
+        return filterPlugins(ActionPlugin.class)
+                .stream()
+                .flatMap(p -> p.mappingRequestValidators().stream())
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    public Collection<RequestValidators.RequestValidator<IndicesAliasesRequest>> indicesAliasesRequestValidators() {
+        return filterPlugins(ActionPlugin.class)
+                .stream()
+                .flatMap(p -> p.indicesAliasesRequestValidators().stream())
+                .collect(Collectors.toList());
     }
 
     private <T> List<T> filterPlugins(Class<T> type) {
         return plugins.stream().filter(x -> type.isAssignableFrom(x.getClass())).map(p -> ((T)p))
                 .collect(Collectors.toList());
     }
+
 }

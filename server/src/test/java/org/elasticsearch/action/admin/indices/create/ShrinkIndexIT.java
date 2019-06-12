@@ -65,7 +65,6 @@ import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 
 import java.util.Arrays;
-import java.util.List;
 import java.util.Map;
 import java.util.stream.IntStream;
 
@@ -165,11 +164,8 @@ public class ShrinkIndexIT extends ESIntegTestCase {
     }
 
     public void testShrinkIndexPrimaryTerm() throws Exception {
-        final List<Integer> factors = Arrays.asList(2, 3, 5, 7);
-        final List<Integer> numberOfShardsFactors = randomSubsetOf(scaledRandomIntBetween(1, factors.size() - 1), factors);
-        final int numberOfShards = numberOfShardsFactors.stream().reduce(1, (x, y) -> x * y);
-        final int numberOfTargetShards = randomSubsetOf(randomInt(numberOfShardsFactors.size() - 1), numberOfShardsFactors)
-            .stream().reduce(1, (x, y) -> x * y);
+        int numberOfShards = randomIntBetween(2, 20);
+        int numberOfTargetShards = randomValueOtherThanMany(n -> numberOfShards % n != 0, () -> randomIntBetween(1, numberOfShards - 1));
         internalCluster().ensureAtLeastNumDataNodes(2);
         prepareCreate("source").setSettings(Settings.builder().put(indexSettings()).put("number_of_shards", numberOfShards)).get();
 
@@ -218,7 +214,7 @@ public class ShrinkIndexIT extends ESIntegTestCase {
         final Settings.Builder prepareShrinkSettings =
                 Settings.builder().put("index.routing.allocation.require._name", mergeNode).put("index.blocks.write", true);
         client().admin().indices().prepareUpdateSettings("source").setSettings(prepareShrinkSettings).get();
-        ensureGreen();
+        ensureGreen(TimeValue.timeValueSeconds(120)); // needs more than the default to relocate many shards
 
         final IndexMetaData indexMetaData = indexMetaData(client(), "source");
         final long beforeShrinkPrimaryTerm = IntStream.range(0, numberOfShards).mapToLong(indexMetaData::primaryTerm).max().getAsLong();
@@ -228,7 +224,7 @@ public class ShrinkIndexIT extends ESIntegTestCase {
                 Settings.builder().put("index.number_of_replicas", 0).put("index.number_of_shards", numberOfTargetShards).build();
         assertAcked(client().admin().indices().prepareResizeIndex("source", "target").setSettings(shrinkSettings).get());
 
-        ensureGreen();
+        ensureGreen(TimeValue.timeValueSeconds(120));
 
         final IndexMetaData afterShrinkIndexMetaData = indexMetaData(client(), "target");
         for (int shardId = 0; shardId < numberOfTargetShards; shardId++) {

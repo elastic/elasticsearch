@@ -21,7 +21,10 @@ public final class WatcherIndexTemplateRegistryField {
     public static final String TRIGGERED_TEMPLATE_NAME = ".triggered_watches";
     public static final String WATCHES_TEMPLATE_NAME = ".watches";
     public static final String[] TEMPLATE_NAMES = new String[] {
-            HISTORY_TEMPLATE_NAME, TRIGGERED_TEMPLATE_NAME, WATCHES_TEMPLATE_NAME
+        HISTORY_TEMPLATE_NAME, TRIGGERED_TEMPLATE_NAME, WATCHES_TEMPLATE_NAME
+    };
+    public static final String[] TEMPLATE_NAMES_NO_ILM = new String[] {
+        HISTORY_TEMPLATE_NAME_NO_ILM, TRIGGERED_TEMPLATE_NAME, WATCHES_TEMPLATE_NAME
     };
 
     private WatcherIndexTemplateRegistryField() {}

@@ -9,7 +9,6 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.watcher.actions.Action;
@@ -271,9 +270,8 @@ public abstract class WatchRecord implements ToXContentObject {
 
     public static class ExceptionWatchRecord extends WatchRecord {
 
-        private static final Map<String, String> STACK_TRACE_ENABLED_PARAMS = MapBuilder.<String, String>newMapBuilder()
-                .put(ElasticsearchException.REST_EXCEPTION_SKIP_STACK_TRACE, "false")
-                .immutableMap();
+        private static final Map<String, String> STACK_TRACE_ENABLED_PARAMS =
+                Map.of(ElasticsearchException.REST_EXCEPTION_SKIP_STACK_TRACE, "false");
 
         @Nullable private final Exception exception;
 

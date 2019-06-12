@@ -255,7 +255,7 @@ public class NodeConnectionsServiceTests extends ESTestCase {
 
             // once the connection is unblocked we successfully connect to it.
             nodeConnectionBlocks.clear();
-            connectionBarrier.await(0, TimeUnit.SECONDS);
+            connectionBarrier.await(10, TimeUnit.SECONDS);
             future3.actionGet();
             assertConnectedExactlyToNodes(nodes01);
 
@@ -401,7 +401,7 @@ public class NodeConnectionsServiceTests extends ESTestCase {
         }
 
         @Override
-        public TransportAddress[] addressesFromString(String address, int perAddressLimit) {
+        public TransportAddress[] addressesFromString(String address) {
             return new TransportAddress[0];
         }
 
@@ -440,7 +440,7 @@ public class NodeConnectionsServiceTests extends ESTestCase {
         }
 
         @Override
-        public List<String> getLocalAddresses() {
+        public List<String> getDefaultSeedAddresses() {
             return null;
         }
 

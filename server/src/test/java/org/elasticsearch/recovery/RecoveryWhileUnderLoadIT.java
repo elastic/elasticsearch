@@ -30,20 +30,28 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.DocsStats;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.BackgroundIndexer;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 
 import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
@@ -57,6 +65,23 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoTi
         "org.elasticsearch.index.seqno:TRACE,org.elasticsearch.indices.recovery:TRACE")
 public class RecoveryWhileUnderLoadIT extends ESIntegTestCase {
     private final Logger logger = LogManager.getLogger(RecoveryWhileUnderLoadIT.class);
+
+    public static final class RetentionLeaseSyncIntervalSettingPlugin extends Plugin {
+
+        @Override
+        public List<Setting<?>> getSettings() {
+            return Collections.singletonList(IndexService.RETENTION_LEASE_SYNC_INTERVAL_SETTING);
+        }
+
+    }
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return Stream.concat(
+            super.nodePlugins().stream(),
+            Stream.of(RetentionLeaseSyncIntervalSettingPlugin.class))
+            .collect(Collectors.toList());
+    }
 
     public void testRecoverWhileUnderLoadAllocateReplicasTest() throws Exception {
         logger.info("--> creating test index ...");
@@ -260,7 +285,8 @@ public class RecoveryWhileUnderLoadIT extends ESIntegTestCase {
         assertAcked(prepareCreate("test", 3, Settings.builder()
                 .put(SETTING_NUMBER_OF_SHARDS, numShards)
                 .put(SETTING_NUMBER_OF_REPLICAS, numReplicas)
-                .put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Translog.Durability.ASYNC)));
+                .put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Translog.Durability.ASYNC)
+                .put(IndexService.RETENTION_LEASE_SYNC_INTERVAL_SETTING.getKey(), randomFrom("100ms", "1s", "5s", "30s", "60s"))));
 
         final int numDocs = scaledRandomIntBetween(200, 9999);
 

@@ -30,6 +30,7 @@ import org.gradle.process.ExecSpec;
 import org.gradle.process.JavaExecSpec;
 
 import java.io.File;
+import java.nio.file.Path;
 
 /**
  * Bridge a gap until Gradle offers service injection for plugins.
@@ -75,5 +76,9 @@ public class GradleServicesAdapter {
 
     public void loggedExec(Action<ExecSpec> action) {
         LoggedExec.exec(project, action);
+    }
+
+    public void delete(Path path) {
+        project.delete(path.toFile());
     }
 }

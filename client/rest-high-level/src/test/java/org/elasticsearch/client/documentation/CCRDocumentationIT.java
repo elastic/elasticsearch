@@ -425,7 +425,7 @@ public class CCRDocumentationIT extends ESRestHighLevelClientTestCase {
         AcknowledgedResponse pauseFollowResponse = client.ccr().pauseFollow(pauseFollowRequest, RequestOptions.DEFAULT);
         assertTrue(pauseFollowResponse.isAcknowledged());
 
-        final String followerCluster = highLevelClient().info(RequestOptions.DEFAULT).getClusterName().value();
+        final String followerCluster = highLevelClient().info(RequestOptions.DEFAULT).getClusterName();
         final Request statsRequest = new Request("GET", "/follower/_stats");
         final Response statsResponse = client().performRequest(statsRequest);
         final ObjectPath statsObjectPath = ObjectPath.createFromResponse(statsResponse);

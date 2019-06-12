@@ -12,7 +12,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.dataframe.DataFrameField;
 import org.elasticsearch.xpack.core.dataframe.action.StartDataFrameTransformAction;
 
@@ -28,9 +27,11 @@ public class RestStartDataFrameTransformAction extends BaseRestHandler {
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
         String id = restRequest.param(DataFrameField.ID.getPreferredName());
-        StartDataFrameTransformAction.Request request = new StartDataFrameTransformAction.Request(id);
+        boolean force = restRequest.paramAsBoolean(DataFrameField.FORCE.getPreferredName(), false);
+        StartDataFrameTransformAction.Request request = new StartDataFrameTransformAction.Request(id, force);
         request.timeout(restRequest.paramAsTime(DataFrameField.TIMEOUT.getPreferredName(), AcknowledgedRequest.DEFAULT_ACK_TIMEOUT));
-        return channel -> client.execute(StartDataFrameTransformAction.INSTANCE, request, new RestToXContentListener<>(channel));
+        return channel -> client.execute(StartDataFrameTransformAction.INSTANCE, request,
+                new BaseTasksResponseToXContentListener<>(channel));
     }
 
     @Override

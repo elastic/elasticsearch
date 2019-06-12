@@ -137,5 +137,4 @@ public class RestSqlQueryAction extends BaseRestHandler {
     public String getName() {
         return "sql_query";
     }
-
 }

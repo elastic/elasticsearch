@@ -30,7 +30,6 @@ import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.ConcurrentMapLong;
-
 import java.io.Closeable;
 import java.io.IOException;
 import java.net.UnknownHostException;
@@ -69,12 +68,12 @@ public interface Transport extends LifecycleComponent {
     /**
      * Returns an address from its string representation.
      */
-    TransportAddress[] addressesFromString(String address, int perAddressLimit) throws UnknownHostException;
+    TransportAddress[] addressesFromString(String address) throws UnknownHostException;
 
     /**
-     * Returns a list of all local adresses for this transport
+     * Returns a list of all local addresses for this transport
      */
-    List<String> getLocalAddresses();
+    List<String> getDefaultSeedAddresses();
 
     default CircuitBreaker getInFlightRequestBreaker() {
         return new NoopCircuitBreaker("in-flight-noop");

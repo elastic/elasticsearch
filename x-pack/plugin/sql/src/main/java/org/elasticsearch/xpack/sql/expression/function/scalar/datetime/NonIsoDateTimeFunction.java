@@ -15,7 +15,6 @@ import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.util.StringUtils;
 
 import java.time.ZoneId;
-import java.time.ZonedDateTime;
 import java.util.Locale;
 
 import static java.lang.String.format;
@@ -31,11 +30,6 @@ abstract class NonIsoDateTimeFunction extends BaseDateTimeFunction {
     NonIsoDateTimeFunction(Source source, Expression field, ZoneId zoneId, NonIsoDateTimeExtractor extractor) {
         super(source, field, zoneId);
         this.extractor = extractor;
-    }
-
-    @Override
-    protected Object doFold(ZonedDateTime dateTime) {
-        return extractor.extract(dateTime);
     }
 
     @Override

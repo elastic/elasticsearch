@@ -3,7 +3,6 @@
     "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/modules-snapshots.html",
     "methods": ["PUT", "POST"],
     "url": {
-      "path": "/_snapshot/{repository}",
       "paths": ["/_snapshot/{repository}"],
       "parts": {
         "repository": {

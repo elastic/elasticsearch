@@ -8,10 +8,14 @@ package org.elasticsearch.xpack.sql.util;
 
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateFormatters;
+import org.elasticsearch.xpack.sql.expression.Expression;
+import org.elasticsearch.xpack.sql.expression.Foldables;
+import org.elasticsearch.xpack.sql.parser.ParsingException;
 import org.elasticsearch.xpack.sql.proto.StringUtils;
 
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.OffsetTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
@@ -19,11 +23,15 @@ import java.time.format.DateTimeFormatterBuilder;
 
 import static java.time.format.DateTimeFormatter.ISO_LOCAL_DATE;
 import static java.time.format.DateTimeFormatter.ISO_LOCAL_TIME;
+import static java.time.format.DateTimeFormatter.ISO_TIME;
 
 public final class DateUtils {
 
     public static final ZoneId UTC = ZoneId.of("Z");
     public static final String DATE_PARSE_FORMAT = "epoch_millis";
+    // In Java 8 LocalDate.EPOCH is not available, introduced with later Java versions
+    public static final LocalDate EPOCH = LocalDate.of(1970, 1, 1);
+    public static final long DAY_IN_MILLIS = 60 * 60 * 24 * 1000L;
 
     private static final DateTimeFormatter DATE_TIME_ESCAPED_LITERAL_FORMATTER = new DateTimeFormatterBuilder()
         .append(ISO_LOCAL_DATE)
@@ -32,8 +40,7 @@ public final class DateUtils {
         .toFormatter().withZone(UTC);
 
     private static final DateFormatter UTC_DATE_TIME_FORMATTER = DateFormatter.forPattern("date_optional_time").withZone(UTC);
-
-    private static final long DAY_IN_MILLIS = 60 * 60 * 24 * 1000L;
+    private static final int DEFAULT_PRECISION_FOR_CURRENT_FUNCTIONS = 3;
 
     private DateUtils() {}
 
@@ -42,6 +49,24 @@ public final class DateUtils {
      */
     public static ZonedDateTime asDateOnly(long millis) {
         return ZonedDateTime.ofInstant(Instant.ofEpochMilli(millis), UTC).toLocalDate().atStartOfDay(UTC);
+    }
+
+    /**
+     * Creates an date for SQL TIME type from the millis since epoch.
+     */
+    public static OffsetTime asTimeOnly(long millis) {
+        return OffsetTime.ofInstant(Instant.ofEpochMilli(millis % DAY_IN_MILLIS), UTC);
+    }
+
+    /**
+     * Creates an date for SQL TIME type from the millis since epoch.
+     */
+    public static OffsetTime asTimeOnly(long millis, ZoneId zoneId) {
+        return OffsetTime.ofInstant(Instant.ofEpochMilli(millis % DAY_IN_MILLIS), zoneId);
+    }
+
+    public static OffsetTime asTimeAtZone(OffsetTime time, ZoneId zonedId) {
+        return time.atDate(DateUtils.EPOCH).atZoneSameInstant(zonedId).toOffsetDateTime().toOffsetTime();
     }
 
     /**
@@ -69,6 +94,10 @@ public final class DateUtils {
         return zdt.toLocalDate().atStartOfDay(zdt.getZone());
     }
 
+    public static OffsetTime asTimeOnly(String timeFormat) {
+        return DateFormatters.from(ISO_TIME.parse(timeFormat)).toOffsetDateTime().toOffsetTime();
+    }
+
     /**
      * Parses the given string into a DateTime using UTC as a default timezone.
      */
@@ -88,10 +117,35 @@ public final class DateUtils {
         return date.format(ISO_LOCAL_DATE);
     }
 
+    public static String toTimeString(OffsetTime time) {
+        return StringUtils.toString(time);
+    }
+
     public static long minDayInterval(long l) {
         if (l < DAY_IN_MILLIS ) {
             return DAY_IN_MILLIS;
         }
         return l - (l % DAY_IN_MILLIS);
+    }
+
+    public static int getNanoPrecision(Expression precisionExpression, int nano) {
+        int precision = DEFAULT_PRECISION_FOR_CURRENT_FUNCTIONS;
+
+        if (precisionExpression != null) {
+            try {
+                precision = Foldables.intValueOf(precisionExpression);
+            } catch (Exception e) {
+                throw new ParsingException(precisionExpression.source(), "invalid precision; " + e.getMessage());
+            }
+        }
+
+        if (precision < 0 || precision > 9) {
+            throw new ParsingException(precisionExpression.source(), "precision needs to be between [0-9], received [{}]",
+                precisionExpression.sourceText());
+        }
+
+        // remove the remainder
+        nano = nano - nano % (int) Math.pow(10, (9 - precision));
+        return nano;
     }
 }

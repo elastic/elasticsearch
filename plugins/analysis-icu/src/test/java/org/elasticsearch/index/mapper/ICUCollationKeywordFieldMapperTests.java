@@ -403,4 +403,51 @@ public class ICUCollationKeywordFieldMapperTests extends ESSingleNodeTestCase {
         assertEquals("Can't merge because of conflicts: [Cannot update language setting for [" + FIELD_TYPE
             + "], Cannot update strength setting for [" + FIELD_TYPE + "]]", e.getMessage());
     }
+
+
+    public void testIgnoreAbove() throws IOException {
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
+            .startObject("properties").startObject("field").field("type", FIELD_TYPE)
+            .field("ignore_above", 5).endObject().endObject()
+            .endObject().endObject());
+
+        DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
+
+        assertEquals(mapping, mapper.mappingSource().toString());
+
+        ParsedDocument doc = mapper.parse(new SourceToParse("test", "type", "1", BytesReference
+            .bytes(XContentFactory.jsonBuilder()
+                .startObject()
+                .field("field", "elk")
+                .endObject()),
+            XContentType.JSON));
+
+        IndexableField[] fields = doc.rootDoc().getFields("field");
+        assertEquals(2, fields.length);
+
+        doc = mapper.parse(new SourceToParse("test", "type", "1", BytesReference
+            .bytes(XContentFactory.jsonBuilder()
+                .startObject()
+                .field("field", "elasticsearch")
+                .endObject()),
+            XContentType.JSON));
+
+        fields = doc.rootDoc().getFields("field");
+        assertEquals(0, fields.length);
+    }
+
+    public void testUpdateIgnoreAbove() throws IOException {
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
+            .startObject("properties").startObject("field").field("type", FIELD_TYPE).endObject().endObject()
+            .endObject().endObject());
+
+        indexService.mapperService().merge("type", new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE);
+
+        mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
+            .startObject("properties").startObject("field").field("type", FIELD_TYPE)
+            .field("ignore_above", 5).endObject().endObject()
+            .endObject().endObject());
+        indexService.mapperService().merge("type", new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE);
+    }
+
 }

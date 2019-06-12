@@ -10,12 +10,11 @@ import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
-import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
-import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
@@ -28,6 +27,7 @@ import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformConfi
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -43,23 +43,31 @@ public class PreviewDataFrameTransformAction extends Action<PreviewDataFrameTran
 
     @Override
     public Response newResponse() {
-        return new Response();
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
+    }
+
+    @Override
+    public Writeable.Reader<Response> getResponseReader() {
+        return Response::new;
     }
 
     public static class Request extends AcknowledgedRequest<Request> implements ToXContentObject {
 
-        private DataFrameTransformConfig config;
+        private final DataFrameTransformConfig config;
 
         public Request(DataFrameTransformConfig config) {
-            this.setConfig(config);
+            this.config = config;
         }
 
-        public Request() { }
+        public Request(StreamInput in) throws IOException {
+            super(in);
+            this.config = new DataFrameTransformConfig(in);
+        }
 
         public static Request fromXContent(final XContentParser parser) throws IOException {
             Map<String, Object> content = parser.map();
             // Destination and ID are not required for Preview, so we just supply our own
-            content.put(DataFrameField.DESTINATION.getPreferredName(), "unused-transform-preview-index");
+            content.put(DataFrameField.DESTINATION.getPreferredName(), Collections.singletonMap("index", "unused-transform-preview-index"));
             content.put(DataFrameField.ID.getPreferredName(), "transform-preview");
             try(XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().map(content);
                 XContentParser newParser = XContentType.JSON
@@ -85,16 +93,6 @@ public class PreviewDataFrameTransformAction extends Action<PreviewDataFrameTran
             return config;
         }
 
-        public void setConfig(DataFrameTransformConfig config) {
-            this.config = config;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            this.config = new DataFrameTransformConfig(in);
-        }
-
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
@@ -116,13 +114,6 @@ public class PreviewDataFrameTransformAction extends Action<PreviewDataFrameTran
             }
             Request other = (Request) obj;
             return Objects.equals(config, other.config);
-        }
-    }
-
-    public static class RequestBuilder extends MasterNodeOperationRequestBuilder<Request, Response, RequestBuilder> {
-
-        protected RequestBuilder(ElasticsearchClient client, PreviewDataFrameTransformAction action) {
-            super(client, action, new Request());
         }
     }
 
@@ -151,15 +142,6 @@ public class PreviewDataFrameTransformAction extends Action<PreviewDataFrameTran
 
         public void setDocs(List<Map<String, Object>> docs) {
             this.docs = new ArrayList<>(docs);
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            int size = in.readInt();
-            this.docs = new ArrayList<>(size);
-            for (int i = 0; i < size; i++) {
-                this.docs.add(in.readMap());
-            }
         }
 
         @Override

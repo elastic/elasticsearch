@@ -36,7 +36,6 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientBuilder;
 import org.elasticsearch.client.WarningsHandler;
-import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.common.CheckedRunnable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.PathUtils;
@@ -53,6 +52,7 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.After;
 import org.junit.AfterClass;
@@ -544,7 +544,7 @@ public abstract class ESRestTestCase extends ESTestCase {
                 for (Object snapshot : snapshots) {
                     Map<?, ?> snapshotInfo = (Map<?, ?>) snapshot;
                     String name = (String) snapshotInfo.get("snapshot");
-                    if (SnapshotsInProgress.State.valueOf((String) snapshotInfo.get("state")).completed() == false) {
+                    if (SnapshotState.valueOf((String) snapshotInfo.get("state")).completed() == false) {
                         inProgressSnapshots.computeIfAbsent(repoName, key -> new ArrayList<>()).add(snapshotInfo);
                     }
                     logger.debug("wiping snapshot [{}/{}]", repoName, name);

@@ -40,6 +40,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -58,7 +59,6 @@ public final class HdfsRepository extends BlobStoreRepository {
 
     private final Environment environment;
     private final ByteSizeValue chunkSize;
-    private final BlobPath basePath = BlobPath.cleanPath();
     private final URI uri;
     private final String pathSetting;
 
@@ -67,8 +67,8 @@ public final class HdfsRepository extends BlobStoreRepository {
     private static final ByteSizeValue DEFAULT_BUFFER_SIZE = new ByteSizeValue(100, ByteSizeUnit.KB);
 
     public HdfsRepository(RepositoryMetaData metadata, Environment environment,
-                          NamedXContentRegistry namedXContentRegistry) {
-        super(metadata, environment.settings(), namedXContentRegistry);
+                          NamedXContentRegistry namedXContentRegistry, ThreadPool threadPool) {
+        super(metadata, environment.settings(), namedXContentRegistry, threadPool, BlobPath.cleanPath());
 
         this.environment = environment;
         this.chunkSize = metadata.settings().getAsBytesSize("chunk_size", null);
@@ -230,11 +230,6 @@ public final class HdfsRepository extends BlobStoreRepository {
             AccessController.doPrivileged((PrivilegedAction<HdfsBlobStore>)
                 () -> createBlobstore(uri, pathSetting, getMetadata().settings()));
         return blobStore;
-    }
-
-    @Override
-    protected BlobPath basePath() {
-        return basePath;
     }
 
     @Override

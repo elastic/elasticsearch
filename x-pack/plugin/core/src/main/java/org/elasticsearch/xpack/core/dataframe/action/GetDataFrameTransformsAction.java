@@ -8,14 +8,11 @@ package org.elasticsearch.xpack.core.dataframe.action;
 
 import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.action.Action;
-import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.action.AbstractGetResourcesRequest;
@@ -45,10 +42,15 @@ public class GetDataFrameTransformsAction extends Action<GetDataFrameTransformsA
 
     @Override
     public Response newResponse() {
-        return new Response();
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
-    public static class Request extends AbstractGetResourcesRequest implements ToXContent {
+    @Override
+    public Writeable.Reader<Response> getResponseReader() {
+        return Response::new;
+    }
+
+    public static class Request extends AbstractGetResourcesRequest {
 
         private static final int MAX_SIZE_RETURN = 1000;
 
@@ -61,7 +63,7 @@ public class GetDataFrameTransformsAction extends Action<GetDataFrameTransformsA
         }
 
         public Request(StreamInput in) throws IOException {
-            readFrom(in);
+            super(in);
         }
 
         public String getId() {
@@ -79,21 +81,8 @@ public class GetDataFrameTransformsAction extends Action<GetDataFrameTransformsA
         }
 
         @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.field(DataFrameField.ID.getPreferredName(), getResourceId());
-            return builder;
-        }
-
-        @Override
         public String getResourceIdField() {
             return DataFrameField.ID.getPreferredName();
-        }
-    }
-
-    public static class RequestBuilder extends ActionRequestBuilder<Request, Response> {
-
-        protected RequestBuilder(ElasticsearchClient client, GetDataFrameTransformsAction action) {
-            super(client, action, new Request());
         }
     }
 
@@ -111,7 +100,7 @@ public class GetDataFrameTransformsAction extends Action<GetDataFrameTransformsA
         }
 
         public Response(StreamInput in) throws IOException {
-            readFrom(in);
+            super(in);
         }
 
         public List<DataFrameTransformConfig> getTransformConfigurations() {

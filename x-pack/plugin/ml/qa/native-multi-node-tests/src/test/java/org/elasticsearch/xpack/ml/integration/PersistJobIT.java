@@ -51,7 +51,6 @@ public class PersistJobIT extends MlNativeAutodetectIntegTestCase {
     }
 
     // check that state is persisted after time has been advanced even if no new data is seen in the interim
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/40347")
     public void testPersistJobOnGracefulShutdown_givenTimeAdvancedAfterNoNewData() throws Exception {
         String jobId = "time-advanced-after-no-new-data-test";
 
@@ -60,6 +59,7 @@ public class PersistJobIT extends MlNativeAutodetectIntegTestCase {
         FlushJobAction.Response flushResponse = flushJob(jobId, true);
 
         closeJob(jobId);
+        long job1CloseTime = System.currentTimeMillis() / 1000;
 
         // Check that state has been persisted
         SearchResponse stateDocsResponse1 = client().prepareSearch(AnomalyDetectorsIndex.jobStateIndexPattern())
@@ -71,7 +71,7 @@ public class PersistJobIT extends MlNativeAutodetectIntegTestCase {
         int numQuantileRecords = 0;
         int numStateRecords = 0;
         for (SearchHit hit : stateDocsResponse1.getHits().getHits()) {
-            logger.info(hit.getId());
+            logger.info("1: " + hit.getId());
             if (hit.getId().contains("quantiles")) {
                 ++numQuantileRecords;
             } else if (hit.getId().contains("model_state")) {
@@ -81,6 +81,13 @@ public class PersistJobIT extends MlNativeAutodetectIntegTestCase {
         assertThat(stateDocsResponse1.getHits().getTotalHits().value, equalTo(2L));
         assertThat(numQuantileRecords, equalTo(1));
         assertThat(numStateRecords, equalTo(1));
+
+        // To generate unique snapshot IDs ensure that there is at least a 1s delay between the
+        // time each job was closed
+        assertBusy(() -> {
+            long timeNow = System.currentTimeMillis() / 1000;
+            assertFalse(job1CloseTime >= timeNow);
+        });
 
         // re-open the job
         openJob(jobId);
@@ -104,7 +111,7 @@ public class PersistJobIT extends MlNativeAutodetectIntegTestCase {
         numQuantileRecords = 0;
         numStateRecords = 0;
         for (SearchHit hit : stateDocsResponse2.getHits().getHits()) {
-            logger.info(hit.getId());
+            logger.info("2: " + hit.getId());
             if (hit.getId().contains("quantiles")) {
                 ++numQuantileRecords;
             } else if (hit.getId().contains("model_state")) {

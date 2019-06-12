@@ -33,7 +33,12 @@ import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.hamcrest.Matchers;
 import org.junit.Before;
 
+import java.io.IOException;
 import java.util.Collection;
+import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.core.IsInstanceOf.instanceOf;
@@ -42,7 +47,7 @@ public class SparseVectorFieldMapperTests extends ESSingleNodeTestCase {
     private DocumentMapper mapper;
 
     @Before
-    public void setup() throws Exception {
+    public void setUpMapper() throws Exception {
         IndexService indexService =  createIndex("test-index");
         DocumentMapperParser parser = indexService.mapperService().documentMapperParser();
         String mapping = Strings.toString(XContentFactory.jsonBuilder()
@@ -100,7 +105,7 @@ public class SparseVectorFieldMapperTests extends ESSingleNodeTestCase {
         );
     }
 
-    public void testErrors() {
+    public void testDimensionNumberValidation() {
         // 1. test for an error on negative dimension
         MapperParsingException e = expectThrows(MapperParsingException.class, () -> {
             mapper.parse(new SourceToParse("test-index", "_doc", "1", BytesReference
@@ -160,5 +165,29 @@ public class SparseVectorFieldMapperTests extends ESSingleNodeTestCase {
         assertThat(e.getCause(), instanceOf(IllegalArgumentException.class));
         assertThat(e.getCause().getMessage(), containsString(
             "takes an object that maps a dimension number to a float, but got unexpected token [START_ARRAY]"));
+    }
+
+      public void testDimensionLimit() throws IOException {
+        Map<String, Object> validVector = IntStream.range(0, SparseVectorFieldMapper.MAX_DIMS_COUNT)
+            .boxed()
+            .collect(Collectors.toMap(String::valueOf, Function.identity()));
+
+        BytesReference validDoc = BytesReference.bytes(
+            XContentFactory.jsonBuilder().startObject()
+                .field("my-sparse-vector", validVector)
+            .endObject());
+        mapper.parse(new SourceToParse("test-index", "_doc", "1", validDoc, XContentType.JSON));
+
+        Map<String, Object> invalidVector = IntStream.range(0, SparseVectorFieldMapper.MAX_DIMS_COUNT + 1)
+          .boxed()
+          .collect(Collectors.toMap(String::valueOf, Function.identity()));
+
+        BytesReference invalidDoc = BytesReference.bytes(
+            XContentFactory.jsonBuilder().startObject()
+                .field("my-sparse-vector", invalidVector)
+            .endObject());
+        MapperParsingException e = expectThrows(MapperParsingException.class, () -> mapper.parse(
+            new SourceToParse("test-index", "_doc", "1", invalidDoc, XContentType.JSON)));
+        assertThat(e.getDetailedMessage(), containsString("has exceeded the maximum allowed number of dimensions"));
     }
 }

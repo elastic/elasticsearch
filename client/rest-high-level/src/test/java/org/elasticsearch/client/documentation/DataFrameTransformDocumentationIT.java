@@ -25,7 +25,13 @@ import org.elasticsearch.client.ESRestHighLevelClientTestCase;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.client.core.AcknowledgedResponse;
+import org.elasticsearch.client.core.IndexerState;
+import org.elasticsearch.client.core.PageParams;
 import org.elasticsearch.client.dataframe.DeleteDataFrameTransformRequest;
+import org.elasticsearch.client.dataframe.GetDataFrameTransformRequest;
+import org.elasticsearch.client.dataframe.GetDataFrameTransformResponse;
+import org.elasticsearch.client.dataframe.GetDataFrameTransformStatsRequest;
+import org.elasticsearch.client.dataframe.GetDataFrameTransformStatsResponse;
 import org.elasticsearch.client.dataframe.PreviewDataFrameTransformRequest;
 import org.elasticsearch.client.dataframe.PreviewDataFrameTransformResponse;
 import org.elasticsearch.client.dataframe.PutDataFrameTransformRequest;
@@ -33,8 +39,14 @@ import org.elasticsearch.client.dataframe.StartDataFrameTransformRequest;
 import org.elasticsearch.client.dataframe.StartDataFrameTransformResponse;
 import org.elasticsearch.client.dataframe.StopDataFrameTransformRequest;
 import org.elasticsearch.client.dataframe.StopDataFrameTransformResponse;
+import org.elasticsearch.client.dataframe.transforms.DataFrameIndexerTransformStats;
 import org.elasticsearch.client.dataframe.transforms.DataFrameTransformConfig;
+import org.elasticsearch.client.dataframe.transforms.DataFrameTransformProgress;
+import org.elasticsearch.client.dataframe.transforms.DataFrameTransformStateAndStats;
+import org.elasticsearch.client.dataframe.transforms.DataFrameTransformTaskState;
+import org.elasticsearch.client.dataframe.transforms.DestConfig;
 import org.elasticsearch.client.dataframe.transforms.QueryConfig;
+import org.elasticsearch.client.dataframe.transforms.SourceConfig;
 import org.elasticsearch.client.dataframe.transforms.pivot.AggregationConfig;
 import org.elasticsearch.client.dataframe.transforms.pivot.GroupConfig;
 import org.elasticsearch.client.dataframe.transforms.pivot.PivotConfig;
@@ -50,21 +62,22 @@ import org.junit.After;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.hamcrest.Matchers.hasSize;
 
 public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTestCase {
 
     private List<String> transformsToClean = new ArrayList<>();
 
     @After
-    public void cleanUpTransforms() throws IOException {
+    public void cleanUpTransforms() throws Exception {
         for (String transformId : transformsToClean) {
-            highLevelClient().dataFrame().stopDataFrameTransform(new StopDataFrameTransformRequest(transformId), RequestOptions.DEFAULT);
+            highLevelClient().dataFrame().stopDataFrameTransform(
+                    new StopDataFrameTransformRequest(transformId, Boolean.TRUE, TimeValue.timeValueSeconds(20)), RequestOptions.DEFAULT);
         }
 
         for (String transformId : transformsToClean) {
@@ -73,6 +86,7 @@ public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTest
         }
 
         transformsToClean = new ArrayList<>();
+        waitForPendingTasks(adminClient());
     }
 
     private void createIndex(String indexName) throws IOException {
@@ -106,10 +120,16 @@ public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTest
         // tag::put-data-frame-transform-query-config
         QueryConfig queryConfig = new QueryConfig(new MatchAllQueryBuilder());
         // end::put-data-frame-transform-query-config
+        // tag::put-data-frame-transform-source-config
+        SourceConfig sourceConfig = SourceConfig.builder()
+            .setIndex("source-index")
+            .setQueryConfig(queryConfig).build();
+        // end::put-data-frame-transform-source-config
         // tag::put-data-frame-transform-group-config
-        GroupConfig groupConfig =
-                new GroupConfig(Collections.singletonMap("reviewer", // <1>
-                        new TermsGroupSource("user_id")));           // <2>
+        GroupConfig groupConfig = GroupConfig.builder()
+            .groupBy("reviewer", // <1>
+                TermsGroupSource.builder().setField("user_id").build()) // <2>
+            .build();
         // end::put-data-frame-transform-group-config
         // tag::put-data-frame-transform-agg-config
         AggregatorFactories.Builder aggBuilder = new AggregatorFactories.Builder();
@@ -118,15 +138,21 @@ public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTest
         AggregationConfig aggConfig = new AggregationConfig(aggBuilder);
         // end::put-data-frame-transform-agg-config
         // tag::put-data-frame-transform-pivot-config
-        PivotConfig pivotConfig = new PivotConfig(groupConfig, aggConfig);
+        PivotConfig pivotConfig = PivotConfig.builder()
+            .setGroups(groupConfig) // <1>
+            .setAggregationConfig(aggConfig) // <2>
+            .setMaxPageSearchSize(1000) // <3>
+            .build();
         // end::put-data-frame-transform-pivot-config
         // tag::put-data-frame-transform-config
-        DataFrameTransformConfig transformConfig =
-                new DataFrameTransformConfig("reviewer-avg-rating", // <1>
-                "source-index", // <2>
-                "pivot-destination",  // <3>
-                queryConfig,   // <4>
-                pivotConfig);  // <5>
+        DataFrameTransformConfig transformConfig = DataFrameTransformConfig
+            .builder()
+            .setId("reviewer-avg-rating") // <1>
+            .setSource(sourceConfig) // <2>
+            .setDest(new DestConfig("pivot-destination")) // <3>
+            .setPivotConfig(pivotConfig) // <4>
+            .setDescription("This is my test transform") // <5>
+            .build();
         // end::put-data-frame-transform-config
 
         {
@@ -144,9 +170,12 @@ public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTest
             assertTrue(response.isAcknowledged());
         }
         {
-            DataFrameTransformConfig configWithDifferentId = new DataFrameTransformConfig("reviewer-avg-rating2",
-                    transformConfig.getSource(), transformConfig.getDestination(), transformConfig.getQueryConfig(),
-                    transformConfig.getPivotConfig());
+            DataFrameTransformConfig configWithDifferentId = DataFrameTransformConfig.builder()
+                .setId("reviewer-avg-rating2")
+                .setSource(transformConfig.getSource())
+                .setDest(transformConfig.getDestination())
+                .setPivotConfig(transformConfig.getPivotConfig())
+                .build();
             PutDataFrameTransformRequest request = new PutDataFrameTransformRequest(configWithDifferentId);
 
             // tag::put-data-frame-transform-execute-listener
@@ -166,7 +195,6 @@ public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTest
 
             // Replace the empty listener by a blocking listener in test
             final CountDownLatch latch = new CountDownLatch(1);
-            ActionListener<AcknowledgedResponse> ackListener = listener;
             listener = new LatchedActionListener<>(listener, latch);
 
             // tag::put-data-frame-transform-execute-async
@@ -184,14 +212,19 @@ public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTest
         RestHighLevelClient client = highLevelClient();
 
         QueryConfig queryConfig = new QueryConfig(new MatchAllQueryBuilder());
-        GroupConfig groupConfig = new GroupConfig(Collections.singletonMap("reviewer", new TermsGroupSource("user_id")));
+        GroupConfig groupConfig = GroupConfig.builder().groupBy("reviewer",
+            TermsGroupSource.builder().setField("user_id").build()).build();
         AggregatorFactories.Builder aggBuilder = new AggregatorFactories.Builder();
         aggBuilder.addAggregator(AggregationBuilders.avg("avg_rating").field("stars"));
         AggregationConfig aggConfig = new AggregationConfig(aggBuilder);
-        PivotConfig pivotConfig = new PivotConfig(groupConfig, aggConfig);
+        PivotConfig pivotConfig = PivotConfig.builder().setGroups(groupConfig).setAggregationConfig(aggConfig).build();
 
-        DataFrameTransformConfig transformConfig = new DataFrameTransformConfig("mega-transform",
-                "source-data", "pivot-dest", queryConfig, pivotConfig);
+        DataFrameTransformConfig transformConfig = DataFrameTransformConfig.builder()
+            .setId("mega-transform")
+            .setSource(SourceConfig.builder().setIndex("source-data").setQueryConfig(queryConfig).build())
+            .setDest(new DestConfig("pivot-dest"))
+            .setPivotConfig(pivotConfig)
+            .build();
 
         client.dataFrame().putDataFrameTransform(new PutDataFrameTransformRequest(transformConfig), RequestOptions.DEFAULT);
         transformsToClean.add(transformConfig.getId());
@@ -212,7 +245,7 @@ public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTest
                             request, RequestOptions.DEFAULT);
             // end::start-data-frame-transform-execute
 
-            assertTrue(response.isStarted());
+            assertTrue(response.isAcknowledged());
         }
         {
             // tag::stop-data-frame-transform-request
@@ -231,7 +264,7 @@ public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTest
                             request, RequestOptions.DEFAULT);
             // end::stop-data-frame-transform-execute
 
-            assertTrue(response.isStopped());
+            assertTrue(response.isAcknowledged());
         }
         {
             // tag::start-data-frame-transform-execute-listener
@@ -252,7 +285,6 @@ public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTest
 
             // Replace the empty listener by a blocking listener in test
             final CountDownLatch latch = new CountDownLatch(1);
-            ActionListener<StartDataFrameTransformResponse> ackListener = listener;
             listener = new LatchedActionListener<>(listener, latch);
 
             StartDataFrameTransformRequest request = new StartDataFrameTransformRequest("mega-transform");
@@ -282,7 +314,6 @@ public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTest
 
             // Replace the empty listener by a blocking listener in test
             final CountDownLatch latch = new CountDownLatch(1);
-            ActionListener<StopDataFrameTransformResponse> ackListener = listener;
             listener = new LatchedActionListener<>(listener, latch);
 
             StopDataFrameTransformRequest request = new StopDataFrameTransformRequest("mega-transform");
@@ -300,17 +331,31 @@ public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTest
 
         RestHighLevelClient client = highLevelClient();
 
-        QueryConfig queryConfig = new QueryConfig(new MatchAllQueryBuilder());
-        GroupConfig groupConfig = new GroupConfig(Collections.singletonMap("reviewer", new TermsGroupSource("user_id")));
+        GroupConfig groupConfig = GroupConfig.builder().groupBy("reviewer",
+            TermsGroupSource.builder().setField("user_id").build()).build();
         AggregatorFactories.Builder aggBuilder = new AggregatorFactories.Builder();
         aggBuilder.addAggregator(AggregationBuilders.avg("avg_rating").field("stars"));
         AggregationConfig aggConfig = new AggregationConfig(aggBuilder);
-        PivotConfig pivotConfig = new PivotConfig(groupConfig, aggConfig);
+        PivotConfig pivotConfig = PivotConfig.builder().setGroups(groupConfig).setAggregationConfig(aggConfig).build();
 
-        DataFrameTransformConfig transformConfig1 = new DataFrameTransformConfig("mega-transform",
-                "source-data", "pivot-dest", queryConfig, pivotConfig);
-        DataFrameTransformConfig transformConfig2 = new DataFrameTransformConfig("mega-transform2",
-                "source-data", "pivot-dest2", queryConfig, pivotConfig);
+        DataFrameTransformConfig transformConfig1 = DataFrameTransformConfig.builder()
+            .setId("mega-transform")
+            .setSource(SourceConfig.builder()
+                .setIndex("source-data")
+                .setQuery(new MatchAllQueryBuilder())
+                .build())
+            .setDest(new DestConfig("pivot-dest"))
+            .setPivotConfig(pivotConfig)
+            .build();
+        DataFrameTransformConfig transformConfig2 = DataFrameTransformConfig.builder()
+            .setId("mega-transform2")
+            .setSource(SourceConfig.builder()
+                .setIndex("source-data")
+                .setQuery(new MatchAllQueryBuilder())
+                .build())
+            .setDest(new DestConfig("pivot-dest2"))
+            .setPivotConfig(pivotConfig)
+            .build();
 
         client.dataFrame().putDataFrameTransform(new PutDataFrameTransformRequest(transformConfig1), RequestOptions.DEFAULT);
         client.dataFrame().putDataFrameTransform(new PutDataFrameTransformRequest(transformConfig2), RequestOptions.DEFAULT);
@@ -366,29 +411,30 @@ public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTest
         RestHighLevelClient client = highLevelClient();
 
         QueryConfig queryConfig = new QueryConfig(new MatchAllQueryBuilder());
-        GroupConfig groupConfig = new GroupConfig(Collections.singletonMap("reviewer", new TermsGroupSource("user_id")));
+        GroupConfig groupConfig = GroupConfig.builder().groupBy("reviewer",
+            TermsGroupSource.builder().setField("user_id").build()).build();
         AggregatorFactories.Builder aggBuilder = new AggregatorFactories.Builder();
         aggBuilder.addAggregator(AggregationBuilders.avg("avg_rating").field("stars"));
         AggregationConfig aggConfig = new AggregationConfig(aggBuilder);
-        PivotConfig pivotConfig = new PivotConfig(groupConfig, aggConfig);
+        PivotConfig pivotConfig = PivotConfig.builder().setGroups(groupConfig).setAggregationConfig(aggConfig).build();
 
         // tag::preview-data-frame-transform-request
         DataFrameTransformConfig transformConfig =
-                new DataFrameTransformConfig(null,  // <1>
-                "source-data",
-                null,                               // <2>
-                queryConfig,
-                pivotConfig);
-
+            DataFrameTransformConfig.forPreview(
+                SourceConfig.builder()
+                    .setIndex("source-data")
+                    .setQueryConfig(queryConfig)
+                    .build(), // <1>
+                pivotConfig); // <2>
         PreviewDataFrameTransformRequest request =
-            new PreviewDataFrameTransformRequest(transformConfig); // <3>
+                new PreviewDataFrameTransformRequest(transformConfig); // <3>
         // end::preview-data-frame-transform-request
 
         {
             // tag::preview-data-frame-transform-execute
             PreviewDataFrameTransformResponse response =
-                    client.dataFrame()
-                            .previewDataFrameTransform(request, RequestOptions.DEFAULT);
+                client.dataFrame()
+                    .previewDataFrameTransform(request, RequestOptions.DEFAULT);
             // end::preview-data-frame-transform-execute
 
             assertNotNull(response.getDocs());
@@ -417,6 +463,174 @@ public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTest
             client.dataFrame().previewDataFrameTransformAsync(
                     request, RequestOptions.DEFAULT, listener);  // <1>
             // end::preview-data-frame-transform-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+    }
+
+    public void testGetStats() throws IOException, InterruptedException {
+        createIndex("source-data");
+
+        RestHighLevelClient client = highLevelClient();
+
+        QueryConfig queryConfig = new QueryConfig(new MatchAllQueryBuilder());
+        GroupConfig groupConfig = GroupConfig.builder().groupBy("reviewer",
+            TermsGroupSource.builder().setField("user_id").build()).build();
+        AggregatorFactories.Builder aggBuilder = new AggregatorFactories.Builder();
+        aggBuilder.addAggregator(AggregationBuilders.avg("avg_rating").field("stars"));
+        AggregationConfig aggConfig = new AggregationConfig(aggBuilder);
+        PivotConfig pivotConfig = PivotConfig.builder().setGroups(groupConfig).setAggregationConfig(aggConfig).build();
+
+        String id = "statisitcal-transform";
+        DataFrameTransformConfig transformConfig = DataFrameTransformConfig.builder()
+            .setId(id)
+            .setSource(SourceConfig.builder()
+                .setIndex("source-data")
+                .setQuery(new MatchAllQueryBuilder())
+                .build())
+            .setDest(new DestConfig("pivot-dest"))
+            .setPivotConfig(pivotConfig)
+            .build();
+        client.dataFrame().putDataFrameTransform(new PutDataFrameTransformRequest(transformConfig), RequestOptions.DEFAULT);
+
+        // tag::get-data-frame-transform-stats-request
+        GetDataFrameTransformStatsRequest request =
+                new GetDataFrameTransformStatsRequest(id); // <1>
+        // end::get-data-frame-transform-stats-request
+
+        {
+            // tag::get-data-frame-transform-stats-execute
+            GetDataFrameTransformStatsResponse response =
+                client.dataFrame()
+                    .getDataFrameTransformStats(request, RequestOptions.DEFAULT);
+            // end::get-data-frame-transform-stats-execute
+
+            assertThat(response.getTransformsStateAndStats(), hasSize(1));
+
+            // tag::get-data-frame-transform-stats-response
+            DataFrameTransformStateAndStats stateAndStats =
+                response.getTransformsStateAndStats().get(0);   // <1>
+            DataFrameTransformTaskState taskState =
+                stateAndStats.getTransformState().getTaskState(); // <2>
+            IndexerState indexerState =
+                stateAndStats.getTransformState().getIndexerState();  // <3>
+            DataFrameIndexerTransformStats transformStats =
+                stateAndStats.getTransformStats();              // <4>
+            DataFrameTransformProgress progress =
+                stateAndStats.getTransformState().getProgress(); // <5>
+            // end::get-data-frame-transform-stats-response
+
+            assertEquals(IndexerState.STOPPED, indexerState);
+            assertEquals(DataFrameTransformTaskState.STOPPED, taskState);
+            assertNotNull(transformStats);
+            assertNull(progress);
+        }
+        {
+            // tag::get-data-frame-transform-stats-execute-listener
+            ActionListener<GetDataFrameTransformStatsResponse> listener =
+                    new ActionListener<GetDataFrameTransformStatsResponse>() {
+                        @Override
+                        public void onResponse(
+                                GetDataFrameTransformStatsResponse response) {
+                            // <1>
+                        }
+
+                        @Override
+                        public void onFailure(Exception e) {
+                            // <2>
+                        }
+                    };
+            // end::get-data-frame-transform-stats-execute-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::get-data-frame-transform-stats-execute-async
+            client.dataFrame().getDataFrameTransformStatsAsync(
+                    request, RequestOptions.DEFAULT, listener);  // <1>
+            // end::get-data-frame-transform-stats-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+    }
+
+
+    public void testGetDataFrameTransform() throws IOException, InterruptedException {
+        createIndex("source-data");
+
+        QueryConfig queryConfig = new QueryConfig(new MatchAllQueryBuilder());
+        GroupConfig groupConfig = GroupConfig.builder().groupBy("reviewer",
+            TermsGroupSource.builder().setField("user_id").build()).build();
+        AggregatorFactories.Builder aggBuilder = new AggregatorFactories.Builder();
+        aggBuilder.addAggregator(AggregationBuilders.avg("avg_rating").field("stars"));
+        AggregationConfig aggConfig = new AggregationConfig(aggBuilder);
+        PivotConfig pivotConfig = PivotConfig.builder().setGroups(groupConfig).setAggregationConfig(aggConfig).build();
+
+
+        DataFrameTransformConfig putTransformConfig = DataFrameTransformConfig.builder()
+            .setId("mega-transform")
+            .setSource(SourceConfig.builder()
+                .setIndex("source-data")
+                .setQuery(new MatchAllQueryBuilder())
+                .build())
+            .setDest(new DestConfig("pivot-dest"))
+            .setPivotConfig(pivotConfig)
+            .build();
+
+        RestHighLevelClient client = highLevelClient();
+        client.dataFrame().putDataFrameTransform(new PutDataFrameTransformRequest(putTransformConfig), RequestOptions.DEFAULT);
+        transformsToClean.add(putTransformConfig.getId());
+
+        {
+            // tag::get-data-frame-transform-request
+            GetDataFrameTransformRequest request =
+                    new GetDataFrameTransformRequest("mega-transform"); // <1>
+            // end::get-data-frame-transform-request
+
+            // tag::get-data-frame-transform-request-options
+            request.setPageParams(new PageParams(0, 100)); // <1>
+            // end::get-data-frame-transform-request-options
+
+            // tag::get-data-frame-transform-execute
+            GetDataFrameTransformResponse response =
+                client.dataFrame()
+                    .getDataFrameTransform(request, RequestOptions.DEFAULT);
+            // end::get-data-frame-transform-execute
+
+            // tag::get-data-frame-transform-response
+            List<DataFrameTransformConfig> transformConfigs =
+                    response.getTransformConfigurations();
+            // end::get-data-frame-transform-response
+
+            assertEquals(1, transformConfigs.size());
+        }
+        {
+            // tag::get-data-frame-transform-execute-listener
+            ActionListener<GetDataFrameTransformResponse> listener =
+                new ActionListener<GetDataFrameTransformResponse>() {
+                    @Override
+                    public void onResponse(GetDataFrameTransformResponse response) {
+                        // <1>
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        // <2>
+                    }
+                };
+            // end::get-data-frame-transform-execute-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            GetDataFrameTransformRequest request = new GetDataFrameTransformRequest("mega-transform");
+
+            // tag::get-data-frame-transform-execute-async
+            client.dataFrame().getDataFrameTransformAsync(
+                    request, RequestOptions.DEFAULT, listener);  // <1>
+            // end::get-data-frame-transform-execute-async
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
         }

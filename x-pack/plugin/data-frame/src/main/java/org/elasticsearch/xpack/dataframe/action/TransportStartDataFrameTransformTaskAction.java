@@ -24,7 +24,6 @@ import org.elasticsearch.xpack.core.dataframe.action.StartDataFrameTransformTask
 import org.elasticsearch.xpack.dataframe.transforms.DataFrameTransformTask;
 
 import java.util.List;
-import java.util.function.Consumer;
 
 /**
  * Internal only transport class to change an allocated persistent task's state to started
@@ -45,27 +44,6 @@ public class TransportStartDataFrameTransformTaskAction extends
     }
 
     @Override
-    protected void processTasks(StartDataFrameTransformTaskAction.Request request, Consumer<DataFrameTransformTask> operation) {
-        DataFrameTransformTask matchingTask = null;
-
-        // todo: re-factor, see rollup TransportTaskHelper
-        for (Task task : taskManager.getTasks().values()) {
-            if (task instanceof DataFrameTransformTask
-                && ((DataFrameTransformTask) task).getTransformId().equals(request.getId())) {
-                if (matchingTask != null) {
-                    throw new IllegalArgumentException("Found more than one matching task for data frame transform [" + request.getId()
-                        + "] when " + "there should only be one.");
-                }
-                matchingTask = (DataFrameTransformTask) task;
-            }
-        }
-
-        if (matchingTask != null) {
-            operation.accept(matchingTask);
-        }
-    }
-
-    @Override
     protected void doExecute(Task task, StartDataFrameTransformTaskAction.Request request,
                              ActionListener<StartDataFrameTransformTaskAction.Response> listener) {
 
@@ -81,7 +59,7 @@ public class TransportStartDataFrameTransformTaskAction extends
     protected void taskOperation(StartDataFrameTransformTaskAction.Request request, DataFrameTransformTask transformTask,
                                  ActionListener<StartDataFrameTransformTaskAction.Response> listener) {
         if (transformTask.getTransformId().equals(request.getId())) {
-            transformTask.start(listener);
+            transformTask.start(null, listener);
         } else {
             listener.onFailure(new RuntimeException("ID of data frame transform task [" + transformTask.getTransformId()
                 + "] does not match request's ID [" + request.getId() + "]"));

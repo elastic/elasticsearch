@@ -19,7 +19,7 @@
 
 package org.elasticsearch.common.logging;
 
-import org.apache.log4j.Level;
+import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.LoggerContext;
@@ -67,7 +67,6 @@ public class JsonLoggerTests extends ESTestCase {
         super.tearDown();
     }
 
-    @SuppressWarnings("unchecked")
     public void testJsonLayout() throws IOException {
         final Logger testLogger = LogManager.getLogger("test");
 
@@ -90,7 +89,6 @@ public class JsonLoggerTests extends ESTestCase {
         }
     }
 
-    @SuppressWarnings("unchecked")
     public void testPrefixLoggerInJson() throws IOException {
         Logger shardIdLogger = Loggers.getLogger("shardIdLogger", ShardId.fromString("[indexName][123]"));
         shardIdLogger.info("This is an info message with a shardId");

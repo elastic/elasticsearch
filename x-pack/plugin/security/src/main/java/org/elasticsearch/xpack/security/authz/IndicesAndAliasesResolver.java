@@ -249,7 +249,17 @@ class IndicesAndAliasesResolver {
                 Optional<String> foundAlias = aliasMetaData.stream()
                     .map(AliasMetaData::alias)
                     .filter(authorizedIndicesList::contains)
-                    .filter(aliasName -> metaData.getAliasAndIndexLookup().get(aliasName).getIndices().size() == 1)
+                    .filter(aliasName -> {
+                        AliasOrIndex alias = metaData.getAliasAndIndexLookup().get(aliasName);
+                        List<IndexMetaData> indexMetadata = alias.getIndices();
+                        if (indexMetadata.size() == 1) {
+                            return true;
+                        } else {
+                            assert alias instanceof AliasOrIndex.Alias;
+                            IndexMetaData idxMeta = ((AliasOrIndex.Alias) alias).getWriteIndex();
+                            return idxMeta != null && idxMeta.getIndex().getName().equals(concreteIndexName);
+                        }
+                    })
                     .findFirst();
                 resolvedAliasOrIndex = foundAlias.orElse(concreteIndexName);
             } else {
@@ -449,7 +459,7 @@ class IndicesAndAliasesResolver {
         }
 
         ResolvedIndices splitLocalAndRemoteIndexNames(String... indices) {
-            final Map<String, List<String>> map = super.groupClusterIndices(clusters, indices, exists -> false);
+            final Map<String, List<String>> map = super.groupClusterIndices(clusters, indices);
             final List<String> local = map.remove(LOCAL_CLUSTER_GROUP_KEY);
             final List<String> remote = map.entrySet().stream()
                     .flatMap(e -> e.getValue().stream().map(v -> e.getKey() + REMOTE_CLUSTER_INDEX_SEPARATOR + v))

@@ -63,7 +63,7 @@ Which will yield the following response:
             "cron" : "*/30 * * * * ?",
             "groups" : {
               "date_histogram" : {
-                "interval" : "1h",
+                "fixed_interval" : "1h",
                 "delay": "7d",
                 "field": "timestamp",
                 "time_zone": "UTC"
@@ -94,8 +94,7 @@ Which will yield the following response:
             "page_size" : 1000
           },
           "status" : {
-            "job_state" : "stopped",
-            "upgraded_doc_id": true
+            "job_state" : "stopped"
           },
           "stats" : {
             "pages_processed" : 0,
@@ -149,7 +148,7 @@ PUT _rollup/job/sensor2 <1>
     "groups" : {
       "date_histogram": {
         "field": "timestamp",
-        "interval": "1h",
+        "fixed_interval": "1h",
         "delay": "7d"
       },
       "terms": {
@@ -189,7 +188,7 @@ Which will yield the following response:
             "cron" : "*/30 * * * * ?",
             "groups" : {
               "date_histogram" : {
-                "interval" : "1h",
+                "fixed_interval" : "1h",
                 "delay": "7d",
                 "field": "timestamp",
                 "time_zone": "UTC"
@@ -220,8 +219,7 @@ Which will yield the following response:
             "page_size" : 1000
           },
           "status" : {
-            "job_state" : "stopped",
-            "upgraded_doc_id": true
+            "job_state" : "stopped"
           },
           "stats" : {
             "pages_processed" : 0,
@@ -244,7 +242,7 @@ Which will yield the following response:
             "cron" : "*/30 * * * * ?",
             "groups" : {
               "date_histogram" : {
-                "interval" : "1h",
+                "fixed_interval" : "1h",
                 "delay": "7d",
                 "field": "timestamp",
                 "time_zone": "UTC"
@@ -275,8 +273,7 @@ Which will yield the following response:
             "page_size" : 1000
           },
           "status" : {
-            "job_state" : "stopped",
-            "upgraded_doc_id": true
+            "job_state" : "stopped"
           },
           "stats" : {
             "pages_processed" : 0,

@@ -30,11 +30,14 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.function.Predicate;
 
+import static org.elasticsearch.client.dataframe.transforms.DestConfigTests.randomDestConfig;
+import static org.elasticsearch.client.dataframe.transforms.SourceConfigTests.randomSourceConfig;
+
 public class DataFrameTransformConfigTests extends AbstractXContentTestCase<DataFrameTransformConfig> {
 
     public static DataFrameTransformConfig randomDataFrameTransformConfig() {
-        return new DataFrameTransformConfig(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10),
-                randomAlphaOfLengthBetween(1, 10), QueryConfigTests.randomQueryConfig(), PivotConfigTests.randomPivotConfig());
+        return new DataFrameTransformConfig(randomAlphaOfLengthBetween(1, 10), randomSourceConfig(),
+                randomDestConfig(), PivotConfigTests.randomPivotConfig(), randomBoolean() ? null : randomAlphaOfLengthBetween(1, 100));
     }
 
     @Override
@@ -60,7 +63,7 @@ public class DataFrameTransformConfigTests extends AbstractXContentTestCase<Data
 
     @Override
     protected NamedXContentRegistry xContentRegistry() {
-        SearchModule searchModule = new SearchModule(Settings.EMPTY, false, Collections.emptyList());
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, Collections.emptyList());
         return new NamedXContentRegistry(searchModule.getNamedXContents());
     }
 }

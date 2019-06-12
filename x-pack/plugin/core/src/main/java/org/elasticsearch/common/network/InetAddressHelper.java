@@ -5,8 +5,8 @@
  */
 package org.elasticsearch.common.network;
 
+import java.io.IOException;
 import java.net.InetAddress;
-import java.net.SocketException;
 
 /**
  * We use this class to access the package private method in NetworkUtils to resolve anyLocalAddress InetAddresses for certificate
@@ -16,7 +16,7 @@ public class InetAddressHelper {
 
     private InetAddressHelper() {}
 
-    public static InetAddress[] getAllAddresses() throws SocketException {
+    public static InetAddress[] getAllAddresses() throws IOException {
         return NetworkUtils.getAllAddresses();
     }
 

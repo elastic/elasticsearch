@@ -123,11 +123,6 @@ class HttpExportBulk extends ExportBulk {
         }
     }
 
-    @Override
-    protected void doClose(ActionListener<Void> listener) {
-        listener.onResponse(null);
-    }
-
     private byte[] toBulkBytes(final MonitoringDoc doc) throws IOException {
         final XContentType xContentType = XContentType.JSON;
         final XContent xContent = xContentType.xContent();

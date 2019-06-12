@@ -77,7 +77,7 @@ public class RestoreSnapshotResponse extends ActionResponse implements ToXConten
         if (restoreInfo == null) {
             return RestStatus.ACCEPTED;
         }
-        return restoreInfo.status();
+        return RestStatus.OK;
     }
 
     @Override

@@ -40,11 +40,13 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.ingest.IngestService;
@@ -62,6 +64,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.Map;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
@@ -69,6 +72,7 @@ import java.util.function.Consumer;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyString;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
@@ -93,6 +97,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
     TransportService transportService;
     ClusterService clusterService;
     IngestService ingestService;
+    ThreadPool threadPool;
 
     /** Arguments to callbacks we want to capture, but which require generics, so we must use @Captor */
     @Captor
@@ -127,7 +132,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         boolean indexCreated = true; // If set to false, will be set to true by call to createIndex
 
         TestTransportBulkAction() {
-            super(null, transportService, clusterService, ingestService,
+            super(threadPool, transportService, clusterService, ingestService,
                 null, null, new ActionFilters(Collections.emptySet()), null,
                 new AutoCreateIndex(
                     SETTINGS, new ClusterSettings(SETTINGS, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
@@ -156,21 +161,17 @@ public class TransportBulkActionIngestTests extends ESTestCase {
     class TestSingleItemBulkWriteAction extends TransportSingleItemBulkWriteAction<IndexRequest, IndexResponse> {
 
         TestSingleItemBulkWriteAction(TestTransportBulkAction bulkAction) {
-            super(SETTINGS, IndexAction.NAME, TransportBulkActionIngestTests.this.transportService,
-                    TransportBulkActionIngestTests.this.clusterService,
-                    null, null, null, new ActionFilters(Collections.emptySet()), null,
-                    IndexRequest::new, IndexRequest::new, ThreadPool.Names.WRITE, bulkAction, null);
-        }
-
-        @Override
-        protected IndexResponse newResponseInstance() {
-            return new IndexResponse();
+            super(IndexAction.NAME, TransportBulkActionIngestTests.this.transportService,
+                    new ActionFilters(Collections.emptySet()), IndexRequest::new, bulkAction);
         }
     }
 
     @Before
     public void setupAction() {
         // initialize captors, which must be members to use @Capture because of generics
+        threadPool = mock(ThreadPool.class);
+        final ExecutorService direct = EsExecutors.newDirectExecutorService();
+        when(threadPool.executor(anyString())).thenReturn(direct);
         MockitoAnnotations.initMocks(this);
         // setup services that will be called by action
         transportService = mock(TransportService.class);
@@ -412,16 +413,29 @@ public class TransportBulkActionIngestTests extends ESTestCase {
     }
 
     public void testUseDefaultPipelineWithBulkUpsert() throws Exception {
+        String indexRequestName = randomFrom(new String[]{null, WITH_DEFAULT_PIPELINE, WITH_DEFAULT_PIPELINE_ALIAS});
+        validatePipelineWithBulkUpsert(indexRequestName, WITH_DEFAULT_PIPELINE);
+    }
+
+    public void testUseDefaultPipelineWithBulkUpsertWithAlias() throws Exception {
+        String indexRequestName = randomFrom(new String[]{null, WITH_DEFAULT_PIPELINE, WITH_DEFAULT_PIPELINE_ALIAS});
+        validatePipelineWithBulkUpsert(indexRequestName, WITH_DEFAULT_PIPELINE_ALIAS);
+    }
+
+    private void validatePipelineWithBulkUpsert(@Nullable String indexRequestIndexName, String updateRequestIndexName) throws Exception {
         Exception exception = new Exception("fake exception");
         BulkRequest bulkRequest = new BulkRequest();
-        IndexRequest indexRequest1 = new IndexRequest(WITH_DEFAULT_PIPELINE, "type", "id1").source(Collections.emptyMap());
-        IndexRequest indexRequest2 = new IndexRequest(WITH_DEFAULT_PIPELINE, "type", "id2").source(Collections.emptyMap());
-        IndexRequest indexRequest3 = new IndexRequest(WITH_DEFAULT_PIPELINE, "type", "id3").source(Collections.emptyMap());
-        UpdateRequest upsertRequest = new UpdateRequest(WITH_DEFAULT_PIPELINE, "type", "id1").upsert(indexRequest1).script(mockScript("1"));
-        UpdateRequest docAsUpsertRequest = new UpdateRequest(WITH_DEFAULT_PIPELINE, "type", "id2").doc(indexRequest2).docAsUpsert(true);
+        IndexRequest indexRequest1 = new IndexRequest(indexRequestIndexName, "type", "id1").source(Collections.emptyMap());
+        IndexRequest indexRequest2 = new IndexRequest(indexRequestIndexName, "type", "id2").source(Collections.emptyMap());
+        IndexRequest indexRequest3 = new IndexRequest(indexRequestIndexName, "type", "id3").source(Collections.emptyMap());
+        UpdateRequest upsertRequest = new UpdateRequest(updateRequestIndexName, "type", "id1")
+            .upsert(indexRequest1).script(mockScript("1"));
+        UpdateRequest docAsUpsertRequest = new UpdateRequest(updateRequestIndexName, "type", "id2")
+            .doc(indexRequest2).docAsUpsert(true);
         // this test only covers the mechanics that scripted bulk upserts will execute a default pipeline. However, in practice scripted
         // bulk upserts with a default pipeline are a bit surprising since the script executes AFTER the pipeline.
-        UpdateRequest scriptedUpsert = new UpdateRequest(WITH_DEFAULT_PIPELINE, "type", "id2").upsert(indexRequest3).script(mockScript("1"))
+        UpdateRequest scriptedUpsert = new UpdateRequest(updateRequestIndexName, "type", "id2")
+            .upsert(indexRequest3).script(mockScript("1"))
             .scriptedUpsert(true);
         bulkRequest.add(upsertRequest).add(docAsUpsertRequest).add(scriptedUpsert);
 

@@ -26,8 +26,8 @@ import org.apache.lucene.index.IndexFormatTooOldException;
 import org.elasticsearch.Assertions;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -300,9 +300,17 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
             // Persist the global checkpoint.
             indexShard.sync();
             indexShard.persistRetentionLeases();
+            if (hasUncommittedOperations()) {
+                indexShard.flush(new FlushRequest().force(true).waitIfOngoing(true));
+            }
             indexShard.finalizeRecovery();
             return null;
         });
+    }
+
+    private boolean hasUncommittedOperations() throws IOException {
+        long localCheckpointOfCommit = Long.parseLong(indexShard.commitStats().getUserData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY));
+        return indexShard.estimateNumberOfHistoryOperations("peer-recovery", localCheckpointOfCommit + 1) > 0;
     }
 
     @Override
@@ -317,6 +325,7 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
             final long maxSeenAutoIdTimestampOnPrimary,
             final long maxSeqNoOfDeletesOrUpdatesOnPrimary,
             final RetentionLeases retentionLeases,
+            final long mappingVersionOnPrimary,
             final ActionListener<Long> listener) {
         ActionListener.completeWith(listener, () -> {
             final RecoveryState.Translog translog = state().getTranslog();
@@ -348,7 +357,7 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
                     throw new MapperException("mapping updates are not allowed [" + operation + "]");
                 }
                 if (result.getFailure() != null) {
-                    if (Assertions.ENABLED) {
+                    if (Assertions.ENABLED && result.getFailure() instanceof MapperException == false) {
                         throw new AssertionError("unexpected failure while replicating translog entry", result.getFailure());
                     }
                     ExceptionsHelper.reThrowIfNotNull(result.getFailure());
@@ -382,7 +391,7 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
     }
 
     @Override
-    public void cleanFiles(int totalTranslogOps, Store.MetadataSnapshot sourceMetaData) throws IOException {
+    public void cleanFiles(int totalTranslogOps, long globalCheckpoint, Store.MetadataSnapshot sourceMetaData) throws IOException {
         state().getTranslog().totalOperations(totalTranslogOps);
         // first, we go and move files that were created with the recovery id suffix to
         // the actual names, its ok if we have a corrupted index here, since we have replicas
@@ -392,13 +401,8 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
         store.incRef();
         try {
             store.cleanupAndVerify("recovery CleanFilesRequestHandler", sourceMetaData);
-            if (indexShard.indexSettings().getIndexVersionCreated().before(Version.V_6_0_0_rc1)) {
-                store.ensureIndexHasHistoryUUID();
-            }
-            // TODO: Assign the global checkpoint to the max_seqno of the safe commit if the index version >= 6.2
             final String translogUUID = Translog.createEmptyTranslog(
-                indexShard.shardPath().resolveTranslog(), SequenceNumbers.UNASSIGNED_SEQ_NO, shardId,
-                indexShard.getPendingPrimaryTerm());
+                indexShard.shardPath().resolveTranslog(), globalCheckpoint, shardId, indexShard.getPendingPrimaryTerm());
             store.associateIndexWithNewTranslog(translogUUID);
 
             if (indexShard.getRetentionLeases().leases().isEmpty()) {

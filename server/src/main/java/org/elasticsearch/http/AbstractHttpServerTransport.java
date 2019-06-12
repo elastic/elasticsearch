@@ -249,7 +249,7 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
         return publishPort;
     }
 
-    protected void onException(HttpChannel channel, Exception e) {
+    public void onException(HttpChannel channel, Exception e) {
         if (lifecycle.started() == false) {
             // just close and ignore - we are already stopped and just need to make sure we release all resources
             CloseableChannel.closeChannel(channel);
@@ -262,6 +262,9 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
         } else if (NetworkExceptionHelper.isConnectException(e)) {
             logger.trace(() -> new ParameterizedMessage(
                 "connect exception caught while handling client http traffic, closing connection {}", channel), e);
+            CloseableChannel.closeChannel(channel);
+        } else if (e instanceof HttpReadTimeoutException) {
+            logger.trace(() -> new ParameterizedMessage("http read timeout, closing connection {}", channel), e);
             CloseableChannel.closeChannel(channel);
         } else if (e instanceof CancelledKeyException) {
             logger.trace(() -> new ParameterizedMessage(

@@ -58,6 +58,7 @@ import org.elasticsearch.index.shard.IndexShardTestCase;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.containsString;
@@ -279,6 +280,7 @@ public class FlushIT extends ESIntegTestCase {
         assertThat(indexResult.getFailure(), nullValue());
     }
 
+    @TestLogging("_root:TRACE")
     public void testSyncedFlushSkipOutOfSyncReplicas() throws Exception {
         internalCluster().ensureAtLeastNumDataNodes(between(2, 3));
         final int numberOfReplicas = internalCluster().numDataNodes() - 1;

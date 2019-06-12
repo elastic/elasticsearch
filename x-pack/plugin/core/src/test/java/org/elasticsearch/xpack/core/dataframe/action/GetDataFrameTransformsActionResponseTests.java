@@ -44,6 +44,7 @@ public class GetDataFrameTransformsActionResponseTests extends AbstractWireSeria
         assertWarnings(LoggerMessageFormat.format(Response.INVALID_TRANSFORMS_DEPRECATION_WARNING, 2));
     }
 
+    @SuppressWarnings("unchecked")
     public void testNoHeaderInResponse() throws IOException {
         List<DataFrameTransformConfig> transforms = new ArrayList<>();
 
@@ -62,7 +63,8 @@ public class GetDataFrameTransformsActionResponseTests extends AbstractWireSeria
 
         assertEquals(transforms.size(), transformsResponse.size());
         for (int i = 0; i < transforms.size(); ++i) {
-            assertEquals(transforms.get(i).getSource(), XContentMapValues.extractValue("source", transformsResponse.get(i)));
+            assertArrayEquals(transforms.get(i).getSource().getIndex(),
+                ((ArrayList<String>)XContentMapValues.extractValue("source.index", transformsResponse.get(i))).toArray(new String[0]));
             assertEquals(null, XContentMapValues.extractValue("headers", transformsResponse.get(i)));
         }
     }

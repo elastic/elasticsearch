@@ -65,9 +65,6 @@ setup:
 ---
 "Docvalues_fields size limit":
 
-  - skip:
-      version: " - 6.99.99"
-      reason: "Triggers warnings before 7.0"
   - do:
       catch:      /Trying to retrieve too many docvalue_fields\. Must be less than or equal to[:] \[2\] but was \[3\]\. This limit can be set by changing the \[index.max_docvalue_fields_search\] index level setting\./
       search:
@@ -99,9 +96,6 @@ setup:
 
 ---
 "Regexp length limit":
-  - skip:
-      version: " - 6.99.99"
-      reason: "The regex length limit was introduced in 7.0.0"
 
   - do:
       catch: /The length of regex \[1110\] used in the Regexp Query request has exceeded the allowed maximum of \[1000\]\. This maximum can be set by changing the \[index.max_regex_length\] index level setting\./

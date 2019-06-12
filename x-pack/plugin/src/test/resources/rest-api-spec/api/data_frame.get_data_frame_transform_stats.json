@@ -3,13 +3,24 @@
     "documentation": "https://www.elastic.co/guide/en/elasticsearch/reference/current/get-data-frame-transform-stats.html",
     "methods": [ "GET" ],
     "url": {
-      "path": "/_data_frame/transforms/{transform_id}/_stats",
       "paths": [ "/_data_frame/transforms/{transform_id}/_stats" ],
       "parts": {
         "transform_id": {
           "type": "string",
           "required": false,
           "description": "The id of the transform for which to get stats. '_all' or '*' implies all transforms"
+        }
+      },
+      "params": {
+        "from": {
+          "type": "number",
+          "required": false,
+          "description": "skips a number of transform stats, defaults to 0"
+        },
+        "size": {
+          "type": "number",
+          "required": false,
+          "description": "specifies a max number of transform stats to get, defaults to 100"
         }
       }
     },

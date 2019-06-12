@@ -140,9 +140,19 @@ public class DataFrameTransformsCheckpointServiceTests extends ESTestCase {
                 // we need at least one replica for testing
                 int numShardCopies = randomIntBetween(2, 4);
 
+                int primaryShard = 0;
+                if (skipPrimaries) {
+                    primaryShard = randomInt(numShardCopies - 1);
+                }
                 int inconsistentReplica = -1;
                 if (inconsistentGlobalCheckpoints) {
-                    inconsistentReplica = randomIntBetween(0, numShardCopies - 1);
+                    List<Integer> replicas = new ArrayList<>(numShardCopies - 1);
+                    for (int i = 0; i < numShardCopies; i++) {
+                        if (primaryShard != i) {
+                            replicas.add(i);
+                        }
+                    }
+                    inconsistentReplica = randomFrom(replicas);
                 }
 
                 // SeqNoStats asserts that checkpoints are logical
@@ -150,16 +160,12 @@ public class DataFrameTransformsCheckpointServiceTests extends ESTestCase {
                 long globalCheckpoint = randomBoolean() ? localCheckpoint : randomLongBetween(0L, 100000000L);
                 long maxSeqNo = Math.max(localCheckpoint, globalCheckpoint);
 
-                SeqNoStats seqNoStats = new SeqNoStats(maxSeqNo, localCheckpoint, globalCheckpoint);
+                final SeqNoStats validSeqNoStats = new SeqNoStats(maxSeqNo, localCheckpoint, globalCheckpoint);
                 checkpoints.add(globalCheckpoint);
 
                 for (int replica = 0;  replica < numShardCopies; replica++) {
                     ShardId shardId = new ShardId(index, shardIndex);
-                    boolean primary = (replica == 0);
-
-                    if (skipPrimaries) {
-                        primary = randomBoolean();
-                    }
+                    boolean primary = (replica == primaryShard);
 
                     Path path = createTempDir().resolve("indices").resolve(index.getUUID()).resolve(String.valueOf(shardIndex));
                     ShardRouting shardRouting = ShardRouting.newUnassigned(shardId, primary,
@@ -187,10 +193,16 @@ public class DataFrameTransformsCheckpointServiceTests extends ESTestCase {
 
                     if (inconsistentReplica == replica) {
                         // overwrite
-                        seqNoStats = new SeqNoStats(maxSeqNo, localCheckpoint, globalCheckpoint + randomLongBetween(10L, 100L));
+                        SeqNoStats invalidSeqNoStats =
+                            new SeqNoStats(maxSeqNo, localCheckpoint, globalCheckpoint + randomLongBetween(10L, 100L));
+                        shardStats.add(
+                            new ShardStats(shardRouting,
+                                new ShardPath(false, path, path, shardId), stats, null, invalidSeqNoStats, null));
+                    } else {
+                        shardStats.add(
+                            new ShardStats(shardRouting,
+                                new ShardPath(false, path, path, shardId), stats, null, validSeqNoStats, null));
                     }
-
-                    shardStats.add(new ShardStats(shardRouting, new ShardPath(false, path, path, shardId), stats, null, seqNoStats, null));
                 }
             }
 

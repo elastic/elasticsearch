@@ -33,6 +33,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -117,7 +118,8 @@ public class TransportMultiSearchActionTests extends ESTestCase {
                 final ExecutorService executorService = rarely() ? rarelyExecutor : commonExecutor;
                 executorService.execute(() -> {
                     counter.decrementAndGet();
-                    listener.onResponse(new SearchResponse());
+                    listener.onResponse(new SearchResponse(InternalSearchResponse.empty(), null, 0, 0, 0, 0L,
+                        ShardSearchFailure.EMPTY_ARRAY, SearchResponse.Clusters.EMPTY));
                 });
             }
         };

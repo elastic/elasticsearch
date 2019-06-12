@@ -14,10 +14,13 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.SqlException;
+import org.elasticsearch.xpack.sql.expression.function.scalar.geo.GeoShape;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.util.DateUtils;
 
 import java.io.IOException;
+import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -126,7 +129,7 @@ public class FieldHitExtractorTests extends AbstractWireSerializingTestCase<Fiel
             BytesReference sourceRef = BytesReference.bytes(source);
             hit.sourceRef(sourceRef);
             Object extract = extractor.extract(hit);
-            assertEquals(hasSource ? value : null, extract);
+            assertFieldHitEquals(hasSource ? value : null, extract);
         }
     }
 
@@ -179,7 +182,7 @@ public class FieldHitExtractorTests extends AbstractWireSerializingTestCase<Fiel
             source.endObject();
             BytesReference sourceRef = BytesReference.bytes(source);
             hit.sourceRef(sourceRef);
-            assertEquals(value, extractor.extract(hit));
+            assertFieldHitEquals(value, extractor.extract(hit));
         }
     }
 
@@ -225,7 +228,7 @@ public class FieldHitExtractorTests extends AbstractWireSerializingTestCase<Fiel
         source.endObject();
         BytesReference sourceRef = BytesReference.bytes(source);
         hit.sourceRef(sourceRef);
-        assertEquals(value, fe.extract(hit));
+        assertFieldHitEquals(value, fe.extract(hit));
     }
 
     public void testExtractSourcePath() {
@@ -451,6 +454,125 @@ public class FieldHitExtractorTests extends AbstractWireSerializingTestCase<Fiel
         assertThat(ex.getMessage(), is("Objects (returned by [" + fieldName + "]) are not supported"));
     }
 
+    public void testGeoShapeExtraction() {
+        String fieldName = randomAlphaOfLength(5);
+        FieldHitExtractor fe = new FieldHitExtractor(fieldName, DataType.GEO_SHAPE, UTC, false);
+        Map<String, Object> map = new HashMap<>();
+        map.put(fieldName, "POINT (1 2)");
+        assertEquals(new GeoShape(1, 2), fe.extractFromSource(map));
+
+        map = new HashMap<>();
+        assertNull(fe.extractFromSource(map));
+    }
+
+
+    public void testMultipleGeoShapeExtraction() {
+        String fieldName = randomAlphaOfLength(5);
+        FieldHitExtractor fe = new FieldHitExtractor(fieldName, DataType.GEO_SHAPE, UTC, false);
+        Map<String, Object> map = new HashMap<>();
+        map.put(fieldName, "POINT (1 2)");
+        assertEquals(new GeoShape(1, 2), fe.extractFromSource(map));
+
+        map = new HashMap<>();
+        assertNull(fe.extractFromSource(map));
+
+        Map<String, Object> map2 = new HashMap<>();
+        map2.put(fieldName, Arrays.asList("POINT (1 2)", "POINT (3 4)"));
+        SqlException ex = expectThrows(SqlException.class, () -> fe.extractFromSource(map2));
+        assertThat(ex.getMessage(), is("Arrays (returned by [" + fieldName + "]) are not supported"));
+
+        FieldHitExtractor lenientFe = new FieldHitExtractor(fieldName, DataType.GEO_SHAPE, UTC, false, true);
+        assertEquals(new GeoShape(1, 2), lenientFe.extractFromSource(map2));
+    }
+
+    public void testGeoPointExtractionFromSource() throws IOException {
+        int layers = randomIntBetween(1, 3);
+        String pathCombined = "";
+        double lat = randomDoubleBetween(-90, 90, true);
+        double lon = randomDoubleBetween(-180, 180, true);
+        SearchHit hit = new SearchHit(1);
+        XContentBuilder source = JsonXContent.contentBuilder();
+        boolean[] arrayWrap = new boolean[layers - 1];
+        source.startObject(); {
+            for (int i = 0; i < layers - 1; i++) {
+                arrayWrap[i] = randomBoolean();
+                String name = randomAlphaOfLength(10);
+                source.field(name);
+                if (arrayWrap[i]) {
+                    source.startArray();
+                }
+                source.startObject();
+                pathCombined = pathCombined + name + ".";
+            }
+            String name = randomAlphaOfLength(10);
+            pathCombined = pathCombined + name;
+            source.field(name, randomPoint(lat, lon));
+            for (int i = layers - 2; i >= 0; i--) {
+                source.endObject();
+                if (arrayWrap[i]) {
+                    source.endArray();
+                }
+            }
+        }
+        source.endObject();
+        BytesReference sourceRef = BytesReference.bytes(source);
+        hit.sourceRef(sourceRef);
+
+        FieldHitExtractor fe = new FieldHitExtractor(pathCombined, DataType.GEO_POINT, UTC, false);
+        assertEquals(new GeoShape(lon, lat), fe.extract(hit));
+    }
+
+    public void testMultipleGeoPointExtractionFromSource() throws IOException {
+        double lat = randomDoubleBetween(-90, 90, true);
+        double lon = randomDoubleBetween(-180, 180, true);
+        SearchHit hit = new SearchHit(1);
+        String fieldName = randomAlphaOfLength(5);
+        int arraySize = randomIntBetween(2, 4);
+        XContentBuilder source = JsonXContent.contentBuilder();
+        source.startObject(); {
+            source.startArray(fieldName);
+            source.value(randomPoint(lat, lon));
+            for (int i = 1; i < arraySize; i++) {
+                source.value(randomPoint(lat, lon));
+            }
+            source.endArray();
+        }
+        source.endObject();
+        BytesReference sourceRef = BytesReference.bytes(source);
+        hit.sourceRef(sourceRef);
+
+        FieldHitExtractor fe = new FieldHitExtractor(fieldName, DataType.GEO_POINT, UTC, false);
+        SqlException ex = expectThrows(SqlException.class, () -> fe.extract(hit));
+        assertThat(ex.getMessage(), is("Arrays (returned by [" + fieldName + "]) are not supported"));
+
+        FieldHitExtractor lenientFe = new FieldHitExtractor(fieldName, DataType.GEO_POINT, UTC, false, true);
+        assertEquals(new GeoShape(lon, lat), lenientFe.extract(hit));
+    }
+
+    public void testGeoPointExtractionFromDocValues() {
+        String fieldName = randomAlphaOfLength(5);
+        FieldHitExtractor fe = new FieldHitExtractor(fieldName, DataType.GEO_POINT, UTC, true);
+        SearchHit hit = new SearchHit(1);
+        DocumentField field = new DocumentField(fieldName, singletonList("2, 1"));
+        hit.fields(singletonMap(fieldName, field));
+        assertEquals(new GeoShape(1, 2), fe.extract(hit));
+        hit = new SearchHit(1);
+        assertNull(fe.extract(hit));
+    }
+
+    public void testGeoPointExtractionFromMultipleDocValues() {
+        String fieldName = randomAlphaOfLength(5);
+        SearchHit hit = new SearchHit(1);
+        FieldHitExtractor fe = new FieldHitExtractor(fieldName, DataType.GEO_POINT, UTC, true);
+
+        hit.fields(singletonMap(fieldName, new DocumentField(fieldName, Arrays.asList("2,1", "3,4"))));
+        SqlException ex = expectThrows(SqlException.class, () -> fe.extract(hit));
+        assertThat(ex.getMessage(), is("Arrays (returned by [" + fieldName + "]) are not supported"));
+
+        FieldHitExtractor lenientFe = new FieldHitExtractor(fieldName, DataType.GEO_POINT, UTC, true, true);
+        assertEquals(new GeoShape(1, 2), lenientFe.extract(hit));
+    }
+
     private FieldHitExtractor getFieldHitExtractor(String fieldName, boolean useDocValue) {
         return new FieldHitExtractor(fieldName, null, UTC, useDocValue);
     }
@@ -460,6 +582,9 @@ public class FieldHitExtractorTests extends AbstractWireSerializingTestCase<Fiel
                 () -> randomAlphaOfLength(10),
                 ESTestCase::randomLong,
                 ESTestCase::randomDouble,
+                ESTestCase::randomInt,
+                () -> BigInteger.valueOf(Long.MAX_VALUE).add(BigInteger.ONE),
+                () -> new BigDecimal("20012312345621343256123456254.20012312345621343256123456254"),
                 () -> null));
         return value.get();
     }
@@ -468,7 +593,34 @@ public class FieldHitExtractorTests extends AbstractWireSerializingTestCase<Fiel
         Supplier<Object> value = randomFrom(Arrays.asList(
                 () -> randomAlphaOfLength(10),
                 ESTestCase::randomLong,
-                ESTestCase::randomDouble));
+                ESTestCase::randomDouble,
+                ESTestCase::randomInt,
+                () -> BigInteger.valueOf(Long.MAX_VALUE).add(BigInteger.ONE),
+                () -> new BigDecimal("20012312345621343256123456254.20012312345621343256123456254")));
+        return value.get();
+    }
+    
+    private void assertFieldHitEquals(Object expected, Object actual) {
+        if (expected instanceof BigDecimal) {
+            // parsing will, by default, build a Double even if the initial value is BigDecimal
+            // Elasticsearch does this the same when returning the results
+            assertEquals(((BigDecimal) expected).doubleValue(), actual);
+        } else {
+            assertEquals(expected, actual);
+        }
+    }
+
+    private Object randomPoint(double lat, double lon) {
+        Supplier<Object> value = randomFrom(Arrays.asList(
+            () -> lat + "," + lon,
+            () -> Arrays.asList(lon, lat),
+            () -> {
+                Map<String, Object> map1 = new HashMap<>();
+                map1.put("lat", lat);
+                map1.put("lon", lon);
+                return map1;
+            }
+        ));
         return value.get();
     }
 }

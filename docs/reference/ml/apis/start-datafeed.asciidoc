@@ -2,6 +2,8 @@
 [testenv="platinum"]
 [[ml-start-datafeed]]
 === Start {dfeeds} API
+
+[subs="attributes"]
 ++++
 <titleabbrev>Start {dfeeds}</titleabbrev>
 ++++

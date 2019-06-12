@@ -12,7 +12,9 @@ import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.util.DateUtils;
 
-public class CurrentDate extends CurrentFunction {
+import java.time.ZonedDateTime;
+
+public class CurrentDate extends CurrentFunction<ZonedDateTime> {
 
     public CurrentDate(Source source, Configuration configuration) {
         super(source, configuration, DateUtils.asDateOnly(configuration.now()), DataType.DATE);

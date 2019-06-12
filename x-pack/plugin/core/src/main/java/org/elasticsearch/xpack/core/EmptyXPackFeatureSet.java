@@ -5,8 +5,6 @@
  */
 package org.elasticsearch.xpack.core;
 
-import org.elasticsearch.action.ActionListener;
-
 import java.util.Collections;
 import java.util.Map;
 
@@ -14,11 +12,6 @@ public class EmptyXPackFeatureSet implements XPackFeatureSet {
     @Override
     public String name() {
         return "Empty XPackFeatureSet";
-    }
-
-    @Override
-    public String description() {
-        return "Core will not function without this empty featureset compliments of the way the TransportXPackInfoAction Guice works";
     }
 
     @Override
@@ -34,10 +27,5 @@ public class EmptyXPackFeatureSet implements XPackFeatureSet {
     @Override
     public Map<String, Object> nativeCodeInfo() {
         return Collections.emptyMap();
-    }
-
-    @Override
-    public void usage(ActionListener<Usage> listener) {
-
     }
 }

@@ -306,4 +306,13 @@ public class DeleteByQueryBasicTests extends ReindexTestCase {
 
     }
 
+    public void testMissingSources() {
+        BulkByScrollResponse response = updateByQuery()
+            .source("missing-index-*")
+            .refresh(true)
+            .setSlices(AbstractBulkByScrollRequest.AUTO_SLICES)
+            .get();
+        assertThat(response, matcher().deleted(0).slices(hasSize(0)));
+    }
+
 }

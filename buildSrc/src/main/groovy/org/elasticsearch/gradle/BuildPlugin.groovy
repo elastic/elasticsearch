@@ -256,11 +256,7 @@ class BuildPlugin implements Plugin<Project> {
             }
         }
 
-        if (ext.get('buildDocker')) {
-            (ext.get('requiresDocker') as List<Task>).add(task)
-        } else {
-            task.onlyIf { false }
-        }
+        (ext.get('requiresDocker') as List<Task>).add(task)
     }
 
     protected static void checkDockerVersionRecent(String dockerVersion) {

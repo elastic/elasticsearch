@@ -23,6 +23,7 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.net.InetAddress;
 import java.net.NetworkInterface;
+import java.net.SocketException;
 import java.util.Collections;
 
 import static org.hamcrest.Matchers.containsString;
@@ -88,8 +89,12 @@ public class NetworkUtilsTests extends ESTestCase {
      */
     public void testAddressInterfaceLookup() throws Exception {
         for (NetworkInterface netIf : NetworkUtils.getInterfaces()) {
-            if (!netIf.isUp() || Collections.list(netIf.getInetAddresses()).isEmpty()) {
-                continue;
+            try {
+                if (!netIf.isUp() || Collections.list(netIf.getInetAddresses()).isEmpty()) {
+                    continue;
+                }
+            } catch (SocketException e) {
+                throw new AssertionError("Failed to check if interface [" + netIf + "] is up", e);
             }
 
             String name = netIf.getName();

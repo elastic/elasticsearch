@@ -107,7 +107,7 @@ public class DestConfig implements ToXContentObject {
          * @return The {@link Builder} with index set
          */
         public Builder setIndex(String index) {
-            this.index = index;
+            this.index = Objects.requireNonNull(index, INDEX.getPreferredName());
             return this;
         }
 

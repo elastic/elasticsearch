@@ -55,7 +55,7 @@ public class DataFramePivotRestIT extends DataFrameRestTestCase {
         String dataFrameIndex = "pivot_reviews";
         setupDataAccessRole(DATA_ACCESS_ROLE, REVIEWS_INDEX_NAME, dataFrameIndex);
 
-        createPivotReviewsTransform(transformId, dataFrameIndex,null, null, BASIC_AUTH_VALUE_DATA_FRAME_ADMIN_WITH_SOME_DATA_ACCESS);
+        createPivotReviewsTransform(transformId, dataFrameIndex, null, null, BASIC_AUTH_VALUE_DATA_FRAME_ADMIN_WITH_SOME_DATA_ACCESS);
 
         startAndWaitForTransform(transformId, dataFrameIndex, BASIC_AUTH_VALUE_DATA_FRAME_ADMIN_WITH_SOME_DATA_ACCESS);
 
@@ -178,38 +178,38 @@ public class DataFramePivotRestIT extends DataFrameRestTestCase {
             + " \"dest\": {\"index\":\"" + dataFrameIndex + "\"},";
 
         config += " \"pivot\": {"
-                + "   \"group_by\": {"
-                + "     \"reviewer\": {"
-                + "       \"terms\": {"
-                + "         \"field\": \"user_id\""
-                + " } } },"
-                + "   \"aggregations\": {"
-                + "     \"avg_rating\": {"
-                + "       \"avg\": {"
-                + "         \"field\": \"stars\""
-                + " } },"
-                + "     \"sum_rating\": {"
-                + "       \"sum\": {"
-                + "         \"field\": \"stars\""
-                + " } },"
-                + "     \"cardinality_business\": {"
-                + "       \"cardinality\": {"
-                + "         \"field\": \"business_id\""
-                + " } },"
-                + "     \"min_rating\": {"
-                + "       \"min\": {"
-                + "         \"field\": \"stars\""
-                + " } },"
-                + "     \"max_rating\": {"
-                + "       \"max\": {"
-                + "         \"field\": \"stars\""
-                + " } },"
-                + "     \"count\": {"
-                + "       \"value_count\": {"
-                + "         \"field\": \"business_id\""
-                + " } }"
-                + " } }"
-                + "}";
+            + "   \"group_by\": {"
+            + "     \"reviewer\": {"
+            + "       \"terms\": {"
+            + "         \"field\": \"user_id\""
+            + " } } },"
+            + "   \"aggregations\": {"
+            + "     \"avg_rating\": {"
+            + "       \"avg\": {"
+            + "         \"field\": \"stars\""
+            + " } },"
+            + "     \"sum_rating\": {"
+            + "       \"sum\": {"
+            + "         \"field\": \"stars\""
+            + " } },"
+            + "     \"cardinality_business\": {"
+            + "       \"cardinality\": {"
+            + "         \"field\": \"business_id\""
+            + " } },"
+            + "     \"min_rating\": {"
+            + "       \"min\": {"
+            + "         \"field\": \"stars\""
+            + " } },"
+            + "     \"max_rating\": {"
+            + "       \"max\": {"
+            + "         \"field\": \"stars\""
+            + " } },"
+            + "     \"count\": {"
+            + "       \"value_count\": {"
+            + "         \"field\": \"business_id\""
+            + " } }"
+            + " } }"
+            + "}";
 
         createDataframeTransformRequest.setJsonEntity(config);
         Map<String, Object> createDataframeTransformResponse = entityAsMap(client().performRequest(createDataframeTransformRequest));
@@ -300,15 +300,72 @@ public class DataFramePivotRestIT extends DataFrameRestTestCase {
         createPreviewRequest.setJsonEntity(config);
 
         Map<String, Object> previewDataframeResponse = entityAsMap(client().performRequest(createPreviewRequest));
-        List<Map<String, Object>> preview = (List<Map<String, Object>>)previewDataframeResponse.get("preview");
+        List<Map<String, Object>> preview = (List<Map<String, Object>>) previewDataframeResponse.get("preview");
         // preview is limited to 100
         assertThat(preview.size(), equalTo(100));
-        Set<String> expectedTopLevelFields = new HashSet<>(Arrays.asList("user", "by_day"));
+        Set<String> expectedTopFields = new HashSet<>(Arrays.asList("_source", "_id"));
+        Set<String> expectedTopLevelSourceFields = new HashSet<>(Arrays.asList("user", "by_day"));
         Set<String> expectedNestedFields = new HashSet<>(Arrays.asList("id", "avg_rating"));
         preview.forEach(p -> {
             Set<String> keys = p.keySet();
-            assertThat(keys, equalTo(expectedTopLevelFields));
-            Map<String, Object> nestedObj = (Map<String, Object>)p.get("user");
+            assertThat(keys, equalTo(expectedTopFields));
+            Map<String, Object> source = (Map<String, Object>) p.get("_source");
+            assertThat(source.keySet(), equalTo(expectedTopLevelSourceFields));
+            Map<String, Object> nestedObj = (Map<String, Object>) source.get("user");
+            keys = nestedObj.keySet();
+            assertThat(keys, equalTo(expectedNestedFields));
+        });
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testPreviewTransformWithPipeline() throws Exception {
+        String pipelineId = "my-preview-pivot-pipeline";
+        int pipelineValue = 42;
+        Request pipelineRequest = new Request("PUT", "/_ingest/pipeline/" + pipelineId);
+        pipelineRequest.setJsonEntity("{\n" +
+            "  \"description\" : \"my pivot preview pipeline\",\n" +
+            "  \"processors\" : [\n" +
+            "    {\n" +
+            "      \"set\" : {\n" +
+            "        \"field\": \"pipeline_field\",\n" +
+            "        \"value\": " + pipelineValue +
+            "      }\n" +
+            "    }\n" +
+            "  ]\n" +
+            "}");
+        client().performRequest(pipelineRequest);
+
+        setupDataAccessRole(DATA_ACCESS_ROLE, REVIEWS_INDEX_NAME);
+        final Request createPreviewRequest = createRequestWithAuth("POST", DATAFRAME_ENDPOINT + "_preview", null);
+
+        String config = "{ \"source\": {\"index\":\"" + REVIEWS_INDEX_NAME + "\"} ,"
+            + "\"dest\": {\"pipeline\": \"" + pipelineId + "\"},"
+            + " \"pivot\": {"
+            + "   \"group_by\": {"
+            + "     \"user.id\": {\"terms\": { \"field\": \"user_id\" }},"
+            + "     \"by_day\": {\"date_histogram\": {\"fixed_interval\": \"1d\",\"field\":\"timestamp\",\"format\":\"yyyy-MM-dd\"}}},"
+            + "   \"aggregations\": {"
+            + "     \"user.avg_rating\": {"
+            + "       \"avg\": {"
+            + "         \"field\": \"stars\""
+            + " } } } }"
+            + "}";
+        createPreviewRequest.setJsonEntity(config);
+
+        Map<String, Object> previewDataframeResponse = entityAsMap(client().performRequest(createPreviewRequest));
+        List<Map<String, Object>> preview = (List<Map<String, Object>>)previewDataframeResponse.get("preview");
+        // preview is limited to 100
+        assertThat(preview.size(), equalTo(100));
+        Set<String> expectedTopFields = new HashSet<>(Arrays.asList("_source", "_id", "_index", "_ingest", "_type"));
+        Set<String> expectedTopLevelSourceFields = new HashSet<>(Arrays.asList("user", "by_day", "pipeline_field"));
+        Set<String> expectedNestedFields = new HashSet<>(Arrays.asList("id", "avg_rating"));
+        preview.forEach(p -> {
+            Set<String> keys = p.keySet();
+            assertThat(keys, equalTo(expectedTopFields));
+            Map<String, Object> source = (Map<String, Object>)p.get("_source");
+            assertThat(source.keySet(), equalTo(expectedTopLevelSourceFields));
+            assertThat(source.get("pipeline_field"), equalTo(pipelineValue));
+            Map<String, Object> nestedObj = (Map<String, Object>)source.get("user");
             keys = nestedObj.keySet();
             assertThat(keys, equalTo(expectedNestedFields));
         });

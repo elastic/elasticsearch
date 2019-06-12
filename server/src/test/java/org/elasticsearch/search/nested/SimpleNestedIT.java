@@ -1011,6 +1011,7 @@ public class SimpleNestedIT extends ESIntegTestCase {
         assertThat(searchResponse.getHits().getHits()[2].getId(), equalTo("3"));
         assertThat(searchResponse.getHits().getHits()[2].getSortValues()[0].toString(), equalTo("3"));
 
+        nestedSort.setFilter(QueryBuilders.termQuery("parent.filter", false));
         searchResponse = client().prepareSearch()
                 .setQuery(matchAllQuery())
                 .addSort(

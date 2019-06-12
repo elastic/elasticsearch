@@ -1,6 +1,7 @@
 {
   "security.invalidate_token": {
     "documentation": "https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-invalidate-token.html",
+    "stability": "stable",
     "methods": [ "DELETE" ],
     "url": {
       "paths": [

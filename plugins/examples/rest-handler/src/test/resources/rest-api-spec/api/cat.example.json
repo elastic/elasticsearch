@@ -1,6 +1,7 @@
 {
   "cat.example": {
     "documentation": "",
+    "stability" : "stable",
     "methods": ["GET"],
     "url": {
       "paths": ["/_cat/example"],

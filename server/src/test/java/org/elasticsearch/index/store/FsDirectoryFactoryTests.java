@@ -61,6 +61,7 @@ public class FsDirectoryFactoryTests extends ESTestCase {
             assertTrue(hybridDirectory.useDelegate("foo.dvd"));
             assertTrue(hybridDirectory.useDelegate("foo.nvd"));
             assertTrue(hybridDirectory.useDelegate("foo.tim"));
+            assertTrue(hybridDirectory.useDelegate("foo.tip"));
             assertTrue(hybridDirectory.useDelegate("foo.cfs"));
             assertFalse(hybridDirectory.useDelegate("foo.bar"));
             MMapDirectory delegate = hybridDirectory.getDelegate();

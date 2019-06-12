@@ -546,14 +546,9 @@ public final class InternalTestCluster extends TestCluster {
         return getRandomNodeAndClient(nc -> true);
     }
 
-    private NodeAndClient getRandomNodeAndClient(Predicate<NodeAndClient> predicate) {
-        return getRandomNodeAndClientIncludingClosed(((Predicate<NodeAndClient>) nc -> nc.isClosed() == false).and(predicate));
-    }
-
-    private synchronized NodeAndClient getRandomNodeAndClientIncludingClosed(Predicate<NodeAndClient> predicate) {
+    private synchronized NodeAndClient getRandomNodeAndClient(Predicate<NodeAndClient> predicate) {
         ensureOpen();
-        List<NodeAndClient> values = nodes.values().stream().filter(predicate)
-            .collect(Collectors.toList());
+        List<NodeAndClient> values = nodes.values().stream().filter(predicate).collect(Collectors.toList());
         if (values.isEmpty() == false) {
             return randomFrom(random, values);
         }
@@ -894,6 +889,7 @@ public final class InternalTestCluster extends TestCluster {
         Settings closeForRestart(RestartCallback callback) throws Exception {
             assert callback != null;
             close();
+            removeNode(this);
             Settings callbackSettings = callback.onNodeStopped(name);
             assert callbackSettings != null;
             Settings.Builder newSettings = Settings.builder();
@@ -957,10 +953,6 @@ public final class InternalTestCluster extends TestCluster {
                     throw new AssertionError("Interruption while waiting for the node to close", e);
                 }
             }
-        }
-
-        public boolean isClosed() {
-            return closed.get();
         }
 
         private void markNodeDataDirsAsPendingForWipe(Node node) {
@@ -1095,18 +1087,16 @@ public final class InternalTestCluster extends TestCluster {
 
     /** ensure a cluster is formed with all published nodes. */
     public synchronized void validateClusterFormed() {
-        String name = randomFrom(random, nodes.values().stream()
-            .filter(nc -> nc.isClosed() == false).map(nc -> nc.name).toArray(String[]::new));
+        String name = randomFrom(random, getNodeNames());
         validateClusterFormed(name);
     }
 
     /** ensure a cluster is formed with all published nodes, but do so by using the client of the specified node */
     private synchronized void validateClusterFormed(String viaNode) {
-        Set<DiscoveryNode> expectedNodes =
-            nodes.values().stream()
-                .filter(nc -> nc.isClosed() == false)
-                .map(nc -> getInstanceFromNode(ClusterService.class, nc.node()).localNode())
-                .collect(Collectors.toSet());
+        Set<DiscoveryNode> expectedNodes = new HashSet<>();
+        for (NodeAndClient nodeAndClient : nodes.values()) {
+            expectedNodes.add(getInstanceFromNode(ClusterService.class, nodeAndClient.node()).localNode());
+        }
         logger.trace("validating cluster formed via [{}], expecting {}", viaNode, expectedNodes);
         final Client client = client(viaNode);
         try {
@@ -1428,13 +1418,7 @@ public final class InternalTestCluster extends TestCluster {
      * Returns a reference to the given nodes instances of the given class &gt;T&lt;
      */
     public <T> T getInstance(Class<T> clazz, final String node) {
-        if (node != null) {
-            NodeAndClient randomNodeAndClient = nodes.get(node);
-            assert randomNodeAndClient != null;
-            return getInstanceFromNode(clazz, randomNodeAndClient.node);
-        } else {
-            return getInstance(clazz);
-        }
+        return getInstance(clazz, nc -> node == null || node.equals(nc.name));
     }
 
     public <T> T getDataNodeInstance(Class<T> clazz) {
@@ -1470,7 +1454,7 @@ public final class InternalTestCluster extends TestCluster {
 
     @Override
     public int size() {
-        return Math.toIntExact(nodes.values().stream().filter(nc -> nc.isClosed() == false).count());
+        return nodes.size();
     }
 
     @Override
@@ -1669,6 +1653,7 @@ public final class InternalTestCluster extends TestCluster {
         try {
             nodeAndClient.recreateNode(newSettings, () -> rebuildUnicastHostFiles(emptyList()));
             nodeAndClient.startNode();
+            addNode(nodeAndClient);
             success = true;
         } finally {
             if (success == false) {
@@ -1693,6 +1678,14 @@ public final class InternalTestCluster extends TestCluster {
         final NodeAndClient previous = newNodes.remove(nodeAndClient.name);
         nodes = Collections.unmodifiableNavigableMap(newNodes);
         return previous;
+    }
+
+
+    private void addNode(NodeAndClient nodeAndClient) {
+        assert Thread.holdsLock(this);
+        final NavigableMap<String, NodeAndClient> newNodes = new TreeMap<>(nodes);
+        newNodes.put(nodeAndClient.name, nodeAndClient);
+        nodes = Collections.unmodifiableNavigableMap(newNodes);
     }
 
     private Set<String> excludeMasters(Collection<NodeAndClient> nodeAndClients) {
@@ -1745,6 +1738,7 @@ public final class InternalTestCluster extends TestCluster {
         final Settings[] newNodeSettings = new Settings[nextNodeId.get()];
         Map<Set<Role>, List<NodeAndClient>> nodesByRoles = new HashMap<>();
         Set[] rolesOrderedByOriginalStartupOrder = new Set[nextNodeId.get()];
+        final int nodeCount = nodes.size();
         for (NodeAndClient nodeAndClient : nodes.values()) {
             callback.doAfterNodes(numNodesRestarted++, nodeAndClient.nodeClient());
             logger.info("Stopping and resetting node [{}] ", nodeAndClient.name);
@@ -1758,7 +1752,7 @@ public final class InternalTestCluster extends TestCluster {
             nodesByRoles.computeIfAbsent(discoveryNode.getRoles(), k -> new ArrayList<>()).add(nodeAndClient);
         }
 
-        assert nodesByRoles.values().stream().mapToInt(List::size).sum() == nodes.size();
+        assert nodesByRoles.values().stream().mapToInt(List::size).sum() == nodeCount;
 
         // randomize start up order, but making sure that:
         // 1) A data folder that was assigned to a data node will stay so
@@ -2001,10 +1995,7 @@ public final class InternalTestCluster extends TestCluster {
     }
 
     private int getMasterNodesCount() {
-        return (int) nodes.values().stream()
-            .filter(n -> n.isClosed() == false)
-            .filter(n -> Node.NODE_MASTER_SETTING.get(n.node().settings()))
-            .count();
+        return (int) nodes.values().stream().filter(n -> Node.NODE_MASTER_SETTING.get(n.node().settings())).count();
     }
 
     public String startMasterOnlyNode() {
@@ -2035,9 +2026,7 @@ public final class InternalTestCluster extends TestCluster {
 
     private synchronized void publishNode(NodeAndClient nodeAndClient) {
         assert !nodeAndClient.node().isClosed();
-        final NavigableMap<String, NodeAndClient> newNodes = new TreeMap<>(nodes);
-        newNodes.put(nodeAndClient.name, nodeAndClient);
-        nodes = Collections.unmodifiableNavigableMap(newNodes);
+        addNode(nodeAndClient);
         applyDisruptionSchemeToNode(nodeAndClient);
     }
 

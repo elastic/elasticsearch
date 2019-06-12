@@ -59,6 +59,7 @@ public class SnapshotLifecyclePolicy extends AbstractDiffable<SnapshotLifecycleP
     private static final IndexNameExpressionResolver.DateMathExpressionResolver DATE_MATH_RESOLVER =
         new IndexNameExpressionResolver.DateMathExpressionResolver();
     private static final String POLICY_ID_METADATA_FIELD = "policy";
+    private static final String METADATA_FIELD_NAME = "metadata";
 
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<SnapshotLifecyclePolicy, String> PARSER =
@@ -171,15 +172,15 @@ public class SnapshotLifecyclePolicy extends AbstractDiffable<SnapshotLifecycleP
             }
         }
 
-        if (configuration.containsKey("metadata")) {
-            if (configuration.get("metadata") instanceof Map == false) {
-                err.addValidationError("invalid configuration.metadata [" + configuration.get("metadata") +
+        if (configuration.containsKey(METADATA_FIELD_NAME)) {
+            if (configuration.get(METADATA_FIELD_NAME) instanceof Map == false) {
+                err.addValidationError("invalid configuration." + METADATA_FIELD_NAME + " [" + configuration.get(METADATA_FIELD_NAME) +
                     "]: must be an object if present");
             } else {
                 @SuppressWarnings("unchecked")
-                Map<String, Object> metadata = (Map<String, Object>) configuration.get("metadata");
+                Map<String, Object> metadata = (Map<String, Object>) configuration.get(METADATA_FIELD_NAME);
                 if (metadata.containsKey(POLICY_ID_METADATA_FIELD)) {
-                    err.addValidationError("invalid configuration.metadata: field name [" + POLICY_ID_METADATA_FIELD +
+                    err.addValidationError("invalid configuration." + METADATA_FIELD_NAME + ": field name [" + POLICY_ID_METADATA_FIELD +
                         "] is reserved and will be added automatically");
                 } else {
                     Map<String, Object> metadataWithPolicyField = addPolicyNameToMetadata(metadata);
@@ -187,7 +188,7 @@ public class SnapshotLifecyclePolicy extends AbstractDiffable<SnapshotLifecycleP
                     int serializedSizeWithMetadata = CreateSnapshotRequest.metadataSize(metadataWithPolicyField);
                     int policyNameAddedBytes = serializedSizeWithMetadata - serializedSizeOriginal;
                     if (serializedSizeWithMetadata > CreateSnapshotRequest.MAXIMUM_METADATA_BYTES) {
-                        err.addValidationError("invalid configuration.metadata: must be smaller than [" +
+                        err.addValidationError("invalid configuration." + METADATA_FIELD_NAME + ": must be smaller than [" +
                             (CreateSnapshotRequest.MAXIMUM_METADATA_BYTES - policyNameAddedBytes) +
                             "] bytes, but is [" + serializedSizeOriginal + "] bytes");
                     }

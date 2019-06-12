@@ -3,7 +3,6 @@
     "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/current/ml-update-datafeed.html",
     "methods": [ "POST" ],
     "url": {
-      "path": "/_ml/datafeeds/{datafeed_id}/_update",
       "paths": [ "/_ml/datafeeds/{datafeed_id}/_update" ],
       "parts": {
         "datafeed_id": {

@@ -164,7 +164,7 @@ public class BinaryArithmeticProcessor extends FunctionalBinaryProcessor<Object,
             return null;
         }
 
-        if (f == BinaryArithmeticOperation.MUL || f == BinaryArithmeticOperation.DIV || f == BinaryArithmeticOperation.MOD) {
+        if (f == BinaryArithmeticOperation.DIV || f == BinaryArithmeticOperation.MOD) {
             if (!(left instanceof Number)) {
                 throw new SqlIllegalArgumentException("A number is required; received {}", left);
             }
@@ -176,8 +176,8 @@ public class BinaryArithmeticProcessor extends FunctionalBinaryProcessor<Object,
             return f.apply(left, right);
         }
 
-        if (f == BinaryArithmeticOperation.ADD || f == BinaryArithmeticOperation.SUB) {
-                return f.apply(left, right);
+        if (f == BinaryArithmeticOperation.ADD || f == BinaryArithmeticOperation.SUB || f == BinaryArithmeticOperation.MUL) {
+            return f.apply(left, right);
         }
 
         // this should not occur

@@ -92,6 +92,13 @@ chosen.
   parameter is not specified, the structure finder guesses based on the similarity of
   the first row of the file to other rows.
 
+`line_merge_size_limit`::
+  (unsigned integer) The maximum number of characters in a message when lines are
+  merged to form messages while analyzing semi-structured files. The default
+  is 10000. If you have extremely long messages you may need to increase this, but
+  be aware that this may lead to very long processing times if the way to group
+  lines into messages is misdetected.
+
 `lines_to_sample`::
   (unsigned integer) The number of lines to include in the structural analysis,
   starting from the beginning of the file. The minimum is 2; the default
@@ -147,57 +154,46 @@ is not compulsory to have a timestamp in the file.
 --
 
 `timestamp_format`::
-  (string) The time format of the timestamp field in the file. +
+  (string) The Java time format of the timestamp field in the file. +
 +
 --
-NOTE: Currently there is a limitation that this format must be one that the
-structure finder might choose by itself. The reason for this restriction is that
-to consistently set all the fields in the response the structure finder needs a
-corresponding Grok pattern name and simple regular expression for each timestamp
-format. Therefore, there is little value in specifying this parameter for
-structured file formats. If you know which field contains your primary timestamp,
-it is as good and less error-prone to just specify `timestamp_field`.
+NOTE: Only a subset of Java time format letter groups are supported:
 
-The valuable use case for this parameter is when the format is semi-structured
+* `a`
+* `d`
+* `dd`
+* `EEE`
+* `EEEE`
+* `H`
+* `HH`
+* `h`
+* `M`
+* `MM`
+* `MMM`
+* `MMMM`
+* `mm`
+* `ss`
+* `XX`
+* `XXX`
+* `yy`
+* `yyyy`
+* `zzz`
+
+Additionally `S` letter groups (fractional seconds) of length one to nine are
+supported providing they occur after `ss` and separated from the `ss` by a `.`,
+`,` or `:`. Spacing and punctuation is also permitted with the exception of `?`,
+newline and carriage return, together with literal text enclosed in single
+quotes. For example, `MM/dd HH.mm.ss,SSSSSS 'in' yyyy` is a valid override
+format.
+
+One valuable use case for this parameter is when the format is semi-structured
 text, there are multiple timestamp formats in the file, and you know which
 format corresponds to the primary timestamp, but you do not want to specify the
-full `grok_pattern`.
+full `grok_pattern`. Another is when the timestamp format is one that the
+structure finder does not consider by default.
 
-If this parameter is not specified, the structure finder chooses the best format from
-the formats it knows, which are these Java time formats:
-
-* `dd/MMM/yyyy:HH:mm:ss XX`
-* `EEE MMM dd HH:mm zzz yyyy`
-* `EEE MMM dd HH:mm:ss yyyy`
-* `EEE MMM dd HH:mm:ss zzz yyyy`
-* `EEE MMM dd yyyy HH:mm zzz`
-* `EEE MMM dd yyyy HH:mm:ss zzz`
-* `EEE, dd MMM yyyy HH:mm XX`
-* `EEE, dd MMM yyyy HH:mm XXX`
-* `EEE, dd MMM yyyy HH:mm:ss XX`
-* `EEE, dd MMM yyyy HH:mm:ss XXX`
-* `ISO8601`
-* `MMM  d HH:mm:ss`
-* `MMM  d HH:mm:ss,SSS`
-* `MMM  d yyyy HH:mm:ss`
-* `MMM dd HH:mm:ss`
-* `MMM dd HH:mm:ss,SSS`
-* `MMM dd yyyy HH:mm:ss`
-* `MMM dd, yyyy h:mm:ss a`
-* `TAI64N`
-* `UNIX`
-* `UNIX_MS`
-* `yyyy-MM-dd HH:mm:ss`
-* `yyyy-MM-dd HH:mm:ss,SSS`
-* `yyyy-MM-dd HH:mm:ss,SSS XX`
-* `yyyy-MM-dd HH:mm:ss,SSSXX`
-* `yyyy-MM-dd HH:mm:ss,SSSXXX`
-* `yyyy-MM-dd HH:mm:ssXX`
-* `yyyy-MM-dd HH:mm:ssXXX`
-* `yyyy-MM-dd'T'HH:mm:ss,SSS`
-* `yyyy-MM-dd'T'HH:mm:ss,SSSXX`
-* `yyyy-MM-dd'T'HH:mm:ss,SSSXXX`
-* `yyyyMMddHHmmss`
+If this parameter is not specified, the structure finder chooses the best
+format from a built-in set.
 
 --
 
@@ -263,8 +259,18 @@ If the request does not encounter errors, you receive the following result:
   "charset" : "UTF-8", <4>
   "has_byte_order_marker" : false, <5>
   "format" : "ndjson", <6>
-  "need_client_timezone" : false, <7>
-  "mappings" : { <8>
+  "timestamp_field" : "release_date", <7>
+  "joda_timestamp_formats" : [ <8>
+    "ISO8601"
+  ],
+  "java_timestamp_formats" : [ <9>
+    "ISO8601"
+  ],
+  "need_client_timezone" : true, <10>
+  "mappings" : { <11>
+    "@timestamp" : {
+      "type" : "date"
+    },
     "author" : {
       "type" : "keyword"
     },
@@ -275,10 +281,25 @@ If the request does not encounter errors, you receive the following result:
       "type" : "long"
     },
     "release_date" : {
-      "type" : "keyword"
+      "type" : "date",
+      "format" : "iso8601"
     }
   },
-  "field_stats" : { <9>
+  "ingest_pipeline" : {
+    "description" : "Ingest pipeline created by file structure finder",
+    "processors" : [
+      {
+        "date" : {
+          "field" : "release_date",
+          "timezone" : "{{ beat.timezone }}",
+          "formats" : [
+            "ISO8601"
+          ]
+        }
+      }
+    ]
+  },
+  "field_stats" : { <12>
     "author" : {
       "count" : 24,
       "cardinality" : 20,
@@ -424,6 +445,8 @@ If the request does not encounter errors, you receive the following result:
     "release_date" : {
       "count" : 24,
       "cardinality" : 20,
+      "earliest" : "1932-06-01",
+      "latest" : "2011-06-02",
       "top_hits" : [
         {
           "value" : "1985-06-01",
@@ -484,17 +507,22 @@ If the request does not encounter errors, you receive the following result:
 <5> For UTF character encodings, `has_byte_order_marker` indicates whether the
     file begins with a byte order marker.
 <6> `format` is one of `ndjson`, `xml`, `delimited` or `semi_structured_text`.
-<7> If a timestamp format is detected that does not include a timezone,
-    `need_client_timezone` will be `true`. The server that parses the file must
-    therefore be told the correct timezone by the client.
-<8> `mappings` contains some suitable mappings for an index into which the data
-    could be ingested. In this case, the `release_date` field has been given a
-    `keyword` type as it is not considered specific enough to convert to the
-    `date` type.
-<9> `field_stats` contains the most common values of each field, plus basic
-    numeric statistics for the numeric `page_count` field. This information
-    may provide clues that the data needs to be cleaned or transformed prior
-    to use by other {ml} functionality.
+<7> The `timestamp_field` names the field considered most likely to be the
+    primary timestamp of each document.
+<8> `joda_timestamp_formats` are used to tell Logstash how to parse timestamps.
+<9> `java_timestamp_formats` are the Java time formats recognized in the time
+    fields. Elasticsearch mappings and Ingest pipeline use this format.
+<10> If a timestamp format is detected that does not include a timezone,
+     `need_client_timezone` will be `true`. The server that parses the file must
+     therefore be told the correct timezone by the client.
+<11> `mappings` contains some suitable mappings for an index into which the data
+     could be ingested. In this case, the `release_date` field has been given a
+     `keyword` type as it is not considered specific enough to convert to the
+     `date` type.
+<12> `field_stats` contains the most common values of each field, plus basic
+     numeric statistics for the numeric `page_count` field. This information
+     may provide clues that the data needs to be cleaned or transformed prior
+     to use by other {ml} functionality.
 
 The next example shows how it's possible to find the structure of some New York
 City yellow cab trip data. The first `curl` command downloads the data, the
@@ -526,7 +554,7 @@ If the request does not encounter errors, you receive the following result:
   "charset" : "UTF-8",
   "has_byte_order_marker" : false,
   "format" : "delimited", <2>
-  "multiline_start_pattern" : "^.*?,\"?\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2}",
+  "multiline_start_pattern" : "^.*?,\"?\\d{4}-\\d{2}-\\d{2}[T ]\\d{2}:\\d{2}",
   "exclude_lines_pattern" : "^\"?VendorID\"?,\"?tpep_pickup_datetime\"?,\"?tpep_dropoff_datetime\"?,\"?passenger_count\"?,\"?trip_distance\"?,\"?RatecodeID\"?,\"?store_and_fwd_flag\"?,\"?PULocationID\"?,\"?DOLocationID\"?,\"?payment_type\"?,\"?fare_amount\"?,\"?extra\"?,\"?mta_tax\"?,\"?tip_amount\"?,\"?tolls_amount\"?,\"?improvement_surcharge\"?,\"?total_amount\"?",
   "column_names" : [ <3>
     "VendorID",
@@ -1126,6 +1154,8 @@ If the request does not encounter errors, you receive the following result:
     "tpep_dropoff_datetime" : {
       "count" : 19998,
       "cardinality" : 9066,
+      "earliest" : "2018-05-31 06:18:15",
+      "latest" : "2018-06-02 02:25:44",
       "top_hits" : [
         {
           "value" : "2018-06-01 01:12:12",
@@ -1172,6 +1202,8 @@ If the request does not encounter errors, you receive the following result:
     "tpep_pickup_datetime" : {
       "count" : 19998,
       "cardinality" : 8760,
+      "earliest" : "2018-05-31 06:08:31",
+      "latest" : "2018-06-02 01:21:21",
       "top_hits" : [
         {
           "value" : "2018-06-01 00:01:23",
@@ -1361,14 +1393,14 @@ this:
   "charset" : "UTF-8",
   "has_byte_order_marker" : false,
   "format" : "semi_structured_text", <1>
-  "multiline_start_pattern" : "^\\[\\b\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2},\\d{3}", <2>
+  "multiline_start_pattern" : "^\\[\\b\\d{4}-\\d{2}-\\d{2}[T ]\\d{2}:\\d{2}", <2>
   "grok_pattern" : "\\[%{TIMESTAMP_ISO8601:timestamp}\\]\\[%{LOGLEVEL:loglevel}.*", <3>
   "timestamp_field" : "timestamp",
   "joda_timestamp_formats" : [
     "ISO8601"
   ],
   "java_timestamp_formats" : [
-    "yyyy-MM-dd'T'HH:mm:ss,SSS"
+    "ISO8601"
   ],
   "need_client_timezone" : true,
   "mappings" : {
@@ -1398,7 +1430,7 @@ this:
           "field" : "timestamp",
           "timezone" : "{{ beat.timezone }}",
           "formats" : [
-            "yyyy-MM-dd'T'HH:mm:ss,SSS"
+            "ISO8601"
           ]
         }
       },
@@ -1431,6 +1463,8 @@ this:
     "timestamp" : {
       "count" : 53,
       "cardinality" : 28,
+      "earliest" : "2018-09-27T14:39:28,518",
+      "latest" : "2018-09-27T14:39:37,012",
       "top_hits" : [
         {
           "value" : "2018-09-27T14:39:29,859",
@@ -1515,14 +1549,14 @@ this:
   "charset" : "UTF-8",
   "has_byte_order_marker" : false,
   "format" : "semi_structured_text",
-  "multiline_start_pattern" : "^\\[\\b\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2},\\d{3}",
+  "multiline_start_pattern" : "^\\[\\b\\d{4}-\\d{2}-\\d{2}[T ]\\d{2}:\\d{2}",
   "grok_pattern" : "\\[%{TIMESTAMP_ISO8601:timestamp}\\]\\[%{LOGLEVEL:loglevel} *\\]\\[%{JAVACLASS:class} *\\] \\[%{HOSTNAME:node}\\] %{JAVALOGMESSAGE:message}", <1>
   "timestamp_field" : "timestamp",
   "joda_timestamp_formats" : [
     "ISO8601"
   ],
   "java_timestamp_formats" : [
-    "yyyy-MM-dd'T'HH:mm:ss,SSS"
+    "ISO8601"
   ],
   "need_client_timezone" : true,
   "mappings" : {
@@ -1558,7 +1592,7 @@ this:
           "field" : "timestamp",
           "timezone" : "{{ beat.timezone }}",
           "formats" : [
-            "yyyy-MM-dd'T'HH:mm:ss,SSS"
+            "ISO8601"
           ]
         }
       },
@@ -1693,6 +1727,8 @@ this:
     "timestamp" : {
       "count" : 53,
       "cardinality" : 28,
+      "earliest" : "2018-09-27T14:39:28,518",
+      "latest" : "2018-09-27T14:39:37,012",
       "top_hits" : [
         {
           "value" : "2018-09-27T14:39:29,859",

@@ -14,7 +14,10 @@ Updates certain properties of a {dfeed}.
 
 `POST _ml/datafeeds/<feed_id>/_update`
 
-//===== Description
+===== Description
+
+NOTE: If you update the `delayed_data_check_config` property, you must stop and
+start the {dfeed} for the change to be applied.
 
 ==== Path Parameters
 
@@ -32,6 +35,10 @@ The following properties can be updated after the {dfeed} is created:
 `chunking_config`::
   (object) Specifies how data searches are split into time chunks.
   See <<ml-datafeed-chunking-config>>.
+  
+`delayed_data_check_config`::
+  (object) Specifies whether the data feed checks for missing data and 
+  the size of the window. See <<ml-datafeed-delayed-data-check-config>>.  
 
 `frequency`::
   (time units) The interval at which scheduled queries are made while the

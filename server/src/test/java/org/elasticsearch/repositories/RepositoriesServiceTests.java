@@ -33,7 +33,7 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 import org.elasticsearch.index.store.Store;
@@ -49,6 +49,7 @@ import org.elasticsearch.transport.TransportService;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
 import static org.mockito.Mockito.mock;
 
@@ -160,7 +161,7 @@ public class RepositoriesServiceTests extends ESTestCase {
         @Override
         public SnapshotInfo finalizeSnapshot(SnapshotId snapshotId, List<IndexId> indices, long startTime, String failure,
                                              int totalShards, List<SnapshotShardFailure> shardFailures, long repositoryStateId,
-                                             boolean includeGlobalState) {
+                                             boolean includeGlobalState, Map<String, Object> userMetadata) {
             return null;
         }
 
@@ -200,14 +201,14 @@ public class RepositoriesServiceTests extends ESTestCase {
         }
 
         @Override
-        public void snapshotShard(IndexShard shard, Store store, SnapshotId snapshotId, IndexId indexId, IndexCommit snapshotIndexCommit,
-                                  IndexShardSnapshotStatus snapshotStatus) {
+        public void snapshotShard(Store store, MapperService mapperService, SnapshotId snapshotId, IndexId indexId, IndexCommit
+            snapshotIndexCommit, IndexShardSnapshotStatus snapshotStatus) {
 
         }
 
         @Override
-        public void restoreShard(IndexShard shard, SnapshotId snapshotId, Version version, IndexId indexId, ShardId snapshotShardId,
-                                 RecoveryState recoveryState) {
+        public void restoreShard(Store store, SnapshotId snapshotId,
+                                 Version version, IndexId indexId, ShardId snapshotShardId, RecoveryState recoveryState) {
 
         }
 

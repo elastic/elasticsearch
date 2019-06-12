@@ -6,8 +6,6 @@
 
 package org.elasticsearch.xpack.dataframe.action;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.ActionListener;
@@ -48,6 +46,7 @@ import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesResponse;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.permission.ResourcePrivileges;
 import org.elasticsearch.xpack.core.security.support.Exceptions;
+import org.elasticsearch.xpack.dataframe.notifications.DataFrameAuditor;
 import org.elasticsearch.xpack.dataframe.persistence.DataFrameTransformsConfigManager;
 import org.elasticsearch.xpack.dataframe.transforms.pivot.Pivot;
 
@@ -63,18 +62,18 @@ import java.util.stream.Collectors;
 public class TransportPutDataFrameTransformAction
         extends TransportMasterNodeAction<PutDataFrameTransformAction.Request, AcknowledgedResponse> {
 
-    private static final Logger logger = LogManager.getLogger(TransportPutDataFrameTransformAction.class);
-
     private final XPackLicenseState licenseState;
     private final Client client;
     private final DataFrameTransformsConfigManager dataFrameTransformsConfigManager;
     private final SecurityContext securityContext;
+    private final DataFrameAuditor auditor;
 
     @Inject
     public TransportPutDataFrameTransformAction(Settings settings, TransportService transportService, ThreadPool threadPool,
                                                 ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
                                                 ClusterService clusterService, XPackLicenseState licenseState,
-                                                DataFrameTransformsConfigManager dataFrameTransformsConfigManager, Client client) {
+                                                DataFrameTransformsConfigManager dataFrameTransformsConfigManager, Client client,
+                                                DataFrameAuditor auditor) {
         super(PutDataFrameTransformAction.NAME, transportService, clusterService, threadPool, actionFilters,
                 PutDataFrameTransformAction.Request::new, indexNameExpressionResolver);
         this.licenseState = licenseState;
@@ -82,6 +81,7 @@ public class TransportPutDataFrameTransformAction
         this.dataFrameTransformsConfigManager = dataFrameTransformsConfigManager;
         this.securityContext = XPackSettings.SECURITY_ENABLED.get(settings) ?
             new SecurityContext(settings, threadPool.getThreadContext()) : null;
+        this.auditor = auditor;
     }
 
     @Override
@@ -153,7 +153,7 @@ public class TransportPutDataFrameTransformAction
         final String[] concreteDest =
             indexNameExpressionResolver.concreteIndexNames(clusterState, IndicesOptions.lenientExpandOpen(), destIndex);
 
-        if (concreteDest.length > 1 || Regex.isSimpleMatchPattern(destIndex)) {
+        if (concreteDest.length > 1) {
             listener.onFailure(new ElasticsearchStatusException(
                 DataFrameMessages.getMessage(DataFrameMessages.REST_PUT_DATA_FRAME_DEST_SINGLE_INDEX, destIndex),
                 RestStatus.BAD_REQUEST
@@ -238,7 +238,10 @@ public class TransportPutDataFrameTransformAction
 
         // <5> Return the listener, or clean up destination index on failure.
         ActionListener<Boolean> putTransformConfigurationListener = ActionListener.wrap(
-            putTransformConfigurationResult -> listener.onResponse(new AcknowledgedResponse(true)),
+            putTransformConfigurationResult -> {
+                auditor.info(config.getId(), "Created data frame transform.");
+                listener.onResponse(new AcknowledgedResponse(true));
+            },
             listener::onFailure
         );
 

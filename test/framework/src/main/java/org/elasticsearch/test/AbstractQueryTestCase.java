@@ -20,7 +20,6 @@
 package org.elasticsearch.test;
 
 import com.fasterxml.jackson.core.io.JsonStringEncoder;
-
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
@@ -165,7 +164,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
      * parse exception. Some specific objects do not cause any exception as they can hold arbitrary content; they can be
      * declared by overriding {@link #getObjectsHoldingArbitraryContent()}.
      */
-    public final void testUnknownObjectException() throws IOException {
+    public void testUnknownObjectException() throws IOException {
         Set<String> candidates = new HashSet<>();
         // Adds the valid query to the list of queries to modify and test
         candidates.add(createTestQueryBuilder().toString());

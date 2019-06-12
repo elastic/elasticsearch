@@ -99,14 +99,6 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
         return source * x == target;
     }
 
-    public void testNumberOfShards() {
-        {
-            final Version versionCreated = VersionUtils.randomVersionBetween(random(), Version.V_7_0_0, Version.CURRENT);
-            final Settings.Builder indexSettingsBuilder = Settings.builder().put(SETTING_VERSION_CREATED, versionCreated);
-            assertThat(MetaDataCreateIndexService.IndexCreationTask.getNumberOfShards(indexSettingsBuilder), equalTo(1));
-        }
-    }
-
     public void testValidateShrinkIndex() {
         int numShards = randomIntBetween(2, 42);
         ClusterState state = createClusterState("source", numShards, randomIntBetween(0, 10),
@@ -440,12 +432,6 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
         assertEquals(1024, MetaDataCreateIndexService.calculateNumRoutingShards(512, Version.CURRENT));
         assertEquals(2048, MetaDataCreateIndexService.calculateNumRoutingShards(1024, Version.CURRENT));
         assertEquals(4096, MetaDataCreateIndexService.calculateNumRoutingShards(2048, Version.CURRENT));
-
-        Version latestV6 = VersionUtils.getPreviousVersion(Version.V_7_0_0);
-        int numShards = randomIntBetween(1, 1000);
-        assertEquals(numShards, MetaDataCreateIndexService.calculateNumRoutingShards(numShards, latestV6));
-        assertEquals(numShards, MetaDataCreateIndexService.calculateNumRoutingShards(numShards,
-            VersionUtils.randomVersionBetween(random(), VersionUtils.getFirstVersion(), latestV6)));
 
         for (int i = 0; i < 1000; i++) {
             int randomNumShards = randomIntBetween(1, 10000);

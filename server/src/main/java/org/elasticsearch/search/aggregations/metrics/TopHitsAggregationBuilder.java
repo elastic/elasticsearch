@@ -232,8 +232,9 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
         }
         if (name.equals(ScoreSortBuilder.NAME)) {
             sort(SortBuilders.scoreSort().order(order));
+        } else {
+            sort(SortBuilders.fieldSort(name).order(order));
         }
-        sort(SortBuilders.fieldSort(name).order(order));
         return this;
     }
 
@@ -249,8 +250,9 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
         }
         if (name.equals(ScoreSortBuilder.NAME)) {
             sort(SortBuilders.scoreSort());
+        } else {
+            sort(SortBuilders.fieldSort(name));
         }
-        sort(SortBuilders.fieldSort(name));
         return this;
     }
 

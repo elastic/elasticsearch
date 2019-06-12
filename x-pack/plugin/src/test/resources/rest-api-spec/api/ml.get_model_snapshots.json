@@ -3,7 +3,6 @@
     "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/current/ml-get-snapshot.html",
     "methods": [ "GET", "POST" ],
     "url": {
-      "path": "/_ml/anomaly_detectors/{job_id}/model_snapshots/{snapshot_id}",
       "paths": [
         "/_ml/anomaly_detectors/{job_id}/model_snapshots/{snapshot_id}",
         "/_ml/anomaly_detectors/{job_id}/model_snapshots"

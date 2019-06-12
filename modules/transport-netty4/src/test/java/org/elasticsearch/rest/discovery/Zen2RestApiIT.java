@@ -47,7 +47,7 @@ import static org.hamcrest.core.Is.is;
 // These tests are here today so they have access to a proper REST client. They cannot be in :server:integTest since the REST client needs a
 // proper transport implementation, and they cannot be REST tests today since they need to restart nodes. When #35599 and friends land we
 // should be able to move these tests to run against a proper cluster instead. TODO do this.
-@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, transportClientRatio = 0, autoMinMasterNodes = false)
+@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, autoManageMasterNodes = false)
 public class Zen2RestApiIT extends ESNetty4IntegTestCase {
 
     @Override

@@ -20,6 +20,7 @@
 package org.elasticsearch.common.blobstore.fs;
 
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.support.AbstractBlobContainer;
@@ -74,8 +75,21 @@ public class FsBlobContainer extends AbstractBlobContainer {
     }
 
     @Override
+    public Map<String, BlobContainer> children() throws IOException {
+        Map<String, BlobContainer> builder = new HashMap<>();
+        try (DirectoryStream<Path> stream = Files.newDirectoryStream(path)) {
+            for (Path file : stream) {
+                if (Files.isDirectory(file)) {
+                    final String name = file.getFileName().toString();
+                    builder.put(name, new FsBlobContainer(blobStore, path().add(name), file));
+                }
+            }
+        }
+        return unmodifiableMap(builder);
+    }
+
+    @Override
     public Map<String, BlobMetaData> listBlobsByPrefix(String blobNamePrefix) throws IOException {
-        // If we get duplicate files we should just take the last entry
         Map<String, BlobMetaData> builder = new HashMap<>();
 
         blobNamePrefix = blobNamePrefix == null ? "" : blobNamePrefix;

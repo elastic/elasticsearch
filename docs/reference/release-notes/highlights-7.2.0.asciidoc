@@ -17,7 +17,7 @@ beta[] You can now transform your data with
 {stack-ov}/ml-dataframes.html[data frames]. There is a new {kib} wizard that
 guides you through the process of creating a {dataframe-transform} to pivot and
 summarize your data and store it in a new index. Alternatively, you can use
-{ref}/data-frame-apis.html[{dataframe} APIs] to preview, create, and maintain
+{ref}/data-frame-apis.html[{dataframe} APIs] to preview, create, and manage
 the transforms.
 
 // end::notable-highlights[]

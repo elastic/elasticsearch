@@ -892,10 +892,6 @@ public abstract class TransportReplicationAction<
             operationLock.close();
         }
 
-        public long getLocalCheckpoint() {
-            return indexShard.getLocalCheckpoint();
-        }
-
         public ShardRouting routingEntry() {
             return indexShard.routingEntry();
         }

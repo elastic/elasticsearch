@@ -709,7 +709,7 @@ public class RecoverySourceHandler {
                     final BytesArray content = new BytesArray(buffer, 0, bytesRead);
                     final boolean lastChunk = position + content.length() == md.length();
                     final long requestSeqId = requestSeqIdTracker.generateSeqNo();
-                    cancellableThreads.execute(() -> requestSeqIdTracker.waitForOpsToComplete(requestSeqId - maxConcurrentFileChunks));
+                    cancellableThreads.execute(() -> requestSeqIdTracker.waitForProcessedOpsToComplete(requestSeqId - maxConcurrentFileChunks));
                     cancellableThreads.checkForCancel();
                     if (error.get() != null) {
                         break;
@@ -734,7 +734,7 @@ public class RecoverySourceHandler {
         // When we terminate exceptionally, we don't wait for the outstanding requests as we don't use their results anyway.
         // This allows us to end quickly and eliminate the complexity of handling requestSeqIds in case of error.
         if (error.get() == null) {
-            cancellableThreads.execute(() -> requestSeqIdTracker.waitForOpsToComplete(requestSeqIdTracker.getMaxSeqNo()));
+            cancellableThreads.execute(() -> requestSeqIdTracker.waitForProcessedOpsToComplete(requestSeqIdTracker.getMaxSeqNo()));
         }
         if (error.get() != null) {
             handleErrorOnSendFiles(store, error.get().v1(), error.get().v2());

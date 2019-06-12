@@ -540,7 +540,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                                  */
                                 engine.rollTranslogGeneration();
                                 engine.fillSeqNoGaps(newPrimaryTerm);
-                                replicationTracker.updateLocalCheckpoint(currentRouting.allocationId().getId(), getLocalCheckpoint());
+                                replicationTracker.updateLocalCheckpoint(currentRouting.allocationId().getId(),
+                                    getLocalCheckpoint());
                                 primaryReplicaSyncer.accept(this, new ActionListener<ResyncTask>() {
                                     @Override
                                     public void onResponse(ResyncTask resyncTask) {
@@ -2079,12 +2080,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     /**
-     * Returns the local checkpoint for the shard.
+     * Returns the persisted local checkpoint for the shard.
      *
      * @return the local checkpoint
      */
     public long getLocalCheckpoint() {
-        return getEngine().getLocalCheckpoint();
+        return getEngine().getPersistedLocalCheckpoint();
     }
 
     /**
@@ -2200,7 +2201,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         assert shardRouting.primary() && shardRouting.isRelocationTarget() :
             "only primary relocation target can update allocation IDs from primary context: " + shardRouting;
         assert primaryContext.getCheckpointStates().containsKey(routingEntry().allocationId().getId()) &&
-            getLocalCheckpoint() == primaryContext.getCheckpointStates().get(routingEntry().allocationId().getId()).getLocalCheckpoint();
+            getLocalCheckpoint() == primaryContext.getCheckpointStates().get(routingEntry().allocationId().getId())
+                .getLocalCheckpoint();
         synchronized (mutex) {
             replicationTracker.activateWithPrimaryContext(primaryContext); // make changes to primaryMode flag only under mutex
         }

@@ -491,7 +491,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
                     while (offset < fileLength && error.get() == null) {
                         final long requestSeqId = requestSeqIdTracker.generateSeqNo();
                         try {
-                            requestSeqIdTracker.waitForOpsToComplete(requestSeqId - ccrSettings.getMaxConcurrentFileChunks());
+                            requestSeqIdTracker.waitForProcessedOpsToComplete(requestSeqId - ccrSettings.getMaxConcurrentFileChunks());
 
                             if (error.get() != null) {
                                 requestSeqIdTracker.markSeqNoAsCompleted(requestSeqId);
@@ -543,7 +543,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
                 }
 
                 try {
-                    requestSeqIdTracker.waitForOpsToComplete(requestSeqIdTracker.getMaxSeqNo());
+                    requestSeqIdTracker.waitForProcessedOpsToComplete(requestSeqIdTracker.getMaxSeqNo());
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
                     throw new ElasticsearchException(e);

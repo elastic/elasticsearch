@@ -1148,7 +1148,7 @@ public abstract class EngineTestCase extends ESTestCase {
      * @throws InterruptedException if the thread was interrupted while blocking on the condition
      */
     public static void waitForOpsToComplete(InternalEngine engine, long seqNo) throws InterruptedException {
-        engine.getLocalCheckpointTracker().waitForOpsToComplete(seqNo);
+        engine.getLocalCheckpointTracker().waitForProcessedOpsToComplete(seqNo);
     }
 
     public static boolean hasSnapshottedCommits(Engine engine) {

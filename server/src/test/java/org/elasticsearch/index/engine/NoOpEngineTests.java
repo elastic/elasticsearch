@@ -128,7 +128,7 @@ public class NoOpEngineTests extends EngineTestCase {
                         deletions += 1;
                     }
                 }
-                engine.getLocalCheckpointTracker().waitForOpsToComplete(numDocs + deletions - 1);
+                engine.getLocalCheckpointTracker().waitForProcessedOpsToComplete(numDocs + deletions - 1);
                 flushAndTrimTranslog(engine);
             }
 

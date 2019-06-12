@@ -798,6 +798,11 @@ public abstract class Engine implements Closeable {
     public abstract long getLocalCheckpoint();
 
     /**
+     * @return the persisted local checkpoint for this Engine
+     */
+    public abstract long getPersistedLocalCheckpoint();
+
+    /**
      * @return a {@link SeqNoStats} object, using local state and the supplied global checkpoint
      */
     public abstract SeqNoStats getSeqNoStats(long globalCheckpoint);

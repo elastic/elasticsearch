@@ -153,7 +153,7 @@ public class TransportPutDataFrameTransformAction
         final String[] concreteDest =
             indexNameExpressionResolver.concreteIndexNames(clusterState, IndicesOptions.lenientExpandOpen(), destIndex);
 
-        if (concreteDest.length > 1 || Regex.isSimpleMatchPattern(destIndex)) {
+        if (concreteDest.length > 1) {
             listener.onFailure(new ElasticsearchStatusException(
                 DataFrameMessages.getMessage(DataFrameMessages.REST_PUT_DATA_FRAME_DEST_SINGLE_INDEX, destIndex),
                 RestStatus.BAD_REQUEST

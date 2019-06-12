@@ -342,23 +342,23 @@ public class ReplicationOperation<
         void updateGlobalCheckpointForShard(String allocationId, long globalCheckpoint);
 
         /**
-         * Returns the local checkpoint on the primary shard.
+         * Returns the persisted local checkpoint on the primary shard.
          *
          * @return the local checkpoint
          */
         long localCheckpoint();
 
         /**
-         * Returns the global checkpoint on the primary shard.
+         * Returns the global checkpoint computed on the primary shard.
          *
-         * @return the global checkpoint
+         * @return the computed global checkpoint
          */
         long computedGlobalCheckpoint();
 
         /**
-         * Returns the global checkpoint on the primary shard.
+         * Returns the persisted global checkpoint on the primary shard.
          *
-         * @return the global checkpoint
+         * @return the persisted global checkpoint
          */
         long globalCheckpoint();
 
@@ -427,16 +427,16 @@ public class ReplicationOperation<
     public interface ReplicaResponse {
 
         /**
-         * The local checkpoint for the shard.
+         * The persisted local checkpoint for the shard.
          *
-         * @return the local checkpoint
+         * @return the persisted local checkpoint
          **/
         long localCheckpoint();
 
         /**
-         * The global checkpoint for the shard.
+         * The persisted global checkpoint for the shard.
          *
-         * @return the global checkpoint
+         * @return the persisted global checkpoint
          **/
         long globalCheckpoint();
 

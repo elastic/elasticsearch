@@ -690,7 +690,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
      *
      * @return the global checkpoint
      */
-    public synchronized long getGlobalCheckpoint() {
+    public long getGlobalCheckpoint() {
         return globalCheckpoint;
     }
 

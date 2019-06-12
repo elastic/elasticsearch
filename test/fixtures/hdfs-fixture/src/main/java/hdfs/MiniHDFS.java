@@ -19,18 +19,6 @@
 
 package hdfs;
 
-import java.io.File;
-import java.lang.management.ManagementFactory;
-import java.net.URL;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.nio.file.StandardCopyOption;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
-
 import org.apache.commons.io.FileUtils;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.CommonConfigurationKeysPublic;
@@ -45,6 +33,18 @@ import org.apache.hadoop.hdfs.MiniDFSNNTopology;
 import org.apache.hadoop.hdfs.server.namenode.ha.HATestUtil;
 import org.apache.hadoop.security.UserGroupInformation;
 
+import java.io.File;
+import java.lang.management.ManagementFactory;
+import java.net.URL;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+
 /**
  * MiniHDFS test fixture. There is a CLI tool, but here we can
  * easily properly setup logging, avoid parsing JSON, etc.
@@ -55,7 +55,6 @@ public class MiniHDFS {
     private static String PID_FILE_NAME = "pid";
 
     public static void main(String[] args) throws Exception {
-        try {
         if (args.length != 1 && args.length != 3) {
             throw new IllegalArgumentException("Expected: MiniHDFS <baseDirectory> [<kerberosPrincipal> <kerberosKeytab>], " +
                 "got: " + Arrays.toString(args));
@@ -95,7 +94,6 @@ public class MiniHDFS {
             cfg.set(DFSConfigKeys.DFS_BLOCK_ACCESS_TOKEN_ENABLE_KEY, "true");
             cfg.set(DFSConfigKeys.IGNORE_SECURE_PORTS_FOR_TESTING_KEY, "true");
             cfg.set(DFSConfigKeys.DFS_ENCRYPT_DATA_TRANSFER_KEY, "true");
-            cfg.set(DFSConfigKeys.DFS_DATANODE_ADDRESS_KEY, "localhost:0");
         }
 
         UserGroupInformation.setConfiguration(cfg);
@@ -175,8 +173,6 @@ public class MiniHDFS {
         tmp = Files.createTempFile(baseDir, null, null);
         Files.write(tmp, portFileContent.getBytes(StandardCharsets.UTF_8));
         Files.move(tmp, baseDir.resolve(PORT_FILE_NAME), StandardCopyOption.ATOMIC_MOVE);
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-        }
+    }
+
 }

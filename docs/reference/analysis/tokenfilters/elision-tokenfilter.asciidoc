@@ -4,8 +4,11 @@
 A token filter which removes elisions. For example, "l'avion" (the
 plane) will tokenized as "avion" (plane).
 
-Accepts `articles` setting which is a set of stop words articles. For
-example:
+Accepts `articles` parameter which is a set of stop words articles. Also accepts
+`articles_case`, which indicates whether the filter treats those articles as
+case sensitive.
+
+For example:
 
 [source,js]
 --------------------------------------------------
@@ -22,6 +25,7 @@ PUT /elision_example
             "filter" : {
                 "elision" : {
                     "type" : "elision",
+                    "articles_case": true,
                     "articles" : ["l", "m", "t", "qu", "n", "s", "j"]
                 }
             }

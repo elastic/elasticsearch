@@ -3,7 +3,6 @@
     "documentation": "https://www.elastic.co/guide/en/elasticsearch/reference/master/docs-update-by-query.html",
     "methods": ["POST"],
     "url": {
-      "path": "/{index}/_update_by_query",
       "paths": ["/{index}/_update_by_query"],
       "comment": "most things below this are just copied from search.json",
       "parts": {

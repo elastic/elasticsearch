@@ -3,7 +3,6 @@
     "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/indices-aliases.html",
     "methods": ["HEAD"],
     "url": {
-      "path": "/_alias/{name}",
       "paths": ["/_alias/{name}", "/{index}/_alias/{name}"],
       "parts": {
         "index": {

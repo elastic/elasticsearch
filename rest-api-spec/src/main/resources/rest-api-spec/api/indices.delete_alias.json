@@ -3,7 +3,6 @@
     "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/indices-aliases.html",
     "methods": ["DELETE"],
     "url": {
-      "path": "/{index}/_alias/{name}",
       "paths": ["/{index}/_alias/{name}", "/{index}/_aliases/{name}"],
       "parts": {
         "index": {

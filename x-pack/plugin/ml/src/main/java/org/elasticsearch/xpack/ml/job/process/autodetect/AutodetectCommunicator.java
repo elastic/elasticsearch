@@ -384,6 +384,6 @@ public class AutodetectCommunicator implements Closeable {
             categorizationAnalyzerConfig =
                     CategorizationAnalyzerConfig.buildDefaultCategorizationAnalyzer(analysisConfig.getCategorizationFilters());
         }
-        categorizationAnalyzer = new CategorizationAnalyzer(analysisRegistry, environment, categorizationAnalyzerConfig);
+        categorizationAnalyzer = new CategorizationAnalyzer(analysisRegistry, categorizationAnalyzerConfig);
     }
 }

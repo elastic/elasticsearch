@@ -3,7 +3,6 @@
     "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/cluster-nodes-usage.html",
     "methods": ["GET"],
     "url": {
-      "path": "/_nodes/usage",
       "paths": [
         "/_nodes/usage",
         "/_nodes/{node_id}/usage",

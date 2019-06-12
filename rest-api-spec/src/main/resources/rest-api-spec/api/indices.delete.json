@@ -3,7 +3,6 @@
     "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/indices-delete-index.html",
     "methods": ["DELETE"],
     "url": {
-      "path": "/{index}",
       "paths": ["/{index}"],
       "parts": {
         "index": {

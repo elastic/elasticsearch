@@ -21,7 +21,7 @@ yellow open   twitter  u8FNjxh8Rfy_awN11oDKYQ   1   1       1200            0   
 green  open   twitter2 nYFWZEO7TUiOjLQXBaYJpA   1   0          0            0       260b           260b
 --------------------------------------------------
 // TESTRESPONSE[s/\d+(\.\d+)?[tgmk]?b/\\d+(\\.\\d+)?[tgmk]?b/]
-// TESTRESPONSE[s/u8FNjxh8Rfy_awN11oDKYQ|nYFWZEO7TUiOjLQXBaYJpA/.+/ _cat]
+// TESTRESPONSE[s/u8FNjxh8Rfy_awN11oDKYQ|nYFWZEO7TUiOjLQXBaYJpA/.+/ non_json]
 
 We can tell quickly how many shards make up an index, the number of
 docs, deleted docs, primary store size, and total store size (all shards including replicas).
@@ -64,7 +64,7 @@ health status index    uuid                   pri rep docs.count docs.deleted st
 yellow open   twitter  u8FNjxh8Rfy_awN11oDKYQ   1   1       1200            0     88.1kb         88.1kb
 --------------------------------------------------
 // TESTRESPONSE[s/\d+(\.\d+)?[tgmk]?b/\\d+(\\.\\d+)?[tgmk]?b/]
-// TESTRESPONSE[s/u8FNjxh8Rfy_awN11oDKYQ/.+/ _cat]
+// TESTRESPONSE[s/u8FNjxh8Rfy_awN11oDKYQ/.+/ non_json]
 
 Which index has the largest number of documents?
 
@@ -84,7 +84,7 @@ yellow open   twitter  u8FNjxh8Rfy_awN11oDKYQ   1   1       1200            0   
 green  open   twitter2 nYFWZEO7TUiOjLQXBaYJpA   1   0          0            0       260b           260b
 --------------------------------------------------
 // TESTRESPONSE[s/\d+(\.\d+)?[tgmk]?b/\\d+(\\.\\d+)?[tgmk]?b/]
-// TESTRESPONSE[s/u8FNjxh8Rfy_awN11oDKYQ|nYFWZEO7TUiOjLQXBaYJpA/.+/ _cat]
+// TESTRESPONSE[s/u8FNjxh8Rfy_awN11oDKYQ|nYFWZEO7TUiOjLQXBaYJpA/.+/ non_json]
 
 How many merge operations have the shards for the `twitter` completed?
 
@@ -102,7 +102,7 @@ Might look like:
 health index   pri rep docs.count mt pri.mt
 yellow twitter   1   1 1200       16     16
 --------------------------------------------------
-// TESTRESPONSE[s/16/\\d+/ _cat]
+// TESTRESPONSE[s/16/\\d+/ non_json]
 
 How much memory is used per index?
 
@@ -122,4 +122,4 @@ twitter   8.1gb
 twitter2  30.5kb
 --------------------------------------------------
 // TESTRESPONSE[s/\d+(\.\d+)?[tgmk]?b/\\d+(\\.\\d+)?[tgmk]?b/]
-// TESTRESPONSE[_cat]
+// TESTRESPONSE[non_json]

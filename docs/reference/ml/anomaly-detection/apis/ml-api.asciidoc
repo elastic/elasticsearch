@@ -63,6 +63,11 @@ See <<ml-api-anomaly-job-endpoint>>.
 * <<ml-revert-snapshot,Revert model snapshot>>
 * <<ml-update-snapshot,Update model snapshot>>
 
+[discrete]
+[[ml-api-aggregations]]
+=== Aggregations
+
+* <<pca-aggregation,Principal Component Analysis>>
 
 [discrete]
 [[ml-api-result-endpoint]]
@@ -101,6 +106,8 @@ See <<ml-api-anomaly-job-endpoint>>.
 //ADD
 include::post-calendar-event.asciidoc[]
 include::put-calendar-job.asciidoc[]
+//AGGREGATIONS
+include::pca-aggregation.asciidoc[]
 //CLOSE
 include::close-job.asciidoc[]
 //CREATE

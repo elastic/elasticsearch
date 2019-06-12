@@ -239,7 +239,8 @@ public abstract class DataFrameRestTestCase extends ESRestTestCase {
     void waitForDataFrameStopped(String transformId) throws Exception {
         assertBusy(() -> {
             assertEquals("stopped", getDataFrameTaskState(transformId));
-        }, 5, TimeUnit.SECONDS);
+            assertEquals("stopped", getDataFrameIndexerState(transformId));
+        }, 15, TimeUnit.SECONDS);
     }
 
     void waitForDataFrameCheckpoint(String transformId) throws Exception {

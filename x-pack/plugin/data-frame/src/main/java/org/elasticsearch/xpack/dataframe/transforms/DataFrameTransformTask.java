@@ -490,8 +490,6 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
 
         @Override
         protected void onStart(long now, ActionListener<Void> listener) {
-            // Reset our failure count as we are starting again
-            failureCount.set(0);
             // On each run, we need to get the total number of docs and reset the count of processed docs
             // Since multiple checkpoints can be executed in the task while it is running on the same node, we need to gather
             // the progress here, and not in the executor.
@@ -630,6 +628,8 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
             try {
                 super.onFinish(listener);
                 long checkpoint = transformTask.currentCheckpoint.incrementAndGet();
+                // Reset our failure count as we have finished and may start again with a new checkpoint
+                failureCount.set(0);
                 auditor.info(transformTask.getTransformId(), "Finished indexing for data frame transform checkpoint [" + checkpoint + "].");
                 logger.info(
                     "Finished indexing for data frame transform [" + transformTask.getTransformId() + "] checkpoint [" + checkpoint + "]");

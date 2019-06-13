@@ -152,7 +152,6 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Base64;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -5107,22 +5106,19 @@ public class InternalEngineTests extends EngineTestCase {
                     engine.delete(replicaDeleteForDoc(UUIDs.randomBase64UUID(), 1, seqno, threadPool.relativeTimeInMillis()));
                 }
             }
-            Supplier<Collection<DeleteVersionValue>> tombstonesInVersionMap = () -> engine.getVersionMap().entrySet().stream()
-                .filter(e -> e.getValue() instanceof DeleteVersionValue)
-                .map(e -> (DeleteVersionValue) (e.getValue())).collect(Collectors.toList());
 
-            List<DeleteVersionValue> tombstones = new ArrayList<>(tombstonesInVersionMap.get());
+            List<DeleteVersionValue> tombstones = new ArrayList<>(tombstonesInVersionMap(engine).values());
             engine.config().setEnableGcDeletes(true);
             // Prune tombstones whose seqno < gap_seqno and timestamp < clock-gcInterval.
             clock.set(randomLongBetween(gcInterval, deleteBatch + gcInterval));
             engine.refresh("test");
             tombstones.removeIf(v -> v.seqNo < gapSeqNo && v.time < clock.get() - gcInterval);
-            assertThat(tombstonesInVersionMap.get(), containsInAnyOrder(tombstones.toArray()));
+            assertThat(tombstonesInVersionMap(engine).values(), containsInAnyOrder(tombstones.toArray()));
             // Prune tombstones whose seqno at most the local checkpoint (eg. seqno < gap_seqno).
             clock.set(randomLongBetween(deleteBatch + gcInterval * 4/3, 100)); // Need a margin for gcInterval/4.
             engine.refresh("test");
             tombstones.removeIf(v -> v.seqNo < gapSeqNo);
-            assertThat(tombstonesInVersionMap.get(), containsInAnyOrder(tombstones.toArray()));
+            assertThat(tombstonesInVersionMap(engine).values(), containsInAnyOrder(tombstones.toArray()));
             // Fill the seqno gap - should prune all tombstones.
             clock.set(between(0, 100));
             if (randomBoolean()) {
@@ -5134,7 +5130,7 @@ public class InternalEngineTests extends EngineTestCase {
             }
             clock.set(randomLongBetween(100 + gcInterval * 4/3, Long.MAX_VALUE)); // Need a margin for gcInterval/4.
             engine.refresh("test");
-            assertThat(tombstonesInVersionMap.get(), empty());
+            assertThat(tombstonesInVersionMap(engine).values(), empty());
         }
     }
 
@@ -5577,8 +5573,8 @@ public class InternalEngineTests extends EngineTestCase {
                     }
                     if (randomInt(100) < 5) {
                         engine.flush(true, true);
+                        flushedOperations.sort(Comparator.comparing(Engine.Operation::seqNo));
                         commits.add(new ArrayList<>(flushedOperations));
-                        globalCheckpoint.set(randomLongBetween(globalCheckpoint.get(), engine.getLocalCheckpoint()));
                     }
                 }
                 docs = getDocIds(engine, true);
@@ -5591,29 +5587,26 @@ public class InternalEngineTests extends EngineTestCase {
                 }
             }
             assertThat(operationsInSafeCommit, notNullValue());
-            operationsInSafeCommit.sort(Comparator.comparing(Engine.Operation::seqNo));
             try (InternalEngine engine = new InternalEngine(config)) { // do not recover from translog
-                final Map<BytesRef, Engine.Operation> operationsAfterCheckpoint = new HashMap<>();
+                final Map<BytesRef, Engine.Operation> deletesAfterCheckpoint = new HashMap<>();
                 for (Engine.Operation op : operationsInSafeCommit) {
                     if (op instanceof Engine.NoOp == false && op.seqNo() > engine.getLocalCheckpoint()) {
-                        operationsAfterCheckpoint.put(new Term(IdFieldMapper.NAME, Uid.encodeId(op.id())).bytes(), op);
+                        deletesAfterCheckpoint.put(new Term(IdFieldMapper.NAME, Uid.encodeId(op.id())).bytes(), op);
                     }
                 }
+                deletesAfterCheckpoint.values().removeIf(o -> o instanceof Engine.Delete == false);
                 final Map<BytesRef, VersionValue> versionMap = engine.getVersionMap();
-                assertThat(versionMap.keySet(), equalTo(operationsAfterCheckpoint.keySet()));
-                for (BytesRef uid : operationsAfterCheckpoint.keySet()) {
+                for (BytesRef uid : deletesAfterCheckpoint.keySet()) {
                     final VersionValue versionValue = versionMap.get(uid);
-                    final Engine.Operation op = operationsAfterCheckpoint.get(uid);
-                    final String msg = versionValue + " vs " + op.operationType() + " seqno=" + op.seqNo() + " term=" + op.primaryTerm();
-                    if (op instanceof Engine.Delete) {
-                        assertThat(msg, versionValue, instanceOf(DeleteVersionValue.class));
-                    } else {
-                        assertThat(msg, versionValue, instanceOf(IndexVersionValue.class));
-                    }
+                    final Engine.Operation op = deletesAfterCheckpoint.get(uid);
+                    final String msg = versionValue + " vs " +
+                        "op[" + op.operationType() + "id=" + op.id() + " seqno=" + op.seqNo() + " term=" + op.primaryTerm() + "]";
+                    assertThat(versionValue, instanceOf(DeleteVersionValue.class));
                     assertThat(msg, versionValue.seqNo, equalTo(op.seqNo()));
                     assertThat(msg, versionValue.term, equalTo(op.primaryTerm()));
                     assertThat(msg, versionValue.version, equalTo(op.version()));
                 }
+                assertThat(versionMap.keySet(), equalTo(deletesAfterCheckpoint.keySet()));
                 final LocalCheckpointTracker tracker = engine.getLocalCheckpointTracker();
                 final Set<Long> seqNosInSafeCommit = operationsInSafeCommit.stream().map(op -> op.seqNo()).collect(Collectors.toSet());
                 for (Engine.Operation op : operations) {
@@ -5919,5 +5912,11 @@ public class InternalEngineTests extends EngineTestCase {
                 assertThat(getDocIds(engine, randomBoolean()), equalTo(docs));
             }
         }
+    }
+
+    private Map<BytesRef, DeleteVersionValue> tombstonesInVersionMap(InternalEngine engine) {
+        return engine.getVersionMap().entrySet().stream()
+            .filter(e -> e.getValue() instanceof DeleteVersionValue)
+            .collect(Collectors.toMap(e -> e.getKey(), e -> (DeleteVersionValue) e.getValue()));
     }
 }

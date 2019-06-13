@@ -35,7 +35,6 @@ import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.LiveIndexWriterConfig;
 import org.apache.lucene.index.MergePolicy;
-import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.SoftDeletesRetentionMergePolicy;
@@ -84,7 +83,6 @@ import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
-import org.elasticsearch.index.mapper.VersionFieldMapper;
 import org.elasticsearch.index.merge.MergeStats;
 import org.elasticsearch.index.merge.OnGoingMerge;
 import org.elasticsearch.index.seqno.LocalCheckpointTracker;
@@ -679,21 +677,26 @@ public class InternalEngine extends Engine {
         LUCENE_DOC_NOT_FOUND
     }
 
+    private OpVsLuceneDocStatus compareOpToVersionMapOnSeqNo(String id, long seqNo, long primaryTerm, VersionValue versionValue) {
+        Objects.requireNonNull(versionValue);
+        if (seqNo > versionValue.seqNo) {
+            return OpVsLuceneDocStatus.OP_NEWER;
+        } else if (seqNo == versionValue.seqNo) {
+            assert versionValue.term == primaryTerm : "primary term not matched; id=" + id + " seq_no=" + seqNo
+                + " op_term=" + primaryTerm + " existing_term=" + versionValue.term;
+            return OpVsLuceneDocStatus.OP_STALE_OR_EQUAL;
+        } else {
+            return OpVsLuceneDocStatus.OP_STALE_OR_EQUAL;
+        }
+    }
+
     private OpVsLuceneDocStatus compareOpToLuceneDocBasedOnSeqNo(final Operation op) throws IOException {
         assert op.seqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO : "resolving ops based on seq# but no seqNo is found";
         final OpVsLuceneDocStatus status;
         VersionValue versionValue = getVersionFromMap(op.uid().bytes());
         assert incrementVersionLookup();
         if (versionValue != null) {
-            if (op.seqNo() > versionValue.seqNo) {
-                status = OpVsLuceneDocStatus.OP_NEWER;
-            } else if (op.seqNo() == versionValue.seqNo) {
-                assert versionValue.term == op.primaryTerm() : "primary term not matched; id=" + op.id() + " seq_no=" + op.seqNo()
-                    + " op_term=" + op.primaryTerm() + " existing_term=" + versionValue.term;
-                status = OpVsLuceneDocStatus.OP_STALE_OR_EQUAL;
-            } else {
-                status = OpVsLuceneDocStatus.OP_STALE_OR_EQUAL;
-            }
+            status = compareOpToVersionMapOnSeqNo(op.id(), op.seqNo(), op.primaryTerm(), versionValue);
         } else {
             // load from index
             assert incrementIndexVersionLookup();
@@ -2785,51 +2788,43 @@ public class InternalEngine extends Engine {
         final Query query = LongPoint.newRangeQuery(SeqNoFieldMapper.NAME, getLocalCheckpoint() + 1, Long.MAX_VALUE);
         final Weight weight = searcher.createWeight(query, ScoreMode.COMPLETE_NO_SCORES, 1.0f);
         for (LeafReaderContext leaf : directoryReader.leaves()) {
-            final LeafReader reader = leaf.reader();
             final Scorer scorer = weight.scorer(leaf);
             if (scorer == null) {
                 continue;
             }
-            final DocIdSetIterator docIdSetIterator = scorer.iterator();
-            final NumericDocValues seqNoDV = Objects.requireNonNull(reader.getNumericDocValues(SeqNoFieldMapper.NAME));
-            final NumericDocValues primaryTermDV = Objects.requireNonNull(reader.getNumericDocValues(SeqNoFieldMapper.PRIMARY_TERM_NAME));
-            final NumericDocValues tombstoneDV = reader.getNumericDocValues(SeqNoFieldMapper.TOMBSTONE_NAME);
-            final NumericDocValues versionDV = reader.getNumericDocValues(VersionFieldMapper.NAME);
+            final CombinedDocValues dv = new CombinedDocValues(leaf.reader());
+            final DocIdSetIterator iterator = scorer.iterator();
             int docId;
-            while ((docId = docIdSetIterator.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {
-                if (primaryTermDV.advanceExact(docId) == false) {
+            while ((docId = iterator.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {
+                final long primaryTerm = dv.docPrimaryTerm(docId);
+                if (primaryTerm == -1L) {
                     continue; // skip children docs which do not have primary term
                 }
-                final long primaryTerm = primaryTermDV.longValue();
-                if (seqNoDV.advanceExact(docId) == false) {
-                    throw new IllegalStateException("seq_no not found for doc_id=" + docId);
-                }
-                final long seqNo = seqNoDV.longValue();
+                final long seqNo = dv.docSeqNo(docId);
                 localCheckpointTracker.markSeqNoAsCompleted(seqNo);
-                final boolean isTombstone = tombstoneDV != null && tombstoneDV.advanceExact(docId);
                 final IdOnlyFieldVisitor idFieldVisitor = new IdOnlyFieldVisitor();
-                reader.document(docId, idFieldVisitor);
+                leaf.reader().document(docId, idFieldVisitor);
                 if (idFieldVisitor.getId() == null) {
-                    assert isTombstone; // a noop
+                    assert dv.isTombstone(docId);
                     continue;
                 }
                 final BytesRef uid = new Term(IdFieldMapper.NAME, Uid.encodeId(idFieldVisitor.getId())).bytes();
-                if (versionDV == null || versionDV.advanceExact(docId) == false) {
-                    throw new IllegalStateException("version not found for doc_id=" + docId);
-                }
-                final long version = versionDV.longValue();
                 try (Releasable ignored = versionMap.acquireLock(uid)) {
                     final VersionValue curr = versionMap.getUnderLock(uid);
-                    if (curr == null || curr.term < primaryTerm || (curr.term == primaryTerm && curr.seqNo <= seqNo)) {
-                        if (isTombstone) {
-                            versionMap.putDeleteUnderLock(uid,
-                                new DeleteVersionValue(version, seqNo, primaryTerm, engineConfig.getThreadPool().relativeTimeInMillis()));
+                    if (curr == null ||
+                        compareOpToVersionMapOnSeqNo(idFieldVisitor.getId(), seqNo, primaryTerm, curr) == OpVsLuceneDocStatus.OP_NEWER) {
+                        if (dv.isTombstone(docId)) {
+                            // use the current timestamp to honor GC deletes in case this engine becomes primary.
+                            final long startTime = config().getThreadPool().relativeTimeInMillis();
+                            versionMap.putDeleteUnderLock(uid, new DeleteVersionValue(dv.docVersion(docId), seqNo, primaryTerm, startTime));
                         } else {
-                            versionMap.putIndexUnderLock(uid, new IndexVersionValue(null, version, seqNo, primaryTerm));
+                            versionMap.putIndexUnderLock(uid, new IndexVersionValue(null, dv.docVersion(docId), seqNo, primaryTerm));
                         }
                     }
                 }
             }
         }
+        // remove live entries in the version map
+        refresh("restore_version_map_and_checkpoint_tracker", SearcherScope.INTERNAL, true);
     }
 }

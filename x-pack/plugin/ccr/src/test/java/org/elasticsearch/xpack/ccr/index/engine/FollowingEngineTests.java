@@ -58,7 +58,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.index.engine.EngineTestCase.createMapperService;
 import static org.elasticsearch.index.engine.EngineTestCase.getDocIds;
 import static org.elasticsearch.index.engine.EngineTestCase.getTranslog;
 import static org.hamcrest.Matchers.containsString;

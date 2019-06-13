@@ -14,6 +14,7 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.index.seqno.ReplicationTracker;
 import org.elasticsearch.test.rest.yaml.ObjectPath;
 
 import java.io.IOException;
@@ -228,7 +229,9 @@ public class FollowIndexSecurityIT extends ESCCRRestTestCase {
                 final Map<?, ?> shardStatsAsMap = (Map<?, ?>) shardsStats.get(0);
                 final Map<?, ?> retentionLeasesStats = (Map<?, ?>) shardStatsAsMap.get("retention_leases");
                 final List<?> leases = (List<?>) retentionLeasesStats.get("leases");
-                assertThat(leases, empty());
+                for (final Object lease : leases) {
+                    assertThat(((Map<?, ?>) lease).get("source"), equalTo(ReplicationTracker.PEER_RECOVERY_RETENTION_LEASE_SOURCE));
+                }
             }
         }
     }

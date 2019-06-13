@@ -28,6 +28,8 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.ingest.TrackingResultProcessor.decorate;
 
@@ -41,24 +43,30 @@ class SimulateExecutionService {
         this.threadPool = threadPool;
     }
 
-    SimulateDocumentResult executeDocument(Pipeline pipeline, IngestDocument ingestDocument, boolean verbose) {
+    SimulateDocumentResult executeDocument(Pipeline pipeline, IngestDocument ingestDocument, boolean verbose) throws Exception {
         if (verbose) {
             List<SimulateProcessorResult> processorResultList = new ArrayList<>();
             CompoundProcessor verbosePipelineProcessor = decorate(pipeline.getCompoundProcessor(), processorResultList);
-            try {
-                Pipeline verbosePipeline = new Pipeline(pipeline.getId(), pipeline.getDescription(), pipeline.getVersion(),
-                    verbosePipelineProcessor);
-                ingestDocument.executePipeline(verbosePipeline);
-                return new SimulateDocumentVerboseResult(processorResultList);
-            } catch (Exception e) {
-                return new SimulateDocumentVerboseResult(processorResultList);
-            }
+            Pipeline verbosePipeline = new Pipeline(pipeline.getId(), pipeline.getDescription(), pipeline.getVersion(),
+                verbosePipelineProcessor);
+            // TODO: make async?
+            CountDownLatch latch = new CountDownLatch(1);
+            ingestDocument.executePipeline(verbosePipeline, (result, e) -> latch.countDown());
+            latch.await();
+            return new SimulateDocumentVerboseResult(processorResultList);
         } else {
-            try {
-                pipeline.execute(ingestDocument);
+            // TODO: make async?
+            CountDownLatch latch = new CountDownLatch(1);
+            AtomicReference<Exception> errorHolder = new AtomicReference<>();
+            pipeline.execute(ingestDocument, (result, e) -> {
+                errorHolder.set(e);
+                latch.countDown();
+            });
+            latch.await();
+            if (errorHolder.get() == null) {
                 return new SimulateDocumentBaseResult(ingestDocument);
-            } catch (Exception e) {
-                return new SimulateDocumentBaseResult(e);
+            } else {
+                return new SimulateDocumentBaseResult(errorHolder.get());
             }
         }
     }

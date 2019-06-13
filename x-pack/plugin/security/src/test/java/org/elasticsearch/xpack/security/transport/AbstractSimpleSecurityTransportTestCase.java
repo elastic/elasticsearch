@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.security.transport;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
 import org.elasticsearch.common.settings.MockSecureSettings;
@@ -259,7 +260,7 @@ public abstract class AbstractSimpleSecurityTransportTestCase extends AbstractSi
                 HashMap<String, String> attributes = new HashMap<>();
                 attributes.put("server_name", sniIp);
                 DiscoveryNode node = new DiscoveryNode("server_node_id", new TransportAddress(serverAddress), attributes,
-                    DiscoveryNode.BUILT_IN_ROLES, Version.CURRENT);
+                    DiscoveryNodeRole.BUILT_IN_ROLES, Version.CURRENT);
 
                 new Thread(() -> {
                     try {
@@ -306,7 +307,7 @@ public abstract class AbstractSimpleSecurityTransportTestCase extends AbstractSi
                 HashMap<String, String> attributes = new HashMap<>();
                 attributes.put("server_name", sniIp);
                 DiscoveryNode node = new DiscoveryNode("server_node_id", new TransportAddress(serverAddress), attributes,
-                    DiscoveryNode.BUILT_IN_ROLES, Version.CURRENT);
+                    DiscoveryNodeRole.BUILT_IN_ROLES, Version.CURRENT);
 
                 ConnectTransportException connectException = expectThrows(ConnectTransportException.class,
                     () -> serviceC.connectToNode(node, TestProfiles.LIGHT_PROFILE));

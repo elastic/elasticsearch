@@ -25,7 +25,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.Module;
@@ -238,7 +238,7 @@ public abstract class Plugin implements Closeable {
      */
     public List<BootstrapCheck> getBootstrapChecks() { return Collections.emptyList(); }
 
-    public Set<DiscoveryNode.Role> getRoles() {
+    public Set<DiscoveryNodeRole> getRoles() {
         return Set.of();
     }
 

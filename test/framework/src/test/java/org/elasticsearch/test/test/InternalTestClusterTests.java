@@ -21,6 +21,7 @@ package org.elasticsearch.test.test;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
@@ -313,27 +314,27 @@ public class InternalTestClusterTests extends ESTestCase {
             }
         }, 0, "", mockPlugins(), Function.identity());
         cluster.beforeTest(random());
-        List<DiscoveryNode.Role> roles = new ArrayList<>();
+        List<DiscoveryNodeRole> roles = new ArrayList<>();
         for (int i = 0; i < numNodes; i++) {
-            final DiscoveryNode.Role role = i == numNodes - 1 && roles.contains(DiscoveryNode.MasterRole.INSTANCE) == false ?
-                    DiscoveryNode.MasterRole.INSTANCE : // last node and still no master
-                randomFrom(DiscoveryNode.MasterRole.INSTANCE, DiscoveryNode.DataRole.INSTANCE, DiscoveryNode.IngestRole.INSTANCE);
+            final DiscoveryNodeRole role = i == numNodes - 1 && roles.contains(DiscoveryNodeRole.MASTER_ROLE) == false ?
+                    DiscoveryNodeRole.MASTER_ROLE : // last node and still no master
+                randomFrom(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.INGEST_ROLE);
             roles.add(role);
         }
 
         cluster.setBootstrapMasterNodeIndex(
-                randomIntBetween(0, (int) roles.stream().filter(role -> role.equals(DiscoveryNode.MasterRole.INSTANCE)).count() - 1));
+                randomIntBetween(0, (int) roles.stream().filter(role -> role.equals(DiscoveryNodeRole.MASTER_ROLE)).count() - 1));
 
         try {
-            Map<DiscoveryNode.Role, Set<String>> pathsPerRole = new HashMap<>();
+            Map<DiscoveryNodeRole, Set<String>> pathsPerRole = new HashMap<>();
             for (int i = 0; i < numNodes; i++) {
-                final DiscoveryNode.Role role = roles.get(i);
+                final DiscoveryNodeRole role = roles.get(i);
                 final String node;
-                if (role == DiscoveryNode.MasterRole.INSTANCE) {
+                if (role == DiscoveryNodeRole.MASTER_ROLE) {
                     node = cluster.startMasterOnlyNode();
-                } else if (role == DiscoveryNode.DataRole.INSTANCE) {
+                } else if (role == DiscoveryNodeRole.DATA_ROLE) {
                     node = cluster.startDataOnlyNode();
-                } else if (role == DiscoveryNode.IngestRole.INSTANCE) {
+                } else if (role == DiscoveryNodeRole.INGEST_ROLE) {
                     node = cluster.startCoordinatingOnlyNode(Settings.EMPTY);
                 } else {
                     throw new IllegalStateException("get your story straight");
@@ -346,21 +347,21 @@ public class InternalTestClusterTests extends ESTestCase {
             cluster.validateClusterFormed();
             cluster.fullRestart();
 
-            Map<DiscoveryNode.Role, Set<String>> result = new HashMap<>();
+            Map<DiscoveryNodeRole, Set<String>> result = new HashMap<>();
             for (String name : cluster.getNodeNames()) {
                 DiscoveryNode node = cluster.getInstance(ClusterService.class, name).localNode();
                 List<String> paths = Arrays.stream(getNodePaths(cluster, name)).map(Path::toString).collect(Collectors.toList());
                 if (node.isMasterNode()) {
-                    result.computeIfAbsent(DiscoveryNode.MasterRole.INSTANCE, k -> new HashSet<>()).addAll(paths);
+                    result.computeIfAbsent(DiscoveryNodeRole.MASTER_ROLE, k -> new HashSet<>()).addAll(paths);
                 } else if (node.isDataNode()) {
-                    result.computeIfAbsent(DiscoveryNode.DataRole.INSTANCE, k -> new HashSet<>()).addAll(paths);
+                    result.computeIfAbsent(DiscoveryNodeRole.DATA_ROLE, k -> new HashSet<>()).addAll(paths);
                 } else {
-                    result.computeIfAbsent(DiscoveryNode.IngestRole.INSTANCE, k -> new HashSet<>()).addAll(paths);
+                    result.computeIfAbsent(DiscoveryNodeRole.INGEST_ROLE, k -> new HashSet<>()).addAll(paths);
                 }
             }
 
             assertThat(result.size(), equalTo(pathsPerRole.size()));
-            for (DiscoveryNode.Role role : result.keySet()) {
+            for (DiscoveryNodeRole role : result.keySet()) {
                 assertThat("path are not the same for " + role, result.get(role), equalTo(pathsPerRole.get(role)));
             }
         } finally {

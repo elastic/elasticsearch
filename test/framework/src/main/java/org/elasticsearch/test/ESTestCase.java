@@ -53,6 +53,7 @@ import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.CheckedRunnable;
 import org.elasticsearch.common.SuppressForbidden;
@@ -353,8 +354,8 @@ public abstract class ESTestCase extends LuceneTestCase {
         DiscoveryNode.setPossibleRoles(getPossibleRoles());
     }
 
-    protected Set<DiscoveryNode.Role> getPossibleRoles() {
-        return DiscoveryNode.BUILT_IN_ROLES;
+    protected Set<DiscoveryNodeRole> getPossibleRoles() {
+        return DiscoveryNodeRole.BUILT_IN_ROLES;
     }
 
     @After

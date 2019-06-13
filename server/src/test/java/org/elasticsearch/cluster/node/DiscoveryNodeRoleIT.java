@@ -46,7 +46,7 @@ public class DiscoveryNodeRoleIT extends ESIntegTestCase {
         public static final Setting<Boolean> NODE_ADDITIONAL_SETTING =
                 Setting.boolSetting("node.additional", true, Setting.Property.NodeScope);
 
-        static class AdditionalRole extends DiscoveryNode.Role {
+        static class AdditionalRole extends DiscoveryNodeRole {
 
             public static AdditionalRole INSTANCE = new AdditionalRole();
 
@@ -62,7 +62,7 @@ public class DiscoveryNodeRoleIT extends ESIntegTestCase {
         }
 
         @Override
-        public Set<DiscoveryNode.Role> getRoles() {
+        public Set<DiscoveryNodeRole> getRoles() {
             return Set.of(AdditionalRole.INSTANCE);
         }
 
@@ -94,7 +94,7 @@ public class DiscoveryNodeRoleIT extends ESIntegTestCase {
         final String name = internalCluster().startNode(settings);
         final NodesInfoResponse response = client().admin().cluster().prepareNodesInfo(name).get();
         assertThat(response.getNodes(), hasSize(1));
-        final Matcher<Iterable<? super DiscoveryNode.Role>> matcher;
+        final Matcher<Iterable<? super DiscoveryNodeRole>> matcher;
         if (NODE_ADDITIONAL_SETTING.get(settings)) {
             matcher = hasItem(AdditionalRolePlugin.AdditionalRole.INSTANCE);
         } else {

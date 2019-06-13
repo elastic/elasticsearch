@@ -25,7 +25,7 @@ import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
-import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -63,9 +63,9 @@ public class ClusterStatsIT extends ESIntegTestCase {
         int total = 1;
         internalCluster().startNode();
         Map<String, Integer> expectedCounts = new HashMap<>();
-        expectedCounts.put(DiscoveryNode.DataRole.INSTANCE.roleName(), 1);
-        expectedCounts.put(DiscoveryNode.MasterRole.INSTANCE.roleName(), 1);
-        expectedCounts.put(DiscoveryNode.IngestRole.INSTANCE.roleName(), 1);
+        expectedCounts.put(DiscoveryNodeRole.DATA_ROLE.roleName(), 1);
+        expectedCounts.put(DiscoveryNodeRole.MASTER_ROLE.roleName(), 1);
+        expectedCounts.put(DiscoveryNodeRole.INGEST_ROLE.roleName(), 1);
         expectedCounts.put(ClusterStatsNodes.Counts.COORDINATING_ONLY, 0);
         int numNodes = randomIntBetween(1, 5);
 
@@ -84,13 +84,13 @@ public class ClusterStatsIT extends ESIntegTestCase {
             waitForNodes(total);
 
             if (isDataNode) {
-                incrementCountForRole(DiscoveryNode.DataRole.INSTANCE.roleName(), expectedCounts);
+                incrementCountForRole(DiscoveryNodeRole.DATA_ROLE.roleName(), expectedCounts);
             }
             if (isMasterNode) {
-                incrementCountForRole(DiscoveryNode.MasterRole.INSTANCE.roleName(), expectedCounts);
+                incrementCountForRole(DiscoveryNodeRole.MASTER_ROLE.roleName(), expectedCounts);
             }
             if (isIngestNode) {
-                incrementCountForRole(DiscoveryNode.IngestRole.INSTANCE.roleName(), expectedCounts);
+                incrementCountForRole(DiscoveryNodeRole.INGEST_ROLE.roleName(), expectedCounts);
             }
             if (!isDataNode && !isMasterNode && !isIngestNode) {
                 incrementCountForRole(ClusterStatsNodes.Counts.COORDINATING_ONLY, expectedCounts);

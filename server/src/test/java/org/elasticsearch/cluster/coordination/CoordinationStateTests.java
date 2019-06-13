@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.coordination.CoordinationMetaData.VotingConfigu
 import org.elasticsearch.cluster.coordination.CoordinationState.PersistedState;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
@@ -87,7 +88,7 @@ public class CoordinationStateTests extends ESTestCase {
         return new DiscoveryNode("", id,
             UUIDs.randomBase64UUID(random()), // generated deterministically for repeatable tests
             address.address().getHostString(), address.getAddress(), address, Collections.emptyMap(),
-            DiscoveryNode.BUILT_IN_ROLES, Version.CURRENT);
+            DiscoveryNodeRole.BUILT_IN_ROLES, Version.CURRENT);
     }
 
     public void testSetInitialState() {

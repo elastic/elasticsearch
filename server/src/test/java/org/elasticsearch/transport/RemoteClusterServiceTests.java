@@ -23,6 +23,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.AbstractScopedSettings;
@@ -738,37 +739,37 @@ public class RemoteClusterServiceTests extends ESTestCase {
         Predicate<DiscoveryNode> nodePredicate = RemoteClusterService.getNodePredicate(Settings.EMPTY);
         {
             DiscoveryNode all = new DiscoveryNode("id", address, Collections.emptyMap(),
-                    DiscoveryNode.BUILT_IN_ROLES, Version.CURRENT);
+                    DiscoveryNodeRole.BUILT_IN_ROLES, Version.CURRENT);
             assertTrue(nodePredicate.test(all));
         }
         {
             DiscoveryNode dataMaster = new DiscoveryNode("id", address, Collections.emptyMap(),
-                    Set.of(DiscoveryNode.DataRole.INSTANCE, DiscoveryNode.MasterRole.INSTANCE), Version.CURRENT);
+                    Set.of(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.MASTER_ROLE), Version.CURRENT);
             assertTrue(nodePredicate.test(dataMaster));
         }
         {
             DiscoveryNode dedicatedMaster = new DiscoveryNode("id", address, Collections.emptyMap(),
-                    Set.of(DiscoveryNode.MasterRole.INSTANCE), Version.CURRENT);
+                    Set.of(DiscoveryNodeRole.MASTER_ROLE), Version.CURRENT);
             assertFalse(nodePredicate.test(dedicatedMaster));
         }
         {
             DiscoveryNode dedicatedIngest = new DiscoveryNode("id", address, Collections.emptyMap(),
-                    Set.of(DiscoveryNode.IngestRole.INSTANCE), Version.CURRENT);
+                    Set.of(DiscoveryNodeRole.INGEST_ROLE), Version.CURRENT);
             assertTrue(nodePredicate.test(dedicatedIngest));
         }
         {
             DiscoveryNode masterIngest = new DiscoveryNode("id", address, Collections.emptyMap(),
-                    Set.of(DiscoveryNode.IngestRole.INSTANCE, DiscoveryNode.MasterRole.INSTANCE), Version.CURRENT);
+                    Set.of(DiscoveryNodeRole.INGEST_ROLE, DiscoveryNodeRole.MASTER_ROLE), Version.CURRENT);
             assertTrue(nodePredicate.test(masterIngest));
         }
         {
             DiscoveryNode dedicatedData = new DiscoveryNode("id", address, Collections.emptyMap(),
-                    Set.of(DiscoveryNode.DataRole.INSTANCE), Version.CURRENT);
+                    Set.of(DiscoveryNodeRole.DATA_ROLE), Version.CURRENT);
             assertTrue(nodePredicate.test(dedicatedData));
         }
         {
             DiscoveryNode ingestData = new DiscoveryNode("id", address, Collections.emptyMap(),
-                    Set.of(DiscoveryNode.DataRole.INSTANCE, DiscoveryNode.IngestRole.INSTANCE), Version.CURRENT);
+                    Set.of(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.INGEST_ROLE), Version.CURRENT);
             assertTrue(nodePredicate.test(ingestData));
         }
         {
@@ -780,7 +781,7 @@ public class RemoteClusterServiceTests extends ESTestCase {
 
     public void testGetNodePredicateNodeVersion() {
         TransportAddress address = new TransportAddress(TransportAddress.META_ADDRESS, 0);
-        Set<DiscoveryNode.Role> roles = DiscoveryNode.BUILT_IN_ROLES;
+        Set<DiscoveryNodeRole> roles = DiscoveryNodeRole.BUILT_IN_ROLES;
         Predicate<DiscoveryNode> nodePredicate = RemoteClusterService.getNodePredicate(Settings.EMPTY);
         Version version = VersionUtils.randomVersion(random());
         DiscoveryNode node = new DiscoveryNode("id", address, Collections.emptyMap(), roles, version);
@@ -789,7 +790,7 @@ public class RemoteClusterServiceTests extends ESTestCase {
 
     public void testGetNodePredicateNodeAttrs() {
         TransportAddress address = new TransportAddress(TransportAddress.META_ADDRESS, 0);
-        Set<DiscoveryNode.Role> roles = DiscoveryNode.BUILT_IN_ROLES;
+        Set<DiscoveryNodeRole> roles = DiscoveryNodeRole.BUILT_IN_ROLES;
         Settings settings = Settings.builder().put("cluster.remote.node.attr", "gateway").build();
         Predicate<DiscoveryNode> nodePredicate = RemoteClusterService.getNodePredicate(settings);
         {
@@ -815,8 +816,8 @@ public class RemoteClusterServiceTests extends ESTestCase {
         TransportAddress address = new TransportAddress(TransportAddress.META_ADDRESS, 0);
         Settings settings = Settings.builder().put("cluster.remote.node.attr", "gateway").build();
         Predicate<DiscoveryNode> nodePredicate = RemoteClusterService.getNodePredicate(settings);
-        Set<DiscoveryNode.Role> allRoles = DiscoveryNode.BUILT_IN_ROLES;
-        Set<DiscoveryNode.Role> dedicatedMasterRoles = Set.of(DiscoveryNode.MasterRole.INSTANCE);
+        Set<DiscoveryNodeRole> allRoles = DiscoveryNodeRole.BUILT_IN_ROLES;
+        Set<DiscoveryNodeRole> dedicatedMasterRoles = Set.of(DiscoveryNodeRole.MASTER_ROLE);
         {
             DiscoveryNode node = new DiscoveryNode("id", address, Collections.singletonMap("gateway", "true"),
                     dedicatedMasterRoles, Version.CURRENT);

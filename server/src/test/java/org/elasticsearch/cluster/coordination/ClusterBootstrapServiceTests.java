@@ -21,6 +21,7 @@ package org.elasticsearch.cluster.coordination;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.node.Node;
@@ -47,7 +48,6 @@ import static java.util.Collections.singletonList;
 import static org.elasticsearch.cluster.coordination.ClusterBootstrapService.BOOTSTRAP_PLACEHOLDER_PREFIX;
 import static org.elasticsearch.cluster.coordination.ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING;
 import static org.elasticsearch.cluster.coordination.ClusterBootstrapService.UNCONFIGURED_BOOTSTRAP_TIMEOUT_SETTING;
-import static org.elasticsearch.cluster.node.DiscoveryNode.MasterRole;
 import static org.elasticsearch.common.settings.Settings.builder;
 import static org.elasticsearch.discovery.DiscoveryModule.DISCOVERY_SEED_PROVIDERS_SETTING;
 import static org.elasticsearch.discovery.SettingsBasedSeedHostsProvider.DISCOVERY_SEED_HOSTS_SETTING;
@@ -93,7 +93,7 @@ public class ClusterBootstrapServiceTests extends ESTestCase {
                 randomAlphaOfLength(10),
                 buildNewFakeTransportAddress(),
                 emptyMap(),
-                Set.of(MasterRole.INSTANCE),
+                Set.of(DiscoveryNodeRole.MASTER_ROLE),
                 Version.CURRENT);
     }
 
@@ -401,14 +401,14 @@ public class ClusterBootstrapServiceTests extends ESTestCase {
                         randomAlphaOfLength(10),
                         buildNewFakeTransportAddress(),
                         emptyMap(),
-                        Set.of(MasterRole.INSTANCE),
+                        Set.of(DiscoveryNodeRole.MASTER_ROLE),
                         Version.CURRENT),
                 new DiscoveryNode(
                         "yet-another-node",
                         randomAlphaOfLength(10),
                         otherNode1.getAddress(),
                         emptyMap(),
-                        Set.of(MasterRole.INSTANCE),
+                        Set.of(DiscoveryNodeRole.MASTER_ROLE),
                         Version.CURRENT))
                 .collect(Collectors.toList()));
 

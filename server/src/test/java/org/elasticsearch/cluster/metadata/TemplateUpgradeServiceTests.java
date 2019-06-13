@@ -30,6 +30,7 @@ import org.elasticsearch.client.IndicesAdminClient;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -246,8 +247,8 @@ public class TemplateUpgradeServiceTests extends ESTestCase {
         assertThat(service.upgradesInProgress.get(), equalTo(2));
     }
 
-    private static final Set<DiscoveryNode.Role> MASTER_DATA_ROLES =
-            Set.of(DiscoveryNode.MasterRole.INSTANCE, DiscoveryNode.DataRole.INSTANCE);
+    private static final Set<DiscoveryNodeRole> MASTER_DATA_ROLES =
+            Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.DATA_ROLE);
 
     @SuppressWarnings("unchecked")
     public void testClusterStateUpdate() throws InterruptedException {

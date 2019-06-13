@@ -21,11 +21,10 @@ package org.elasticsearch.action.admin.cluster.stats;
 
 import com.carrotsearch.hppc.ObjectIntHashMap;
 import com.carrotsearch.hppc.cursors.ObjectIntCursor;
-
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
-import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.network.NetworkModule;
@@ -196,7 +195,7 @@ public class ClusterStatsNodes implements ToXContentFragment {
                 if (nodeInfo.getNode().getRoles().isEmpty()) {
                     roles.merge(COORDINATING_ONLY, 1, Integer::sum);
                 } else {
-                    for (DiscoveryNode.Role role : nodeInfo.getNode().getRoles()) {
+                    for (DiscoveryNodeRole role : nodeInfo.getNode().getRoles()) {
                         roles.merge(role.roleName(), 1, Integer::sum);
                     }
                 }

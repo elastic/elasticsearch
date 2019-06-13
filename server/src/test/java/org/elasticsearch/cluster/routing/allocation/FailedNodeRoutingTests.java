@@ -32,6 +32,7 @@ import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
@@ -208,11 +209,11 @@ public class FailedNodeRoutingTests extends ESAllocationTestCase {
 
     public ClusterState randomInitialClusterState() {
         List<DiscoveryNode> allNodes = new ArrayList<>();
-        DiscoveryNode localNode = createNode(DiscoveryNode.MasterRole.INSTANCE); // local node is the master
+        DiscoveryNode localNode = createNode(DiscoveryNodeRole.MASTER_ROLE); // local node is the master
         allNodes.add(localNode);
         // at least two nodes that have the data role so that we can allocate shards
-        allNodes.add(createNode(DiscoveryNode.DataRole.INSTANCE));
-        allNodes.add(createNode(DiscoveryNode.DataRole.INSTANCE));
+        allNodes.add(createNode(DiscoveryNodeRole.DATA_ROLE));
+        allNodes.add(createNode(DiscoveryNodeRole.DATA_ROLE));
         for (int i = 0; i < randomIntBetween(2, 5); i++) {
             allNodes.add(createNode());
         }
@@ -221,8 +222,8 @@ public class FailedNodeRoutingTests extends ESAllocationTestCase {
     }
 
 
-    protected DiscoveryNode createNode(DiscoveryNode.Role... mustHaveRoles) {
-        Set<DiscoveryNode.Role> roles = new HashSet<>(randomSubsetOf(DiscoveryNode.BUILT_IN_ROLES));
+    protected DiscoveryNode createNode(DiscoveryNodeRole... mustHaveRoles) {
+        Set<DiscoveryNodeRole> roles = new HashSet<>(randomSubsetOf(DiscoveryNodeRole.BUILT_IN_ROLES));
         Collections.addAll(roles, mustHaveRoles);
         final String id = String.format(Locale.ROOT, "node_%03d", nodeIdGenerator.incrementAndGet());
         return new DiscoveryNode(id, id, buildNewFakeTransportAddress(), Collections.emptyMap(), roles,

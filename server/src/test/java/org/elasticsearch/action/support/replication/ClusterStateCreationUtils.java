@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.AllocationId;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
@@ -406,7 +407,7 @@ public class ClusterStateCreationUtils {
 
     private static DiscoveryNode newNode(int nodeId) {
         return new DiscoveryNode("node_" + nodeId, ESTestCase.buildNewFakeTransportAddress(), Collections.emptyMap(),
-                new HashSet<>(DiscoveryNode.BUILT_IN_ROLES), Version.CURRENT);
+                new HashSet<>(DiscoveryNodeRole.BUILT_IN_ROLES), Version.CURRENT);
     }
 
     private static String selectAndRemove(Set<String> strings) {

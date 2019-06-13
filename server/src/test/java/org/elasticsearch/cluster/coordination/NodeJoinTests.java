@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.coordination.CoordinationMetaData.VotingConfiguration;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.cluster.service.MasterServiceTests;
@@ -188,9 +189,9 @@ public class NodeJoinTests extends ESTestCase {
     }
 
     protected DiscoveryNode newNode(int i, boolean master) {
-        final Set<DiscoveryNode.Role> roles;
+        final Set<DiscoveryNodeRole> roles;
         if (master) {
-            roles = Set.of(DiscoveryNode.MasterRole.INSTANCE);
+            roles = Set.of(DiscoveryNodeRole.MASTER_ROLE);
         } else {
             roles = Set.of();
         }

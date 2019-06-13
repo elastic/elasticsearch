@@ -33,7 +33,7 @@ public class DiscoveryNodeRoleTests extends ESTestCase {
         final IllegalStateException e = expectThrows(
                 IllegalStateException.class,
                 () -> DiscoveryNode.setPossibleRoles(Set.of(
-                        new DiscoveryNode.Role("foo", "f") {
+                        new DiscoveryNodeRole("foo", "f") {
 
                             @Override
                             protected Setting<Boolean> roleSetting() {
@@ -41,7 +41,7 @@ public class DiscoveryNodeRoleTests extends ESTestCase {
                             }
 
                         },
-                        new DiscoveryNode.Role("foo", "f") {
+                        new DiscoveryNodeRole("foo", "f") {
 
                             @Override
                             protected Setting<Boolean> roleSetting() {
@@ -56,7 +56,7 @@ public class DiscoveryNodeRoleTests extends ESTestCase {
         final IllegalStateException e = expectThrows(
                 IllegalStateException.class,
                 () -> DiscoveryNode.setPossibleRoles(Set.of(
-                        new DiscoveryNode.Role("foo_1", "f") {
+                        new DiscoveryNodeRole("foo_1", "f") {
 
                             @Override
                             protected Setting<Boolean> roleSetting() {
@@ -64,7 +64,7 @@ public class DiscoveryNodeRoleTests extends ESTestCase {
                             }
 
                         },
-                        new DiscoveryNode.Role("foo_2", "f") {
+                        new DiscoveryNodeRole("foo_2", "f") {
 
                             @Override
                             protected Setting<Boolean> roleSetting() {

@@ -48,7 +48,8 @@ Retrieves usage information for {dataframe-transforms}.
 The API returns the following information:
 
 `transforms`::
-  (array) An array of statistics objects for {dataframe-transforms}.
+  (array) An array of statistics objects for {dataframe-transforms}, which are
+  sorted by the `id` value in ascending order.
 
 ==== Authorization
 

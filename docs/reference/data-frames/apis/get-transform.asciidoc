@@ -47,7 +47,8 @@ Retrieves configuration information for {dataframe-transforms}.
 The API returns the following information:
 
 `transforms`::
-  (array) An array of transform resources.
+  (array) An array of transform resources, which are sorted by the `id` value in
+  ascending order.
 
 ==== Authorization
 

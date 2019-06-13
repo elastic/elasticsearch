@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.sql.qa.rest;
 
 import com.fasterxml.jackson.core.io.JsonStringEncoder;
-
 import org.apache.http.HttpEntity;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
@@ -314,7 +313,14 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
         expectBadRequest(() -> runSql(randomMode(), "SELECT SIN(SCORE()) FROM test"),
             containsString("line 1:12: [SCORE()] cannot be an argument to a function"));
     }
-    
+
+    @Override
+    public void testHardLimitForSortOnAggregate() throws Exception {
+        index("{\"a\": 1, \"b\": 2}");
+        expectBadRequest(() -> runSql(randomMode(), "SELECT max(a) max FROM test GROUP BY b ORDER BY max LIMIT 10000"),
+            containsString("The maximum LIMIT for aggregate sorting is [512], received [10000]"));
+    }
+
     public void testUseColumnarForUnsupportedFormats() throws Exception {
         String format = randomFrom("txt", "csv", "tsv");
         index("{\"foo\":1}");

@@ -222,7 +222,12 @@ public abstract class IndexShardTestCase extends ESTestCase {
     }
 
     protected IndexShard newShard(ShardRouting shardRouting, final IndexingOperationListener... listeners) throws IOException {
-        return newShard(shardRouting, Settings.EMPTY, new InternalEngineFactory(), listeners);
+        return newShard(shardRouting, Settings.EMPTY, listeners);
+    }
+
+    protected IndexShard newShard(ShardRouting shardRouting, final Settings settings, final IndexingOperationListener... listeners)
+            throws IOException {
+        return newShard(shardRouting, settings, new InternalEngineFactory(), listeners);
     }
 
     /**

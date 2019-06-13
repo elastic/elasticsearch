@@ -211,4 +211,7 @@ public final class RetentionLease implements ToXContentObject, Writeable {
                 '}';
     }
 
+    public boolean isNotPeerRecoveryRetentionLease() {
+        return ReplicationTracker.PEER_RECOVERY_RETENTION_LEASE_SOURCE.equals(source) == false;
+    }
 }

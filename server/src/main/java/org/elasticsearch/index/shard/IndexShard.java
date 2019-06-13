@@ -2415,6 +2415,20 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return replicationTracker.isRelocated();
     }
 
+    public void addPeerRecoveryRetentionLease(String nodeId, long globalCheckpoint, ActionListener<ReplicationResponse> listener) {
+        assert assertPrimaryMode();
+        replicationTracker.addPeerRecoveryRetentionLease(nodeId, globalCheckpoint, listener);
+    }
+
+    /**
+     * Test-only method to advance the primary's peer-recovery retention lease so that operations up to the global checkpoint can be
+     * discarded. TODO Remove this when retention leases are advanced by other mechanisms.
+     */
+    public void advancePrimaryPeerRecoveryRetentionLeaseToGlobalCheckpoint() {
+        assert assertPrimaryMode();
+        replicationTracker.renewPeerRecoveryRetentionLease(routingEntry(), getGlobalCheckpoint());
+    }
+
     class ShardEventListener implements Engine.EventListener {
         private final CopyOnWriteArrayList<Consumer<ShardFailure>> delegates = new CopyOnWriteArrayList<>();
 

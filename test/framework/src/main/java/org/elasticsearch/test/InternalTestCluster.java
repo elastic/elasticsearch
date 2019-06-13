@@ -1648,21 +1648,9 @@ public final class InternalTestCluster extends TestCluster {
         final Settings newSettings = nodeAndClient.closeForRestart(callback);
         removeExclusions(excludedNodeIds);
 
-        boolean success = false;
-        try {
-            nodeAndClient.recreateNode(newSettings, () -> rebuildUnicastHostFiles(Collections.singletonList(nodeAndClient)));
-            nodeAndClient.startNode();
-            addNode(nodeAndClient);
-            success = true;
-        } finally {
-            if (success == false) {
-                removeNode(nodeAndClient);
-            }
-        }
-
-        if (activeDisruptionScheme != null) {
-            activeDisruptionScheme.applyToNode(nodeAndClient.name, this);
-        }
+        nodeAndClient.recreateNode(newSettings, () -> rebuildUnicastHostFiles(Collections.singletonList(nodeAndClient)));
+        nodeAndClient.startNode();
+        publishNode(nodeAndClient);
 
         if (callback.validateClusterForming() || excludedNodeIds.isEmpty() == false) {
             // we have to validate cluster size to ensure that the restarted node has rejoined the cluster if it was master-eligible;
@@ -1679,13 +1667,6 @@ public final class InternalTestCluster extends TestCluster {
         return previous;
     }
 
-
-    private void addNode(NodeAndClient nodeAndClient) {
-        assert Thread.holdsLock(this);
-        final NavigableMap<String, NodeAndClient> newNodes = new TreeMap<>(nodes);
-        newNodes.put(nodeAndClient.name, nodeAndClient);
-        nodes = Collections.unmodifiableNavigableMap(newNodes);
-    }
 
     private Set<String> excludeMasters(Collection<NodeAndClient> nodeAndClients) {
         assert Thread.holdsLock(this);
@@ -2025,7 +2006,9 @@ public final class InternalTestCluster extends TestCluster {
 
     private synchronized void publishNode(NodeAndClient nodeAndClient) {
         assert !nodeAndClient.node().isClosed();
-        addNode(nodeAndClient);
+        final NavigableMap<String, NodeAndClient> newNodes = new TreeMap<>(nodes);
+        newNodes.put(nodeAndClient.name, nodeAndClient);
+        nodes = Collections.unmodifiableNavigableMap(newNodes);
         applyDisruptionSchemeToNode(nodeAndClient);
     }
 

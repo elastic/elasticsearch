@@ -1,6 +1,7 @@
 {
     "indices.recovery" : {
         "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/indices-recovery.html",
+        "stability": "stable",
         "methods": ["GET"],
         "url": {
             "paths": ["/_recovery", "/{index}/_recovery"],

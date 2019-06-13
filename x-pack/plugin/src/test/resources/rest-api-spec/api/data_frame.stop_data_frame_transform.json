@@ -1,6 +1,7 @@
 {
   "data_frame.stop_data_frame_transform": {
     "documentation": "https://www.elastic.co/guide/en/elasticsearch/reference/current/stop-data-frame-transform.html",
+    "stability": "beta",
     "methods": [ "POST" ],
     "url": {
       "paths": [ "/_data_frame/transforms/{transform_id}/_stop" ],

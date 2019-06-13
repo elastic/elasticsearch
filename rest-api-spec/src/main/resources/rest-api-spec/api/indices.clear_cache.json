@@ -1,6 +1,7 @@
 {
   "indices.clear_cache": {
     "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/indices-clearcache.html",
+    "stability": "stable",
     "methods": ["POST"],
     "url": {
       "paths": ["/_cache/clear", "/{index}/_cache/clear"],

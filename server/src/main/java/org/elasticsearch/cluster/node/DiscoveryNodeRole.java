@@ -22,6 +22,7 @@ package org.elasticsearch.cluster.node;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.node.Node;
 
+import java.util.Objects;
 import java.util.Set;
 
 /**
@@ -53,8 +54,8 @@ public abstract class DiscoveryNodeRole {
     }
 
     protected DiscoveryNodeRole(final String roleName, final String roleNameAbbreviation) {
-        this.roleName = roleName;
-        this.roleNameAbbreviation = roleNameAbbreviation;
+        this.roleName = Objects.requireNonNull(roleName);
+        this.roleNameAbbreviation = Objects.requireNonNull(roleNameAbbreviation);
     }
 
     protected abstract Setting<Boolean> roleSetting();

@@ -67,7 +67,7 @@ public class QuerierTests extends ESTestCase {
     }
 
     @SuppressWarnings("rawtypes")
-    public void testAggSorting_ThreeFieldsWithRandomization() {
+    public void testAggSorting_Randomized() {
         // Initialize comparators for fields (columns)
         int noColumns = randomIntBetween(3, 10);
         List<Tuple<Integer, Comparator>> tuples = new ArrayList<>(noColumns);

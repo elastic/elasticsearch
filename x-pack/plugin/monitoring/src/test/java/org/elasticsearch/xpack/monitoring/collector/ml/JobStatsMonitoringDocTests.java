@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.monitoring.collector.ml;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
@@ -86,7 +87,7 @@ public class JobStatsMonitoringDocTests extends BaseMonitoringDocTestCase<JobSta
                                                              "_host_address",
                                                              new TransportAddress(TransportAddress.META_ADDRESS, 9300),
                                                              singletonMap("attr", "value"),
-                                                             singleton(DiscoveryNode.Role.MASTER),
+                                                             singleton(DiscoveryNodeRole.MASTER_ROLE),
                                                              Version.CURRENT);
 
         final ModelSizeStats modelStats = new ModelSizeStats.Builder("_model")

@@ -88,6 +88,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.TestEnvironment;
@@ -349,17 +350,13 @@ public abstract class ESTestCase extends LuceneTestCase {
         }
     }
 
-    @Before
-    public final void setPossibleRoles() {
-        DiscoveryNode.setPossibleRoles(getPossibleRoles());
+    @BeforeClass
+    public static void setPossibleRoles() {
+        DiscoveryNode.setPossibleRoles(DiscoveryNodeRole.BUILT_IN_ROLES);
     }
 
-    protected Set<DiscoveryNodeRole> getPossibleRoles() {
-        return DiscoveryNodeRole.BUILT_IN_ROLES;
-    }
-
-    @After
-    public final void clearPossibleRoles() {
+    @AfterClass
+    public static void clearPossibleRoles() {
         DiscoveryNode.setPossibleRoles(Set.of());
     }
 

@@ -21,6 +21,7 @@ package org.elasticsearch.painless.spi;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 /**
@@ -55,13 +56,13 @@ public final class WhitelistClass {
     /** The {@link List} of whitelisted ({@link WhitelistField}s) available to this class. */
     public final List<WhitelistField> whitelistFields;
 
-    /** The {@link List} of ({@link WhitelistAnnotation}s) for this class. */
-    public final List<WhitelistAnnotation> whitelistAnnotations;
+    /** The {@link Map} of annotations for this field. */
+    public final Map<String, String> annotations;
 
     /** Standard constructor. All values must be not {@code null}. */
     public WhitelistClass(String origin, String javaClassName,
             List<WhitelistConstructor> whitelistConstructors, List<WhitelistMethod> whitelistMethods, List<WhitelistField> whitelistFields,
-            List<WhitelistAnnotation> whitelistAnnotations)
+            Map<String, String> annotations)
     {
 
         this.origin = Objects.requireNonNull(origin);
@@ -71,6 +72,6 @@ public final class WhitelistClass {
         this.whitelistMethods = Collections.unmodifiableList(Objects.requireNonNull(whitelistMethods));
         this.whitelistFields = Collections.unmodifiableList(Objects.requireNonNull(whitelistFields));
 
-        this.whitelistAnnotations = Collections.unmodifiableList(Objects.requireNonNull(whitelistAnnotations));
+        this.annotations = Collections.unmodifiableMap(Objects.requireNonNull(annotations));
     }
 }

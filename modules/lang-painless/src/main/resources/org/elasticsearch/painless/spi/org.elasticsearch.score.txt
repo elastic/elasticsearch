@@ -19,7 +19,7 @@
 
 # This file contains a whitelist for functions to be used in Score context
 
-class org.elasticsearch.script.ScoreScript no_import {
+class org.elasticsearch.script.ScoreScript @no_import {
 }
 
 static_import {

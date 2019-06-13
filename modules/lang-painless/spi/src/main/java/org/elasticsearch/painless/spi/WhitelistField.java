@@ -20,7 +20,7 @@
 package org.elasticsearch.painless.spi;
 
 import java.util.Collections;
-import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 /**
@@ -39,17 +39,16 @@ public class WhitelistField {
     /** The canonical type name for the field which can be used to look up the Java field through reflection. */
     public final String canonicalTypeNameParameter;
 
-    /** The {@link List} of ({@link WhitelistAnnotation}s) for this field. */
-    public final List<WhitelistAnnotation> whitelistAnnotations;
+    /** The {@link Map} of annotations for this field. */
+    public final Map<String, String> annotations;
 
     /** Standard constructor.  All values must be not {@code null}. */
-    public WhitelistField(String origin, String fieldName, String canonicalTypeNameParameter,
-            List<WhitelistAnnotation> whitelistAnnotations) {
+    public WhitelistField(String origin, String fieldName, String canonicalTypeNameParameter, Map<String, String> annotations) {
 
         this.origin = Objects.requireNonNull(origin);
         this.fieldName = Objects.requireNonNull(fieldName);
         this.canonicalTypeNameParameter = Objects.requireNonNull(canonicalTypeNameParameter);
 
-        this.whitelistAnnotations = Collections.unmodifiableList(Objects.requireNonNull(whitelistAnnotations));
+        this.annotations = Collections.unmodifiableMap(Objects.requireNonNull(annotations));
     }
 }

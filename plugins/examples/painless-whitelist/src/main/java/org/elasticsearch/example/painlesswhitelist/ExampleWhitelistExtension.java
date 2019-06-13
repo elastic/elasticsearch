@@ -41,9 +41,9 @@ public class ExampleWhitelistExtension implements PainlessExtension {
     public Map<ScriptContext<?>, List<Whitelist>> getContextWhitelists() {
         ExampleWhitelistedInstance ewi = new ExampleWhitelistedInstance(1);
         WhitelistInstanceBinding addValue = new WhitelistInstanceBinding("example addValue", ewi,
-            "addValue", "int", Collections.singletonList("int"), Collections.emptyList());
+            "addValue", "int", Collections.singletonList("int"), Collections.emptyMap());
         WhitelistInstanceBinding getValue = new WhitelistInstanceBinding("example getValue", ewi,
-            "getValue", "int", Collections.emptyList(), Collections.emptyList());
+            "getValue", "int", Collections.emptyList(), Collections.emptyMap());
         Whitelist instanceWhitelist = new Whitelist(ewi.getClass().getClassLoader(), Collections.emptyList(),
             Collections.emptyList(), Collections.emptyList(), Arrays.asList(addValue, getValue));
 

@@ -30,7 +30,9 @@ import java.security.PrivilegedAction;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /** Loads and creates a {@link Whitelist} from one to many text files. */
 public final class WhitelistLoader {
@@ -152,7 +154,7 @@ public final class WhitelistLoader {
                 List<WhitelistConstructor> whitelistConstructors = null;
                 List<WhitelistMethod> whitelistMethods = null;
                 List<WhitelistField> whitelistFields = null;
-                List<WhitelistAnnotation> classWhitelistAnnotations = null;
+                Map<String, String> classAnnotations = null;
 
                 while ((line = reader.readLine()) != null) {
                     number = reader.getLineNumber();
@@ -181,9 +183,9 @@ public final class WhitelistLoader {
 
                         if (annotationIndex == -1) {
                             annotationIndex = line.length() - 1;
-                            classWhitelistAnnotations = Collections.emptyList();
+                            classAnnotations = Collections.emptyMap();
                         } else {
-                            classWhitelistAnnotations = parseWhitelistAnnotations(line.substring(annotationIndex, line.length() - 1));
+                            classAnnotations = parseWhitelistAnnotations(line.substring(annotationIndex, line.length() - 1));
                         }
 
                         parseType = "class";
@@ -218,14 +220,14 @@ public final class WhitelistLoader {
                         // augmented methods, and fields, and add it to the list of whitelisted classes.
                         if ("class".equals(parseType)) {
                             whitelistClasses.add(new WhitelistClass(whitelistClassOrigin, javaClassName,
-                                    whitelistConstructors, whitelistMethods, whitelistFields, classWhitelistAnnotations));
+                                    whitelistConstructors, whitelistMethods, whitelistFields, classAnnotations));
 
                             whitelistClassOrigin = null;
                             javaClassName = null;
                             whitelistConstructors = null;
                             whitelistMethods = null;
                             whitelistFields = null;
-                            classWhitelistAnnotations = null;
+                            classAnnotations = null;
                         }
 
                         // Reset the parseType.
@@ -275,14 +277,14 @@ public final class WhitelistLoader {
                         }
 
                         // Parse the annotations if they exist.
-                        List<WhitelistAnnotation> whitelistAnnotations;
+                        Map<String, String> annotations;
                         int annotationIndex = line.indexOf('@');
 
                         if (annotationIndex == -1) {
                             annotationIndex = line.length();
-                            whitelistAnnotations = Collections.emptyList();
+                            annotations = Collections.emptyMap();
                         } else {
-                            whitelistAnnotations = parseWhitelistAnnotations(line.substring(annotationIndex));
+                            annotations = parseWhitelistAnnotations(line.substring(annotationIndex));
                         }
 
                         // Parse the static import type and class.
@@ -303,11 +305,11 @@ public final class WhitelistLoader {
                         if ("from_class".equals(staticImportType)) {
                             whitelistStatics.add(new WhitelistMethod(origin, targetJavaClassName,
                                     methodName, returnCanonicalTypeName, Arrays.asList(canonicalTypeNameParameters),
-                                    whitelistAnnotations));
+                                    annotations));
                         } else if ("bound_to".equals(staticImportType)) {
                             whitelistClassBindings.add(new WhitelistClassBinding(origin, targetJavaClassName,
                                     methodName, returnCanonicalTypeName, Arrays.asList(canonicalTypeNameParameters),
-                                    whitelistAnnotations));
+                                    annotations));
                         } else {
                             throw new IllegalArgumentException("invalid static import definition: " +
                                     "unexpected static import type [" + staticImportType + "] [" + line + "]");
@@ -337,13 +339,13 @@ public final class WhitelistLoader {
                             }
 
                             // Parse the annotations if they exist.
-                            List<WhitelistAnnotation> whitelistAnnotations;
+                            Map<String, String> annotations;
                             int annotationIndex = line.indexOf('@');
-                            whitelistAnnotations = annotationIndex == -1 ?
-                                    Collections.emptyList() : parseWhitelistAnnotations(line.substring(annotationIndex));
+                            annotations = annotationIndex == -1 ?
+                                    Collections.emptyMap() : parseWhitelistAnnotations(line.substring(annotationIndex));
 
                             whitelistConstructors.add(new WhitelistConstructor(
-                                    origin, Arrays.asList(canonicalTypeNameParameters), whitelistAnnotations));
+                                    origin, Arrays.asList(canonicalTypeNameParameters), annotations));
 
                         // Handle the case for a method or augmented method definition.
                         // Expects the following format: ID ID? ID '(' ( ID ( ',' ID )* )? ')' annotations? '\n'
@@ -385,27 +387,27 @@ public final class WhitelistLoader {
                             }
 
                             // Parse the annotations if they exist.
-                            List<WhitelistAnnotation> whitelistAnnotations;
+                            Map<String, String> annotations;
                             int annotationIndex = line.indexOf('@');
-                            whitelistAnnotations = annotationIndex == -1 ?
-                                    Collections.emptyList() : parseWhitelistAnnotations(line.substring(annotationIndex));
+                            annotations = annotationIndex == -1 ?
+                                    Collections.emptyMap() : parseWhitelistAnnotations(line.substring(annotationIndex));
 
                             whitelistMethods.add(new WhitelistMethod(origin, javaAugmentedClassName, methodName,
                                     returnCanonicalTypeName, Arrays.asList(canonicalTypeNameParameters),
-                                    whitelistAnnotations));
+                                    annotations));
 
                         // Handle the case for a field definition.
                         // Expects the following format: ID ID annotations? '\n'
                         } else {
                             // Parse the annotations if they exist.
-                            List<WhitelistAnnotation> whitelistAnnotations;
+                            Map<String, String> annotations;
                             int annotationIndex = line.indexOf('@');
 
                             if (annotationIndex == -1) {
                                 annotationIndex = line.length();
-                                whitelistAnnotations = Collections.emptyList();
+                                annotations = Collections.emptyMap();
                             } else {
-                                whitelistAnnotations = parseWhitelistAnnotations(line.substring(annotationIndex));
+                                annotations = parseWhitelistAnnotations(line.substring(annotationIndex));
                             }
 
                             // Parse the field tokens.
@@ -416,7 +418,7 @@ public final class WhitelistLoader {
                                 throw new IllegalArgumentException("invalid field definition: unexpected format [" + line + "]");
                             }
 
-                            whitelistFields.add(new WhitelistField(origin, tokens[1], tokens[0], whitelistAnnotations));
+                            whitelistFields.add(new WhitelistField(origin, tokens[1], tokens[0], annotations));
                         }
                     } else {
                         throw new IllegalArgumentException("invalid definition: unable to parse line [" + line + "]");
@@ -437,17 +439,17 @@ public final class WhitelistLoader {
         return new Whitelist(loader, whitelistClasses, whitelistStatics, whitelistClassBindings, Collections.emptyList());
     }
 
-    private static List<WhitelistAnnotation> parseWhitelistAnnotations(String line) {
+    private static Map<String, String> parseWhitelistAnnotations(String line) {
         // Expects the following format: ('@' ID '[' .* '])*
         String[] annotations = line.trim().substring(1).split("@");
-        List<WhitelistAnnotation> whitelistAnnotations = new ArrayList<>(annotations.length);
+        Map<String, String> rtn = new HashMap<>(annotations.length);
 
         for (String annotation : annotations) {
             annotation = annotation.trim();
             int informationIndex = annotation.indexOf('[');
 
             if (informationIndex == -1) {
-                whitelistAnnotations.add(new WhitelistAnnotation(annotation, null));
+                rtn.put(annotation, null);
             } else {
                 if (annotation.charAt(annotation.length() - 1) != ']') {
                     throw new IllegalArgumentException("invalid annotation: expected closing brace");
@@ -456,11 +458,11 @@ public final class WhitelistLoader {
                 String name = annotation.substring(0, informationIndex);
                 String information = annotation.substring(informationIndex + 1, annotation.length() - 1).trim();
 
-                whitelistAnnotations.add(new WhitelistAnnotation(name, information));
+                rtn.put(name, information);
             }
         }
 
-        return whitelistAnnotations;
+        return rtn;
     }
 
     private WhitelistLoader() {}

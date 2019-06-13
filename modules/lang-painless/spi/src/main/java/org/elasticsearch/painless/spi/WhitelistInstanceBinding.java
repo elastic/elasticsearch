@@ -21,6 +21,7 @@ package org.elasticsearch.painless.spi;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 /**
@@ -48,13 +49,13 @@ public class WhitelistInstanceBinding {
      */
     public final List<String> canonicalTypeNameParameters;
 
-    /** The {@link List} of ({@link WhitelistAnnotation}s) for this instance binding. */
-    public final List<WhitelistAnnotation> whitelistAnnotations;
+    /** The {@link Map} of annotations for this field. */
+    public final Map<String, String> annotations;
 
     /** Standard constructor. All values must be not {@code null}. */
     public WhitelistInstanceBinding(String origin, Object targetInstance,
             String methodName, String returnCanonicalTypeName, List<String> canonicalTypeNameParameters,
-            List<WhitelistAnnotation> whitelistAnnotations) {
+            Map<String, String> annotations) {
 
         this.origin = Objects.requireNonNull(origin);
         this.targetInstance = Objects.requireNonNull(targetInstance);
@@ -63,6 +64,6 @@ public class WhitelistInstanceBinding {
         this.returnCanonicalTypeName = Objects.requireNonNull(returnCanonicalTypeName);
         this.canonicalTypeNameParameters = Objects.requireNonNull(canonicalTypeNameParameters);
 
-        this.whitelistAnnotations = Collections.unmodifiableList(Objects.requireNonNull(whitelistAnnotations));
+        this.annotations = Collections.unmodifiableMap(Objects.requireNonNull(annotations));
     }
 }

@@ -119,7 +119,8 @@ public final class PainlessLookupBuilder {
                 for (WhitelistClass whitelistClass : whitelist.whitelistClasses) {
                     origin = whitelistClass.origin;
                     painlessLookupBuilder.addPainlessClass(
-                            whitelist.classLoader, whitelistClass.javaClassName, whitelistClass.noImport == false);
+                            whitelist.classLoader, whitelistClass.javaClassName,
+                            whitelistClass.annotations.containsKey("no_import") == false);
                 }
             }
 

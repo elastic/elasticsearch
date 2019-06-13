@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.security.authc.kerberos;
 
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpHost;
-import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;

@@ -1,28 +1,55 @@
 [role="xpack"]
 [testenv="basic"]
 [[pivoting]]
-== Pivoting your data with {dataframe-transforms}
+== Transforming your data with {dataframes}
 
 beta[]
 
 coming[7.2.0]
 
-////
+<<ml-dataframes,{dataframes-cap}>> enable you to retrieve information from an
+{es} index, transform it, and store it in a new index.
 
-. Choose the index that contains the data you want to pivot. In this example,
-we'll use the {kibana-ref}/add-sample-data.html[{kib} sample data], in
-particular, the Sample eCommerce orders.
-. Define pivot
-.. Query (query pattern: “fieldname”:”value”) - optional
-.. Group by
-.. Aggregations
-. Job details
-.. Job ID
-.. Target Index
-.. Create index pattern selector
-. (Optional) Preview your {dataframe-transform}.
+The following example demonstrates how to use {dataframe-transforms} with the
+{kibana-ref}/add-sample-data.html[{kib} sample data], in particular the
+eCommerce orders sample data.
+
+. Choose your _source index_.
 +
 --
+If you're not already familiar with the `kibana_sample_data_ecommerce` index,
+explore the *Revenue* dashboard in {kib}.
+
+If you're interested in a subset of the data in the source index, you can
+optionally include a {ref}/search-request-query.html[query] element when you
+create the {dataframe-transform}.
+  
+--
+
+. Determine how you want to pivot the data. 
++
+--
+For example, you might want to gain insight into how particular products are
+selling by grouping by product IDs and calculating the average price, the count
+of customer IDs that purchased each product, and the sum of each product sold.
+
+Alternatively, you might want to look at the behavior of individual customers by
+grouping by customer ID and calculating how much they spent on average each
+year.
+
+NOTE: You must group your data by at least one field and choose at least one
+aggregation.
+
+--
+
+. Optional: Preview the transformed data and modify your choices until you are
+satisfied with the results. 
++
+--
+Use the wizard on the *Machine learning* page in {kib} or the
+{ref}/preview-data-frame-transform.html[preview {dataframe-transforms} API].
+
+////
 [source,js]
 --------------------------------------------------
 POST _data_frame/transforms/_preview
@@ -50,10 +77,16 @@ POST _data_frame/transforms/_preview
 --------------------------------------------------
 // CONSOLE
 // TEST[skip:set up sample data]
+////
 --
-. Create a {dataframe-transform}.
+
+. Create the {dataframe-transform}. 
 +
 --
+Use {kib} or the
+{ref}/put-data-frame-transform.html[create {dataframe-transform} API].
+
+////
 For example:
 
 [source,js]
@@ -94,37 +127,47 @@ PUT _data_frame/transforms/ecommerce_transform
 --------------------------------------------------
 // CONSOLE
 // TEST[skip:setup kibana sample data]
+////
 --
-.. Start {dataframe-transform}.
+
+. Start the {dataframe-transform}.
 +
 --
+////
 [source,js]
 --------------------------------------------------
 POST _data_frame/transforms/ecommerce_transform/_start
 --------------------------------------------------
 // CONSOLE
 // TEST[skip:setup kibana sample data]
+////
 --
-. Progress bar
-. (Options to move further: Data frame jobs - job management, Discover - explore data frame pivot) Link to “job management” and “Discover”.
-.  Stop the {dataframe-transform}.
+
+. Verify that the destination index was created successfully and explore your
+transformed data.
+
+. Stop the {dataframe-transform}.
 +
 --
+////
 [source,js]
 --------------------------------------------------
 POST _data_frame/transforms/ecommerce_transform/_stop
 --------------------------------------------------
 // CONSOLE
 // TEST[skip:set up kibana samples]
+////
 --
-. Delete the {dataframe-transform}.
+
+. Optional: Delete the {dataframe-transform}. 
 +
 --
+////
 [source,js]
 --------------------------------------------------
 DELETE _data_frame/transforms/ecommerce_transform
 --------------------------------------------------
 // CONSOLE
 // TEST[skip:setup kibana sample data]
---
 ////
+--

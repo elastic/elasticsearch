@@ -85,12 +85,12 @@ public class NoOpEngineTests extends EngineTestCase {
 
         flushAndTrimTranslog(engine);
 
-        long localCheckpoint = engine.getLocalCheckpoint();
+        long localCheckpoint = engine.getProcessedLocalCheckpoint();
         long maxSeqNo = engine.getSeqNoStats(100L).getMaxSeqNo();
         engine.close();
 
         final NoOpEngine noOpEngine = new NoOpEngine(noOpConfig(INDEX_SETTINGS, store, primaryTranslogDir, tracker));
-        assertThat(noOpEngine.getLocalCheckpoint(), equalTo(localCheckpoint));
+        assertThat(noOpEngine.getProcessedLocalCheckpoint(), equalTo(localCheckpoint));
         assertThat(noOpEngine.getSeqNoStats(100L).getMaxSeqNo(), equalTo(maxSeqNo));
         try (Engine.IndexCommitRef ref = noOpEngine.acquireLastIndexCommit(false)) {
             try (IndexReader reader = DirectoryReader.open(ref.getIndexCommit())) {
@@ -115,7 +115,7 @@ public class NoOpEngineTests extends EngineTestCase {
                         engine.flush();
                     }
                     engine.syncTranslog(); // advance local checkpoint
-                    globalCheckpoint.set(engine.getLocalCheckpoint());
+                    globalCheckpoint.set(engine.getProcessedLocalCheckpoint());
                 }
 
                 for (int i = 0; i < numDocs; i++) {
@@ -124,7 +124,7 @@ public class NoOpEngineTests extends EngineTestCase {
                         Engine.DeleteResult result = engine.delete(new Engine.Delete("test", delId, newUid(delId), primaryTerm.get()));
                         assertTrue(result.isFound());
                         engine.syncTranslog(); // advance local checkpoint
-                        globalCheckpoint.set(engine.getLocalCheckpoint());
+                        globalCheckpoint.set(engine.getProcessedLocalCheckpoint());
                         deletions += 1;
                     }
                 }

@@ -2476,7 +2476,7 @@ public class InternalEngine extends Engine {
     }
 
     @Override
-    public long getLocalCheckpoint() {
+    public long getProcessedLocalCheckpoint() {
         return localCheckpointTracker.getProcessedCheckpoint();
     }
 

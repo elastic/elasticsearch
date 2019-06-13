@@ -103,7 +103,8 @@ public class ShardChangesActionTests extends ESSingleNodeTestCase {
 
         // Unexpected history UUID:
         Exception e = expectThrows(IllegalStateException.class, () -> ShardChangesAction.getOperations(indexShard,
-            indexShard.getLastKnownGlobalCheckpoint(), 0, 10, "different-history-uuid", new ByteSizeValue(Long.MAX_VALUE, ByteSizeUnit.BYTES)));
+            indexShard.getLastKnownGlobalCheckpoint(), 0, 10, "different-history-uuid",
+            new ByteSizeValue(Long.MAX_VALUE, ByteSizeUnit.BYTES)));
         assertThat(e.getMessage(), equalTo("unexpected history uuid, expected [different-history-uuid], actual [" +
                 indexShard.getHistoryUUID() + "]"));
 
@@ -125,7 +126,8 @@ public class ShardChangesActionTests extends ESSingleNodeTestCase {
         ShardRouting shardRouting = TestShardRouting.newShardRouting("index", 0, "_node_id", true, ShardRoutingState.INITIALIZING);
         Mockito.when(indexShard.routingEntry()).thenReturn(shardRouting);
         expectThrows(IndexShardNotStartedException.class, () -> ShardChangesAction.getOperations(indexShard,
-            indexShard.getLastKnownGlobalCheckpoint(), 0, 1, indexShard.getHistoryUUID(), new ByteSizeValue(Long.MAX_VALUE, ByteSizeUnit.BYTES)));
+            indexShard.getLastKnownGlobalCheckpoint(), 0, 1, indexShard.getHistoryUUID(),
+            new ByteSizeValue(Long.MAX_VALUE, ByteSizeUnit.BYTES)));
     }
 
     public void testGetOperationsExceedByteLimit() throws Exception {

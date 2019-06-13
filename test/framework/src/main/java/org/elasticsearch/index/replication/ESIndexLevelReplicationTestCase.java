@@ -696,7 +696,8 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
                         try {
                             performOnReplica(request, replica);
                             releasable.close();
-                            delegatedListener.onResponse(new ReplicaResponse(replica.getLocalCheckpoint(), replica.getLastKnownGlobalCheckpoint()));
+                            delegatedListener.onResponse(new ReplicaResponse(replica.getLocalCheckpoint(),
+                                replica.getLastKnownGlobalCheckpoint()));
                         } catch (final Exception e) {
                             Releasables.closeWhileHandlingException(releasable);
                             delegatedListener.onFailure(e);

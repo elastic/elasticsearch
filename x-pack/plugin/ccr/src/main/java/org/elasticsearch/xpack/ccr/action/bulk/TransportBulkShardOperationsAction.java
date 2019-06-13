@@ -145,7 +145,8 @@ public class TransportBulkShardOperationsAction
                     if (failure.getExistingPrimaryTerm().isPresent()) {
                         appliedOperations.add(rewriteOperationWithPrimaryTerm(sourceOp, failure.getExistingPrimaryTerm().getAsLong()));
                     } else if (targetOp.seqNo() > primary.getLastKnownGlobalCheckpoint()) {
-                        assert false : "can't find primary_term for existing op=" + targetOp + " gcp=" + primary.getLastKnownGlobalCheckpoint();
+                        assert false :
+                            "can't find primary_term for existing op=" + targetOp + " gcp=" + primary.getLastKnownGlobalCheckpoint();
                         throw new IllegalStateException("can't find primary_term for existing op=" + targetOp +
                             " global_checkpoint=" + primary.getLastKnownGlobalCheckpoint(), failure);
                     }

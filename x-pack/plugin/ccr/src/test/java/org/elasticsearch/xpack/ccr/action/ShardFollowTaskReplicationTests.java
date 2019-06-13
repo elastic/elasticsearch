@@ -105,7 +105,8 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
                 leaderGroup.assertAllEqual(docCount);
                 Set<String> indexedDocIds = getShardDocUIDs(leaderGroup.getPrimary());
                 assertBusy(() -> {
-                    assertThat(followerGroup.getPrimary().getLastKnownGlobalCheckpoint(), equalTo(leaderGroup.getPrimary().getLastKnownGlobalCheckpoint()));
+                    assertThat(followerGroup.getPrimary().getLastKnownGlobalCheckpoint(),
+                        equalTo(leaderGroup.getPrimary().getLastKnownGlobalCheckpoint()));
                     followerGroup.assertAllEqual(indexedDocIds.size());
                 });
                 for (IndexShard shard : followerGroup) {
@@ -119,7 +120,8 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
                 }
                 leaderGroup.syncGlobalCheckpoint();
                 assertBusy(() -> {
-                    assertThat(followerGroup.getPrimary().getLastKnownGlobalCheckpoint(), equalTo(leaderGroup.getPrimary().getLastKnownGlobalCheckpoint()));
+                    assertThat(followerGroup.getPrimary().getLastKnownGlobalCheckpoint(),
+                        equalTo(leaderGroup.getPrimary().getLastKnownGlobalCheckpoint()));
                     followerGroup.assertAllEqual(indexedDocIds.size() - deleteDocIds.size());
                 });
                 shardFollowTask.markAsCompleted();
@@ -192,7 +194,8 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
                 leaderGroup.assertAllEqual(docCount);
                 Set<String> indexedDocIds = getShardDocUIDs(leaderGroup.getPrimary());
                 assertBusy(() -> {
-                    assertThat(followerGroup.getPrimary().getLastKnownGlobalCheckpoint(), equalTo(leaderGroup.getPrimary().getLastKnownGlobalCheckpoint()));
+                    assertThat(followerGroup.getPrimary().getLastKnownGlobalCheckpoint(),
+                        equalTo(leaderGroup.getPrimary().getLastKnownGlobalCheckpoint()));
                     followerGroup.assertAllEqual(indexedDocIds.size());
                 });
 
@@ -235,7 +238,8 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
                 leaderGroup.assertAllEqual(docCount);
                 Set<String> indexedDocIds = getShardDocUIDs(leaderGroup.getPrimary());
                 assertBusy(() -> {
-                    assertThat(followerGroup.getPrimary().getLastKnownGlobalCheckpoint(), equalTo(leaderGroup.getPrimary().getLastKnownGlobalCheckpoint()));
+                    assertThat(followerGroup.getPrimary().getLastKnownGlobalCheckpoint(),
+                        equalTo(leaderGroup.getPrimary().getLastKnownGlobalCheckpoint()));
                     followerGroup.assertAllEqual(indexedDocIds.size());
                 });
 
@@ -285,8 +289,9 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
                     long fromSeqNo = randomLongBetween(0, leadingPrimary.getLastKnownGlobalCheckpoint());
                     long toSeqNo = randomLongBetween(fromSeqNo, leadingPrimary.getLastKnownGlobalCheckpoint());
                     int numOps = Math.toIntExact(toSeqNo + 1 - fromSeqNo);
-                    Translog.Operation[] ops = ShardChangesAction.getOperations(leadingPrimary, leadingPrimary.getLastKnownGlobalCheckpoint(),
-                        fromSeqNo, numOps, leadingPrimary.getHistoryUUID(), new ByteSizeValue(Long.MAX_VALUE, ByteSizeUnit.BYTES));
+                    Translog.Operation[] ops = ShardChangesAction.getOperations(leadingPrimary,
+                        leadingPrimary.getLastKnownGlobalCheckpoint(), fromSeqNo, numOps, leadingPrimary.getHistoryUUID(),
+                        new ByteSizeValue(Long.MAX_VALUE, ByteSizeUnit.BYTES));
 
                     IndexShard followingPrimary = followerGroup.getPrimary();
                     TransportWriteAction.WritePrimaryResult<BulkShardOperationsRequest, BulkShardOperationsResponse> primaryResult =
@@ -314,7 +319,8 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
                     followerSeqNoStats.getMaxSeqNo());
                 try {
                     assertBusy(() -> {
-                        assertThat(followerGroup.getPrimary().getLastKnownGlobalCheckpoint(), equalTo(leadingPrimary.getLastKnownGlobalCheckpoint()));
+                        assertThat(followerGroup.getPrimary().getLastKnownGlobalCheckpoint(),
+                            equalTo(leadingPrimary.getLastKnownGlobalCheckpoint()));
                         assertConsistentHistoryBetweenLeaderAndFollower(leaderGroup, followerGroup, true);
                     });
                 } finally {

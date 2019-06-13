@@ -27,8 +27,6 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
-import org.elasticsearch.test.MockIndexEventListener;
-import org.elasticsearch.test.transport.MockTransportService;
 
 import java.util.Arrays;
 import java.util.Collection;

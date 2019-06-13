@@ -780,7 +780,8 @@ public abstract class IndexShardTestCase extends ESTestCase {
             result = shard.applyDeleteOperationOnPrimary(
                 Versions.MATCH_ANY, type, id, VersionType.INTERNAL, SequenceNumbers.UNASSIGNED_SEQ_NO, 0);
             shard.sync(); // advance local checkpoint
-            shard.updateLocalCheckpointForShard(shard.routingEntry().allocationId().getId(), shard.getEngine().getLocalCheckpoint());
+            shard.updateLocalCheckpointForShard(shard.routingEntry().allocationId().getId(),
+                shard.getEngine().getProcessedLocalCheckpoint());
         } else {
             final long seqNo = shard.seqNoStats().getMaxSeqNo() + 1;
             shard.advanceMaxSeqNoOfUpdatesOrDeletes(seqNo); // manually replicate max_seq_no_of_updates

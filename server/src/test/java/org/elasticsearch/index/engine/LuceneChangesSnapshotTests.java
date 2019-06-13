@@ -161,7 +161,7 @@ public class LuceneChangesSnapshotTests extends EngineTestCase {
         int totalOps = 0;
         for (Engine.Operation op : operations) {
             // Engine skips deletes or indexes below the local checkpoint
-            if (engine.getLocalCheckpoint() < op.seqNo() || op instanceof Engine.NoOp) {
+            if (engine.getProcessedLocalCheckpoint() < op.seqNo() || op instanceof Engine.NoOp) {
                 seqNoToTerm.put(op.seqNo(), op.primaryTerm());
                 if (op instanceof Engine.Index) {
                     totalOps += ((Engine.Index) op).docs().size();

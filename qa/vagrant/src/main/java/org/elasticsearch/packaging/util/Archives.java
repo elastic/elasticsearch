@@ -185,7 +185,8 @@ public class Archives {
             "elasticsearch-keystore",
             "elasticsearch-plugin",
             "elasticsearch-shard",
-            "elasticsearch-node"
+            "elasticsearch-node",
+            "elasticsearch-snapshot"
         ).forEach(executable -> {
 
             assertThat(es.bin(executable), file(File, owner, owner, p755));

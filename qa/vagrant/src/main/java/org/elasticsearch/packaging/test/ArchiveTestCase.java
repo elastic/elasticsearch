@@ -464,4 +464,22 @@ public abstract class ArchiveTestCase extends PackagingTestCase {
         }
     }
 
+    public void test95ElasticsearchNodeCliPackaging() throws Exception {
+        assumeThat(installation, is(notNullValue()));
+
+        final Installation.Executables bin = installation.executables();
+        final Shell sh = newShell();
+
+        Platforms.PlatformAction action = () -> {
+            final Result result = sh.run(bin.elasticsearchSnapshot + " -h");
+            assertThat(result.stdout,
+                    containsString("Tool to work with repositories and snapshots"));
+        };
+
+        if (distribution().equals(Distribution.DEFAULT_LINUX) || distribution().equals(Distribution.DEFAULT_WINDOWS)) {
+            Platforms.onLinux(action);
+            Platforms.onWindows(action);
+        }
+    }
+
 }

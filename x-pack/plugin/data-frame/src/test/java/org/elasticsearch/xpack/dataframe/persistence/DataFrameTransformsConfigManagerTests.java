@@ -239,7 +239,7 @@ public class DataFrameTransformsConfigManagerTests extends DataFrameSingleNodeTe
     }
 
     public void testGetStateAndStatsMultiple() throws InterruptedException {
-        int numStats = randomInt(5);
+        int numStats = randomIntBetween(10, 15);
         List<DataFrameTransformStateAndStats> expectedStats = new ArrayList<>();
         for (int i=0; i<numStats; i++) {
             DataFrameTransformStateAndStats stat =

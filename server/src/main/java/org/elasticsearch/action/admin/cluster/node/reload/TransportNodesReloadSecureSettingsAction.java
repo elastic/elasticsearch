@@ -158,10 +158,14 @@ public class TransportNodesReloadSecureSettingsAction extends TransportNodesActi
      * Returns true if the node is configured for TLS on the transport layer
      */
     private boolean isNodeTransportTLSEnabled() {
-        return this.environment.settings().getAsBoolean("xpack.security.transport.ssl.enabled", false);
+        return transportService.isTransportSecure();
     }
 
     private boolean isNodeLocal(NodesReloadSecureSettingsRequest request) {
+        if (null == request.concreteNodes()) {
+            resolveRequest(request, clusterService.state());
+            assert request.concreteNodes() != null;
+        }
         final DiscoveryNode[] nodes = request.concreteNodes();
         return nodes.length == 1 && nodes[0].getId().equals(clusterService.localNode().getId());
     }

@@ -128,6 +128,11 @@ public class SecurityNioTransport extends NioTransport {
         };
     }
 
+    @Override
+    public boolean isSecure() {
+        return this.sslEnabled;
+    }
+
     private class SecurityTcpChannelFactory extends TcpChannelFactory {
 
         private final String profileName;

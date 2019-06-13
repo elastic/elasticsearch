@@ -1137,3 +1137,12 @@ buildRestTests.setups['seats'] = '''
             {"theatre": "Graye", "cost": 33, "row": 2, "number": 6, "sold": false}
             {"index":{"_id": "4"}}
             {"theatre": "Skyline", "cost": 20, "row": 5, "number": 2, "sold": false}'''
+buildRestTests.setups['kibana_sample_data_ecommerce'] = '''
+  - do:
+        indices.create:
+          index: kibana_sample_data_ecommerce
+          body:
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 0
+'''

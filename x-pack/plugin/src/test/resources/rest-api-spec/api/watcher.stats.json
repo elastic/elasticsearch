@@ -1,6 +1,7 @@
 {
   "watcher.stats": {
     "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/current/watcher-api-stats.html",
+    "stability": "stable",
     "methods": [ "GET" ],
     "url": {
       "paths": [ "/_watcher/stats", "/_watcher/stats/{metric}" ],

@@ -834,7 +834,7 @@ public abstract class EngineTestCase extends ESTestCase {
             final Engine.Operation.TYPE opType = randomFrom(Engine.Operation.TYPE.values());
             final boolean isNestedDoc = includeNestedDocs && opType == Engine.Operation.TYPE.INDEX && randomBoolean();
             final int nestedValues = between(0, 3);
-            final long startTime = threadPool.relativeTimeInMillis();
+            final long startTime = threadPool.relativeTimeInNanos();
             final int copies = allowDuplicate && rarely() ? between(2, 4) : 1;
             for (int copy = 0; copy < copies; copy++) {
                 final ParsedDocument doc = isNestedDoc ? nestedParsedDocFactory.apply(id, nestedValues) : createParsedDoc(id, null);

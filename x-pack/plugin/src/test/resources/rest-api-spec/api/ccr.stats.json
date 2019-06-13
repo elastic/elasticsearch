@@ -1,6 +1,7 @@
 {
   "ccr.stats": {
     "documentation": "https://www.elastic.co/guide/en/elasticsearch/reference/current/ccr-get-stats.html",
+    "stability" : "stable",
     "methods": [ "GET" ],
     "url": {
       "paths": [ "/_ccr/stats" ],

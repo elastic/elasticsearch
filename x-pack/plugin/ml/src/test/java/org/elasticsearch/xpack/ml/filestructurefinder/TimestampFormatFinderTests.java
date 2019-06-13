@@ -136,11 +136,11 @@ public class TimestampFormatFinderTests extends FileStructureTestCase {
         e = expectThrows(IllegalArgumentException.class,
             () -> TimestampFormatFinder.overrideFormatToGrokAndRegex("MM/dd/yyyy H:mm:ss+SSSSSS"));
         assertEquals("Letter group [SSSSSS] in [MM/dd/yyyy H:mm:ss+SSSSSS] is not supported"
-            + " because it is not preceeded by [ss] and a separator from [:.,]", e.getMessage());
+            + " because it is not preceded by [ss] and a separator from [:.,]", e.getMessage());
         e = expectThrows(IllegalArgumentException.class,
             () -> TimestampFormatFinder.overrideFormatToGrokAndRegex("MM/dd/yyyy H:mm,SSSSSS"));
         assertEquals("Letter group [SSSSSS] in [MM/dd/yyyy H:mm,SSSSSS] is not supported"
-            + " because it is not preceeded by [ss] and a separator from [:.,]", e.getMessage());
+            + " because it is not preceded by [ss] and a separator from [:.,]", e.getMessage());
         e = expectThrows(IllegalArgumentException.class,
             () -> TimestampFormatFinder.overrideFormatToGrokAndRegex(" 'T' "));
         assertEquals("No time format letter groups in override format [ 'T' ]", e.getMessage());
@@ -562,6 +562,11 @@ public class TimestampFormatFinderTests extends FileStructureTestCase {
         validateNoTimestampMatch("no timestamps in here");
         validateNoTimestampMatch(":::");
         validateNoTimestampMatch("/+");
+        // These two don't match because they're too far in the future
+        // when interpreted as seconds/milliseconds from the epoch
+        // (they need to be 10 or 13 digits beginning with 1 or 2)
+        validateNoTimestampMatch("3213213213");
+        validateNoTimestampMatch("9789522792167");
     }
 
     public void testFindFormatGivenOnlyIso8601() {
@@ -693,10 +698,14 @@ public class TimestampFormatFinderTests extends FileStructureTestCase {
 
     public void testFindFormatGivenOnlySystemDate() {
 
+        validateTimestampMatch("1000000000000", "POSINT", "\\b\\d{13}\\b", "UNIX_MS", 1000000000000L);
         validateTimestampMatch("1526400896374", "POSINT", "\\b\\d{13}\\b", "UNIX_MS", 1526400896374L);
+        validateTimestampMatch("2999999999999", "POSINT", "\\b\\d{13}\\b", "UNIX_MS", 2999999999999L);
 
+        validateTimestampMatch("1000000000", "NUMBER", "\\b\\d{10}\\b", "UNIX", 1000000000000L);
         validateTimestampMatch("1526400896.736", "NUMBER", "\\b\\d{10}\\b", "UNIX", 1526400896736L);
         validateTimestampMatch("1526400896", "NUMBER", "\\b\\d{10}\\b", "UNIX", 1526400896000L);
+        validateTimestampMatch("2999999999.999", "NUMBER", "\\b\\d{10}\\b", "UNIX", 2999999999999L);
 
         validateTimestampMatch("400000005afb078a164ac980", "BASE16NUM", "\\b[0-9A-Fa-f]{24}\\b", "TAI64N", 1526400896374L);
     }

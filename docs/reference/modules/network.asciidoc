@@ -82,9 +82,6 @@ The following special values may be passed to `network.host`:
 `_global_`::
 
   Any globally-scoped addresses on the system, for example `8.8.8.8`.
-  
-  `0`::
-  Binds to all network interfaces. Best effort is used to determine what to publish. Specifiers :ipv4 and :ip6 cannot be used with this value.
 
 
 [float]

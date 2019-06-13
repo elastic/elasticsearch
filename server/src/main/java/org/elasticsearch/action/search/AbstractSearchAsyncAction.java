@@ -140,24 +140,29 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         } else {
             Boolean allowPartialResults = request.allowPartialSearchResults();
             assert allowPartialResults != null : "SearchRequest missing setting for allowPartialSearchResults";
-            if (allowPartialResults == false && shardFailures.get() != null ){
-                if (logger.isDebugEnabled()) {
-                    final ShardOperationFailedException[] shardSearchFailures = ExceptionsHelper.groupBy(buildShardFailures());
-                    Throwable cause = shardSearchFailures.length == 0 ? null :
-                        ElasticsearchException.guessRootCauses(shardSearchFailures[0].getCause())[0];
-                    logger.debug(() -> new ParameterizedMessage("{} shards failed for phase: [{}]",
-                            shardSearchFailures.length, getName()), cause);
+            if (allowPartialResults == false && shardFailures.get() != null) {
+                // check if there are actual failures in the atomic array since
+                // successful retries can reset the failures to null
+                ShardOperationFailedException[] shardSearchFailures = buildShardFailures();
+                if (shardSearchFailures.length > 0) {
+                    if (logger.isDebugEnabled()) {
+                        int numShardFailures = shardSearchFailures.length;
+                        shardSearchFailures = ExceptionsHelper.groupBy(shardSearchFailures);
+                        Throwable cause = ElasticsearchException.guessRootCauses(shardSearchFailures[0].getCause())[0];
+                        logger.debug(() -> new ParameterizedMessage("{} shards failed for phase: [{}]",
+                            numShardFailures, getName()), cause);
+                    }
+                    onPhaseFailure(currentPhase, "Partial shards failure", null);
+                    return;
                 }
-                onPhaseFailure(currentPhase, "Partial shards failure", null);
-            } else {
-                if (logger.isTraceEnabled()) {
-                    final String resultsFrom = results.getSuccessfulResults()
-                        .map(r -> r.getSearchShardTarget().toString()).collect(Collectors.joining(","));
-                    logger.trace("[{}] Moving to next phase: [{}], based on results from: {} (cluster state version: {})",
-                        currentPhase.getName(), nextPhase.getName(), resultsFrom, clusterStateVersion);
-                }
-                executePhase(nextPhase);
             }
+            if (logger.isTraceEnabled()) {
+                final String resultsFrom = results.getSuccessfulResults()
+                    .map(r -> r.getSearchShardTarget().toString()).collect(Collectors.joining(","));
+                logger.trace("[{}] Moving to next phase: [{}], based on results from: {} (cluster state version: {})",
+                    currentPhase.getName(), nextPhase.getName(), resultsFrom, clusterStateVersion);
+            }
+            executePhase(nextPhase);
         }
     }
 

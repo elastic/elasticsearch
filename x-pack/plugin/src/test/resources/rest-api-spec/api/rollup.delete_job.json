@@ -1,6 +1,7 @@
 {
   "rollup.delete_job": {
     "documentation": "",
+    "stability" : "experimental",
     "methods": [ "DELETE" ],
     "url": {
       "paths": [ "/_rollup/job/{id}" ],

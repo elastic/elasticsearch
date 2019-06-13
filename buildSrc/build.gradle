@@ -67,8 +67,26 @@ if (JavaVersion.current() < JavaVersion.VERSION_11) {
 }
 
 // Keep compatibility with Java 8 for external users of build-tools that haven't migrated to Java 11
-targetCompatibility = '8'
-sourceCompatibility = '8'
+targetCompatibility = '11'
+sourceCompatibility = '11'
+
+sourceSets {
+    // We have a few classes that need to be compiled for older java versions
+    minimumRuntime { }
+}
+
+compileMinimumRuntimeJava {
+    targetCompatibility = 8
+    sourceCompatibility = 8
+}
+
+jar {
+    from sourceSets.minimumRuntime.output
+}
+
+javadoc {
+    source sourceSets.minimumRuntime.allSource
+}
 
 /*****************************************************************************
  *                    Dependencies used by the entire build                  *
@@ -79,6 +97,11 @@ repositories {
 }
 
 dependencies {
+  if (project.ext.has("isEclipse") == false || project.ext.isEclipse == false) {
+    // eclipse is confused if this is set explicitly
+    compile sourceSets.minimumRuntime.output
+  }
+
   compile localGroovy()
   
   compile 'commons-codec:commons-codec:1.12'
@@ -96,6 +119,9 @@ dependencies {
   testCompile "junit:junit:${props.getProperty('junit')}"
   testCompile "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${props.getProperty('randomizedrunner')}"
   testCompile 'com.github.tomakehurst:wiremock-jre8-standalone:2.23.2'
+  minimumRuntimeCompile "junit:junit:${props.getProperty('junit')}"
+  minimumRuntimeCompile localGroovy()
+  minimumRuntimeCompile gradleApi()
 }
 
 /*****************************************************************************
@@ -123,10 +149,6 @@ if (project != rootProject) {
   apply plugin: 'nebula.maven-base-publish'
   apply plugin: 'nebula.maven-scm'
 
-  // we need to apply these again to override the build plugin
-  targetCompatibility = "10"
-  sourceCompatibility = "10"
-
   // groovydoc succeeds, but has some weird internal exception...
   groovydoc.enabled = false
 
@@ -134,6 +156,7 @@ if (project != rootProject) {
   dependencyLicenses.enabled = false
   dependenciesInfo.enabled = false
   forbiddenApisMain.enabled = false
+  forbiddenApisMinimumRuntime.enabled = false
   forbiddenApisTest.enabled = false
   jarHell.enabled = false
   thirdPartyAudit.enabled = false

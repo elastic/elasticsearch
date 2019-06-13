@@ -98,7 +98,7 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
      * @param version          the version of the node
      */
     public DiscoveryNode(final String id, TransportAddress address, Version version) {
-        this(id, address, Collections.emptyMap(), Set.of(MasterRole.INSTANCE, DataRole.INSTANCE, IngestRole.INSTANCE), version);
+        this(id, address, Collections.emptyMap(), BUILT_IN_ROLES, version);
     }
 
     /**

@@ -61,6 +61,7 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.search.QueryStringQueryParser;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.test.AbstractQueryTestCase;
 import org.hamcrest.CoreMatchers;
 import org.hamcrest.Matchers;
 
@@ -84,13 +85,7 @@ import static org.hamcrest.CoreMatchers.hasItems;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
 
-public class QueryStringQueryBuilderTests extends FullTextQueryTestCase<QueryStringQueryBuilder> {
-
-    @Override
-    protected boolean isCacheable(QueryStringQueryBuilder queryBuilder) {
-        return queryBuilder.fuzziness() != null
-                || isCacheable(queryBuilder.fields().keySet(), queryBuilder.queryString());
-    }
+public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStringQueryBuilder> {
 
     @Override
     protected void initializeAdditionalMappings(MapperService mapperService) throws IOException {

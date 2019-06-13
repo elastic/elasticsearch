@@ -41,6 +41,7 @@ import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.query.MultiMatchQueryBuilder.Type;
 import org.elasticsearch.index.search.MatchQuery;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -58,15 +59,9 @@ import static org.hamcrest.CoreMatchers.hasItems;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.collection.IsCollectionWithSize.hasSize;
 
-public class MultiMatchQueryBuilderTests extends FullTextQueryTestCase<MultiMatchQueryBuilder> {
+public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatchQueryBuilder> {
     private static final String MISSING_WILDCARD_FIELD_NAME = "missing_*";
     private static final String MISSING_FIELD_NAME = "missing";
-
-    @Override
-    protected boolean isCacheable(MultiMatchQueryBuilder queryBuilder) {
-        return queryBuilder.fuzziness() != null
-                || isCacheable(queryBuilder.fields().keySet(), queryBuilder.value().toString());
-    }
 
     @Override
     protected MultiMatchQueryBuilder doCreateTestQueryBuilder() {

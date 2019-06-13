@@ -85,6 +85,10 @@ public class SnapshotLifecycleIT extends ESRestTestCase {
             Map<String, Object> snapResponse = ((List<Map<String, Object>>) snapshotResponseMap.get("snapshots")).get(0);
             assertThat(snapResponse.get("snapshot").toString(), startsWith("snap-"));
             assertThat((List<String>)snapResponse.get("indices"), equalTo(Collections.singletonList(indexName)));
+            Map<String, Object> metadata = (Map<String, Object>) snapResponse.get("metadata");
+            assertNotNull(metadata);
+            assertThat(metadata.get("policy"), equalTo(policyName));
+            assertHistoryIsPresent(policyName, true, repoId);
 
             // Check that the last success date was written to the cluster state
             Request getReq = new Request("GET", "/_slm/policy/" + policyName);
@@ -194,6 +198,9 @@ public class SnapshotLifecycleIT extends ESRestTestCase {
                         snapshotResponseMap = XContentHelper.convertToMap(XContentType.JSON.xContent(), is, true);
                     }
                     assertThat(snapshotResponseMap.size(), greaterThan(0));
+                    final Map<String, Object> metadata = extractMetadata(snapshotResponseMap, snapshotName);
+                    assertNotNull(metadata);
+                    assertThat(metadata.get("policy"), equalTo(policyName));
                     assertHistoryIsPresent(policyName, true, repoId);
                 } catch (ResponseException e) {
                     fail("expected snapshot to exist but it does not: " + EntityUtils.toString(e.getResponse().getEntity()));
@@ -209,6 +216,16 @@ public class SnapshotLifecycleIT extends ESRestTestCase {
         assertBusy(() -> {
             assertThat(wipeSnapshots().size(), equalTo(0));
         });
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Map<String, Object> extractMetadata(Map<String, Object> snapshotResponseMap, String snapshotPrefix) {
+        List<Map<String, Object>> snapshots = ((List<Map<String, Object>>) snapshotResponseMap.get("snapshots"));
+        return snapshots.stream()
+            .filter(snapshot -> ((String) snapshot.get("snapshot")).startsWith(snapshotPrefix))
+            .map(snapshot -> (Map<String, Object>) snapshot.get("metadata"))
+            .findFirst()
+            .orElse(null);
     }
 
     // This method should be called inside an assertBusy, it has no retry logic of its own
@@ -263,6 +280,14 @@ public class SnapshotLifecycleIT extends ESRestTestCase {
         Map<String, Object> snapConfig = new HashMap<>();
         snapConfig.put("indices", Collections.singletonList(indexPattern));
         snapConfig.put("ignore_unavailable", ignoreUnavailable);
+        if (randomBoolean()) {
+            Map<String, Object> metadata = new HashMap<>();
+            int fieldCount = randomIntBetween(2,5);
+            for (int i = 0; i < fieldCount; i++) {
+                metadata.put(randomValueOtherThanMany(key -> "policy".equals(key) || metadata.containsKey(key),
+                    () -> randomAlphaOfLength(5)), randomAlphaOfLength(4));
+            }
+        }
         SnapshotLifecyclePolicy policy = new SnapshotLifecyclePolicy(policyName, snapshotNamePattern, schedule, repoId, snapConfig);
 
         Request putLifecycle = new Request("PUT", "/_slm/policy/" + policyName);

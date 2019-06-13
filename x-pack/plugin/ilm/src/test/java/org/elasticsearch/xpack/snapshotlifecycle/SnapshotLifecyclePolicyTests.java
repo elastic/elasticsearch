@@ -17,6 +17,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -69,6 +70,53 @@ public class SnapshotLifecyclePolicyTests extends AbstractSerializingTestCase<Sn
             containsInAnyOrder("invalid policy id [_my_policy]: must not start with '_'",
                 "invalid snapshot name [mySnap]: must be lowercase",
                 "invalid schedule [ ]: must not be empty"));
+    }
+
+    public void testMetadataValidation() {
+        {
+            Map<String, Object> configuration = new HashMap<>();
+            final String metadataString = randomAlphaOfLength(10);
+            configuration.put("metadata", metadataString);
+
+            SnapshotLifecyclePolicy policy = new SnapshotLifecyclePolicy("mypolicy", "<mysnapshot-{now/M}>",
+                "1 * * * * ?", "myrepo", configuration);
+            ValidationException e = policy.validate();
+            assertThat(e.validationErrors(), contains("invalid configuration.metadata [" + metadataString +
+                "]: must be an object if present"));
+        }
+
+        {
+            Map<String, Object> metadata = new HashMap<>();
+            metadata.put("policy", randomAlphaOfLength(5));
+            Map<String, Object> configuration = new HashMap<>();
+            configuration.put("metadata", metadata);
+
+            SnapshotLifecyclePolicy policy = new SnapshotLifecyclePolicy("mypolicy", "<mysnapshot-{now/M}>",
+                "1 * * * * ?", "myrepo", configuration);
+            ValidationException e = policy.validate();
+            assertThat(e.validationErrors(), contains("invalid configuration.metadata: field name [policy] is reserved and " +
+                "will be added automatically"));
+        }
+
+        {
+            Map<String, Object> metadata = new HashMap<>();
+            final int fieldCount = randomIntBetween(67, 100); // 67 is the smallest field count with these sizes that causes an error
+            final int keyBytes = 5; // chosen arbitrarily
+            final int valueBytes = 4; // chosen arbitrarily
+            int totalBytes = fieldCount * (keyBytes + valueBytes + 6 /* bytes of overhead per key/value pair */) + 1;
+            for (int i = 0; i < fieldCount; i++) {
+                metadata.put(randomValueOtherThanMany(key -> "policy".equals(key) || metadata.containsKey(key),
+                    () -> randomAlphaOfLength(keyBytes)), randomAlphaOfLength(valueBytes));
+            }
+            Map<String, Object> configuration = new HashMap<>();
+            configuration.put("metadata", metadata);
+
+            SnapshotLifecyclePolicy policy = new SnapshotLifecyclePolicy("mypolicy", "<mysnapshot-{now/M}>",
+                "1 * * * * ?", "myrepo", configuration);
+            ValidationException e = policy.validate();
+            assertThat(e.validationErrors(), contains("invalid configuration.metadata: must be smaller than [1004] bytes, but is [" +
+                totalBytes + "] bytes"));
+        }
     }
 
     @Override

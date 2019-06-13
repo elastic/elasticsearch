@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.core.scheduler.Cron;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -57,6 +58,8 @@ public class SnapshotLifecyclePolicy extends AbstractDiffable<SnapshotLifecycleP
     private static final ParseField CONFIG = new ParseField("config");
     private static final IndexNameExpressionResolver.DateMathExpressionResolver DATE_MATH_RESOLVER =
         new IndexNameExpressionResolver.DateMathExpressionResolver();
+    private static final String POLICY_ID_METADATA_FIELD = "policy";
+    private static final String METADATA_FIELD_NAME = "metadata";
 
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<SnapshotLifecyclePolicy, String> PARSER =
@@ -169,6 +172,30 @@ public class SnapshotLifecyclePolicy extends AbstractDiffable<SnapshotLifecycleP
             }
         }
 
+        if (configuration.containsKey(METADATA_FIELD_NAME)) {
+            if (configuration.get(METADATA_FIELD_NAME) instanceof Map == false) {
+                err.addValidationError("invalid configuration." + METADATA_FIELD_NAME + " [" + configuration.get(METADATA_FIELD_NAME) +
+                    "]: must be an object if present");
+            } else {
+                @SuppressWarnings("unchecked")
+                Map<String, Object> metadata = (Map<String, Object>) configuration.get(METADATA_FIELD_NAME);
+                if (metadata.containsKey(POLICY_ID_METADATA_FIELD)) {
+                    err.addValidationError("invalid configuration." + METADATA_FIELD_NAME + ": field name [" + POLICY_ID_METADATA_FIELD +
+                        "] is reserved and will be added automatically");
+                } else {
+                    Map<String, Object> metadataWithPolicyField = addPolicyNameToMetadata(metadata);
+                    int serializedSizeOriginal = CreateSnapshotRequest.metadataSize(metadata);
+                    int serializedSizeWithMetadata = CreateSnapshotRequest.metadataSize(metadataWithPolicyField);
+                    int policyNameAddedBytes = serializedSizeWithMetadata - serializedSizeOriginal;
+                    if (serializedSizeWithMetadata > CreateSnapshotRequest.MAXIMUM_METADATA_BYTES) {
+                        err.addValidationError("invalid configuration." + METADATA_FIELD_NAME + ": must be smaller than [" +
+                            (CreateSnapshotRequest.MAXIMUM_METADATA_BYTES - policyNameAddedBytes) +
+                            "] bytes, but is [" + serializedSizeOriginal + "] bytes");
+                    }
+                }
+            }
+        }
+
         // Repository validation, validation of whether the repository actually exists happens
         // elsewhere as it requires cluster state
         if (Strings.hasText(repository) == false) {
@@ -176,6 +203,17 @@ public class SnapshotLifecyclePolicy extends AbstractDiffable<SnapshotLifecycleP
         }
 
         return err.validationErrors().size() == 0 ? null : err;
+    }
+
+    private Map<String, Object> addPolicyNameToMetadata(final Map<String, Object> metadata) {
+        Map<String, Object> newMetadata;
+        if (metadata == null) {
+            newMetadata = new HashMap<>();
+        } else {
+            newMetadata = new HashMap<>(metadata);
+        }
+        newMetadata.put(POLICY_ID_METADATA_FIELD, this.id);
+        return newMetadata;
     }
 
     /**
@@ -198,7 +236,12 @@ public class SnapshotLifecyclePolicy extends AbstractDiffable<SnapshotLifecycleP
      */
     public CreateSnapshotRequest toRequest() {
         CreateSnapshotRequest req = new CreateSnapshotRequest(repository, generateSnapshotName(new ResolverContext()));
-        req.source(configuration);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> metadata = (Map<String, Object>) configuration.get("metadata");
+        Map<String, Object> metadataWithAddedPolicyName = addPolicyNameToMetadata(metadata);
+        Map<String, Object> mergedConfiguration = new HashMap<>(configuration);
+        mergedConfiguration.put("metadata", metadataWithAddedPolicyName);
+        req.source(mergedConfiguration);
         req.waitForCompletion(false);
         return req;
     }

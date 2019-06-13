@@ -164,7 +164,7 @@ public final class WhitelistLoader {
                     }
 
                     // Handle a new class by resetting all the variables necessary to construct a new WhitelistClass for the whitelist.
-                    // Expects the following format: 'class' ID 'no_import'? '{' '\n'
+                    // Expects the following format: 'class' ID annotations? '{' '\n'
                     if (line.startsWith("class ")) {
                         // Ensure the final token of the line is '{'.
                         if (line.endsWith("{") == false) {
@@ -176,11 +176,12 @@ public final class WhitelistLoader {
                             throw new IllegalArgumentException("invalid definition: cannot embed class definition [" + line + "]");
                         }
 
-                        // Parse the Java class name.
+                        // Parse the Java class name and annotations if they exist.
                         int annotationIndex = line.indexOf('@');
 
                         if (annotationIndex == -1) {
                             annotationIndex = line.length() - 1;
+                            classWhitelistAnnotations = Collections.emptyList();
                         } else {
                             classWhitelistAnnotations = parseWhitelistAnnotations(line.substring(annotationIndex, line.length() - 1));
                         }
@@ -224,13 +225,14 @@ public final class WhitelistLoader {
                             whitelistConstructors = null;
                             whitelistMethods = null;
                             whitelistFields = null;
+                            classWhitelistAnnotations = null;
                         }
 
                         // Reset the parseType.
                         parseType = null;
 
                     // Handle static import definition types.
-                    // Expects the following format: ID ID '(' ( ID ( ',' ID )* )? ')' ( 'from_class' | 'bound_to' ) ID '\n'
+                    // Expects the following format: ID ID '(' ( ID ( ',' ID )* )? ')' ( 'from_class' | 'bound_to' ) ID annotations? '\n'
                     } else if ("static_import".equals(parseType)) {
                         // Mark the origin of this parsable object.
                         String origin = "[" + filepath + "]:[" + number + "]";
@@ -272,8 +274,19 @@ public final class WhitelistLoader {
                             canonicalTypeNameParameters = new String[0];
                         }
 
+                        // Parse the annotations if they exist.
+                        List<WhitelistAnnotation> whitelistAnnotations;
+                        int annotationIndex = line.indexOf('@');
+
+                        if (annotationIndex == -1) {
+                            annotationIndex = line.length();
+                            whitelistAnnotations = Collections.emptyList();
+                        } else {
+                            whitelistAnnotations = parseWhitelistAnnotations(line.substring(annotationIndex));
+                        }
+
                         // Parse the static import type and class.
-                        tokens = line.substring(parameterEndIndex + 1).trim().split("\\s+");
+                        tokens = line.substring(parameterEndIndex + 1, annotationIndex).trim().split("\\s+");
 
                         String staticImportType;
                         String targetJavaClassName;
@@ -289,10 +302,12 @@ public final class WhitelistLoader {
                         // Add a static import method or binding depending on the static import type.
                         if ("from_class".equals(staticImportType)) {
                             whitelistStatics.add(new WhitelistMethod(origin, targetJavaClassName,
-                                    methodName, returnCanonicalTypeName, Arrays.asList(canonicalTypeNameParameters)));
+                                    methodName, returnCanonicalTypeName, Arrays.asList(canonicalTypeNameParameters),
+                                    whitelistAnnotations));
                         } else if ("bound_to".equals(staticImportType)) {
                             whitelistClassBindings.add(new WhitelistClassBinding(origin, targetJavaClassName,
-                                    methodName, returnCanonicalTypeName, Arrays.asList(canonicalTypeNameParameters)));
+                                    methodName, returnCanonicalTypeName, Arrays.asList(canonicalTypeNameParameters),
+                                    whitelistAnnotations));
                         } else {
                             throw new IllegalArgumentException("invalid static import definition: " +
                                     "unexpected static import type [" + staticImportType + "] [" + line + "]");
@@ -304,36 +319,38 @@ public final class WhitelistLoader {
                         String origin = "[" + filepath + "]:[" + number + "]";
 
                         // Handle the case for a constructor definition.
-                        // Expects the following format: '(' ( ID ( ',' ID )* )? ')' '\n'
+                        // Expects the following format: '(' ( ID ( ',' ID )* )? ')' annotations? '\n'
                         if (line.startsWith("(")) {
-                            // Ensure the final token of the line is ')'.
-                            if (line.endsWith(")") == false) {
+                            // Parse the constructor parameters.
+                            int parameterEndIndex = line.indexOf(')');
+
+                            if (parameterEndIndex == -1) {
                                 throw new IllegalArgumentException(
-                                        "invalid constructor definition: expected a closing parenthesis [" + line + "]");
+                                        "illegal constructor definition: end of constructor parameters not found [" + line + "]");
                             }
 
-                            // Parse the constructor parameters.
-                            String[] tokens = line.substring(1, line.length() - 1).replaceAll("\\s+", "").split(",");
+                            String[] canonicalTypeNameParameters = line.substring(1, parameterEndIndex).replaceAll("\\s+", "").split(",");
 
                             // Handle the case for a constructor with no parameters.
-                            if ("".equals(tokens[0])) {
-                                tokens = new String[0];
+                            if ("".equals(canonicalTypeNameParameters[0])) {
+                                canonicalTypeNameParameters = new String[0];
                             }
 
-                            whitelistConstructors.add(new WhitelistConstructor(origin, Arrays.asList(tokens)));
+                            // Parse the annotations if they exist.
+                            List<WhitelistAnnotation> whitelistAnnotations;
+                            int annotationIndex = line.indexOf('@');
+                            whitelistAnnotations = annotationIndex == -1 ?
+                                    Collections.emptyList() : parseWhitelistAnnotations(line.substring(annotationIndex));
 
-                            // Handle the case for a method or augmented method definition.
-                            // Expects the following format: ID ID? ID '(' ( ID ( ',' ID )* )? ')' '\n'
+                            whitelistConstructors.add(new WhitelistConstructor(
+                                    origin, Arrays.asList(canonicalTypeNameParameters), whitelistAnnotations));
+
+                        // Handle the case for a method or augmented method definition.
+                        // Expects the following format: ID ID? ID '(' ( ID ( ',' ID )* )? ')' annotations? '\n'
                         } else if (line.contains("(")) {
-                            // Ensure the final token of the line is ')'.
-                            if (line.endsWith(")") == false) {
-                                throw new IllegalArgumentException(
-                                        "invalid method definition: expected a closing parenthesis [" + line + "]");
-                            }
-
                             // Parse the tokens prior to the method parameters.
-                            int parameterIndex = line.indexOf('(');
-                            String[] tokens = line.substring(0, parameterIndex).trim().split("\\s+");
+                            int parameterStartIndex = line.indexOf('(');
+                            String[] tokens = line.substring(0, parameterStartIndex).trim().split("\\s+");
 
                             String methodName;
                             String javaAugmentedClassName;
@@ -352,28 +369,54 @@ public final class WhitelistLoader {
                             String returnCanonicalTypeName = tokens[0];
 
                             // Parse the method parameters.
-                            tokens = line.substring(parameterIndex + 1, line.length() - 1).replaceAll("\\s+", "").split(",");
+                            int parameterEndIndex = line.indexOf(')');
 
-                            // Handle the case for a method with no parameters.
-                            if ("".equals(tokens[0])) {
-                                tokens = new String[0];
+                            if (parameterEndIndex == -1) {
+                                throw new IllegalArgumentException(
+                                        "illegal static import definition: end of method parameters not found [" + line + "]");
                             }
 
-                            whitelistMethods.add(new WhitelistMethod(origin, javaAugmentedClassName, methodName,
-                                    returnCanonicalTypeName, Arrays.asList(tokens)));
+                            String[] canonicalTypeNameParameters =
+                                    line.substring(parameterStartIndex + 1, parameterEndIndex).replaceAll("\\s+", "").split(",");
 
-                            // Handle the case for a field definition.
-                            // Expects the following format: ID ID '\n'
+                            // Handle the case for a method with no parameters.
+                            if ("".equals(canonicalTypeNameParameters[0])) {
+                                canonicalTypeNameParameters = new String[0];
+                            }
+
+                            // Parse the annotations if they exist.
+                            List<WhitelistAnnotation> whitelistAnnotations;
+                            int annotationIndex = line.indexOf('@');
+                            whitelistAnnotations = annotationIndex == -1 ?
+                                    Collections.emptyList() : parseWhitelistAnnotations(line.substring(annotationIndex));
+
+                            whitelistMethods.add(new WhitelistMethod(origin, javaAugmentedClassName, methodName,
+                                    returnCanonicalTypeName, Arrays.asList(canonicalTypeNameParameters),
+                                    whitelistAnnotations));
+
+                        // Handle the case for a field definition.
+                        // Expects the following format: ID ID annotations? '\n'
                         } else {
+                            // Parse the annotations if they exist.
+                            List<WhitelistAnnotation> whitelistAnnotations;
+                            int annotationIndex = line.indexOf('@');
+
+                            if (annotationIndex == -1) {
+                                annotationIndex = line.length();
+                                whitelistAnnotations = Collections.emptyList();
+                            } else {
+                                whitelistAnnotations = parseWhitelistAnnotations(line.substring(annotationIndex));
+                            }
+
                             // Parse the field tokens.
-                            String[] tokens = line.split("\\s+");
+                            String[] tokens = line.substring(0, annotationIndex).split("\\s+");
 
                             // Ensure the correct number of tokens.
                             if (tokens.length != 2) {
                                 throw new IllegalArgumentException("invalid field definition: unexpected format [" + line + "]");
                             }
 
-                            whitelistFields.add(new WhitelistField(origin, tokens[1], tokens[0]));
+                            whitelistFields.add(new WhitelistField(origin, tokens[1], tokens[0], whitelistAnnotations));
                         }
                     } else {
                         throw new IllegalArgumentException("invalid definition: unable to parse line [" + line + "]");
@@ -395,6 +438,7 @@ public final class WhitelistLoader {
     }
 
     private static List<WhitelistAnnotation> parseWhitelistAnnotations(String line) {
+        // Expects the following format: ('@' ID '[' .* '])*
         String[] annotations = line.trim().substring(1).split("@");
         List<WhitelistAnnotation> whitelistAnnotations = new ArrayList<>(annotations.length);
 

@@ -445,6 +445,10 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
         DiscoveryNode.roleNameToPossibleRoles = roleNameToPossibleRoles;
     }
 
+    public static Set<String> getPossibleRoleNames() {
+        return roleNameToPossibleRoles.keySet();
+    }
+
     /**
      * Enum that holds all the possible roles that that a node can fulfill in a cluster.
      * Each role has its name and a corresponding abbreviation used by cat apis.

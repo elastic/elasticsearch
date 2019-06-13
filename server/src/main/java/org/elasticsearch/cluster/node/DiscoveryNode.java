@@ -222,7 +222,7 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
         }
         int rolesSize = in.readVInt();
         final Set<DiscoveryNodeRole> roles = new HashSet<>(rolesSize);
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (in.getVersion().onOrAfter(Version.V_7_3_0)) {
             for (int i = 0; i < rolesSize; i++) {
                 final String roleName = in.readString();
                 final String roleNameAbbreviation = in.readString();
@@ -272,7 +272,7 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
             out.writeString(entry.getKey());
             out.writeString(entry.getValue());
         }
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_7_3_0)) {
             out.writeVInt(roles.size());
             for (final DiscoveryNodeRole role : roles) {
                 out.writeString(role.roleName());

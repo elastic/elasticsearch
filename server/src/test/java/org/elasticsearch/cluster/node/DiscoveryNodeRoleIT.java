@@ -30,7 +30,6 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Set;
 
-import static org.elasticsearch.cluster.node.DiscoveryNodeRoleIT.AdditionalRolePlugin.NODE_ADDITIONAL_SETTING;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
@@ -43,27 +42,21 @@ public class DiscoveryNodeRoleIT extends ESIntegTestCase {
 
         }
 
-        public static final Setting<Boolean> NODE_ADDITIONAL_SETTING =
+        static final Setting<Boolean> NODE_ADDITIONAL_SETTING =
                 Setting.boolSetting("node.additional", true, Setting.Property.NodeScope);
 
-        static class AdditionalRole extends DiscoveryNodeRole {
-
-            public static AdditionalRole INSTANCE = new AdditionalRole();
-
-            private AdditionalRole() {
-                super("additional", "a");
-            }
+        static DiscoveryNodeRole ADDITIONAL_ROLE = new DiscoveryNodeRole("additional", "a") {
 
             @Override
             protected Setting<Boolean> roleSetting() {
                 return NODE_ADDITIONAL_SETTING;
             }
 
-        }
+        };
 
         @Override
         public Set<DiscoveryNodeRole> getRoles() {
-            return Set.of(AdditionalRole.INSTANCE);
+            return Set.of(ADDITIONAL_ROLE);
         }
 
         @Override
@@ -83,11 +76,11 @@ public class DiscoveryNodeRoleIT extends ESIntegTestCase {
     }
 
     public void testExplicitlyHasAdditionalRole() {
-        runTestNodeHasAdditionalRole(Settings.builder().put(NODE_ADDITIONAL_SETTING.getKey(), true).build());
+        runTestNodeHasAdditionalRole(Settings.builder().put(AdditionalRolePlugin.NODE_ADDITIONAL_SETTING.getKey(), true).build());
     }
 
     public void testDoesNotHaveAdditionalRole() {
-        runTestNodeHasAdditionalRole(Settings.builder().put(NODE_ADDITIONAL_SETTING.getKey(), false).build());
+        runTestNodeHasAdditionalRole(Settings.builder().put(AdditionalRolePlugin.NODE_ADDITIONAL_SETTING.getKey(), false).build());
     }
 
     private void runTestNodeHasAdditionalRole(final Settings settings) {
@@ -95,10 +88,10 @@ public class DiscoveryNodeRoleIT extends ESIntegTestCase {
         final NodesInfoResponse response = client().admin().cluster().prepareNodesInfo(name).get();
         assertThat(response.getNodes(), hasSize(1));
         final Matcher<Iterable<? super DiscoveryNodeRole>> matcher;
-        if (NODE_ADDITIONAL_SETTING.get(settings)) {
-            matcher = hasItem(AdditionalRolePlugin.AdditionalRole.INSTANCE);
+        if (AdditionalRolePlugin.NODE_ADDITIONAL_SETTING.get(settings)) {
+            matcher = hasItem(AdditionalRolePlugin.ADDITIONAL_ROLE);
         } else {
-            matcher = not(hasItem(AdditionalRolePlugin.AdditionalRole.INSTANCE));
+            matcher = not(hasItem(AdditionalRolePlugin.ADDITIONAL_ROLE));
         }
         assertThat(response.getNodes().get(0).getNode().getRoles(), matcher);
     }

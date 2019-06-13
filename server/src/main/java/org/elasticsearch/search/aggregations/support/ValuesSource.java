@@ -42,7 +42,6 @@ import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.fielddata.SortingBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortingNumericDoubleValues;
-import org.elasticsearch.index.mapper.FlatObjectFieldMapper;
 import org.elasticsearch.script.AggregationScript;
 import org.elasticsearch.search.aggregations.support.ValuesSource.WithScript.BytesValues;
 import org.elasticsearch.search.aggregations.support.values.ScriptBytesValues;
@@ -165,7 +164,7 @@ public abstract class ValuesSource {
 
                 @Override
                 public boolean supportsGlobalOrdinalsMapping() {
-                    return (indexFieldData instanceof FlatObjectFieldMapper.KeyedFlatObjectFieldData) == false;
+                    return indexFieldData.supportsGlobalOrdinalsMapping();
                 }
 
                 @Override

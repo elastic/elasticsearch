@@ -117,6 +117,11 @@ public class GlobalOrdinalsIndexFieldData extends AbstractIndexComponent impleme
         return ordinalMap;
     }
 
+    @Override
+    public boolean supportsGlobalOrdinalsMapping() {
+        return true;
+    }
+
     private final class Atomic extends AbstractAtomicOrdinalsFieldData {
 
         private final AtomicOrdinalsFieldData afd;

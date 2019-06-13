@@ -24,7 +24,6 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.Operator;
@@ -48,7 +47,6 @@ import static org.elasticsearch.test.StreamsUtils.copyToStringFromClasspath;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -361,35 +359,6 @@ public class QueryStringIT extends ESIntegTestCase {
         assertHits(response.getHits(), "1");
     }
 
-    public void testFlatObjectField() throws Exception {
-        IndexRequestBuilder indexRequest = client().prepareIndex("test", "_doc", "1")
-            .setSource(XContentFactory.jsonBuilder()
-                .startObject()
-                    .startObject("f_json")
-                        .field("field1", "value")
-                        .field("field2", "2.718")
-                    .endObject()
-                .endObject());
-        indexRandom(true, false, indexRequest);
-
-        SearchResponse response = client().prepareSearch("test")
-            .setQuery(queryStringQuery("f_json.field1:value"))
-            .get();
-        assertSearchResponse(response);
-        assertHitCount(response, 1);
-
-        response = client().prepareSearch("test")
-            .setQuery(queryStringQuery("f_json.field1:value AND f_json:2.718"))
-            .get();
-        assertSearchResponse(response);
-        assertHitCount(response, 1);
-
-        response = client().prepareSearch("test")
-            .setQuery(queryStringQuery("2.718").field("f_json.field2"))
-            .get();
-        assertSearchResponse(response);
-        assertHitCount(response, 1);
-    }
 
     private void assertHits(SearchHits hits, String... ids) {
         assertThat(hits.getTotalHits().value, equalTo((long) ids.length));

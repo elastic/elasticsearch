@@ -126,9 +126,6 @@ public class CardinalityIT extends ESIntegTestCase {
                     .startObject("d_values")
                         .field("type", "double")
                     .endObject()
-                    .startObject("flattened_values")
-                        .field("type", "flattened")
-                    .endObject()
                     .endObject().endObject().endObject()).get();
 
         numDocs = randomIntBetween(2, 100);
@@ -143,10 +140,6 @@ public class CardinalityIT extends ESIntegTestCase {
                         .array("l_values", new int[] {i * 2, i * 2 + 1})
                         .field("d_value", i)
                         .array("d_values", new double[]{i * 2, i * 2 + 1})
-                        .startObject("flattened_values")
-                            .field("first", i)
-                            .field("second", i / 2)
-                        .endObject()
                     .endObject());
         }
         indexRandom(true, builders);
@@ -306,40 +299,6 @@ public class CardinalityIT extends ESIntegTestCase {
         assertThat(count, notNullValue());
         assertThat(count.getName(), equalTo("cardinality"));
         assertCount(count, numDocs * 2);
-    }
-
-    public void testFlatObjectField() {
-        SearchResponse response = client().prepareSearch("idx")
-            .addAggregation(cardinality("cardinality")
-                .precisionThreshold(precisionThreshold)
-                .field("flattened_values"))
-            .get();
-
-        assertSearchResponse(response);
-        Cardinality count = response.getAggregations().get("cardinality");
-        assertCount(count, numDocs);
-    }
-
-    public void testFlatObjectWithKey() {
-        SearchResponse firstResponse = client().prepareSearch("idx")
-            .addAggregation(cardinality("cardinality")
-                .precisionThreshold(precisionThreshold)
-                .field("flattened_values.first"))
-            .get();
-        assertSearchResponse(firstResponse);
-
-        Cardinality firstCount = firstResponse.getAggregations().get("cardinality");
-        assertCount(firstCount, numDocs);
-
-        SearchResponse secondResponse = client().prepareSearch("idx")
-            .addAggregation(cardinality("cardinality")
-                .precisionThreshold(precisionThreshold)
-                .field("flattened_values.second"))
-            .get();
-        assertSearchResponse(secondResponse);
-
-        Cardinality secondCount = secondResponse.getAggregations().get("cardinality");
-        assertCount(secondCount, (numDocs + 1) / 2);
     }
 
     public void testSingleValuedStringScript() throws Exception {

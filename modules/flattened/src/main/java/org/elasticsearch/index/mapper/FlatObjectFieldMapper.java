@@ -160,7 +160,7 @@ public final class FlatObjectFieldMapper extends FieldMapper {
         }
 
         @Override
-        public Builder addMultiField(Mapper.Builder mapperBuilder) {
+        public Builder addMultiField(Mapper.Builder<?, ?> mapperBuilder) {
             throw new UnsupportedOperationException("[fields] is not supported for [" + CONTENT_TYPE + "] fields.");
         }
 
@@ -189,7 +189,7 @@ public final class FlatObjectFieldMapper extends FieldMapper {
     public static class TypeParser implements Mapper.TypeParser {
         @Override
         public Mapper.Builder<?,?> parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
-            FlatObjectFieldMapper.Builder builder = new FlatObjectFieldMapper.Builder(name);
+            Builder builder = new Builder(name);
             parseField(builder, name, node, parserContext);
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
                 Map.Entry<String, Object> entry = iterator.next();
@@ -425,6 +425,11 @@ public final class FlatObjectFieldMapper extends FieldMapper {
         }
 
         @Override
+        public boolean supportsGlobalOrdinalsMapping() {
+            return false;
+        }
+
+        @Override
         public Index index() {
             return delegate.index();
         }
@@ -560,10 +565,16 @@ public final class FlatObjectFieldMapper extends FieldMapper {
     }
 
     @Override
+    public boolean supportsKeyedLookup() {
+        return true;
+    }
+
+    @Override
     public RootFlatObjectFieldType fieldType() {
         return (RootFlatObjectFieldType) super.fieldType();
     }
 
+    @Override
     public KeyedFlatObjectFieldType keyedFieldType(String key) {
         return new KeyedFlatObjectFieldType(keyedFieldName(), key, fieldType());
     }

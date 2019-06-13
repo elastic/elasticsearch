@@ -190,7 +190,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
             return this;
         }
 
-        public T addMultiField(Mapper.Builder mapperBuilder) {
+        public T addMultiField(Mapper.Builder<?, ?> mapperBuilder) {
             multiFieldsBuilder.add(mapperBuilder);
             return builder;
         }
@@ -336,6 +336,14 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         // apply changeable values
         this.fieldType = fieldMergeWith.fieldType;
         this.copyTo = fieldMergeWith.copyTo;
+    }
+
+    public boolean supportsKeyedLookup() {
+        return false;
+    }
+
+    public MappedFieldType keyedFieldType(String key) {
+        throw new IllegalArgumentException("");
     }
 
     @Override

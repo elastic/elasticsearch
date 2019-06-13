@@ -78,7 +78,6 @@ public class StringTermsIT extends AbstractTermsTestCase {
 
     private static final String SINGLE_VALUED_FIELD_NAME = "s_value";
     private static final String MULTI_VALUED_FIELD_NAME = "s_values";
-    private static final String FLAT_OBJECT_FIELD_NAME = "labels";
     private static Map<String, Map<String, Object>> expectedMultiSortBuckets;
 
     @Override
@@ -127,8 +126,7 @@ public class StringTermsIT extends AbstractTermsTestCase {
         assertAcked(client().admin().indices().prepareCreate("idx")
                 .addMapping("type", SINGLE_VALUED_FIELD_NAME, "type=keyword",
                         MULTI_VALUED_FIELD_NAME, "type=keyword",
-                        "tag", "type=keyword",
-                    FLAT_OBJECT_FIELD_NAME, "type=flattened").get());
+                        "tag", "type=keyword").get());
         List<IndexRequestBuilder> builders = new ArrayList<>();
         for (int i = 0; i < 5; i++) {
             builders.add(client().prepareIndex("idx", "type").setSource(
@@ -141,10 +139,6 @@ public class StringTermsIT extends AbstractTermsTestCase {
                                 .value("val" + i)
                                 .value("val" + (i + 1))
                             .endArray()
-                            .startObject(FLAT_OBJECT_FIELD_NAME)
-                                .field("priority", "urgent")
-                                .field("release", "v1.2." + i)
-                            .endObject()
                         .endObject()));
         }
 
@@ -1114,92 +1108,6 @@ public class StringTermsIT extends AbstractTermsTestCase {
             assertThat(bucket.getDocCount(), equalTo(i == 0 ? 5L : 2L));
             i++;
         }
-    }
-
-    public void testFlatObjectField() {
-        TermsAggregationBuilder builder = terms("terms")
-            .field(FLAT_OBJECT_FIELD_NAME)
-            .collectMode(randomFrom(SubAggCollectionMode.values()))
-            .executionHint(randomExecutionHint());
-
-        SearchResponse response = client().prepareSearch("idx")
-            .addAggregation(builder)
-            .get();
-        assertSearchResponse(response);
-
-        Terms terms = response.getAggregations().get("terms");
-        assertThat(terms, notNullValue());
-        assertThat(terms.getName(), equalTo("terms"));
-        assertThat(terms.getBuckets().size(), equalTo(6));
-
-        Bucket bucket1 = terms.getBuckets().get(0);
-        assertEquals("urgent", bucket1.getKey());
-        assertEquals(5, bucket1.getDocCount());
-
-        Bucket bucket2 = terms.getBuckets().get(1);
-        assertThat(bucket2.getKeyAsString(), startsWith("v1.2."));
-        assertEquals(1, bucket2.getDocCount());
-    }
-    
-    public void testKeyedFlatObject() {
-        // Aggregate on the 'priority' subfield.
-        TermsAggregationBuilder priorityAgg = terms("terms")
-            .field(FLAT_OBJECT_FIELD_NAME + ".priority")
-            .collectMode(randomFrom(SubAggCollectionMode.values()))
-            .executionHint(randomExecutionHint());
-
-        SearchResponse priorityResponse = client().prepareSearch("idx")
-            .addAggregation(priorityAgg)
-            .get();
-        assertSearchResponse(priorityResponse);
-
-        Terms priorityTerms = priorityResponse.getAggregations().get("terms");
-        assertThat(priorityTerms, notNullValue());
-        assertThat(priorityTerms.getName(), equalTo("terms"));
-        assertThat(priorityTerms.getBuckets().size(), equalTo(1));
-
-        Bucket priorityBucket = priorityTerms.getBuckets().get(0);
-        assertEquals("urgent", priorityBucket.getKey());
-        assertEquals(5, priorityBucket.getDocCount());
-
-        // Aggregate on the 'release' subfield.
-        TermsAggregationBuilder releaseAgg = terms("terms")
-            .field(FLAT_OBJECT_FIELD_NAME + ".release")
-            .collectMode(randomFrom(SubAggCollectionMode.values()))
-            .executionHint(randomExecutionHint());
-
-        SearchResponse releaseResponse = client().prepareSearch("idx")
-            .addAggregation(releaseAgg)
-            .get();
-        assertSearchResponse(releaseResponse);
-
-        Terms releaseTerms = releaseResponse.getAggregations().get("terms");
-        assertThat(releaseTerms, notNullValue());
-        assertThat(releaseTerms.getName(), equalTo("terms"));
-        assertThat(releaseTerms.getBuckets().size(), equalTo(5));
-
-        for (Bucket bucket : releaseTerms.getBuckets()) {
-            assertThat(bucket.getKeyAsString(), startsWith("v1.2."));
-            assertEquals(1, bucket.getDocCount());
-        }
-    }
-
-    public void testKeyedFlatObjectWithMinDocCount() {
-        TermsAggregationBuilder priorityAgg = terms("terms")
-            .field(FLAT_OBJECT_FIELD_NAME + ".priority")
-            .collectMode(randomFrom(SubAggCollectionMode.values()))
-            .executionHint(randomExecutionHint())
-            .minDocCount(0);
-
-        SearchResponse priorityResponse = client().prepareSearch("idx")
-            .addAggregation(priorityAgg)
-            .get();
-        assertSearchResponse(priorityResponse);
-
-        Terms priorityTerms = priorityResponse.getAggregations().get("terms");
-        assertThat(priorityTerms, notNullValue());
-        assertThat(priorityTerms.getName(), equalTo("terms"));
-        assertThat(priorityTerms.getBuckets().size(), equalTo(1));
     }
 
     public void testOtherDocCount() {

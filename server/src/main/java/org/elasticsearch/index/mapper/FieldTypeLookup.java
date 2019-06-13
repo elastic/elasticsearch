@@ -38,24 +38,24 @@ class FieldTypeLookup implements Iterable<MappedFieldType> {
     final CopyOnWriteHashMap<String, MappedFieldType> fullNameToFieldType;
     private final CopyOnWriteHashMap<String, String> aliasToConcreteName;
 
-    private final CopyOnWriteHashMap<String, FlatObjectFieldMapper> flatObjectMappers;
-    private final int maxFlatObjectDepth;
+    private final CopyOnWriteHashMap<String, FieldMapper> keyedLookupMappers;
+    private final int maxKeyedLookupDepth;
 
     FieldTypeLookup() {
         fullNameToFieldType = new CopyOnWriteHashMap<>();
         aliasToConcreteName = new CopyOnWriteHashMap<>();
-        flatObjectMappers = new CopyOnWriteHashMap<>();
-        maxFlatObjectDepth = 0;
+        keyedLookupMappers = new CopyOnWriteHashMap<>();
+        maxKeyedLookupDepth = 0;
     }
 
     private FieldTypeLookup(CopyOnWriteHashMap<String, MappedFieldType> fullNameToFieldType,
                             CopyOnWriteHashMap<String, String> aliasToConcreteName,
-                            CopyOnWriteHashMap<String, FlatObjectFieldMapper> flatObjectMappers,
-                            int maxFlatObjectDepth) {
+                            CopyOnWriteHashMap<String, FieldMapper> flatObjectMappers,
+                            int maxKeyedLookupDepth) {
         this.fullNameToFieldType = fullNameToFieldType;
         this.aliasToConcreteName = aliasToConcreteName;
-        this.flatObjectMappers = flatObjectMappers;
-        this.maxFlatObjectDepth = maxFlatObjectDepth;
+        this.keyedLookupMappers = flatObjectMappers;
+        this.maxKeyedLookupDepth = maxKeyedLookupDepth;
     }
 
     /**
@@ -74,7 +74,7 @@ class FieldTypeLookup implements Iterable<MappedFieldType> {
 
         CopyOnWriteHashMap<String, MappedFieldType> fullName = this.fullNameToFieldType;
         CopyOnWriteHashMap<String, String> aliases = this.aliasToConcreteName;
-        CopyOnWriteHashMap<String, FlatObjectFieldMapper> flatObjectMappers = this.flatObjectMappers;
+        CopyOnWriteHashMap<String, FieldMapper> flatObjectMappers = this.keyedLookupMappers;
 
         for (FieldMapper fieldMapper : fieldMappers) {
             String fieldName = fieldMapper.name();
@@ -85,8 +85,8 @@ class FieldTypeLookup implements Iterable<MappedFieldType> {
                 fullName = fullName.copyAndPut(fieldType.name(), fieldType);
             }
 
-            if (fieldMapper instanceof FlatObjectFieldMapper) {
-                flatObjectMappers = flatObjectMappers.copyAndPut(fieldName, (FlatObjectFieldMapper) fieldMapper);
+            if (fieldMapper.supportsKeyedLookup()) {
+                flatObjectMappers = flatObjectMappers.copyAndPut(fieldName, fieldMapper);
             }
         }
 
@@ -106,7 +106,7 @@ class FieldTypeLookup implements Iterable<MappedFieldType> {
     }
 
     private static int getMaxFlatObjectDepth(CopyOnWriteHashMap<String, String> aliases,
-                                             CopyOnWriteHashMap<String, FlatObjectFieldMapper> flatObjectMappers) {
+                                             CopyOnWriteHashMap<String, FieldMapper> flatObjectMappers) {
         int maxFieldDepth = 0;
         for (Map.Entry<String, String> entry : aliases.entrySet()) {
             String aliasName = entry.getKey();
@@ -154,7 +154,7 @@ class FieldTypeLookup implements Iterable<MappedFieldType> {
 
         // If the mapping contains flat object fields, check if this could correspond
         // to a keyed field of the form 'path_to_flat_object.path_to_key'.
-        return !flatObjectMappers.isEmpty() ? getKeyedFlatObjectField(field) : null;
+        return !keyedLookupMappers.isEmpty() ? getKeyedFlatObjectField(field) : null;
     }
 
     /**
@@ -167,7 +167,7 @@ class FieldTypeLookup implements Iterable<MappedFieldType> {
         int fieldDepth = 0;
 
         while (true) {
-            if (++fieldDepth > maxFlatObjectDepth) {
+            if (++fieldDepth > maxKeyedLookupDepth) {
                 return null;
             }
 
@@ -178,7 +178,7 @@ class FieldTypeLookup implements Iterable<MappedFieldType> {
 
             String parentField = field.substring(0, dotIndex);
             String concreteField = aliasToConcreteName.getOrDefault(parentField, parentField);
-            FlatObjectFieldMapper mapper = flatObjectMappers.get(concreteField);
+            FieldMapper mapper = keyedLookupMappers.get(concreteField);
 
             if (mapper != null) {
                 String key = field.substring(dotIndex + 1);
@@ -209,10 +209,10 @@ class FieldTypeLookup implements Iterable<MappedFieldType> {
     public Iterator<MappedFieldType> iterator() {
         Iterator<MappedFieldType> concreteFieldTypes = fullNameToFieldType.values().iterator();
 
-        if (flatObjectMappers.isEmpty()) {
+        if (keyedLookupMappers.isEmpty()) {
             return concreteFieldTypes;
         } else {
-            Iterator<MappedFieldType> keyedFlatObjectTypes = flatObjectMappers.values().stream()
+            Iterator<MappedFieldType> keyedFlatObjectTypes = keyedLookupMappers.values().stream()
                 .<MappedFieldType>map(mapper -> mapper.keyedFieldType(""))
                 .iterator();
             return Iterators.concat(concreteFieldTypes, keyedFlatObjectTypes);
@@ -220,7 +220,7 @@ class FieldTypeLookup implements Iterable<MappedFieldType> {
     }
 
     // Visible for testing.
-    int maxFlatObjectDepth() {
-        return maxFlatObjectDepth;
+    int maxKeyedLookupDepth() {
+        return maxKeyedLookupDepth;
     }
 }

@@ -21,9 +21,9 @@ package org.elasticsearch.search.lookup;
 import org.elasticsearch.index.fielddata.AtomicFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
-import org.elasticsearch.index.mapper.FlatObjectFieldMapper.KeyedFlatObjectFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.MockFieldMapper.FakeKeyedFieldType;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
@@ -69,7 +69,7 @@ public class LeafDocLookupTests extends ESTestCase {
         assertEquals(docValues, fetchedDocValues);
     }
 
-    public void testFlatObjectFields() {
+    public void testKeyedFieldLookup() {
         MapperService mapperService = mock(MapperService.class);
 
         ScriptDocValues<?> docValues1 = mock(ScriptDocValues.class);
@@ -78,22 +78,22 @@ public class LeafDocLookupTests extends ESTestCase {
         ScriptDocValues<?> docValues2 = mock(ScriptDocValues.class);
         IndexFieldData<?> fieldData2 = createFieldData(docValues2);
 
-        KeyedFlatObjectFieldType fieldType1 = new KeyedFlatObjectFieldType("key1");
+        FakeKeyedFieldType fieldType1 = new FakeKeyedFieldType("key1");
         fieldType1.setName("json._keyed");
         when(mapperService.fullName("json.key1")).thenReturn(fieldType1);
 
-        KeyedFlatObjectFieldType fieldType2 = new KeyedFlatObjectFieldType("key2");
+        FakeKeyedFieldType fieldType2 = new FakeKeyedFieldType("key2");
         fieldType1.setName("json._keyed");
         when(mapperService.fullName("json.key2")).thenReturn(fieldType2);
 
         Function<MappedFieldType, IndexFieldData<?>> fieldDataSupplier = fieldType -> {
-            KeyedFlatObjectFieldType jsonFieldType = (KeyedFlatObjectFieldType) fieldType;
-            return jsonFieldType.key().equals("key1") ? fieldData1 : fieldData2;
+            FakeKeyedFieldType keyedFieldType = (FakeKeyedFieldType) fieldType;
+            return keyedFieldType.key().equals("key1") ? fieldData1 : fieldData2;
         };
-        LeafDocLookup jsonDocLookup = new LeafDocLookup(mapperService, fieldDataSupplier, null);
+        LeafDocLookup docLookup = new LeafDocLookup(mapperService, fieldDataSupplier, null);
 
-        assertEquals(docValues1, jsonDocLookup.get("json.key1"));
-        assertEquals(docValues2, jsonDocLookup.get("json.key2"));
+        assertEquals(docValues1, docLookup.get("json.key1"));
+        assertEquals(docValues2, docLookup.get("json.key2"));
     }
 
     private IndexFieldData<?> createFieldData(ScriptDocValues scriptDocValues) {

@@ -31,6 +31,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.FlatObjectFieldMapper.KeyedFlatObjectFieldType;
 import org.elasticsearch.index.mapper.FlatObjectFieldMapper.RootFlatObjectFieldType;
+import org.elasticsearch.plugin.mapper.FlattenedMapperPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
@@ -55,7 +56,7 @@ public class FlatObjectFieldMapperTests extends ESSingleNodeTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return pluginList(InternalSettingsPlugin.class);
+        return pluginList(FlattenedMapperPlugin.class, InternalSettingsPlugin.class);
     }
 
     public void testDefaults() throws Exception {

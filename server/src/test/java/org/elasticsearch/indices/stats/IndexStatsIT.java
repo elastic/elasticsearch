@@ -1056,7 +1056,7 @@ public class IndexStatsIT extends ESIntegTestCase {
             internalCluster().nodesInclude("index").stream()
                 .flatMap(n -> StreamSupport.stream(internalCluster().getInstance(IndicesService.class, n).spliterator(), false))
                 .flatMap(n -> StreamSupport.stream(n.spliterator(), false))
-                .forEach(IndexShard::advancePrimaryPeerRecoveryRetentionLeaseToGlobalCheckpoint);
+                .forEach(IndexShard::advancePeerRecoveryRetentionLeasesToGlobalCheckpoints);
             flush("index");
         }
         ForceMergeResponse forceMergeResponse =

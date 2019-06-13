@@ -450,12 +450,18 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
     }
 
     /**
-     * Renew the peer-recovery retention lease for the given shard, advancing the retained sequence number to discard operations up to the
-     * given global checkpoint. See {@link ReplicationTracker#addPeerRecoveryRetentionLease}.
+     * Advance the peer-recovery retention lease for all tracked shard copies, for use in tests until advancing these leases is done
+     * properly. TODO remove this.
      */
-    public void renewPeerRecoveryRetentionLease(ShardRouting shardRouting, long globalCheckpoint) {
+    public synchronized void advancePeerRecoveryRetentionLeasesToGlobalCheckpoints() {
         assert primaryMode;
-        renewRetentionLease(getPeerRecoveryRetentionLeaseId(shardRouting), globalCheckpoint + 1, PEER_RECOVERY_RETENTION_LEASE_SOURCE);
+        for (ShardRouting shardRouting : routingTable) {
+            if (shardRouting.assignedToNode()) {
+                final CheckpointState checkpointState = checkpoints.get(shardRouting.allocationId().getId());
+                renewRetentionLease(getPeerRecoveryRetentionLeaseId(shardRouting), checkpointState.globalCheckpoint + 1,
+                    PEER_RECOVERY_RETENTION_LEASE_SOURCE);
+            }
+        }
     }
 
     public static class CheckpointState implements Writeable {

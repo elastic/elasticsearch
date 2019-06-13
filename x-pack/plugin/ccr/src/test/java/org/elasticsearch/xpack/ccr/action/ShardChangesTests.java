@@ -116,7 +116,7 @@ public class ShardChangesTests extends ESSingleNodeTestCase {
         client().admin().indices().refresh(new RefreshRequest("index")).actionGet();
         StreamSupport.stream(getInstanceFromNode(IndicesService.class).spliterator(), false)
             .flatMap(n -> StreamSupport.stream(n.spliterator(), false))
-            .forEach(IndexShard::advancePrimaryPeerRecoveryRetentionLeaseToGlobalCheckpoint);
+            .forEach(IndexShard::advancePeerRecoveryRetentionLeasesToGlobalCheckpoints);
         ForceMergeRequest forceMergeRequest = new ForceMergeRequest("index");
         forceMergeRequest.maxNumSegments(1);
         client().admin().indices().forceMerge(forceMergeRequest).actionGet();

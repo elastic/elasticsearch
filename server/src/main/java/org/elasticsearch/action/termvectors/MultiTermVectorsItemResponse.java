@@ -54,16 +54,6 @@ public class MultiTermVectorsItemResponse implements Streamable {
     }
 
     /**
-     * The type of the document.
-     */
-    public String getType() {
-        if (failure != null) {
-            return failure.getType();
-        }
-        return response.getType();
-    }
-
-    /**
      * The id of the document.
      */
     public String getId() {

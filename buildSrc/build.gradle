@@ -81,6 +81,8 @@ repositories {
 dependencies {
   compile localGroovy()
   
+  compile 'commons-codec:commons-codec:1.12'
+
   compile 'com.netflix.nebula:gradle-extra-configurations-plugin:3.0.3'
   compile 'com.netflix.nebula:nebula-publishing-plugin:4.4.4'
   compile 'com.netflix.nebula:gradle-info-plugin:3.0.3'
@@ -148,6 +150,11 @@ if (project != rootProject) {
     distribution project(':distribution:archives:linux-tar')
     distribution project(':distribution:archives:oss-linux-tar')
   }
+    
+  // for external projects we want to remove the marker file indicating we are running the Elasticsearch project
+  processResources {
+      exclude 'buildSrc.marker'
+  }
 
   String localDownloads = "${rootProject.buildDir}/local-downloads"
   task setupLocalDownloads(type:Copy) {
@@ -177,7 +184,9 @@ if (project != rootProject) {
     if (isLuceneSnapshot) {
       systemProperty 'test.lucene-snapshot-revision', isLuceneSnapshot[0][1]
     }
-    maxParallelForks System.getProperty('tI', project.rootProject.ext.defaultParallel.toString()) as Integer
+    maxParallelForks System.getProperty('tests.jvms', project.rootProject.ext.defaultParallel.toString()) as Integer
+    // These tests run Gradle which doesn't have FIPS support
+    onlyIf { project.inFipsJvm == false }
   }
   check.dependsOn(integTest)
 

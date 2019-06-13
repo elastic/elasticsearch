@@ -40,9 +40,14 @@ public final class AutoDateHistogramAggregatorFactory
     private final int numBuckets;
     private RoundingInfo[] roundingInfos;
 
-    public AutoDateHistogramAggregatorFactory(String name, ValuesSourceConfig<Numeric> config, int numBuckets, RoundingInfo[] roundingInfos,
-            SearchContext context, AggregatorFactory<?> parent, AggregatorFactories.Builder subFactoriesBuilder,
-            Map<String, Object> metaData) throws IOException {
+    public AutoDateHistogramAggregatorFactory(String name,
+                                              ValuesSourceConfig<Numeric> config,
+                                              int numBuckets,
+                                              RoundingInfo[] roundingInfos,
+                                              SearchContext context,
+                                              AggregatorFactory<?> parent,
+                                              AggregatorFactories.Builder subFactoriesBuilder,
+                                              Map<String, Object> metaData) throws IOException {
         super(name, config, context, parent, subFactoriesBuilder, metaData);
         this.numBuckets = numBuckets;
         this.roundingInfos = roundingInfos;

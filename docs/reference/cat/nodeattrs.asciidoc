@@ -22,7 +22,7 @@ node-0 127.0.0.1 127.0.0.1 testattr test
 ...
 --------------------------------------------------
 // TESTRESPONSE[s/\.\.\.\n$/\n(.+ xpack\\.installed true\n)?\n/]
-// TESTRESPONSE[s/\.\.\.\n/(.+ ml\\..+\n)*/ _cat]
+// TESTRESPONSE[s/\.\.\.\n/(.+ ml\\..+\n)*/ non_json]
 // If xpack is not installed then neither ... with match anything
 // If xpack is installed then the first ... contains ml attributes
 // and the second contains xpack.installed=true
@@ -68,7 +68,7 @@ node-0 19566 testattr test
 --------------------------------------------------
 // TESTRESPONSE[s/19566/\\d*/]
 // TESTRESPONSE[s/\.\.\.\n$/\n(.+ xpack\\.installed true\n)?\n/]
-// TESTRESPONSE[s/\.\.\.\n/(.+ ml\\..+\n)*/ _cat]
+// TESTRESPONSE[s/\.\.\.\n/(.+ ml\\..+\n)*/ non_json]
 // If xpack is not installed then neither ... with match anything
 // If xpack is installed then the first ... contains ml attributes
 // and the second contains xpack.installed=true

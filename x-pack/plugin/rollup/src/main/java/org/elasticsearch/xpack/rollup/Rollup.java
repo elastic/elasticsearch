@@ -37,6 +37,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 import org.elasticsearch.xpack.core.rollup.RollupField;
 import org.elasticsearch.xpack.core.rollup.action.DeleteRollupJobAction;
 import org.elasticsearch.xpack.core.rollup.action.GetRollupCapsAction;
@@ -78,6 +79,7 @@ import java.util.function.Supplier;
 import java.util.regex.Pattern;
 
 import static java.util.Collections.emptyList;
+import static java.util.Collections.singletonList;
 
 public class Rollup extends Plugin implements ActionPlugin, PersistentTaskPlugin {
 
@@ -155,8 +157,9 @@ public class Rollup extends Plugin implements ActionPlugin, PersistentTaskPlugin
 
     @Override
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
+        var usageAction = new ActionHandler<>(XPackUsageFeatureAction.ROLLUP, RollupFeatureSet.UsageTransportAction.class);
         if (!enabled) {
-            return emptyList();
+            return singletonList(usageAction);
         }
         return Arrays.asList(
             new ActionHandler<>(RollupSearchAction.INSTANCE, TransportRollupSearchAction.class),
@@ -166,8 +169,8 @@ public class Rollup extends Plugin implements ActionPlugin, PersistentTaskPlugin
             new ActionHandler<>(DeleteRollupJobAction.INSTANCE, TransportDeleteRollupJobAction.class),
             new ActionHandler<>(GetRollupJobsAction.INSTANCE, TransportGetRollupJobAction.class),
             new ActionHandler<>(GetRollupCapsAction.INSTANCE, TransportGetRollupCapsAction.class),
-            new ActionHandler<>(GetRollupIndexCapsAction.INSTANCE, TransportGetRollupIndexCapsAction.class)
-        );
+            new ActionHandler<>(GetRollupIndexCapsAction.INSTANCE, TransportGetRollupIndexCapsAction.class),
+            usageAction);
     }
 
     @Override

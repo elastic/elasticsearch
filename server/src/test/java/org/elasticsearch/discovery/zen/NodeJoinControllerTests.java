@@ -29,6 +29,7 @@ import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
@@ -55,9 +56,7 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
-import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -126,7 +125,7 @@ public class NodeJoinControllerTests extends ESTestCase {
 
     private static ClusterState initialState(boolean withMaster) {
         DiscoveryNode localNode = new DiscoveryNode("node", ESTestCase.buildNewFakeTransportAddress(), Collections.emptyMap(),
-            new HashSet<>(Arrays.asList(DiscoveryNode.Role.values())),Version.CURRENT);
+            DiscoveryNodeRole.BUILT_IN_ROLES,Version.CURRENT);
         ClusterState initialClusterState = ClusterState.builder(new ClusterName(ClusterServiceUtils.class.getSimpleName()))
             .nodes(DiscoveryNodes.builder()
                 .add(localNode)
@@ -570,7 +569,7 @@ public class NodeJoinControllerTests extends ESTestCase {
             existing.getId(),
             randomBoolean() ? existing.getAddress() : buildNewFakeTransportAddress(),
             randomBoolean() ? existing.getAttributes() : Collections.singletonMap("attr", "other"),
-            randomBoolean() ? existing.getRoles() : new HashSet<>(randomSubsetOf(Arrays.asList(DiscoveryNode.Role.values()))),
+            randomBoolean() ? existing.getRoles() : new HashSet<>(randomSubsetOf(DiscoveryNodeRole.BUILT_IN_ROLES)),
             existing.getVersion());
 
         ExecutionException e = expectThrows(ExecutionException.class, () -> joinNode(other_node));
@@ -599,12 +598,12 @@ public class NodeJoinControllerTests extends ESTestCase {
             badVersion = randomFrom(allVersions().stream().filter(v -> v.major < Version.CURRENT.major).collect(Collectors.toList()));
         }
         final DiscoveryNode badNode = new DiscoveryNode("badNode", buildNewFakeTransportAddress(), emptyMap(),
-            new HashSet<>(randomSubsetOf(Arrays.asList(DiscoveryNode.Role.values()))), badVersion);
+            new HashSet<>(randomSubsetOf(DiscoveryNodeRole.BUILT_IN_ROLES)), badVersion);
 
         final Version goodVersion =
             randomFrom(allVersions().stream().filter(v -> v.major >= Version.CURRENT.major).collect(Collectors.toList()));
         final DiscoveryNode goodNode = new DiscoveryNode("goodNode", buildNewFakeTransportAddress(), emptyMap(),
-            new HashSet<>(randomSubsetOf(Arrays.asList(DiscoveryNode.Role.values()))), goodVersion);
+            new HashSet<>(randomSubsetOf(DiscoveryNodeRole.BUILT_IN_ROLES)), goodVersion);
 
         CountDownLatch latch = new CountDownLatch(1);
         // block cluster state
@@ -647,11 +646,11 @@ public class NodeJoinControllerTests extends ESTestCase {
         setState(masterService, builder.build());
         final Version badVersion = getPreviousVersion(Version.CURRENT.minimumCompatibilityVersion());
         final DiscoveryNode badNode = new DiscoveryNode("badNode", buildNewFakeTransportAddress(), emptyMap(),
-            new HashSet<>(randomSubsetOf(Arrays.asList(DiscoveryNode.Role.values()))), badVersion);
+            new HashSet<>(randomSubsetOf(DiscoveryNodeRole.BUILT_IN_ROLES)), badVersion);
 
         final Version goodVersion = randomFrom(randomCompatibleVersion(random(), Version.CURRENT));
         final DiscoveryNode goodNode = new DiscoveryNode("goodNode", buildNewFakeTransportAddress(), emptyMap(),
-            new HashSet<>(randomSubsetOf(Arrays.asList(DiscoveryNode.Role.values()))), goodVersion);
+            new HashSet<>(randomSubsetOf(DiscoveryNodeRole.BUILT_IN_ROLES)), goodVersion);
 
         CountDownLatch latch = new CountDownLatch(1);
         // block cluster state
@@ -694,7 +693,7 @@ public class NodeJoinControllerTests extends ESTestCase {
         ClusterState initialState = initialState(true);
         final DiscoveryNode masterNode = initialState.nodes().getLocalNode();
         final DiscoveryNode otherNode = new DiscoveryNode("other_node", buildNewFakeTransportAddress(), emptyMap(),
-            EnumSet.allOf(DiscoveryNode.Role.class), Version.CURRENT);
+            DiscoveryNodeRole.BUILT_IN_ROLES, Version.CURRENT);
         // simulate master going down with stale nodes in it's cluster state (for example when min master nodes is set to 2)
         // also add some shards to that node
         DiscoveryNodes.Builder discoBuilder = DiscoveryNodes.builder(initialState.nodes());
@@ -781,7 +780,7 @@ public class NodeJoinControllerTests extends ESTestCase {
         final DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder(state.nodes());
         for (int i = 0;i< count;i++) {
             final DiscoveryNode node = new DiscoveryNode("node_" + state.nodes().getSize() + i, buildNewFakeTransportAddress(),
-                emptyMap(), new HashSet<>(randomSubsetOf(Arrays.asList(DiscoveryNode.Role.values()))), Version.CURRENT);
+                emptyMap(), new HashSet<>(randomSubsetOf(DiscoveryNodeRole.BUILT_IN_ROLES)), Version.CURRENT);
             nodesBuilder.add(node);
         }
         setupMasterServiceAndNodeJoinController(ClusterState.builder(state).nodes(nodesBuilder).build());
@@ -858,9 +857,11 @@ public class NodeJoinControllerTests extends ESTestCase {
     }
 
     protected DiscoveryNode newNode(int i, boolean master) {
-        Set<DiscoveryNode.Role> roles = new HashSet<>();
+        final Set<DiscoveryNodeRole> roles;
         if (master) {
-            roles.add(DiscoveryNode.Role.MASTER);
+            roles = Collections.singleton(DiscoveryNodeRole.MASTER_ROLE);
+        } else {
+            roles = Collections.emptySet();
         }
         final String prefix = master ? "master_" : "data_";
         return new DiscoveryNode(prefix + i, i + "", buildNewFakeTransportAddress(), emptyMap(), roles, Version.CURRENT);

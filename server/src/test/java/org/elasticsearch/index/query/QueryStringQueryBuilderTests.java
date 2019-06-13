@@ -1580,15 +1580,27 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
     }
 
     /**
-     * Query terms that start with "now" can trigger a query to not be cacheable if it hits all field
-     * and there is a date field amongst them. This test checks the search context cacheable flag is
-     * updated accordingly.
-     * Note: this cannot happen when directly hitting the date field, dates are not parsed leniently then
-     * and we typically get a parse exception.
+     * Query terms that contain "now" can trigger a query to not be cacheable.
+     * This test checks the search context cacheable flag is updated accordingly.
      */
     public void testCachingStrategiesWithNow() throws IOException {
+        // if we hit all fields, this should contain a date field and should diable cachability
         String query = "now " + randomAlphaOfLengthBetween(4, 10);
         QueryStringQueryBuilder queryStringQueryBuilder = new QueryStringQueryBuilder(query);
+        assertQueryCachability(queryStringQueryBuilder, false);
+
+        // if we hit a date field with "now", this should diable cachability
+        queryStringQueryBuilder = new QueryStringQueryBuilder("now");
+        queryStringQueryBuilder.field(DATE_FIELD_NAME);
+        assertQueryCachability(queryStringQueryBuilder, false);
+
+        // everything else is fine on all fields
+        query = randomFrom("NoW", "nOw", "NOW") + " " + randomAlphaOfLengthBetween(4, 10);
+        queryStringQueryBuilder = new QueryStringQueryBuilder(query);
+        assertQueryCachability(queryStringQueryBuilder, true);
+    }
+
+    private void assertQueryCachability(QueryStringQueryBuilder qb, boolean cachingExpected) throws IOException {
         QueryShardContext context = createShardContext();
         assert context.isCacheable();
         /*
@@ -1596,18 +1608,9 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
          * this way in SearchService where we first rewrite the query with a private context, then reset the context and then build the
          * actual lucene query
          */
-        QueryBuilder rewritten = rewriteQuery(queryStringQueryBuilder, new QueryShardContext(context));
+        QueryBuilder rewritten = rewriteQuery(qb, new QueryShardContext(context));
         assertNotNull(rewritten.toQuery(context));
-        assertFalse("query was marked as cacheable in the context but it should not be cacheable: " + query.toString(),
-                context.isCacheable());
-
-        query = randomFrom("NoW", "nOw", "NOW") + " " + randomAlphaOfLengthBetween(4, 10);
-        queryStringQueryBuilder = new QueryStringQueryBuilder(query);
-
-        context = createShardContext();
-        rewritten = rewriteQuery(queryStringQueryBuilder, new QueryShardContext(context));
-        assertNotNull(rewritten.toQuery(context));
-        assertTrue("query was marked as not cacheable in the context but it should be cacheable: " + query.toString(),
+        assertEquals("query should " + (cachingExpected ? "" : "not") + " be cacheable: " + qb.toString(), cachingExpected,
                 context.isCacheable());
     }
 }

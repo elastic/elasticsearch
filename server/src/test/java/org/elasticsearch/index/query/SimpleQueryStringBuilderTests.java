@@ -43,6 +43,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.search.SimpleQueryStringQueryParser;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -64,7 +65,7 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
-public class SimpleQueryStringBuilderTests extends FullTextQueryTestCase<SimpleQueryStringBuilder> {
+public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQueryStringBuilder> {
 
     @Override
     protected SimpleQueryStringBuilder doCreateTestQueryBuilder() {
@@ -786,14 +787,27 @@ public class SimpleQueryStringBuilderTests extends FullTextQueryTestCase<SimpleQ
     }
 
     /**
-     * Query terms that start with "now" can trigger a query to not be cacheable if it hits all field
-     * and there is a date field amongst them. This test checks the search context cacheable flag is
-     * updated accordingly
-     * Note: this cannot happen when directly hitting the date field, dates are not parsed leniently then
-     * and we typically get a parse exception.
+     * Query terms that contain "now" can trigger a query to not be cacheable.
+     * This test checks the search context cacheable flag is updated accordingly.
      */
     public void testCachingStrategiesWithNow() throws IOException {
-        SimpleQueryStringBuilder query = new SimpleQueryStringBuilder("now" + randomAlphaOfLengthBetween(1, 10));
+        // if we hit all fields, this should contain a date field and should diable cachability
+        String query = "now " + randomAlphaOfLengthBetween(4, 10);
+        SimpleQueryStringBuilder queryBuilder = new SimpleQueryStringBuilder(query);
+        assertQueryCachability(queryBuilder, false);
+
+        // if we hit a date field with "now", this should diable cachability
+        queryBuilder = new SimpleQueryStringBuilder("now");
+        queryBuilder.field(DATE_FIELD_NAME);
+        assertQueryCachability(queryBuilder, false);
+
+        // everything else is fine on all fields
+        query = randomFrom("NoW", "nOw", "NOW") + " " + randomAlphaOfLengthBetween(4, 10);
+        queryBuilder = new SimpleQueryStringBuilder(query);
+        assertQueryCachability(queryBuilder, true);
+    }
+
+    private void assertQueryCachability(SimpleQueryStringBuilder qb, boolean cachingExpected) throws IOException {
         QueryShardContext context = createShardContext();
         assert context.isCacheable();
         /*
@@ -801,17 +815,9 @@ public class SimpleQueryStringBuilderTests extends FullTextQueryTestCase<SimpleQ
          * this way in SearchService where we first rewrite the query with a private context, then reset the context and then build the
          * actual lucene query
          */
-        QueryBuilder rewritten = rewriteQuery(query, new QueryShardContext(context));
+        QueryBuilder rewritten = rewriteQuery(qb, new QueryShardContext(context));
         assertNotNull(rewritten.toQuery(context));
-        assertFalse("query was marked as cacheable in the context but it should not be cacheable: " + query.toString(),
-                context.isCacheable());
-
-        query = new SimpleQueryStringBuilder(randomFrom("NoW", "nOw", "NOW") + randomAlphaOfLengthBetween(1, 10));
-
-        context = createShardContext();
-        rewritten = rewriteQuery(query, new QueryShardContext(context));
-        assertNotNull(rewritten.toQuery(context));
-        assertTrue("query was marked as not cacheable in the context but it should be cacheable: " + query.toString(),
+        assertEquals("query should " + (cachingExpected ? "" : "not") + " be cacheable: " + qb.toString(), cachingExpected,
                 context.isCacheable());
     }
 }

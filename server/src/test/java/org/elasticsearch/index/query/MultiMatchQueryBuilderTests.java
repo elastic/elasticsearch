@@ -550,4 +550,22 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
         assertThat(disjunctionMaxQuery.getDisjuncts(), hasItems(new TermQuery(new Term(STRING_FIELD_NAME, "hello")),
             new TermQuery(new Term(STRING_FIELD_NAME_2, "hello"))));
     }
+
+    /**
+     * "now" on date fields should make the query non-cachable.
+     */
+    public void testCachingStrategiesWithNow() throws IOException {
+        // if we hit a date field with "now", this should diable cachability
+        MultiMatchQueryBuilder queryBuilder = new MultiMatchQueryBuilder("now", DATE_FIELD_NAME);
+        QueryShardContext context = createShardContext();
+        assert context.isCacheable();
+        /*
+         * We use a private rewrite context here since we want the most realistic way of asserting that we are cacheable or not. We do it
+         * this way in SearchService where we first rewrite the query with a private context, then reset the context and then build the
+         * actual lucene query
+         */
+        QueryBuilder rewritten = rewriteQuery(queryBuilder, new QueryShardContext(context));
+        assertNotNull(rewritten.toQuery(context));
+        assertFalse("query should not be cacheable: " + queryBuilder.toString(), context.isCacheable());
+    }
 }

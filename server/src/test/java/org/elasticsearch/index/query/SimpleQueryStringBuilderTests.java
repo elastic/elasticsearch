@@ -65,14 +65,12 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class SimpleQueryStringBuilderTests extends FullTextQueryTestCase<SimpleQueryStringBuilder> {
-    @Override
-    protected boolean isCacheable(SimpleQueryStringBuilder queryBuilder) {
-        return isCacheable(queryBuilder.fields().keySet(), queryBuilder.value());
-    }
 
     @Override
     protected SimpleQueryStringBuilder doCreateTestQueryBuilder() {
-        String queryText = randomAlphaOfLengthBetween(1, 10);
+        // we avoid strings with "now" since those can have different caching policies that are checked elsewhere
+        String queryText = randomValueOtherThanMany(s -> s.toLowerCase(Locale.ROOT).contains("now"),
+                () -> randomAlphaOfLengthBetween(1, 10));
         SimpleQueryStringBuilder result = new SimpleQueryStringBuilder(queryText);
         if (randomBoolean()) {
             result.analyzeWildcard(randomBoolean());
@@ -785,5 +783,35 @@ public class SimpleQueryStringBuilderTests extends FullTextQueryTestCase<SimpleQ
         assertEquals(9, noMatchNoDocsQueries);
         assertThat(disjunctionMaxQuery.getDisjuncts(), hasItems(new TermQuery(new Term(STRING_FIELD_NAME, "hello")),
             new TermQuery(new Term(STRING_FIELD_NAME_2, "hello"))));
+    }
+
+    /**
+     * Query terms that start with "now" can trigger a query to not be cacheable if it hits all field
+     * and there is a date field amongst them. This test checks the search context cacheable flag is
+     * updated accordingly
+     * Note: this cannot happen when directly hitting the date field, dates are not parsed leniently then
+     * and we typically get a parse exception.
+     */
+    public void testCachingStrategiesWithNow() throws IOException {
+        SimpleQueryStringBuilder query = new SimpleQueryStringBuilder("now" + randomAlphaOfLengthBetween(1, 10));
+        QueryShardContext context = createShardContext();
+        assert context.isCacheable();
+        /*
+         * We use a private rewrite context here since we want the most realistic way of asserting that we are cacheable or not. We do it
+         * this way in SearchService where we first rewrite the query with a private context, then reset the context and then build the
+         * actual lucene query
+         */
+        QueryBuilder rewritten = rewriteQuery(query, new QueryShardContext(context));
+        assertNotNull(rewritten.toQuery(context));
+        assertFalse("query was marked as cacheable in the context but it should not be cacheable: " + query.toString(),
+                context.isCacheable());
+
+        query = new SimpleQueryStringBuilder(randomFrom("NoW", "nOw", "NOW") + randomAlphaOfLengthBetween(1, 10));
+
+        context = createShardContext();
+        rewritten = rewriteQuery(query, new QueryShardContext(context));
+        assertNotNull(rewritten.toQuery(context));
+        assertTrue("query was marked as not cacheable in the context but it should be cacheable: " + query.toString(),
+                context.isCacheable());
     }
 }

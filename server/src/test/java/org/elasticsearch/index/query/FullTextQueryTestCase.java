@@ -28,7 +28,6 @@ import java.util.HashSet;
 import java.util.Set;
 
 public abstract class FullTextQueryTestCase<QB extends AbstractQueryBuilder<QB>> extends AbstractQueryTestCase<QB> {
-    protected abstract boolean isCacheable(QB queryBuilder);
 
     /**
      * Full text queries that start with "now" are not cacheable if they

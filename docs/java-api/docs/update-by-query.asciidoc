@@ -51,7 +51,7 @@ otherwise modify the request for matching documents.
 include-tagged::{client-reindex-tests}/ReindexDocumentationIT.java[update-by-query-size]
 --------------------------------------------------
 
-You can also combine `size` with sorting to limit the documents updated:
+You can also combine `maxDocs` with sorting to limit the documents updated:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------

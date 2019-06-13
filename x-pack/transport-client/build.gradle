@@ -8,8 +8,8 @@ archivesBaseName = 'x-pack-transport'
 dependencies {
     // this "api" dependency looks weird, but it is correct, as it contains
     // all of x-pack for now, and transport client will be going away in the future.
-    compile "org.elasticsearch.plugin:x-pack-core:${version}"
-    compile "org.elasticsearch.client:transport:${version}"
+    compile project(xpackModule('core'))
+    compile project(':client:transport')
     testCompile "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
     testCompile "junit:junit:${versions.junit}"
     testCompile "org.hamcrest:hamcrest:${versions.hamcrest}"

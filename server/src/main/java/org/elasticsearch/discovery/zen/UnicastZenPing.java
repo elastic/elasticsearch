@@ -24,6 +24,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.store.AlreadyClosedException;
+import org.elasticsearch.common.util.CancellableThreads;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
@@ -144,7 +145,8 @@ public class UnicastZenPing implements ZenPing {
     }
 
     private SeedHostsProvider.HostsResolver createHostsResolver() {
-        return hosts -> SeedHostsResolver.resolveHostsLists(unicastZenPingExecutorService, logger, hosts, transportService, resolveTimeout);
+        return hosts -> SeedHostsResolver.resolveHostsLists(new CancellableThreads(), unicastZenPingExecutorService, logger, hosts,
+            transportService, resolveTimeout);
     }
 
     @Override

@@ -78,10 +78,6 @@ import static org.elasticsearch.common.util.concurrent.EsExecutors.daemonThreadF
 public class Netty4Transport extends TcpTransport {
     private static final Logger logger = LogManager.getLogger(Netty4Transport.class);
 
-    static {
-        Netty4Utils.setup();
-    }
-
     public static final Setting<Integer> WORKER_COUNT =
         new Setting<>("transport.netty.worker_count",
             (s) -> Integer.toString(EsExecutors.numberOfProcessors(s) * 2),

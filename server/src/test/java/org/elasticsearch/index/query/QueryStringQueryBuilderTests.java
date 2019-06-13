@@ -519,13 +519,11 @@ public class QueryStringQueryBuilderTests extends FullTextQueryTestCase<QueryStr
         Query query = queryStringQuery("test").field("mapped_str*").toQuery(createShardContext());
         assertThat(query, instanceOf(DisjunctionMaxQuery.class));
         DisjunctionMaxQuery dQuery = (DisjunctionMaxQuery) query;
-        assertThat(dQuery.getDisjuncts().size(), equalTo(3));
+        assertThat(dQuery.getDisjuncts().size(), equalTo(2));
         assertThat(assertDisjunctionSubQuery(query, TermQuery.class, 0).getTerm(),
             equalTo(new Term(STRING_FIELD_NAME, "test")));
         assertThat(assertDisjunctionSubQuery(query, TermQuery.class, 1).getTerm(),
             equalTo(new Term(STRING_FIELD_NAME_2, "test")));
-        assertThat(assertDisjunctionSubQuery(query, TermQuery.class, 2).getTerm(),
-            equalTo(new Term(STRING_FIELD_NAME, "test")));
     }
 
     public void testToQueryDisMaxQuery() throws Exception {
@@ -789,27 +787,36 @@ public class QueryStringQueryBuilderTests extends FullTextQueryTestCase<QueryStr
     }
 
     public void testToQueryFuzzyQueryAutoFuziness() throws Exception {
-        int length = randomIntBetween(1, 10);
-        StringBuilder queryString = new StringBuilder();
-        for (int i = 0; i < length; i++) {
-            queryString.append("a");
-        }
-        queryString.append("~");
+        for (int i = 0; i < 3; i++) {
+            final int expectedEdits;
+            String queryString;
+            switch (i) {
+                case 0:
+                    queryString = randomAlphaOfLengthBetween(1, 2);
+                    expectedEdits = 0;
+                    break;
 
-        int expectedEdits;
-        if (length <= 2) {
-            expectedEdits = 0;
-        } else if (3 <= length && length <= 5) {
-            expectedEdits = 1;
-        } else {
-            expectedEdits = 2;
-        }
+                case 1:
+                    queryString = randomAlphaOfLengthBetween(3, 5);
+                    expectedEdits = 1;
+                    break;
 
-        Query query = queryStringQuery(queryString.toString()).defaultField(STRING_FIELD_NAME).fuzziness(Fuzziness.AUTO)
-            .toQuery(createShardContext());
-        assertThat(query, instanceOf(FuzzyQuery.class));
-        FuzzyQuery fuzzyQuery = (FuzzyQuery) query;
-        assertEquals(expectedEdits, fuzzyQuery.getMaxEdits());
+                default:
+                    queryString = randomAlphaOfLengthBetween(6, 20);
+                    expectedEdits = 2;
+                    break;
+            }
+
+            for (int j = 0; j < 2; j++) {
+                Query query = queryStringQuery(queryString + (j == 0 ? "~" : "~auto"))
+                    .defaultField(STRING_FIELD_NAME)
+                    .fuzziness(Fuzziness.AUTO)
+                    .toQuery(createShardContext());
+                assertThat(query, instanceOf(FuzzyQuery.class));
+                FuzzyQuery fuzzyQuery = (FuzzyQuery) query;
+                assertEquals(expectedEdits, fuzzyQuery.getMaxEdits());
+            }
+        }
     }
 
     public void testFuzzyNumeric() throws Exception {
@@ -1541,6 +1548,19 @@ public class QueryStringQueryBuilderTests extends FullTextQueryTestCase<QueryStr
         assertThat(exc.getMessage(), CoreMatchers.containsString("negative [boost]"));
     }
 
+    public void testMergeBoosts() throws IOException {
+        Query query = new QueryStringQueryBuilder("first")
+            .type(MultiMatchQueryBuilder.Type.MOST_FIELDS)
+            .field(STRING_FIELD_NAME, 0.3f)
+            .field(STRING_FIELD_NAME.substring(0, STRING_FIELD_NAME.length()-2) + "*", 0.5f)
+            .toQuery(createShardContext());
+        List<Query> terms = new ArrayList<>();
+        terms.add(new BoostQuery(new TermQuery(new Term(STRING_FIELD_NAME, "first")), 0.075f));
+        terms.add(new BoostQuery(new TermQuery(new Term(STRING_FIELD_NAME_2, "first")), 0.5f));
+        Query expected = new DisjunctionMaxQuery(terms, 1.0f);
+        assertEquals(expected, query);
+    }
+
     private static IndexMetaData newIndexMeta(String name, Settings oldIndexSettings, Settings indexSettings) {
         Settings build = Settings.builder().put(oldIndexSettings)
             .put(indexSettings)
@@ -1557,7 +1577,7 @@ public class QueryStringQueryBuilderTests extends FullTextQueryTestCase<QueryStr
                 noMatchNoDocsQueries++;
             }
         }
-        assertEquals(11, noMatchNoDocsQueries);
+        assertEquals(9, noMatchNoDocsQueries);
         assertThat(disjunctionMaxQuery.getDisjuncts(), hasItems(new TermQuery(new Term(STRING_FIELD_NAME, "hello")),
             new TermQuery(new Term(STRING_FIELD_NAME_2, "hello"))));
     }

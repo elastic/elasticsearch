@@ -21,6 +21,8 @@ package org.elasticsearch.index;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.IndexReaderContext;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.Directory;
@@ -518,6 +520,13 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         return indexSettings;
     }
 
+    private IndexSearcher newCachedSearcher(int shardId, IndexReaderContext context) {
+        IndexSearcher searcher = new IndexSearcher(context);
+        searcher.setQueryCache(cache().query());
+        searcher.setQueryCachingPolicy(getShard(shardId).getQueryCachingPolicy());
+        return searcher;
+    }
+
     /**
      * Creates a new QueryShardContext. The context has not types set yet, if types are required set them via
      * {@link QueryShardContext#setTypes(String...)}.
@@ -527,10 +536,9 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
      */
     public QueryShardContext newQueryShardContext(int shardId, IndexReader indexReader, LongSupplier nowInMillis, String clusterAlias) {
         return new QueryShardContext(
-            shardId, indexSettings, indexCache.bitsetFilterCache(), indexFieldData::getForField, mapperService(),
-                similarityService(), scriptService, xContentRegistry,
-               namedWriteableRegistry, client, indexReader,
-            nowInMillis, clusterAlias);
+            shardId, indexSettings, indexCache.bitsetFilterCache(), context -> newCachedSearcher(shardId, context),
+            indexFieldData::getForField, mapperService(), similarityService(), scriptService, xContentRegistry, namedWriteableRegistry,
+            client, indexReader, nowInMillis, clusterAlias);
     }
 
     /**

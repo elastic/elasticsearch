@@ -85,6 +85,7 @@ import org.elasticsearch.action.admin.cluster.storedscripts.TransportPutStoredSc
 import org.elasticsearch.action.admin.cluster.tasks.PendingClusterTasksAction;
 import org.elasticsearch.action.admin.cluster.tasks.TransportPendingClusterTasksAction;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesAction;
+import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.TransportIndicesAliasesAction;
 import org.elasticsearch.action.admin.indices.alias.exists.AliasesExistAction;
 import org.elasticsearch.action.admin.indices.alias.exists.TransportAliasesExistAction;
@@ -118,6 +119,7 @@ import org.elasticsearch.action.admin.indices.mapping.get.TransportGetFieldMappi
 import org.elasticsearch.action.admin.indices.mapping.get.TransportGetFieldMappingsIndexAction;
 import org.elasticsearch.action.admin.indices.mapping.get.TransportGetMappingsAction;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingAction;
+import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.TransportPutMappingAction;
 import org.elasticsearch.action.admin.indices.open.OpenIndexAction;
 import org.elasticsearch.action.admin.indices.open.TransportOpenIndexAction;
@@ -204,6 +206,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.NamedRegistry;
 import org.elasticsearch.common.inject.AbstractModule;
+import org.elasticsearch.common.inject.TypeLiteral;
 import org.elasticsearch.common.inject.multibindings.MapBinder;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
@@ -359,7 +362,8 @@ public class ActionModule extends AbstractModule {
     private final AutoCreateIndex autoCreateIndex;
     private final DestructiveOperations destructiveOperations;
     private final RestController restController;
-    private final TransportPutMappingAction.RequestValidators mappingRequestValidators;
+    private final RequestValidators<PutMappingRequest> mappingRequestValidators;
+    private final RequestValidators<IndicesAliasesRequest> indicesAliasesRequestRequestValidators;
 
     public ActionModule(boolean transportClient, Settings settings, IndexNameExpressionResolver indexNameExpressionResolver,
                         IndexScopedSettings indexScopedSettings, ClusterSettings clusterSettings, SettingsFilter settingsFilter,
@@ -391,9 +395,10 @@ public class ActionModule extends AbstractModule {
                 restWrapper = newRestWrapper;
             }
         }
-        mappingRequestValidators = new TransportPutMappingAction.RequestValidators(
-            actionPlugins.stream().flatMap(p -> p.mappingRequestValidators().stream()).collect(Collectors.toList())
-        );
+        mappingRequestValidators = new RequestValidators<>(
+            actionPlugins.stream().flatMap(p -> p.mappingRequestValidators().stream()).collect(Collectors.toList()));
+        indicesAliasesRequestRequestValidators = new RequestValidators<>(
+                actionPlugins.stream().flatMap(p -> p.indicesAliasesRequestValidators().stream()).collect(Collectors.toList()));
 
         if (transportClient) {
             restController = null;
@@ -690,7 +695,8 @@ public class ActionModule extends AbstractModule {
     protected void configure() {
         bind(ActionFilters.class).toInstance(actionFilters);
         bind(DestructiveOperations.class).toInstance(destructiveOperations);
-        bind(TransportPutMappingAction.RequestValidators.class).toInstance(mappingRequestValidators);
+        bind(new TypeLiteral<RequestValidators<PutMappingRequest>>() {}).toInstance(mappingRequestValidators);
+        bind(new TypeLiteral<RequestValidators<IndicesAliasesRequest>>() {}).toInstance(indicesAliasesRequestRequestValidators);
 
         if (false == transportClient) {
             // Supporting classes only used when not a transport client

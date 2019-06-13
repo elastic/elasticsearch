@@ -65,39 +65,10 @@ processResources {
 if (JavaVersion.current() < JavaVersion.VERSION_11) {
   throw new GradleException('At least Java 11 is required to build elasticsearch gradle tools')
 }
-// Gradle 4.10 does not support setting this to 11 yet
-targetCompatibility = "10"
-sourceCompatibility = "10"
 
-// We have a few classes that need to be compiled for older java versions because these are used to run checks against
-// those
-sourceSets {
-  minimumRuntime {
-    // We only want Java here, but the Groovy doesn't configure javadoc correctly if we don't define this as groovy
-    groovy {
-      srcDirs = ['src/main/minimumRuntime']
-    }
-  }
-}
-compileMinimumRuntimeGroovy {
-  // We can't use BuildPlugin here, so read from file
-  String minimumRuntimeVersion = file('src/main/resources/minimumRuntimeVersion').text.trim()
-  targetCompatibility = minimumRuntimeVersion
-  sourceCompatibility = minimumRuntimeVersion
-}
-dependencies {
-  if (project.ext.has("isEclipse") == false || project.ext.isEclipse == false) {
-      // eclipse is confused if this is set explicitly
-    compile sourceSets.minimumRuntime.output
-  }
-  minimumRuntimeCompile "junit:junit:${props.getProperty('junit')}"
-  minimumRuntimeCompile localGroovy()
-  minimumRuntimeCompile gradleApi()
-}
-jar {
-  from sourceSets.minimumRuntime.output
-}
-
+// Keep compatibility with Java 8 for external users of build-tools that haven't migrated to Java 11
+targetCompatibility = '8'
+sourceCompatibility = '8'
 
 /*****************************************************************************
  *                    Dependencies used by the entire build                  *
@@ -110,6 +81,8 @@ repositories {
 dependencies {
   compile localGroovy()
   
+  compile 'commons-codec:commons-codec:1.12'
+
   compile 'com.netflix.nebula:gradle-extra-configurations-plugin:3.0.3'
   compile 'com.netflix.nebula:nebula-publishing-plugin:4.4.4'
   compile 'com.netflix.nebula:gradle-info-plugin:3.0.3'
@@ -117,7 +90,7 @@ dependencies {
   compile 'com.perforce:p4java:2012.3.551082' // THIS IS SUPPOSED TO BE OPTIONAL IN THE FUTURE....
   compile 'org.apache.rat:apache-rat:0.11'
   compile "org.elasticsearch:jna:4.5.1"
-  compile 'com.github.jengelman.gradle.plugins:shadow:2.0.4'
+  compile 'com.github.jengelman.gradle.plugins:shadow:4.0.3'
   compile 'de.thetaphi:forbiddenapis:2.6'
   compile 'com.avast.gradle:gradle-docker-compose-plugin:0.8.12'
   testCompile "junit:junit:${props.getProperty('junit')}"
@@ -162,7 +135,6 @@ if (project != rootProject) {
   dependenciesInfo.enabled = false
   forbiddenApisMain.enabled = false
   forbiddenApisTest.enabled = false
-  forbiddenApisMinimumRuntime.enabled = false
   jarHell.enabled = false
   thirdPartyAudit.enabled = false
 
@@ -178,22 +150,18 @@ if (project != rootProject) {
     distribution project(':distribution:archives:linux-tar')
     distribution project(':distribution:archives:oss-linux-tar')
   }
+    
+  // for external projects we want to remove the marker file indicating we are running the Elasticsearch project
+  processResources {
+      exclude 'buildSrc.marker'
+  }
 
   String localDownloads = "${rootProject.buildDir}/local-downloads"
   task setupLocalDownloads(type:Copy) {
     from configurations.distribution
     into localDownloads
   }
-
-  test {
-    // The test task is configured to runtimeJava version, but build-tools doesn't support all of them, so test
-    // with compiler instead on the ones that are too old.
-    if (project.runtimeJavaVersion <= JavaVersion.VERSION_1_10) {
-      executable = "${project.compilerJavaHome}/bin/java"
-    }
-  }
-
-  // This can't be an RandomizedTestingTask because we can't yet reference it
+    
   task integTest(type: Test) {
     // integration test requires the local testing repo for example plugin builds
     dependsOn project.rootProject.allprojects.collect {
@@ -217,6 +185,8 @@ if (project != rootProject) {
       systemProperty 'test.lucene-snapshot-revision', isLuceneSnapshot[0][1]
     }
     maxParallelForks System.getProperty('tests.jvms', project.rootProject.ext.defaultParallel.toString()) as Integer
+    // These tests run Gradle which doesn't have FIPS support
+    onlyIf { project.inFipsJvm == false }
   }
   check.dependsOn(integTest)
 

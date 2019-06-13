@@ -13,7 +13,6 @@ esplugin {
 archivesBaseName = 'x-pack-security'
 
 dependencies {
-    // "org.elasticsearch.plugin:x-pack-core:${version}" doesn't work with idea because the testArtifacts are also here
     compileOnly project(path: xpackModule('core'), configuration: 'default')
     compileOnly project(path: ':modules:transport-netty4', configuration: 'runtime')
     compileOnly project(path: ':plugins:transport-nio', configuration: 'runtime')
@@ -286,20 +285,22 @@ thirdPartyAudit {
     )
 }
 
-if (project.runtimeJavaVersion > JavaVersion.VERSION_1_8) {
-    thirdPartyAudit.ignoreMissingClasses(
-        'javax.xml.bind.JAXBContext',
-        'javax.xml.bind.JAXBElement',
-        'javax.xml.bind.JAXBException',
-        'javax.xml.bind.Unmarshaller',
-        'javax.xml.bind.UnmarshallerHandler', 
-        'javax.activation.ActivationDataFlavor',
-        'javax.activation.DataContentHandler',
-        'javax.activation.DataHandler',
-        'javax.activation.DataSource',
-        'javax.activation.FileDataSource',
-        'javax.activation.FileTypeMap'
-    )
+rootProject.globalInfo.ready {
+    if (project.runtimeJavaVersion > JavaVersion.VERSION_1_8) {
+        thirdPartyAudit.ignoreMissingClasses(
+                'javax.xml.bind.JAXBContext',
+                'javax.xml.bind.JAXBElement',
+                'javax.xml.bind.JAXBException',
+                'javax.xml.bind.Unmarshaller',
+                'javax.xml.bind.UnmarshallerHandler',
+                'javax.activation.ActivationDataFlavor',
+                'javax.activation.DataContentHandler',
+                'javax.activation.DataHandler',
+                'javax.activation.DataSource',
+                'javax.activation.FileDataSource',
+                'javax.activation.FileTypeMap'
+        )
+    }
 }
 
 test {

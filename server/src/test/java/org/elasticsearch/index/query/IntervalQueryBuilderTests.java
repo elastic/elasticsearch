@@ -364,7 +364,7 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
 
         QueryShardContext baseContext = createShardContext();
         QueryShardContext context = new QueryShardContext(baseContext.getShardId(), baseContext.getIndexSettings(),
-            null, null, baseContext.getMapperService(), null,
+            null, null, null, baseContext.getMapperService(), null,
             scriptService,
             null, null, null, null, null, null);
 

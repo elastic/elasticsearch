@@ -150,7 +150,7 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
         assertEquals(numRefreshes, index.getTotal().refresh.getTotal());
     }
 
-    public void testFreezeAndUnfreeze() throws InterruptedException, ExecutionException {
+    public void testFreezeAndUnfreeze() throws ExecutionException, InterruptedException {
         createIndex("index", Settings.builder().put("index.number_of_shards", 2).build());
         client().prepareIndex("index", "_doc", "1").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
         client().prepareIndex("index", "_doc", "2").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
@@ -241,7 +241,7 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
         assertEquals(0, index.getTotal().refresh.getTotal());
     }
 
-    public void testCanMatch() throws ExecutionException, InterruptedException, IOException {
+    public void testCanMatch() throws IOException, ExecutionException, InterruptedException {
         createIndex("index");
         client().prepareIndex("index", "_doc", "1").setSource("field", "2010-01-05T02:00").setRefreshPolicy(IMMEDIATE).execute()
             .actionGet();

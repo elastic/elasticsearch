@@ -135,9 +135,10 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
     }
 
     /**
-     * Creates a new search request by providing the search request to copy all fields from, the indices to search against, the alias of
-     * the cluster where it will be executed, as well as the start time in milliseconds from the epoch time and whether the reduction
-     * should be final or not. Used when a {@link SearchRequest} is created and executed as part of a cross-cluster search request
+     * Creates a new sub-search request starting from the original search request that is provided.
+     * For internal use only, allows to fork a search request into multiple search requests that will be executed independently.
+     * Such requests will not be finally reduced, so that their results can be merged together in one response at completion.
+     * Used when a {@link SearchRequest} is created and executed as part of a cross-cluster search request
      * performing reduction on each cluster in order to minimize network round-trips between the coordinating node and the remote clusters.
      *
      * @param originalSearchRequest the original search request
@@ -146,8 +147,8 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
      * @param absoluteStartMillis the absolute start time to be used on the remote clusters to ensure that the same value is used
      * @param finalReduce whether the reduction should be final or not
      */
-    static SearchRequest crossClusterSearch(SearchRequest originalSearchRequest, String[] indices,
-                                            String clusterAlias, long absoluteStartMillis, boolean finalReduce) {
+    static SearchRequest subSearchRequest(SearchRequest originalSearchRequest, String[] indices,
+                                          String clusterAlias, long absoluteStartMillis, boolean finalReduce) {
         Objects.requireNonNull(originalSearchRequest, "search request must not be null");
         validateIndices(indices);
         Objects.requireNonNull(clusterAlias, "cluster alias must not be null");
@@ -300,7 +301,7 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
     /**
      * Returns the current time in milliseconds from the time epoch, to be used for the execution of this search request. Used to
      * ensure that the same value, determined by the coordinating node, is used on all nodes involved in the execution of the search
-     * request. When created through {@link #crossClusterSearch(SearchRequest, String[], String, long, boolean)}, this method returns
+     * request. When created through {@link #subSearchRequest(SearchRequest, String[], String, long, boolean)}, this method returns
      * the provided current time, otherwise it will return {@link System#currentTimeMillis()}.
      */
     long getOrCreateAbsoluteStartMillis() {
@@ -308,7 +309,7 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
     }
 
     /**
-     * Returns the provided <code>absoluteStartMillis</code> when created through {@link #crossClusterSearch} and
+     * Returns the provided <code>absoluteStartMillis</code> when created through {@link #subSearchRequest} and
      * -1 otherwise.
      */
     long getAbsoluteStartMillis() {

@@ -423,7 +423,8 @@ public class QueryStringQueryParser extends XQueryParser {
         if (fuzzySlop.image.length() == 1) {
             return getFuzzyQuery(field, termImage, fuzziness.asDistance(termImage));
         }
-        return getFuzzyQuery(field, termImage, Fuzziness.build(fuzzySlop.image.substring(1)).asFloat());
+        float distance = Fuzziness.build(fuzzySlop.image.substring(1)).asDistance(termImage);
+        return getFuzzyQuery(field, termImage, distance);
     }
 
     @Override

@@ -3,7 +3,6 @@
     "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/cat-thread-pool.html",
     "methods": ["GET"],
     "url": {
-      "path": "/_cat/thread_pool",
       "paths": ["/_cat/thread_pool","/_cat/thread_pool/{thread_pool_patterns}"],
       "parts": {
         "thread_pool_patterns": {

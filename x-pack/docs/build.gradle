@@ -18,7 +18,6 @@ buildRestTests.expectedUnconvertedCandidates = [
 ]
 
 dependencies {
-    // "org.elasticsearch.plugin:x-pack-core:${version}" doesn't work with idea because the testArtifacts are also here
     testCompile project(path: xpackModule('core'), configuration: 'default')
     testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
     testCompile project(path: xpackProject('plugin').path, configuration: 'testArtifacts')
@@ -31,6 +30,7 @@ project.copyRestSpec.from(xpackResources) {
 }
 
 testClusters.integTest {
+    extraConfigFile 'op-jwks.json', xpackProject('test:idp-fixture').file("oidc/op-jwks.json")
     setting 'xpack.security.enabled', 'true'
     setting 'xpack.security.authc.api_key.enabled', 'true'
     setting 'xpack.security.authc.token.enabled', 'true'
@@ -38,6 +38,18 @@ testClusters.integTest {
     setting 'xpack.monitoring.exporters._local.type', 'local'
     setting 'xpack.monitoring.exporters._local.enabled', 'false'
     setting 'xpack.license.self_generated.type', 'trial'
+    setting 'xpack.security.authc.realms.file.file.order', '0'
+    setting 'xpack.security.authc.realms.native.native.order', '1'
+    setting 'xpack.security.authc.realms.oidc.oidc1.order', '2'
+    setting 'xpack.security.authc.realms.oidc.oidc1.op.issuer', 'http://127.0.0.1:8080'
+    setting 'xpack.security.authc.realms.oidc.oidc1.op.authorization_endpoint', "http://127.0.0.1:8080/c2id-login"
+    setting 'xpack.security.authc.realms.oidc.oidc1.op.token_endpoint', "http://127.0.0.1:8080/c2id/token"
+    setting 'xpack.security.authc.realms.oidc.oidc1.op.jwkset_path', 'op-jwks.json'
+    setting 'xpack.security.authc.realms.oidc.oidc1.rp.redirect_uri', 'https://my.fantastic.rp/cb'
+    setting 'xpack.security.authc.realms.oidc.oidc1.rp.client_id', 'elasticsearch-rp'
+    keystore 'xpack.security.authc.realms.oidc.oidc1.rp.client_secret', 'b07efb7a1cf6ec9462afe7b6d3ab55c6c7880262aa61ac28dded292aca47c9a2'
+    setting 'xpack.security.authc.realms.oidc.oidc1.rp.response_type', 'id_token'
+    setting 'xpack.security.authc.realms.oidc.oidc1.claims.principal', 'sub'
     user username: 'test_admin'
 }
 

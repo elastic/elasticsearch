@@ -43,6 +43,7 @@ import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Consumer;
 
 /**
  * This class processes incoming join request (passed zia {@link ZenDiscovery}). Incoming nodes
@@ -61,9 +62,9 @@ public class NodeJoinController {
 
 
     public NodeJoinController(Settings settings, MasterService masterService, AllocationService allocationService,
-                              ElectMasterService electMaster) {
+                              ElectMasterService electMaster, Consumer<String> reroute) {
         this.masterService = masterService;
-        joinTaskExecutor = new JoinTaskExecutor(settings, allocationService, logger) {
+        joinTaskExecutor = new JoinTaskExecutor(settings, allocationService, logger, reroute) {
             @Override
             public void clusterStatePublished(ClusterChangedEvent event) {
                 electMaster.logMinimumMasterNodesWarningIfNecessary(event.previousState(), event.state());

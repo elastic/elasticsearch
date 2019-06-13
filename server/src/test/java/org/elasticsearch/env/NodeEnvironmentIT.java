@@ -26,7 +26,10 @@ import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 
+import java.io.IOException;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
 
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
@@ -35,7 +38,7 @@ import static org.hamcrest.Matchers.startsWith;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class NodeEnvironmentIT extends ESIntegTestCase {
-    public void testStartFailureOnDataForNonDataNode() throws Exception {
+    public void testStartFailureOnDataForNonDataNode() {
         final String indexName = "test-fail-on-data";
 
         logger.info("--> starting one node");
@@ -122,5 +125,34 @@ public class NodeEnvironmentIT extends ESIntegTestCase {
             NodeMetaData.FORMAT.writeAndCleanup(new NodeMetaData(randomAlphaOfLength(10), NodeMetaDataTests.tooOldVersion()), dataPaths));
         assertThat(illegalStateException.getMessage(),
             allOf(startsWith("cannot upgrade a node from version ["), endsWith("] directly to version [" + Version.CURRENT + "]")));
+    }
+
+    public void testFailsToStartOnDataPathsFromMultipleNodes() throws IOException {
+        final List<String> nodes = internalCluster().startNodes(2);
+        ensureStableCluster(2);
+
+        final List<String> node0DataPaths = Environment.PATH_DATA_SETTING.get(internalCluster().dataPathSettings(nodes.get(0)));
+        final List<String> node1DataPaths = Environment.PATH_DATA_SETTING.get(internalCluster().dataPathSettings(nodes.get(1)));
+
+        final List<String> allDataPaths = new ArrayList<>(node0DataPaths);
+        allDataPaths.addAll(node1DataPaths);
+
+        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(nodes.get(1)));
+        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(nodes.get(0)));
+
+        final IllegalStateException illegalStateException = expectThrows(IllegalStateException.class,
+            () -> internalCluster().startNode(Settings.builder().putList(Environment.PATH_DATA_SETTING.getKey(), allDataPaths)));
+
+        assertThat(illegalStateException.getMessage(), containsString("belong to multiple nodes with IDs"));
+
+        final List<String> node0DataPathsPlusOne = new ArrayList<>(node0DataPaths);
+        node0DataPathsPlusOne.add(createTempDir().toString());
+        internalCluster().startNode(Settings.builder().putList(Environment.PATH_DATA_SETTING.getKey(), node0DataPathsPlusOne));
+
+        final List<String> node1DataPathsPlusOne = new ArrayList<>(node1DataPaths);
+        node1DataPathsPlusOne.add(createTempDir().toString());
+        internalCluster().startNode(Settings.builder().putList(Environment.PATH_DATA_SETTING.getKey(), node1DataPathsPlusOne));
+
+        ensureStableCluster(2);
     }
 }

@@ -13,10 +13,10 @@ dependencies {
     compile (project(':server')) {
         transitive = false
     }
-    compile (project(':libs:core')) {
+    compile (project(':libs:elasticsearch-core')) {
         transitive = false
     }
-    compile (project(':libs:x-content')) {
+    compile (project(':libs:elasticsearch-x-content')) {
         transitive = false
     }
     compile xpackProject('plugin:sql:sql-proto')
@@ -26,7 +26,7 @@ dependencies {
     runtime "org.apache.logging.log4j:log4j-api:${versions.log4j}"
     runtime "org.apache.logging.log4j:log4j-core:${versions.log4j}"
 
-    testCompile "org.elasticsearch.test:framework:${version}"
+    testCompile project(":test:framework")
 }
 
 forbiddenApisMain {

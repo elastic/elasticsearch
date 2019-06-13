@@ -28,9 +28,8 @@ import org.elasticsearch.action.admin.indices.alias.exists.AliasesExistResponse;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequestBuilder;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesResponse;
-import org.elasticsearch.action.admin.indices.analyze.AnalyzeRequest;
+import org.elasticsearch.action.admin.indices.analyze.AnalyzeAction;
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeRequestBuilder;
-import org.elasticsearch.action.admin.indices.analyze.AnalyzeResponse;
 import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheRequest;
 import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheRequestBuilder;
 import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheResponse;
@@ -672,12 +671,12 @@ public interface IndicesAdminClient extends ElasticsearchClient {
     /**
      * Analyze text under the provided index.
      */
-    ActionFuture<AnalyzeResponse> analyze(AnalyzeRequest request);
+    ActionFuture<AnalyzeAction.Response> analyze(AnalyzeAction.Request request);
 
     /**
      * Analyze text under the provided index.
      */
-    void analyze(AnalyzeRequest request, ActionListener<AnalyzeResponse> listener);
+    void analyze(AnalyzeAction.Request request, ActionListener<AnalyzeAction.Response> listener);
 
     /**
      * Analyze text under the provided index.

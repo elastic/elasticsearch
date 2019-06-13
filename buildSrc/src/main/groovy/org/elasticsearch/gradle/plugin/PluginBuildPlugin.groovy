@@ -27,7 +27,9 @@ import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.test.RestIntegTestTask
 import org.elasticsearch.gradle.test.RunTask
 import org.elasticsearch.gradle.testclusters.TestClustersPlugin
+import org.elasticsearch.gradle.tool.ClasspathUtils
 import org.gradle.api.InvalidUserDataException
+import org.gradle.api.Plugin
 import org.gradle.api.Project
 import org.gradle.api.Task
 import org.gradle.api.publish.maven.MavenPublication
@@ -43,13 +45,13 @@ import java.util.regex.Pattern
 /**
  * Encapsulates build configuration for an Elasticsearch plugin.
  */
-class PluginBuildPlugin extends BuildPlugin {
+class PluginBuildPlugin implements Plugin<Project> {
 
     public static final String PLUGIN_EXTENSION_NAME = 'esplugin'
 
     @Override
     void apply(Project project) {
-        super.apply(project)
+        project.pluginManager.apply(BuildPlugin)
 
         PluginPropertiesExtension extension = project.extensions.create(PLUGIN_EXTENSION_NAME, PluginPropertiesExtension, project)
         configureDependencies(project)
@@ -153,8 +155,13 @@ class PluginBuildPlugin extends BuildPlugin {
 
     private static void configureDependencies(Project project) {
         project.dependencies {
-            compileOnly "org.elasticsearch:elasticsearch:${project.versions.elasticsearch}"
-            testCompile "org.elasticsearch.test:framework:${project.versions.elasticsearch}"
+            if (ClasspathUtils.isElasticsearchProject()) {
+                compileOnly project.project(':server')
+                testCompile project.project(':test:framework')
+            } else {
+                compileOnly "org.elasticsearch:elasticsearch:${project.versions.elasticsearch}"
+                testCompile "org.elasticsearch.test:framework:${project.versions.elasticsearch}"
+            }
             // we "upgrade" these optional deps to provided for plugins, since they will run
             // with a full elasticsearch server that includes optional deps
             compileOnly "org.locationtech.spatial4j:spatial4j:${project.versions.spatial4j}"

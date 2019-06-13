@@ -19,8 +19,6 @@ public interface XPackFeatureSet {
 
     String name();
 
-    String description();
-
     boolean available();
 
     boolean enabled();

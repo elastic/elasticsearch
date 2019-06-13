@@ -149,10 +149,10 @@ public final class WhitelistLoader {
                 String parseType = null;
                 String whitelistClassOrigin = null;
                 String javaClassName = null;
-                boolean noImport = false;
                 List<WhitelistConstructor> whitelistConstructors = null;
                 List<WhitelistMethod> whitelistMethods = null;
                 List<WhitelistField> whitelistFields = null;
+                List<WhitelistAnnotation> classWhitelistAnnotations = null;
 
                 while ((line = reader.readLine()) != null) {
                     number = reader.getLineNumber();
@@ -177,18 +177,17 @@ public final class WhitelistLoader {
                         }
 
                         // Parse the Java class name.
-                        String[] tokens = line.substring(5, line.length() - 1).trim().split("\\s+");
+                        int annotationIndex = line.indexOf('@');
 
-                        // Ensure the correct number of tokens.
-                        if (tokens.length == 2 && "no_import".equals(tokens[1])) {
-                            noImport = true;
-                        } else if (tokens.length != 1) {
-                            throw new IllegalArgumentException("invalid class definition: failed to parse class name [" + line + "]");
+                        if (annotationIndex == -1) {
+                            annotationIndex = line.length() - 1;
+                        } else {
+                            classWhitelistAnnotations = parseWhitelistAnnotations(line.substring(annotationIndex, line.length() - 1));
                         }
 
                         parseType = "class";
                         whitelistClassOrigin = "[" + filepath + "]:[" + number + "]";
-                        javaClassName = tokens[0];
+                        javaClassName = line.substring(5, annotationIndex).trim();
 
                         // Reset all the constructors, methods, and fields to support a new class.
                         whitelistConstructors = new ArrayList<>();
@@ -217,12 +216,11 @@ public final class WhitelistLoader {
                         // Create a new WhitelistClass with all the previously gathered constructors, methods,
                         // augmented methods, and fields, and add it to the list of whitelisted classes.
                         if ("class".equals(parseType)) {
-                            whitelistClasses.add(new WhitelistClass(whitelistClassOrigin, javaClassName, noImport,
-                                    whitelistConstructors, whitelistMethods, whitelistFields));
+                            whitelistClasses.add(new WhitelistClass(whitelistClassOrigin, javaClassName,
+                                    whitelistConstructors, whitelistMethods, whitelistFields, classWhitelistAnnotations));
 
                             whitelistClassOrigin = null;
                             javaClassName = null;
-                            noImport = false;
                             whitelistConstructors = null;
                             whitelistMethods = null;
                             whitelistFields = null;
@@ -394,6 +392,31 @@ public final class WhitelistLoader {
         ClassLoader loader = AccessController.doPrivileged((PrivilegedAction<ClassLoader>)resource::getClassLoader);
 
         return new Whitelist(loader, whitelistClasses, whitelistStatics, whitelistClassBindings, Collections.emptyList());
+    }
+
+    private static List<WhitelistAnnotation> parseWhitelistAnnotations(String line) {
+        String[] annotations = line.trim().substring(1).split("@");
+        List<WhitelistAnnotation> whitelistAnnotations = new ArrayList<>(annotations.length);
+
+        for (String annotation : annotations) {
+            annotation = annotation.trim();
+            int informationIndex = annotation.indexOf('[');
+
+            if (informationIndex == -1) {
+                whitelistAnnotations.add(new WhitelistAnnotation(annotation, null));
+            } else {
+                if (annotation.charAt(annotation.length() - 1) != ']') {
+                    throw new IllegalArgumentException("invalid annotation: expected closing brace");
+                }
+
+                String name = annotation.substring(0, informationIndex);
+                String information = annotation.substring(informationIndex + 1, annotation.length() - 1).trim();
+
+                whitelistAnnotations.add(new WhitelistAnnotation(name, information));
+            }
+        }
+
+        return whitelistAnnotations;
     }
 
     private WhitelistLoader() {}

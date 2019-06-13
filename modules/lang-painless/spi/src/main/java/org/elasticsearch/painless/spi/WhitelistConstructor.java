@@ -40,9 +40,16 @@ public final class WhitelistConstructor {
      */
     public final List<String> canonicalTypeNameParameters;
 
+    /** The {@link List} of ({@link WhitelistAnnotation}s) for this constructor. */
+    public final List<WhitelistAnnotation> whitelistAnnotations;
+
     /** Standard constructor. All values must be not {@code null}. */
-    public WhitelistConstructor(String origin, List<String> canonicalTypeNameParameters) {
+    public WhitelistConstructor(String origin, List<String> canonicalTypeNameParameters,
+            List<WhitelistAnnotation> whitelistAnnnotations) {
+
         this.origin = Objects.requireNonNull(origin);
         this.canonicalTypeNameParameters = Collections.unmodifiableList(Objects.requireNonNull(canonicalTypeNameParameters));
+
+        this.whitelistAnnotations = Collections.unmodifiableList(Objects.requireNonNull(whitelistAnnnotations));
     }
 }

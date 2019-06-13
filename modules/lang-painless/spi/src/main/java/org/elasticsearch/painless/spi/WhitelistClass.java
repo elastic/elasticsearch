@@ -46,11 +46,6 @@ public final class WhitelistClass {
     /** The Java class name this class represents. */
     public final String javaClassName;
 
-    /**
-     * Allow the Java class name to only be specified as the fully-qualified name.
-     */
-    public final boolean noImport;
-
     /** The {@link List} of whitelisted ({@link WhitelistConstructor}s) available to this class. */
     public final List<WhitelistConstructor> whitelistConstructors;
 
@@ -60,17 +55,22 @@ public final class WhitelistClass {
     /** The {@link List} of whitelisted ({@link WhitelistField}s) available to this class. */
     public final List<WhitelistField> whitelistFields;
 
+    /** The {@link List} of ({@link WhitelistAnnotation}s) for this class. */
+    public final List<WhitelistAnnotation> whitelistAnnotations;
+
     /** Standard constructor. All values must be not {@code null}. */
-    public WhitelistClass(String origin, String javaClassName, boolean noImport,
-            List<WhitelistConstructor> whitelistConstructors, List<WhitelistMethod> whitelistMethods, List<WhitelistField> whitelistFields)
+    public WhitelistClass(String origin, String javaClassName,
+            List<WhitelistConstructor> whitelistConstructors, List<WhitelistMethod> whitelistMethods, List<WhitelistField> whitelistFields,
+            List<WhitelistAnnotation> whitelistAnnotations)
     {
 
         this.origin = Objects.requireNonNull(origin);
         this.javaClassName = Objects.requireNonNull(javaClassName);
-        this.noImport = noImport;
 
         this.whitelistConstructors = Collections.unmodifiableList(Objects.requireNonNull(whitelistConstructors));
         this.whitelistMethods = Collections.unmodifiableList(Objects.requireNonNull(whitelistMethods));
         this.whitelistFields = Collections.unmodifiableList(Objects.requireNonNull(whitelistFields));
+
+        this.whitelistAnnotations = Collections.unmodifiableList(Objects.requireNonNull(whitelistAnnotations));
     }
 }

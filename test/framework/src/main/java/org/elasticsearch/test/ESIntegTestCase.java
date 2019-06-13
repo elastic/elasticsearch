@@ -1317,14 +1317,14 @@ public abstract class ESIntegTestCase extends ESTestCase {
     /**
      * Returns <code>true</code> iff the given index exists otherwise <code>false</code>
      */
-    protected boolean indexExists(String index) {
+    protected static boolean indexExists(String index) {
         return indexExists(index, client());
     }
 
     /**
      * Returns <code>true</code> iff the given index exists otherwise <code>false</code>
      */
-    protected boolean indexExists(String index, Client client) {
+    public static boolean indexExists(String index, Client client) {
         GetIndexResponse getIndexResponse = client.admin().indices().prepareGetIndex().setIndices(index)
             .setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED).execute().actionGet();
         return getIndexResponse.getIndices().length > 0;

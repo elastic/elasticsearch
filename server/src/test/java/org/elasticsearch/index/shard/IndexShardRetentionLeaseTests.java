@@ -360,7 +360,7 @@ public class IndexShardRetentionLeaseTests extends IndexShardTestCase {
         assertThat(retentionLeases.version(), equalTo(version));
         final Map<String, RetentionLease> idToRetentionLease = new HashMap<>();
         for (final RetentionLease retentionLease : retentionLeases.leases()) {
-            if (retentionLease.isNotPeerRecoveryRetentionLease()) {
+            if (ReplicationTracker.PEER_RECOVERY_RETENTION_LEASE_SOURCE.equals(retentionLease.source()) == false) {
                 idToRetentionLease.put(retentionLease.id(), retentionLease);
             }
         }

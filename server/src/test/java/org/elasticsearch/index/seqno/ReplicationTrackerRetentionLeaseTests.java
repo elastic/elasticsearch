@@ -631,7 +631,8 @@ public class ReplicationTrackerRetentionLeaseTests extends ReplicationTrackerTes
         assertThat(retentionLeases.primaryTerm(), equalTo(primaryTerm));
         assertThat(retentionLeases.version(), equalTo(version));
         final Map<String, RetentionLease> idToRetentionLease = retentionLeases.leases().stream()
-            .filter(RetentionLease::isNotPeerRecoveryRetentionLease).collect(Collectors.toMap(RetentionLease::id, Function.identity()));
+            .filter(retentionLease -> ReplicationTracker.PEER_RECOVERY_RETENTION_LEASE_SOURCE.equals(retentionLease.source()) == false)
+            .collect(Collectors.toMap(RetentionLease::id, Function.identity()));
 
         assertThat(idToRetentionLease.entrySet(), hasSize(size));
         for (int i = 0; i < size; i++) {

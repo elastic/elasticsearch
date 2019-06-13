@@ -1,1 +1,1 @@
-org.elasticsearch.xpack.ml.aggregations.spi.MatrixStatsNamedXContentProvider
+org.elasticsearch.xpack.ml.spi.MLNamedXContentProvider

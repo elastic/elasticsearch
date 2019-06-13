@@ -82,9 +82,11 @@ public class TransportNodesReloadSecureSettingsAction extends TransportNodesActi
     }
 
     @Override
-    protected void doExecute(Task task, NodesReloadSecureSettingsRequest request, ActionListener<NodesReloadSecureSettingsResponse> listener) {
+    protected void doExecute(Task task, NodesReloadSecureSettingsRequest request,
+                             ActionListener<NodesReloadSecureSettingsResponse> listener) {
         if (request.hasPassword() && isNodeLocal(request) == false && isNodeTransportTLSEnabled() == false) {
-            listener.onFailure(new IllegalStateException("Secure settings cannot be updated cluster wide when TLS for the transport layer" +
+            listener.onFailure(
+                new IllegalStateException("Secure settings cannot be updated cluster wide when TLS for the transport layer" +
                 " is not enabled. Enable TLS or use the API with a `_local` filter on each node."));
         } else {
             super.doExecute(task, request, listener);

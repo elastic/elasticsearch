@@ -148,6 +148,7 @@ public class TranslogTests extends ESTestCase {
     protected Path translogDir;
     // A default primary term is used by translog instances created in this test.
     private final AtomicLong primaryTerm = new AtomicLong();
+    private final AtomicReference<LongConsumer> persistedSeqNoConsumer = new AtomicReference<>();
 
     @Override
     protected void afterIfSuccessful() throws Exception {
@@ -166,16 +167,25 @@ public class TranslogTests extends ESTestCase {
 
     }
 
+    private LongConsumer getPersistedSeqNoConsumer() {
+        return seqNo -> {
+            final LongConsumer consumer = persistedSeqNoConsumer.get();
+            if (consumer != null) {
+                consumer.accept(seqNo);
+            }
+        };
+    }
+
     protected Translog createTranslog(TranslogConfig config) throws IOException {
         String translogUUID =
             Translog.createEmptyTranslog(config.getTranslogPath(), SequenceNumbers.NO_OPS_PERFORMED, shardId, primaryTerm.get());
         return new Translog(config, translogUUID, createTranslogDeletionPolicy(config.getIndexSettings()),
-            () -> SequenceNumbers.NO_OPS_PERFORMED, primaryTerm::get, seqNo -> {});
+            () -> SequenceNumbers.NO_OPS_PERFORMED, primaryTerm::get, getPersistedSeqNoConsumer());
     }
 
     protected Translog openTranslog(TranslogConfig config, String translogUUID) throws IOException {
         return new Translog(config, translogUUID, createTranslogDeletionPolicy(config.getIndexSettings()),
-            () -> SequenceNumbers.NO_OPS_PERFORMED, primaryTerm::get, seqNo -> {});
+            () -> SequenceNumbers.NO_OPS_PERFORMED, primaryTerm::get, getPersistedSeqNoConsumer());
     }
 
 
@@ -227,7 +237,8 @@ public class TranslogTests extends ESTestCase {
         final TranslogConfig translogConfig = getTranslogConfig(path);
         final TranslogDeletionPolicy deletionPolicy = createTranslogDeletionPolicy(translogConfig.getIndexSettings());
         final String translogUUID = Translog.createEmptyTranslog(path, SequenceNumbers.NO_OPS_PERFORMED, shardId, primaryTerm.get());
-        return new Translog(translogConfig, translogUUID, deletionPolicy, () -> globalCheckpoint.get(), primaryTerm::get, seqNo -> {});
+        return new Translog(translogConfig, translogUUID, deletionPolicy, () -> globalCheckpoint.get(), primaryTerm::get,
+            getPersistedSeqNoConsumer());
     }
 
     private TranslogConfig getTranslogConfig(final Path path) {
@@ -1280,6 +1291,8 @@ public class TranslogTests extends ESTestCase {
 
     public void testTranslogWriter() throws IOException {
         final TranslogWriter writer = translog.createWriter(translog.currentFileGeneration() + 1);
+        final Set<Long> persistedSeqNos = new HashSet<>();
+        persistedSeqNoConsumer.set(persistedSeqNos::add);
         final int numOps = randomIntBetween(8, 128);
         byte[] bytes = new byte[4];
         ByteArrayDataOutput out = new ByteArrayDataOutput(bytes);
@@ -1298,7 +1311,10 @@ public class TranslogTests extends ESTestCase {
             }
             writer.add(new BytesArray(bytes), seqNo);
         }
+        assertThat(persistedSeqNos, empty());
         writer.sync();
+        persistedSeqNos.remove(SequenceNumbers.UNASSIGNED_SEQ_NO);
+        assertEquals(seenSeqNos, persistedSeqNos);
 
         final BaseTranslogReader reader = randomBoolean() ? writer :
             translog.openReader(writer.path(), Checkpoint.read(translog.location().resolve(Translog.CHECKPOINT_FILE_NAME)));

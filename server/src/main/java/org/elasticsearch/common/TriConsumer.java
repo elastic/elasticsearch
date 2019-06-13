@@ -15,35 +15,26 @@
  * KIND, either express or implied.  See the License for the
  * specific language governing permissions and limitations
  * under the License.
+ *
  */
-package org.elasticsearch.gradle
 
-import org.gradle.api.DefaultTask
-import org.gradle.api.tasks.Input
-import org.gradle.api.tasks.TaskAction
-import org.gradle.internal.nativeintegration.filesystem.Chmod
-
-import javax.inject.Inject
+package org.elasticsearch.common;
 
 /**
- * Creates an empty directory.
+ * Represents an operation that accepts three arguments and returns no result.
+ *
+ * @param <S> the type of the first argument
+ * @param <T> the type of the second argument
+ * @param <U> the type of the third argument
  */
-class EmptyDirTask extends DefaultTask {
-  @Input
-  Object dir
-
-  @Input
-  int dirMode = 0755
-
-  @TaskAction
-  void create() {
-    dir = dir as File
-    dir.mkdirs()
-    getChmod().chmod(dir, dirMode)
-  }
-
-  @Inject
-  Chmod getChmod() {
-    throw new UnsupportedOperationException()
-  }
+@FunctionalInterface
+public interface TriConsumer<S, T, U> {
+    /**
+     * Applies this function to the given arguments.
+     *
+     * @param s the first function argument
+     * @param t the second function argument
+     * @param u the third function argument
+     */
+    void apply(S s, T t, U u);
 }

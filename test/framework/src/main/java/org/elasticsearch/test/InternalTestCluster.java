@@ -137,7 +137,6 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
-import static java.util.Collections.emptyList;
 import static org.apache.lucene.util.LuceneTestCase.TEST_NIGHTLY;
 import static org.apache.lucene.util.LuceneTestCase.rarely;
 import static org.elasticsearch.cluster.coordination.ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING;
@@ -1651,7 +1650,7 @@ public final class InternalTestCluster extends TestCluster {
 
         boolean success = false;
         try {
-            nodeAndClient.recreateNode(newSettings, () -> rebuildUnicastHostFiles(emptyList()));
+            nodeAndClient.recreateNode(newSettings, () -> rebuildUnicastHostFiles(Collections.singletonList(nodeAndClient)));
             nodeAndClient.startNode();
             addNode(nodeAndClient);
             success = true;

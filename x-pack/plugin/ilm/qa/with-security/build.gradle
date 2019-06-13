@@ -25,6 +25,6 @@ testClusters.integTest {
   setting 'xpack.ml.enabled', 'false'
   setting 'xpack.license.self_generated.type', 'trial'
   extraConfigFile 'roles.yml', file('roles.yml')
-  user username: clusterCredentials.username, password: clusterCredentials.password
+  user clusterCredentials
   user username: "test_ilm", password: "x-pack-test-password", role: "ilm"
 }

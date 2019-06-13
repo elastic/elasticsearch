@@ -36,6 +36,9 @@ include::shut-down-node.asciidoc[]
 +
 --
 include::upgrade-node.asciidoc[]
+--
++
+--
 include::set-paths-tip.asciidoc[]
 --
 

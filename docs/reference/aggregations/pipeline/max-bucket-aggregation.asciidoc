@@ -19,7 +19,9 @@ A `max_bucket` aggregation looks like this in isolation:
 --------------------------------------------------
 // NOTCONSOLE
 
+[[max-bucket-params]]
 .`max_bucket` Parameters
+[options="header"]
 |===
 |Parameter Name |Description |Required |Default Value
 |`buckets_path` |The path to the buckets we wish to find the maximum for (see <<buckets-path-syntax>> for more

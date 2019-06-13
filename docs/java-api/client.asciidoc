@@ -79,6 +79,12 @@ TransportClient client = new PreBuiltTransportClient(settings);
 //Add transport addresses and do something with the client...
 --------------------------------------------------
 
+The transport client expects each transport address to resolve to a single
+Elasticsearch node. It forms multiple connections to each address and requires
+that each connection reaches the same node. This means that you should configure
+the client with the addresses of individual nodes in the cluster and should not
+use a load balancer that exposes multiple nodes at a single address.
+
 The Transport client comes with a cluster sniffing feature which
 allows it to dynamically add new hosts and remove old ones.
 When sniffing is enabled, the transport client will connect to the nodes in its

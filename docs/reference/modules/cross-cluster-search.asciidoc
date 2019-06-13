@@ -1,16 +1,16 @@
 [[modules-cross-cluster-search]]
-== Cross Cluster Search
+== {ccs-cap}
 
-The _cross cluster search_ feature allows any node to act as a federated client across
-multiple clusters. In contrast to the <<modules-tribe,tribe node>> feature, a  cross cluster search node won't
+The _{ccs}_ feature allows any node to act as a federated client across
+multiple clusters. In contrast to the <<modules-tribe,tribe node>> feature, a {ccs} node won't
 join the remote cluster, instead it connects to a remote cluster in a light fashion in order to execute
 federated search requests.
 
-Cross cluster search works by configuring a remote cluster in the cluster state and connecting only to a
+{ccs-cap} works by configuring a remote cluster in the cluster state and connecting only to a
 limited number of nodes in the remote cluster. Each remote cluster is referenced by a name and a list of seed nodes.
 When a remote cluster is registered, its cluster state is retrieved from one of the seed nodes so that up to 3
-_gateway nodes_ are selected to be connected to as part of upcoming cross cluster search requests.
-Cross cluster search requests consist of uni-directional connections from the coordinating node to the previously
+_gateway nodes_ are selected to be connected to as part of upcoming {ccs} requests.
+{ccs-cap} requests consist of uni-directional connections from the coordinating node to the previously
 selected remote nodes only. It is possible to tag which nodes should be selected through
 node attributes (see <<cross-cluster-search-settings>>).
 
@@ -18,7 +18,7 @@ Each node in a cluster that has remote clusters configured connects to one or mo
 them to federate search requests to the remote cluster.
 
 [float]
-=== Configuring Cross Cluster Search
+=== Configuring {ccs}
 
 Remote clusters can be specified globally using <<cluster-update-settings,cluster settings>>
 (which can be updated dynamically), or local to individual nodes using the
@@ -33,7 +33,7 @@ will be available on every node in the cluster.
 [WARNING]
 This feature was added as Beta in Elasticsearch `v5.3` with further improvements made in 5.4 and 5.5. It requires gateway eligible nodes to be on `v5.5` onwards.
 
-The `elasticsearch.yml` config file for a _cross cluster search_ node just needs to list the
+The `elasticsearch.yml` config file for a _{ccs}_ node just needs to list the
 remote clusters that should be connected to, for instance:
 
 [source,yaml]
@@ -161,7 +161,7 @@ because we'll use them later.
 //////////////////////////
 
 [float]
-=== Using cross cluster search
+=== Using {ccs}
 
 To search the `twitter` index on remote cluster `cluster_one` the index name
 must be prefixed with the cluster alias separated by a `:` character:
@@ -222,7 +222,7 @@ GET /cluster_one:twitter/_search
 // TESTRESPONSE[s/"_score": 1/"_score": "$body.hits.hits.0._score"/]
 
 
-In contrast to the `tribe` feature cross cluster search can also search indices with the same name on different
+In contrast to the `tribe` feature {ccs} can also search indices with the same name on different
 clusters:
 
 [source,js]
@@ -300,7 +300,7 @@ will be prefixed with their remote cluster name:
 [float]
 === Skipping disconnected clusters
 
-By default all remote clusters that are searched via Cross Cluster Search need to be available when
+By default all remote clusters that are searched via {ccs} need to be available when
 the search request is executed, otherwise the whole request fails and no search results are returned
 despite some of the clusters are available. Remote clusters can be made optional through the
 boolean `skip_unavailable` setting, set to `false` by default.
@@ -390,7 +390,7 @@ GET /cluster_one:twitter,cluster_two:twitter,twitter/_search <1>
 
 [float]
 [[cross-cluster-search-settings]]
-=== Cross cluster search settings
+=== {ccs-cap} settings
 
 `search.remote.connections_per_cluster`::
 
@@ -412,14 +412,14 @@ GET /cluster_one:twitter,cluster_two:twitter,twitter/_search <1>
   By default, any node in the cluster can act as a cross-cluster client and
   connect to remote clusters. The `search.remote.connect` setting can be set
   to `false` (defaults to `true`) to prevent certain nodes from connecting to
-  remote clusters. Cross-cluster search requests must be sent to a node that
+  remote clusters. {ccs-cap} requests must be sent to a node that
   is allowed to act as a cross-cluster client.
 
 `search.remote.${cluster_alias}.skip_unavailable`::
 
   Per cluster boolean setting that allows to skip specific clusters when no
   nodes belonging to them are available and they are searched as part of a
-  cross cluster search request. Default is `false`, meaning that all clusters
+  {ccs} request. Default is `false`, meaning that all clusters
   are mandatory by default, but they can selectively be made optional by
   setting this setting to `true`.
 
@@ -429,4 +429,4 @@ GET /cluster_one:twitter,cluster_two:twitter,twitter/_search <1>
 
 The <<cluster-remote-info, Remote Cluster Info API>> allows to retrieve
 information about the configured remote clusters, as well as the remote
-nodes that the Cross Cluster Search node is connected to.
+nodes that the {ccs} node is connected to.

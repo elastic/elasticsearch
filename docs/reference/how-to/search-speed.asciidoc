@@ -312,6 +312,7 @@ too many files will make search _slower_ if the filesystem cache is not large
 enough to hold all the data. Use with caution.
 
 [float]
+[[_map_identifiers_as_literal_keyword_literal]]
 === Map identifiers as `keyword`
 
 When you have numeric identifiers in your documents, it is tempting to map them
@@ -328,6 +329,7 @@ conjunctions faster at the cost of slightly slower indexing. Read more about it
 in the <<index-modules-index-sorting-conjunctions,index sorting documentation>>.
 
 [float]
+[[preference-cache-optimization]]
 === Use `preference` to optimize cache utilization
 
 There are multiple caches that can help with search performance, such as the

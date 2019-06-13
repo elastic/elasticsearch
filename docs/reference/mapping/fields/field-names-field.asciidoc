@@ -37,6 +37,7 @@ GET my_index/_search
 <1> Querying on the `_field_names` field (also see the <<query-dsl-exists-query,`exists`>> query)
 
 
+[[disable-field-names]]
 ==== Disabling `_field_names`
 
 Because `_field_names` introduce some index-time overhead, you might want to

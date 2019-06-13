@@ -1,6 +1,7 @@
 {
   "enrich.put_policy": {
     "documentation": "https://www.elastic.co/guide/en/elasticsearch/reference/current/enrich-put-policy.html",
+    "stability" : "stable",
     "methods": [ "PUT" ],
     "url": {
       "path": "/_enrich/policy/{name}",

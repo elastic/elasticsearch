@@ -41,7 +41,9 @@ public class RemoteResponseParsersTests extends ESTestCase {
     public void testFailureWithoutIndex() throws IOException {
         ShardSearchFailure failure = new ShardSearchFailure(new EsRejectedExecutionException("exhausted"));
         XContentBuilder builder = jsonBuilder();
+        builder.startObject();
         failure.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        builder.endObject();
         try (XContentParser parser = createParser(builder)) {
             ScrollableHitSource.SearchFailure parsed = RemoteResponseParsers.SEARCH_FAILURE_PARSER.parse(parser, XContentType.JSON);
             assertNotNull(parsed.getReason());

@@ -275,8 +275,7 @@ public class FollowingEngineTests extends ESTestCase {
                 globalCheckpoint::longValue,
                 () -> RetentionLeases.EMPTY,
                 () -> primaryTerm.get(),
-                EngineTestCase.tombstoneDocSupplier(),
-                createMapperService("test"));
+                EngineTestCase.tombstoneDocSupplier());
     }
 
     private static Store createStore(

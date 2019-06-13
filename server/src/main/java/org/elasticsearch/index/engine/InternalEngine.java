@@ -76,7 +76,7 @@ import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
-import org.elasticsearch.index.fieldvisitor.FieldsVisitor;
+import org.elasticsearch.index.fieldvisitor.IdOnlyFieldVisitor;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParseContext;
@@ -2807,14 +2807,13 @@ public class InternalEngine extends Engine {
                 final long seqNo = seqNoDV.longValue();
                 localCheckpointTracker.markSeqNoAsCompleted(seqNo);
                 final boolean isTombstone = tombstoneDV != null && tombstoneDV.advanceExact(docId);
-                final FieldsVisitor fields = new FieldsVisitor(false, SourceFieldMapper.NAME);
-                reader.document(docId, fields);
-                fields.postProcess(engineConfig.getMapperService());
-                if (fields.uid() == null) {
+                final IdOnlyFieldVisitor idFieldVisitor = new IdOnlyFieldVisitor();
+                reader.document(docId, idFieldVisitor);
+                if (idFieldVisitor.getId() == null) {
                     assert isTombstone; // a noop
                     continue;
                 }
-                final BytesRef uid = new Term(IdFieldMapper.NAME, Uid.encodeId(fields.uid().id())).bytes();
+                final BytesRef uid = new Term(IdFieldMapper.NAME, Uid.encodeId(idFieldVisitor.getId())).bytes();
                 if (versionDV == null || versionDV.advanceExact(docId) == false) {
                     throw new IllegalStateException("version not found for doc_id=" + docId);
                 }

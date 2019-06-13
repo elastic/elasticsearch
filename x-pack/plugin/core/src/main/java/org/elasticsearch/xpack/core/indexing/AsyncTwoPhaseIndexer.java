@@ -6,7 +6,8 @@
 
 package org.elasticsearch.xpack.core.indexing;
 
-import org.apache.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
@@ -35,7 +36,7 @@ import java.util.concurrent.atomic.AtomicReference;
  * @param <JobPosition> Type that defines a job position to be defined by the implementation.
  */
 public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends IndexerJobStats> {
-    private static final Logger logger = Logger.getLogger(AsyncTwoPhaseIndexer.class.getName());
+    private static final Logger logger = LogManager.getLogger(AsyncTwoPhaseIndexer.class.getName());
 
     private final JobStats stats;
 
@@ -89,28 +90,21 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
      * Sets the internal state to {@link IndexerState#STOPPING} if an async job is
      * running in the background, {@link #onStop()} will be called when the background job
      * detects that the indexer is stopped.
-     * If there is no job running when this function is called
-     * the state is set to {@link IndexerState#STOPPED} and {@link #onStop()} called directly.
+     * If there is no job running when this function is called the returned
+     * state is {@link IndexerState#STOPPED} and {@link #onStop()} will not be called.
      *
      * @return The new state for the indexer (STOPPED, STOPPING or ABORTING if the job was already aborted).
      */
     public synchronized IndexerState stop() {
-        AtomicBoolean wasStartedAndSetStopped = new AtomicBoolean(false);
-        IndexerState currentState = state.updateAndGet(previousState -> {
+        return state.updateAndGet(previousState -> {
             if (previousState == IndexerState.INDEXING) {
                 return IndexerState.STOPPING;
             } else if (previousState == IndexerState.STARTED) {
-                wasStartedAndSetStopped.set(true);
                 return IndexerState.STOPPED;
             } else {
                 return previousState;
             }
         });
-
-        if (wasStartedAndSetStopped.get()) {
-            onStop();
-        }
-        return currentState;
     }
 
     /**
@@ -287,20 +281,24 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
     }
 
     private IndexerState finishAndSetState() {
-        return state.updateAndGet(prev -> {
+        AtomicBoolean callOnStop = new AtomicBoolean(false);
+        AtomicBoolean callOnAbort = new AtomicBoolean(false);
+        IndexerState updatedState = state.updateAndGet(prev -> {
+            callOnAbort.set(false);
+            callOnStop.set(false);
             switch (prev) {
             case INDEXING:
                 // ready for another job
                 return IndexerState.STARTED;
 
             case STOPPING:
+                callOnStop.set(true);
                 // must be started again
-                onStop();
                 return IndexerState.STOPPED;
 
             case ABORTING:
+                callOnAbort.set(true);
                 // abort and exit
-                onAbort();
                 return IndexerState.ABORTING; // This shouldn't matter, since onAbort() will kill the task first
 
             case STOPPED:
@@ -315,6 +313,14 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
                 throw new IllegalStateException("Indexer job encountered an illegal state [" + prev + "]");
             }
         });
+
+        if (callOnStop.get()) {
+            onStop();
+        } else if (callOnAbort.get()) {
+            onAbort();
+        }
+
+        return updatedState;
     }
 
     private void onSearchResponse(SearchResponse searchResponse) {

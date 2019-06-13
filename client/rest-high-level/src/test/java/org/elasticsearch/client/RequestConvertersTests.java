@@ -31,7 +31,6 @@ import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.cluster.storedscripts.DeleteStoredScriptRequest;
 import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptRequest;
 import org.elasticsearch.action.admin.cluster.storedscripts.PutStoredScriptRequest;
-import org.elasticsearch.action.admin.indices.analyze.AnalyzeRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkShardRequest;
 import org.elasticsearch.action.delete.DeleteRequest;
@@ -56,6 +55,7 @@ import org.elasticsearch.client.RequestConverters.EndpointBuilder;
 import org.elasticsearch.client.core.CountRequest;
 import org.elasticsearch.client.core.MultiTermVectorsRequest;
 import org.elasticsearch.client.core.TermVectorsRequest;
+import org.elasticsearch.client.indices.AnalyzeRequest;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -427,7 +427,11 @@ public class RequestConvertersTests extends ESTestCase {
             reindexRequest.setDestRouting("=cat");
         }
         if (randomBoolean()) {
-            reindexRequest.setSize(randomIntBetween(100, 1000));
+            if (randomBoolean()) {
+                reindexRequest.setMaxDocs(randomIntBetween(100, 1000));
+            } else {
+                reindexRequest.setSize(randomIntBetween(100, 1000));
+            }
         }
         if (randomBoolean()) {
             reindexRequest.setAbortOnVersionConflict(false);
@@ -476,8 +480,12 @@ public class RequestConvertersTests extends ESTestCase {
         }
         if (randomBoolean()) {
             int size = randomIntBetween(100, 1000);
-            updateByQueryRequest.setSize(size);
-            expectedParams.put("size", Integer.toString(size));
+            if (randomBoolean()) {
+                updateByQueryRequest.setMaxDocs(size);
+            } else {
+                updateByQueryRequest.setSize(size);
+            }
+            expectedParams.put("max_docs", Integer.toString(size));
         }
         if (randomBoolean()) {
             updateByQueryRequest.setAbortOnVersionConflict(false);
@@ -521,8 +529,12 @@ public class RequestConvertersTests extends ESTestCase {
         }
         if (randomBoolean()) {
             int size = randomIntBetween(100, 1000);
-            deleteByQueryRequest.setSize(size);
-            expectedParams.put("size", Integer.toString(size));
+            if (randomBoolean()) {
+                deleteByQueryRequest.setMaxDocs(size);
+            } else {
+                deleteByQueryRequest.setSize(size);
+            }
+            expectedParams.put("max_docs", Integer.toString(size));
         }
         if (randomBoolean()) {
             deleteByQueryRequest.setAbortOnVersionConflict(false);
@@ -1612,18 +1624,14 @@ public class RequestConvertersTests extends ESTestCase {
     }
 
     public void testAnalyzeRequest() throws Exception {
-        AnalyzeRequest indexAnalyzeRequest = new AnalyzeRequest()
-            .text("Here is some text")
-            .index("test_index")
-            .analyzer("test_analyzer");
+        AnalyzeRequest indexAnalyzeRequest
+            = AnalyzeRequest.withIndexAnalyzer("test_index", "test_analyzer", "Here is some text");
 
         Request request = RequestConverters.analyze(indexAnalyzeRequest);
         assertThat(request.getEndpoint(), equalTo("/test_index/_analyze"));
         assertToXContentBody(indexAnalyzeRequest, request.getEntity());
 
-        AnalyzeRequest analyzeRequest = new AnalyzeRequest()
-            .text("more text")
-            .analyzer("test_analyzer");
+        AnalyzeRequest analyzeRequest = AnalyzeRequest.withGlobalAnalyzer("test_analyzer", "more text");
         assertThat(RequestConverters.analyze(analyzeRequest).getEndpoint(), equalTo("/_analyze"));
     }
 

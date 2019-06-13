@@ -33,7 +33,6 @@ import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.storedscripts.DeleteStoredScriptRequest;
 import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptRequest;
 import org.elasticsearch.action.admin.cluster.storedscripts.PutStoredScriptRequest;
-import org.elasticsearch.action.admin.indices.analyze.AnalyzeRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.explain.ExplainRequest;
@@ -52,6 +51,7 @@ import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.client.core.CountRequest;
 import org.elasticsearch.client.core.MultiTermVectorsRequest;
 import org.elasticsearch.client.core.TermVectorsRequest;
+import org.elasticsearch.client.indices.AnalyzeRequest;
 import org.elasticsearch.client.security.RefreshPolicy;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.common.Nullable;
@@ -584,8 +584,8 @@ final class RequestConverters {
         if (updateByQueryRequest.getScrollTime() != AbstractBulkByScrollRequest.DEFAULT_SCROLL_TIMEOUT) {
             params.putParam("scroll", updateByQueryRequest.getScrollTime());
         }
-        if (updateByQueryRequest.getSize() > 0) {
-            params.putParam("size", Integer.toString(updateByQueryRequest.getSize()));
+        if (updateByQueryRequest.getMaxDocs() > 0) {
+            params.putParam("max_docs", Integer.toString(updateByQueryRequest.getMaxDocs()));
         }
         request.addParameters(params.asMap());
         request.setEntity(createEntity(updateByQueryRequest, REQUEST_BODY_CONTENT_TYPE));
@@ -611,8 +611,8 @@ final class RequestConverters {
         if (deleteByQueryRequest.getScrollTime() != AbstractBulkByScrollRequest.DEFAULT_SCROLL_TIMEOUT) {
             params.putParam("scroll", deleteByQueryRequest.getScrollTime());
         }
-        if (deleteByQueryRequest.getSize() > 0) {
-            params.putParam("size", Integer.toString(deleteByQueryRequest.getSize()));
+        if (deleteByQueryRequest.getMaxDocs() > 0) {
+            params.putParam("max_docs", Integer.toString(deleteByQueryRequest.getMaxDocs()));
         }
         request.addParameters(params.asMap());
         request.setEntity(createEntity(deleteByQueryRequest, REQUEST_BODY_CONTENT_TYPE));

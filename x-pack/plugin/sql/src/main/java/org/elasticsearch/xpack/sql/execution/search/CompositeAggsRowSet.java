@@ -49,7 +49,7 @@ class CompositeAggsRowSet extends ResultRowSet<BucketExtractor> {
 
             // If the limit is -1 then we have a local sorting (sort on aggregate function) that requires all the buckets
             // to be processed so we stop only when all data is exhausted.
-            int remainingLimit = limit == -1 ? limit : limit - size >= 0 ? limit - size : 0;
+            int remainingLimit = (limit == -1) ? limit : ((limit - size) >= 0 ? (limit - size) : 0);
 
             // if the computed limit is zero, or the size is zero it means either there's nothing left or the limit has been reached
             // note that a composite agg might be valid but return zero groups (since these can be filtered with HAVING/bucket selector)

@@ -210,10 +210,10 @@ public class Querier {
             for (boolean hasRows = rrs.hasCurrentRow(); hasRows; hasRows = rrs.advanceRow()) {
                 List<Object> row = new ArrayList<>(rrs.columnCount());
                 rrs.forEachResultColumn(row::add);
-                // if the queue overflows and no limit was specified, bail out
+                // if the queue overflows and no limit was specified, throw an error
                 if (data.insertWithOverflow(new Tuple<>(row, counter.getAndIncrement())) != null && noLimit) {
                     onFailure(new SqlIllegalArgumentException(
-                        "The default limit [{}] for aggregate sorting has been reached; please specify a LIMIT", data.size()));
+                        "The default limit [{}] for aggregate sorting has been reached; please specify a LIMIT", MAXIMUM_SIZE));
                 }
             }
         }

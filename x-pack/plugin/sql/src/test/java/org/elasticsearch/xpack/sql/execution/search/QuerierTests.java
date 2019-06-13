@@ -65,4 +65,53 @@ public class QuerierTests extends ESTestCase {
             assertEquals(49 - (i / 2) + ((i % 2) * 50), results.get(i).get(1));
         }
     }
+
+    @SuppressWarnings("rawtypes")
+    public void testAggSorting_ThreeFieldsWithRandomization() {
+        // Initialize comparators for fields (columns)
+        int noColumns = randomIntBetween(3, 10);
+        List<Tuple<Integer, Comparator>> tuples = new ArrayList<>(noColumns);
+        boolean[] ordering = new boolean[noColumns];
+        for (int j = 0; j < noColumns; j++) {
+            boolean order = randomBoolean();
+            ordering[j] = order;
+            tuples.add(new Tuple<>(j, order ? Comparator.naturalOrder() : Comparator.reverseOrder()));
+        }
+
+        // Insert random no of documents (rows) with random 0/1 values for each field
+        int noDocs = randomIntBetween(10, 50);
+        int queueSize = randomIntBetween(4, noDocs / 2);
+        List<List<Integer>> expected = new ArrayList<>(noDocs);
+        Querier.AggSortingQueue queue = new AggSortingQueue(queueSize, tuples);
+        for (int i = 0; i < noDocs; i++) {
+            List<Integer> values = new ArrayList<>(noColumns);
+            for (int j = 0; j < noColumns; j++) {
+                values.add(randomBoolean() ? 1 : 0);
+            }
+            queue.insertWithOverflow(new Tuple<>(values, i));
+            expected.add(values);
+        }
+
+        List<List<?>> results = queue.asList();
+        assertEquals(queueSize, results.size());
+        expected.sort((o1, o2) -> {
+            for (int j = 0; j < noColumns; j++) {
+                if (ordering[j]) { // asc
+                    if (o1.get(j) < o2.get(j)) {
+                        return -1;
+                    } else if (o1.get(j) > o2.get(j)) {
+                        return 1;
+                    }
+                } else { // desc
+                    if (o1.get(j) < o2.get(j)) {
+                        return 1;
+                    } else if (o1.get(j) > o2.get(j)) {
+                        return -1;
+                    }
+                }
+            }
+            return 0;
+        });
+        assertEquals(expected.subList(0, queueSize), results);
+    }
 }

@@ -8,7 +8,8 @@ apply plugin: 'elasticsearch.test.fixtures'
 
 testFixtures.useFixture ":test:fixtures:krb5kdc-fixture"
 
-integTest.enabled = true
+// AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/40678")
+integTest.enabled = false
 
 dependencies {
     testCompile project(':x-pack:plugin:core')

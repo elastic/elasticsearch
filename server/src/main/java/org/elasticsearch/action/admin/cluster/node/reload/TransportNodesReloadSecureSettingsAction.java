@@ -22,19 +22,23 @@ package org.elasticsearch.action.admin.cluster.node.reload;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.nodes.BaseNodeRequest;
 import org.elasticsearch.action.support.nodes.TransportNodesAction;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.KeyStoreWrapper;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.plugins.ReloadablePlugin;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -78,14 +82,29 @@ public class TransportNodesReloadSecureSettingsAction extends TransportNodesActi
     }
 
     @Override
+    protected void doExecute(Task task, NodesReloadSecureSettingsRequest request, ActionListener<NodesReloadSecureSettingsResponse> listener) {
+        if (request.hasPassword() && isNodeLocal(request) == false && isNodeTransportTLSEnabled() == false) {
+            listener.onFailure(new IllegalStateException("Secure settings cannot be updated cluster wide when TLS for the transport layer" +
+                " is not enabled. Enable TLS or use the API with a `_local` filter on each node."));
+        } else {
+            super.doExecute(task, request, listener);
+        }
+    }
+
+    @Override
     protected NodesReloadSecureSettingsResponse.NodeResponse nodeOperation(NodeRequest nodeReloadRequest) {
+        final NodesReloadSecureSettingsRequest request = nodeReloadRequest.request;
+        // We default to using an empty string as the keystore password so that we mimic pre 7.3 API behavior
+        final SecureString secureSettingsPassword = request.hasPassword() ? request.getSecureSettingsPassword() :
+            new SecureString(new char[0]);
         try (KeyStoreWrapper keystore = KeyStoreWrapper.load(environment.configFile())) {
             // reread keystore from config file
             if (keystore == null) {
                 return new NodesReloadSecureSettingsResponse.NodeResponse(clusterService.localNode(),
                         new IllegalStateException("Keystore is missing"));
             }
-            keystore.decrypt(new char[0]);
+            // decrypt the keystore using the password from the request
+            keystore.decrypt(secureSettingsPassword.getChars());
             // add the keystore to the original node settings object
             final Settings settingsWithKeystore = Settings.builder()
                     .put(environment.settings(), false)
@@ -133,5 +152,17 @@ public class TransportNodesReloadSecureSettingsAction extends TransportNodesActi
             super.writeTo(out);
             request.writeTo(out);
         }
+    }
+
+    /**
+     * Returns true if the node is configured for TLS on the transport layer
+     */
+    private boolean isNodeTransportTLSEnabled() {
+        return this.environment.settings().getAsBoolean("xpack.security.transport.ssl.enabled", false);
+    }
+
+    private boolean isNodeLocal(NodesReloadSecureSettingsRequest request) {
+        final DiscoveryNode[] nodes = request.concreteNodes();
+        return nodes.length == 1 && nodes[0].getId().equals(clusterService.localNode().getId());
     }
 }

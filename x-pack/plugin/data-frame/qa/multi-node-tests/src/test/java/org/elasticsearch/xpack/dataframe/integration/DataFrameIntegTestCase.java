@@ -23,6 +23,7 @@ import org.elasticsearch.client.dataframe.StartDataFrameTransformResponse;
 import org.elasticsearch.client.dataframe.StopDataFrameTransformRequest;
 import org.elasticsearch.client.dataframe.StopDataFrameTransformResponse;
 import org.elasticsearch.client.dataframe.transforms.DataFrameTransformConfig;
+import org.elasticsearch.client.dataframe.transforms.DataFrameTransformTaskState;
 import org.elasticsearch.client.dataframe.transforms.DestConfig;
 import org.elasticsearch.client.dataframe.transforms.QueryConfig;
 import org.elasticsearch.client.dataframe.transforms.SourceConfig;
@@ -213,8 +214,7 @@ abstract class DataFrameIntegTestCase extends ESRestTestCase {
             .build();
     }
 
-    protected void createReviewsIndex() throws Exception {
-        final int numDocs = 1000;
+    protected void createReviewsIndex(String indexName, int numDocs) throws Exception {
         RestHighLevelClient restClient = new TestRestHighLevelClient();
 
         // create mapping
@@ -241,12 +241,12 @@ abstract class DataFrameIntegTestCase extends ESRestTestCase {
             }
             builder.endObject();
             CreateIndexResponse response =
-                restClient.indices().create(new CreateIndexRequest(REVIEWS_INDEX_NAME).mapping(builder), RequestOptions.DEFAULT);
+                restClient.indices().create(new CreateIndexRequest(indexName).mapping(builder), RequestOptions.DEFAULT);
             assertThat(response.isAcknowledged(), is(true));
         }
 
         // create index
-        BulkRequest bulk = new BulkRequest(REVIEWS_INDEX_NAME);
+        BulkRequest bulk = new BulkRequest(indexName);
         int day = 10;
         for (int i = 0; i < numDocs; i++) {
             long user = i % 28;
@@ -277,13 +277,13 @@ abstract class DataFrameIntegTestCase extends ESRestTestCase {
             if (i % 50 == 0) {
                 BulkResponse response = restClient.bulk(bulk, RequestOptions.DEFAULT);
                 assertThat(response.buildFailureMessage(), response.hasFailures(), is(false));
-                bulk = new BulkRequest(REVIEWS_INDEX_NAME);
-                day += 1;
+                bulk = new BulkRequest(indexName);
+                day = (day % 18) + 10;
             }
         }
         BulkResponse response = restClient.bulk(bulk, RequestOptions.DEFAULT);
         assertThat(response.buildFailureMessage(), response.hasFailures(), is(false));
-        restClient.indices().refresh(new RefreshRequest(REVIEWS_INDEX_NAME), RequestOptions.DEFAULT);
+        restClient.indices().refresh(new RefreshRequest(indexName), RequestOptions.DEFAULT);
     }
 
     protected Map<String, Object> toLazy(ToXContent parsedObject) throws Exception {

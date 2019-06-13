@@ -21,7 +21,7 @@ PUT /pca/_doc/0
 PUT /pca/_doc/1
 {"income": 95687.0, "education": 5.0, "age": 32, "savings": 200000.0}
 
-PUT /statistics/_doc/2
+PUT /pca/_doc/2
 {"income": 7890.0, "education": 1.0, "age": 15, "savings": 100.0}
 
 POST /_refresh
@@ -49,8 +49,8 @@ GET /_search
 // CONSOLE
 // TEST[s/_search/_search\?filter_path=aggregations/]
 
-The aggregation type is `matrix_stats` and the `fields` setting defines the set of fields (as an array) for computing
-the statistics. The above request returns the following response:
+The aggregation type is `pca` and the `fields` setting defines the set of fields (as an array) for computing
+the principal component analysis. The above request returns the following response:
 
 [source,js]
 --------------------------------------------------
@@ -94,7 +94,7 @@ The `eigenvalue` may be a complex number so it is returned as a string.
 The principal component analysis computation assumes that data across different fields are in different units. Using this
 assumption the default behavior is to compute an eigen decomposition of the pearson product correlation matrix. Users can
 alternatively run PCA using an eigen decomposition of the covariance matrix if data quantities are in the same units. This
-is done using the optional `useCovariance` parameter as demonstrated below:
+is done using the optional `use_covariance` parameter as demonstrated below:
 
 [source,js]
 --------------------------------------------------
@@ -104,7 +104,7 @@ GET /_search
         "myPCA": {
             "pca": {
                 "fields": ["income", "education", "age", "savings"],
-                "useCovariance" : true <1>
+                "use_covariance" : true <1>
             }
         }
     }

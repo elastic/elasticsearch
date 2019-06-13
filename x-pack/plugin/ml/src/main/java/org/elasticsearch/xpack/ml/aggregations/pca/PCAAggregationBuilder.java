@@ -28,7 +28,7 @@ public class PCAAggregationBuilder
         extends ArrayValuesSourceAggregationBuilder.LeafOnly<ValuesSource.Numeric, PCAAggregationBuilder> {
     public static final String NAME = "pca";
 
-    public static final ParseField USE_COVARIANCE_FIELD = new ParseField("useCovariance");
+    public static final ParseField USE_COVARIANCE_FIELD = new ParseField("use_covariance");
 
 
     private MultiValueMode multiValueMode = MultiValueMode.AVG;

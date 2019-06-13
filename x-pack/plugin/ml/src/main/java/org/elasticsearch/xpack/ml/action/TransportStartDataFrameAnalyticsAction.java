@@ -50,6 +50,7 @@ import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsTaskState;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.dataframe.DataFrameAnalyticsManager;
+import org.elasticsearch.xpack.ml.dataframe.SourceDestValidator;
 import org.elasticsearch.xpack.ml.dataframe.extractor.DataFrameDataExtractorFactory;
 import org.elasticsearch.xpack.ml.dataframe.persistence.DataFrameAnalyticsConfigProvider;
 import org.elasticsearch.xpack.ml.job.JobNodeSelector;
@@ -157,7 +158,10 @@ public class TransportStartDataFrameAnalyticsAction
 
         // Validate config
         ActionListener<DataFrameAnalyticsConfig> configListener = ActionListener.wrap(
-            config -> DataFrameDataExtractorFactory.validateConfigAndSourceIndex(client, config, validateListener),
+            config -> {
+                new SourceDestValidator(clusterService.state(), indexNameExpressionResolver).check(config);
+                DataFrameDataExtractorFactory.validateConfigAndSourceIndex(client, config, validateListener);
+            },
             listener::onFailure
         );
 

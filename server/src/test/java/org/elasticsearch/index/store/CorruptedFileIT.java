@@ -150,7 +150,6 @@ public class CorruptedFileIT extends ESIntegTestCase {
             .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, "1")
             .put(MergePolicyConfig.INDEX_MERGE_ENABLED, false)
             .put(MockFSIndexStore.INDEX_CHECK_INDEX_ON_CLOSE_SETTING.getKey(), false) // no checkindex - we corrupt shards on purpose
-            .put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Translog.Durability.REQUEST)
             // no translog based flush - it might change the .liv / segments.N files
             .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), new ByteSizeValue(1, ByteSizeUnit.PB))
         ));
@@ -162,7 +161,9 @@ public class CorruptedFileIT extends ESIntegTestCase {
         }
         indexRandom(true, builders);
         ensureGreen();
-        assertAllSuccessful(client().admin().indices().prepareFlush().setForce(true).execute().actionGet());
+        // double flush to create safe commit in case of async durability
+        assertAllSuccessful(client().admin().indices().prepareFlush().setForce(true).get());
+        assertAllSuccessful(client().admin().indices().prepareFlush().setForce(true).get());
         // we have to flush at least once here since we don't corrupt the translog
         SearchResponse countResponse = client().prepareSearch().setSize(0).get();
         assertHitCount(countResponse, numDocs);
@@ -256,7 +257,6 @@ public class CorruptedFileIT extends ESIntegTestCase {
             .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, "0")
             .put(MergePolicyConfig.INDEX_MERGE_ENABLED, false)
             .put(MockFSIndexStore.INDEX_CHECK_INDEX_ON_CLOSE_SETTING.getKey(), false) // no checkindex - we corrupt shards on purpose
-            .put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Translog.Durability.REQUEST)
             // no translog based flush - it might change the .liv / segments.N files
             .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), new ByteSizeValue(1, ByteSizeUnit.PB))
         ));
@@ -267,7 +267,9 @@ public class CorruptedFileIT extends ESIntegTestCase {
         }
         indexRandom(true, builders);
         ensureGreen();
-        assertAllSuccessful(client().admin().indices().prepareFlush().setForce(true).execute().actionGet());
+        // double flush to create safe commit in case of async durability
+        assertAllSuccessful(client().admin().indices().prepareFlush().setForce(true).get());
+        assertAllSuccessful(client().admin().indices().prepareFlush().setForce(true).get());
         // we have to flush at least once here since we don't corrupt the translog
         SearchResponse countResponse = client().prepareSearch().setSize(0).get();
         assertHitCount(countResponse, numDocs);

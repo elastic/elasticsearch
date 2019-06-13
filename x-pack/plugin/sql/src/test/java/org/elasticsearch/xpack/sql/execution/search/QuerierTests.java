@@ -96,18 +96,10 @@ public class QuerierTests extends ESTestCase {
         assertEquals(queueSize, results.size());
         expected.sort((o1, o2) -> {
             for (int j = 0; j < noColumns; j++) {
-                if (ordering[j]) { // asc
-                    if (o1.get(j) < o2.get(j)) {
-                        return -1;
-                    } else if (o1.get(j) > o2.get(j)) {
-                        return 1;
-                    }
-                } else { // desc
-                    if (o1.get(j) < o2.get(j)) {
-                        return 1;
-                    } else if (o1.get(j) > o2.get(j)) {
-                        return -1;
-                    }
+                if (o1.get(j) < o2.get(j)) {
+                    return ordering[j] ? -1 : 1;
+                } else if (o1.get(j) > o2.get(j)) {
+                    return ordering[j] ? 1 : -1;
                 }
             }
             return 0;

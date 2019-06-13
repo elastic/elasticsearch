@@ -49,7 +49,7 @@ public class DiscoveryNodeRoleTests extends ESTestCase {
                             }
 
                         })));
-        assertThat(e, hasToString(containsString("Duplicate key foo ")));
+        assertThat(e, hasToString(containsString("Duplicate key")));
     }
 
     public void testDiscoveryNodeSetPossibleRolesRejectsDuplicateRoleNameAbbreviations() {
@@ -72,7 +72,7 @@ public class DiscoveryNodeRoleTests extends ESTestCase {
                             }
 
                         })));
-        assertThat(e, hasToString(containsString("Duplicate key f ")));
+        assertThat(e, hasToString(containsString("Duplicate key")));
     }
 
 }

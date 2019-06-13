@@ -686,7 +686,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
     }
 
     /**
-     * Returns the global checkpoint for the shard.
+     * Returns the in-memory global checkpoint for the shard.
      *
      * @return the global checkpoint
      */
@@ -696,7 +696,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
 
     @Override
     public long getAsLong() {
-        return getGlobalCheckpoint();
+        return globalCheckpoint;
     }
 
     /**
@@ -724,7 +724,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
     }
 
     /**
-     * Update the local knowledge of the global checkpoint for the specified allocation ID.
+     * Update the local knowledge of the persisted global checkpoint for the specified allocation ID.
      *
      * @param allocationId     the allocation ID to update the global checkpoint for
      * @param globalCheckpoint the global checkpoint

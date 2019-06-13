@@ -944,7 +944,7 @@ public abstract class TransportReplicationAction<
 
         @Override
         public long computedGlobalCheckpoint() {
-            return indexShard.getGlobalCheckpoint();
+            return indexShard.getLastKnownGlobalCheckpoint();
         }
 
         @Override

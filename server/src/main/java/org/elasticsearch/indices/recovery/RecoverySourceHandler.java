@@ -175,7 +175,7 @@ public class RecoverySourceHandler {
                 startingSeqNo = 0;
                 try {
                     final int estimateNumOps = shard.estimateNumberOfHistoryOperations("peer-recovery", startingSeqNo);
-                    sendFileResult = phase1(phase1Snapshot.getIndexCommit(), shard.getGlobalCheckpoint(), () -> estimateNumOps);
+                    sendFileResult = phase1(phase1Snapshot.getIndexCommit(), shard.getLastKnownGlobalCheckpoint(), () -> estimateNumOps);
                 } catch (final Exception e) {
                     throw new RecoveryEngineException(shard.shardId(), 1, "phase1 failed", e);
                 } finally {
@@ -641,7 +641,7 @@ public class RecoverySourceHandler {
          */
         runUnderPrimaryPermit(() -> shard.markAllocationIdAsInSync(request.targetAllocationId(), targetLocalCheckpoint),
             shardId + " marking " + request.targetAllocationId() + " as in sync", shard, cancellableThreads, logger);
-        final long globalCheckpoint = shard.getGlobalCheckpoint();
+        final long globalCheckpoint = shard.getLastKnownGlobalCheckpoint(); // this global checkpoint is persisted in finalizeRecovery
         final StepListener<Void> finalizeListener = new StepListener<>();
         cancellableThreads.executeIO(() -> recoveryTarget.finalizeRecovery(globalCheckpoint, finalizeListener));
         finalizeListener.whenComplete(r -> {

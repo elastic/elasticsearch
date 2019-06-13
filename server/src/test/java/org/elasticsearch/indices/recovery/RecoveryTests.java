@@ -332,11 +332,11 @@ public class RecoveryTests extends ESIndexLevelReplicationTestCase {
             @Override
             public void prepareForTranslogOperations(boolean fileBasedRecovery, int totalTranslogOps, ActionListener<Void> listener) {
                 super.prepareForTranslogOperations(fileBasedRecovery, totalTranslogOps, listener);
-                assertThat(replicaShard.getGlobalCheckpoint(), equalTo(primaryShard.getGlobalCheckpoint()));
+                assertThat(replicaShard.getLastKnownGlobalCheckpoint(), equalTo(primaryShard.getLastKnownGlobalCheckpoint()));
             }
             @Override
             public void cleanFiles(int totalTranslogOps, long globalCheckpoint, Store.MetadataSnapshot sourceMetaData) throws IOException {
-                assertThat(globalCheckpoint, equalTo(primaryShard.getGlobalCheckpoint()));
+                assertThat(globalCheckpoint, equalTo(primaryShard.getLastKnownGlobalCheckpoint()));
                 super.cleanFiles(totalTranslogOps, globalCheckpoint, sourceMetaData);
             }
         }, true, true);

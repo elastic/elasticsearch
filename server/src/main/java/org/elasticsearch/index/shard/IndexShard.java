@@ -1866,7 +1866,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     /**
-     * Update the local knowledge of the global checkpoint for the specified allocation ID.
+     * Update the local knowledge of the persisted global checkpoint for the specified allocation ID.
      *
      * @param allocationId     the allocation ID to update the global checkpoint for
      * @param globalCheckpoint the global checkpoint
@@ -2093,7 +2093,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      *
      * @return the global checkpoint
      */
-    public long getGlobalCheckpoint() {
+    public long getLastKnownGlobalCheckpoint() {
         return replicationTracker.getGlobalCheckpoint();
     }
 
@@ -2739,7 +2739,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
                     bumpPrimaryTerm(opPrimaryTerm, () -> {
                         updateGlobalCheckpointOnReplica(globalCheckpoint, "primary term transition");
-                        final long currentGlobalCheckpoint = getGlobalCheckpoint();
+                        final long currentGlobalCheckpoint = getLastKnownGlobalCheckpoint();
                         final long maxSeqNo = seqNoStats().getMaxSeqNo();
                         logger.info("detected new primary with primary term [{}], global checkpoint [{}], max_seq_no [{}]",
                             opPrimaryTerm, currentGlobalCheckpoint, maxSeqNo);
@@ -3109,7 +3109,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         flush(new FlushRequest().waitIfOngoing(true));
 
         SetOnce<Engine> newEngineReference = new SetOnce<>();
-        final long globalCheckpoint = getGlobalCheckpoint();
+        final long globalCheckpoint = getLastKnownGlobalCheckpoint();
+        assert globalCheckpoint == getLastSyncedGlobalCheckpoint();
         synchronized (mutex) {
             verifyNotClosed();
             // we must create both new read-only engine and new read-write engine under mutex to ensure snapshotStoreMetadata,

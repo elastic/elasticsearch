@@ -283,7 +283,7 @@ public class FollowerFailOverIT extends CcrIntegTestCase {
             IndexResponse indexResp = leaderCluster.client().prepareIndex("leader-index", "doc", "1")
                 .setSource("{\"balance\": 100}", XContentType.JSON).setTimeout(TimeValue.ZERO).get();
             assertThat(indexResp.getResult(), equalTo(DocWriteResponse.Result.CREATED));
-            assertThat(indexShard.getGlobalCheckpoint(), equalTo(0L));
+            assertThat(indexShard.getLastKnownGlobalCheckpoint(), equalTo(0L));
             // Make sure at least one read-request which requires mapping sync is completed.
             assertBusy(() -> {
                 FollowStatsAction.StatsResponses responses =

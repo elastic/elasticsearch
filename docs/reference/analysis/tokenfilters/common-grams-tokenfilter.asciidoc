@@ -48,7 +48,7 @@ PUT /common_grams_example
             "analyzer": {
                 "index_grams": {
                     "tokenizer": "whitespace",
-                    "filter": ["common_grams"]
+                    "filter": ["common_grams_index"]
                 },
                 "search_grams": {
                     "tokenizer": "whitespace",
@@ -56,7 +56,7 @@ PUT /common_grams_example
                 }
             },
             "filter": {
-                "common_grams": {
+                "common_grams_index": {
                     "type": "common_grams",
                     "common_words": ["the", "is", "a"]
                 },

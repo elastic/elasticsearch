@@ -17,13 +17,13 @@ PUT /elision_example
     "settings" : {
         "analysis" : {
             "analyzer" : {
-                "default" : {
+                "my_default" : {
                     "tokenizer" : "standard",
-                    "filter" : ["elision"]
+                    "filter" : ["my_elision"]
                 }
             },
             "filter" : {
-                "elision" : {
+                "my_elision" : {
                     "type" : "elision",
                     "articles_case": true,
                     "articles" : ["l", "m", "t", "qu", "n", "s", "j"]

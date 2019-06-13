@@ -16,3 +16,10 @@
 The `nGram` and `edgeNGram` token filter names that have been deprecated since
 version 6.4 have been removed. Both token filters can only be used by their 
 alternative names `ngram` and `edge_ngram` since version 7.0.
+
+
+[float]
+[[custom-analysis-components-names-limitations]]
+==== Limitations on the names for custom analysis components
+Custom analysis components are not allowed to have the same name
+as built-in analysis components.

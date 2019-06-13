@@ -390,6 +390,10 @@ public final class AnalysisRegistry implements Closeable {
             String name = entry.getKey();
             Settings currentSettings = entry.getValue();
             String typeName = currentSettings.get("type");
+            if (settings.getIndexVersionCreated().onOrAfter(Version.V_8_0_0) && defaultInstance.containsKey(name)) {
+                throw new IllegalArgumentException(
+                    "Custom analysis component [" + name + "] may not reuse the name of a built-in component");
+            }
             if (component == Component.ANALYZER) {
                 T factory = null;
                 if (typeName == null) {

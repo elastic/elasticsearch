@@ -264,4 +264,14 @@ public class AnalysisRegistryTests extends ESTestCase {
         registry.close();
         verify(mock).close();
     }
+
+    public void testDisallowCustomAnalyzerComponentsHaveSameNameAsBuiltInComponents() {
+        Settings settings = Settings.builder()
+            .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put("index.analysis.analyzer.whitespace.tokenizer", "standard")
+            .build();
+        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", settings);
+        Exception e = expectThrows(IllegalArgumentException.class, () -> emptyRegistry.build(idxSettings));
+        assertThat(e.getMessage(), equalTo("Custom analysis component [whitespace] may not reuse the name of a built-in component"));
+    }
 }

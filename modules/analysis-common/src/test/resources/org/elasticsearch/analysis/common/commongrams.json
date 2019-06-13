@@ -4,7 +4,7 @@
             "analyzer":{
                 "commongramsAnalyzer":{
                     "tokenizer":"whitespace",
-                    "filter":[ "common_grams" ]
+                    "filter":[ "common_grams_words_list" ]
                 },
                 "commongramsAnalyzer_file":{
                     "tokenizer":"whitespace",
@@ -12,7 +12,7 @@
                 }
             },
             "filter":{
-                "common_grams":{
+                "common_grams_words_list":{
                     "type":"common_grams",
                     "common_words":[
                         "brown",

@@ -33,7 +33,7 @@ PUT test
           "trigram": {
             "type": "custom",
             "tokenizer": "standard",
-            "filter": ["shingle"]
+            "filter": ["my_shingle"]
           },
           "reverse": {
             "type": "custom",
@@ -42,7 +42,7 @@ PUT test
           }
         },
         "filter": {
-          "shingle": {
+          "my_shingle": {
             "type": "shingle",
             "min_shingle_size": 2,
             "max_shingle_size": 3

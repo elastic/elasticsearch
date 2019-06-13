@@ -63,8 +63,7 @@ public abstract class DiscoveryNodeRole {
     @Override
     public String toString() {
         return "DiscoveryNodeRole{" +
-                "class='" + getClass() + '\'' +
-                ", roleName='" + roleName + '\'' +
+                "roleName='" + roleName + '\'' +
                 ", roleNameAbbreviation='" + roleNameAbbreviation + '\'' +
                 '}';
     }

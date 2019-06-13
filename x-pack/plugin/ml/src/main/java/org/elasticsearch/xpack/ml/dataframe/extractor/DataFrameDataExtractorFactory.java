@@ -110,14 +110,7 @@ public class DataFrameDataExtractorFactory {
         ActionListener<FieldCapabilitiesResponse> fieldCapabilitiesHandler = ActionListener.wrap(
             fieldCapabilitiesResponse -> listener.onResponse(new ExtractedFieldsDetector(index, config, isTaskRestarting,
                 docValueFieldsLimitHolder.get(), fieldCapabilitiesResponse).detect()),
-            e -> {
-                if (e instanceof IndexNotFoundException) {
-                    listener.onFailure(new ResourceNotFoundException("cannot retrieve data because index "
-                        + ((IndexNotFoundException) e).getIndex() + " does not exist"));
-                } else {
-                    listener.onFailure(e);
-                }
-            }
+            listener::onFailure
         );
 
         // Step 2. Get field capabilities necessary to build the information of how to extract fields
@@ -156,7 +149,14 @@ public class DataFrameDataExtractorFactory {
                 }
                 docValueFieldsLimitListener.onResponse(minDocValueFieldsLimit);
             },
-            docValueFieldsLimitListener::onFailure
+            e -> {
+                if (e instanceof IndexNotFoundException) {
+                    docValueFieldsLimitListener.onFailure(new ResourceNotFoundException("cannot retrieve data because index "
+                        + ((IndexNotFoundException) e).getIndex() + " does not exist"));
+                } else {
+                    docValueFieldsLimitListener.onFailure(e);
+                }
+            }
         );
 
         GetSettingsRequest getSettingsRequest = new GetSettingsRequest();

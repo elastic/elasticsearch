@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.ml.process.NativeController;
 import org.elasticsearch.xpack.ml.process.NativeControllerHolder;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.TimeoutException;
@@ -43,8 +44,13 @@ public class TransportMlInfoAction extends HandledTransportAction<MlInfoAction.R
 
         try {
             NativeController nativeController = NativeControllerHolder.getNativeController(clusterService.getNodeName(), env);
-            assert nativeController != null;
-            nativeCodeInfo = nativeController.getNativeCodeInfo();
+            // TODO: this leniency is only for tests. it can be removed when NativeController is created as a component and
+            // becomes a ctor arg to this action
+            if (nativeController != null) {
+                nativeCodeInfo = nativeController.getNativeCodeInfo();
+            } else {
+                nativeCodeInfo = Collections.emptyMap();
+            }
         } catch (IOException e) {
             // this should not be possible since this action is only registered when ML is enabled,
             // and the MachineLearning plugin would have failed to create components

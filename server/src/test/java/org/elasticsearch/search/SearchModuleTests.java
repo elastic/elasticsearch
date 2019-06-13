@@ -441,13 +441,21 @@ public class SearchModuleTests extends ESTestCase {
             return null;
         }
 
-        @Override
-        protected int doHashCode() {
+//        @Override
+//        protected int doHashCode() {
+//            return 0;
+//        }
+//
+//        @Override
+//        protected boolean doEquals(Object obj) {
+//            return false;
+//        }
+
+        public int hashCode() {
             return 0;
         }
 
-        @Override
-        protected boolean doEquals(Object obj) {
+        public boolean equals(Object obj) {
             return false;
         }
 

@@ -97,7 +97,6 @@ public class RangeHistogramAggregator extends BucketsAggregator {
                     // values, so it isn't clear what we'd be iterating over.
                     final int valuesCount = values.docValueCount();
 
-                    double previousKey = Double.NEGATIVE_INFINITY;
                     for (int i = 0; i < valuesCount; i++) {
                         BytesRef encodedRanges = values.nextValue();
                         // This list should be sorted by start-of-range, I think?
@@ -105,11 +104,9 @@ public class RangeHistogramAggregator extends BucketsAggregator {
                         for (RangeFieldMapper.Range range : ranges) {
                             final Double from = rangeType.doubleValue(range.getFrom());
                             final Double to = rangeType.doubleValue(range.getTo());
-                            for (double value = from; value <= to; value += interval) {
-                                double key = Math.floor((value - offset) / interval);
-                                if (key <= previousKey) {
-                                    continue;
-                                }
+                            final double startKey = Math.floor((from - offset) / interval);
+                            final double endKey = Math.floor((to - offset) / interval);
+                            for (double  key = startKey; key <= endKey; key++) {
                                 // Bucket collection identical to NumericHistogramAggregator, could be refactored
                                 long bucketOrd = bucketOrds.add(Double.doubleToLongBits(key));
                                 if (bucketOrd < 0) { // already seen
@@ -118,8 +115,6 @@ public class RangeHistogramAggregator extends BucketsAggregator {
                                 } else {
                                     collectBucket(sub, doc, bucketOrd);
                                 }
-                                previousKey = key;
-
                             }
                         }
 

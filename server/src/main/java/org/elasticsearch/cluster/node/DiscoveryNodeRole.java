@@ -37,7 +37,7 @@ public abstract class DiscoveryNodeRole {
      *
      * @return the role name
      */
-    public String roleName() {
+    public final String roleName() {
         return roleName;
     }
 
@@ -49,7 +49,7 @@ public abstract class DiscoveryNodeRole {
      *
      * @return the role name abbreviation
      */
-    public String roleNameAbbreviation() {
+    public final String roleNameAbbreviation() {
         return roleNameAbbreviation;
     }
 
@@ -63,7 +63,8 @@ public abstract class DiscoveryNodeRole {
     @Override
     public String toString() {
         return "DiscoveryNodeRole{" +
-                "roleName='" + roleName + '\'' +
+                "class='" + getClass() + '\'' +
+                ", roleName='" + roleName + '\'' +
                 ", roleNameAbbreviation='" + roleNameAbbreviation + '\'' +
                 '}';
     }

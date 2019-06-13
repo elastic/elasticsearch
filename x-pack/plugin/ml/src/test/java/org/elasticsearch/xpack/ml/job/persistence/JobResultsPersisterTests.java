@@ -27,6 +27,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -212,15 +213,13 @@ public class JobResultsPersisterTests extends ESTestCase {
         IndexRequest indexRequest = (IndexRequest) bulkRequest.requests().get(0);
         assertThat(indexRequest.index(), equalTo(".ml-anomalies-.write-foo"));
         assertThat(indexRequest.id(), equalTo("foo_timing_stats"));
-        assertThat(
-            indexRequest.sourceAsMap(),
-            equalTo(
-                Map.of(
-                    "job_id", "foo",
-                    "bucket_count", 7,
-                    "minimum_bucket_processing_time_ms", 1.0,
-                    "maximum_bucket_processing_time_ms", 2.0,
-                    "average_bucket_processing_time_ms", 1.23)));
+        Map<String, Object> expectedSourceAsMap = new HashMap<>();
+        expectedSourceAsMap.put("job_id", "foo");
+        expectedSourceAsMap.put("bucket_count", 7);
+        expectedSourceAsMap.put("minimum_bucket_processing_time_ms", 1.0);
+        expectedSourceAsMap.put("maximum_bucket_processing_time_ms", 2.0);
+        expectedSourceAsMap.put("average_bucket_processing_time_ms", 1.23);
+        assertThat(indexRequest.sourceAsMap(), equalTo(expectedSourceAsMap));
 
         verify(client, times(1)).threadPool();
         verifyNoMoreInteractions(client);

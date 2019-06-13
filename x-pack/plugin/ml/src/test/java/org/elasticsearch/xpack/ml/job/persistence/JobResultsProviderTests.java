@@ -831,14 +831,15 @@ public class JobResultsProviderTests extends ESTestCase {
 
     public void testTimingStats_Ok() throws IOException {
         String indexName = AnomalyDetectorsIndex.jobResultsAliasedName("foo");
-        List<Map<String, Object>> source =
-            Arrays.asList(
-                Map.of(
-                    Job.ID.getPreferredName(), "foo",
-                    TimingStats.BUCKET_COUNT.getPreferredName(), 7,
-                    TimingStats.MIN_BUCKET_PROCESSING_TIME_MS.getPreferredName(), 1.0,
-                    TimingStats.MAX_BUCKET_PROCESSING_TIME_MS.getPreferredName(), 1000.0,
-                    TimingStats.AVG_BUCKET_PROCESSING_TIME_MS.getPreferredName(), 666.0));
+
+        Map<String, Object> timingStatsMap = new HashMap<>();
+        timingStatsMap.put(Job.ID.getPreferredName(), "foo");
+        timingStatsMap.put(TimingStats.BUCKET_COUNT.getPreferredName(), 7);
+        timingStatsMap.put(TimingStats.MIN_BUCKET_PROCESSING_TIME_MS.getPreferredName(), 1.0);
+        timingStatsMap.put(TimingStats.MAX_BUCKET_PROCESSING_TIME_MS.getPreferredName(), 1000.0);
+        timingStatsMap.put(TimingStats.AVG_BUCKET_PROCESSING_TIME_MS.getPreferredName(), 666.0);
+        
+        List<Map<String, Object>> source = Arrays.asList(timingStatsMap);
         SearchResponse response = createSearchResponse(source);
         Client client = getMockedClient(
             queryBuilder -> assertThat(queryBuilder.getName(), equalTo("ids")),

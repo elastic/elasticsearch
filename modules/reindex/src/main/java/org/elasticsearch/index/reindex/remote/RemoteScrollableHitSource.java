@@ -52,7 +52,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.Iterator;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 
@@ -77,7 +76,7 @@ public class RemoteScrollableHitSource extends ScrollableHitSource {
     }
 
     @Override
-    protected void doRestart(Consumer<? super Response> onResponse) {
+    protected void doRestart(RejectAwareActionListener<Response> searchListener, long retryFromValue) {
         throw new UnsupportedOperationException("not implemented yet");
     }
 
@@ -87,31 +86,32 @@ public class RemoteScrollableHitSource extends ScrollableHitSource {
     }
 
     @Override
-    protected void doStart(Consumer<? super Response> onResponse) {
-        lookupRemoteVersion(version -> {
+    protected void doStart(RejectAwareActionListener<Response> searchListener) {
+        // we ask for the remote version again if we start over, to be sure to capture it in case of upgrades. ??
+        lookupRemoteVersion(searchListener.withResponseHandler(version -> {
             remoteVersion = version;
             execute(RemoteRequestBuilders.initialSearch(searchRequest, query, remoteVersion),
-                    RESPONSE_PARSER, r -> onStartResponse(onResponse, r));
-        });
+                    RESPONSE_PARSER, searchListener.withResponseHandler(r -> onStartResponse(searchListener, r)));
+        }));
     }
 
-    void lookupRemoteVersion(Consumer<Version> onVersion) {
-        execute(new Request("GET", ""), MAIN_ACTION_PARSER, onVersion);
+    void lookupRemoteVersion(RejectAwareActionListener<Version> listener) {
+        execute(new Request("GET", ""), MAIN_ACTION_PARSER, listener);
     }
 
-    private void onStartResponse(Consumer<? super Response> onResponse, Response response) {
+    private void onStartResponse(RejectAwareActionListener<Response> searchListener, Response response) {
         if (Strings.hasLength(response.getScrollId()) && response.getHits().isEmpty()) {
             logger.debug("First response looks like a scan response. Jumping right to the second. scroll=[{}]", response.getScrollId());
-            doStartNextScroll(response.getScrollId(), timeValueMillis(0), onResponse);
+            doStartNextScroll(response.getScrollId(), timeValueMillis(0), searchListener);
         } else {
-            onResponse.accept(response);
+            searchListener.onResponse(response);
         }
     }
 
     @Override
-    protected void doStartNextScroll(String scrollId, TimeValue extraKeepAlive, Consumer<? super Response> onResponse) {
+    protected void doStartNextScroll(String scrollId, TimeValue extraKeepAlive, RejectAwareActionListener<Response> searchListener) {
         TimeValue keepAlive = timeValueNanos(searchRequest.scroll().keepAlive().nanos() + extraKeepAlive.nanos());
-        execute(RemoteRequestBuilders.scroll(scrollId, keepAlive, remoteVersion), RESPONSE_PARSER, onResponse);
+        execute(RemoteRequestBuilders.scroll(scrollId, keepAlive, remoteVersion), RESPONSE_PARSER, searchListener);
     }
 
     @Override
@@ -163,12 +163,10 @@ public class RemoteScrollableHitSource extends ScrollableHitSource {
     }
 
     private <T> void execute(Request request,
-                             BiFunction<XContentParser, XContentType, T> parser, Consumer<? super T> listener) {
+                             BiFunction<XContentParser, XContentType, T> parser, RejectAwareActionListener<? super T> listener) {
         // Preserve the thread context so headers survive after the call
         java.util.function.Supplier<ThreadContext.StoredContext> contextSupplier = threadPool.getThreadContext().newRestorableContext(true);
-        class RetryHelper extends AbstractRunnable {
-            private final Iterator<TimeValue> retries = backoffPolicy.iterator();
-
+        class Helper extends AbstractRunnable {
             @Override
             protected void doRun() throws Exception {
                 client.performRequestAsync(request, new ResponseListener() {
@@ -210,7 +208,7 @@ public class RemoteScrollableHitSource extends ScrollableHitSource {
                                 throw new ElasticsearchException(
                                     "Error deserializing response, remote is likely not an Elasticsearch instance", e);
                             }
-                            listener.accept(parsedResponse);
+                            listener.onResponse(parsedResponse);
                         }
                     }
 
@@ -220,18 +218,11 @@ public class RemoteScrollableHitSource extends ScrollableHitSource {
                             assert ctx != null; // eliminates compiler warning
                             if (e instanceof ResponseException) {
                                 ResponseException re = (ResponseException) e;
-                                if (RestStatus.TOO_MANY_REQUESTS.getStatus() == re.getResponse().getStatusLine().getStatusCode()) {
-                                    if (retries.hasNext()) {
-                                        TimeValue delay = retries.next();
-                                        logger.trace(
-                                            (Supplier<?>) () -> new ParameterizedMessage("retrying rejected search after [{}]", delay), e);
-                                        countSearchRetry.run();
-                                        threadPool.schedule(RetryHelper.this, delay, ThreadPool.Names.SAME);
-                                        return;
-                                    }
+                                int statusCode = re.getResponse().getStatusLine().getStatusCode();
+                                e = wrapExceptionToPreserveStatus(statusCode, re.getResponse().getEntity(), re);
+                                if (RestStatus.TOO_MANY_REQUESTS.getStatus() == statusCode) {
+                                    listener.onRejection(e);
                                 }
-                                e = wrapExceptionToPreserveStatus(re.getResponse().getStatusLine().getStatusCode(),
-                                    re.getResponse().getEntity(), re);
                             } else if (e instanceof ContentTooLongException) {
                                 e = new IllegalArgumentException(
                                     "Remote responded with a chunk that was too large. Use a smaller batch size.", e);
@@ -247,7 +238,7 @@ public class RemoteScrollableHitSource extends ScrollableHitSource {
                 fail.accept(t);
             }
         }
-        new RetryHelper().run();
+        new Helper().run();
     }
 
     /**

@@ -35,7 +35,6 @@ import org.elasticsearch.client.ParentTaskAssigningClient;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -46,12 +45,9 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
-import java.util.Iterator;
 import java.util.List;
 import java.util.function.Consumer;
 import java.util.function.Function;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.unmodifiableList;
@@ -78,25 +74,19 @@ public class ClientScrollableHitSource extends ScrollableHitSource {
     }
 
     @Override
-    public void doStart(Consumer<? super Response> onResponse) {
-        // todo: refactor retry to parent class, so that only client/remote calls are in sub class.
-        searchWithRetry(listener -> client.search(firstSearchRequest, listener), r -> consume(r, onResponse));
+    public void doStart(RejectAwareActionListener searchListener) {
+        client.search(firstSearchRequest, wrapListener(searchListener));
     }
 
     @Override
-    protected void doRestart(Consumer<? super Response> onResponse) {
-        // must change this to not recreate the retry-helper.
-        if (retryFromValue() == Long.MIN_VALUE) {
-            searchWithRetry(listener -> client.search(firstSearchRequest, listener), r -> consume(r, onResponse));
-        } else {
-            SearchRequest retryFromRequest = createRetryFromRequest();
-            searchWithRetry(listener -> client.search(retryFromRequest, listener), r -> consume(r, onResponse));
-        }
+    protected void doRestart(RejectAwareActionListener searchListener, long retryFromValue) {
+        SearchRequest retryFromRequest = createRetryFromRequest(retryFromValue);
+        client.search(retryFromRequest, wrapListener(searchListener));
     }
 
-    private SearchRequest createRetryFromRequest() {
+    private SearchRequest createRetryFromRequest(long retryFromValue) {
         SearchRequest retryFromRequest = searchRequestCloner.apply(firstSearchRequest);
-        RangeQueryBuilder rangeQueryBuilder = new RangeQueryBuilder(resumableSortingField).gte(retryFromValue());
+        RangeQueryBuilder rangeQueryBuilder = new RangeQueryBuilder(resumableSortingField).gte(retryFromValue);
         if (retryFromRequest.source() == null) {
             retryFromRequest.source(new SearchSourceBuilder().query(rangeQueryBuilder));
         } else if (retryFromRequest.source().query() == null) {
@@ -113,13 +103,29 @@ public class ClientScrollableHitSource extends ScrollableHitSource {
     }
 
     @Override
-    protected void doStartNextScroll(String scrollId, TimeValue extraKeepAlive, Consumer<? super Response> onResponse) {
-        searchWithRetry(listener -> {
-            SearchScrollRequest request = new SearchScrollRequest();
-            // Add the wait time into the scroll timeout so it won't timeout while we wait for throttling
-            request.scrollId(scrollId).scroll(timeValueNanos(firstSearchRequest.scroll().keepAlive().nanos() + extraKeepAlive.nanos()));
-            client.searchScroll(request, listener);
-        }, r -> consume(r, onResponse));
+    protected void doStartNextScroll(String scrollId, TimeValue extraKeepAlive, RejectAwareActionListener searchListener) {
+        SearchScrollRequest request = new SearchScrollRequest();
+        // Add the wait time into the scroll timeout so it won't timeout while we wait for throttling
+        request.scrollId(scrollId).scroll(timeValueNanos(firstSearchRequest.scroll().keepAlive().nanos() + extraKeepAlive.nanos()));
+        client.searchScroll(request, wrapListener(searchListener));
+    }
+
+    private ActionListener<SearchResponse> wrapListener(RejectAwareActionListener searchListener) {
+        return new ActionListener<>() {
+            @Override
+            public void onResponse(SearchResponse searchResponse) {
+                searchListener.onResponse(wrapSearchResponse(searchResponse));
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                if (ExceptionsHelper.unwrap(e, EsRejectedExecutionException.class) != null) {
+                    searchListener.onRejection(e);
+                } else {
+                    searchListener.onFailure(e);
+                }
+            }
+        };
     }
 
     @Override
@@ -150,98 +156,7 @@ public class ClientScrollableHitSource extends ScrollableHitSource {
         onCompletion.run();
     }
 
-    /**
-     * Run a search action and call onResponse when a the response comes in, retrying if the action fails with an exception caused by
-     * rejected execution.
-     *
-     * @param action consumes a listener and starts the action. The listener it consumes is rigged to retry on failure.
-     * @param onResponse consumes the response from the action
-     */
-    private void searchWithRetry(Consumer<ActionListener<SearchResponse>> action, Consumer<SearchResponse> onResponse) {
-        /*
-         * RetryHelper is both an AbstractRunnable and an ActionListener<SearchResponse> - meaning that it both starts the search and
-         * handles reacts to the results. The complexity is all in onFailure which either adapts the failure to the "fail" listener or
-         * retries the search. Since both AbstractRunnable and ActionListener define the onFailure method it is called for either failure
-         * to run the action (either while running or before starting) and for failure on the response from the action.
-         */
-        class RetryHelper extends AbstractRunnable implements ActionListener<SearchResponse> {
-            private final Iterator<TimeValue> retries = backoffPolicy.iterator();
-            /**
-             * The runnable to run that retries in the same context as the original call.
-             */
-            private Runnable retryWithContext;
-            private volatile int retryCount = 0;
-
-            @Override
-            protected void doRun() throws Exception {
-                action.accept(this);
-            }
-
-            @Override
-            public void onResponse(SearchResponse response) {
-                if (response.getShardFailures().length == 0) {
-                    onResponse.accept(response);
-                } else {
-                    if (retries.hasNext()) {
-                        retryCount += 1;
-                        TimeValue delay = retries.next();
-                        logger.trace(
-                            () -> new ParameterizedMessage("retrying rejected search after [{}] for shard failures [{}]",
-                                delay,
-                                Stream.of(response.getShardFailures()[0]).map(Object::toString).collect(Collectors.joining(","))));
-                        countSearchRetry.run();
-                        // todo: have to reuse the RetryHelper to not reset retries.
-                        // do we really also have to preserve context manually?
-                        threadPool.schedule(ClientScrollableHitSource.this::restart, delay, ThreadPool.Names.SAME);
-                    } else {
-                        // there is probably no reason to terminate it like this, but we would need a new fail listener.
-                        onResponse.accept(response);
-                    }
-                }
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                if (ExceptionsHelper.unwrap(e, EsRejectedExecutionException.class) != null) {
-                    if (retries.hasNext()) {
-                        retryCount += 1;
-                        TimeValue delay = retries.next();
-                        logger.trace(() -> new ParameterizedMessage("retrying rejected search after [{}]", delay), e);
-                        countSearchRetry.run();
-                        threadPool.schedule(retryWithContext, delay, ThreadPool.Names.SAME);
-                    } else {
-                        logger.warn(() -> new ParameterizedMessage(
-                                "giving up on search because we retried [{}] times without success", retryCount), e);
-                        fail.accept(e);
-                    }
-                } else {
-                    if (retries.hasNext()) {
-                        retryCount += 1;
-                        TimeValue delay = retries.next();
-                        logger.trace(() -> new ParameterizedMessage("retrying rejected search after [{}]", delay), e);
-                        countSearchRetry.run();
-                        // todo: have to reuse the RetryHelper to not reset retries.
-                        // do we really also have to preserve context manually?
-                        threadPool.schedule(ClientScrollableHitSource.this::restart, delay, ThreadPool.Names.SAME);
-                    } else {
-                        logger.warn(() -> new ParameterizedMessage(
-                            "giving up on search because we retried [{}] times without success", retryCount), e);
-                        fail.accept(e);
-                    }
-                }
-            }
-        }
-        RetryHelper helper = new RetryHelper();
-        // Wrap the helper in a runnable that preserves the current context so we keep it on retry.
-        helper.retryWithContext = threadPool.getThreadContext().preserveContext(helper);
-        helper.run();
-    }
-
-    private void consume(SearchResponse response, Consumer<? super Response> onResponse) {
-        onResponse.accept(wrap(response));
-    }
-
-    private Response wrap(SearchResponse response) {
+    private Response wrapSearchResponse(SearchResponse response) {
         List<SearchFailure> failures;
         if (response.getShardFailures() == null) {
             failures = emptyList();

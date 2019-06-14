@@ -20,7 +20,9 @@
 package org.elasticsearch.index.reindex;
 
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BackoffPolicy;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.Nullable;
@@ -39,6 +41,7 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
+import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
@@ -60,7 +63,7 @@ public abstract class ScrollableHitSource {
     protected final Runnable countSearchRetry;
     private Consumer<AsyncResponse> onResponse;
     protected final Consumer<Exception> fail;
-    private final ToLongFunction<Hit> extractRetryValueFunction;;
+    private final ToLongFunction<Hit> extractRetryValueFunction;
     private long retryFromValue = Long.MIN_VALUE; // need refinement if we support descending.
 
     public ScrollableHitSource(Logger logger, BackoffPolicy backoffPolicy, ThreadPool threadPool, Runnable countSearchRetry,
@@ -90,41 +93,42 @@ public abstract class ScrollableHitSource {
             logger.debug("executing initial scroll against {}",
                 isEmpty(indices()) ? "all indices" : indices());
         }
-        doStart(response -> {
-            logger.debug("scroll returned [{}] documents with a scroll id of [{}]", response.getHits().size(), response.getScrollId());
-            onResponse(response);
-        });
+
+        doStart(new Retryable(new TimeValue(0)));
     }
 
-    protected abstract String[] indices();
-
-    public void retryFromValue(long retryFromValue) {
+    public final void retryFromValue(long retryFromValue) {
         retryFromValue = retryFromValue;
     }
 
-    public long retryFromValue() {
+    public final long retryFromValue() {
         return retryFromValue;
     }
 
-    public final void restart() {
-        clearScroll();
+    public final void restart(RejectAwareActionListener<Response> searchListener) {
+        String scrollId1 = this.scrollId.get();
+        if (scrollId1 != null) {
+            // we do not bother waiting for the scroll to be cleared, yet at least. We could implement a policy to
+            // not have more than x old scrolls outstanding and wait for their timeout before continuing (we know the timeout).
+            // A flaky connection could in principle lead to many scrolls within the timeout window, so is worth pursuing.
+            clearScroll(scrollId1, () -> {});
+            this.scrollId.set(null);
+        }
         if (logger.isDebugEnabled()) {
             logger.debug("retrying scroll against {} from resume marker {}",
                 isEmpty(indices()) ? "all indices" : indices(), retryFromValue());
         }
-        doRestart(response -> {
-            logger.debug("scroll returned [{}] documents with a scroll id of [{}]", response.getHits().size(), response.getScrollId());
-            onResponse(response);
-        });
+        if (retryFromValue == Long.MIN_VALUE) {
+            doStart(searchListener);
+        } else {
+            doRestart(searchListener, retryFromValue);
+        }
     }
 
-    protected abstract void doStart(Consumer<? super Response> onResponse);
-    protected abstract void doRestart(Consumer<? super Response> onResponse);
 
-    private void startNextScroll(TimeValue extraKeepAlive) {
-        doStartNextScroll(scrollId.get(), extraKeepAlive, this::onResponse);
+    private void startNextScroll(TimeValue extraKeepAlive, RejectAwareActionListener<Response> searchListener) {
+        doStartNextScroll(scrollId.get(), extraKeepAlive, searchListener);
     }
-    protected abstract void doStartNextScroll(String scrollId, TimeValue extraKeepAlive, Consumer<? super Response> onResponse);
 
     private void onResponse(Response response) {
         setScroll(response.getScrollId());
@@ -139,7 +143,7 @@ public abstract class ScrollableHitSource {
             public void done(TimeValue extraKeepAlive) {
                 assert alreadyDone.compareAndSet(false, true);
                 retryFromValue = extractRetryFromValue(response, retryFromValue);
-                startNextScroll(extraKeepAlive);
+                startNextScroll(extraKeepAlive, new Retryable(extraKeepAlive));
             }
         });
     }
@@ -153,7 +157,6 @@ public abstract class ScrollableHitSource {
         }
     }
 
-
     public final void close(Runnable onCompletion) {
         String scrollId = this.scrollId.get();
         if (Strings.hasLength(scrollId)) {
@@ -163,13 +166,13 @@ public abstract class ScrollableHitSource {
         }
     }
 
-    protected void clearScroll() {
-        String scrollId = this.scrollId.get();
-        if (scrollId != null) {
-            clearScroll(scrollId, () -> {});
-            this.scrollId.set(null);
-        }
-    }
+    // following is the SPI to be implemented. We could extract this into a separate interface instead.
+    protected abstract void doStart(RejectAwareActionListener<Response> searchListener);
+    protected abstract void doRestart(RejectAwareActionListener<Response> searchListener, long retryFromValue);
+
+    protected abstract void doStartNextScroll(String scrollId, TimeValue extraKeepAlive,
+                                              RejectAwareActionListener<Response> searchListener);
+    protected abstract String[] indices();
 
     /**
      * Called to clear a scroll id.
@@ -480,6 +483,96 @@ public abstract class ScrollableHitSource {
         @Override
         public String toString() {
             return Strings.toString(this);
+        }
+    }
+
+    protected interface RejectAwareActionListener<T> extends ActionListener<T> {
+        void onRejection(Exception e);
+
+        /**
+         * Return a new listener that delegates failure/reject to original but forwards response to responseHandler
+         */
+        default <T> RejectAwareActionListener<T> withResponseHandler(Consumer<T> responseHandler) {
+            RejectAwareActionListener<?> outer = this;
+            return new RejectAwareActionListener<T>() {
+                @Override
+                public void onRejection(Exception e) {
+                    outer.onRejection(e);
+                }
+
+                @Override
+                public void onResponse(T t) {
+                    responseHandler.accept(t);
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    outer.onFailure(e);
+                }
+            };
+        }
+    }
+
+    // todo: figure out about thread-context.
+    private class Retryable implements RejectAwareActionListener<Response> {
+        private final Iterator<TimeValue> retries = backoffPolicy.iterator();
+        private volatile int retryCount = 0;
+        private TimeValue extraKeepAlive;
+
+        private Retryable(TimeValue extraKeepAlive) {
+            this.extraKeepAlive = extraKeepAlive;
+        }
+
+        @Override
+        public void onResponse(Response response) {
+            if (response.getFailures().isEmpty() == false) {
+                // some but not all shards failed, we cannot process data, since our resume marker would progress too much.
+                if (retries.hasNext()) {
+                    TimeValue delay = retries.next();
+                    logger.trace(
+                        () -> new ParameterizedMessage("retrying rejected search after [{}] for shard failures [{}]",
+                            delay,
+                            response.getFailures()));
+
+                    threadPool.schedule(() -> restart(this), delay, ThreadPool.Names.SAME);
+                    return;
+                } // else respond to let action fail.
+            }
+            logger.debug("scroll returned [{}] documents with a scroll id of [{}]", response.getHits().size(), response.getScrollId());
+            this.onResponse(response);
+        }
+
+        @Override
+        public void onFailure(Exception e) {
+            handleException(e,
+                delay -> {
+                    logger.trace(() -> new ParameterizedMessage("retrying rejected search after [{}]", delay), e);
+                    threadPool.schedule(() -> restart(this), delay, ThreadPool.Names.SAME);
+
+                });
+        }
+
+        @Override
+        public void onRejection(Exception e) {
+            handleException(e,
+                delay -> {
+                    logger.trace(() -> new ParameterizedMessage("retrying rejected search after [{}]", delay), e);
+                    threadPool.schedule(()-> startNextScroll(extraKeepAlive, this), delay, ThreadPool.Names.SAME);
+
+                });
+        }
+
+        public void handleException(Exception e, Consumer<TimeValue> action) {
+            if (retries.hasNext()) {
+                retryCount += 1;
+                TimeValue delay = retries.next();
+                countSearchRetry.run();
+                action.accept(delay);
+            } else {
+                logger.warn(() -> new ParameterizedMessage(
+                    "giving up on search because we retried [{}] times without success", retryCount), e);
+                fail.accept(e);
+            }
         }
     }
 }

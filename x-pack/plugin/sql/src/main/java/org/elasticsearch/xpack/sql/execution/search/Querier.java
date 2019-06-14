@@ -23,6 +23,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.Aggregations;
+import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation.Bucket;
 import org.elasticsearch.search.aggregations.bucket.filter.Filters;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -160,7 +161,10 @@ public class Querier {
         private final AtomicInteger counter = new AtomicInteger();
         private volatile Schema schema;
 
-        private static final int MAXIMUM_SIZE = 512;
+        /**
+         * Match the default value for {@link MultiBucketConsumerService#MAX_BUCKET_SETTING}
+         */
+        private static final int MAXIMUM_SIZE = 10_000;
         private final boolean noLimit;
 
         LocalAggregationSorterListener(ActionListener<SchemaRowSet> listener, List<Tuple<Integer, Comparator>> sortingColumns, int limit) {

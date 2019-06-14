@@ -137,7 +137,7 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
             indexNameExpressionResolver, autoCreateIndex, state);
 
         // Notice that this is called both on leader and workers when slicing.
-        String resumableSortingField = getOrAddResumableSortingField(request.getSearchRequest());
+        String resumableSortingField = request.getRemoteInfo() == null ? getOrAddResumableSortingField(request.getSearchRequest()) : null;
 
         BulkByScrollTask bulkByScrollTask = (BulkByScrollTask) task;
 
@@ -168,7 +168,7 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
                     }
                     return SeqNoFieldMapper.NAME;
                 }
-                // todo: support non seq_no fields and descending, but need to handle numeric fields and missing values too then.
+                // todo: support non seq_no fields and descending, but need to check field is numeric and handle missing values too then.
             }
             return null;
         }

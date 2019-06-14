@@ -318,11 +318,6 @@ public class XPackInfoResponse {
                 return name;
             }
 
-            @Nullable
-            public String description() {
-                return description;
-            }
-
             public boolean available() {
                 return available;
             }

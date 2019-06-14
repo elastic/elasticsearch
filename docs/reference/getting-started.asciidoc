@@ -330,7 +330,7 @@ And the response:
 [source,txt]
 --------------------------------------------------
 ip        heap.percent ram.percent cpu load_1m load_5m load_15m node.role master name
-127.0.0.1           10           5   5    4.46                        mdi      *      PB2SGZY
+127.0.0.1           10           5   5    4.46                        dim      *      PB2SGZY
 --------------------------------------------------
 // TESTRESPONSE[s/10           5   5    4.46/\\d+ \\d+ \\d+ (\\d+\\.\\d+)? (\\d+\\.\\d+)? (\\d+\.\\d+)?/]
 // TESTRESPONSE[s/[*]/[*]/ s/PB2SGZY/.+/ non_json]

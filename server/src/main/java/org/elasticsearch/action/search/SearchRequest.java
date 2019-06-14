@@ -92,8 +92,6 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
 
     private int preFilterShardSize = DEFAULT_PRE_FILTER_SHARD_SIZE;
 
-    private String[] types = Strings.EMPTY_ARRAY;
-
     private boolean ccsMinimizeRoundtrips = true;
 
     public static final IndicesOptions DEFAULT_INDICES_OPTIONS = IndicesOptions.strictExpandOpenAndForbidClosedIgnoreThrottled();
@@ -135,26 +133,27 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
     }
 
     /**
-     * Creates a new search request by providing the search request to copy all fields from, the indices to search against, the alias of
-     * the cluster where it will be executed, as well as the start time in milliseconds from the epoch time and whether the reduction
-     * should be final or not. Used when a {@link SearchRequest} is created and executed as part of a cross-cluster search request
+     * Creates a new sub-search request starting from the original search request that is provided.
+     * For internal use only, allows to fork a search request into multiple search requests that will be executed independently.
+     * Such requests will not be finally reduced, so that their results can be merged together in one response at completion.
+     * Used when a {@link SearchRequest} is created and executed as part of a cross-cluster search request
      * performing reduction on each cluster in order to minimize network round-trips between the coordinating node and the remote clusters.
      *
      * @param originalSearchRequest the original search request
      * @param indices the indices to search against
-     * @param localClusterAlias the alias to prefix index names with in the returned search results
+     * @param clusterAlias the alias to prefix index names with in the returned search results
      * @param absoluteStartMillis the absolute start time to be used on the remote clusters to ensure that the same value is used
      * @param finalReduce whether the reduction should be final or not
      */
-    static SearchRequest withLocalReduction(SearchRequest originalSearchRequest, String[] indices,
-                                            String localClusterAlias, long absoluteStartMillis, boolean finalReduce) {
+    static SearchRequest subSearchRequest(SearchRequest originalSearchRequest, String[] indices,
+                                          String clusterAlias, long absoluteStartMillis, boolean finalReduce) {
         Objects.requireNonNull(originalSearchRequest, "search request must not be null");
         validateIndices(indices);
-        Objects.requireNonNull(localClusterAlias, "cluster alias must not be null");
+        Objects.requireNonNull(clusterAlias, "cluster alias must not be null");
         if (absoluteStartMillis < 0) {
             throw new IllegalArgumentException("absoluteStartMillis must not be negative but was [" + absoluteStartMillis + "]");
         }
-        return new SearchRequest(originalSearchRequest, indices, localClusterAlias, absoluteStartMillis, finalReduce);
+        return new SearchRequest(originalSearchRequest, indices, clusterAlias, absoluteStartMillis, finalReduce);
     }
 
     private SearchRequest(SearchRequest searchRequest, String[] indices, String localClusterAlias, long absoluteStartMillis,
@@ -172,7 +171,6 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
         this.scroll = searchRequest.scroll;
         this.searchType = searchRequest.searchType;
         this.source = searchRequest.source;
-        this.types = searchRequest.types;
         this.localClusterAlias = localClusterAlias;
         this.absoluteStartMillis = absoluteStartMillis;
         this.finalReduce = finalReduce;
@@ -192,32 +190,29 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
         preference = in.readOptionalString();
         scroll = in.readOptionalWriteable(Scroll::new);
         source = in.readOptionalWriteable(SearchSourceBuilder::new);
-        types = in.readStringArray();
+        if (in.getVersion().before(Version.V_8_0_0)) {
+            // types no longer relevant so ignore
+            String[] types = in.readStringArray();
+            if (types.length > 0) {
+                throw new IllegalStateException(
+                        "types are no longer supported in search requests but found [" + Arrays.toString(types) + "]");
+            }
+        }
         indicesOptions = IndicesOptions.readIndicesOptions(in);
         requestCache = in.readOptionalBoolean();
         batchedReduceSize = in.readVInt();
         maxConcurrentShardRequests = in.readVInt();
         preFilterShardSize = in.readVInt();
-        if (in.getVersion().onOrAfter(Version.V_6_3_0)) {
-            allowPartialSearchResults = in.readOptionalBoolean();
-        }
-        if (in.getVersion().onOrAfter(Version.V_6_7_0)) {
-            localClusterAlias = in.readOptionalString();
-            if (localClusterAlias != null) {
-                absoluteStartMillis = in.readVLong();
-                finalReduce = in.readBoolean();
-            } else {
-                absoluteStartMillis = DEFAULT_ABSOLUTE_START_MILLIS;
-                finalReduce = true;
-            }
+        allowPartialSearchResults = in.readOptionalBoolean();
+        localClusterAlias = in.readOptionalString();
+        if (localClusterAlias != null) {
+            absoluteStartMillis = in.readVLong();
+            finalReduce = in.readBoolean();
         } else {
-            localClusterAlias = null;
             absoluteStartMillis = DEFAULT_ABSOLUTE_START_MILLIS;
             finalReduce = true;
         }
-        if (in.getVersion().onOrAfter(Version.V_7_0_0)) {
-            ccsMinimizeRoundtrips = in.readBoolean();
-        }
+        ccsMinimizeRoundtrips = in.readBoolean();
     }
 
     @Override
@@ -229,25 +224,23 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
         out.writeOptionalString(preference);
         out.writeOptionalWriteable(scroll);
         out.writeOptionalWriteable(source);
-        out.writeStringArray(types);
+        if (out.getVersion().before(Version.V_8_0_0)) {
+            // types not supported so send an empty array to previous versions
+            out.writeStringArray(Strings.EMPTY_ARRAY);
+        }
         indicesOptions.writeIndicesOptions(out);
         out.writeOptionalBoolean(requestCache);
         out.writeVInt(batchedReduceSize);
         out.writeVInt(maxConcurrentShardRequests);
         out.writeVInt(preFilterShardSize);
-        if (out.getVersion().onOrAfter(Version.V_6_3_0)) {
-            out.writeOptionalBoolean(allowPartialSearchResults);
+        out.writeOptionalBoolean(allowPartialSearchResults);
+        out.writeOptionalString(localClusterAlias);
+        if (localClusterAlias != null) {
+            out.writeVLong(absoluteStartMillis);
+            out.writeBoolean(finalReduce);
         }
-        if (out.getVersion().onOrAfter(Version.V_6_7_0)) {
-            out.writeOptionalString(localClusterAlias);
-            if (localClusterAlias != null) {
-                out.writeVLong(absoluteStartMillis);
-                out.writeBoolean(finalReduce);
-            }
-        }
-        if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
-            out.writeBoolean(ccsMinimizeRoundtrips);
-        }
+        out.writeBoolean(ccsMinimizeRoundtrips);
+
     }
 
     @Override
@@ -300,12 +293,19 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
     /**
      * Returns the current time in milliseconds from the time epoch, to be used for the execution of this search request. Used to
      * ensure that the same value, determined by the coordinating node, is used on all nodes involved in the execution of the search
-     * request. When created through {@link #withLocalReduction(SearchRequest, String[], String, long, boolean)}, this method returns
+     * request. When created through {@link #subSearchRequest(SearchRequest, String[], String, long, boolean)}, this method returns
      * the provided current time, otherwise it will return {@link System#currentTimeMillis()}.
-     *
      */
     long getOrCreateAbsoluteStartMillis() {
         return absoluteStartMillis == DEFAULT_ABSOLUTE_START_MILLIS ? System.currentTimeMillis() : absoluteStartMillis;
+    }
+
+    /**
+     * Returns the provided <code>absoluteStartMillis</code> when created through {@link #subSearchRequest} and
+     * -1 otherwise.
+     */
+    long getAbsoluteStartMillis() {
+        return absoluteStartMillis;
     }
 
     /**
@@ -348,35 +348,6 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
      */
     public void setCcsMinimizeRoundtrips(boolean ccsMinimizeRoundtrips) {
         this.ccsMinimizeRoundtrips = ccsMinimizeRoundtrips;
-    }
-
-    /**
-     * The document types to execute the search against. Defaults to be executed against
-     * all types.
-     *
-     * @deprecated Types are in the process of being removed. Instead of using a type, prefer to
-     * filter on a field on the document.
-     */
-    @Deprecated
-    public String[] types() {
-        return types;
-    }
-
-    /**
-     * The document types to execute the search against. Defaults to be executed against
-     * all types.
-     *
-     * @deprecated Types are in the process of being removed. Instead of using a type, prefer to
-     * filter on a field on the document.
-     */
-    @Deprecated
-    public SearchRequest types(String... types) {
-        Objects.requireNonNull(types, "types must not be null");
-        for (String type : types) {
-            Objects.requireNonNull(type, "type must not be null");
-        }
-        this.types = types;
-        return this;
     }
 
     /**
@@ -598,9 +569,6 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
                 sb.append("indices[");
                 Strings.arrayToDelimitedString(indices, ",", sb);
                 sb.append("], ");
-                sb.append("types[");
-                Strings.arrayToDelimitedString(types, ",", sb);
-                sb.append("], ");
                 sb.append("search_type[").append(searchType).append("], ");
                 if (source != null) {
 
@@ -634,7 +602,6 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
                 Objects.equals(source, that.source) &&
                 Objects.equals(requestCache, that.requestCache)  &&
                 Objects.equals(scroll, that.scroll) &&
-                Arrays.equals(types, that.types) &&
                 Objects.equals(batchedReduceSize, that.batchedReduceSize) &&
                 Objects.equals(maxConcurrentShardRequests, that.maxConcurrentShardRequests) &&
                 Objects.equals(preFilterShardSize, that.preFilterShardSize) &&
@@ -648,7 +615,7 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
     @Override
     public int hashCode() {
         return Objects.hash(searchType, Arrays.hashCode(indices), routing, preference, source, requestCache,
-                scroll, Arrays.hashCode(types), indicesOptions, batchedReduceSize, maxConcurrentShardRequests, preFilterShardSize,
+                scroll, indicesOptions, batchedReduceSize, maxConcurrentShardRequests, preFilterShardSize,
                 allowPartialSearchResults, localClusterAlias, absoluteStartMillis, ccsMinimizeRoundtrips);
     }
 
@@ -658,7 +625,6 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
                 "searchType=" + searchType +
                 ", indices=" + Arrays.toString(indices) +
                 ", indicesOptions=" + indicesOptions +
-                ", types=" + Arrays.toString(types) +
                 ", routing='" + routing + '\'' +
                 ", preference='" + preference + '\'' +
                 ", requestCache=" + requestCache +

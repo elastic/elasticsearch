@@ -153,6 +153,7 @@ public class CliExplainIT extends CliIntegrationTestCase {
         assertThat(readLine(), startsWith("      }"));
         assertThat(readLine(), startsWith("    }"));
         assertThat(readLine(), startsWith("  ]"));
+        assertThat(readLine(), startsWith("  \"track_total_hits\" : 2147483647"));
         assertThat(readLine(), startsWith("}]"));
         assertEquals("", readLine());
     }

@@ -172,11 +172,6 @@ class BulkPrimaryExecutionContext {
         return getCurrentItem().index();
     }
 
-    /** returns any primary response that was set by a previous primary */
-    public BulkItemResponse getPreviousPrimaryResponse() {
-        return getCurrentItem().getPrimaryResponse();
-    }
-
     /** returns a translog location that is needed to be synced in order to persist all operations executed so far */
     public Translog.Location getLocationToSync() {
         assert hasMoreOperationsToExecute() == false;

@@ -158,11 +158,7 @@ class MockAmazonS3 extends AbstractAmazonS3 {
 
         final List<DeleteObjectsResult.DeletedObject> deletions = new ArrayList<>();
         for (DeleteObjectsRequest.KeyVersion key : request.getKeys()) {
-            if (blobs.remove(key.getKey()) == null) {
-                AmazonS3Exception exception = new AmazonS3Exception("[" + key + "] does not exist.");
-                exception.setStatusCode(404);
-                throw exception;
-            } else {
+            if (blobs.remove(key.getKey()) != null) {
                 DeleteObjectsResult.DeletedObject deletion = new DeleteObjectsResult.DeletedObject();
                 deletion.setKey(key.getKey());
                 deletions.add(deletion);

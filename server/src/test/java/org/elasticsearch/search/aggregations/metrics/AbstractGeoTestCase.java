@@ -28,12 +28,12 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.document.DocumentField;
-import org.elasticsearch.common.geo.GeoHashUtils;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.geo.utils.Geohash;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
@@ -216,8 +216,8 @@ public abstract class AbstractGeoTestCase extends ESIntegTestCase {
     }
 
     private void updateGeohashBucketsCentroid(final GeoPoint location) {
-        String hash = GeoHashUtils.stringEncode(location.lon(), location.lat(), GeoHashUtils.PRECISION);
-        for (int precision = GeoHashUtils.PRECISION; precision > 0; --precision) {
+        String hash = Geohash.stringEncode(location.lon(), location.lat(), Geohash.PRECISION);
+        for (int precision = Geohash.PRECISION; precision > 0; --precision) {
             final String h = hash.substring(0, precision);
             expectedDocCountsForGeoHash.put(h, expectedDocCountsForGeoHash.getOrDefault(h, 0) + 1);
             expectedCentroidsForGeoHash.put(h, updateHashCentroid(h, location));

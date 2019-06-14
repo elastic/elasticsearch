@@ -62,6 +62,7 @@ public class TransportPutDatafeedAction extends TransportMasterNodeAction<PutDat
     private final SecurityContext securityContext;
     private final DatafeedConfigProvider datafeedConfigProvider;
     private final JobConfigProvider jobConfigProvider;
+    private final NamedXContentRegistry xContentRegistry;
 
     @Inject
     public TransportPutDatafeedAction(Settings settings, TransportService transportService,
@@ -76,7 +77,8 @@ public class TransportPutDatafeedAction extends TransportMasterNodeAction<PutDat
         this.securityContext = XPackSettings.SECURITY_ENABLED.get(settings) ?
                 new SecurityContext(settings, threadPool.getThreadContext()) : null;
         this.datafeedConfigProvider = new DatafeedConfigProvider(client, xContentRegistry);
-        this.jobConfigProvider = new JobConfigProvider(client);
+        this.jobConfigProvider = new JobConfigProvider(client, xContentRegistry);
+        this.xContentRegistry = xContentRegistry;
     }
 
     @Override
@@ -172,7 +174,7 @@ public class TransportPutDatafeedAction extends TransportMasterNodeAction<PutDat
             listener.onFailure(validationError);
             return;
         }
-        DatafeedConfig.validateAggregations(request.getDatafeed().getParsedAggregations());
+        DatafeedConfig.validateAggregations(request.getDatafeed().getParsedAggregations(xContentRegistry));
 
         CheckedConsumer<Boolean, Exception> validationOk = ok -> {
             datafeedConfigProvider.putDatafeedConfig(request.getDatafeed(), headers, ActionListener.wrap(

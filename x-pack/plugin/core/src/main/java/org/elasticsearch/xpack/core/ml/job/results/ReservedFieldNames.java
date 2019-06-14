@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.core.ml.job.results;
 
+import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.xpack.core.ml.datafeed.ChunkingConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DelayedDataCheckConfig;
@@ -22,6 +23,7 @@ import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSizeStats;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshotField;
+import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.TimingStats;
 
 import java.util.Arrays;
 import java.util.HashSet;
@@ -171,8 +173,17 @@ public final class ReservedFieldNames {
 
             Result.RESULT_TYPE.getPreferredName(),
             Result.TIMESTAMP.getPreferredName(),
-            Result.IS_INTERIM.getPreferredName()
-    };
+            Result.IS_INTERIM.getPreferredName(),
+
+            TimingStats.BUCKET_COUNT.getPreferredName(),
+            TimingStats.MIN_BUCKET_PROCESSING_TIME_MS.getPreferredName(),
+            TimingStats.MAX_BUCKET_PROCESSING_TIME_MS.getPreferredName(),
+            TimingStats.AVG_BUCKET_PROCESSING_TIME_MS.getPreferredName(),
+
+            GetResult._ID,
+            GetResult._INDEX,
+            GetResult._TYPE
+   };
 
     /**
      * This array should be updated to contain all the field names that appear
@@ -256,7 +267,11 @@ public final class ReservedFieldNames {
             ChunkingConfig.MODE_FIELD.getPreferredName(),
             ChunkingConfig.TIME_SPAN_FIELD.getPreferredName(),
 
-            ElasticsearchMappings.CONFIG_TYPE
+            ElasticsearchMappings.CONFIG_TYPE,
+
+            GetResult._ID,
+            GetResult._INDEX,
+            GetResult._TYPE
     };
 
     /**

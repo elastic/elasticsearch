@@ -2,6 +2,8 @@
 [testenv="platinum"]
 [[ml-get-datafeed-stats]]
 === Get {dfeed} statistics API
+
+[subs="attributes"]
 ++++
 <titleabbrev>Get {dfeed} statistics</titleabbrev>
 ++++
@@ -86,8 +88,7 @@ The API returns the following results:
         "transport_address": "127.0.0.1:9300",
         "attributes": {
           "ml.machine_memory": "17179869184",
-          "ml.max_open_jobs": "20",
-          "ml.enabled": "true"
+          "ml.max_open_jobs": "20"
         }
       },
       "assignment_explanation": ""

@@ -20,6 +20,7 @@
 package org.elasticsearch.action.termvectors;
 
 import org.elasticsearch.action.Action;
+import org.elasticsearch.common.io.stream.Writeable;
 
 public class TermVectorsAction extends Action<TermVectorsResponse> {
 
@@ -32,6 +33,11 @@ public class TermVectorsAction extends Action<TermVectorsResponse> {
 
     @Override
     public TermVectorsResponse newResponse() {
-        return new TermVectorsResponse();
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
+    }
+
+    @Override
+    public Writeable.Reader<TermVectorsResponse> getResponseReader() {
+        return TermVectorsResponse::new;
     }
 }

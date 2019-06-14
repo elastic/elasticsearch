@@ -81,7 +81,7 @@ public class HighlighterWithAnalyzersTests extends ESIntegTestCase {
                         .put("analysis.tokenizer.autocomplete.max_gram", 20)
                         .put("analysis.tokenizer.autocomplete.min_gram", 1)
                         .put("analysis.tokenizer.autocomplete.token_chars", "letter,digit")
-                        .put("analysis.tokenizer.autocomplete.type", "nGram")
+                        .put("analysis.tokenizer.autocomplete.type", "ngram")
                         .put("analysis.filter.wordDelimiter.type", "word_delimiter")
                         .putList("analysis.filter.wordDelimiter.type_table",
                                 "& => ALPHANUM", "| => ALPHANUM", "! => ALPHANUM",
@@ -108,7 +108,7 @@ public class HighlighterWithAnalyzersTests extends ESIntegTestCase {
         client().prepareIndex("test", "test", "1")
             .setSource("name", "ARCOTEL Hotels Deutschland").get();
         refresh();
-        SearchResponse search = client().prepareSearch("test").setTypes("test")
+        SearchResponse search = client().prepareSearch("test")
                 .setQuery(matchQuery("name.autocomplete", "deut tel").operator(Operator.OR))
                 .highlighter(new HighlightBuilder().field("name.autocomplete")).get();
         assertHighlight(search, 0, "name.autocomplete", 0,

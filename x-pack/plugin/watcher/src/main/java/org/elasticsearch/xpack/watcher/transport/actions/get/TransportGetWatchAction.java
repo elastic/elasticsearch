@@ -52,7 +52,7 @@ public class TransportGetWatchAction extends WatcherTransportAction<GetWatchRequ
 
     @Override
     protected void doExecute(GetWatchRequest request, ActionListener<GetWatchResponse> listener) {
-        GetRequest getRequest = new GetRequest(Watch.INDEX, Watch.DOC_TYPE, request.getId())
+        GetRequest getRequest = new GetRequest(Watch.INDEX, request.getId())
                 .preference(Preference.LOCAL.type()).realtime(true);
 
         executeAsyncWithOrigin(client.threadPool().getThreadContext(), WATCHER_ORIGIN, getRequest,
@@ -61,7 +61,7 @@ public class TransportGetWatchAction extends WatcherTransportAction<GetWatchRequ
                         try (XContentBuilder builder = jsonBuilder()) {
                             // When we return the watch via the Get Watch REST API, we want to return the watch as was specified in
                             // the put api, we don't include the status in the watch source itself, but as a separate top level field,
-                            // so that it indicates the the status is managed by watcher itself.
+                            // so that it indicates the status is managed by watcher itself.
                             ZonedDateTime now = clock.instant().atZone(ZoneOffset.UTC);
                             Watch watch = parser.parseWithSecrets(request.getId(), true, getResponse.getSourceAsBytesRef(), now,
                                     XContentType.JSON, getResponse.getSeqNo(), getResponse.getPrimaryTerm());

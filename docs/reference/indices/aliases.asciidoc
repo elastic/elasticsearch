@@ -269,12 +269,18 @@ POST /_aliases
                  "alias" : "alias1",
                  "is_write_index" : true
             }
+        },
+        {
+            "add" : {
+                 "index" : "test2",
+                 "alias" : "alias1"
+            }
         }
     ]
 }
 --------------------------------------------------
 // CONSOLE
-// TEST[s/^/PUT test\n/]
+// TEST[s/^/PUT test\nPUT test2\n/]
 
 In this example, we associate the alias `alias1` to both `test` and `test2`, where
 `test` will be the index chosen for writing to.
@@ -311,13 +317,13 @@ POST /_aliases
             "add" : {
                  "index" : "test",
                  "alias" : "alias1",
-                 "is_write_index" : true
+                 "is_write_index" : false
             }
         }, {
             "add" : {
                  "index" : "test2",
                  "alias" : "alias1",
-                 "is_write_index" : false
+                 "is_write_index" : true
             }
         }
     ]

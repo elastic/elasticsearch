@@ -20,6 +20,7 @@
 package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.TaskGroup;
@@ -37,6 +38,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.both;
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -191,13 +193,15 @@ public class RethrottleTests extends ReindexTestCase {
                 assertThat(rethrottleResponse.getTasks(), hasSize(1));
                 response.set(rethrottleResponse);
             } catch (ElasticsearchException e) {
-                if (e.getCause() instanceof IllegalArgumentException) {
-                    // We want to retry in this case so we throw an assertion error
-                    logger.info("caught unprepared task, retrying until prepared");
-                    throw new AssertionError("Rethrottle request for task [" + taskToRethrottle.getId() + "] failed", e);
-                } else {
+                Throwable unwrapped = ExceptionsHelper.unwrap(e, IllegalArgumentException.class);
+                if (unwrapped == null) {
                     throw e;
                 }
+                // We want to retry in this case so we throw an assertion error
+                assertThat(unwrapped.getMessage(), equalTo("task [" + taskToRethrottle.getId()
+                    + "] has not yet been initialized to the point where it knows how to rethrottle itself"));
+                logger.info("caught unprepared task, retrying until prepared");
+                throw new AssertionError("Rethrottle request for task [" + taskToRethrottle.getId() + "] failed", e);
             }
         });
 

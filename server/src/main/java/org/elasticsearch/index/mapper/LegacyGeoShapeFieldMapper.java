@@ -201,7 +201,7 @@ public class LegacyGeoShapeFieldMapper extends BaseGeoShapeFieldMapper {
             return (GeoShapeFieldType)fieldType;
         }
 
-        private void setupFieldTypeDeprecatedParameters() {
+        private void setupFieldTypeDeprecatedParameters(BuilderContext context) {
             GeoShapeFieldType ft = fieldType();
             if (deprecatedParameters.strategy != null) {
                 ft.setStrategy(deprecatedParameters.strategy);
@@ -275,7 +275,7 @@ public class LegacyGeoShapeFieldMapper extends BaseGeoShapeFieldMapper {
             }
 
             // setup the deprecated parameters and the prefix tree configuration
-            setupFieldTypeDeprecatedParameters();
+            setupFieldTypeDeprecatedParameters(context);
             setupPrefixTrees();
         }
 
@@ -524,7 +524,8 @@ public class LegacyGeoShapeFieldMapper extends BaseGeoShapeFieldMapper {
     protected void doXContentBody(XContentBuilder builder, boolean includeDefaults, Params params) throws IOException {
         super.doXContentBody(builder, includeDefaults, params);
 
-        if (includeDefaults || fieldType().tree().equals(DeprecatedParameters.Defaults.TREE) == false) {
+        if (includeDefaults
+            || (fieldType().tree().equals(DeprecatedParameters.Defaults.TREE)) == false) {
             builder.field(DeprecatedParameters.Names.TREE.getPreferredName(), fieldType().tree());
         }
 

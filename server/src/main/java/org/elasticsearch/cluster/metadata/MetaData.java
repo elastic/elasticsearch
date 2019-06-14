@@ -22,11 +22,9 @@ package org.elasticsearch.cluster.metadata;
 import com.carrotsearch.hppc.ObjectHashSet;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-
-import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.CollectionUtil;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.AliasesRequest;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterState.FeatureAware;
@@ -74,11 +72,13 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.function.Function;
 import java.util.function.Predicate;
+import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.common.settings.Settings.readSettingsFromStream;
 import static org.elasticsearch.common.settings.Settings.writeSettingsToStream;
@@ -837,15 +837,9 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
 
         MetaDataDiff(StreamInput in) throws IOException {
             clusterUUID = in.readString();
-            if (in.getVersion().onOrAfter(Version.V_7_0_0)) {
-                clusterUUIDCommitted = in.readBoolean();
-            }
+            clusterUUIDCommitted = in.readBoolean();
             version = in.readLong();
-            if (in.getVersion().onOrAfter(Version.V_7_0_0)) {
-                coordinationMetaData = new CoordinationMetaData(in);
-            } else {
-                coordinationMetaData = CoordinationMetaData.EMPTY_META_DATA;
-            }
+            coordinationMetaData = new CoordinationMetaData(in);
             transientSettings = Settings.readSettingsFromStream(in);
             persistentSettings = Settings.readSettingsFromStream(in);
             indices = DiffableUtils.readImmutableOpenMapDiff(in, DiffableUtils.getStringKeySerializer(), IndexMetaData::readFrom,
@@ -858,13 +852,9 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(clusterUUID);
-            if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
-                out.writeBoolean(clusterUUIDCommitted);
-            }
+            out.writeBoolean(clusterUUIDCommitted);
             out.writeLong(version);
-            if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
-                coordinationMetaData.writeTo(out);
-            }
+            coordinationMetaData.writeTo(out);
             Settings.writeSettingsToStream(transientSettings, out);
             Settings.writeSettingsToStream(persistentSettings, out);
             indices.writeTo(out);
@@ -892,12 +882,8 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
         Builder builder = new Builder();
         builder.version = in.readLong();
         builder.clusterUUID = in.readString();
-        if (in.getVersion().onOrAfter(Version.V_7_0_0)) {
-            builder.clusterUUIDCommitted = in.readBoolean();
-        }
-        if (in.getVersion().onOrAfter(Version.V_7_0_0)) {
-            builder.coordinationMetaData(new CoordinationMetaData(in));
-        }
+        builder.clusterUUIDCommitted = in.readBoolean();
+        builder.coordinationMetaData(new CoordinationMetaData(in));
         builder.transientSettings(readSettingsFromStream(in));
         builder.persistentSettings(readSettingsFromStream(in));
         int size = in.readVInt();
@@ -920,12 +906,8 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
     public void writeTo(StreamOutput out) throws IOException {
         out.writeLong(version);
         out.writeString(clusterUUID);
-        if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
-            out.writeBoolean(clusterUUIDCommitted);
-        }
-        if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
-            coordinationMetaData.writeTo(out);
-        }
+        out.writeBoolean(clusterUUIDCommitted);
+        coordinationMetaData.writeTo(out);
         writeSettingsToStream(transientSettings, out);
         writeSettingsToStream(persistentSettings, out);
         out.writeVInt(indices.size());
@@ -1069,7 +1051,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
         }
 
         public Builder putCustom(String type, Custom custom) {
-            customs.put(type, custom);
+            customs.put(type, Objects.requireNonNull(custom, type));
             return this;
         }
 
@@ -1079,6 +1061,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
         }
 
         public Builder customs(ImmutableOpenMap<String, Custom> customs) {
+            StreamSupport.stream(customs.spliterator(), false).forEach(cursor -> Objects.requireNonNull(cursor.value, cursor.key));
             this.customs.putAll(customs);
             return this;
         }

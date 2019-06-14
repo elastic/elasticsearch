@@ -7,7 +7,7 @@ setup:
 ---
 "Test Deprecations":
   - do:
-      xpack.migration.deprecations:
+      migration.deprecations:
         index: "*"
   - length: { cluster_settings: 0 }
   - length: { node_settings: 0 }
@@ -54,7 +54,7 @@ setup:
   - do:
       warnings:
         - Deprecated field [use_dis_max] used, replaced by [Set [tie_breaker] to 1 instead]
-      xpack.migration.deprecations:
+      migration.deprecations:
         index: "*"
   - length: { ml_settings: 1 }
   - match: { ml_settings.0.level : warning }

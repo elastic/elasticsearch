@@ -19,7 +19,6 @@
 
 package org.elasticsearch.common.logging;
 
-import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.core.LogEvent;
 import org.apache.logging.log4j.core.impl.Log4jLogEvent;
 import org.apache.logging.log4j.message.SimpleMessage;
@@ -33,7 +32,8 @@ import java.io.StringReader;
 import static org.hamcrest.Matchers.equalTo;
 
 public class JsonThrowablePatternConverterTests extends ESTestCase {
-    JsonThrowablePatternConverter converter = JsonThrowablePatternConverter.newInstance(null, null);
+    private static final String LINE_SEPARATOR = System.lineSeparator();
+    private JsonThrowablePatternConverter converter = JsonThrowablePatternConverter.newInstance(null, null);
 
     public void testNoStacktrace() throws IOException {
         LogEvent event = Log4jLogEvent.newBuilder()
@@ -48,23 +48,23 @@ public class JsonThrowablePatternConverterTests extends ESTestCase {
     }
 
     public void testStacktraceWithJson() throws IOException {
-        LogManager.getLogger().info("asdf");
 
-        String json = "{\n" +
-            "  \"terms\" : {\n" +
-            "    \"user\" : [\n" +
-            "      \"u1\",\n" +
-            "      \"u2\",\n" +
-            "      \"u3\"\n" +
-            "    ],\n" +
-            "    \"boost\" : 1.0\n" +
-            "  }\n" +
+        String json = "{" + LINE_SEPARATOR +
+            "  \"terms\" : {" + LINE_SEPARATOR +
+            "    \"user\" : [" + LINE_SEPARATOR +
+            "      \"u1\"," + LINE_SEPARATOR +
+            "      \"u2\"," + LINE_SEPARATOR +
+            "      \"u3\"" + LINE_SEPARATOR +
+            "    ]," + LINE_SEPARATOR +
+            "    \"boost\" : 1.0" + LINE_SEPARATOR +
+            "  }" + LINE_SEPARATOR +
             "}";
         Exception thrown = new Exception(json);
         LogEvent event = Log4jLogEvent.newBuilder()
                                       .setMessage(new SimpleMessage("message"))
                                       .setThrown(thrown)
                                       .build();
+
 
         String result = format(event);
 
@@ -74,9 +74,9 @@ public class JsonThrowablePatternConverterTests extends ESTestCase {
                                                 .findFirst()
                                                 .orElseThrow(() -> new AssertionError("no logs parsed"));
 
-        int jsonLength = json.split("\n").length;
+        int jsonLength = json.split(LINE_SEPARATOR).length;
         int stacktraceLength = thrown.getStackTrace().length;
-        assertThat("stacktrace should formatted in multiple lines",
+        assertThat("stacktrace should formatted in multiple lines. JsonLogLine= " + jsonLogLine+" result= "+result,
             jsonLogLine.stacktrace().size(), equalTo(jsonLength + stacktraceLength));
     }
 

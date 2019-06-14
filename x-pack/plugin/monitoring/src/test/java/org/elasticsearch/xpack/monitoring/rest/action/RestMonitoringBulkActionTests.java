@@ -6,8 +6,7 @@
 package org.elasticsearch.xpack.monitoring.rest.action;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -23,25 +22,18 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestBuilderListener;
-import org.elasticsearch.rest.action.document.RestBulkAction;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
-import org.elasticsearch.xpack.core.XPackClient;
 import org.elasticsearch.xpack.core.monitoring.MonitoredSystem;
-import org.elasticsearch.xpack.core.monitoring.action.MonitoringBulkRequestBuilder;
 import org.elasticsearch.xpack.core.monitoring.action.MonitoringBulkResponse;
-import org.elasticsearch.xpack.core.monitoring.client.MonitoringClient;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils;
 
 import java.util.HashMap;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils.TEMPLATE_VERSION;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.not;
-import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -116,26 +108,20 @@ public class RestMonitoringBulkActionTests extends ESTestCase {
 
     public void testNoErrors() throws Exception {
         final MonitoringBulkResponse response = new MonitoringBulkResponse(randomLong(), false);
-        final FakeRestRequest request = createRestRequest(randomSystemId(), TEMPLATE_VERSION, "10s");
-        final RestResponse restResponse = getRestBuilderListener(request).buildResponse(response);
+        final RestResponse restResponse = getRestBuilderListener().buildResponse(response);
 
         assertThat(restResponse.status(), is(RestStatus.OK));
         assertThat(restResponse.content().utf8ToString(),
                    is("{\"took\":" + response.getTookInMillis() + ",\"ignored\":false,\"errors\":false}"));
-        //This test's JSON contains outdated references to types
-        assertWarnings(RestBulkAction.TYPES_DEPRECATION_MESSAGE);
     }
 
     public void testNoErrorsButIgnored() throws Exception {
         final MonitoringBulkResponse response = new MonitoringBulkResponse(randomLong(), true);
-        final FakeRestRequest request = createRestRequest(randomSystemId(), TEMPLATE_VERSION, "10s");
-        final RestResponse restResponse = getRestBuilderListener(request).buildResponse(response);
+        final RestResponse restResponse = getRestBuilderListener().buildResponse(response);
 
         assertThat(restResponse.status(), is(RestStatus.OK));
         assertThat(restResponse.content().utf8ToString(),
                 is("{\"took\":" + response.getTookInMillis() + ",\"ignored\":true,\"errors\":false}"));
-        //This test's JSON contains outdated references to types
-        assertWarnings(RestBulkAction.TYPES_DEPRECATION_MESSAGE);
     }
 
     public void testWithErrors() throws Exception {
@@ -144,8 +130,7 @@ public class RestMonitoringBulkActionTests extends ESTestCase {
         final MonitoringBulkResponse response = new MonitoringBulkResponse(randomLong(), error);
         final String errorJson;
 
-        final FakeRestRequest request = createRestRequest(randomSystemId(), TEMPLATE_VERSION, "10s");
-        final RestResponse restResponse = getRestBuilderListener(request).buildResponse(response);
+        final RestResponse restResponse = getRestBuilderListener().buildResponse(response);
 
         try (XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent())) {
             error.toXContent(builder, ToXContent.EMPTY_PARAMS);
@@ -155,8 +140,6 @@ public class RestMonitoringBulkActionTests extends ESTestCase {
         assertThat(restResponse.status(), is(RestStatus.INTERNAL_SERVER_ERROR));
         assertThat(restResponse.content().utf8ToString(),
                    is("{\"took\":" + response.getTookInMillis() + ",\"ignored\":false,\"errors\":true,\"error\":" + errorJson + "}"));
-        //This test's JSON contains outdated references to types
-        assertWarnings(RestBulkAction.TYPES_DEPRECATION_MESSAGE);
     }
 
     /**
@@ -174,35 +157,18 @@ public class RestMonitoringBulkActionTests extends ESTestCase {
     }
 
     private void prepareRequest(final RestRequest restRequest) throws Exception {
-        getRestBuilderListener(restRequest);
-    }
-
-    private RestBuilderListener<MonitoringBulkResponse> getRestBuilderListener(final RestRequest restRequest) throws Exception {
-        final Client client = mock(Client.class);
-        final XPackClient xpackClient = mock(XPackClient.class);
-        final MonitoringClient monitoringClient = mock(MonitoringClient.class);
-        final AtomicReference<RestBuilderListener<MonitoringBulkResponse>> listenerReference = new AtomicReference<>();
-        final MonitoringBulkRequestBuilder builder = new MonitoringBulkRequestBuilder(client){
-            @SuppressWarnings("unchecked")
-            @Override
-            public void execute(ActionListener<MonitoringBulkResponse> listener) {
-                listenerReference.set((RestBuilderListener)listener);
-            }
-        };
-        when(monitoringClient.prepareMonitoringBulk()).thenReturn(builder);
-        when(xpackClient.monitoring()).thenReturn(monitoringClient);
-
-        final CheckedConsumer<RestChannel, Exception> consumer = action.doPrepareRequest(restRequest, xpackClient);
-
+        final NodeClient client = mock(NodeClient.class);
+        final CheckedConsumer<RestChannel, Exception> consumer = action.prepareRequest(restRequest, client);
         final RestChannel channel = mock(RestChannel.class);
         when(channel.newBuilder()).thenReturn(JsonXContent.contentBuilder());
-
-        // trigger/capture execution
+        // trigger execution
         consumer.accept(channel);
+    }
 
-        assertThat(listenerReference.get(), not(nullValue()));
-
-        return listenerReference.get();
+    private RestBuilderListener<MonitoringBulkResponse> getRestBuilderListener() throws Exception {
+        final RestChannel channel = mock(RestChannel.class);
+        when(channel.newBuilder()).thenReturn(JsonXContent.contentBuilder());
+        return RestMonitoringBulkAction.getRestBuilderListener(channel);
     }
 
     private static FakeRestRequest createRestRequest(final String systemId, final String systemApiVersion, final String interval) {

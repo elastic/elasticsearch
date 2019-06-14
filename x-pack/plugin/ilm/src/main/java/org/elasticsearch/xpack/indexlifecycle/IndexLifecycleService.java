@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.LocalNodeMasterListener;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.component.Lifecycle.State;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -42,7 +43,7 @@ import java.util.function.LongSupplier;
  * A service which runs the {@link LifecyclePolicy}s associated with indexes.
  */
 public class IndexLifecycleService
-        implements ClusterStateListener, ClusterStateApplier, SchedulerEngine.Listener, Closeable, LocalNodeMasterListener {
+    implements ClusterStateListener, ClusterStateApplier, SchedulerEngine.Listener, Closeable, LocalNodeMasterListener {
     private static final Logger logger = LogManager.getLogger(IndexLifecycleService.class);
     private static final Set<String> IGNORE_ACTIONS_MAINTENANCE_REQUESTED = Collections.singleton(ShrinkAction.NAME);
     private volatile boolean isMaster = false;
@@ -53,8 +54,6 @@ public class IndexLifecycleService
     private final PolicyStepsRegistry policyRegistry;
     private final IndexLifecycleRunner lifecycleRunner;
     private final Settings settings;
-    private final ThreadPool threadPool;
-    private Client client;
     private ClusterService clusterService;
     private LongSupplier nowSupplier;
     private SchedulerEngine.Job scheduledJob;
@@ -63,13 +62,11 @@ public class IndexLifecycleService
                                  LongSupplier nowSupplier, NamedXContentRegistry xContentRegistry) {
         super();
         this.settings = settings;
-        this.client = client;
         this.clusterService = clusterService;
         this.clock = clock;
         this.nowSupplier = nowSupplier;
         this.scheduledJob = null;
         this.policyRegistry = new PolicyStepsRegistry(xContentRegistry, client);
-        this.threadPool = threadPool;
         this.lifecycleRunner = new IndexLifecycleRunner(policyRegistry, clusterService, threadPool, nowSupplier);
         this.pollInterval = LifecycleSettings.LIFECYCLE_POLL_INTERVAL_SETTING.get(settings);
         clusterService.addStateApplier(this);
@@ -114,18 +111,26 @@ public class IndexLifecycleService
                 IndexMetaData idxMeta = cursor.value;
                 String policyName = LifecycleSettings.LIFECYCLE_NAME_SETTING.get(idxMeta.getSettings());
                 if (Strings.isNullOrEmpty(policyName) == false) {
-                    StepKey stepKey = IndexLifecycleRunner.getCurrentStepKey(LifecycleExecutionState.fromIndexMetadata(idxMeta));
-                    if (OperationMode.STOPPING == currentMode &&
-                        stepKey != null &&
-                        IGNORE_ACTIONS_MAINTENANCE_REQUESTED.contains(stepKey.getAction()) == false) {
-                        logger.info("skipping policy [{}] for index [{}]. stopping Index Lifecycle execution",
-                            policyName, idxMeta.getIndex().getName());
-                        continue;
+                    final LifecycleExecutionState lifecycleState = LifecycleExecutionState.fromIndexMetadata(idxMeta);
+                    StepKey stepKey = IndexLifecycleRunner.getCurrentStepKey(lifecycleState);
+
+                    if (OperationMode.STOPPING == currentMode) {
+                        if (stepKey != null && IGNORE_ACTIONS_MAINTENANCE_REQUESTED.contains(stepKey.getAction())) {
+                            logger.info("waiting to stop ILM because index [{}] with policy [{}] is currently in action [{}]",
+                                idxMeta.getIndex().getName(), policyName, stepKey.getAction());
+                            lifecycleRunner.maybeRunAsyncAction(clusterState, idxMeta, policyName, stepKey);
+                            // ILM is trying to stop, but this index is in a Shrink action (or other dangerous action) so we can't stop
+                            safeToStop = false;
+                        } else {
+                            logger.info("skipping policy execution for index [{}] with policy [{}] because ILM is stopping",
+                                idxMeta.getIndex().getName(), policyName);
+                        }
+                    } else {
+                        lifecycleRunner.maybeRunAsyncAction(clusterState, idxMeta, policyName, stepKey);
                     }
-                    lifecycleRunner.maybeRunAsyncAction(clusterState, idxMeta, policyName, stepKey);
-                    safeToStop = false; // proven false!
                 }
             }
+
             if (safeToStop && OperationMode.STOPPING == currentMode) {
                 submitOperationModeUpdate(OperationMode.STOPPED);
             }
@@ -158,14 +163,21 @@ public class IndexLifecycleService
         return scheduledJob;
     }
 
-    private void maybeScheduleJob() {
+    private synchronized void maybeScheduleJob() {
         if (this.isMaster) {
             if (scheduler.get() == null) {
-                scheduler.set(new SchedulerEngine(settings, clock));
-                scheduler.get().register(this);
+                // don't create scheduler if the node is shutting down
+                if (isClusterServiceStoppedOrClosed() == false) {
+                    scheduler.set(new SchedulerEngine(settings, clock));
+                    scheduler.get().register(this);
+                }
             }
-            scheduledJob = new SchedulerEngine.Job(XPackField.INDEX_LIFECYCLE, new TimeValueSchedule(pollInterval));
-            scheduler.get().add(scheduledJob);
+
+            // scheduler could be null if the node might be shutting down
+            if (scheduler.get() != null) {
+                scheduledJob = new SchedulerEngine.Job(XPackField.INDEX_LIFECYCLE, new TimeValueSchedule(pollInterval));
+                scheduler.get().add(scheduledJob);
+            }
         }
     }
 
@@ -180,7 +192,7 @@ public class IndexLifecycleService
     @Override
     public void applyClusterState(ClusterChangedEvent event) {
         if (event.localNodeMaster()) { // only act if we are master, otherwise
-                                       // keep idle until elected
+            // keep idle until elected
             if (event.state().metaData().custom(IndexLifecycleMetadata.TYPE) != null) {
                 policyRegistry.update(event.state());
             }
@@ -233,28 +245,45 @@ public class IndexLifecycleService
             IndexMetaData idxMeta = cursor.value;
             String policyName = LifecycleSettings.LIFECYCLE_NAME_SETTING.get(idxMeta.getSettings());
             if (Strings.isNullOrEmpty(policyName) == false) {
-                StepKey stepKey = IndexLifecycleRunner.getCurrentStepKey(LifecycleExecutionState.fromIndexMetadata(idxMeta));
-                if (OperationMode.STOPPING == currentMode && stepKey != null
-                        && IGNORE_ACTIONS_MAINTENANCE_REQUESTED.contains(stepKey.getAction()) == false) {
-                    logger.info("skipping policy [" + policyName + "] for index [" + idxMeta.getIndex().getName()
-                        + "]. stopping Index Lifecycle execution");
-                    continue;
-                }
-                if (fromClusterStateChange) {
-                    lifecycleRunner.runPolicyAfterStateChange(policyName, idxMeta);
+                final LifecycleExecutionState lifecycleState = LifecycleExecutionState.fromIndexMetadata(idxMeta);
+                StepKey stepKey = IndexLifecycleRunner.getCurrentStepKey(lifecycleState);
+
+                if (OperationMode.STOPPING == currentMode) {
+                    if (stepKey != null && IGNORE_ACTIONS_MAINTENANCE_REQUESTED.contains(stepKey.getAction())) {
+                        logger.info("waiting to stop ILM because index [{}] with policy [{}] is currently in action [{}]",
+                            idxMeta.getIndex().getName(), policyName, stepKey.getAction());
+                        if (fromClusterStateChange) {
+                            lifecycleRunner.runPolicyAfterStateChange(policyName, idxMeta);
+                        } else {
+                            lifecycleRunner.runPeriodicStep(policyName, idxMeta);
+                        }
+                        // ILM is trying to stop, but this index is in a Shrink action (or other dangerous action) so we can't stop
+                        safeToStop = false;
+                    } else {
+                        logger.info("skipping policy execution for index [{}] with policy [{}] because ILM is stopping",
+                            idxMeta.getIndex().getName(), policyName);
+                    }
                 } else {
-                    lifecycleRunner.runPeriodicStep(policyName, idxMeta);
+                    if (fromClusterStateChange) {
+                        lifecycleRunner.runPolicyAfterStateChange(policyName, idxMeta);
+                    } else {
+                        lifecycleRunner.runPeriodicStep(policyName, idxMeta);
+                    }
                 }
-                safeToStop = false; // proven false!
             }
         }
+
         if (safeToStop && OperationMode.STOPPING == currentMode) {
             submitOperationModeUpdate(OperationMode.STOPPED);
         }
     }
 
     @Override
-    public void close() {
+    public synchronized void close() {
+        // this assertion is here to ensure that the check we use in maybeScheduleJob is accurate for detecting a shutdown in
+        // progress, which is that the cluster service is stopped and closed at some point prior to closing plugins
+        assert isClusterServiceStoppedOrClosed() : "close is called by closing the plugin, which is expected to happen after " +
+            "the cluster service is stopped";
         SchedulerEngine engine = scheduler.get();
         if (engine != null) {
             engine.stop();
@@ -264,5 +293,14 @@ public class IndexLifecycleService
     public void submitOperationModeUpdate(OperationMode mode) {
         clusterService.submitStateUpdateTask("ilm_operation_mode_update",
             new OperationModeUpdateTask(mode));
+    }
+
+    /**
+     * Method that checks if the lifecycle state of the cluster service is stopped or closed. This
+     * enhances the readability of the code.
+     */
+    private boolean isClusterServiceStoppedOrClosed() {
+        final State state = clusterService.lifecycleState();
+        return state == State.STOPPED || state == State.CLOSED;
     }
 }

@@ -14,6 +14,7 @@ import org.elasticsearch.index.seqno.LocalCheckpointTracker;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.ccr.action.bulk.BulkShardOperationsResponse;
@@ -32,6 +33,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.LongConsumer;
+import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -40,15 +42,19 @@ import static org.hamcrest.Matchers.hasSize;
 public class ShardFollowNodeTaskRandomTests extends ESTestCase {
 
     public void testSingleReaderWriter() throws Exception {
-        TestRun testRun = createTestRun(randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(),
-            randomIntBetween(1, 2048));
+        TestRun testRun = createTestRun(
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                randomIntBetween(1, 2048));
         ShardFollowNodeTask task = createShardFollowTask(1, testRun);
         startAndAssertAndStopTask(task, testRun);
     }
 
     public void testMultipleReaderWriter() throws Exception {
         int concurrency = randomIntBetween(2, 8);
-        TestRun testRun = createTestRun(0, 0, 0, between(1, 1024));
+        TestRun testRun = createTestRun(0, 0, 0, 0, between(1, 1024));
         ShardFollowNodeTask task = createShardFollowTask(concurrency, testRun);
         startAndAssertAndStopTask(task, testRun);
     }
@@ -82,11 +88,11 @@ public class ShardFollowNodeTaskRandomTests extends ESTestCase {
             new ShardId("follow_index", "", 0),
             new ShardId("leader_index", "", 0),
             testRun.maxOperationCount,
-            TransportResumeFollowAction.DEFAULT_MAX_READ_REQUEST_SIZE,
-            concurrency,
             testRun.maxOperationCount,
-            TransportResumeFollowAction.DEFAULT_MAX_READ_REQUEST_SIZE,
             concurrency,
+            concurrency,
+            TransportResumeFollowAction.DEFAULT_MAX_READ_REQUEST_SIZE,
+            TransportResumeFollowAction.DEFAULT_MAX_READ_REQUEST_SIZE,
             10240,
             new ByteSizeValue(512, ByteSizeUnit.MB),
             TimeValue.timeValueMillis(10),
@@ -108,6 +114,7 @@ public class ShardFollowNodeTaskRandomTests extends ESTestCase {
 
             private volatile long mappingVersion = 0L;
             private volatile long settingsVersion = 0L;
+            private volatile long aliasesVersion = 0L;
             private final Map<Long, Integer> fromToSlot = new HashMap<>();
 
             @Override
@@ -118,6 +125,11 @@ public class ShardFollowNodeTaskRandomTests extends ESTestCase {
             @Override
             protected void innerUpdateSettings(LongConsumer handler, Consumer<Exception> errorHandler) {
                 handler.accept(settingsVersion);
+            }
+
+            @Override
+            protected void innerUpdateAliases(LongConsumer handler, Consumer<Exception> errorHandler) {
+                handler.accept(aliasesVersion);
             }
 
             @Override
@@ -170,11 +182,35 @@ public class ShardFollowNodeTaskRandomTests extends ESTestCase {
                         assert from >= testRun.finalExpectedGlobalCheckpoint;
                         final long globalCheckpoint = tracker.getCheckpoint();
                         final long maxSeqNo = tracker.getMaxSeqNo();
-                        handler.accept(new ShardChangesAction.Response(0L, 0L, globalCheckpoint, maxSeqNo, randomNonNegativeLong(),
-                            new Translog.Operation[0], 1L));
+                        handler.accept(new ShardChangesAction.Response(
+                                0L,
+                                0L,
+                                0L,
+                                globalCheckpoint,
+                                maxSeqNo,
+                                randomNonNegativeLong(),
+                                new Translog.Operation[0],
+                                1L));
                     }
                 };
                 threadPool.generic().execute(task);
+            }
+
+            @Override
+            protected Scheduler.Cancellable scheduleBackgroundRetentionLeaseRenewal(final LongSupplier followerGlobalCheckpoint) {
+                return new Scheduler.Cancellable() {
+
+                    @Override
+                    public boolean cancel() {
+                        return true;
+                    }
+
+                    @Override
+                    public boolean isCancelled() {
+                        return true;
+                    }
+
+                };
             }
 
             @Override
@@ -214,10 +250,16 @@ public class ShardFollowNodeTaskRandomTests extends ESTestCase {
         };
     }
 
-    private static TestRun createTestRun(long startSeqNo, long startMappingVersion, long startSettingsVersion, int maxOperationCount) {
+    private static TestRun createTestRun(
+            final long startSeqNo,
+            final long startMappingVersion,
+            final long startSettingsVersion,
+            final long startAliasesVersion,
+            final int maxOperationCount) {
         long prevGlobalCheckpoint = startSeqNo;
         long mappingVersion = startMappingVersion;
         long settingsVersion = startSettingsVersion;
+        long aliasesVersion = startAliasesVersion;
         int numResponses = randomIntBetween(16, 256);
         Map<Long, List<TestResponse>> responses = new HashMap<>(numResponses);
         for (int i = 0; i < numResponses; i++) {
@@ -228,7 +270,9 @@ public class ShardFollowNodeTaskRandomTests extends ESTestCase {
             if (sometimes()) {
                 settingsVersion++;
             }
-
+            if (sometimes()) {
+                aliasesVersion++;
+            }
             if (sometimes()) {
                 List<TestResponse> item = new ArrayList<>();
                 // Sometimes add a random retryable error
@@ -249,6 +293,7 @@ public class ShardFollowNodeTaskRandomTests extends ESTestCase {
                     new ShardChangesAction.Response(
                         mappingVersion,
                         settingsVersion,
+                        aliasesVersion,
                         nextGlobalCheckPoint,
                         nextGlobalCheckPoint,
                         randomNonNegativeLong(),
@@ -274,6 +319,7 @@ public class ShardFollowNodeTaskRandomTests extends ESTestCase {
                         ShardChangesAction.Response response = new ShardChangesAction.Response(
                             mappingVersion,
                             settingsVersion,
+                            aliasesVersion,
                             prevGlobalCheckpoint,
                             prevGlobalCheckpoint,
                             randomNonNegativeLong(),
@@ -293,6 +339,7 @@ public class ShardFollowNodeTaskRandomTests extends ESTestCase {
                     ShardChangesAction.Response response = new ShardChangesAction.Response(
                         mappingVersion,
                         settingsVersion,
+                        aliasesVersion,
                         localLeaderGCP,
                         localLeaderGCP,
                         randomNonNegativeLong(),

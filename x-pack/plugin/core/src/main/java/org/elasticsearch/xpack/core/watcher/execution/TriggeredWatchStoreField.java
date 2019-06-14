@@ -8,5 +8,4 @@ package org.elasticsearch.xpack.core.watcher.execution;
 public final class TriggeredWatchStoreField {
 
     public static final String INDEX_NAME = ".triggered_watches";
-    public static final String DOC_TYPE = "doc";
 }

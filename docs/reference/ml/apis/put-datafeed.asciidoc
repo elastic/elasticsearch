@@ -2,6 +2,8 @@
 [testenv="platinum"]
 [[ml-put-datafeed]]
 === Create {dfeeds} API
+
+[subs="attributes"]
 ++++
 <titleabbrev>Create {dfeeds}</titleabbrev>
 ++++
@@ -18,6 +20,11 @@ Instantiates a {dfeed}.
 
 You must create a job before you create a {dfeed}.  You can associate only one
 {dfeed} to each job.
+
+IMPORTANT:  You must use {kib} or this API to create a {dfeed}. Do not put a {dfeed}
+            directly to the `.ml-config` index using the Elasticsearch index API.
+            If {es} {security-features} are enabled, do not give users `write`
+            privileges on the `.ml-config` index.
 
 
 ==== Path Parameters
@@ -37,6 +44,11 @@ You must create a job before you create a {dfeed}.  You can associate only one
 `chunking_config`::
   (object) Specifies how data searches are split into time chunks.
   See <<ml-datafeed-chunking-config>>.
+
+`delayed_data_check_config`::
+  (object) Specifies whether the data feed checks for missing data and 
+  the size of the window. See
+  <<ml-datafeed-delayed-data-check-config>>.
 
 `frequency`::
   (time units) The interval at which scheduled queries are made while the {dfeed}
@@ -74,10 +86,6 @@ You must create a job before you create a {dfeed}.  You can associate only one
 `scroll_size`::
   (unsigned integer) The `size` parameter that is used in {es} searches.
   The default value is `1000`.
-
-`delayed_data_check_config`::
-  (object) Specifies if and with how large a window should the data feed check
-  for missing data. See <<ml-datafeed-delayed-data-check-config>>.
 
 For more information about these properties,
 see <<ml-datafeed-resource>>.

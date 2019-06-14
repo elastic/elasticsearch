@@ -101,9 +101,7 @@ public final class TransportLogger {
                         context.readHeaders(streamInput);
                     }
                     // now we decode the features
-                    if (streamInput.getVersion().onOrAfter(Version.V_6_3_0)) {
-                        streamInput.readStringArray();
-                    }
+                    streamInput.readStringArray();
                     sb.append(", action: ").append(streamInput.readString());
                 }
                 sb.append(']');

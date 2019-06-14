@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.admin.indices.open;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
@@ -141,9 +140,7 @@ public class OpenIndexRequest extends AcknowledgedRequest<OpenIndexRequest> impl
         super.readFrom(in);
         indices = in.readStringArray();
         indicesOptions = IndicesOptions.readIndicesOptions(in);
-        if (in.getVersion().onOrAfter(Version.V_6_1_0)) {
-            waitForActiveShards = ActiveShardCount.readFrom(in);
-        }
+        waitForActiveShards = ActiveShardCount.readFrom(in);
     }
 
     @Override
@@ -151,8 +148,6 @@ public class OpenIndexRequest extends AcknowledgedRequest<OpenIndexRequest> impl
         super.writeTo(out);
         out.writeStringArray(indices);
         indicesOptions.writeIndicesOptions(out);
-        if (out.getVersion().onOrAfter(Version.V_6_1_0)) {
-            waitForActiveShards.writeTo(out);
-        }
+        waitForActiveShards.writeTo(out);
     }
 }

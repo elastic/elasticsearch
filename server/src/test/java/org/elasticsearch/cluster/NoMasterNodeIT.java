@@ -263,8 +263,6 @@ public class NoMasterNodeIT extends ESIntegTestCase {
             assertThat(e.status(), equalTo(RestStatus.SERVICE_UNAVAILABLE));
         }
 
-        disruptionScheme.stopDisrupting();
-
-        client().admin().cluster().prepareHealth().setWaitForGreenStatus().setWaitForNodes("3").get();
+        internalCluster().clearDisruptionScheme(true);
     }
 }

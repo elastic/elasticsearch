@@ -59,13 +59,15 @@ GET /_search
 {
     "aggs" : {
         "genres" : {
-            "terms" : { "field" : "genre" }
+            "terms" : { "field" : "genre" } <1>
         }
     }
 }
 --------------------------------------------------
 // CONSOLE
 // TEST[s/_search/_search\?filter_path=aggregations/]
+<1> `terms` aggregation should be a field of type `keyword` or any other data type suitable for bucket aggregations. In order to use it with `text` you will need to enable 
+<<fielddata, fielddata>>.
 
 Response:
 
@@ -773,6 +775,7 @@ fields, then use `copy_to` in your mapping to create a new dedicated field at
 index time which contains the values from both fields.  You can aggregate on
 this single field, which will benefit from the global ordinals optimization.
 
+[[search-aggregations-bucket-terms-aggregation-collect]]
 ==== Collect mode
 
 Deferring calculation of child aggregations

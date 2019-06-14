@@ -38,6 +38,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentLocation;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchParseException;
@@ -161,9 +162,9 @@ public class RankEvalResponseTests extends ESTestCase {
                 "        \"coffee_query\": {" +
                 "            \"metric_score\": 0.1," +
                 "            \"unrated_docs\": [{\"_index\":\"index\",\"_id\":\"456\"}]," +
-                "            \"hits\":[{\"hit\":{\"_index\":\"index\",\"_type\":\"\",\"_id\":\"123\",\"_score\":1.0}," +
+                "            \"hits\":[{\"hit\":{\"_index\":\"index\",\"_type\":\"_doc\",\"_id\":\"123\",\"_score\":1.0}," +
                 "                       \"rating\":5}," +
-                "                      {\"hit\":{\"_index\":\"index\",\"_type\":\"\",\"_id\":\"456\",\"_score\":1.0}," +
+                "                      {\"hit\":{\"_index\":\"index\",\"_type\":\"_doc\",\"_id\":\"456\",\"_score\":1.0}," +
                 "                       \"rating\":null}" +
                 "                     ]" +
                 "        }" +
@@ -181,7 +182,7 @@ public class RankEvalResponseTests extends ESTestCase {
     }
 
     private static RatedSearchHit searchHit(String index, int docId, Integer rating) {
-        SearchHit hit = new SearchHit(docId, docId + "", new Text(""), Collections.emptyMap());
+        SearchHit hit = new SearchHit(docId, docId + "", new Text(MapperService.SINGLE_MAPPING_NAME), Collections.emptyMap());
         hit.shard(new SearchShardTarget("testnode", new ShardId(index, "uuid", 0), null, OriginalIndices.NONE));
         hit.score(1.0f);
         return new RatedSearchHit(hit, rating != null ? OptionalInt.of(rating) : OptionalInt.empty());

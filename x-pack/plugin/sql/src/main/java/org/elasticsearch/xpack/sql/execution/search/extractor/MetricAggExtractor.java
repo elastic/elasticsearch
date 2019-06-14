@@ -18,8 +18,10 @@ import org.elasticsearch.search.aggregations.metrics.PercentileRanks;
 import org.elasticsearch.search.aggregations.metrics.Percentiles;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.querydsl.agg.Aggs;
+import org.elasticsearch.xpack.sql.util.DateUtils;
 
 import java.io.IOException;
+import java.time.ZoneId;
 import java.util.Map;
 import java.util.Objects;
 
@@ -30,17 +32,23 @@ public class MetricAggExtractor implements BucketExtractor {
     private final String name;
     private final String property;
     private final String innerKey;
+    private final boolean isDateTimeBased;
+    private final ZoneId zoneId;
 
-    public MetricAggExtractor(String name, String property, String innerKey) {
+    public MetricAggExtractor(String name, String property, String innerKey, ZoneId zoneId, boolean isDateTimeBased) {
         this.name = name;
         this.property = property;
         this.innerKey = innerKey;
+        this. isDateTimeBased =isDateTimeBased;
+        this.zoneId = zoneId;
     }
 
     MetricAggExtractor(StreamInput in) throws IOException {
         name = in.readString();
         property = in.readString();
         innerKey = in.readOptionalString();
+        isDateTimeBased = in.readBoolean();
+        zoneId = ZoneId.of(in.readString());
     }
 
     @Override
@@ -48,6 +56,8 @@ public class MetricAggExtractor implements BucketExtractor {
         out.writeString(name);
         out.writeString(property);
         out.writeOptionalString(innerKey);
+        out.writeBoolean(isDateTimeBased);
+        out.writeString(zoneId.getId());
     }
 
     String name() {
@@ -60,6 +70,10 @@ public class MetricAggExtractor implements BucketExtractor {
 
     String innerKey() {
         return innerKey;
+    }
+
+    ZoneId zoneId() {
+        return zoneId;
     }
 
     @Override
@@ -83,20 +97,33 @@ public class MetricAggExtractor implements BucketExtractor {
             //if (innerKey == null) {
             //    throw new SqlIllegalArgumentException("Invalid innerKey {} specified for aggregation {}", innerKey, name);
             //}
-            return ((InternalNumericMetricsAggregation.MultiValue) agg).value(property);
+            return handleDateTime(((InternalNumericMetricsAggregation.MultiValue) agg).value(property));
         } else if (agg instanceof InternalFilter) {
             // COUNT(expr) and COUNT(ALL expr) uses this type of aggregation to account for non-null values only
             return ((InternalFilter) agg).getDocCount();
         }
 
         Object v = agg.getProperty(property);
-        return innerKey != null && v instanceof Map ? ((Map<?, ?>) v).get(innerKey) : v;
+        return handleDateTime(innerKey != null && v instanceof Map ? ((Map<?, ?>) v).get(innerKey) : v);
+    }
+
+    private Object handleDateTime(Object object) {
+        if (isDateTimeBased) {
+            if (object == null) {
+                return object;
+            } else if (object instanceof Number) {
+                return DateUtils.asDateTime(((Number) object).longValue(), zoneId);
+            } else {
+                throw new SqlIllegalArgumentException("Invalid date key returned: {}", object);
+            }
+        }
+        return object;
     }
 
     /**
      * Check if the given aggregate has been executed and has computed values
      * or not (the bucket is null).
-     * 
+     *
      * Waiting on https://github.com/elastic/elasticsearch/issues/34903
      */
     private static boolean containsValues(InternalAggregation agg) {
@@ -130,11 +157,11 @@ public class MetricAggExtractor implements BucketExtractor {
         if (this == obj) {
             return true;
         }
-        
+
         if (obj == null || getClass() != obj.getClass()) {
             return false;
         }
-        
+
         MetricAggExtractor other = (MetricAggExtractor) obj;
         return Objects.equals(name, other.name)
                 && Objects.equals(property, other.property)

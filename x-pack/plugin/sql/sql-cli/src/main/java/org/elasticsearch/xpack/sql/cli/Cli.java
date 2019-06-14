@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.sql.cli;
 
 import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
+
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.LoggingAwareCommand;
 import org.elasticsearch.cli.Terminal;
@@ -20,11 +21,12 @@ import org.elasticsearch.xpack.sql.cli.command.FetchSizeCliCommand;
 import org.elasticsearch.xpack.sql.cli.command.PrintLogoCommand;
 import org.elasticsearch.xpack.sql.cli.command.ServerInfoCliCommand;
 import org.elasticsearch.xpack.sql.cli.command.ServerQueryCliCommand;
-import org.elasticsearch.xpack.sql.client.HttpClient;
 import org.elasticsearch.xpack.sql.client.ClientException;
 import org.elasticsearch.xpack.sql.client.ConnectionConfiguration;
+import org.elasticsearch.xpack.sql.client.HttpClient;
 import org.elasticsearch.xpack.sql.client.Version;
 import org.jline.terminal.TerminalBuilder;
+
 import java.io.IOException;
 import java.net.ConnectException;
 import java.sql.SQLInvalidAuthorizationSpecException;
@@ -46,8 +48,13 @@ public class Cli extends LoggingAwareCommand {
      * -Dorg.jline.terminal.dumb=true
      */
     public static void main(String[] args) throws Exception {
-        final Cli cli = new Cli(new JLineTerminal(TerminalBuilder.builder().build(), true));
         configureJLineLogging();
+        final Cli cli = new Cli(new JLineTerminal(TerminalBuilder.builder()
+                .name("Elasticsearch SQL CLI")
+                // remove jansi since it has issues on Windows in closing terminals
+                // the CLI uses JNA anyway
+                .jansi(false)
+                .build(), true));
         int status = cli.main(args, Terminal.DEFAULT);
         if (status != ExitCodes.OK) {
             exit(status);
@@ -142,7 +149,7 @@ public class Cli extends LoggingAwareCommand {
                         "Cannot connect to the server " + con.connectionString() + " - " + ex.getCause().getMessage());
             } else if (ex.getCause() != null && ex.getCause() instanceof SQLInvalidAuthorizationSpecException) {
                 throw new UserException(ExitCodes.NOPERM,
-                        "Cannot establish a secure connection to the server " + 
+                        "Cannot establish a secure connection to the server " +
                                 con.connectionString() + " - " + ex.getCause().getMessage());
             } else {
                 // Most likely we connected to something other than Elasticsearch

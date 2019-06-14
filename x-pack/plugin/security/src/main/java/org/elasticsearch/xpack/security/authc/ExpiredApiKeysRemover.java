@@ -12,7 +12,6 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
@@ -23,10 +22,10 @@ import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.index.reindex.ScrollableHitSource;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPool.Names;
-import org.elasticsearch.xpack.security.support.SecurityIndexManager;
+import org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames;
 
+import java.time.Duration;
 import java.time.Instant;
-import java.time.temporal.ChronoUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.action.support.TransportActions.isShardNotAvailableException;
@@ -37,6 +36,8 @@ import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
  * Responsible for cleaning the invalidated and expired API keys from the security index.
  */
 public final class ExpiredApiKeysRemover extends AbstractRunnable {
+    public static final Duration EXPIRED_API_KEYS_RETENTION_PERIOD = Duration.ofDays(7L);
+
     private static final Logger logger = LogManager.getLogger(ExpiredApiKeysRemover.class);
 
     private final Client client;
@@ -50,7 +51,7 @@ public final class ExpiredApiKeysRemover extends AbstractRunnable {
 
     @Override
     public void doRun() {
-        DeleteByQueryRequest expiredDbq = new DeleteByQueryRequest(SecurityIndexManager.SECURITY_INDEX_NAME);
+        DeleteByQueryRequest expiredDbq = new DeleteByQueryRequest(RestrictedIndicesNames.SECURITY_MAIN_ALIAS);
         if (timeout != TimeValue.MINUS_ONE) {
             expiredDbq.setTimeout(timeout);
             expiredDbq.getSearchRequest().source().timeout(timeout);
@@ -60,11 +61,10 @@ public final class ExpiredApiKeysRemover extends AbstractRunnable {
             .setQuery(QueryBuilders.boolQuery()
                 .filter(QueryBuilders.termsQuery("doc_type", "api_key"))
                 .should(QueryBuilders.termsQuery("api_key_invalidated", true))
-                .should(QueryBuilders.rangeQuery("expiration_time").lte(now.minus(7L, ChronoUnit.DAYS).toEpochMilli()))
+                .should(QueryBuilders.rangeQuery("expiration_time").lte(now.minus(EXPIRED_API_KEYS_RETENTION_PERIOD).toEpochMilli()))
                 .minimumShouldMatch(1)
                 );
 
-        logger.trace(() -> new ParameterizedMessage("Removing old api keys: [{}]", Strings.toString(expiredDbq)));
         executeAsyncWithOrigin(client, SECURITY_ORIGIN, DeleteByQueryAction.INSTANCE, expiredDbq,
                 ActionListener.wrap(r -> {
                     debugDbqResponse(r);

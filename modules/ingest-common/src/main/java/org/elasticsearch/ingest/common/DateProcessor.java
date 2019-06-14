@@ -43,7 +43,7 @@ public final class DateProcessor extends AbstractProcessor {
 
     public static final String TYPE = "date";
     static final String DEFAULT_TARGET_FIELD = "@timestamp";
-    public static final DateFormatter FORMATTER = DateFormatter.forPattern("yyyy-MM-dd'T'HH:mm:ss.SSSXXX");
+    private static final DateFormatter FORMATTER = DateFormatter.forPattern("yyyy-MM-dd'T'HH:mm:ss.SSSXXX");
 
     private final TemplateScript.Factory timezone;
     private final TemplateScript.Factory locale;

@@ -18,7 +18,7 @@ setup:
 "Test search input includes hits by default":
 
   - do:
-      xpack.watcher.execute_watch:
+      watcher.execute_watch:
         body:  >
           {
             "watch" : {
@@ -61,7 +61,7 @@ setup:
 "Test search transform includes hits by default":
 
   - do:
-      xpack.watcher.execute_watch:
+      watcher.execute_watch:
         body:  >
           {
             "watch" : {

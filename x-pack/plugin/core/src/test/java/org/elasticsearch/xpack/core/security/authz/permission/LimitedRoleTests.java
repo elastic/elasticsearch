@@ -10,7 +10,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.create.CreateIndexAction;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexAction;
 import org.elasticsearch.action.search.SearchAction;
-import org.elasticsearch.client.security.user.privileges.Role.ClusterPrivilegeName;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -66,7 +65,7 @@ public class LimitedRoleTests extends ESTestCase {
                 .putAlias(AliasMetaData.builder("_alias1"));
         MetaData md = MetaData.builder().put(imbBuilder).put(imbBuilder1).build();
         FieldPermissionsCache fieldPermissionsCache = new FieldPermissionsCache(Settings.EMPTY);
-        Role fromRole = Role.builder("a-role").cluster(Collections.singleton(ClusterPrivilegeName.MANAGE_SECURITY), Collections.emptyList())
+        Role fromRole = Role.builder("a-role").cluster(Collections.singleton("manage_security"), Collections.emptyList())
                 .add(IndexPrivilege.ALL, "_index").add(IndexPrivilege.CREATE_INDEX, "_index1").build();
 
         IndicesAccessControl iac = fromRole.authorize(SearchAction.NAME, Sets.newHashSet("_index", "_alias1"), md.getAliasAndIndexLookup(),
@@ -84,7 +83,7 @@ public class LimitedRoleTests extends ESTestCase {
 
         {
             Role limitedByRole = Role.builder("limited-role")
-                    .cluster(Collections.singleton(ClusterPrivilegeName.ALL), Collections.emptyList()).add(IndexPrivilege.READ, "_index")
+                    .cluster(Collections.singleton("all"), Collections.emptyList()).add(IndexPrivilege.READ, "_index")
                     .add(IndexPrivilege.NONE, "_index1").build();
             iac = limitedByRole.authorize(SearchAction.NAME, Sets.newHashSet("_index", "_alias1"), md.getAliasAndIndexLookup(),
                 fieldPermissionsCache);
@@ -128,12 +127,12 @@ public class LimitedRoleTests extends ESTestCase {
     }
 
     public void testCheckClusterAction() {
-        Role fromRole = Role.builder("a-role").cluster(Collections.singleton(ClusterPrivilegeName.MANAGE_SECURITY), Collections.emptyList())
+        Role fromRole = Role.builder("a-role").cluster(Collections.singleton("manage_security"), Collections.emptyList())
                 .build();
         assertThat(fromRole.checkClusterAction("cluster:admin/xpack/security/x", mock(TransportRequest.class)), is(true));
         {
             Role limitedByRole = Role.builder("limited-role")
-                    .cluster(Collections.singleton(ClusterPrivilegeName.ALL), Collections.emptyList()).build();
+                    .cluster(Collections.singleton("all"), Collections.emptyList()).build();
             assertThat(limitedByRole.checkClusterAction("cluster:admin/xpack/security/x", mock(TransportRequest.class)), is(true));
             assertThat(limitedByRole.checkClusterAction("cluster:other-action", mock(TransportRequest.class)), is(true));
             Role role = LimitedRole.createLimitedRole(fromRole, limitedByRole);
@@ -142,7 +141,7 @@ public class LimitedRoleTests extends ESTestCase {
         }
         {
             Role limitedByRole = Role.builder("limited-role")
-                    .cluster(Collections.singleton(ClusterPrivilegeName.MONITOR), Collections.emptyList()).build();
+                    .cluster(Collections.singleton("monitor"), Collections.emptyList()).build();
             assertThat(limitedByRole.checkClusterAction("cluster:monitor/me", mock(TransportRequest.class)), is(true));
             Role role = LimitedRole.createLimitedRole(fromRole, limitedByRole);
             assertThat(role.checkClusterAction("cluster:monitor/me", mock(TransportRequest.class)), is(false));
@@ -199,14 +198,14 @@ public class LimitedRoleTests extends ESTestCase {
     }
 
     public void testCheckClusterPrivilege() {
-        Role fromRole = Role.builder("a-role").cluster(Collections.singleton(ClusterPrivilegeName.MANAGE_SECURITY), Collections.emptyList())
+        Role fromRole = Role.builder("a-role").cluster(Collections.singleton("manage_security"), Collections.emptyList())
                 .build();
         assertThat(fromRole.grants(ClusterPrivilege.ALL), is(false));
         assertThat(fromRole.grants(ClusterPrivilege.MANAGE_SECURITY), is(true));
 
         {
             Role limitedByRole = Role.builder("scoped-role")
-                    .cluster(Collections.singleton(ClusterPrivilegeName.ALL), Collections.emptyList()).build();
+                    .cluster(Collections.singleton("all"), Collections.emptyList()).build();
             assertThat(limitedByRole.grants(ClusterPrivilege.ALL), is(true));
             assertThat(limitedByRole.grants(ClusterPrivilege.MANAGE_SECURITY), is(true));
             Role role = LimitedRole.createLimitedRole(fromRole, limitedByRole);
@@ -215,7 +214,7 @@ public class LimitedRoleTests extends ESTestCase {
         }
         {
             Role limitedByRole = Role.builder("scoped-role")
-                    .cluster(Collections.singleton(ClusterPrivilegeName.MONITOR), Collections.emptyList()).build();
+                    .cluster(Collections.singleton("monitor"), Collections.emptyList()).build();
             assertThat(limitedByRole.grants(ClusterPrivilege.ALL), is(false));
             assertThat(limitedByRole.grants(ClusterPrivilege.MONITOR), is(true));
             Role role = LimitedRole.createLimitedRole(fromRole, limitedByRole);

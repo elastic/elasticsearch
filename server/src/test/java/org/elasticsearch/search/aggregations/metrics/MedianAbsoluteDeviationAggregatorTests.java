@@ -260,9 +260,15 @@ public class MedianAbsoluteDeviationAggregatorTests extends AggregatorTestCase {
         private static double calculateMedian(double[] sample) {
             final double[] sorted = Arrays.copyOf(sample, sample.length);
             Arrays.sort(sorted);
-
-            final int halfway =  (int) Math.ceil(sorted.length / 2d);
-            final double median = (sorted[halfway - 1] + sorted[halfway]) / 2d;
+            final int halfway = (int) Math.ceil(sorted.length / 2d);
+            final double median;
+            if (sorted.length % 2 == 0) {
+                // even
+                median = (sorted[halfway - 1] + sorted[halfway]) / 2d;
+            } else {
+                // odd
+                median = (sorted[halfway - 1]);
+            }
             return median;
         }
 

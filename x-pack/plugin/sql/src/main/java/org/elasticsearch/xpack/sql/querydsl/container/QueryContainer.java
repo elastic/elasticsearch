@@ -26,7 +26,6 @@ import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
 import org.elasticsearch.xpack.sql.querydsl.agg.Aggs;
 import org.elasticsearch.xpack.sql.querydsl.agg.GroupByKey;
 import org.elasticsearch.xpack.sql.querydsl.agg.LeafAgg;
-import org.elasticsearch.xpack.sql.querydsl.container.GroupByRef.Property;
 import org.elasticsearch.xpack.sql.querydsl.query.BoolQuery;
 import org.elasticsearch.xpack.sql.querydsl.query.MatchAll;
 import org.elasticsearch.xpack.sql.querydsl.query.NestedQuery;
@@ -81,23 +80,28 @@ public class QueryContainer {
 
     private final Set<Sort> sort;
     private final int limit;
+    private final boolean trackHits;
+    private final boolean includeFrozen;
 
     // computed
     private Boolean aggsOnly;
     private Boolean customSort;
 
     public QueryContainer() {
-        this(null, null, null, null, null, null, null, -1);
+        this(null, null, null, null, null, null, null, -1, false, false);
     }
 
     public QueryContainer(Query query,
             Aggs aggs,
-            List<Tuple<FieldExtraction, ExpressionId>> fields,
+            List<Tuple<FieldExtraction,
+            ExpressionId>> fields,
             AttributeMap<Attribute> aliases,
             Map<String, GroupByKey> pseudoFunctions,
             AttributeMap<Pipe> scalarFunctions,
             Set<Sort> sort,
-            int limit) {
+            int limit,
+            boolean trackHits,
+            boolean includeFrozen) {
         this.query = query;
         this.aggs = aggs == null ? Aggs.EMPTY : aggs;
         this.fields = fields == null || fields.isEmpty() ? emptyList() : fields;
@@ -106,6 +110,8 @@ public class QueryContainer {
         this.scalarFunctions = scalarFunctions == null || scalarFunctions.isEmpty() ? AttributeMap.emptyAttributeMap() : scalarFunctions;
         this.sort = sort == null || sort.isEmpty() ? emptySet() : sort;
         this.limit = limit;
+        this.trackHits = trackHits;
+        this.includeFrozen = includeFrozen;
     }
 
     /**
@@ -230,38 +236,57 @@ public class QueryContainer {
         return fields.size() > 0;
     }
 
+    public boolean shouldTrackHits() {
+        return trackHits;
+    }
+
+    public boolean shouldIncludeFrozen() {
+        return includeFrozen;
+    }
+
     //
     // copy methods
     //
 
     public QueryContainer with(Query q) {
-        return new QueryContainer(q, aggs, fields, aliases, pseudoFunctions, scalarFunctions, sort, limit);
+        return new QueryContainer(q, aggs, fields, aliases, pseudoFunctions, scalarFunctions, sort, limit, trackHits, includeFrozen);
     }
 
     public QueryContainer withAliases(AttributeMap<Attribute> a) {
-        return new QueryContainer(query, aggs, fields, a, pseudoFunctions, scalarFunctions, sort, limit);
+        return new QueryContainer(query, aggs, fields, a, pseudoFunctions, scalarFunctions, sort, limit, trackHits, includeFrozen);
     }
 
     public QueryContainer withPseudoFunctions(Map<String, GroupByKey> p) {
-        return new QueryContainer(query, aggs, fields, aliases, p, scalarFunctions, sort, limit);
+        return new QueryContainer(query, aggs, fields, aliases, p, scalarFunctions, sort, limit, trackHits, includeFrozen);
     }
 
     public QueryContainer with(Aggs a) {
-        return new QueryContainer(query, a, fields, aliases, pseudoFunctions, scalarFunctions, sort, limit);
+        return new QueryContainer(query, a, fields, aliases, pseudoFunctions, scalarFunctions, sort, limit, trackHits, includeFrozen);
     }
 
     public QueryContainer withLimit(int l) {
-        return l == limit ? this : new QueryContainer(query, aggs, fields, aliases, pseudoFunctions, scalarFunctions, sort, l);
+        return l == limit ? this : new QueryContainer(query, aggs, fields, aliases, pseudoFunctions, scalarFunctions, sort, l, trackHits,
+                includeFrozen);
+    }
+
+    public QueryContainer withTrackHits() {
+        return trackHits ? this : new QueryContainer(query, aggs, fields, aliases, pseudoFunctions, scalarFunctions, sort, limit, true,
+                includeFrozen);
+    }
+
+    public QueryContainer withFrozen() {
+        return includeFrozen ? this : new QueryContainer(query, aggs, fields, aliases, pseudoFunctions, scalarFunctions, sort, limit,
+                trackHits, true);
     }
 
     public QueryContainer withScalarProcessors(AttributeMap<Pipe> procs) {
-        return new QueryContainer(query, aggs, fields, aliases, pseudoFunctions, procs, sort, limit);
+        return new QueryContainer(query, aggs, fields, aliases, pseudoFunctions, procs, sort, limit, trackHits, includeFrozen);
     }
 
     public QueryContainer addSort(Sort sortable) {
         Set<Sort> sort = new LinkedHashSet<>(this.sort);
         sort.add(sortable);
-        return new QueryContainer(query, aggs, fields, aliases, pseudoFunctions, scalarFunctions, sort, limit);
+        return new QueryContainer(query, aggs, fields, aliases, pseudoFunctions, scalarFunctions, sort, limit, trackHits, includeFrozen);
     }
 
     private String aliasName(Attribute attr) {
@@ -276,18 +301,15 @@ public class QueryContainer {
     }
 
     private Tuple<QueryContainer, FieldExtraction> nestedHitFieldRef(FieldAttribute attr) {
-        // Find the nested query for this field. If there isn't one then create it
-        List<FieldExtraction> nestedRefs = new ArrayList<>();
-
         String name = aliasName(attr);
         Query q = rewriteToContainNestedField(query, attr.source(),
                 attr.nestedParent().name(), name, attr.field().getDataType().format(), attr.field().isAggregatable());
 
         SearchHitFieldRef nestedFieldRef = new SearchHitFieldRef(name, attr.field().getDataType(),
                 attr.field().isAggregatable(), attr.parent().name());
-        nestedRefs.add(nestedFieldRef);
 
-        return new Tuple<>(new QueryContainer(q, aggs, fields, aliases, pseudoFunctions, scalarFunctions, sort, limit),
+        return new Tuple<>(
+                new QueryContainer(q, aggs, fields, aliases, pseudoFunctions, scalarFunctions, sort, limit, trackHits, includeFrozen),
                 nestedFieldRef);
     }
 
@@ -390,7 +412,7 @@ public class QueryContainer {
         ExpressionId id = attr instanceof AggregateFunctionAttribute ? ((AggregateFunctionAttribute) attr).innerId() : attr.id();
         return new QueryContainer(query, aggs, combine(fields, new Tuple<>(ref, id)), aliases, pseudoFunctions,
                 scalarFunctions,
-                sort, limit);
+                sort, limit, trackHits, includeFrozen);
     }
 
     public AttributeMap<Pipe> scalarFunctions() {
@@ -400,16 +422,6 @@ public class QueryContainer {
     //
     // agg methods
     //
-
-    public QueryContainer addAggCount(GroupByKey group, ExpressionId functionId) {
-        FieldExtraction ref = group == null ? GlobalCountRef.INSTANCE : new GroupByRef(group.id(), Property.COUNT, null);
-        Map<String, GroupByKey> pseudoFunctions = new LinkedHashMap<>(this.pseudoFunctions);
-        pseudoFunctions.put(functionId.toString(), group);
-        return new QueryContainer(query, aggs, combine(fields, new Tuple<>(ref, functionId)),
-                aliases,
-                pseudoFunctions,
-                scalarFunctions, sort, limit);
-    }
 
     public QueryContainer addAgg(String groupId, LeafAgg agg) {
         return with(aggs.addAgg(agg));
@@ -433,7 +445,7 @@ public class QueryContainer {
 
     @Override
     public int hashCode() {
-        return Objects.hash(query, aggs, fields, aliases, sort, limit);
+        return Objects.hash(query, aggs, fields, aliases, sort, limit, trackHits, includeFrozen);
     }
 
     @Override
@@ -452,7 +464,9 @@ public class QueryContainer {
                 && Objects.equals(fields, other.fields)
                 && Objects.equals(aliases, other.aliases)
                 && Objects.equals(sort, other.sort)
-                && Objects.equals(limit, other.limit);
+                && Objects.equals(limit, other.limit)
+                && Objects.equals(trackHits, other.trackHits)
+                && Objects.equals(includeFrozen, other.includeFrozen);
     }
 
     @Override

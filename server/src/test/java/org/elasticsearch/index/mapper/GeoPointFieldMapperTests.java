@@ -39,7 +39,7 @@ import java.io.IOException;
 import java.util.Collection;
 
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
-import static org.elasticsearch.common.geo.GeoHashUtils.stringEncode;
+import static org.elasticsearch.geo.utils.Geohash.stringEncode;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.mapper.GeoPointFieldMapper.Names.IGNORE_Z_VALUE;
 import static org.elasticsearch.index.mapper.GeoPointFieldMapper.Names.NULL_VALUE;
@@ -522,6 +522,16 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
         assertThat(defaultMapper.parse(new SourceToParse("test", "type", "1",
             BytesReference.bytes(XContentFactory.jsonBuilder()
                 .startObject().field("location", "NaN,12").endObject()
+            ), XContentType.JSON)).rootDoc().getField("location"), nullValue());
+
+        assertThat(defaultMapper.parse(new SourceToParse("test", "type", "1",
+            BytesReference.bytes(XContentFactory.jsonBuilder()
+                .startObject().startObject("location").nullField("lat").field("lon", 1).endObject().endObject()
+            ), XContentType.JSON)).rootDoc().getField("location"), nullValue());
+
+        assertThat(defaultMapper.parse(new SourceToParse("test", "type", "1",
+            BytesReference.bytes(XContentFactory.jsonBuilder()
+                .startObject().startObject("location").nullField("lat").nullField("lon").endObject().endObject()
             ), XContentType.JSON)).rootDoc().getField("location"), nullValue());
     }
 }

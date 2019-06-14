@@ -10,11 +10,12 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
-import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.search.SearchContextMissingException;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSourceField;
+import org.elasticsearch.xpack.core.security.action.role.PutRoleRequestBuilder;
+import org.elasticsearch.xpack.core.security.action.user.PutUserRequestBuilder;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.junit.After;
 
@@ -29,11 +30,12 @@ public class SecurityScrollTests extends SecurityIntegTestCase {
 
     public void testScrollIsPerUser() throws Exception {
         assertSecurityIndexActive();
-        securityClient().preparePutRole("scrollable")
+        new PutRoleRequestBuilder(client()).name("scrollable")
                 .addIndices(new String[] { randomAlphaOfLengthBetween(4, 12) }, new String[] { "read" }, null, null, null, randomBoolean())
                 .get();
-        securityClient().preparePutUser("other", SecuritySettingsSourceField.TEST_PASSWORD.toCharArray(), getFastStoredHashAlgoForTests(),
-            "scrollable")
+        new PutUserRequestBuilder(client()).username("other")
+            .password(SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING, getFastStoredHashAlgoForTests())
+            .roles("scrollable")
             .get();
 
         final int numDocs = randomIntBetween(4, 16);
@@ -98,15 +100,5 @@ public class SecurityScrollTests extends SecurityIntegTestCase {
     @After
     public void cleanupSecurityIndex() throws Exception {
         super.deleteSecurityIndex();
-    }
-
-    @Override
-    public String transportClientUsername() {
-        return this.nodeClientUsername();
-    }
-
-    @Override
-    public SecureString transportClientPassword() {
-        return this.nodeClientPassword();
     }
 }

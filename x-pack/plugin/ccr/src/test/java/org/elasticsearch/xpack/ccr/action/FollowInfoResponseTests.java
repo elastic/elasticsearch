@@ -6,10 +6,7 @@
 package org.elasticsearch.xpack.ccr.action;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.xpack.core.ccr.action.FollowInfoAction;
@@ -26,7 +23,6 @@ import static org.elasticsearch.xpack.core.ccr.action.FollowInfoAction.Response.
 
 public class FollowInfoResponseTests extends AbstractSerializingTestCase<FollowInfoAction.Response> {
 
-    static final ObjectParser<FollowParameters, Void> PARAMETERS_PARSER = new ObjectParser<>("parameters_parser", FollowParameters::new);
     static final ConstructingObjectParser<FollowerInfo, Void> INFO_PARSER = new ConstructingObjectParser<>(
         "info_parser",
         args -> {
@@ -40,13 +36,12 @@ public class FollowInfoResponseTests extends AbstractSerializingTestCase<FollowI
         });
 
     static {
-        FollowParameters.initParser(PARAMETERS_PARSER);
-
         INFO_PARSER.declareString(ConstructingObjectParser.constructorArg(), FollowerInfo.FOLLOWER_INDEX_FIELD);
         INFO_PARSER.declareString(ConstructingObjectParser.constructorArg(), FollowerInfo.REMOTE_CLUSTER_FIELD);
         INFO_PARSER.declareString(ConstructingObjectParser.constructorArg(), FollowerInfo.LEADER_INDEX_FIELD);
         INFO_PARSER.declareString(ConstructingObjectParser.constructorArg(), FollowerInfo.STATUS_FIELD);
-        INFO_PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), PARAMETERS_PARSER, FollowerInfo.PARAMETERS_FIELD);
+        INFO_PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), FollowParametersTests.PARSER,
+            FollowerInfo.PARAMETERS_FIELD);
     }
 
     @SuppressWarnings("unchecked")
@@ -79,17 +74,7 @@ public class FollowInfoResponseTests extends AbstractSerializingTestCase<FollowI
         for (int i = 0; i < numInfos; i++) {
             FollowParameters followParameters = null;
             if (randomBoolean()) {
-                followParameters = new FollowParameters();
-                followParameters.setMaxOutstandingReadRequests(randomIntBetween(0, Integer.MAX_VALUE));
-                followParameters.setMaxOutstandingWriteRequests(randomIntBetween(0, Integer.MAX_VALUE));
-                followParameters.setMaxReadRequestOperationCount(randomIntBetween(0, Integer.MAX_VALUE));
-                followParameters.setMaxWriteRequestOperationCount(randomIntBetween(0, Integer.MAX_VALUE));
-                followParameters.setMaxReadRequestSize(new ByteSizeValue(randomNonNegativeLong()));
-                followParameters.setMaxWriteRequestSize(new ByteSizeValue(randomNonNegativeLong()));
-                followParameters.setMaxWriteBufferCount(randomIntBetween(0, Integer.MAX_VALUE));
-                followParameters.setMaxWriteBufferSize(new ByteSizeValue(randomNonNegativeLong()));
-                followParameters.setMaxRetryDelay(new TimeValue(randomNonNegativeLong()));
-                followParameters.setReadPollTimeout(new TimeValue(randomNonNegativeLong()));
+                followParameters = FollowParametersTests.randomInstance();
             }
 
             infos.add(new FollowerInfo(randomAlphaOfLength(4), randomAlphaOfLength(4), randomAlphaOfLength(4),

@@ -30,24 +30,25 @@ import java.util.List;
 public class MultiPolygonTests extends BaseGeometryTestCase<MultiPolygon> {
 
     @Override
-    protected MultiPolygon createTestInstance() {
+    protected MultiPolygon createTestInstance(boolean hasAlt) {
         int size = randomIntBetween(1, 10);
         List<Polygon> arr = new ArrayList<>();
         for (int i = 0; i < size; i++) {
-            arr.add(randomPolygon());
+            arr.add(randomPolygon(hasAlt));
         }
         return new MultiPolygon(arr);
     }
 
     public void testBasicSerialization() throws IOException, ParseException {
+        WellKnownText wkt = new WellKnownText();
         assertEquals("multipolygon (((3.0 1.0, 4.0 2.0, 5.0 3.0, 3.0 1.0)))",
-            WellKnownText.toWKT(new MultiPolygon(Collections.singletonList(
+            wkt.toWKT(new MultiPolygon(Collections.singletonList(
                 new Polygon(new LinearRing(new double[]{1, 2, 3, 1}, new double[]{3, 4, 5, 3}))))));
         assertEquals(new MultiPolygon(Collections.singletonList(
             new Polygon(new LinearRing(new double[]{1, 2, 3, 1}, new double[]{3, 4, 5, 3})))),
-            WellKnownText.fromWKT("multipolygon (((3.0 1.0, 4.0 2.0, 5.0 3.0, 3.0 1.0)))"));
+            wkt.fromWKT("multipolygon (((3.0 1.0, 4.0 2.0, 5.0 3.0, 3.0 1.0)))"));
 
-        assertEquals("multipolygon EMPTY", WellKnownText.toWKT(MultiPolygon.EMPTY));
-        assertEquals(MultiPolygon.EMPTY, WellKnownText.fromWKT("multipolygon EMPTY)"));
+        assertEquals("multipolygon EMPTY", wkt.toWKT(MultiPolygon.EMPTY));
+        assertEquals(MultiPolygon.EMPTY, wkt.fromWKT("multipolygon EMPTY)"));
     }
 }

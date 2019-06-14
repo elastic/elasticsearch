@@ -22,7 +22,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.discovery.SeedHostsProvider.HostsResolver;
-import org.elasticsearch.discovery.SettingsBasedSeedHostsProvider;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TransportService;
 
@@ -38,18 +37,15 @@ public class SettingsBasedSeedHostsProviderTests extends ESTestCase {
 
     private class AssertingHostsResolver implements HostsResolver {
         private final Set<String> expectedHosts;
-        private final int expectedPortCount;
 
         private boolean resolvedHosts;
 
-        AssertingHostsResolver(int expectedPortCount, String... expectedHosts) {
-            this.expectedPortCount = expectedPortCount;
+        AssertingHostsResolver(String... expectedHosts) {
             this.expectedHosts = Sets.newHashSet(expectedHosts);
         }
 
         @Override
-        public List<TransportAddress> resolveHosts(List<String> hosts, int limitPortCounts) {
-            assertEquals(expectedPortCount, limitPortCounts);
+        public List<TransportAddress> resolveHosts(List<String> hosts) {
             assertEquals(expectedHosts, Sets.newHashSet(hosts));
             resolvedHosts = true;
             return emptyList();
@@ -61,35 +57,22 @@ public class SettingsBasedSeedHostsProviderTests extends ESTestCase {
     }
 
     public void testScansPortsByDefault() {
-        final AssertingHostsResolver hostsResolver = new AssertingHostsResolver(5, "::1", "127.0.0.1");
+        final AssertingHostsResolver hostsResolver = new AssertingHostsResolver(
+            "[::1]:9300", "[::1]:9301", "127.0.0.1:9300", "127.0.0.1:9301"
+        );
         final TransportService transportService = mock(TransportService.class);
-        when(transportService.getLocalAddresses()).thenReturn(Arrays.asList("::1", "127.0.0.1"));
+        when(transportService.getDefaultSeedAddresses()).thenReturn(
+            Arrays.asList("[::1]:9300", "[::1]:9301", "127.0.0.1:9300", "127.0.0.1:9301")
+        );
         new SettingsBasedSeedHostsProvider(Settings.EMPTY, transportService).getSeedAddresses(hostsResolver);
         assertTrue(hostsResolver.getResolvedHosts());
     }
 
     public void testGetsHostsFromSetting() {
-        final AssertingHostsResolver hostsResolver = new AssertingHostsResolver(1, "bar", "foo");
+        final AssertingHostsResolver hostsResolver = new AssertingHostsResolver("bar", "foo");
         new SettingsBasedSeedHostsProvider(Settings.builder()
             .putList(SettingsBasedSeedHostsProvider.DISCOVERY_SEED_HOSTS_SETTING.getKey(), "foo", "bar")
             .build(), null).getSeedAddresses(hostsResolver);
         assertTrue(hostsResolver.getResolvedHosts());
-    }
-
-    public void testGetsHostsFromLegacySetting() {
-        final AssertingHostsResolver hostsResolver = new AssertingHostsResolver(1, "bar", "foo");
-        new SettingsBasedSeedHostsProvider(Settings.builder()
-            .putList(SettingsBasedSeedHostsProvider.LEGACY_DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING.getKey(), "foo", "bar")
-            .build(), null).getSeedAddresses(hostsResolver);
-        assertTrue(hostsResolver.getResolvedHosts());
-        assertWarnings("[discovery.zen.ping.unicast.hosts] setting was deprecated in Elasticsearch and will be removed in a future " +
-            "release! See the breaking changes documentation for the next major version.");
-    }
-
-    public void testForbidsBothSettingsAtTheSameTime() {
-        expectThrows(IllegalArgumentException.class, () -> new SettingsBasedSeedHostsProvider(Settings.builder()
-            .putList(SettingsBasedSeedHostsProvider.LEGACY_DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING.getKey())
-            .putList(SettingsBasedSeedHostsProvider.DISCOVERY_SEED_HOSTS_SETTING.getKey())
-            .build(), null));
     }
 }

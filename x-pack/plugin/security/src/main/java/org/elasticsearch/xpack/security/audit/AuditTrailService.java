@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.security.audit;
 
+import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.transport.TransportMessage;
@@ -219,6 +220,18 @@ public class AuditTrailService implements AuditTrail {
         if (licenseState.isAuditingAllowed()) {
             for (AuditTrail auditTrail : auditTrails) {
                 auditTrail.runAsDenied(requestId, authentication, request, authorizationInfo);
+            }
+        }
+    }
+
+    @Override
+    public void explicitIndexAccessEvent(String requestId, AuditLevel eventType, Authentication authentication, String action,
+                                         String indices, String requestName, TransportAddress remoteAddress,
+                                         AuthorizationInfo authorizationInfo) {
+        if (licenseState.isAuditingAllowed()) {
+            for (AuditTrail auditTrail : auditTrails) {
+                auditTrail.explicitIndexAccessEvent(requestId, eventType, authentication, action, indices, requestName, remoteAddress,
+                        authorizationInfo);
             }
         }
     }

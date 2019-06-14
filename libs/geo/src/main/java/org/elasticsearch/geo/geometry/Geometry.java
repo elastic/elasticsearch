@@ -26,7 +26,11 @@ public interface Geometry {
 
     ShapeType type();
 
-    <T> T visit(GeometryVisitor<T> visitor);
+    <T, E extends Exception> T visit(GeometryVisitor<T, E> visitor) throws E;
 
     boolean isEmpty();
+
+    default boolean hasAlt() {
+        return false;
+    }
 }

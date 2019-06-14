@@ -26,16 +26,18 @@ import java.text.ParseException;
 
 public class RectangleTests extends BaseGeometryTestCase<Rectangle> {
     @Override
-    protected Rectangle createTestInstance() {
+    protected Rectangle createTestInstance(boolean hasAlt) {
+        assumeFalse("3rd dimension is not supported yet", hasAlt);
         return randomRectangle();
     }
 
     public void testBasicSerialization() throws IOException, ParseException {
-        assertEquals("bbox (10.0, 20.0, 40.0, 30.0)", WellKnownText.toWKT(new Rectangle(30, 40, 10, 20)));
-        assertEquals(new Rectangle(30, 40, 10, 20), WellKnownText.fromWKT("bbox (10.0, 20.0, 40.0, 30.0)"));
+        WellKnownText wkt = new WellKnownText();
+        assertEquals("bbox (10.0, 20.0, 40.0, 30.0)", wkt.toWKT(new Rectangle(30, 40, 10, 20)));
+        assertEquals(new Rectangle(30, 40, 10, 20), wkt.fromWKT("bbox (10.0, 20.0, 40.0, 30.0)"));
 
-        assertEquals("bbox EMPTY", WellKnownText.toWKT(Rectangle.EMPTY));
-        assertEquals(Rectangle.EMPTY, WellKnownText.fromWKT("bbox EMPTY)"));
+        assertEquals("bbox EMPTY", wkt.toWKT(Rectangle.EMPTY));
+        assertEquals(Rectangle.EMPTY, wkt.fromWKT("bbox EMPTY)"));
     }
 
     public void testInitValidation() {
@@ -47,5 +49,8 @@ public class RectangleTests extends BaseGeometryTestCase<Rectangle> {
 
         ex = expectThrows(IllegalArgumentException.class, () -> new Rectangle(2, 1, 2, 3));
         assertEquals("max lat cannot be less than min lat", ex.getMessage());
+
+        ex = expectThrows(IllegalArgumentException.class, () -> new Rectangle(1, 2, 2, 3, 5, Double.NaN));
+        assertEquals("only one altitude value is specified", ex.getMessage());
     }
 }

@@ -31,13 +31,11 @@ public class CompletionsStatsTests extends ESTestCase {
 
     public void testSerialize() throws IOException {
         FieldMemoryStats map = randomBoolean() ? null : FieldMemoryStatsTests.randomFieldMemoryStats();
-        CompletionStats stats = new CompletionStats(randomNonNegativeLong(), map == null ? null :
-            map);
+        CompletionStats stats = new CompletionStats(randomNonNegativeLong(), map);
         BytesStreamOutput out = new BytesStreamOutput();
         stats.writeTo(out);
-        CompletionStats read = new CompletionStats();
         StreamInput input = out.bytes().streamInput();
-        read.readFrom(input);
+        CompletionStats read = new CompletionStats(input);
         assertEquals(-1, input.read());
         assertEquals(stats.getSizeInBytes(), read.getSizeInBytes());
         assertEquals(stats.getFields(), read.getFields());

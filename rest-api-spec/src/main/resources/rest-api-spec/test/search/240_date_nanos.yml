@@ -1,7 +1,5 @@
 setup:
-  - skip:
-      version: " - 6.99.99"
-      reason:  "Implemented in 7.0"
+
 
   - do:
       indices.create:
@@ -124,6 +122,9 @@ setup:
 
 ---
 "date histogram aggregation with date and date_nanos mapping":
+  - skip:
+      version: " - 7.1.99"
+      reason:  calendar_interval introduced in 7.2.0
 
   - do:
       bulk:
@@ -148,7 +149,7 @@ setup:
             date:
               date_histogram:
                 field: date
-                interval: 1d
+                calendar_interval: 1d
 
   - match: { hits.total: 4 }
   - length: { aggregations.date.buckets: 2 }

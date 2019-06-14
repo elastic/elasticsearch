@@ -94,9 +94,6 @@ setup:
 
 ---
 "Search with new response format":
-  - skip:
-      version: " - 6.99.99"
-      reason: hits.total is returned as an object in 7.0.0
 
   - do:
       msearch:

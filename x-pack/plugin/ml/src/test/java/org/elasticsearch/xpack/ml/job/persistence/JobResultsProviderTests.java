@@ -13,7 +13,9 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.search.MultiSearchRequest;
 import org.elasticsearch.action.search.MultiSearchResponse;
+import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
@@ -39,11 +41,12 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.core.ml.action.util.QueryPage;
+import org.elasticsearch.xpack.core.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndexFields;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
+import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.TimingStats;
 import org.elasticsearch.xpack.core.ml.job.results.AnomalyRecord;
 import org.elasticsearch.xpack.core.ml.job.results.Bucket;
 import org.elasticsearch.xpack.core.ml.job.results.CategoryDefinition;
@@ -54,6 +57,7 @@ import org.mockito.ArgumentCaptor;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
@@ -70,6 +74,7 @@ import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 public class JobResultsProviderTests extends ESTestCase {
@@ -770,39 +775,38 @@ public class JobResultsProviderTests extends ESTestCase {
 
     public void testViolatedFieldCountLimit() throws Exception {
         Map<String, Object> mapping = new HashMap<>();
-        for (int i = 0; i < 10; i++) {
+
+        int i = 0;
+        for (; i < 10; i++) {
             mapping.put("field" + i, Collections.singletonMap("type", "string"));
         }
 
-        IndexMetaData.Builder indexMetaData1 = new IndexMetaData.Builder("index1")
-                .settings(Settings.builder()
-                        .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
-                        .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-                        .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0))
-                .putMapping(new MappingMetaData("type1", Collections.singletonMap("properties", mapping)));
-        MetaData metaData = MetaData.builder()
-                .put(indexMetaData1)
-                .build();
-        boolean result = JobResultsProvider.violatedFieldCountLimit("index1", 0, 10,
-                ClusterState.builder(new ClusterName("_name")).metaData(metaData).build());
-        assertFalse(result);
-
-        result = JobResultsProvider.violatedFieldCountLimit("index1", 1, 10,
-                ClusterState.builder(new ClusterName("_name")).metaData(metaData).build());
-        assertTrue(result);
-
-        IndexMetaData.Builder indexMetaData2 = new IndexMetaData.Builder("index1")
+        IndexMetaData indexMetaData1 = new IndexMetaData.Builder("index1")
                 .settings(Settings.builder()
                         .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
                         .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
                         .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0))
                 .putMapping(new MappingMetaData("type1", Collections.singletonMap("properties", mapping)))
-                .putMapping(new MappingMetaData("type2", Collections.singletonMap("properties", mapping)));
-        metaData = MetaData.builder()
-                .put(indexMetaData2)
                 .build();
-        result = JobResultsProvider.violatedFieldCountLimit("index1", 0, 19,
-                ClusterState.builder(new ClusterName("_name")).metaData(metaData).build());
+        boolean result = JobResultsProvider.violatedFieldCountLimit(0, 10, indexMetaData1.mapping());
+        assertFalse(result);
+
+        result = JobResultsProvider.violatedFieldCountLimit(1, 10, indexMetaData1.mapping());
+        assertTrue(result);
+
+        for (; i < 20; i++) {
+            mapping.put("field" + i, Collections.singletonMap("type", "string"));
+        }
+
+        IndexMetaData indexMetaData2 = new IndexMetaData.Builder("index1")
+                .settings(Settings.builder()
+                        .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+                        .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+                        .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0))
+                .putMapping(new MappingMetaData("type1", Collections.singletonMap("properties", mapping)))
+                .build();
+
+        result = JobResultsProvider.violatedFieldCountLimit(0, 19, indexMetaData2.mapping());
         assertTrue(result);
     }
 
@@ -823,6 +827,55 @@ public class JobResultsProviderTests extends ESTestCase {
 
         mapping.put("field4", objectField);
         assertEquals(7, JobResultsProvider.countFields(Collections.singletonMap("properties", mapping)));
+    }
+
+    public void testTimingStats_Ok() throws IOException {
+        String indexName = AnomalyDetectorsIndex.jobResultsAliasedName("foo");
+        List<Map<String, Object>> source =
+            Arrays.asList(
+                Map.of(
+                    Job.ID.getPreferredName(), "foo",
+                    TimingStats.BUCKET_COUNT.getPreferredName(), 7,
+                    TimingStats.MIN_BUCKET_PROCESSING_TIME_MS.getPreferredName(), 1.0,
+                    TimingStats.MAX_BUCKET_PROCESSING_TIME_MS.getPreferredName(), 1000.0,
+                    TimingStats.AVG_BUCKET_PROCESSING_TIME_MS.getPreferredName(), 666.0));
+        SearchResponse response = createSearchResponse(source);
+        Client client = getMockedClient(
+            queryBuilder -> assertThat(queryBuilder.getName(), equalTo("ids")),
+            response);
+
+        when(client.prepareSearch(indexName)).thenReturn(new SearchRequestBuilder(client, SearchAction.INSTANCE).setIndices(indexName));
+        JobResultsProvider provider = createProvider(client);
+        provider.timingStats(
+            "foo",
+            stats -> assertThat(stats, equalTo(new TimingStats("foo", 7, 1.0, 1000.0, 666.0))),
+            e -> { throw new AssertionError(); });
+
+        verify(client).prepareSearch(indexName);
+        verify(client).threadPool();
+        verify(client).search(any(SearchRequest.class), any(ActionListener.class));
+        verifyNoMoreInteractions(client);
+    }
+
+    public void testTimingStats_NotFound() throws IOException {
+        String indexName = AnomalyDetectorsIndex.jobResultsAliasedName("foo");
+        List<Map<String, Object>> source = new ArrayList<>();
+        SearchResponse response = createSearchResponse(source);
+        Client client = getMockedClient(
+            queryBuilder -> assertThat(queryBuilder.getName(), equalTo("ids")),
+            response);
+
+        when(client.prepareSearch(indexName)).thenReturn(new SearchRequestBuilder(client, SearchAction.INSTANCE).setIndices(indexName));
+        JobResultsProvider provider = createProvider(client);
+        provider.timingStats(
+            "foo",
+            stats -> assertThat(stats, equalTo(new TimingStats("foo"))),
+            e -> { throw new AssertionError(); });
+
+        verify(client).prepareSearch(indexName);
+        verify(client).threadPool();
+        verify(client).search(any(SearchRequest.class), any(ActionListener.class));
+        verifyNoMoreInteractions(client);
     }
 
     private Bucket createBucketAtEpochTime(long epoch) {

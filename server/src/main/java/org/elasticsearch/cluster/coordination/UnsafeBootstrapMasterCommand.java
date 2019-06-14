@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.cluster.coordination;
 
-import joptsimple.OptionSet;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
@@ -45,15 +44,17 @@ public class UnsafeBootstrapMasterCommand extends ElasticsearchNodeCommand {
     static final String CLUSTER_STATE_TERM_VERSION_MSG_FORMAT =
             "Current node cluster state (term, version) pair is (%s, %s)";
     static final String CONFIRMATION_MSG =
-            "--------------------------------------------------------------------------\n" +
+        DELIMITER +
             "\n" +
-            "You should run this tool only if you have permanently lost half\n" +
-            "or more of the master-eligible nodes, and you cannot restore the cluster\n" +
-            "from a snapshot. This tool can cause arbitrary data loss and its use " +
-            "should be your last resort.\n" +
-            "If you have multiple survived master eligible nodes, consider running\n" +
-            "this tool on the node with the highest cluster state (term, version) pair.\n" +
+            "You should only run this tool if you have permanently lost half or more\n" +
+            "of the master-eligible nodes in this cluster, and you cannot restore the\n" +
+            "cluster from a snapshot. This tool can cause arbitrary data loss and its\n" +
+            "use should be your last resort. If you have multiple surviving master\n" +
+            "eligible nodes, you should run this tool on the node with the highest\n" +
+            "cluster state (term, version) pair.\n" +
+            "\n" +
             "Do you want to proceed?\n";
+
     static final String NOT_MASTER_NODE_MSG = "unsafe-bootstrap tool can only be run on master eligible node";
 
     static final String NO_NODE_METADATA_FOUND_MSG = "no node meta data is found, node has not been started yet?";
@@ -70,9 +71,7 @@ public class UnsafeBootstrapMasterCommand extends ElasticsearchNodeCommand {
     }
 
     @Override
-    protected void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {
-        super.execute(terminal, options, env);
-
+    protected boolean validateBeforeLock(Terminal terminal, Environment env) {
         Settings settings = env.settings();
         terminal.println(Terminal.Verbosity.VERBOSE, "Checking node.master setting");
         Boolean master = Node.NODE_MASTER_SETTING.get(settings);
@@ -80,12 +79,10 @@ public class UnsafeBootstrapMasterCommand extends ElasticsearchNodeCommand {
             throw new ElasticsearchException(NOT_MASTER_NODE_MSG);
         }
 
-        processNodePathsWithLock(terminal, options, env);
-
-        terminal.println(MASTER_NODE_BOOTSTRAPPED_MSG);
+        return true;
     }
 
-    protected void processNodePaths(Terminal terminal, Path[] dataPaths) throws IOException {
+    protected void processNodePaths(Terminal terminal, Path[] dataPaths, Environment env) throws IOException {
         terminal.println(Terminal.Verbosity.VERBOSE, "Loading node metadata");
         final NodeMetaData nodeMetaData = NodeMetaData.FORMAT.loadLatestState(logger, namedXContentRegistry, dataPaths);
         if (nodeMetaData == null) {
@@ -128,5 +125,7 @@ public class UnsafeBootstrapMasterCommand extends ElasticsearchNodeCommand {
                 .build();
 
         writeNewMetaData(terminal, manifest, manifest.getCurrentTerm(), metaData, newMetaData, dataPaths);
+
+        terminal.println(MASTER_NODE_BOOTSTRAPPED_MSG);
     }
 }

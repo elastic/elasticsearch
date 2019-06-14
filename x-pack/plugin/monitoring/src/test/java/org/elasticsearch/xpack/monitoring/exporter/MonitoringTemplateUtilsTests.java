@@ -58,7 +58,7 @@ public class MonitoringTemplateUtilsTests extends ESTestCase {
         assertTemplate(source, equalTo("{\n" +
                 "  \"index_patterns\": \".monitoring-data-" + TEMPLATE_VERSION + "\",\n" +
                 "  \"mappings\": {\n" +
-                "    \"doc\": {\n" +
+                "    \"_doc\": {\n" +
                 "      \"_meta\": {\n" +
                 "        \"template.version\": \"" + TEMPLATE_VERSION + "\"\n" +
                 "      }\n" +
@@ -115,5 +115,4 @@ public class MonitoringTemplateUtilsTests extends ESTestCase {
         assertThat(indexName(formatter, MonitoredSystem.BEATS, timestamp),
                 equalTo(".monitoring-beats-" + TEMPLATE_VERSION + "-2017-03-08-13.47.58"));
     }
-
 }

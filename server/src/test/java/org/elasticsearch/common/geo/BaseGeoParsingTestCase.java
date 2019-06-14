@@ -67,6 +67,13 @@ abstract class BaseGeoParsingTestCase extends ESTestCase {
         }
     }
 
+    protected void assertGeometryEquals(org.elasticsearch.geo.geometry.Geometry expected, XContentBuilder geoJson) throws IOException {
+        try (XContentParser parser = createParser(geoJson)) {
+            parser.nextToken();
+            assertEquals(expected, new GeoJson(true, false, false).fromXContent(parser));
+        }
+    }
+
     protected ShapeCollection<Shape> shapeCollection(Shape... shapes) {
         return new ShapeCollection<>(Arrays.asList(shapes), SPATIAL_CONTEXT);
     }

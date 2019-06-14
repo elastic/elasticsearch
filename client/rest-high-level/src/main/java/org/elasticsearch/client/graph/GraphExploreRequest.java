@@ -108,10 +108,26 @@ public class GraphExploreRequest implements IndicesRequest.Replaceable, ToXConte
         return this;
     }
 
+    /**
+     * The document types to execute the explore against. Defaults to be executed against
+     * all types.
+     *
+     * @deprecated Types are in the process of being removed. Instead of using a type, prefer to
+     * filter on a field on the document.
+     */
+    @Deprecated
     public String[] types() {
         return this.types;
     }
 
+    /**
+     * The document types to execute the explore request against. Defaults to be executed against
+     * all types.
+     *
+     * @deprecated Types are in the process of being removed. Instead of using a type, prefer to
+     * filter on a field on the document.
+     */
+    @Deprecated
     public GraphExploreRequest types(String... types) {
         this.types = types;
         return this;

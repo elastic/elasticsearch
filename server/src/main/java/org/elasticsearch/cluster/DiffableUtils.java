@@ -32,10 +32,7 @@ import org.elasticsearch.common.io.stream.Writeable.Reader;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -474,8 +471,10 @@ public final class DiffableUtils {
             }
             out.writeVInt(upsertsCount);
             for (Map.Entry<K, T> entry : upserts.entrySet()) {
-                keySerializer.writeKey(entry.getKey(), out);
-                valueSerializer.write(entry.getValue(), out);
+                if(valueSerializer.supportsVersion(entry.getValue(), version)) {
+                    keySerializer.writeKey(entry.getKey(), out);
+                    valueSerializer.write(entry.getValue(), out);
+                }
             }
         }
     }
@@ -718,7 +717,7 @@ public final class DiffableUtils {
 
         @Override
         public Set<String> read(StreamInput in, K key) throws IOException {
-            return Collections.unmodifiableSet(new HashSet<>(Arrays.asList(in.readStringArray())));
+            return Set.of(in.readStringArray());
         }
     }
 }

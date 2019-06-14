@@ -48,7 +48,7 @@ public class OpenLdapUserSearchSessionFactoryTests extends ESTestCase {
 
     private Settings globalSettings;
     private ThreadPool threadPool;
-    private static final String LDAPCACERT_PATH = "/ca.crt";
+    private static final String LDAPCACERT_PATH = "/ca_server.pem";
 
     @Before
     public void init() {

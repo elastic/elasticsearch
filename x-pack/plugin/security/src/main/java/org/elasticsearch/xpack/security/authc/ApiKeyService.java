@@ -22,6 +22,7 @@ import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.action.update.UpdateRequest;
@@ -52,6 +53,8 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.license.LicenseUtils;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.XPackSettings;
@@ -92,15 +95,16 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
 import static org.elasticsearch.search.SearchService.DEFAULT_KEEPALIVE_SETTING;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
+import static org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames.SECURITY_MAIN_ALIAS;
 
 public class ApiKeyService {
 
     private static final Logger logger = LogManager.getLogger(ApiKeyService.class);
     private static final DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
-    private static final String TYPE = "doc";
     static final String API_KEY_ID_KEY = "_security_api_key_id";
     static final String API_KEY_ROLE_DESCRIPTORS_KEY = "_security_api_key_role_descriptors";
     static final String API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY = "_security_api_key_limited_by_role_descriptors";
@@ -133,6 +137,7 @@ public class ApiKeyService {
 
     private final Clock clock;
     private final Client client;
+    private final XPackLicenseState licenseState;
     private final SecurityIndexManager securityIndex;
     private final ClusterService clusterService;
     private final Hasher hasher;
@@ -146,10 +151,11 @@ public class ApiKeyService {
 
     private volatile long lastExpirationRunMs;
 
-    public ApiKeyService(Settings settings, Clock clock, Client client, SecurityIndexManager securityIndex, ClusterService clusterService,
-                         ThreadPool threadPool) {
+    public ApiKeyService(Settings settings, Clock clock, Client client, XPackLicenseState licenseState, SecurityIndexManager securityIndex,
+                         ClusterService clusterService, ThreadPool threadPool) {
         this.clock = clock;
         this.client = client;
+        this.licenseState = licenseState;
         this.securityIndex = securityIndex;
         this.clusterService = clusterService;
         this.enabled = XPackSettings.API_KEY_SERVICE_ENABLED_SETTING.get(settings);
@@ -174,10 +180,10 @@ public class ApiKeyService {
      * Asynchronously creates a new API key based off of the request and authentication
      * @param authentication the authentication that this api key should be based off of
      * @param request the request to create the api key included any permission restrictions
-     * @param roleDescriptorSet the user's actual roles that we always enforce
+     * @param userRoles the user's actual roles that we always enforce
      * @param listener the listener that will be used to notify of completion
      */
-    public void createApiKey(Authentication authentication, CreateApiKeyRequest request, Set<RoleDescriptor> roleDescriptorSet,
+    public void createApiKey(Authentication authentication, CreateApiKeyRequest request, Set<RoleDescriptor> userRoles,
                              ActionListener<CreateApiKeyResponse> listener) {
         ensureEnabled();
         if (authentication == null) {
@@ -188,86 +194,122 @@ public class ApiKeyService {
              * this check is best effort as there could be two nodes executing search and
              * then index concurrently allowing a duplicate name.
              */
-            findApiKeyForApiKeyName(request.getName(), true, true, ActionListener.wrap(apiKeyIds -> {
-                if (apiKeyIds.isEmpty()) {
-                    final Instant created = clock.instant();
-                    final Instant expiration = getApiKeyExpiration(created, request);
-                    final SecureString apiKey = UUIDs.randomBase64UUIDSecureString();
-                    final Version version = clusterService.state().nodes().getMinNodeVersion();
-                    if (version.before(Version.V_6_7_0)) {
-                        logger.warn(
-                                "nodes prior to the minimum supported version for api keys {} exist in the cluster;"
-                                        + " these nodes will not be able to use api keys",
-                                Version.V_6_7_0);
-                    }
-
-                    final char[] keyHash = hasher.hash(apiKey);
-                    try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
-                        builder.startObject()
-                            .field("doc_type", "api_key")
-                            .field("creation_time", created.toEpochMilli())
-                            .field("expiration_time", expiration == null ? null : expiration.toEpochMilli())
-                            .field("api_key_invalidated", false);
-
-                        byte[] utf8Bytes = null;
-                        try {
-                            utf8Bytes = CharArrays.toUtf8Bytes(keyHash);
-                            builder.field("api_key_hash").utf8Value(utf8Bytes, 0, utf8Bytes.length);
-                        } finally {
-                            if (utf8Bytes != null) {
-                                Arrays.fill(utf8Bytes, (byte) 0);
-                            }
-                        }
-
-                        // Save role_descriptors
-                        builder.startObject("role_descriptors");
-                        if (request.getRoleDescriptors() != null && request.getRoleDescriptors().isEmpty() == false) {
-                            for (RoleDescriptor descriptor : request.getRoleDescriptors()) {
-                                builder.field(descriptor.getName(),
-                                        (contentBuilder, params) -> descriptor.toXContent(contentBuilder, params, true));
-                            }
-                        }
-                        builder.endObject();
-
-                        // Save limited_by_role_descriptors
-                        builder.startObject("limited_by_role_descriptors");
-                        for (RoleDescriptor descriptor : roleDescriptorSet) {
-                            builder.field(descriptor.getName(),
-                                    (contentBuilder, params) -> descriptor.toXContent(contentBuilder, params, true));
-                        }
-                        builder.endObject();
-
-                        builder.field("name", request.getName())
-                            .field("version", version.id)
-                            .startObject("creator")
-                            .field("principal", authentication.getUser().principal())
-                            .field("metadata", authentication.getUser().metadata())
-                            .field("realm", authentication.getLookedUpBy() == null ?
-                                authentication.getAuthenticatedBy().getName() : authentication.getLookedUpBy().getName())
-                            .endObject()
-                            .endObject();
-                        final IndexRequest indexRequest =
-                            client.prepareIndex(SecurityIndexManager.SECURITY_INDEX_NAME, TYPE)
-                                .setSource(builder)
-                                .setRefreshPolicy(request.getRefreshPolicy())
-                                .request();
-                        securityIndex.prepareIndexIfNeededThenExecute(listener::onFailure, () ->
-                        executeAsyncWithOrigin(client, SECURITY_ORIGIN, IndexAction.INSTANCE, indexRequest,
-                                ActionListener.wrap(
-                                        indexResponse -> listener.onResponse(
-                                                new CreateApiKeyResponse(request.getName(), indexResponse.getId(), apiKey, expiration)),
-                                        listener::onFailure)));
-                    } catch (IOException e) {
-                        listener.onFailure(e);
-                    } finally {
-                        Arrays.fill(keyHash, (char) 0);
-                    }
-                } else {
-                    listener.onFailure(traceLog("create api key", new ElasticsearchSecurityException(
-                            "Error creating api key as api key with name [{}] already exists", request.getName())));
-                }
-            }, listener::onFailure));
+            checkDuplicateApiKeyNameAndCreateApiKey(authentication, request, userRoles, listener);
         }
+    }
+
+    private void checkDuplicateApiKeyNameAndCreateApiKey(Authentication authentication, CreateApiKeyRequest request,
+                                                         Set<RoleDescriptor> userRoles,
+                                                         ActionListener<CreateApiKeyResponse> listener) {
+        final BoolQueryBuilder boolQuery = QueryBuilders.boolQuery()
+                .filter(QueryBuilders.termQuery("doc_type", "api_key"))
+                .filter(QueryBuilders.termQuery("name", request.getName()))
+                .filter(QueryBuilders.termQuery("api_key_invalidated", false));
+        final BoolQueryBuilder expiredQuery = QueryBuilders.boolQuery()
+                .should(QueryBuilders.rangeQuery("expiration_time").lte(Instant.now().toEpochMilli()))
+                .should(QueryBuilders.boolQuery().mustNot(QueryBuilders.existsQuery("expiration_time")));
+        boolQuery.filter(expiredQuery);
+
+        final SearchRequest searchRequest = client.prepareSearch(SECURITY_MAIN_ALIAS)
+            .setScroll(DEFAULT_KEEPALIVE_SETTING.get(settings))
+            .setQuery(boolQuery)
+            .setVersion(false)
+            .setSize(1)
+            .request();
+        securityIndex.prepareIndexIfNeededThenExecute(listener::onFailure, () ->
+        executeAsyncWithOrigin(client, SECURITY_ORIGIN, SearchAction.INSTANCE, searchRequest,
+                ActionListener.wrap(
+                        indexResponse -> {
+                            if (indexResponse.getHits().getTotalHits().value > 0) {
+                                listener.onFailure(traceLog("create api key", new ElasticsearchSecurityException(
+                                        "Error creating api key as api key with name [{}] already exists", request.getName())));
+                            } else {
+                                createApiKeyAndIndexIt(authentication, request, userRoles, listener);
+                            }
+                        },
+                        listener::onFailure)));
+    }
+
+    private void createApiKeyAndIndexIt(Authentication authentication, CreateApiKeyRequest request, Set<RoleDescriptor> roleDescriptorSet,
+                                        ActionListener<CreateApiKeyResponse> listener) {
+        final Instant created = clock.instant();
+        final Instant expiration = getApiKeyExpiration(created, request);
+        final SecureString apiKey = UUIDs.randomBase64UUIDSecureString();
+        final Version version = clusterService.state().nodes().getMinNodeVersion();
+
+        try (XContentBuilder builder = newDocument(apiKey, request.getName(), authentication, roleDescriptorSet, created, expiration,
+            request.getRoleDescriptors(), version)) {
+            final IndexRequest indexRequest =
+                client.prepareIndex(SECURITY_MAIN_ALIAS, SINGLE_MAPPING_NAME)
+                    .setSource(builder)
+                    .setRefreshPolicy(request.getRefreshPolicy())
+                    .request();
+            securityIndex.prepareIndexIfNeededThenExecute(listener::onFailure, () ->
+            executeAsyncWithOrigin(client, SECURITY_ORIGIN, IndexAction.INSTANCE, indexRequest,
+                    ActionListener.wrap(
+                            indexResponse -> listener.onResponse(
+                                    new CreateApiKeyResponse(request.getName(), indexResponse.getId(), apiKey, expiration)),
+                            listener::onFailure)));
+        } catch (IOException e) {
+            listener.onFailure(e);
+        }
+    }
+
+    /**
+     * package protected for testing
+     */
+    XContentBuilder newDocument(SecureString apiKey, String name, Authentication authentication, Set<RoleDescriptor> userRoles,
+                                        Instant created, Instant expiration, List<RoleDescriptor> keyRoles,
+                                        Version version) throws IOException {
+        XContentBuilder builder = XContentFactory.jsonBuilder();
+        builder.startObject()
+            .field("doc_type", "api_key")
+            .field("creation_time", created.toEpochMilli())
+            .field("expiration_time", expiration == null ? null : expiration.toEpochMilli())
+            .field("api_key_invalidated", false);
+
+        byte[] utf8Bytes = null;
+        final char[] keyHash = hasher.hash(apiKey);
+        try {
+            utf8Bytes = CharArrays.toUtf8Bytes(keyHash);
+            builder.field("api_key_hash").utf8Value(utf8Bytes, 0, utf8Bytes.length);
+        } finally {
+            if (utf8Bytes != null) {
+                Arrays.fill(utf8Bytes, (byte) 0);
+            }
+            Arrays.fill(keyHash, (char) 0);
+        }
+
+
+        // Save role_descriptors
+        builder.startObject("role_descriptors");
+        if (keyRoles != null && keyRoles.isEmpty() == false) {
+            for (RoleDescriptor descriptor : keyRoles) {
+                builder.field(descriptor.getName(),
+                    (contentBuilder, params) -> descriptor.toXContent(contentBuilder, params, true));
+            }
+        }
+        builder.endObject();
+
+        // Save limited_by_role_descriptors
+        builder.startObject("limited_by_role_descriptors");
+        for (RoleDescriptor descriptor : userRoles) {
+            builder.field(descriptor.getName(),
+                (contentBuilder, params) -> descriptor.toXContent(contentBuilder, params, true));
+        }
+        builder.endObject();
+
+        builder.field("name", name)
+            .field("version", version.id)
+            .startObject("creator")
+            .field("principal", authentication.getUser().principal())
+            .field("metadata", authentication.getUser().metadata())
+            .field("realm", authentication.getLookedUpBy() == null ?
+                authentication.getAuthenticatedBy().getName() : authentication.getLookedUpBy().getName())
+            .endObject()
+            .endObject();
+
+        return builder;
     }
 
     /**
@@ -275,7 +317,7 @@ public class ApiKeyService {
      * {@code ApiKey }. If found this will attempt to authenticate the key.
      */
     void authenticateWithApiKeyIfPresent(ThreadContext ctx, ActionListener<AuthenticationResult> listener) {
-        if (enabled) {
+        if (isEnabled()) {
             final ApiKeyCredentials credentials;
             try {
                 credentials = getCredentialsFromHeader(ctx);
@@ -285,8 +327,10 @@ public class ApiKeyService {
             }
 
             if (credentials != null) {
-                final GetRequest getRequest = client.prepareGet(SecurityIndexManager.SECURITY_INDEX_NAME, TYPE, credentials.getId())
-                    .setFetchSource(true).request();
+                final GetRequest getRequest = client
+                        .prepareGet(SECURITY_MAIN_ALIAS, SINGLE_MAPPING_NAME, credentials.getId())
+                        .setFetchSource(true)
+                        .request();
                 executeAsyncWithOrigin(ctx, SECURITY_ORIGIN, getRequest, ActionListener.<GetResponse>wrap(response -> {
                     if (response.isExists()) {
                         try (ApiKeyCredentials ignore = credentials) {
@@ -535,7 +579,14 @@ public class ApiKeyService {
         }
     }
 
+    private boolean isEnabled() {
+        return enabled && licenseState.isApiKeyServiceAllowed();
+    }
+
     private void ensureEnabled() {
+        if (licenseState.isApiKeyServiceAllowed() == false) {
+            throw LicenseUtils.newComplianceException("api keys");
+        }
         if (enabled == false) {
             throw new IllegalStateException("api keys are not enabled");
         }
@@ -692,8 +743,7 @@ public class ApiKeyService {
             expiredQuery.should(QueryBuilders.boolQuery().mustNot(QueryBuilders.existsQuery("expiration_time")));
             boolQuery.filter(expiredQuery);
         }
-
-        final SearchRequest request = client.prepareSearch(SecurityIndexManager.SECURITY_INDEX_NAME)
+        final SearchRequest request = client.prepareSearch(SECURITY_MAIN_ALIAS)
             .setScroll(DEFAULT_KEEPALIVE_SETTING.get(settings))
             .setQuery(boolQuery)
             .setVersion(false)
@@ -766,9 +816,10 @@ public class ApiKeyService {
         } else {
             BulkRequestBuilder bulkRequestBuilder = client.prepareBulk();
             for (String apiKeyId : apiKeyIds) {
-                UpdateRequest request = client.prepareUpdate(SecurityIndexManager.SECURITY_INDEX_NAME, TYPE, apiKeyId)
-                    .setDoc(Collections.singletonMap("api_key_invalidated", true))
-                    .request();
+                UpdateRequest request = client
+                        .prepareUpdate(SECURITY_MAIN_ALIAS, SINGLE_MAPPING_NAME, apiKeyId)
+                        .setDoc(Collections.singletonMap("api_key_invalidated", true))
+                        .request();
                 bulkRequestBuilder.add(request);
             }
             bulkRequestBuilder.setRefreshPolicy(RefreshPolicy.WAIT_UNTIL);
@@ -852,8 +903,14 @@ public class ApiKeyService {
         return exception;
     }
 
+    // pkg scoped for testing
     boolean isExpirationInProgress() {
         return expiredApiKeysRemover.isExpirationInProgress();
+    }
+
+    // pkg scoped for testing
+    long lastTimeWhenApiKeysRemoverWasTriggered() {
+        return lastExpirationRunMs;
     }
 
     private void maybeStartApiKeyRemover() {

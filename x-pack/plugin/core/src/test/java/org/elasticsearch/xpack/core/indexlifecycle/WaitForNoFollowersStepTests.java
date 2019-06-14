@@ -132,6 +132,42 @@ public class WaitForNoFollowersStepTests extends AbstractStepTestCase<WaitForNoF
             containsString("this index is a leader index; waiting for all following indices to cease following before proceeding"));
     }
 
+    public void testNoShardStats() {
+        WaitForNoFollowersStep step = createRandomInstance();
+
+        String indexName = randomAlphaOfLengthBetween(5,10);
+
+        int numberOfShards = randomIntBetween(1, 100);
+        final IndexMetaData indexMetaData = IndexMetaData.builder(indexName)
+            .settings(settings(Version.CURRENT))
+            .numberOfShards(numberOfShards)
+            .numberOfReplicas(randomIntBetween(1, 10))
+            .build();
+
+        ShardStats sStats = new ShardStats(null, mockShardPath(), null, null, null, null);
+        ShardStats[] shardStats = new ShardStats[1];
+        shardStats[0] = sStats;
+        mockIndexStatsCall(step.getClient(), indexName, new IndexStats(indexName, "uuid", shardStats));
+
+        final SetOnce<Boolean> conditionMetHolder = new SetOnce<>();
+        final SetOnce<ToXContentObject> stepInfoHolder = new SetOnce<>();
+        step.evaluateCondition(indexMetaData, new AsyncWaitStep.Listener() {
+            @Override
+            public void onResponse(boolean conditionMet, ToXContentObject infomationContext) {
+                conditionMetHolder.set(conditionMet);
+                stepInfoHolder.set(infomationContext);
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                fail("onFailure should not be called in this test, called with exception: " + e.getMessage());
+            }
+        });
+
+        assertTrue(conditionMetHolder.get());
+        assertNull(stepInfoHolder.get());
+    }
+
     public void testFailure() {
         WaitForNoFollowersStep step = createRandomInstance();
 

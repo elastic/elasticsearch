@@ -20,6 +20,7 @@
 package org.elasticsearch.action.admin.cluster.health;
 
 import org.elasticsearch.action.support.ActiveShardCount;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeReadOperationRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
@@ -35,6 +36,11 @@ public class ClusterHealthRequestBuilder
 
     public ClusterHealthRequestBuilder setIndices(String... indices) {
         request.indices(indices);
+        return this;
+    }
+
+    public ClusterHealthRequestBuilder setIndicesOptions(final IndicesOptions indicesOptions) {
+        request.indicesOptions(indicesOptions);
         return this;
     }
 

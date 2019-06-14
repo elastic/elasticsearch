@@ -37,8 +37,6 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -136,7 +134,7 @@ public class RecoveryState implements ToXContentFragment, Streamable, Writeable 
     public RecoveryState(StreamInput in) throws IOException {
         timer = new Timer(in);
         stage = Stage.fromId(in.readByte());
-        shardId = ShardId.readShardId(in);
+        shardId = new ShardId(in);
         recoverySource = RecoverySource.readFrom(in);
         targetNode = new DiscoveryNode(in);
         sourceNode = in.readOptionalWriteable(DiscoveryNode::new);
@@ -417,6 +415,10 @@ public class RecoveryState implements ToXContentFragment, Streamable, Writeable 
             stopTime = 0;
         }
 
+        // for tests
+        public long getStartNanoTime() {
+            return startNanoTime;
+        }
     }
 
     public static class VerifyIndex extends Timer implements ToXContentFragment, Writeable {
@@ -709,7 +711,7 @@ public class RecoveryState implements ToXContentFragment, Streamable, Writeable 
         }
 
         public synchronized List<File> fileDetails() {
-            return Collections.unmodifiableList(new ArrayList<>(fileDetails.values()));
+            return List.copyOf(fileDetails.values());
         }
 
         public synchronized void reset() {

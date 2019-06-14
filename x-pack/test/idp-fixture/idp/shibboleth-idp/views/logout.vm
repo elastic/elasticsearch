@@ -1,0 +1,107 @@
+##
+## Velocity Template for logout flow's starting view-state
+##
+## Velocity context will contain the following properties
+## flowExecutionUrl - the form action location
+## flowRequestContext - the Spring Web Flow RequestContext
+## flowExecutionKey - the SWF execution key (this is built into the flowExecutionUrl)
+## profileRequestContext - root of context tree
+## logoutContext - context with SPSession details for logout operation
+## multiRPContext - context with RelyingPartyContexts and possibly SP UI information from the metadata
+## encoder - HTMLEncoder class
+## request - HttpServletRequest
+## response - HttpServletResponse
+## environment - Spring Environment object for property resolution
+## custom - arbitrary object injected by deployer
+##
+#set ($rpContext = $profileRequestContext.getSubcontext("net.shibboleth.idp.profile.context.RelyingPartyContext"))
+#if ($rpContext)
+#set ($rpUIContext = $rpContext.getSubcontext("net.shibboleth.idp.ui.context.RelyingPartyUIContext"))
+#end
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width,initial-scale=1.0">
+        #if ( $logoutContext and !$logoutContext.getSessionMap().isEmpty() )
+            <meta http-equiv="refresh" content="10;url=$flowExecutionUrl&_eventId=propagate">
+        #end
+        <title>#springMessageText("idp.title", "Web Login Service")</title>
+        <link rel="stylesheet" type="text/css" href="$request.getContextPath()/css/main.css">
+    </head>
+
+    <body>
+    <div class="wrapper">
+      <div class="container">
+        <header>
+          <img src="$request.getContextPath()#springMessage("idp.logo")" alt="#springMessageText("idp.logo.alt-text", "logo")">
+        </header>
+
+        <div class="content">
+          <div class="column one">
+            <p>This page is displayed when a logout operation at the Identity Provider completes. This page is an example
+            and should be customized. It is not fully internationalized because the presentation will be a highly localized
+            decision, and we don't have a good suggestion for a default.</p>
+            <br>
+    
+            #if ($rpContext)
+                <p>#springMessageText("idp.logout.sp-initiated", "You have been logged out of the following service:")</p>
+                <blockquote>
+                #if ($rpUIContext)
+                    $encoder.encodeForHTML($rpUIContext.getServiceName())
+                #else
+                    $encoder.encodeForHTML($rpContext.getRelyingPartyId())
+                #end
+                </blockquote>
+                <br>
+            #end
+
+            #if ( $logoutContext and !$logoutContext.getSessionMap().isEmpty() )
+                <p>#springMessageText("idp.logout.ask", "Would you like to attempt to log out of all services accessed during your session? Please select <strong>Yes</strong> or <strong>No</strong> to ensure the logout operation completes, or wait a few seconds for Yes.")</p>
+                <br>
+
+                <form id="propagate_form" method="POST" action="$flowExecutionUrl">
+                    <button id="propagate_yes" type="submit" name="_eventId" value="propagate">Yes</button>
+                    <button id="propagate_no" type="submit" name="_eventId" value="end">No</button>
+                </form>
+
+                <br>
+                <p>#springMessageText("idp.logout.contactServices", "If you proceed, the system will attempt to contact the following services:")</p>
+                <ol>
+                #foreach ($sp in $logoutContext.getSessionMap().keySet())
+                    #set ($rpCtx = $multiRPContext.getRelyingPartyContextById($sp))
+                    #if ($rpCtx)
+                      #set ($rpUIContext = $rpCtx.getSubcontext("net.shibboleth.idp.ui.context.RelyingPartyUIContext"))
+                    #end
+                    #if ($rpUIContext and $rpUIContext.getServiceName())
+                      <li>$encoder.encodeForHTML($rpUIContext.getServiceName())</li>
+                    #else
+                      <li>$encoder.encodeForHTML($sp)</li>
+                    #end
+                #end
+                </ol>
+            #else
+                <p><strong>#springMessageText("idp.logout.complete", "The logout operation is complete, and no other services appear to have been accessed during this session.")</strong></p>
+                <!-- Complete the flow by adding a hidden iframe. -->
+                <iframe style="display:none" src="$flowExecutionUrl&_eventId=proceed"></iframe>
+            #end
+
+          </div>
+          <div class="column two">
+            <ul class="list list-help">
+              <li class="list-help-item"><a href="#springMessageText("idp.url.password.reset", "#")"><span class="item-marker">&rsaquo;</span> #springMessageText("idp.login.forgotPassword", "Forgot your password?")</a></li>
+              <li class="list-help-item"><a href="#springMessageText("idp.url.helpdesk", "#")"><span class="item-marker">&rsaquo;</span> #springMessageText("idp.login.needHelp", "Need Help?")</a></li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <footer>
+        <div class="container container-footer">
+          <p class="footer-text">#springMessageText("idp.footer", "Insert your footer text here.")</p>
+        </div>
+      </footer>
+    </div>
+    
+ 	</body>
+</html>

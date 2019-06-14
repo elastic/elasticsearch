@@ -1,3 +1,4 @@
+[[ruby_client]]
 == The Ruby Client
 
 The `elasticsearch` http://rubygems.org/gems/elasticsearch[Rubygem] provides a low-level client

@@ -30,7 +30,6 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.RateLimiter;
 import org.apache.lucene.util.ArrayUtil;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.StepListener;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
@@ -112,8 +111,7 @@ public class RecoverySourceHandler {
         this.shardId = this.request.shardId().id();
         this.logger = Loggers.getLogger(getClass(), request.shardId(), "recover to " + request.targetNode().getName());
         this.chunkSizeInBytes = fileChunkSizeInBytes;
-        // if the target is on an old version, it won't be able to handle out-of-order file chunks.
-        this.maxConcurrentFileChunks = request.targetNode().getVersion().onOrAfter(Version.V_6_7_0) ? maxConcurrentFileChunks : 1;
+        this.maxConcurrentFileChunks = maxConcurrentFileChunks;
     }
 
     public StartRecoveryRequest getRequest() {
@@ -155,17 +153,15 @@ public class RecoverySourceHandler {
                 assert targetShardRouting.initializing() : "expected recovery target to be initializing but was " + targetShardRouting;
             }, shardId + " validating recovery target ["+ request.targetAllocationId() + "] registered ",
                 shard, cancellableThreads, logger);
-            final Closeable retentionLock = shard.acquireRetentionLockForPeerRecovery();
+            final Closeable retentionLock = shard.acquireRetentionLock();
             resources.add(retentionLock);
             final long startingSeqNo;
-            final long requiredSeqNoRangeStart;
             final boolean isSequenceNumberBasedRecovery = request.startingSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO &&
                 isTargetSameHistory() && shard.hasCompleteHistoryOperations("peer-recovery", request.startingSeqNo());
             final SendFileResult sendFileResult;
             if (isSequenceNumberBasedRecovery) {
                 logger.trace("performing sequence numbers based recovery. starting at [{}]", request.startingSeqNo());
                 startingSeqNo = request.startingSeqNo();
-                requiredSeqNoRangeStart = startingSeqNo;
                 sendFileResult = SendFileResult.EMPTY;
             } else {
                 final Engine.IndexCommitRef phase1Snapshot;
@@ -174,16 +170,12 @@ public class RecoverySourceHandler {
                 } catch (final Exception e) {
                     throw new RecoveryEngineException(shard.shardId(), 1, "snapshot failed", e);
                 }
-                // We must have everything above the local checkpoint in the commit
-                requiredSeqNoRangeStart =
-                    Long.parseLong(phase1Snapshot.getIndexCommit().getUserData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY)) + 1;
-                // If soft-deletes enabled, we need to transfer only operations after the local_checkpoint of the commit to have
-                // the same history on the target. However, with translog, we need to set this to 0 to create a translog roughly
-                // according to the retention policy on the target. Note that it will still filter out legacy operations without seqNo.
-                startingSeqNo = shard.indexSettings().isSoftDeleteEnabled() ? requiredSeqNoRangeStart : 0;
+                // We need to set this to 0 to create a translog roughly according to the retention policy on the target. Note that it will
+                // still filter out legacy operations without seqNo.
+                startingSeqNo = 0;
                 try {
                     final int estimateNumOps = shard.estimateNumberOfHistoryOperations("peer-recovery", startingSeqNo);
-                    sendFileResult = phase1(phase1Snapshot.getIndexCommit(), () -> estimateNumOps);
+                    sendFileResult = phase1(phase1Snapshot.getIndexCommit(), shard.getGlobalCheckpoint(), () -> estimateNumOps);
                 } catch (final Exception e) {
                     throw new RecoveryEngineException(shard.shardId(), 1, "phase1 failed", e);
                 } finally {
@@ -195,8 +187,6 @@ public class RecoverySourceHandler {
                 }
             }
             assert startingSeqNo >= 0 : "startingSeqNo must be non negative. got: " + startingSeqNo;
-            assert requiredSeqNoRangeStart >= startingSeqNo : "requiredSeqNoRangeStart [" + requiredSeqNoRangeStart + "] is lower than ["
-                + startingSeqNo + "]";
 
             final StepListener<TimeValue> prepareEngineStep = new StepListener<>();
             // For a sequence based recovery, the target can keep its local translog
@@ -214,13 +204,7 @@ public class RecoverySourceHandler {
                     shardId + " initiating tracking of " + request.targetAllocationId(), shard, cancellableThreads, logger);
 
                 final long endingSeqNo = shard.seqNoStats().getMaxSeqNo();
-                /*
-                 * We need to wait for all operations up to the current max to complete, otherwise we can not guarantee that all
-                 * operations in the required range will be available for replaying from the translog of the source.
-                 */
-                cancellableThreads.execute(() -> shard.waitForOpsToComplete(endingSeqNo));
                 if (logger.isTraceEnabled()) {
-                    logger.trace("all operations up to [{}] completed, which will be used as an ending sequence number", endingSeqNo);
                     logger.trace("snapshot translog for recovery; current size is [{}]",
                         shard.estimateNumberOfHistoryOperations("peer-recovery", startingSeqNo));
                 }
@@ -233,15 +217,9 @@ public class RecoverySourceHandler {
                 final long maxSeenAutoIdTimestamp = shard.getMaxSeenAutoIdTimestamp();
                 final long maxSeqNoOfUpdatesOrDeletes = shard.getMaxSeqNoOfUpdatesOrDeletes();
                 final RetentionLeases retentionLeases = shard.getRetentionLeases();
-                phase2(
-                        startingSeqNo,
-                        requiredSeqNoRangeStart,
-                        endingSeqNo,
-                        phase2Snapshot,
-                        maxSeenAutoIdTimestamp,
-                        maxSeqNoOfUpdatesOrDeletes,
-                        retentionLeases,
-                        sendSnapshotStep);
+                final long mappingVersionOnPrimary = shard.indexSettings().getIndexMetaData().getMappingVersion();
+                phase2(startingSeqNo, endingSeqNo, phase2Snapshot, maxSeenAutoIdTimestamp, maxSeqNoOfUpdatesOrDeletes,
+                    retentionLeases, mappingVersionOnPrimary, sendSnapshotStep);
                 sendSnapshotStep.whenComplete(
                     r -> IOUtils.close(phase2Snapshot),
                     e -> {
@@ -274,9 +252,8 @@ public class RecoverySourceHandler {
 
     private boolean isTargetSameHistory() {
         final String targetHistoryUUID = request.metadataSnapshot().getHistoryUUID();
-        assert targetHistoryUUID != null || shard.indexSettings().getIndexVersionCreated().before(Version.V_6_0_0_rc1) :
-            "incoming target history N/A but index was created after or on 6.0.0-rc1";
-        return targetHistoryUUID != null && targetHistoryUUID.equals(shard.getHistoryUUID());
+        assert targetHistoryUUID != null : "incoming target history missing";
+        return targetHistoryUUID.equals(shard.getHistoryUUID());
     }
 
     static void runUnderPrimaryPermit(CancellableThreads.Interruptible runnable, String reason,
@@ -353,7 +330,7 @@ public class RecoverySourceHandler {
      * segments that are missing. Only segments that have the same size and
      * checksum can be reused
      */
-    public SendFileResult phase1(final IndexCommit snapshot, final Supplier<Integer> translogOps) {
+    public SendFileResult phase1(final IndexCommit snapshot, final long globalCheckpoint, final Supplier<Integer> translogOps) {
         cancellableThreads.checkForCancel();
         // Total size of segment files that are recovered
         long totalSize = 0;
@@ -382,25 +359,10 @@ public class RecoverySourceHandler {
                             recoverySourceMetadata.asMap().size() + " files", name);
                 }
             }
-            // Generate a "diff" of all the identical, different, and missing
-            // segment files on the target node, using the existing files on
-            // the source node
-            String recoverySourceSyncId = recoverySourceMetadata.getSyncId();
-            String recoveryTargetSyncId = request.metadataSnapshot().getSyncId();
-            final boolean recoverWithSyncId = recoverySourceSyncId != null &&
-                    recoverySourceSyncId.equals(recoveryTargetSyncId);
-            if (recoverWithSyncId) {
-                final long numDocsTarget = request.metadataSnapshot().getNumDocs();
-                final long numDocsSource = recoverySourceMetadata.getNumDocs();
-                if (numDocsTarget != numDocsSource) {
-                    throw new IllegalStateException("try to recover " + request.shardId() + " from primary shard with sync id but number " +
-                            "of docs differ: " + numDocsSource + " (" + request.sourceNode().getName() + ", primary) vs " + numDocsTarget
-                            + "(" + request.targetNode().getName() + ")");
-                }
-                // we shortcut recovery here because we have nothing to copy. but we must still start the engine on the target.
-                // so we don't return here
-                logger.trace("skipping [phase1]- identical sync id [{}] found on both source and target", recoverySourceSyncId);
-            } else {
+            if (canSkipPhase1(recoverySourceMetadata, request.metadataSnapshot()) == false) {
+                // Generate a "diff" of all the identical, different, and missing
+                // segment files on the target node, using the existing files on
+                // the source node
                 final Store.RecoveryDiff diff = recoverySourceMetadata.recoveryDiff(request.metadataSnapshot());
                 for (StoreFileMetaData md : diff.identical) {
                     phase1ExistingFileNames.add(md.name());
@@ -443,7 +405,7 @@ public class RecoverySourceHandler {
                 // are deleted
                 try {
                     cancellableThreads.executeIO(() ->
-                        recoveryTarget.cleanFiles(translogOps.get(), recoverySourceMetadata));
+                        recoveryTarget.cleanFiles(translogOps.get(), globalCheckpoint, recoverySourceMetadata));
                 } catch (RemoteTransportException | IOException targetException) {
                     final IOException corruptIndexException;
                     // we realized that after the index was copied and we wanted to finalize the recovery
@@ -481,6 +443,9 @@ public class RecoverySourceHandler {
                         throw targetException;
                     }
                 }
+            } else {
+                logger.trace("skipping [phase1]- identical sync id [{}] found on both source and target",
+                    recoverySourceMetadata.getSyncId());
             }
             final TimeValue took = stopWatch.totalTime();
             logger.trace("recovery [phase1]: took [{}]", took);
@@ -491,6 +456,26 @@ public class RecoverySourceHandler {
         } finally {
             store.decRef();
         }
+    }
+
+    boolean canSkipPhase1(Store.MetadataSnapshot source, Store.MetadataSnapshot target) {
+        if (source.getSyncId() == null || source.getSyncId().equals(target.getSyncId()) == false) {
+            return false;
+        }
+        if (source.getNumDocs() != target.getNumDocs()) {
+            throw new IllegalStateException("try to recover " + request.shardId() + " from primary shard with sync id but number " +
+                "of docs differ: " + source.getNumDocs() + " (" + request.sourceNode().getName() + ", primary) vs " + target.getNumDocs()
+                + "(" + request.targetNode().getName() + ")");
+        }
+        SequenceNumbers.CommitInfo sourceSeqNos = SequenceNumbers.loadSeqNoInfoFromLuceneCommit(source.getCommitUserData().entrySet());
+        SequenceNumbers.CommitInfo targetSeqNos = SequenceNumbers.loadSeqNoInfoFromLuceneCommit(target.getCommitUserData().entrySet());
+        if (sourceSeqNos.localCheckpoint != targetSeqNos.localCheckpoint || targetSeqNos.maxSeqNo != sourceSeqNos.maxSeqNo) {
+            final String message = "try to recover " + request.shardId() + " with sync id but " +
+                "seq_no stats are mismatched: [" + source.getCommitUserData() + "] vs [" + target.getCommitUserData() + "]";
+            assert false : message;
+            throw new IllegalStateException(message);
+        }
+        return true;
     }
 
     void prepareTargetForTranslog(boolean fileBasedRecovery, int totalTranslogOps, ActionListener<TimeValue> listener) {
@@ -519,7 +504,6 @@ public class RecoverySourceHandler {
      *
      * @param startingSeqNo              the sequence number to start recovery from, or {@link SequenceNumbers#UNASSIGNED_SEQ_NO} if all
      *                                   ops should be sent
-     * @param requiredSeqNoRangeStart    the lower sequence number of the required range (ending with endingSeqNo)
      * @param endingSeqNo                the highest sequence number that should be sent
      * @param snapshot                   a snapshot of the translog
      * @param maxSeenAutoIdTimestamp     the max auto_id_timestamp of append-only requests on the primary
@@ -528,26 +512,20 @@ public class RecoverySourceHandler {
      */
     void phase2(
             final long startingSeqNo,
-            final long requiredSeqNoRangeStart,
             final long endingSeqNo,
             final Translog.Snapshot snapshot,
             final long maxSeenAutoIdTimestamp,
             final long maxSeqNoOfUpdatesOrDeletes,
             final RetentionLeases retentionLeases,
+            final long mappingVersion,
             final ActionListener<SendSnapshotResult> listener) throws IOException {
-        assert requiredSeqNoRangeStart <= endingSeqNo + 1:
-            "requiredSeqNoRangeStart " + requiredSeqNoRangeStart + " is larger than endingSeqNo " + endingSeqNo;
-        assert startingSeqNo <= requiredSeqNoRangeStart :
-            "startingSeqNo " + startingSeqNo + " is larger than requiredSeqNoRangeStart " + requiredSeqNoRangeStart;
         if (shard.state() == IndexShardState.CLOSED) {
             throw new IndexShardClosedException(request.shardId());
         }
-        logger.trace("recovery [phase2]: sending transaction log operations (seq# from [" +  startingSeqNo  + "], " +
-            "required [" + requiredSeqNoRangeStart + ":" + endingSeqNo + "]");
+        logger.trace("recovery [phase2]: sending transaction log operations (from [" + startingSeqNo + "] to [" + endingSeqNo + "]");
 
         final AtomicInteger skippedOps = new AtomicInteger();
         final AtomicInteger totalSentOps = new AtomicInteger();
-        final LocalCheckpointTracker requiredOpsTracker = new LocalCheckpointTracker(endingSeqNo, requiredSeqNoRangeStart - 1);
         final AtomicInteger lastBatchCount = new AtomicInteger(); // used to estimate the count of the subsequent batch.
         final CheckedSupplier<List<Translog.Operation>, IOException> readNextBatch = () -> {
             // We need to synchronized Snapshot#next() because it's called by different threads through sendBatch.
@@ -569,7 +547,6 @@ public class RecoverySourceHandler {
                     ops.add(operation);
                     batchSizeInBytes += operation.estimateSize();
                     totalSentOps.incrementAndGet();
-                    requiredOpsTracker.markSeqNoAsCompleted(seqNo);
 
                     // check if this request is past bytes threshold, and if so, send it off
                     if (batchSizeInBytes >= chunkSizeInBytes) {
@@ -582,22 +559,16 @@ public class RecoverySourceHandler {
         };
 
         final StopWatch stopWatch = new StopWatch().start();
-        final ActionListener<Long> batchedListener = ActionListener.wrap(
+        final ActionListener<Long> batchedListener = ActionListener.map(listener,
             targetLocalCheckpoint -> {
                 assert snapshot.totalOperations() == snapshot.skippedOperations() + skippedOps.get() + totalSentOps.get()
                     : String.format(Locale.ROOT, "expected total [%d], overridden [%d], skipped [%d], total sent [%d]",
                     snapshot.totalOperations(), snapshot.skippedOperations(), skippedOps.get(), totalSentOps.get());
-                if (requiredOpsTracker.getCheckpoint() < endingSeqNo) {
-                    throw new IllegalStateException("translog replay failed to cover required sequence numbers" +
-                        " (required range [" + requiredSeqNoRangeStart + ":" + endingSeqNo + "). first missing op is ["
-                        + (requiredOpsTracker.getCheckpoint() + 1) + "]");
-                }
                 stopWatch.stop();
                 final TimeValue tookTime = stopWatch.totalTime();
                 logger.trace("recovery [phase2]: took [{}]", tookTime);
-                listener.onResponse(new SendSnapshotResult(targetLocalCheckpoint, totalSentOps.get(), tookTime));
-            },
-            listener::onFailure
+                return new SendSnapshotResult(targetLocalCheckpoint, totalSentOps.get(), tookTime);
+            }
         );
 
         sendBatch(
@@ -608,6 +579,7 @@ public class RecoverySourceHandler {
                 maxSeenAutoIdTimestamp,
                 maxSeqNoOfUpdatesOrDeletes,
                 retentionLeases,
+                mappingVersion,
                 batchedListener);
     }
 
@@ -619,7 +591,9 @@ public class RecoverySourceHandler {
             final long maxSeenAutoIdTimestamp,
             final long maxSeqNoOfUpdatesOrDeletes,
             final RetentionLeases retentionLeases,
+            final long mappingVersionOnPrimary,
             final ActionListener<Long> listener) throws IOException {
+        assert ThreadPool.assertCurrentMethodIsNotCalledRecursively();
         final List<Translog.Operation> operations = nextBatch.get();
         // send the leftover operations or if no operations were sent, request the target to respond with its local checkpoint
         if (operations.isEmpty() == false || firstBatch) {
@@ -630,6 +604,7 @@ public class RecoverySourceHandler {
                         maxSeenAutoIdTimestamp,
                         maxSeqNoOfUpdatesOrDeletes,
                         retentionLeases,
+                        mappingVersionOnPrimary,
                         ActionListener.wrap(
                                 newCheckpoint -> {
                                     sendBatch(
@@ -640,6 +615,7 @@ public class RecoverySourceHandler {
                                             maxSeenAutoIdTimestamp,
                                             maxSeqNoOfUpdatesOrDeletes,
                                             retentionLeases,
+                                            mappingVersionOnPrimary,
                                             listener);
                                 },
                                 listener::onFailure

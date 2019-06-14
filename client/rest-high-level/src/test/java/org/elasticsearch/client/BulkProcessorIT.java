@@ -291,7 +291,6 @@ public class BulkProcessorIT extends ESRestHighLevelClientTestCase {
         assertMultiGetResponse(highLevelClient().mget(multiGetRequest, RequestOptions.DEFAULT), testDocs);
     }
 
-    @SuppressWarnings("unchecked")
     public void testGlobalParametersAndSingleRequest() throws Exception {
         createIndexWithMultipleShards("test");
 
@@ -326,7 +325,6 @@ public class BulkProcessorIT extends ESRestHighLevelClientTestCase {
         assertThat(blogs, everyItem(hasProperty(fieldFromSource("fieldNameXYZ"), equalTo("valueXYZ"))));
     }
 
-    @SuppressWarnings("unchecked")
     public void testGlobalParametersAndBulkProcessor() throws Exception {
         createIndexWithMultipleShards("test");
 
@@ -447,7 +445,7 @@ public class BulkProcessorIT extends ESRestHighLevelClientTestCase {
                     .source(XContentType.JSON, "field", randomRealisticUnicodeOfLengthBetween(1, 30)));
             } else {
                 BytesArray data = bytesBulkRequest(localIndex, localType, i);
-                processor.add(data, globalIndex, globalType, globalPipeline, null, XContentType.JSON);
+                processor.add(data, globalIndex, globalType, globalPipeline, XContentType.JSON);
 
                 if (localType != null) {
                     // If the payload contains types, parsing it into a bulk request results in a warning.

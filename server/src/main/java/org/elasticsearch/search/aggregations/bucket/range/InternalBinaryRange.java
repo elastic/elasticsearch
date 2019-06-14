@@ -20,7 +20,6 @@
 package org.elasticsearch.search.aggregations.bucket.range;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -74,25 +73,18 @@ public final class InternalBinaryRange
         }
 
         private static Bucket createFromStream(StreamInput in, DocValueFormat format, boolean keyed) throws IOException {
-            String key = in.getVersion().onOrAfter(Version.V_6_4_0)
-                ? in.readString()
-                : in.readOptionalString();
-
+            String key = in.readString();
             BytesRef from = in.readBoolean() ? in.readBytesRef() : null;
             BytesRef to = in.readBoolean() ? in.readBytesRef() : null;
             long docCount = in.readLong();
-            InternalAggregations aggregations = InternalAggregations.readAggregations(in);
+            InternalAggregations aggregations = new InternalAggregations(in);
 
             return new Bucket(format, keyed, key, from, to, docCount, aggregations);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            if (out.getVersion().onOrAfter(Version.V_6_4_0)) {
-                out.writeString(key);
-            } else {
-                out.writeOptionalString(key);
-            }
+            out.writeString(key);
             out.writeBoolean(from != null);
             if (from != null) {
                 out.writeBytesRef(from);

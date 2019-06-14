@@ -40,13 +40,10 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.core.internal.io.IOUtils;
-import org.elasticsearch.discovery.zen.PublishClusterStateAction;
-import org.elasticsearch.discovery.zen.PublishClusterStateStats;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.BytesTransportRequest;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportException;
-import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportResponseHandler;
@@ -55,7 +52,6 @@ import org.elasticsearch.transport.TransportService;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Optional;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
@@ -93,31 +89,9 @@ public class PublicationTransportHandler {
         transportService.registerRequestHandler(PUBLISH_STATE_ACTION_NAME, BytesTransportRequest::new, ThreadPool.Names.GENERIC,
             false, false, (request, channel, task) -> channel.sendResponse(handleIncomingPublishRequest(request)));
 
-        transportService.registerRequestHandler(PublishClusterStateAction.SEND_ACTION_NAME, BytesTransportRequest::new,
-            ThreadPool.Names.GENERIC,
-            false, false, (request, channel, task) -> {
-                handleIncomingPublishRequest(request);
-                channel.sendResponse(TransportResponse.Empty.INSTANCE);
-            });
-
         transportService.registerRequestHandler(COMMIT_STATE_ACTION_NAME, ThreadPool.Names.GENERIC, false, false,
             ApplyCommitRequest::new,
             (request, channel, task) -> handleApplyCommit.accept(request, transportCommitCallback(channel)));
-
-        transportService.registerRequestHandler(PublishClusterStateAction.COMMIT_ACTION_NAME,
-            PublishClusterStateAction.CommitClusterStateRequest::new,
-            ThreadPool.Names.GENERIC, false, false,
-            (request, channel, task) -> {
-                final Optional<ClusterState> matchingClusterState = Optional.ofNullable(lastSeenClusterState.get()).filter(
-                    cs -> cs.stateUUID().equals(request.stateUUID));
-                if (matchingClusterState.isPresent() == false) {
-                    throw new IllegalStateException("can't resolve cluster state with uuid" +
-                        " [" + request.stateUUID + "] to commit");
-                }
-                final ApplyCommitRequest applyCommitRequest = new ApplyCommitRequest(matchingClusterState.get().getNodes().getMasterNode(),
-                    matchingClusterState.get().term(), matchingClusterState.get().version());
-                handleApplyCommit.accept(applyCommitRequest, transportCommitCallback(channel));
-            });
     }
 
     private ActionListener<Void> transportCommitCallback(TransportChannel channel) {
@@ -217,16 +191,7 @@ public class PublicationTransportHandler {
             @Override
             public void sendApplyCommit(DiscoveryNode destination, ApplyCommitRequest applyCommitRequest,
                                         ActionListener<TransportResponse.Empty> responseActionListener) {
-                final String actionName;
-                final TransportRequest transportRequest;
-                if (Coordinator.isZen1Node(destination)) {
-                    actionName = PublishClusterStateAction.COMMIT_ACTION_NAME;
-                    transportRequest = new PublishClusterStateAction.CommitClusterStateRequest(newState.stateUUID());
-                } else {
-                    actionName = COMMIT_STATE_ACTION_NAME;
-                    transportRequest = applyCommitRequest;
-                }
-                transportService.sendRequest(destination, actionName, transportRequest, stateRequestOptions,
+                transportService.sendRequest(destination, COMMIT_STATE_ACTION_NAME, applyCommitRequest, stateRequestOptions,
                     new TransportResponseHandler<TransportResponse.Empty>() {
 
                         @Override
@@ -290,19 +255,7 @@ public class PublicationTransportHandler {
                         return ThreadPool.Names.GENERIC;
                     }
                 };
-            final String actionName;
-            final TransportResponseHandler<?> transportResponseHandler;
-            if (Coordinator.isZen1Node(node)) {
-                actionName = PublishClusterStateAction.SEND_ACTION_NAME;
-                transportResponseHandler = publishWithJoinResponseHandler.wrap(empty -> new PublishWithJoinResponse(
-                    new PublishResponse(clusterState.term(), clusterState.version()),
-                    Optional.of(new Join(node, transportService.getLocalNode(), clusterState.term(), clusterState.term(),
-                        clusterState.version()))), in -> TransportResponse.Empty.INSTANCE);
-            } else {
-                actionName = PUBLISH_STATE_ACTION_NAME;
-                transportResponseHandler = publishWithJoinResponseHandler;
-            }
-            transportService.sendRequest(node, actionName, request, stateRequestOptions, transportResponseHandler);
+            transportService.sendRequest(node, PUBLISH_STATE_ACTION_NAME, request, stateRequestOptions, publishWithJoinResponseHandler);
         } catch (Exception e) {
             logger.warn(() -> new ParameterizedMessage("error sending cluster state to {}", node), e);
             responseActionListener.onFailure(e);
@@ -320,13 +273,17 @@ public class PublicationTransportHandler {
             }
             try {
                 if (sendFullVersion || !previousState.nodes().nodeExists(node)) {
-                    serializedStates.putIfAbsent(node.getVersion(), serializeFullClusterState(clusterState, node.getVersion()));
+                    if (serializedStates.containsKey(node.getVersion()) == false) {
+                        serializedStates.put(node.getVersion(), serializeFullClusterState(clusterState, node.getVersion()));
+                    }
                 } else {
                     // will send a diff
                     if (diff == null) {
                         diff = clusterState.diff(previousState);
                     }
-                    serializedDiffs.putIfAbsent(node.getVersion(), serializeDiffClusterState(diff, node.getVersion()));
+                    if (serializedDiffs.containsKey(node.getVersion()) == false) {
+                        serializedDiffs.put(node.getVersion(), serializeDiffClusterState(diff, node.getVersion()));
+                    }
                 }
             } catch (IOException e) {
                 throw new ElasticsearchException("failed to serialize cluster state for publishing to node {}", e, node);

@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.core.deprecation;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
@@ -21,6 +20,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
@@ -28,12 +28,12 @@ import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -123,11 +123,7 @@ public class DeprecationInfoAction extends Action<DeprecationInfoAction.Response
             clusterSettingsIssues = in.readList(DeprecationIssue::new);
             nodeSettingsIssues = in.readList(DeprecationIssue::new);
             indexSettingsIssues = in.readMapOfLists(StreamInput::readString, DeprecationIssue::new);
-            if (in.getVersion().onOrAfter(Version.V_6_7_0)) {
-                mlSettingsIssues = in.readList(DeprecationIssue::new);
-            } else {
-                mlSettingsIssues = Collections.emptyList();
-            }
+            mlSettingsIssues = in.readList(DeprecationIssue::new);
         }
 
         @Override
@@ -136,9 +132,7 @@ public class DeprecationInfoAction extends Action<DeprecationInfoAction.Response
             out.writeList(clusterSettingsIssues);
             out.writeList(nodeSettingsIssues);
             out.writeMapOfLists(indexSettingsIssues, StreamOutput::writeString, (o, v) -> v.writeTo(o));
-            if (out.getVersion().onOrAfter(Version.V_6_7_0)) {
-                out.writeList(mlSettingsIssues);
-            }
+            out.writeList(mlSettingsIssues);
         }
 
         @Override
@@ -187,19 +181,21 @@ public class DeprecationInfoAction extends Action<DeprecationInfoAction.Response
          * @return The list of deprecation issues found in the cluster
          */
         public static DeprecationInfoAction.Response from(ClusterState state,
+                                                          NamedXContentRegistry xContentRegistry,
                                                           IndexNameExpressionResolver indexNameExpressionResolver,
                                                           String[] indices, IndicesOptions indicesOptions,
                                                           List<DatafeedConfig> datafeeds,
                                                           NodesDeprecationCheckResponse nodeDeprecationResponse,
                                                           List<Function<IndexMetaData, DeprecationIssue>> indexSettingsChecks,
                                                           List<Function<ClusterState, DeprecationIssue>> clusterSettingsChecks,
-                                                          List<Function<DatafeedConfig, DeprecationIssue>> mlSettingsCheck) {
+                                                          List<BiFunction<DatafeedConfig, NamedXContentRegistry, DeprecationIssue>>
+                                                              mlSettingsCheck) {
             List<DeprecationIssue> clusterSettingsIssues = filterChecks(clusterSettingsChecks,
                 (c) -> c.apply(state));
             List<DeprecationIssue> nodeSettingsIssues = mergeNodeIssues(nodeDeprecationResponse);
             List<DeprecationIssue> mlSettingsIssues = new ArrayList<>();
             for (DatafeedConfig config : datafeeds) {
-                mlSettingsIssues.addAll(filterChecks(mlSettingsCheck, (c) -> c.apply(config)));
+                mlSettingsIssues.addAll(filterChecks(mlSettingsCheck, (c) -> c.apply(config, xContentRegistry)));
             }
 
             String[] concreteIndexNames = indexNameExpressionResolver.concreteIndexNames(state, indicesOptions, indices);

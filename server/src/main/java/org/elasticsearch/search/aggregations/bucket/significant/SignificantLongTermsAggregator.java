@@ -50,7 +50,7 @@ public class SignificantLongTermsAggregator extends LongTermsAggregator {
             List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
 
         super(name, factories, valuesSource, format, null, bucketCountThresholds, context, parent,
-                SubAggCollectionMode.DEPTH_FIRST, false, includeExclude, pipelineAggregators, metaData);
+                SubAggCollectionMode.BREADTH_FIRST, false, includeExclude, pipelineAggregators, metaData);
         this.significanceHeuristic = significanceHeuristic;
         this.termsAggFactory = termsAggFactory;
     }
@@ -106,12 +106,20 @@ public class SignificantLongTermsAggregator extends LongTermsAggregator {
             }
         }
 
-        final SignificantLongTerms.Bucket[] list = new SignificantLongTerms.Bucket[ordered.size()];
+        SignificantLongTerms.Bucket[] list = new SignificantLongTerms.Bucket[ordered.size()];
+        final long[] survivingBucketOrds = new long[ordered.size()];
         for (int i = ordered.size() - 1; i >= 0; i--) {
             final SignificantLongTerms.Bucket bucket = ordered.pop();
-            bucket.aggregations = bucketAggregations(bucket.bucketOrd);
+            survivingBucketOrds[i] = bucket.bucketOrd;
             list[i] = bucket;
         }
+
+        runDeferredCollections(survivingBucketOrds);
+
+        for (SignificantLongTerms.Bucket bucket : list) {
+            bucket.aggregations = bucketAggregations(bucket.bucketOrd);
+        }
+
         return new SignificantLongTerms(name, bucketCountThresholds.getRequiredSize(), bucketCountThresholds.getMinDocCount(),
                 pipelineAggregators(), metaData(), format, subsetSize, supersetSize, significanceHeuristic, Arrays.asList(list));
     }

@@ -20,6 +20,7 @@
 package org.elasticsearch.search.geo;
 
 import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
+
 import org.apache.lucene.geo.GeoTestUtil;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequest;
@@ -122,7 +123,7 @@ public class GeoShapeQueryTests extends ESSingleNodeTestCase {
 
         EnvelopeBuilder shape = new EnvelopeBuilder(new Coordinate(-45, 45), new Coordinate(45, -45));
 
-        SearchResponse searchResponse = client().prepareSearch("test").setTypes("type1")
+        SearchResponse searchResponse = client().prepareSearch("test")
                 .setQuery(geoIntersectionQuery("location", shape))
                 .get();
 
@@ -131,7 +132,7 @@ public class GeoShapeQueryTests extends ESSingleNodeTestCase {
         assertThat(searchResponse.getHits().getHits().length, equalTo(1));
         assertThat(searchResponse.getHits().getAt(0).getId(), equalTo("1"));
 
-        searchResponse = client().prepareSearch("test").setTypes("type1")
+        searchResponse = client().prepareSearch("test")
                 .setQuery(geoShapeQuery("location", shape))
                 .get();
 
@@ -167,7 +168,7 @@ public class GeoShapeQueryTests extends ESSingleNodeTestCase {
 
         // This search would fail if both geoshape indexing and geoshape filtering
         // used the bottom-level optimization in SpatialPrefixTree#recursiveGetNodes.
-        SearchResponse searchResponse = client().prepareSearch("test").setTypes("type1")
+        SearchResponse searchResponse = client().prepareSearch("test")
                 .setQuery(geoIntersectionQuery("location", query))
                 .get();
 
@@ -233,7 +234,7 @@ public class GeoShapeQueryTests extends ESSingleNodeTestCase {
                 .endObject()).setRefreshPolicy(IMMEDIATE).get();
 
         SearchResponse searchResponse = client().prepareSearch("test")
-                .setQuery(geoIntersectionQuery("location", "Big_Rectangle", "shape_type"))
+                .setQuery(geoIntersectionQuery("location", "Big_Rectangle"))
                 .get();
 
         assertSearchResponse(searchResponse);
@@ -242,7 +243,7 @@ public class GeoShapeQueryTests extends ESSingleNodeTestCase {
         assertThat(searchResponse.getHits().getAt(0).getId(), equalTo("1"));
 
         searchResponse = client().prepareSearch("test")
-                .setQuery(geoShapeQuery("location", "Big_Rectangle", "shape_type"))
+                .setQuery(geoShapeQuery("location", "Big_Rectangle"))
                 .get();
 
         assertSearchResponse(searchResponse);
@@ -420,6 +421,10 @@ public class GeoShapeQueryTests extends ESSingleNodeTestCase {
             }
         }
         org.apache.lucene.geo.Polygon randomPoly = GeoTestUtil.nextPolygon();
+
+        assumeTrue("Skipping the check for the polygon with a degenerated dimension",
+            randomPoly.maxLat - randomPoly.minLat > 8.4e-8 &&  randomPoly.maxLon - randomPoly.minLon > 8.4e-8);
+
         CoordinatesBuilder cb = new CoordinatesBuilder();
         for (int i = 0; i < randomPoly.numPoints(); ++i) {
             cb.coordinate(randomPoly.getPolyLon(i), randomPoly.getPolyLat(i));
@@ -448,9 +453,6 @@ public class GeoShapeQueryTests extends ESSingleNodeTestCase {
         geoShapeQueryBuilder.relation(ShapeRelation.INTERSECTS);
         SearchResponse result = client().prepareSearch("test").setQuery(geoShapeQueryBuilder).get();
         assertSearchResponse(result);
-        assumeTrue("Skipping the check for the polygon with a degenerated dimension until "
-            +" https://issues.apache.org/jira/browse/LUCENE-8634 is fixed",
-            randomPoly.maxLat - randomPoly.minLat > 8.4e-8 &&  randomPoly.maxLon - randomPoly.minLon > 8.4e-8);
         assertTrue("query: " + geoShapeQueryBuilder.toString() + " doc: " + Strings.toString(docSource),
             result.getHits().getTotalHits().value > 0);
     }
@@ -624,7 +626,7 @@ public class GeoShapeQueryTests extends ESSingleNodeTestCase {
         }
 
         // test that point was inserted
-        SearchResponse response = client().prepareSearch("geo_points_only").setTypes("type1")
+        SearchResponse response = client().prepareSearch("geo_points_only")
                 .setQuery(geoIntersectionQuery("location", shape))
                 .get();
 
@@ -658,7 +660,7 @@ public class GeoShapeQueryTests extends ESSingleNodeTestCase {
             .setRefreshPolicy(IMMEDIATE).get();
 
         // test that point was inserted
-        SearchResponse response = client().prepareSearch("geo_points_only").setTypes("type1")
+        SearchResponse response = client().prepareSearch("geo_points_only")
             .setQuery(matchAllQuery())
             .get();
 

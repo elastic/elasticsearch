@@ -20,6 +20,7 @@
 package org.elasticsearch.action.get;
 
 import org.elasticsearch.action.Action;
+import org.elasticsearch.common.io.stream.Writeable;
 
 public class GetAction extends Action<GetResponse> {
 
@@ -32,6 +33,11 @@ public class GetAction extends Action<GetResponse> {
 
     @Override
     public GetResponse newResponse() {
-        return new GetResponse();
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
+    }
+
+    @Override
+    public Writeable.Reader<GetResponse> getResponseReader() {
+        return GetResponse::new;
     }
 }

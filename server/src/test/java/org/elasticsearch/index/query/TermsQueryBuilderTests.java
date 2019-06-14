@@ -84,7 +84,8 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
                     choice.equals(GEO_POINT_ALIAS_FIELD_NAME) ||
                     choice.equals(GEO_SHAPE_FIELD_NAME) ||
                     choice.equals(INT_RANGE_FIELD_NAME) ||
-                    choice.equals(DATE_RANGE_FIELD_NAME),
+                    choice.equals(DATE_RANGE_FIELD_NAME) ||
+                    choice.equals(DATE_NANOS_FIELD_NAME), // TODO: needs testing for date_nanos type
                 () -> getRandomFieldName());
             Object[] values = new Object[randomInt(5)];
             for (int i = 0; i < values.length; i++) {
@@ -209,7 +210,7 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
             throw new ElasticsearchException("boom", ex);
         }
         return new GetResponse(new GetResult(getRequest.index(), getRequest.type(), getRequest.id(), 0, 1, 0, true,
-            new BytesArray(json), null));
+            new BytesArray(json), null, null));
     }
 
     public void testNumeric() throws IOException {

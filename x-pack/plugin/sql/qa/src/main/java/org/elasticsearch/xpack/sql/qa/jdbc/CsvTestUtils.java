@@ -46,7 +46,7 @@ public final class CsvTestUtils {
      */
     public static ResultSet executeCsvQuery(Connection csv, String csvTableName) throws SQLException {
         ResultSet expected = csv.createStatement(ResultSet.TYPE_SCROLL_INSENSITIVE, ResultSet.CONCUR_READ_ONLY)
-                .executeQuery("SELECT * FROM " + csvTableName);
+            .executeQuery("SELECT * FROM " + csvTableName);
         // trigger data loading for type inference
         expected.beforeFirst();
         return expected;
@@ -155,6 +155,8 @@ public final class CsvTestUtils {
                 return "timestamp";
             case "bt":
                 return "byte";
+            case "sh":
+                return "short";
             default:
                 return type;
         }
@@ -185,13 +187,13 @@ public final class CsvTestUtils {
                 }
                 else {
                     if (line.endsWith(";")) {
-                    // pick up the query
-                    testCase = new CsvTestCase();
-                    query.append(line.substring(0, line.length() - 1).trim());
-                    testCase.query = query.toString();
-                    testCase.earlySchema = earlySchema.toString();
-                    earlySchema.setLength(0);
-                    query.setLength(0);
+                        // pick up the query
+                        testCase = new CsvTestCase();
+                        query.append(line.substring(0, line.length() - 1).trim());
+                        testCase.query = query.toString();
+                        testCase.earlySchema = earlySchema.toString();
+                        earlySchema.setLength(0);
+                        query.setLength(0);
                     }
                     // keep reading the query
                     else {

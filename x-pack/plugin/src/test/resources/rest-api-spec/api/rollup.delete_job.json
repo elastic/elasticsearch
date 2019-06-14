@@ -1,0 +1,17 @@
+{
+  "rollup.delete_job": {
+    "documentation": "",
+    "stability" : "experimental",
+    "methods": [ "DELETE" ],
+    "url": {
+      "paths": [ "/_rollup/job/{id}" ],
+      "parts": {
+        "id": {
+          "type": "string",
+          "required": true,
+          "description": "The ID of the job to delete"
+        }
+      }
+    }
+  }
+}

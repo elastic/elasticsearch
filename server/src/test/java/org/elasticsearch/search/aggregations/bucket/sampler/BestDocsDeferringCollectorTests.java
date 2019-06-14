@@ -44,6 +44,7 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicLong;
 
 public class BestDocsDeferringCollectorTests extends AggregatorTestCase {
 
@@ -65,8 +66,10 @@ public class BestDocsDeferringCollectorTests extends AggregatorTestCase {
         TermQuery termQuery = new TermQuery(new Term("field", String.valueOf(randomInt(maxNumValues))));
         TopDocs topDocs = indexSearcher.search(termQuery, numDocs);
 
+        final AtomicLong bytes = new AtomicLong(0);
+
         BestDocsDeferringCollector collector = new BestDocsDeferringCollector(numDocs,
-            new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService()));
+            new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService()), bytes::addAndGet);
         Set<Integer> deferredCollectedDocIds = new HashSet<>();
         collector.setDeferredCollector(Collections.singleton(testCollector(deferredCollectedDocIds)));
         collector.preCollection();

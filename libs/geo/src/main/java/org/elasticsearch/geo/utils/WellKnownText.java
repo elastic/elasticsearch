@@ -56,25 +56,33 @@ public class WellKnownText {
     private static final String EOF = "END-OF-STREAM";
     private static final String EOL = "END-OF-LINE";
 
-    public static String toWKT(Geometry geometry) {
+    public WellKnownText() {
+
+    }
+
+    public String toWKT(Geometry geometry) {
         StringBuilder builder = new StringBuilder();
         toWKT(geometry, builder);
         return builder.toString();
     }
 
-    public static void toWKT(Geometry geometry, StringBuilder sb) {
+    public void toWKT(Geometry geometry, StringBuilder sb) {
         sb.append(getWKTName(geometry));
         sb.append(SPACE);
         if (geometry.isEmpty()) {
             sb.append(EMPTY);
         } else {
-            geometry.visit(new GeometryVisitor<Void>() {
+            geometry.visit(new GeometryVisitor<Void, RuntimeException>() {
                 @Override
                 public Void visit(Circle circle) {
                     sb.append(LPAREN);
-                    visitPoint(circle.getLon(), circle.getLat());
+                    visitPoint(circle.getLon(), circle.getLat(), Double.NaN);
                     sb.append(SPACE);
                     sb.append(circle.getRadiusMeters());
+                    if (circle.hasAlt()) {
+                        sb.append(SPACE);
+                        sb.append(circle.getAlt());
+                    }
                     sb.append(RPAREN);
                     return null;
                 }
@@ -98,11 +106,11 @@ public class WellKnownText {
                 @Override
                 public Void visit(Line line) {
                     sb.append(LPAREN);
-                    visitPoint(line.getLon(0), line.getLat(0));
+                    visitPoint(line.getLon(0), line.getLat(0), line.getAlt(0));
                     for (int i = 1; i < line.length(); ++i) {
                         sb.append(COMMA);
                         sb.append(SPACE);
-                        visitPoint(line.getLon(i), line.getLat(i));
+                        visitPoint(line.getLon(i), line.getLat(i), line.getAlt(i));
                     }
                     sb.append(RPAREN);
                     return null;
@@ -127,12 +135,12 @@ public class WellKnownText {
                     }
                     // walk through coordinates:
                     sb.append(LPAREN);
-                    visitPoint(multiPoint.get(0).getLon(), multiPoint.get(0).getLat());
+                    visitPoint(multiPoint.get(0).getLon(), multiPoint.get(0).getLat(), multiPoint.get(0).getAlt());
                     for (int i = 1; i < multiPoint.size(); ++i) {
                         sb.append(COMMA);
                         sb.append(SPACE);
                         Point point = multiPoint.get(i);
-                        visitPoint(point.getLon(), point.getLat());
+                        visitPoint(point.getLon(), point.getLat(), point.getAlt());
                     }
                     sb.append(RPAREN);
                     return null;
@@ -150,14 +158,17 @@ public class WellKnownText {
                         sb.append(EMPTY);
                     } else {
                         sb.append(LPAREN);
-                        visitPoint(point.getLon(), point.getLat());
+                        visitPoint(point.getLon(), point.getLat(), point.getAlt());
                         sb.append(RPAREN);
                     }
                     return null;
                 }
 
-                private void visitPoint(double lon, double lat) {
+                private void visitPoint(double lon, double lat, double alt) {
                     sb.append(lon).append(SPACE).append(lat);
+                    if (Double.isNaN(alt) == false) {
+                        sb.append(SPACE).append(alt);
+                    }
                 }
 
                 private void visitCollection(GeometryCollection<?> collection) {
@@ -191,6 +202,7 @@ public class WellKnownText {
                 public Void visit(Rectangle rectangle) {
                     sb.append(LPAREN);
                     // minX, maxX, maxY, minY
+                    // TODO: Add 3D support
                     sb.append(rectangle.getMinLon());
                     sb.append(COMMA);
                     sb.append(SPACE);
@@ -208,7 +220,7 @@ public class WellKnownText {
         }
     }
 
-    public static Geometry fromWKT(String wkt) throws IOException, ParseException {
+    public Geometry fromWKT(String wkt) throws IOException, ParseException {
         StringReader reader = new StringReader(wkt);
         try {
             // setup the tokenizer; configured to read words w/o numbers
@@ -278,28 +290,33 @@ public class WellKnownText {
         }
         double lon = nextNumber(stream);
         double lat = nextNumber(stream);
-        Point pt = new Point(lat, lon);
-        if (isNumberNext(stream) == true) {
-            nextNumber(stream);
+        Point pt;
+        if (isNumberNext(stream)) {
+            pt = new Point(lat, lon, nextNumber(stream));
+        } else {
+            pt = new Point(lat, lon);
         }
         nextCloser(stream);
         return pt;
     }
 
-    private static void parseCoordinates(StreamTokenizer stream, ArrayList<Double> lats, ArrayList<Double> lons)
+    private static void parseCoordinates(StreamTokenizer stream, ArrayList<Double> lats, ArrayList<Double> lons, ArrayList<Double> alts)
         throws IOException, ParseException {
-        parseCoordinate(stream, lats, lons);
+        parseCoordinate(stream, lats, lons, alts);
         while (nextCloserOrComma(stream).equals(COMMA)) {
-            parseCoordinate(stream, lats, lons);
+            parseCoordinate(stream, lats, lons, alts);
         }
     }
 
-    private static void parseCoordinate(StreamTokenizer stream, ArrayList<Double> lats, ArrayList<Double> lons)
+    private static void parseCoordinate(StreamTokenizer stream, ArrayList<Double> lats, ArrayList<Double> lons, ArrayList<Double> alts)
         throws IOException, ParseException {
         lons.add(nextNumber(stream));
         lats.add(nextNumber(stream));
         if (isNumberNext(stream)) {
-            nextNumber(stream);
+            alts.add(nextNumber(stream));
+        }
+        if (alts.isEmpty() == false && alts.size() != lons.size()) {
+            throw new ParseException("coordinate dimensions do not match: " + tokenString(stream), stream.lineno());
         }
     }
 
@@ -310,10 +327,15 @@ public class WellKnownText {
         }
         ArrayList<Double> lats = new ArrayList<>();
         ArrayList<Double> lons = new ArrayList<>();
+        ArrayList<Double> alts = new ArrayList<>();
         ArrayList<Point> points = new ArrayList<>();
-        parseCoordinates(stream, lats, lons);
+        parseCoordinates(stream, lats, lons, alts);
         for (int i = 0; i < lats.size(); i++) {
-            points.add(new Point(lats.get(i), lons.get(i)));
+            if (alts.isEmpty()) {
+                points.add(new Point(lats.get(i), lons.get(i)));
+            } else {
+                points.add(new Point(lats.get(i), lons.get(i), alts.get(i)));
+            }
         }
         return new MultiPoint(Collections.unmodifiableList(points));
     }
@@ -325,8 +347,13 @@ public class WellKnownText {
         }
         ArrayList<Double> lats = new ArrayList<>();
         ArrayList<Double> lons = new ArrayList<>();
-        parseCoordinates(stream, lats, lons);
-        return new Line(lats.stream().mapToDouble(i -> i).toArray(), lons.stream().mapToDouble(i -> i).toArray());
+        ArrayList<Double> alts = new ArrayList<>();
+        parseCoordinates(stream, lats, lons, alts);
+        if (alts.isEmpty()) {
+            return new Line(toArray(lats), toArray(lons));
+        } else {
+            return new Line(toArray(lats), toArray(lons), toArray(alts));
+        }
     }
 
     private static MultiLine parseMultiLine(StreamTokenizer stream) throws IOException, ParseException {
@@ -346,8 +373,13 @@ public class WellKnownText {
         nextOpener(stream);
         ArrayList<Double> lats = new ArrayList<>();
         ArrayList<Double> lons = new ArrayList<>();
-        parseCoordinates(stream, lats, lons);
-        return new LinearRing(lats.stream().mapToDouble(i -> i).toArray(), lons.stream().mapToDouble(i -> i).toArray());
+        ArrayList<Double> alts = new ArrayList<>();
+        parseCoordinates(stream, lats, lons, alts);
+        if (alts.isEmpty()) {
+            return new LinearRing(toArray(lats), toArray(lons));
+        } else {
+            return new LinearRing(toArray(lats), toArray(lons), toArray(alts));
+        }
     }
 
     private static Polygon parsePolygon(StreamTokenizer stream) throws IOException, ParseException {
@@ -357,17 +389,22 @@ public class WellKnownText {
         nextOpener(stream);
         ArrayList<Double> lats = new ArrayList<>();
         ArrayList<Double> lons = new ArrayList<>();
-        parseCoordinates(stream, lats, lons);
+        ArrayList<Double> alts = new ArrayList<>();
+        parseCoordinates(stream, lats, lons, alts);
         ArrayList<LinearRing> holes = new ArrayList<>();
         while (nextCloserOrComma(stream).equals(COMMA)) {
             holes.add(parsePolygonHole(stream));
         }
-        if (holes.isEmpty()) {
-            return new Polygon(new LinearRing(lats.stream().mapToDouble(i -> i).toArray(), lons.stream().mapToDouble(i -> i).toArray()));
+        LinearRing shell;
+        if (alts.isEmpty()) {
+            shell = new LinearRing(toArray(lats), toArray(lons));
         } else {
-            return new Polygon(
-                new LinearRing(lats.stream().mapToDouble(i -> i).toArray(), lons.stream().mapToDouble(i -> i).toArray()),
-                Collections.unmodifiableList(holes));
+            shell = new LinearRing(toArray(lats), toArray(lons), toArray(alts));
+        }
+        if (holes.isEmpty()) {
+            return new Polygon(shell);
+        } else {
+            return new Polygon(shell, Collections.unmodifiableList(holes));
         }
     }
 
@@ -388,6 +425,7 @@ public class WellKnownText {
         if (nextEmptyOrOpen(stream).equals(EMPTY)) {
             return Rectangle.EMPTY;
         }
+        // TODO: Add 3D support
         double minLon = nextNumber(stream);
         nextComma(stream);
         double maxLon = nextNumber(stream);
@@ -407,10 +445,11 @@ public class WellKnownText {
         double lon = nextNumber(stream);
         double lat = nextNumber(stream);
         double radius = nextNumber(stream);
-        Circle circle = new Circle(lat, lon, radius);
+        double alt = Double.NaN;
         if (isNumberNext(stream) == true) {
-            nextNumber(stream);
+            alt = nextNumber(stream);
         }
+        Circle circle = new Circle(lat, lon, alt, radius);
         nextCloser(stream);
         return circle;
     }
@@ -508,7 +547,7 @@ public class WellKnownText {
     }
 
     public static String getWKTName(Geometry geometry) {
-        return geometry.visit(new GeometryVisitor<String>() {
+        return geometry.visit(new GeometryVisitor<String, RuntimeException>() {
             @Override
             public String visit(Circle circle) {
                 return "circle";
@@ -559,6 +598,10 @@ public class WellKnownText {
                 return "bbox";
             }
         });
+    }
+
+    private static double[] toArray(ArrayList<Double> doubles) {
+        return doubles.stream().mapToDouble(i -> i).toArray();
     }
 
 }

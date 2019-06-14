@@ -1,0 +1,17 @@
+{
+  "rollup.get_rollup_caps": {
+    "documentation": "",
+    "stability" : "experimental",
+    "methods": [ "GET" ],
+    "url": {
+      "paths": [ "/_rollup/data/{id}", "/_rollup/data/" ],
+      "parts": {
+        "id": {
+          "type": "string",
+          "required": false,
+          "description": "The ID of the index to check rollup capabilities on, or left blank for all jobs"
+        }
+      }
+    }
+  }
+}

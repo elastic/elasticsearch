@@ -19,6 +19,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
@@ -28,6 +29,7 @@ import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSizeStats;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.Quantiles;
+import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.TimingStats;
 import org.elasticsearch.xpack.core.ml.job.results.AnomalyRecord;
 import org.elasticsearch.xpack.core.ml.job.results.CategoryDefinition;
 import org.elasticsearch.xpack.core.ml.job.results.ReservedFieldNames;
@@ -45,6 +47,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
+
 
 public class ElasticsearchMappingsTests extends ESTestCase {
 
@@ -61,19 +65,28 @@ public class ElasticsearchMappingsTests extends ESTestCase {
             ElasticsearchMappings.WHITESPACE
     );
 
+    private static List<String> INTERNAL_FIELDS = Arrays.asList(
+            GetResult._ID,
+            GetResult._INDEX,
+            GetResult._TYPE
+    );
+
     public void testResultsMapppingReservedFields() throws Exception {
         Set<String> overridden = new HashSet<>(KEYWORDS);
 
         // These are not reserved because they're data types, not field names
         overridden.add(Result.TYPE.getPreferredName());
         overridden.add(DataCounts.TYPE.getPreferredName());
+        overridden.add(TimingStats.TYPE.getPreferredName());
         overridden.add(CategoryDefinition.TYPE.getPreferredName());
         overridden.add(ModelSizeStats.RESULT_TYPE_FIELD.getPreferredName());
         overridden.add(ModelSnapshot.TYPE.getPreferredName());
         overridden.add(Quantiles.TYPE.getPreferredName());
+        overridden.add(TimingStats.TYPE.getPreferredName());
 
         Set<String> expected = collectResultsDocFieldNames();
         expected.removeAll(overridden);
+        expected.addAll(INTERNAL_FIELDS);
 
         compareFields(expected, ReservedFieldNames.RESERVED_RESULT_FIELD_NAMES);
     }
@@ -89,6 +102,7 @@ public class ElasticsearchMappingsTests extends ESTestCase {
 
         Set<String> expected = collectConfigDocFieldNames();
         expected.removeAll(overridden);
+        expected.addAll(INTERNAL_FIELDS);
 
         compareFields(expected, ReservedFieldNames.RESERVED_CONFIG_FIELD_NAMES);
     }
@@ -117,11 +131,12 @@ public class ElasticsearchMappingsTests extends ESTestCase {
     @SuppressWarnings("unchecked")
     public void testTermFieldMapping() throws IOException {
 
-        XContentBuilder builder = ElasticsearchMappings.termFieldsMapping(null, Arrays.asList("apple", "strawberry",
+        XContentBuilder builder = ElasticsearchMappings.termFieldsMapping(Arrays.asList("apple", "strawberry",
                 AnomalyRecord.BUCKET_SPAN.getPreferredName()));
 
         XContentParser parser = createParser(builder);
-        Map<String, Object> properties = (Map<String, Object>) parser.map().get(ElasticsearchMappings.PROPERTIES);
+        Map<String, Object> mapping = (Map<String, Object>) parser.map().get(SINGLE_MAPPING_NAME);
+        Map<String, Object> properties = (Map<String, Object>) mapping.get(ElasticsearchMappings.PROPERTIES);
 
         Map<String, Object> instanceMapping = (Map<String, Object>) properties.get("apple");
         assertNotNull(instanceMapping);
@@ -217,7 +232,7 @@ public class ElasticsearchMappingsTests extends ESTestCase {
             }
             mapping.put("_meta", meta);
 
-            indexMetaData.putMapping(new MappingMetaData(ElasticsearchMappings.DOC_TYPE, mapping));
+            indexMetaData.putMapping(new MappingMetaData("_doc", mapping));
 
             metaDataBuilder.put(indexMetaData);
         }
@@ -230,7 +245,7 @@ public class ElasticsearchMappingsTests extends ESTestCase {
 
     private Set<String> collectResultsDocFieldNames() throws IOException {
         // Only the mappings for the results index should be added below.  Do NOT add mappings for other indexes here.
-        return collectFieldNames(ElasticsearchMappings.resultsMapping());
+        return collectFieldNames(ElasticsearchMappings.resultsMapping("_doc"));
     }
 
     private Set<String> collectConfigDocFieldNames() throws IOException {

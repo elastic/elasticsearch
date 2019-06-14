@@ -30,6 +30,14 @@
 # specific language governing permissions and limitations
 # under the License.
 
+env_file() {
+    if is_dpkg; then
+        echo "/etc/default/elasticsearch"
+    fi
+    if is_rpm; then
+        echo "/etc/sysconfig/elasticsearch"
+    fi
+}
 
 # Export some useful paths.
 export_elasticsearch_paths() {
@@ -39,15 +47,10 @@ export_elasticsearch_paths() {
     export ESCONFIG="/etc/elasticsearch"
     export ESDATA="/var/lib/elasticsearch"
     export ESLOG="/var/log/elasticsearch"
-    export ESPIDDIR="/var/run/elasticsearch"
-    if is_dpkg; then
-        export ESENVFILE="/etc/default/elasticsearch"
-    fi
-    if is_rpm; then
-        export ESENVFILE="/etc/sysconfig/elasticsearch"
-    fi
+    export ESENVFILE=$(env_file)
     export PACKAGE_NAME=${PACKAGE_NAME:-"elasticsearch-oss"}
 }
+
 
 # Install the rpm or deb package.
 # -u upgrade rather than install. This only matters for rpm.
@@ -94,6 +97,9 @@ install_package() {
     else
         skip "Only rpm or deb supported"
     fi
+
+    # pass through java home to package
+    echo "JAVA_HOME=\"$SYSTEM_JAVA_HOME\"" >> $(env_file)
 }
 
 # Checks that all directories & files are correctly installed after a deb or
@@ -125,7 +131,6 @@ verify_package_installation() {
     assert_file "$ESLOG" d elasticsearch elasticsearch 2750
     assert_file "$ESPLUGINS" d root root 755
     assert_file "$ESMODULES" d root root 755
-    assert_file "$ESPIDDIR" d elasticsearch elasticsearch 755
     assert_file "$ESHOME/NOTICE.txt" f root root 644
     assert_file "$ESHOME/README.textile" f root root 644
 

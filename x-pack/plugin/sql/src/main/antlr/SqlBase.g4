@@ -50,9 +50,9 @@ statement
         )*
         ')')?
         statement                                                                                         #debug
-    | SHOW TABLES (tableLike=likePattern | tableIdent=tableIdentifier)?                                   #showTables
-    | SHOW COLUMNS (FROM | IN) (tableLike=likePattern | tableIdent=tableIdentifier)                       #showColumns
-    | (DESCRIBE | DESC) (tableLike=likePattern | tableIdent=tableIdentifier)                              #showColumns
+    | SHOW TABLES (INCLUDE FROZEN)? (tableLike=likePattern | tableIdent=tableIdentifier)?                 #showTables
+    | SHOW COLUMNS (INCLUDE FROZEN)? (FROM | IN) (tableLike=likePattern | tableIdent=tableIdentifier)     #showColumns
+    | (DESCRIBE | DESC) (INCLUDE FROZEN)? (tableLike=likePattern | tableIdent=tableIdentifier)            #showColumns
     | SHOW FUNCTIONS (likePattern)?                                                                       #showFunctions
     | SHOW SCHEMAS                                                                                        #showSchemas
     | SYS TABLES (CATALOG clusterLike=likePattern)?
@@ -149,7 +149,7 @@ joinCriteria
     ;
 
 relationPrimary
-    : tableIdentifier (AS? qualifiedName)?                            #tableName
+    : FROZEN? tableIdentifier (AS? qualifiedName)?                    #tableName
     | '(' queryNoWith ')' (AS? qualifiedName)?                        #aliasedQuery
     | '(' relation ')' (AS? qualifiedName)?                           #aliasedRelation
     ;
@@ -213,33 +213,36 @@ valueExpression
     ;
 
 primaryExpression
-    : castExpression                                                                 #cast
-    | extractExpression                                                              #extract
-    | builtinDateTimeFunction                                                        #currentDateTimeFunction
-    | constant                                                                       #constantDefault
-    | (qualifiedName DOT)? ASTERISK                                                  #star
-    | functionExpression                                                             #function
-    | '(' query ')'                                                                  #subqueryExpression
-    | qualifiedName                                                                  #dereference
-    | '(' expression ')'                                                             #parenthesizedExpression
+    : castExpression                                                                           #cast
+    | primaryExpression CAST_OP dataType                                                       #castOperatorExpression
+    | extractExpression                                                                        #extract
+    | builtinDateTimeFunction                                                                  #currentDateTimeFunction
+    | constant                                                                                 #constantDefault
+    | (qualifiedName DOT)? ASTERISK                                                            #star
+    | functionExpression                                                                       #function
+    | '(' query ')'                                                                            #subqueryExpression
+    | qualifiedName                                                                            #dereference
+    | '(' expression ')'                                                                       #parenthesizedExpression
+    | CASE (operand=booleanExpression)? whenClause+ (ELSE elseClause=booleanExpression)? END   #case
+    ;
+
+builtinDateTimeFunction
+    : name=CURRENT_TIMESTAMP
+    | name=CURRENT_DATE
+    | name=CURRENT_TIME
     ;
 
 castExpression
-    : castTemplate                                                                   
-    | FUNCTION_ESC castTemplate ESC_END                                              
+    : castTemplate
+    | FUNCTION_ESC castTemplate ESC_END
     | convertTemplate
     | FUNCTION_ESC convertTemplate ESC_END
     ;
-    
+
 castTemplate
     : CAST '(' expression AS dataType ')'
     ;
 
-builtinDateTimeFunction
-    : name=CURRENT_DATE ('(' ')')?
-    | name=CURRENT_TIMESTAMP ('(' precision=INTEGER_VALUE? ')')?
-    ;
-    
 convertTemplate
     : CONVERT '(' expression ',' dataType ')'
     ;
@@ -335,10 +338,14 @@ string
     | STRING
     ;
 
+whenClause
+    : WHEN condition=expression THEN result=expression
+    ;
+
 // http://developer.mimer.se/validator/sql-reserved-words.tml
 nonReserved
     : ANALYZE | ANALYZED 
-    | CATALOGS | COLUMNS
+    | CATALOGS | COLUMNS | CURRENT_DATE | CURRENT_TIME | CURRENT_TIMESTAMP
     | DAY | DEBUG  
     | EXECUTABLE | EXPLAIN 
     | FIRST | FORMAT | FULL | FUNCTIONS
@@ -366,12 +373,14 @@ AS: 'AS';
 ASC: 'ASC';
 BETWEEN: 'BETWEEN';
 BY: 'BY';
+CASE: 'CASE';
 CAST: 'CAST';
 CATALOG: 'CATALOG';
 CATALOGS: 'CATALOGS';
 COLUMNS: 'COLUMNS';
 CONVERT: 'CONVERT';
 CURRENT_DATE : 'CURRENT_DATE';
+CURRENT_TIME : 'CURRENT_TIME';
 CURRENT_TIMESTAMP : 'CURRENT_TIMESTAMP';
 DAY: 'DAY';
 DAYS: 'DAYS';
@@ -379,6 +388,8 @@ DEBUG: 'DEBUG';
 DESC: 'DESC';
 DESCRIBE: 'DESCRIBE';
 DISTINCT: 'DISTINCT';
+ELSE: 'ELSE';
+END: 'END';
 ESCAPE: 'ESCAPE';
 EXECUTABLE: 'EXECUTABLE';
 EXISTS: 'EXISTS';
@@ -388,6 +399,7 @@ FALSE: 'FALSE';
 FIRST: 'FIRST';
 FORMAT: 'FORMAT';
 FROM: 'FROM';
+FROZEN: 'FROZEN';
 FULL: 'FULL';
 FUNCTIONS: 'FUNCTIONS';
 GRAPHVIZ: 'GRAPHVIZ';
@@ -396,6 +408,7 @@ HAVING: 'HAVING';
 HOUR: 'HOUR';
 HOURS: 'HOURS';
 IN: 'IN';
+INCLUDE: 'INCLUDE';
 INNER: 'INNER';
 INTERVAL: 'INTERVAL';
 IS: 'IS';
@@ -434,12 +447,14 @@ SYS: 'SYS';
 TABLE: 'TABLE';
 TABLES: 'TABLES';
 TEXT: 'TEXT';
+THEN: 'THEN';
 TRUE: 'TRUE';
 TO: 'TO';
 TYPE: 'TYPE';
 TYPES: 'TYPES';
 USING: 'USING';
 VERIFY: 'VERIFY';
+WHEN: 'WHEN';
 WHERE: 'WHERE';
 WITH: 'WITH';
 YEAR: 'YEAR';
@@ -457,6 +472,7 @@ GUID_ESC: '{GUID';
 
 ESC_END: '}';
 
+// Operators
 EQ  : '=';
 NULLEQ: '<=>';
 NEQ : '<>' | '!=';
@@ -470,6 +486,7 @@ MINUS: '-';
 ASTERISK: '*';
 SLASH: '/';
 PERCENT: '%';
+CAST_OP: '::';
 CONCAT: '||';
 DOT: '.';
 PARAM: '?';
@@ -494,7 +511,7 @@ IDENTIFIER
     ;
 
 DIGIT_IDENTIFIER
-    : DIGIT (LETTER | DIGIT | '_' | '@' | ':')+
+    : DIGIT (LETTER | DIGIT | '_' | '@')+
     ;
 
 TABLE_IDENTIFIER

@@ -27,19 +27,15 @@ import org.elasticsearch.search.query.QuerySearchResult;
 
 import java.io.IOException;
 
-import static org.elasticsearch.search.fetch.FetchSearchResult.readFetchSearchResult;
-import static org.elasticsearch.search.query.QuerySearchResult.readQuerySearchResult;
-
 public final class QueryFetchSearchResult extends SearchPhaseResult {
 
-    private QuerySearchResult queryResult;
-    private FetchSearchResult fetchResult;
-
-    public QueryFetchSearchResult() {
-    }
+    private final QuerySearchResult queryResult;
+    private final FetchSearchResult fetchResult;
 
     public QueryFetchSearchResult(StreamInput in) throws IOException {
-        readFrom(in);
+        super(in);
+        queryResult = new QuerySearchResult(in);
+        fetchResult = new FetchSearchResult(in);
     }
 
     public QueryFetchSearchResult(QuerySearchResult queryResult, FetchSearchResult fetchResult) {
@@ -79,19 +75,6 @@ public final class QueryFetchSearchResult extends SearchPhaseResult {
     @Override
     public FetchSearchResult fetchResult() {
         return fetchResult;
-    }
-
-    public static QueryFetchSearchResult readQueryFetchSearchResult(StreamInput in) throws IOException {
-        QueryFetchSearchResult result = new QueryFetchSearchResult();
-        result.readFrom(in);
-        return result;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        queryResult = readQuerySearchResult(in);
-        fetchResult = readFetchSearchResult(in);
     }
 
     @Override

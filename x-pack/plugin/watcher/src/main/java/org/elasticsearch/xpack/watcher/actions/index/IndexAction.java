@@ -29,7 +29,7 @@ public class IndexAction implements Action {
 
     public static final String TYPE = "index";
 
-    @Nullable final String docType;
+    @Nullable @Deprecated final String docType;
     @Nullable final String index;
     @Nullable final String docId;
     @Nullable final String executionTimeField;
@@ -40,6 +40,15 @@ public class IndexAction implements Action {
     private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(IndexAction.class));
     public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Specifying types in a watcher index action is deprecated.";
 
+    public IndexAction(@Nullable String index, @Nullable String docId,
+                       @Nullable String executionTimeField,
+                       @Nullable TimeValue timeout, @Nullable ZoneId dynamicNameTimeZone, @Nullable RefreshPolicy refreshPolicy) {
+        this(index, null, docId, executionTimeField, timeout, dynamicNameTimeZone, refreshPolicy);
+    }
+    /**
+     * Document types are deprecated, use constructor without docType
+     */
+    @Deprecated
     public IndexAction(@Nullable String index, @Nullable String docType, @Nullable String docId,
                        @Nullable String executionTimeField,
                        @Nullable TimeValue timeout, @Nullable ZoneId dynamicNameTimeZone, @Nullable RefreshPolicy refreshPolicy) {
@@ -188,8 +197,16 @@ public class IndexAction implements Action {
         return new IndexAction(index, docType, docId, executionTimeField, timeout, dynamicNameTimeZone, refreshPolicy);
     }
 
+    /**
+     * Document types are deprecated, use {@link #builder(java.lang.String)}
+     */
+    @Deprecated
     public static Builder builder(String index, String docType) {
         return new Builder(index, docType);
+    }
+
+    public static Builder builder(String index) {
+        return new Builder(index);
     }
 
     public static class Result extends Action.Result {
@@ -278,9 +295,18 @@ public class IndexAction implements Action {
         ZoneId dynamicNameTimeZone;
         RefreshPolicy refreshPolicy;
 
+        /**
+         * Document types are deprecated and should not be used. Use: {@link Builder#Builder(java.lang.String)}
+         */
+        @Deprecated
         private Builder(String index, String docType) {
             this.index = index;
             this.docType = docType;
+        }
+
+        private Builder(String index) {
+            this.index = index;
+            this.docType = null;
         }
 
         public Builder setDocId(String docId) {

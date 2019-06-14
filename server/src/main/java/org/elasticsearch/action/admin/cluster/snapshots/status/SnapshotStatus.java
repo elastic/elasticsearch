@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.admin.cluster.snapshots.status;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.SnapshotsInProgress.State;
 import org.elasticsearch.common.ParseField;
@@ -169,9 +168,7 @@ public class SnapshotStatus implements ToXContentObject, Streamable {
             builder.add(SnapshotIndexShardStatus.readShardSnapshotStatus(in));
         }
         shards = Collections.unmodifiableList(builder);
-        if (in.getVersion().onOrAfter(Version.V_6_2_0)) {
-            includeGlobalState = in.readOptionalBoolean();
-        }
+        includeGlobalState = in.readOptionalBoolean();
         updateShardStats();
     }
 
@@ -183,9 +180,7 @@ public class SnapshotStatus implements ToXContentObject, Streamable {
         for (SnapshotIndexShardStatus shard : shards) {
             shard.writeTo(out);
         }
-        if (out.getVersion().onOrAfter(Version.V_6_2_0)) {
-            out.writeOptionalBoolean(includeGlobalState);
-        }
+        out.writeOptionalBoolean(includeGlobalState);
     }
 
     /**

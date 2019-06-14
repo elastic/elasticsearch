@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.admin.indices.rollover;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.support.master.ShardsAcknowledgedResponse;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -122,60 +121,32 @@ public final class RolloverResponse extends ShardsAcknowledgedResponse implement
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        if (in.getVersion().onOrAfter(Version.V_6_4_0)) {
-            super.readFrom(in);
-            oldIndex = in.readString();
-            newIndex = in.readString();
-            int conditionSize = in.readVInt();
-            conditionStatus = new HashMap<>(conditionSize);
-            for (int i = 0; i < conditionSize; i++) {
-                conditionStatus.put(in.readString(), in.readBoolean());
-            }
-            dryRun = in.readBoolean();
-            rolledOver = in.readBoolean();
-            readShardsAcknowledged(in);
-        } else {
-            oldIndex = in.readString();
-            newIndex = in.readString();
-            int conditionSize = in.readVInt();
-            conditionStatus = new HashMap<>(conditionSize);
-            for (int i = 0; i < conditionSize; i++) {
-                conditionStatus.put(in.readString(), in.readBoolean());
-            }
-            dryRun = in.readBoolean();
-            rolledOver = in.readBoolean();
-            acknowledged = in.readBoolean();
-            readShardsAcknowledged(in);
+        super.readFrom(in);
+        oldIndex = in.readString();
+        newIndex = in.readString();
+        int conditionSize = in.readVInt();
+        conditionStatus = new HashMap<>(conditionSize);
+        for (int i = 0; i < conditionSize; i++) {
+            conditionStatus.put(in.readString(), in.readBoolean());
         }
+        dryRun = in.readBoolean();
+        rolledOver = in.readBoolean();
+        readShardsAcknowledged(in);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getVersion().onOrAfter(Version.V_6_4_0)) {
-            super.writeTo(out);
-            out.writeString(oldIndex);
-            out.writeString(newIndex);
-            out.writeVInt(conditionStatus.size());
-            for (Map.Entry<String, Boolean> entry : conditionStatus.entrySet()) {
-                out.writeString(entry.getKey());
-                out.writeBoolean(entry.getValue());
-            }
-            out.writeBoolean(dryRun);
-            out.writeBoolean(rolledOver);
-            writeShardsAcknowledged(out);
-        } else {
-            out.writeString(oldIndex);
-            out.writeString(newIndex);
-            out.writeVInt(conditionStatus.size());
-            for (Map.Entry<String, Boolean> entry : conditionStatus.entrySet()) {
-                out.writeString(entry.getKey());
-                out.writeBoolean(entry.getValue());
-            }
-            out.writeBoolean(dryRun);
-            out.writeBoolean(rolledOver);
-            out.writeBoolean(acknowledged);
-            writeShardsAcknowledged(out);
+        super.writeTo(out);
+        out.writeString(oldIndex);
+        out.writeString(newIndex);
+        out.writeVInt(conditionStatus.size());
+        for (Map.Entry<String, Boolean> entry : conditionStatus.entrySet()) {
+            out.writeString(entry.getKey());
+            out.writeBoolean(entry.getValue());
         }
+        out.writeBoolean(dryRun);
+        out.writeBoolean(rolledOver);
+        writeShardsAcknowledged(out);
     }
 
     @Override

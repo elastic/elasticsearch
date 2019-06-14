@@ -111,8 +111,9 @@ public class SecurityActionFilter implements ActionFilter {
                 listener.onFailure(e);
             }
         } else if (SECURITY_ACTION_MATCHER.test(action)) {
-            if (licenseState.isSecurityDisabledByTrialLicense()) {
-                listener.onFailure(new ElasticsearchException("Security must be explicitly enabled when using a trial license. " +
+            if (licenseState.isSecurityDisabledByLicenseDefaults()) {
+                listener.onFailure(new ElasticsearchException("Security must be explicitly enabled when using a [" +
+                        licenseState.getOperationMode().description() + "] license. " +
                         "Enable security by setting [xpack.security.enabled] to [true] in the elasticsearch.yml file " +
                         "and restart the node."));
             } else {
@@ -152,7 +153,15 @@ public class SecurityActionFilter implements ActionFilter {
          */
         final String securityAction = actionMapper.action(action, request);
         authcService.authenticate(securityAction, request, SystemUser.INSTANCE,
-                ActionListener.wrap((authc) -> authorizeRequest(authc, securityAction, request, listener), listener::onFailure));
+                ActionListener.wrap((authc) -> {
+                    if (authc != null) {
+                        authorizeRequest(authc, securityAction, request, listener);
+                    } else if (licenseState.isAuthAllowed() == false) {
+                        listener.onResponse(null);
+                    } else {
+                        listener.onFailure(new IllegalStateException("no authentication present but auth is allowed"));
+                    }
+                }, listener::onFailure));
     }
 
     private <Request extends ActionRequest> void authorizeRequest(Authentication authentication, String securityAction, Request request,

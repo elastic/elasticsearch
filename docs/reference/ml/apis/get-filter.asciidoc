@@ -28,7 +28,7 @@ You can get a single filter or all filters. For more information, see
   (string) Identifier for the filter.
 
 
-==== Request Body
+==== Querystring Parameters
 
 `from`:::
     (integer) Skips the specified number of filters.

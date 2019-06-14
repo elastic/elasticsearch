@@ -24,7 +24,6 @@ import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Randomness;
-import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.component.LifecycleComponent;
@@ -37,6 +36,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.CloseableConnection;
 import org.elasticsearch.transport.ConnectionManager;
@@ -80,8 +80,8 @@ public class MockTransport implements Transport, LifecycleComponent {
     public TransportService createTransportService(Settings settings, ThreadPool threadPool, TransportInterceptor interceptor,
                                                    Function<BoundTransportAddress, DiscoveryNode> localNodeFactory,
                                                    @Nullable ClusterSettings clusterSettings, Set<String> taskHeaders) {
-        StubbableConnectionManager connectionManager = new StubbableConnectionManager(new ConnectionManager(settings, this, threadPool),
-            settings, this, threadPool);
+        StubbableConnectionManager connectionManager = new StubbableConnectionManager(new ConnectionManager(settings, this),
+            settings, this);
         connectionManager.setDefaultNodeConnectedBehavior((cm, discoveryNode) -> nodeConnected(discoveryNode));
         connectionManager.setDefaultGetConnectionBehavior((cm, discoveryNode) -> createConnection(discoveryNode));
         return new TransportService(settings, this, threadPool, interceptor, localNodeFactory, clusterSettings, taskHeaders,
@@ -208,7 +208,7 @@ public class MockTransport implements Transport, LifecycleComponent {
     }
 
     @Override
-    public TransportAddress[] addressesFromString(String address, int perAddressLimit) {
+    public TransportAddress[] addressesFromString(String address) {
         return new TransportAddress[0];
     }
 
@@ -238,7 +238,7 @@ public class MockTransport implements Transport, LifecycleComponent {
     }
 
     @Override
-    public List<String> getLocalAddresses() {
+    public List<String> getDefaultSeedAddresses() {
         return Collections.emptyList();
     }
 
@@ -248,7 +248,7 @@ public class MockTransport implements Transport, LifecycleComponent {
             if (requestHandlers.containsKey(reg.getAction())) {
                 throw new IllegalArgumentException("transport handlers for action " + reg.getAction() + " is already registered");
             }
-            requestHandlers = MapBuilder.newMapBuilder(requestHandlers).put(reg.getAction(), reg).immutableMap();
+            requestHandlers = Maps.copyMapWithAddedEntry(requestHandlers, reg.getAction(), reg);
         }
     }
 
@@ -264,20 +264,11 @@ public class MockTransport implements Transport, LifecycleComponent {
     }
 
     @Override
-    public void addMessageListener(TransportMessageListener listener) {
+    public void setMessageListener(TransportMessageListener listener) {
         if (this.listener != null) {
             throw new IllegalStateException("listener already set");
         }
         this.listener = listener;
-    }
-
-    @Override
-    public boolean removeMessageListener(TransportMessageListener listener) {
-        if (listener == this.listener) {
-            this.listener = null;
-            return true;
-        }
-        return false;
     }
 
     protected NamedWriteableRegistry writeableRegistry() {

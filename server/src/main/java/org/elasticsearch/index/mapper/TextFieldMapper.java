@@ -54,7 +54,6 @@ import org.apache.lucene.search.spans.SpanTermQuery;
 import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.Operations;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
 import org.elasticsearch.common.settings.Settings;
@@ -74,6 +73,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.IntPredicate;
 
 import static org.elasticsearch.index.mapper.TypeParsers.parseTextField;
 
@@ -192,15 +192,11 @@ public class TextFieldMapper extends FieldMapper {
                 }
                 // Copy the index options of the main field to allow phrase queries on
                 // the prefix field.
-                if (context.indexCreatedVersion().onOrAfter(Version.V_6_4_0)) {
-                    if (fieldType.indexOptions() == IndexOptions.DOCS_AND_FREQS) {
-                        // frequencies are not needed because prefix queries always use a constant score
-                        prefixFieldType.setIndexOptions(IndexOptions.DOCS);
-                    } else {
-                        prefixFieldType.setIndexOptions(fieldType.indexOptions());
-                    }
-                } else if (fieldType.indexOptions() == IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS) {
-                    prefixFieldType.setIndexOptions(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS);
+                if (fieldType.indexOptions() == IndexOptions.DOCS_AND_FREQS) {
+                    // frequencies are not needed because prefix queries always use a constant score
+                    prefixFieldType.setIndexOptions(IndexOptions.DOCS);
+                } else {
+                    prefixFieldType.setIndexOptions(fieldType.indexOptions());
                 }
                 if (fieldType.storeTermVectorOffsets()) {
                     prefixFieldType.setStoreTermVectorOffsets(true);
@@ -637,7 +633,7 @@ public class TextFieldMapper extends FieldMapper {
         @Override
         public IntervalsSource intervals(String text, int maxGaps, boolean ordered, NamedAnalyzer analyzer) throws IOException {
             if (indexOptions().compareTo(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS) < 0) {
-                throw new IllegalArgumentException("Cannot create intervals against field [" + name() + "] with no positions indexed");
+                throw new IllegalArgumentException("Cannot create intervals over field [" + name() + "] with no positions indexed");
             }
             IntervalBuilder builder = new IntervalBuilder(name(), analyzer == null ? searchAnalyzer() : analyzer);
             return builder.analyzeText(text, maxGaps, ordered);
@@ -687,69 +683,12 @@ public class TextFieldMapper extends FieldMapper {
         }
 
         private Query analyzePhrasePrefix(TokenStream stream, int slop, int maxExpansions) throws IOException {
-            final MultiPhrasePrefixQuery query = createPhrasePrefixQuery(stream, name(), slop, maxExpansions);
-
-            if (slop > 0
-                    || prefixFieldType == null
-                    || prefixFieldType.indexOptions().compareTo(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS) < 0) {
-                return query;
-            }
-
-            int lastPos = query.getTerms().length - 1;
-            final Term[][] terms = query.getTerms();
-            final int[] positions = query.getPositions();
-            for (Term term : terms[lastPos]) {
-                String value = term.text();
-                if (value.length() < prefixFieldType.minChars || value.length() > prefixFieldType.maxChars) {
-                    return query;
-                }
-            }
-
-            if (terms.length == 1) {
-                Term[] newTerms = Arrays.stream(terms[0])
-                    .map(term -> new Term(prefixFieldType.name(), term.bytes()))
-                    .toArray(Term[]::new);
-                return new SynonymQuery(newTerms);
-            }
-
-            SpanNearQuery.Builder spanQuery = new SpanNearQuery.Builder(name(), true);
-            spanQuery.setSlop(slop);
-            int previousPos = -1;
-            for (int i = 0; i < terms.length; i++) {
-                Term[] posTerms = terms[i];
-                int posInc = positions[i] - previousPos;
-                previousPos = positions[i];
-                if (posInc > 1) {
-                    spanQuery.addGap(posInc - 1);
-                }
-                if (i == lastPos) {
-                    if (posTerms.length == 1) {
-                        FieldMaskingSpanQuery fieldMask =
-                            new FieldMaskingSpanQuery(new SpanTermQuery(new Term(prefixFieldType.name(), posTerms[0].bytes())), name());
-                        spanQuery.addClause(fieldMask);
-                    } else {
-                        SpanQuery[] queries = Arrays.stream(posTerms)
-                            .map(term -> new FieldMaskingSpanQuery(
-                                new SpanTermQuery(new Term(prefixFieldType.name(), term.bytes())), name())
-                            )
-                            .toArray(SpanQuery[]::new);
-                        spanQuery.addClause(new SpanOrQuery(queries));
-                    }
-                } else {
-                    if (posTerms.length == 1) {
-                        spanQuery.addClause(new SpanTermQuery(posTerms[0]));
-                    } else {
-                        SpanTermQuery[] queries = Arrays.stream(posTerms)
-                            .map(SpanTermQuery::new)
-                            .toArray(SpanTermQuery[]::new);
-                        spanQuery.addClause(new SpanOrQuery(queries));
-                    }
-                }
-            }
-            return spanQuery.build();
+            String prefixField = prefixFieldType == null || slop > 0 ? null : prefixFieldType.name();
+            IntPredicate usePrefix = (len) -> len >= prefixFieldType.minChars && len <= prefixFieldType.maxChars;
+            return createPhrasePrefixQuery(stream, name(), slop, maxExpansions, prefixField, usePrefix);
         }
 
-        private static boolean hasGaps(TokenStream stream) throws IOException {
+        public static boolean hasGaps(TokenStream stream) throws IOException {
             assert stream instanceof CachingTokenFilter;
             PositionIncrementAttribute posIncAtt = stream.getAttribute(PositionIncrementAttribute.class);
             stream.reset();
@@ -870,17 +809,32 @@ public class TextFieldMapper extends FieldMapper {
     }
 
     @Override
+    public FieldMapper updateFieldType(Map<String, MappedFieldType> fullNameToFieldType) {
+        TextFieldMapper mapper = (TextFieldMapper) super.updateFieldType(fullNameToFieldType);
+        if (mapper.prefixFieldMapper != null) {
+            mapper.prefixFieldMapper = (PrefixFieldMapper) mapper.prefixFieldMapper.updateFieldType(fullNameToFieldType);
+        }
+        if (mapper.phraseFieldMapper != null) {
+            mapper.phraseFieldMapper = (PhraseFieldMapper) mapper.phraseFieldMapper.updateFieldType(fullNameToFieldType);
+        }
+        return mapper;
+    }
+
+    @Override
     protected void doMerge(Mapper mergeWith) {
         super.doMerge(mergeWith);
         TextFieldMapper mw = (TextFieldMapper) mergeWith;
+
         if (this.prefixFieldMapper != null && mw.prefixFieldMapper != null) {
             this.prefixFieldMapper = (PrefixFieldMapper) this.prefixFieldMapper.merge(mw.prefixFieldMapper);
-        }
-        else if (this.prefixFieldMapper != null || mw.prefixFieldMapper != null) {
+        } else if (this.prefixFieldMapper != null || mw.prefixFieldMapper != null) {
             throw new IllegalArgumentException("mapper [" + name() + "] has different index_prefix settings, current ["
                 + this.prefixFieldMapper + "], merged [" + mw.prefixFieldMapper + "]");
         }
-        else if (this.fieldType().indexPhrases != mw.fieldType().indexPhrases) {
+
+        if (this.phraseFieldMapper != null && mw.phraseFieldMapper != null) {
+            this.phraseFieldMapper = (PhraseFieldMapper) this.phraseFieldMapper.merge(mw.phraseFieldMapper);
+        } else if (this.fieldType().indexPhrases != mw.fieldType().indexPhrases) {
             throw new IllegalArgumentException("mapper [" + name() + "] has different index_phrases settings, current ["
                 + this.fieldType().indexPhrases + "], merged [" + mw.fieldType().indexPhrases + "]");
         }
@@ -963,8 +917,8 @@ public class TextFieldMapper extends FieldMapper {
         return mpqb.build();
     }
 
-    public static MultiPhrasePrefixQuery createPhrasePrefixQuery(TokenStream stream, String field,
-                                                                 int slop, int maxExpansions) throws IOException {
+    public static Query createPhrasePrefixQuery(TokenStream stream, String field, int slop, int maxExpansions,
+                                                String prefixField, IntPredicate usePrefixField) throws IOException {
         MultiPhrasePrefixQuery builder = new MultiPhrasePrefixQuery(field);
         builder.setSlop(slop);
         builder.setMaxExpansions(maxExpansions);
@@ -987,6 +941,61 @@ public class TextFieldMapper extends FieldMapper {
             currentTerms.add(new Term(field, termAtt.getBytesRef()));
         }
         builder.add(currentTerms.toArray(new Term[0]), position);
-        return builder;
+        if (prefixField == null) {
+            return builder;
+        }
+
+        int lastPos = builder.getTerms().length - 1;
+        final Term[][] terms = builder.getTerms();
+        final int[] positions = builder.getPositions();
+        for (Term term : terms[lastPos]) {
+            String value = term.text();
+            if (usePrefixField.test(value.length()) == false) {
+                return builder;
+            }
+        }
+
+        if (terms.length == 1) {
+            Term[] newTerms = Arrays.stream(terms[0])
+                .map(term -> new Term(prefixField, term.bytes()))
+                .toArray(Term[]::new);
+            return new SynonymQuery(newTerms);
+        }
+
+        SpanNearQuery.Builder spanQuery = new SpanNearQuery.Builder(field, true);
+        spanQuery.setSlop(slop);
+        int previousPos = -1;
+        for (int i = 0; i < terms.length; i++) {
+            Term[] posTerms = terms[i];
+            int posInc = positions[i] - previousPos;
+            previousPos = positions[i];
+            if (posInc > 1) {
+                spanQuery.addGap(posInc - 1);
+            }
+            if (i == lastPos) {
+                if (posTerms.length == 1) {
+                    FieldMaskingSpanQuery fieldMask =
+                        new FieldMaskingSpanQuery(new SpanTermQuery(new Term(prefixField, posTerms[0].bytes())), field);
+                    spanQuery.addClause(fieldMask);
+                } else {
+                    SpanQuery[] queries = Arrays.stream(posTerms)
+                        .map(term -> new FieldMaskingSpanQuery(
+                            new SpanTermQuery(new Term(prefixField, term.bytes())), field)
+                        )
+                        .toArray(SpanQuery[]::new);
+                    spanQuery.addClause(new SpanOrQuery(queries));
+                }
+            } else {
+                if (posTerms.length == 1) {
+                    spanQuery.addClause(new SpanTermQuery(posTerms[0]));
+                } else {
+                    SpanTermQuery[] queries = Arrays.stream(posTerms)
+                        .map(SpanTermQuery::new)
+                        .toArray(SpanTermQuery[]::new);
+                    spanQuery.addClause(new SpanOrQuery(queries));
+                }
+            }
+        }
+        return spanQuery.build();
     }
 }

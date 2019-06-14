@@ -18,6 +18,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -105,7 +106,7 @@ public class MlMetadata implements XPackPlugin.XPackMetaDataCustom {
 
     @Override
     public Version getMinimalSupportedVersion() {
-        return Version.V_6_0_0_alpha1;
+        return Version.CURRENT.minimumIndexCompatibilityVersion();
     }
 
     @Override
@@ -137,20 +138,14 @@ public class MlMetadata implements XPackPlugin.XPackMetaDataCustom {
         }
         this.datafeeds = datafeeds;
         this.groupOrJobLookup = new GroupOrJobLookup(jobs.values());
-        if (in.getVersion().onOrAfter(Version.V_6_7_0)) {
-            this.upgradeMode = in.readBoolean();
-        } else {
-            this.upgradeMode = false;
-        }
+        this.upgradeMode = in.readBoolean();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         writeMap(jobs, out);
         writeMap(datafeeds, out);
-        if (out.getVersion().onOrAfter(Version.V_6_7_0)) {
-            out.writeBoolean(upgradeMode);
-        }
+        out.writeBoolean(upgradeMode);
     }
 
     private static <T extends Writeable> void writeMap(Map<String, T> map, StreamOutput out) throws IOException {
@@ -201,11 +196,7 @@ public class MlMetadata implements XPackPlugin.XPackMetaDataCustom {
                     MlMetadataDiff::readJobDiffFrom);
             this.datafeeds = DiffableUtils.readJdkMapDiff(in, DiffableUtils.getStringKeySerializer(), DatafeedConfig::new,
                     MlMetadataDiff::readDatafeedDiffFrom);
-            if (in.getVersion().onOrAfter(Version.V_6_7_0)) {
-                upgradeMode = in.readBoolean();
-            } else {
-                upgradeMode = false;
-            }
+            upgradeMode = in.readBoolean();
         }
 
         /**
@@ -224,9 +215,7 @@ public class MlMetadata implements XPackPlugin.XPackMetaDataCustom {
         public void writeTo(StreamOutput out) throws IOException {
             jobs.writeTo(out);
             datafeeds.writeTo(out);
-            if (out.getVersion().onOrAfter(Version.V_6_7_0)) {
-                out.writeBoolean(upgradeMode);
-            }
+            out.writeBoolean(upgradeMode);
         }
 
         @Override
@@ -302,7 +291,7 @@ public class MlMetadata implements XPackPlugin.XPackMetaDataCustom {
             return this;
         }
 
-        public Builder putDatafeed(DatafeedConfig datafeedConfig, Map<String, String> headers) {
+        public Builder putDatafeed(DatafeedConfig datafeedConfig, Map<String, String> headers, NamedXContentRegistry xContentRegistry) {
             if (datafeeds.containsKey(datafeedConfig.getId())) {
                 throw ExceptionsHelper.datafeedAlreadyExists(datafeedConfig.getId());
             }
@@ -310,7 +299,7 @@ public class MlMetadata implements XPackPlugin.XPackMetaDataCustom {
             String jobId = datafeedConfig.getJobId();
             checkJobIsAvailableForDatafeed(jobId);
             Job job = jobs.get(jobId);
-            DatafeedJobValidator.validate(datafeedConfig, job);
+            DatafeedJobValidator.validate(datafeedConfig, job, xContentRegistry);
 
             if (headers.isEmpty() == false) {
                 // Adjust the request, adding security headers from the current thread context

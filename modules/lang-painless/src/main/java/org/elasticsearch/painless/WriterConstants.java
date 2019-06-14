@@ -158,6 +158,9 @@ public final class WriterConstants {
     public static final Method DEF_TO_B_FLOAT_EXPLICIT     = getAsmMethod(Float.class     , "defToFloatExplicit"     , Object.class);
     public static final Method DEF_TO_B_DOUBLE_EXPLICIT    = getAsmMethod(Double.class    , "defToDoubleExplicit"    , Object.class);
 
+    public static final Method DEF_TO_STRING_IMPLICIT = getAsmMethod(String.class, "defToStringImplicit", Object.class);
+    public static final Method DEF_TO_STRING_EXPLICIT = getAsmMethod(String.class, "defToStringExplicit", Object.class);
+
     public static final Type DEF_ARRAY_LENGTH_METHOD_TYPE = Type.getMethodType(Type.INT_TYPE, Type.getType(Object.class));
 
     /** invokedynamic bootstrap for lambda expression/method references */

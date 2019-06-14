@@ -29,8 +29,7 @@ public class InvalidateTokenResponseTests extends ESTestCase {
         TokensInvalidationResult result = new TokensInvalidationResult(Arrays.asList(generateRandomStringArray(20, 15, false)),
             Arrays.asList(generateRandomStringArray(20, 15, false)),
             Arrays.asList(new ElasticsearchException("foo", new IllegalArgumentException("this is an error message")),
-                new ElasticsearchException("bar", new IllegalArgumentException("this is an error message2"))),
-            randomIntBetween(0, 5));
+                new ElasticsearchException("bar", new IllegalArgumentException("this is an error message2"))));
         InvalidateTokenResponse response = new InvalidateTokenResponse(result);
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             response.writeTo(output);
@@ -47,8 +46,7 @@ public class InvalidateTokenResponseTests extends ESTestCase {
         }
 
         result = new TokensInvalidationResult(Arrays.asList(generateRandomStringArray(20, 15, false)),
-            Arrays.asList(generateRandomStringArray(20, 15, false)),
-            Collections.emptyList(), randomIntBetween(0, 5));
+            Arrays.asList(generateRandomStringArray(20, 15, false)), Collections.emptyList());
         response = new InvalidateTokenResponse(result);
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             response.writeTo(output);
@@ -68,8 +66,7 @@ public class InvalidateTokenResponseTests extends ESTestCase {
         List previouslyInvalidatedTokens = Arrays.asList(generateRandomStringArray(20, 15, false));
         TokensInvalidationResult result = new TokensInvalidationResult(invalidatedTokens, previouslyInvalidatedTokens,
             Arrays.asList(new ElasticsearchException("foo", new IllegalArgumentException("this is an error message")),
-                new ElasticsearchException("bar", new IllegalArgumentException("this is an error message2"))),
-            randomIntBetween(0, 5));
+                new ElasticsearchException("bar", new IllegalArgumentException("this is an error message2"))));
         InvalidateTokenResponse response = new InvalidateTokenResponse(result);
         XContentBuilder builder = XContentFactory.jsonBuilder();
         response.toXContent(builder, ToXContent.EMPTY_PARAMS);

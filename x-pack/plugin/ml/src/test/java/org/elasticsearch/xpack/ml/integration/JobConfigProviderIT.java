@@ -57,7 +57,7 @@ public class JobConfigProviderIT extends MlSingleNodeTestCase {
 
     @Before
     public void createComponents() throws Exception {
-        jobConfigProvider = new JobConfigProvider(client());
+        jobConfigProvider = new JobConfigProvider(client(), xContentRegistry());
         waitForMlTemplates();
     }
 

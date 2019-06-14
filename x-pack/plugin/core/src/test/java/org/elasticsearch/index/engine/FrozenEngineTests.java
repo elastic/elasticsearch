@@ -19,6 +19,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.seqno.SequenceNumbers;
+import org.elasticsearch.index.shard.DocsStats;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
@@ -117,16 +118,18 @@ public class FrozenEngineTests extends EngineTestCase {
                 listener.reset();
                 try (FrozenEngine frozenEngine = new FrozenEngine(engine.engineConfig)) {
                     Engine.Searcher searcher = frozenEngine.acquireSearcher("test");
-                    SegmentsStats segmentsStats = frozenEngine.segmentsStats(randomBoolean());
+                    SegmentsStats segmentsStats = frozenEngine.segmentsStats(randomBoolean(), false);
                     assertEquals(frozenEngine.segments(randomBoolean()).size(), segmentsStats.getCount());
                     FrozenEngine.unwrapLazyReader(searcher.getDirectoryReader()).release();
                     assertEquals(1, listener.afterRefresh.get());
-                    segmentsStats = frozenEngine.segmentsStats(randomBoolean());
+                    segmentsStats = frozenEngine.segmentsStats(randomBoolean(), false);
                     assertEquals(0, segmentsStats.getCount());
+                    segmentsStats = frozenEngine.segmentsStats(randomBoolean(), true);
+                    assertEquals(frozenEngine.segments(randomBoolean()).size(), segmentsStats.getCount());
                     assertEquals(1, listener.afterRefresh.get());
                     assertFalse(frozenEngine.isReaderOpen());
                     FrozenEngine.unwrapLazyReader(searcher.getDirectoryReader()).reset();
-                    segmentsStats = frozenEngine.segmentsStats(randomBoolean());
+                    segmentsStats = frozenEngine.segmentsStats(randomBoolean(), false);
                     assertEquals(frozenEngine.segments(randomBoolean()).size(), segmentsStats.getCount());
                     searcher.close();
                 }
@@ -144,12 +147,17 @@ public class FrozenEngineTests extends EngineTestCase {
                 null, listener, null, globalCheckpoint::get, new HierarchyCircuitBreakerService(defaultSettings.getSettings(),
                     new ClusterSettings(defaultSettings.getNodeSettings(), ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)));
             CircuitBreaker breaker = config.getCircuitBreakerService().getBreaker(CircuitBreaker.ACCOUNTING);
-            long expectedUse;
+            final int docs;
             try (InternalEngine engine = createEngine(config)) {
-                addDocuments(globalCheckpoint, engine);
+                docs = addDocuments(globalCheckpoint, engine);
                 engine.flush(false, true); // first flush to make sure we have a commit that we open in the frozen engine blow.
                 engine.refresh("test"); // pull the reader to account for RAM in the breaker.
+            }
+            final long expectedUse;
+            try (ReadOnlyEngine readOnlyEngine = new ReadOnlyEngine(config, null, null, true, i -> i)) {
                 expectedUse = breaker.getUsed();
+                DocsStats docsStats = readOnlyEngine.docStats();
+                assertEquals(docs, docsStats.getCount());
             }
             assertTrue(expectedUse > 0);
             assertEquals(0, breaker.getUsed());

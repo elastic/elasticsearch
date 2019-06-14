@@ -269,7 +269,7 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
         newClusterState = addTask(state, "test", null, "this_node");
         coordinator.clusterChanged(new ClusterChangedEvent("test", newClusterState, state));
 
-        // Check the the task is know to the task manager
+        // Check the task is know to the task manager
         assertThat(taskManager.getTasks().size(), equalTo(1));
         AllocatedPersistentTask runningTask = (AllocatedPersistentTask)taskManager.getTasks().values().iterator().next();
         String persistentId = runningTask.getPersistentTaskId();
@@ -305,7 +305,7 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
             executor.get(0).task.markAsFailed(new IOException("test"));
         }
 
-        // Check the the task is now removed from task manager
+        // Check the task is now removed from task manager
         assertThat(taskManager.getTasks().values(), empty());
     }
 

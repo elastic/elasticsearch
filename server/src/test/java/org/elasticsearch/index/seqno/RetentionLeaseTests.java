@@ -31,14 +31,6 @@ import static org.hamcrest.Matchers.hasToString;
 
 public class RetentionLeaseTests extends ESTestCase {
 
-    public void testInvalidId() {
-        final String id = "id" + randomFrom(":", ";", ",");
-        final IllegalArgumentException e = expectThrows(
-                IllegalArgumentException.class,
-                () -> new RetentionLease(id, randomNonNegativeLong(), randomNonNegativeLong(), "source"));
-        assertThat(e, hasToString(containsString("retention lease ID can not contain any of [:;,] but was [" + id + "]")));
-    }
-
     public void testEmptyId() {
         final IllegalArgumentException e = expectThrows(
                 IllegalArgumentException.class,
@@ -64,14 +56,6 @@ public class RetentionLeaseTests extends ESTestCase {
         assertThat(e, hasToString(containsString("retention lease timestamp [" + timestamp + "] out of range")));
     }
 
-    public void testInvalidSource() {
-        final String source = "source" + randomFrom(":", ";", ",");
-        final IllegalArgumentException e = expectThrows(
-                IllegalArgumentException.class,
-                () -> new RetentionLease("id", randomNonNegativeLong(), randomNonNegativeLong(), source));
-        assertThat(e, hasToString(containsString("retention lease source can not contain any of [:;,] but was [" + source + "]")));
-    }
-
     public void testEmptySource() {
         final IllegalArgumentException e = expectThrows(
                 IllegalArgumentException.class,
@@ -91,15 +75,6 @@ public class RetentionLeaseTests extends ESTestCase {
                 assertThat(retentionLease, equalTo(new RetentionLease(in)));
             }
         }
-    }
-
-    public void testRetentionLeaseEncoding() {
-        final String id = randomAlphaOfLength(8);
-        final long retainingSequenceNumber = randomNonNegativeLong();
-        final long timestamp = randomNonNegativeLong();
-        final String source = randomAlphaOfLength(8);
-        final RetentionLease retentionLease = new RetentionLease(id, retainingSequenceNumber, timestamp, source);
-        assertThat(RetentionLease.decodeRetentionLease(RetentionLease.encodeRetentionLease(retentionLease)), equalTo(retentionLease));
     }
 
 }

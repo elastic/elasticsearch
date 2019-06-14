@@ -59,20 +59,6 @@ public class EsThreadPoolExecutor extends ThreadPoolExecutor {
         this.contextHolder = contextHolder;
     }
 
-    public void shutdown(ShutdownListener listener) {
-        synchronized (monitor) {
-            if (this.listener != null) {
-                throw new IllegalStateException("Shutdown was already called on this thread pool");
-            }
-            if (isTerminated()) {
-                listener.onTerminated();
-            } else {
-                this.listener = listener;
-            }
-        }
-        shutdown();
-    }
-
     @Override
     protected synchronized void terminated() {
         super.terminated();

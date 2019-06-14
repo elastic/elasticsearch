@@ -26,11 +26,9 @@
 esplugin {
     description 'Netty 4 based transport implementation'
     classname 'org.elasticsearch.transport.Netty4Plugin'
-    hasClientJar = true
 }
 
-compileJava.options.compilerArgs << "-Xlint:-try"
-compileTestJava.options.compilerArgs << "-Xlint:-cast,-deprecation,-rawtypes,-try,-unchecked"
+compileTestJava.options.compilerArgs << "-Xlint:-cast,-rawtypes,-unchecked"
 
 dependencies {
     // network stack
@@ -47,7 +45,7 @@ dependencyLicenses {
   mapping from: /netty-.*/, to: 'netty'
 }
 
-unitTest {
+test {
     /*
      * We have to disable setting the number of available processors as tests in the same JVM randomize processors and will step on each
      * other if we allow them to set the number of available processors as it's set-once in Netty.
@@ -77,11 +75,16 @@ thirdPartyAudit {
         'org.apache.commons.logging.Log',
         'org.apache.commons.logging.LogFactory',
 
+        // from Log4j (deliberate, Netty will fallback to Log4j 2)
+        'org.apache.log4j.Level',
+        'org.apache.log4j.Logger',
+
         // from io.netty.handler.ssl.OpenSslEngine (netty)
         'io.netty.internal.tcnative.Buffer',
         'io.netty.internal.tcnative.Library',
         'io.netty.internal.tcnative.SSL',
         'io.netty.internal.tcnative.SSLContext',
+        'io.netty.internal.tcnative.SSLPrivateKeyMethod',
 
         // from io.netty.handler.ssl.util.BouncyCastleSelfSignedCertGenerator (netty)
         'org.bouncycastle.cert.X509v3CertificateBuilder',
@@ -172,10 +175,12 @@ thirdPartyAudit {
     )
 }
 
-if (project.inFipsJvm == false) {
-    // BouncyCastleFIPS provides this class, so the exclusion is invalid when running CI in
-    // a FIPS JVM with BouncyCastleFIPS Provider
-    thirdPartyAudit.ignoreMissingClasses (
-            'org.bouncycastle.asn1.x500.X500Name'
-    )
+rootProject.globalInfo.ready {
+    if (project.inFipsJvm == false) {
+        // BouncyCastleFIPS provides this class, so the exclusion is invalid when running CI in
+        // a FIPS JVM with BouncyCastleFIPS Provider
+        thirdPartyAudit.ignoreMissingClasses(
+                'org.bouncycastle.asn1.x500.X500Name'
+        )
+    }
 }

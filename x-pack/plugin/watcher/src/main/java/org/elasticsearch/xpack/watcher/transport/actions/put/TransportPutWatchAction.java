@@ -94,7 +94,7 @@ public class TransportPutWatchAction extends WatcherTransportAction<PutWatchRequ
                 watch.toXContent(builder, DEFAULT_PARAMS);
 
                 if (isUpdate) {
-                    UpdateRequest updateRequest = new UpdateRequest(Watch.INDEX, Watch.DOC_TYPE, request.getId());
+                    UpdateRequest updateRequest = new UpdateRequest(Watch.INDEX, request.getId());
                     if (request.getIfSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO) {
                         updateRequest.setIfSeqNo(request.getIfSeqNo());
                         updateRequest.setIfPrimaryTerm(request.getIfPrimaryTerm());
@@ -112,7 +112,7 @@ public class TransportPutWatchAction extends WatcherTransportAction<PutWatchRequ
                             }, listener::onFailure),
                             client::update);
                 } else {
-                    IndexRequest indexRequest = new IndexRequest(Watch.INDEX, Watch.DOC_TYPE, request.getId());
+                    IndexRequest indexRequest = new IndexRequest(Watch.INDEX).id(request.getId());
                     indexRequest.source(builder);
                     indexRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
                     executeAsyncWithOrigin(client.threadPool().getThreadContext(), WATCHER_ORIGIN, indexRequest,

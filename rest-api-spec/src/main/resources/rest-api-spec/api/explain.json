@@ -1,10 +1,17 @@
 {
   "explain": {
     "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/search-explain.html",
+    "stability": "stable",
     "methods": ["GET", "POST"],
     "url": {
-      "path": "/{index}/_explain/{id}",
-      "paths": ["/{index}/_explain/{id}", "/{index}/{type}/{id}/_explain"],
+      "paths": ["/{index}/_explain/{id}"],
+      "deprecated_paths" : [
+        {
+          "version" : "7.0.0",
+          "path" : "/{index}/{type}/{id}/_explain",
+          "description" : "Specifying types in urls has been deprecated"
+        }
+      ],
       "parts": {
         "id": {
           "type" : "string",
@@ -47,10 +54,6 @@
         "lenient": {
           "type" : "boolean",
           "description" : "Specify whether format-based query failures (such as providing text to a numeric field) should be ignored"
-        },
-        "parent": {
-          "type" : "string",
-          "description" : "The ID of the parent document"
         },
         "preference": {
           "type" : "string",

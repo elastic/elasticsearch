@@ -27,7 +27,9 @@ of which must have a start time, end time, and description.
 ==== Request Body
 
 `events`::
-  (array) A list of one of more scheduled events. See <<ml-event-resource>>.
+  (array) A list of one of more scheduled events. The event's start and end times
+  may be specified as integer milliseconds since the epoch or as a string in ISO 8601
+  format. See <<ml-event-resource>>.
 
 
 ==== Authorization

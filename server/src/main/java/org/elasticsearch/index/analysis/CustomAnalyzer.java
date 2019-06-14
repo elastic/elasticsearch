@@ -36,6 +36,7 @@ public final class CustomAnalyzer extends Analyzer {
 
     private final int positionIncrementGap;
     private final int offsetGap;
+    private final AnalysisMode analysisMode;
 
     public CustomAnalyzer(String tokenizerName, TokenizerFactory tokenizerFactory, CharFilterFactory[] charFilters,
             TokenFilterFactory[] tokenFilters) {
@@ -50,6 +51,12 @@ public final class CustomAnalyzer extends Analyzer {
         this.tokenFilters = tokenFilters;
         this.positionIncrementGap = positionIncrementGap;
         this.offsetGap = offsetGap;
+        // merge and transfer token filter analysis modes with analyzer
+        AnalysisMode mode = AnalysisMode.ALL;
+        for (TokenFilterFactory f : tokenFilters) {
+            mode = mode.merge(f.getAnalysisMode());
+        }
+        this.analysisMode = mode;
     }
 
     /**
@@ -82,6 +89,10 @@ public final class CustomAnalyzer extends Analyzer {
             return super.getOffsetGap(field);
         }
         return this.offsetGap;
+    }
+
+    public AnalysisMode getAnalysisMode() {
+        return this.analysisMode;
     }
 
     @Override

@@ -85,8 +85,8 @@ SELECT SUM(salary) FROM test_emp;
 aggregateWithCastPruned
 SELECT CAST(SUM(salary) AS INTEGER) FROM test_emp;
 
-  SUM(salary)
--------------
+ CAST(SUM(salary) AS INTEGER)
+-----------------------------
 4824855
 ;
 
@@ -200,6 +200,23 @@ ROUND(SQRT(CAST(EXP(languages) AS SMALLINT)),2):d|  COUNT(*):l
 null                                             |10
 ;
 
+groupByRoundWithTwoParams
+SELECT ROUND(YEAR("birth_date"), -2) FROM test_emp GROUP BY ROUND(YEAR("birth_date"), -2);
+
+ROUND(YEAR("birth_date"), -2)
+-----------------------------
+null
+2000
+;
+
+groupByTruncateWithTwoParams
+SELECT TRUNCATE(YEAR("birth_date"), -2) FROM test_emp GROUP BY TRUNCATE(YEAR("birth_date"), -2);
+
+TRUNCATE(YEAR("birth_date"), -2)
+--------------------------------
+null
+1900
+;
 
 //
 // Grouping functions
@@ -397,6 +414,26 @@ SELECT COUNT(ALL last_name)=COUNT(ALL first_name) AS areEqual, COUNT(ALL first_n
 false          |90             |100
 ;
 
+topHitsAsMinAndMax
+schema::min:s|max:s|first:s|last:s
+SELECT MIN(first_name) as min, MAX(first_name) as max, FIRST(first_name) as first, LAST(first_name) as last FROM test_emp;
+
+    min        |   max         |   first      |   last
+---------------+---------------+--------------+----------
+   Alejandro   |   Zvonko      |   Alejandro  |   Zvonko
+;
+
+topHitsAsMinAndMaxAndGroupBy
+schema::gender:s|min:s|max:s|first:s|last:s
+SELECT gender, MIN(first_name) as min, MAX(first_name) as max, FIRST(first_name) as first, LAST(first_name) as last FROM test_emp GROUP BY gender ORDER BY gender;
+
+    gender     |   min         |   max        |   first       |   last
+---------------+---------------+--------------+---------------+----------
+null           |   Berni       |   Patricio   |   Berni       |   Patricio
+F              |   Alejandro   |   Xinglin    |   Alejandro   |   Xinglin
+M              |   Amabile     |   Zvonko     |   Amabile     |   Zvonko
+;
+
 topHitsWithOneArgAndGroupBy
 schema::gender:s|first:s|last:s
 SELECT gender, FIRST(first_name) as first, LAST(first_name) as last FROM test_emp GROUP BY gender ORDER BY gender;
@@ -468,4 +505,48 @@ SELECT gender, month(first(birth_date, languages)) first, month(last(birth_date,
 null           |   1           |   10
 F              |   4           |   6
 M              |   1           |   4
+;
+
+medianAbsoluteDeviation
+schema::gender:s|mad:d
+SELECT gender, MAD(salary) AS mad FROM test_emp GROUP BY gender ORDER BY gender;
+
+    gender     |      mad      
+---------------+---------------
+null           |10789.0        
+F              |12719.0        
+M              |8905.0         
+;
+
+medianAbsoluteDeviationOnTwoFields
+schema::gender:s|avg:l|mad_s:l|mad_l:d
+SELECT gender, FLOOR(AVG(salary)) AS avg, FLOOR(MAD(salary)) AS mad_s, MAD(languages) AS mad_l FROM test_emp GROUP BY gender ORDER BY gender;
+
+    gender     |      avg      |     mad_s     |     mad_l     
+---------------+---------------+---------------+---------------
+null           |48760          |10789          |2.0            
+F              |50490          |12719          |1.5            
+M              |46860          |8905           |1.0     
+;
+
+medianAbsoluteDeviationOnSecondaryFieldWithOrder
+schema::gender:s|mad:d
+SELECT gender, MAD(salary) AS mad FROM test_emp GROUP BY gender ORDER BY mad ASC;
+
+    gender     |      mad      
+---------------+---------------
+M              |8905.0         
+null           |10789.0        
+F              |12719.0         
+;
+
+
+medianAbsoluteDeviationOnSecondaryFieldWithOrderAndHaving
+schema::gender:s|mad:d
+SELECT gender, MAD(salary) AS mad FROM test_emp GROUP BY gender HAVING mad > 10000 ORDER BY mad ASC;
+
+    gender     |      mad      
+---------------+---------------
+null           |10789.0        
+F              |12719.0         
 ;

@@ -35,6 +35,7 @@ import java.time.temporal.TemporalAccessor;
 import java.time.temporal.TemporalAdjusters;
 import java.time.temporal.TemporalQueries;
 import java.util.Objects;
+import java.util.function.Function;
 import java.util.function.LongSupplier;
 
 /**
@@ -46,11 +47,11 @@ import java.util.function.LongSupplier;
  */
 public class JavaDateMathParser implements DateMathParser {
 
-    private final DateTimeFormatter formatter;
+    private final JavaDateFormatter formatter;
     private final DateTimeFormatter roundUpFormatter;
     private final String format;
 
-    JavaDateMathParser(String format, DateTimeFormatter formatter, DateTimeFormatter roundUpFormatter) {
+    JavaDateMathParser(String format, JavaDateFormatter formatter, DateTimeFormatter roundUpFormatter) {
         this.format = format;
         Objects.requireNonNull(formatter);
         this.formatter = formatter;
@@ -215,12 +216,12 @@ public class JavaDateMathParser implements DateMathParser {
             throw new ElasticsearchParseException("cannot parse empty date");
         }
 
-        DateTimeFormatter formatter = roundUpIfNoTime ? this.roundUpFormatter : this.formatter;
+        Function<String,TemporalAccessor> formatter = roundUpIfNoTime ? this.roundUpFormatter::parse : this.formatter::parse;
         try {
             if (timeZone == null) {
-                return DateFormatters.from(formatter.parse(value)).toInstant();
+                return DateFormatters.from(formatter.apply(value)).toInstant();
             } else {
-                TemporalAccessor accessor = formatter.parse(value);
+                TemporalAccessor accessor = formatter.apply(value);
                 ZoneId zoneId = TemporalQueries.zone().queryFrom(accessor);
                 if (zoneId != null) {
                     timeZone = zoneId;
@@ -228,7 +229,7 @@ public class JavaDateMathParser implements DateMathParser {
 
                 return DateFormatters.from(accessor).withZoneSameLocal(timeZone).toInstant();
             }
-        } catch (DateTimeParseException e) {
+        } catch (IllegalArgumentException | DateTimeParseException e) {
             throw new ElasticsearchParseException("failed to parse date field [{}] with format [{}]: [{}]",
                 e, value, format, e.getMessage());
         }

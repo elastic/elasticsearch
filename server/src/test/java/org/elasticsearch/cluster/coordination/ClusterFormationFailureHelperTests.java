@@ -25,12 +25,14 @@ import org.elasticsearch.cluster.coordination.ClusterFormationFailureHelper.Clus
 import org.elasticsearch.cluster.coordination.CoordinationMetaData.VotingConfiguration;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 
@@ -43,6 +45,7 @@ import static org.elasticsearch.cluster.coordination.ClusterBootstrapService.INI
 import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.isOneOf;
 
 public class ClusterFormationFailureHelperTests extends ESTestCase {
     public void testScheduling() {
@@ -65,13 +68,14 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
             = new DeterministicTaskQueue(Settings.builder().put(NODE_NAME_SETTING.getKey(), "node").build(), random());
 
         final AtomicLong warningCount = new AtomicLong();
+        final AtomicLong logLastFailedJoinAttemptWarningCount = new AtomicLong();
 
         final ClusterFormationFailureHelper clusterFormationFailureHelper = new ClusterFormationFailureHelper(settingsBuilder.build(),
             () -> {
                 warningCount.incrementAndGet();
                 return new ClusterFormationState(Settings.EMPTY, clusterState, emptyList(), emptyList(), 0L);
             },
-            deterministicTaskQueue.getThreadPool());
+            deterministicTaskQueue.getThreadPool(), logLastFailedJoinAttemptWarningCount::incrementAndGet);
 
         deterministicTaskQueue.runAllTasks();
         assertThat("should not schedule anything yet", warningCount.get(), is(0L));
@@ -105,8 +109,10 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
         deterministicTaskQueue.runAllTasksInTimeOrder();
 
         assertThat(warningCount.get(), is(5L));
+        assertThat(logLastFailedJoinAttemptWarningCount.get(), is(5L));
 
         warningCount.set(0);
+        logLastFailedJoinAttemptWarningCount.set(0);
         clusterFormationFailureHelper.start();
         clusterFormationFailureHelper.stop();
         clusterFormationFailureHelper.start();
@@ -127,6 +133,7 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
         deterministicTaskQueue.runAllTasksInTimeOrder();
 
         assertThat(warningCount.get(), is(5L));
+        assertThat(logLastFailedJoinAttemptWarningCount.get(), is(5L));
     }
 
     public void testDescriptionOnMasterIneligibleNodes() {
@@ -135,19 +142,18 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
             .version(12L).nodes(DiscoveryNodes.builder().add(localNode).localNodeId(localNode.getId())).build();
 
         assertThat(new ClusterFormationState(Settings.EMPTY, clusterState, emptyList(), emptyList(), 15L).getDescription(),
-            is("master not discovered yet: have discovered []; discovery will continue using [] from hosts providers and [" + localNode +
-                "] from last-known cluster state; node term 15, last-accepted version 12 in term 0"));
+            is("master not discovered yet: have discovered []; discovery will continue using [] from hosts providers " +
+                "and [] from last-known cluster state; node term 15, last-accepted version 12 in term 0"));
 
         final TransportAddress otherAddress = buildNewFakeTransportAddress();
         assertThat(new ClusterFormationState(Settings.EMPTY, clusterState, singletonList(otherAddress), emptyList(), 16L).getDescription(),
             is("master not discovered yet: have discovered []; discovery will continue using [" + otherAddress +
-                "] from hosts providers and [" + localNode +
-                "] from last-known cluster state; node term 16, last-accepted version 12 in term 0"));
+                "] from hosts providers and [] from last-known cluster state; node term 16, last-accepted version 12 in term 0"));
 
         final DiscoveryNode otherNode = new DiscoveryNode("other", buildNewFakeTransportAddress(), Version.CURRENT);
         assertThat(new ClusterFormationState(Settings.EMPTY, clusterState, emptyList(), singletonList(otherNode), 17L).getDescription(),
-            is("master not discovered yet: have discovered [" + otherNode + "]; discovery will continue using [] from hosts providers and ["
-                + localNode + "] from last-known cluster state; node term 17, last-accepted version 12 in term 0"));
+            is("master not discovered yet: have discovered [" + otherNode + "]; discovery will continue using [] from hosts providers " +
+                "and [] from last-known cluster state; node term 17, last-accepted version 12 in term 0"));
     }
 
     public void testDescriptionBeforeBootstrapping() {
@@ -158,28 +164,28 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
             .nodes(DiscoveryNodes.builder().add(localNode).localNodeId(localNode.getId())).build();
 
         assertThat(new ClusterFormationState(Settings.EMPTY, clusterState, emptyList(), emptyList(), 1L).getDescription(),
-            is("master not discovered yet, this node has not previously joined a bootstrapped (v7+) cluster, and " +
+            is("master not discovered yet, this node has not previously joined a bootstrapped cluster, and " +
                 "[cluster.initial_master_nodes] is empty on this node: have discovered []; " +
                 "discovery will continue using [] from hosts providers and [" + localNode +
                 "] from last-known cluster state; node term 1, last-accepted version 7 in term 4"));
 
         final TransportAddress otherAddress = buildNewFakeTransportAddress();
         assertThat(new ClusterFormationState(Settings.EMPTY, clusterState, singletonList(otherAddress), emptyList(), 2L).getDescription(),
-            is("master not discovered yet, this node has not previously joined a bootstrapped (v7+) cluster, and " +
+            is("master not discovered yet, this node has not previously joined a bootstrapped cluster, and " +
                 "[cluster.initial_master_nodes] is empty on this node: have discovered []; " +
                 "discovery will continue using [" + otherAddress + "] from hosts providers and [" + localNode +
                 "] from last-known cluster state; node term 2, last-accepted version 7 in term 4"));
 
         final DiscoveryNode otherNode = new DiscoveryNode("other", buildNewFakeTransportAddress(), Version.CURRENT);
         assertThat(new ClusterFormationState(Settings.EMPTY, clusterState, emptyList(), singletonList(otherNode), 3L).getDescription(),
-            is("master not discovered yet, this node has not previously joined a bootstrapped (v7+) cluster, and " +
+            is("master not discovered yet, this node has not previously joined a bootstrapped cluster, and " +
                 "[cluster.initial_master_nodes] is empty on this node: have discovered [" + otherNode + "]; " +
                 "discovery will continue using [] from hosts providers and [" + localNode +
                 "] from last-known cluster state; node term 3, last-accepted version 7 in term 4"));
 
         assertThat(new ClusterFormationState(Settings.builder().putList(INITIAL_MASTER_NODES_SETTING.getKey(), "other").build(),
                 clusterState, emptyList(), emptyList(), 4L).getDescription(),
-            is("master not discovered yet, this node has not previously joined a bootstrapped (v7+) cluster, and " +
+            is("master not discovered yet, this node has not previously joined a bootstrapped cluster, and " +
                 "this node must discover master-eligible nodes [other] to bootstrap a cluster: have discovered []; " +
                 "discovery will continue using [] from hosts providers and [" + localNode +
                 "] from last-known cluster state; node term 4, last-accepted version 7 in term 4"));
@@ -344,6 +350,33 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
                 "at least 2 nodes with ids from [n2, n3, n4], " +
                 "have discovered [] which is not a quorum; " +
                 "discovery will continue using [] from hosts providers and [" + localNode +
+                "] from last-known cluster state; node term 0, last-accepted version 0 in term 0"));
+
+        final DiscoveryNode otherMasterNode = new DiscoveryNode("other-master", buildNewFakeTransportAddress(), Version.CURRENT);
+        final DiscoveryNode otherNonMasterNode = new DiscoveryNode("other-non-master", buildNewFakeTransportAddress(), emptyMap(),
+            new HashSet<>(randomSubsetOf(DiscoveryNodeRole.BUILT_IN_ROLES).stream()
+                .filter(r -> r != DiscoveryNodeRole.MASTER_ROLE).collect(Collectors.toList())),
+            Version.CURRENT);
+
+        String[] configNodeIds = new String[]{"n1", "n2"};
+        final ClusterState stateWithOtherNodes = ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(DiscoveryNodes.builder().add(localNode).localNodeId(localNode.getId()).add(otherMasterNode).add(otherNonMasterNode))
+            .metaData(MetaData.builder().coordinationMetaData(CoordinationMetaData.builder()
+                .lastAcceptedConfiguration(config(configNodeIds))
+                .lastCommittedConfiguration(config(configNodeIds)).build())).build();
+
+        assertThat(new ClusterFormationState(Settings.EMPTY, stateWithOtherNodes, emptyList(), emptyList(), 0L).getDescription(), isOneOf(
+
+            // nodes from last-known cluster state could be in either order
+
+            "master not discovered or elected yet, an election requires two nodes with ids [n1, n2], " +
+                "have discovered [] which is not a quorum; " +
+                "discovery will continue using [] from hosts providers and [" + localNode + ", " + otherMasterNode +
+                "] from last-known cluster state; node term 0, last-accepted version 0 in term 0",
+
+            "master not discovered or elected yet, an election requires two nodes with ids [n1, n2], " +
+                "have discovered [] which is not a quorum; " +
+                "discovery will continue using [] from hosts providers and [" + otherMasterNode + ", " + localNode +
                 "] from last-known cluster state; node term 0, last-accepted version 0 in term 0"));
     }
 }

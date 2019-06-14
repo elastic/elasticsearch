@@ -51,6 +51,7 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.disruption.BlockClusterStateProcessing;
 import org.elasticsearch.test.junit.annotations.TestLogging;
+import org.elasticsearch.transport.TransportSettings;
 
 import java.util.List;
 import java.util.Map;
@@ -66,7 +67,7 @@ import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 
-@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, numClientNodes = 0, transportClientRatio = 0)
+@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, numClientNodes = 0)
 @TestLogging("_root:DEBUG")
 public class RareClusterStateIT extends ESIntegTestCase {
 
@@ -81,7 +82,7 @@ public class RareClusterStateIT extends ESIntegTestCase {
     }
 
     public void testAssignmentWithJustAddedNodes() {
-        internalCluster().startNode();
+        internalCluster().startNode(Settings.builder().put(TransportSettings.CONNECT_TIMEOUT.getKey(), "1s"));
         final String index = "index";
         prepareCreate(index).setSettings(Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)).get();
@@ -90,13 +91,12 @@ public class RareClusterStateIT extends ESIntegTestCase {
         // close to have some unassigned started shards shards..
         client().admin().indices().prepareClose(index).get();
 
-
         final String masterName = internalCluster().getMasterName();
         final ClusterService clusterService = internalCluster().clusterService(masterName);
         final AllocationService allocationService = internalCluster().getInstance(AllocationService.class, masterName);
         clusterService.submitStateUpdateTask("test-inject-node-and-reroute", new ClusterStateUpdateTask() {
             @Override
-            public ClusterState execute(ClusterState currentState) throws Exception {
+            public ClusterState execute(ClusterState currentState) {
                 // inject a node
                 ClusterState.Builder builder = ClusterState.builder(currentState);
                 builder.nodes(DiscoveryNodes.builder(currentState.nodes()).add(new DiscoveryNode("_non_existent",
@@ -115,12 +115,10 @@ public class RareClusterStateIT extends ESIntegTestCase {
                 updatedState = ClusterState.builder(updatedState).routingTable(routingTable.build()).build();
 
                 return allocationService.reroute(updatedState, "reroute");
-
             }
 
             @Override
             public void onFailure(String source, Exception e) {
-
             }
         });
         ensureGreen(index);
@@ -133,20 +131,23 @@ public class RareClusterStateIT extends ESIntegTestCase {
 
                 currentState = builder.build();
                 return allocationService.disassociateDeadNodes(currentState, true, "reroute");
-
             }
 
             @Override
             public void onFailure(String source, Exception e) {
-
             }
         });
     }
 
     private <Req extends ActionRequest, Res extends ActionResponse> ActionFuture<Res> executeAndCancelCommittedPublication(
             ActionRequestBuilder<Req, Res> req) throws Exception {
+        // Wait for no publication in progress to not accidentally cancel a publication different from the one triggered by the given
+        // request.
+        assertBusy(
+            () -> assertFalse(((Coordinator) internalCluster().getCurrentMasterNodeInstance(Discovery.class)).publicationInProgress()));
         ActionFuture<Res> future = req.execute();
-        assertBusy(() -> assertTrue(((Coordinator)internalCluster().getMasterNodeInstance(Discovery.class)).cancelCommittedPublication()));
+        assertBusy(
+            () -> assertTrue(((Coordinator)internalCluster().getCurrentMasterNodeInstance(Discovery.class)).cancelCommittedPublication()));
         return future;
     }
 
@@ -276,7 +277,6 @@ public class RareClusterStateIT extends ESIntegTestCase {
         });
     }
 
-    @AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/36813")
     public void testDelayedMappingPropagationOnReplica() throws Exception {
         // This is essentially the same thing as testDelayedMappingPropagationOnPrimary
         // but for replicas

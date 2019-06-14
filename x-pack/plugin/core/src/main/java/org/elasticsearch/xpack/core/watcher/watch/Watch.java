@@ -26,7 +26,6 @@ public class Watch implements ToXContentObject {
 
     public static final String INCLUDE_STATUS_KEY = "include_status";
     public static final String INDEX = ".watches";
-    public static final String DOC_TYPE = "doc";
 
     private final String id;
     private final Trigger trigger;

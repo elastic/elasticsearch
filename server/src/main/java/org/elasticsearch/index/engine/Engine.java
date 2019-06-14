@@ -98,7 +98,6 @@ import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
@@ -114,7 +113,6 @@ public abstract class Engine implements Closeable {
     public static final String SYNC_COMMIT_ID = "sync_id";
     public static final String HISTORY_UUID_KEY = "history_uuid";
     public static final String MIN_RETAINED_SEQNO = "min_retained_seq_no";
-    public static final String RETENTION_LEASES = "retention_leases";
     public static final String MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID = "max_unsafe_auto_id_timestamp";
 
     protected final ShardId shardId;
@@ -142,16 +140,6 @@ public abstract class Engine implements Closeable {
      *  reduce index buffer sizes on inactive shards.
      */
     protected volatile long lastWriteNanos = System.nanoTime();
-
-    /*
-     * This marker tracks the max seq_no of either update operations or delete operations have been processed in this engine.
-     * An index request is considered as an update if it overwrites existing documents with the same docId in the Lucene index.
-     * This marker is started uninitialized (-2), and the optimization using seq_no will be disabled if this marker is uninitialized.
-     * The value of this marker never goes backwards, and is updated/changed differently on primary and replica:
-     * 1. A primary initializes this marker once using the max_seq_no from its history, then advances when processing an update or delete.
-     * 2. A replica never advances this marker by itself but only inherits from its primary (via advanceMaxSeqNoOfUpdatesOrDeletes).
-     */
-    private final AtomicLong maxSeqNoOfUpdatesOrDeletes = new AtomicLong(UNASSIGNED_SEQ_NO);
 
     protected Engine(EngineConfig engineConfig) {
         Objects.requireNonNull(engineConfig.getStore(), "Store must be provided to the engine");
@@ -263,6 +251,20 @@ public abstract class Engine implements Closeable {
             }
         }
         return new DocsStats(numDocs, numDeletedDocs, sizeInBytes);
+    }
+
+    /**
+     * Performs the pre-closing checks on the {@link Engine}.
+     *
+     * @throws IllegalStateException if the sanity checks failed
+     */
+    public void verifyEngineBeforeIndexClosing() throws IllegalStateException {
+        final long globalCheckpoint = engineConfig.getGlobalCheckpointSupplier().getAsLong();
+        final long maxSeqNo = getSeqNoStats(globalCheckpoint).getMaxSeqNo();
+        if (globalCheckpoint != maxSeqNo) {
+            throw new IllegalStateException("Global checkpoint [" + globalCheckpoint
+                + "] mismatches maximum sequence number [" + maxSeqNo + "] on index shard " + shardId);
+        }
     }
 
     /**
@@ -387,7 +389,7 @@ public abstract class Engine implements Closeable {
      */
     public abstract DeleteResult delete(Delete delete) throws IOException;
 
-    public abstract NoOpResult noOp(NoOp noOp);
+    public abstract NoOpResult noOp(NoOp noOp) throws IOException;
 
     /**
      * Base class for index and delete operation results
@@ -620,14 +622,14 @@ public abstract class Engine implements Closeable {
         if (docIdAndVersion != null) {
             if (get.versionType().isVersionConflictForReads(docIdAndVersion.version, get.version())) {
                 Releasables.close(searcher);
-                throw new VersionConflictEngineException(shardId, get.type(), get.id(),
+                throw new VersionConflictEngineException(shardId, get.id(),
                         get.versionType().explainConflictForReads(docIdAndVersion.version, get.version()));
             }
             if (get.getIfSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO && (
                 get.getIfSeqNo() != docIdAndVersion.seqNo || get.getIfPrimaryTerm() != docIdAndVersion.primaryTerm
             )) {
                 Releasables.close(searcher);
-                throw new VersionConflictEngineException(shardId, get.type(), get.id(),
+                throw new VersionConflictEngineException(shardId, get.id(),
                     get.getIfSeqNo(), get.getIfPrimaryTerm(), docIdAndVersion.seqNo, docIdAndVersion.primaryTerm);
             }
         }
@@ -730,7 +732,7 @@ public abstract class Engine implements Closeable {
     /**
      * Acquires a lock on the translog files and Lucene soft-deleted documents to prevent them from being trimmed
      */
-    public abstract Closeable acquireRetentionLockForPeerRecovery();
+    public abstract Closeable acquireRetentionLock();
 
     /**
      * Creates a new history snapshot from Lucene for reading operations whose seqno in the requesting seqno range (both inclusive).
@@ -753,9 +755,16 @@ public abstract class Engine implements Closeable {
                                                                 MapperService mapperService, long startingSeqNo) throws IOException;
 
     /**
-     * Checks if this engine has every operations since  {@code startingSeqNo}(inclusive) in its history (either Lucene or translog)
+     * Checks if this engine has every operations since  {@code startingSeqNo}(inclusive) in its translog
      */
     public abstract boolean hasCompleteOperationHistory(String source, MapperService mapperService, long startingSeqNo) throws IOException;
+
+    /**
+     * Gets the minimum retained sequence number for this engine.
+     *
+     * @return the minimum retained sequence number
+     */
+    public abstract long getMinRetainedSeqNo();
 
     public abstract TranslogStats getTranslogStats();
 
@@ -789,14 +798,6 @@ public abstract class Engine implements Closeable {
     public abstract long getLocalCheckpoint();
 
     /**
-     * Waits for all operations up to the provided sequence number to complete.
-     *
-     * @param seqNo the sequence number that the checkpoint must advance to before this method returns
-     * @throws InterruptedException if the thread was interrupted while blocking on the condition
-     */
-    public abstract void waitForOpsToComplete(long seqNo) throws InterruptedException;
-
-    /**
      * @return a {@link SeqNoStats} object, using local state and the supplied global checkpoint
      */
     public abstract SeqNoStats getSeqNoStats(long globalCheckpoint);
@@ -809,7 +810,7 @@ public abstract class Engine implements Closeable {
     /**
      * Global stats on segments.
      */
-    public SegmentsStats segmentsStats(boolean includeSegmentFileSizes) {
+    public SegmentsStats segmentsStats(boolean includeSegmentFileSizes, boolean includeUnloadedSegments) {
         ensureOpen();
         Set<String> segmentName = new HashSet<>();
         SegmentsStats stats = new SegmentsStats();
@@ -833,7 +834,7 @@ public abstract class Engine implements Closeable {
         return stats;
     }
 
-    private void fillSegmentStats(SegmentReader segmentReader, boolean includeSegmentFileSizes, SegmentsStats stats) {
+    protected void fillSegmentStats(SegmentReader segmentReader, boolean includeSegmentFileSizes, SegmentsStats stats) {
         stats.add(1, segmentReader.ramBytesUsed());
         stats.addTermsMemoryInBytes(guardedRamBytesUsed(segmentReader.getPostingsReader()));
         stats.addStoredFieldsMemoryInBytes(guardedRamBytesUsed(segmentReader.getFieldsReader()));
@@ -910,7 +911,7 @@ public abstract class Engine implements Closeable {
             map.put(extension, length);
         }
 
-        if (useCompoundFile && directory != null) {
+        if (useCompoundFile) {
             try {
                 directory.close();
             } catch (IOException e) {
@@ -953,8 +954,7 @@ public abstract class Engine implements Closeable {
 
         // now, correlate or add the committed ones...
         if (lastCommittedSegmentInfos != null) {
-            SegmentInfos infos = lastCommittedSegmentInfos;
-            for (SegmentCommitInfo info : infos) {
+            for (SegmentCommitInfo info : lastCommittedSegmentInfos) {
                 Segment segment = segments.get(info.info.name);
                 if (segment == null) {
                     segment = new Segment(info.info.name);
@@ -1040,6 +1040,15 @@ public abstract class Engine implements Closeable {
      */
     @Nullable
     public abstract void refresh(String source) throws EngineException;
+
+    /**
+     * Synchronously refreshes the engine for new search operations to reflect the latest
+     * changes unless another thread is already refreshing the engine concurrently.
+     *
+     * @return <code>true</code> if the a refresh happened. Otherwise <code>false</code>
+     */
+    @Nullable
+    public abstract boolean maybeRefresh(String source) throws EngineException;
 
     /**
      * Called when our engine is using too much heap and should move buffered indexed/deleted documents to disk.
@@ -1133,7 +1142,7 @@ public abstract class Engine implements Closeable {
      */
     @SuppressWarnings("finally")
     private void maybeDie(final String maybeMessage, final Throwable maybeFatal) {
-        ExceptionsHelper.maybeError(maybeFatal, logger).ifPresent(error -> {
+        ExceptionsHelper.maybeError(maybeFatal).ifPresent(error -> {
             try {
                 logger.error(maybeMessage, error);
             } finally {
@@ -1773,11 +1782,8 @@ public abstract class Engine implements Closeable {
 
             CommitId commitId = (CommitId) o;
 
-            if (!Arrays.equals(id, commitId.id)) {
-                return false;
-            }
+            return Arrays.equals(id, commitId.id);
 
-            return true;
         }
 
         @Override
@@ -1940,25 +1946,13 @@ public abstract class Engine implements Closeable {
      * Moreover, operations that are optimized using the MSU optimization must not be processed twice as this will create duplicates
      * in Lucene. To avoid this we check the local checkpoint tracker to see if an operation was already processed.
      *
-     * @see #initializeMaxSeqNoOfUpdatesOrDeletes()
      * @see #advanceMaxSeqNoOfUpdatesOrDeletes(long)
      */
-    public final long getMaxSeqNoOfUpdatesOrDeletes() {
-        return maxSeqNoOfUpdatesOrDeletes.get();
-    }
-
-    /**
-     * A primary shard calls this method once to initialize the max_seq_no_of_updates marker using the
-     * max_seq_no from Lucene index and translog before replaying the local translog in its local recovery.
-     */
-    public abstract void initializeMaxSeqNoOfUpdatesOrDeletes();
+    public abstract long getMaxSeqNoOfUpdatesOrDeletes();
 
     /**
      * A replica shard receives a new max_seq_no_of_updates from its primary shard, then calls this method
      * to advance this marker to at least the given sequence number.
      */
-    public final void advanceMaxSeqNoOfUpdatesOrDeletes(long seqNo) {
-        maxSeqNoOfUpdatesOrDeletes.updateAndGet(curr -> Math.max(curr, seqNo));
-        assert maxSeqNoOfUpdatesOrDeletes.get() >= seqNo : maxSeqNoOfUpdatesOrDeletes.get() + " < " + seqNo;
-    }
+    public abstract void advanceMaxSeqNoOfUpdatesOrDeletes(long maxSeqNoOfUpdatesOnPrimary);
 }

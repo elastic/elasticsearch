@@ -5,11 +5,17 @@
  */
 package org.elasticsearch.xpack.core.indexlifecycle;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.xpack.core.ccr.action.UnfollowAction;
 
+import java.util.List;
+
 final class UnfollowFollowIndexStep extends AbstractUnfollowIndexStep {
+    private static final Logger logger = LogManager.getLogger(UnfollowFollowIndexStep.class);
 
     static final String NAME = "unfollow-follower-index";
 
@@ -25,7 +31,19 @@ final class UnfollowFollowIndexStep extends AbstractUnfollowIndexStep {
                 assert r.isAcknowledged() : "unfollow response is not acknowledged";
                 listener.onResponse(true);
             },
-            listener::onFailure
+            exception -> {
+                if (exception instanceof ElasticsearchException
+                        && ((ElasticsearchException) exception).getMetadata("es.failed_to_remove_retention_leases") != null) {
+                    List<String> leasesNotRemoved = ((ElasticsearchException) exception)
+                        .getMetadata("es.failed_to_remove_retention_leases");
+                    logger.debug("failed to remove leader retention lease(s) {} while unfollowing index [{}], " +
+                            "continuing with lifecycle execution",
+                        leasesNotRemoved, followerIndex);
+                    listener.onResponse(true);
+                } else {
+                    listener.onFailure(exception);
+                }
+            }
         ));
     }
 

@@ -15,7 +15,9 @@ our writing index. We wish to roll over the index after it reaches a size
 of 50 gigabytes, or has been created 30 days ago, and then delete the index
 after 90 days.
 
-=== Setting up a new policy
+[float]
+[[ilm-gs-create-policy]]
+=== Setting up a policy
 
 There are many new features introduced by {ilm-init}, but we will only focus on
 a few that are needed for our example. For starters, we will use the
@@ -64,6 +66,8 @@ the index being written to after it reaches 50 gigabytes, or it is 30
 days old. The rollover will occur when either of these conditions is true.
 The index will be deleted 90 days after it is rolled over.
 
+[float]
+[[ilm-gs-apply-policy]]
 === Applying a policy to our index
 
 There are <<set-up-lifecycle-policy,a few ways>> to associate a
@@ -135,6 +139,8 @@ index being the index that is being written to at a time. Rollover swaps
 the write index to be the new index created from rollover, and sets the
 alias to be read-only for the source index.
 
+[float]
+[[ilm-gs-check-progress]]
 === Checking progress
 
 Now that we have an index managed by our policy, how do we tell what is going

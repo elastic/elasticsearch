@@ -23,7 +23,7 @@ import org.elasticsearch.xpack.ccr.repository.CcrRestoreSourceService;
 public class ClearCcrRestoreSessionAction extends Action<ClearCcrRestoreSessionAction.ClearCcrRestoreSessionResponse> {
 
     public static final ClearCcrRestoreSessionAction INSTANCE = new ClearCcrRestoreSessionAction();
-    private static final String NAME = "internal:admin/ccr/restore/session/clear";
+    public static final String NAME = "internal:admin/ccr/restore/session/clear";
 
     private ClearCcrRestoreSessionAction() {
         super(NAME);

@@ -1,9 +1,5 @@
 ---
 "Translate SQL":
-  - skip:
-      version: " - 6.99.99"
-      reason: Triggers warnings before 7.0
-
   - do:
       bulk:
         refresh: true
@@ -16,7 +12,7 @@
             int: 1
 
   - do:
-      xpack.sql.translate:
+      sql.translate:
         body:
           query: "SELECT * FROM test ORDER BY int asc"
   - match:

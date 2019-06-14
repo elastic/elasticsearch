@@ -226,16 +226,43 @@ public class QueueResizingEsThreadPoolExecutorTests extends ESTestCase {
         context.close();
     }
 
+    /** Use a runnable wrapper that simulates a task with unknown failures. */
+    public void testExceptionThrowingTask() throws Exception {
+        ThreadContext context = new ThreadContext(Settings.EMPTY);
+        ResizableBlockingQueue<Runnable> queue =
+            new ResizableBlockingQueue<>(ConcurrentCollections.<Runnable>newBlockingQueue(),
+                100);
+
+        QueueResizingEsThreadPoolExecutor executor =
+            new QueueResizingEsThreadPoolExecutor(
+                "test-threadpool", 1, 1, 1000,
+                TimeUnit.MILLISECONDS, queue, 10, 200, exceptionalWrapper(), 10, TimeValue.timeValueMillis(1),
+                EsExecutors.daemonThreadFactory("queuetest"), new EsAbortPolicy(), context);
+        executor.prestartAllCoreThreads();
+        logger.info("--> executor: {}", executor);
+
+        assertThat((long)executor.getTaskExecutionEWMA(), equalTo(0L));
+        executeTask(executor, 1);
+        executor.shutdown();
+        executor.awaitTermination(10, TimeUnit.SECONDS);
+        context.close();
+    }
+
     private Function<Runnable, WrappedRunnable> fastWrapper() {
-        return (runnable) -> {
-            return new SettableTimedRunnable(TimeUnit.NANOSECONDS.toNanos(100));
-        };
+        return (runnable) -> new SettableTimedRunnable(TimeUnit.NANOSECONDS.toNanos(100), false);
     }
 
     private Function<Runnable, WrappedRunnable> slowWrapper() {
-        return (runnable) -> {
-            return new SettableTimedRunnable(TimeUnit.MINUTES.toNanos(2));
-        };
+        return (runnable) -> new SettableTimedRunnable(TimeUnit.MINUTES.toNanos(2), false);
+    }
+
+    /**
+     * The returned function outputs a WrappedRunnabled that simulates the case
+     * where {@link TimedRunnable#getTotalExecutionNanos()} returns -1 because
+     * the job failed or was rejected before it finished.
+     */
+    private Function<Runnable, WrappedRunnable> exceptionalWrapper() {
+        return (runnable) -> new SettableTimedRunnable(TimeUnit.NANOSECONDS.toNanos(-1), true);
     }
 
     /** Execute a blank task {@code times} times for the executor */
@@ -248,10 +275,12 @@ public class QueueResizingEsThreadPoolExecutorTests extends ESTestCase {
 
     public class SettableTimedRunnable extends TimedRunnable {
         private final long timeTaken;
+        private final boolean testFailedOrRejected;
 
-        public SettableTimedRunnable(long timeTaken) {
+        public SettableTimedRunnable(long timeTaken, boolean failedOrRejected) {
             super(() -> {});
             this.timeTaken = timeTaken;
+            this.testFailedOrRejected = failedOrRejected;
         }
 
         @Override
@@ -262,6 +291,11 @@ public class QueueResizingEsThreadPoolExecutorTests extends ESTestCase {
         @Override
         public long getTotalExecutionNanos() {
             return timeTaken;
+        }
+
+        @Override
+        public boolean getFailedOrRejected() {
+            return testFailedOrRejected;
         }
     }
 }

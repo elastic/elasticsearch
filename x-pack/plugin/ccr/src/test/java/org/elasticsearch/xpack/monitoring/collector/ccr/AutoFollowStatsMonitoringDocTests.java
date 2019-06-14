@@ -148,7 +148,7 @@ public class AutoFollowStatsMonitoringDocTests extends BaseMonitoringDocTestCase
         Map<String, Object> template =
             XContentHelper.convertToMap(XContentType.JSON.xContent(), MonitoringTemplateUtils.loadTemplate("es"), false);
         Map<?, ?> autoFollowStatsMapping =
-            (Map<?, ?>) XContentMapValues.extractValue("mappings.doc.properties.ccr_auto_follow_stats.properties", template);
+            (Map<?, ?>) XContentMapValues.extractValue("mappings._doc.properties.ccr_auto_follow_stats.properties", template);
 
         assertThat(serializedStatus.size(), equalTo(autoFollowStatsMapping.size()));
         for (Map.Entry<String, Object> entry : serializedStatus.entrySet()) {

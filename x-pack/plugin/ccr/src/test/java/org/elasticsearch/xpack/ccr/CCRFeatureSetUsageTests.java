@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.ccr;
 
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
-import org.elasticsearch.xpack.core.ccr.CCRFeatureSet;
 
 public class CCRFeatureSetUsageTests extends AbstractWireSerializingTestCase<CCRFeatureSet.Usage> {
 

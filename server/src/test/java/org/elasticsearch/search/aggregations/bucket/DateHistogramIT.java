@@ -42,6 +42,7 @@ import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInter
 import org.elasticsearch.search.aggregations.bucket.histogram.ExtendedBounds;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram.Bucket;
+import org.elasticsearch.search.aggregations.bucket.histogram.InternalDateHistogram;
 import org.elasticsearch.search.aggregations.metrics.Avg;
 import org.elasticsearch.search.aggregations.metrics.Sum;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -1358,7 +1359,7 @@ public class DateHistogramIT extends ESIntegTestCase {
                     .addAggregation(dateHistogram("histo").field("date").interval(-TimeUnit.DAYS.toMillis(1)).minDocCount(0)).get();
             fail();
         } catch (IllegalArgumentException e) {
-            assertThat(e.toString(), containsString("[interval] must be 1 or greater for histogram aggregation [histo]"));
+            assertThat(e.toString(), containsString("[interval] must be 1 or greater for aggregation [date_histogram]"));
         }
     }
 
@@ -1432,12 +1433,29 @@ public class DateHistogramIT extends ESIntegTestCase {
         SearchResponse response = client().prepareSearch("idx")
                 .setQuery(new MatchNoneQueryBuilder())
                 .addAggregation(dateHistogram("histo").field("date").timeZone(ZoneId.of("Europe/Oslo"))
-                        .dateHistogramInterval(DateHistogramInterval.HOUR).minDocCount(0).extendedBounds(
+                        .calendarInterval(DateHistogramInterval.HOUR).minDocCount(0).extendedBounds(
                                 new ExtendedBounds("2015-10-25T02:00:00.000+02:00", "2015-10-25T04:00:00.000+01:00")))
                 .get();
 
         Histogram histo = response.getAggregations().get("histo");
         List<? extends Bucket> buckets = histo.getBuckets();
+        assertThat(buckets.size(), equalTo(4));
+        assertThat(((ZonedDateTime) buckets.get(1).getKey()).toInstant().toEpochMilli() -
+            ((ZonedDateTime) buckets.get(0).getKey()).toInstant().toEpochMilli(), equalTo(3600000L));
+        assertThat(((ZonedDateTime) buckets.get(2).getKey()).toInstant().toEpochMilli() -
+            ((ZonedDateTime) buckets.get(1).getKey()).toInstant().toEpochMilli(), equalTo(3600000L));
+        assertThat(((ZonedDateTime) buckets.get(3).getKey()).toInstant().toEpochMilli() -
+            ((ZonedDateTime) buckets.get(2).getKey()).toInstant().toEpochMilli(), equalTo(3600000L));
+
+        response = client().prepareSearch("idx")
+            .setQuery(new MatchNoneQueryBuilder())
+            .addAggregation(dateHistogram("histo").field("date").timeZone(ZoneId.of("Europe/Oslo"))
+                .dateHistogramInterval(DateHistogramInterval.HOUR).minDocCount(0).extendedBounds(
+                    new ExtendedBounds("2015-10-25T02:00:00.000+02:00", "2015-10-25T04:00:00.000+01:00")))
+            .get();
+
+        histo = response.getAggregations().get("histo");
+        buckets = histo.getBuckets();
         assertThat(buckets.size(), equalTo(4));
         assertThat(((ZonedDateTime) buckets.get(1).getKey()).toInstant().toEpochMilli() -
             ((ZonedDateTime) buckets.get(0).getKey()).toInstant().toEpochMilli(), equalTo(3600000L));
@@ -1531,7 +1549,6 @@ public class DateHistogramIT extends ESIntegTestCase {
         ZonedDateTime[] expectedKeys = Arrays.stream(expectedDays).mapToObj(d -> date(1, d)).toArray(ZonedDateTime[]::new);
         SearchResponse response = client()
             .prepareSearch("sort_idx")
-            .setTypes("type")
             .addAggregation(
                 dateHistogram("histo").field("date").dateHistogramInterval(DateHistogramInterval.DAY).order(BucketOrder.compound(order))
                     .subAggregation(avg("avg_l").field("l")).subAggregation(sum("sum_d").field("d"))).get();
@@ -1560,5 +1577,65 @@ public class DateHistogramIT extends ESIntegTestCase {
 
     private ZonedDateTime key(Histogram.Bucket bucket) {
         return (ZonedDateTime) bucket.getKey();
+    }
+
+    /**
+     * See https://github.com/elastic/elasticsearch/issues/39107. Make sure we handle properly different
+     * timeZones.
+     */
+    public void testDateNanosHistogram() throws Exception {
+        assertAcked(prepareCreate("nanos").addMapping("_doc", "date", "type=date_nanos").get());
+        indexRandom(true,
+            client().prepareIndex("nanos", "_doc", "1").setSource("date", "2000-01-01"));
+        indexRandom(true,
+            client().prepareIndex("nanos", "_doc", "2").setSource("date", "2000-01-02"));
+
+        //Search interval 24 hours
+        SearchResponse r = client().prepareSearch("nanos")
+            .addAggregation(dateHistogram("histo").field("date").
+                interval(1000 * 60 * 60 * 24).timeZone(ZoneId.of("Europe/Berlin")))
+            .addDocValueField("date")
+            .get();
+        assertSearchResponse(r);
+
+        Histogram histogram = r.getAggregations().get("histo");
+        List<? extends Bucket> buckets = histogram.getBuckets();
+        assertEquals(2, buckets.size());
+        assertEquals(946681200000L,  ((ZonedDateTime)buckets.get(0).getKey()).toEpochSecond() * 1000);
+        assertEquals(1, buckets.get(0).getDocCount());
+        assertEquals(946767600000L, ((ZonedDateTime)buckets.get(1).getKey()).toEpochSecond() * 1000);
+        assertEquals(1, buckets.get(1).getDocCount());
+
+        r = client().prepareSearch("nanos")
+            .addAggregation(dateHistogram("histo").field("date")
+                .interval(1000 * 60 * 60 * 24).timeZone(ZoneId.of("UTC")))
+            .addDocValueField("date")
+            .get();
+        assertSearchResponse(r);
+
+        histogram = r.getAggregations().get("histo");
+        buckets = histogram.getBuckets();
+        assertEquals(2, buckets.size());
+        assertEquals(946684800000L,  ((ZonedDateTime)buckets.get(0).getKey()).toEpochSecond() * 1000);
+        assertEquals(1, buckets.get(0).getDocCount());
+        assertEquals(946771200000L, ((ZonedDateTime)buckets.get(1).getKey()).toEpochSecond() * 1000);
+        assertEquals(1, buckets.get(1).getDocCount());
+    }
+
+    public void testDateKeyFormatting() {
+        SearchResponse response = client().prepareSearch("idx")
+                                          .addAggregation(dateHistogram("histo")
+                                              .field("date")
+                                              .dateHistogramInterval(DateHistogramInterval.MONTH)
+                                              .timeZone(ZoneId.of("America/Edmonton")))
+                                          .get();
+
+        assertSearchResponse(response);
+
+        InternalDateHistogram histogram = response.getAggregations().get("histo");
+        List<InternalDateHistogram.Bucket> buckets = histogram.getBuckets();
+        assertThat(buckets.get(0).getKeyAsString(), equalTo("2012-01-01T00:00:00.000-07:00"));
+        assertThat(buckets.get(1).getKeyAsString(), equalTo("2012-02-01T00:00:00.000-07:00"));
+        assertThat(buckets.get(2).getKeyAsString(), equalTo("2012-03-01T00:00:00.000-07:00"));
     }
 }

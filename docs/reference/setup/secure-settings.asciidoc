@@ -65,6 +65,18 @@ cat /file/containing/setting/value | bin/elasticsearch-keystore add --stdin the.
 ----------------------------------------------------------------
 
 [float]
+[[add-file-to-keystore]]
+=== Adding file settings
+You can add sensitive files, like authentication key files for cloud plugins,
+using the `add-file` command. Be sure to include your file path as an argument
+after the setting name.
+
+[source,sh]
+----------------------------------------------------------------
+bin/elasticsearch-keystore add-file the.setting.name.to.set /path/example-file.json
+----------------------------------------------------------------
+
+[float]
 [[remove-settings]]
 === Removing settings
 

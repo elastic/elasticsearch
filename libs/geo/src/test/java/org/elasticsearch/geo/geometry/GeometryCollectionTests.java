@@ -28,19 +28,22 @@ import java.util.Collections;
 
 public class GeometryCollectionTests extends BaseGeometryTestCase<GeometryCollection<Geometry>> {
     @Override
-    protected GeometryCollection<Geometry> createTestInstance() {
-        return randomGeometryCollection();
+    protected GeometryCollection<Geometry> createTestInstance(boolean hasAlt) {
+        return randomGeometryCollection(hasAlt);
     }
 
+
+
     public void testBasicSerialization() throws IOException, ParseException {
+        WellKnownText wkt = new WellKnownText();
         assertEquals("geometrycollection (point (20.0 10.0),point EMPTY)",
-            WellKnownText.toWKT(new GeometryCollection<Geometry>(Arrays.asList(new Point(10, 20), Point.EMPTY))));
+            wkt.toWKT(new GeometryCollection<Geometry>(Arrays.asList(new Point(10, 20), Point.EMPTY))));
 
         assertEquals(new GeometryCollection<Geometry>(Arrays.asList(new Point(10, 20), Point.EMPTY)),
-            WellKnownText.fromWKT("geometrycollection (point (20.0 10.0),point EMPTY)"));
+            wkt.fromWKT("geometrycollection (point (20.0 10.0),point EMPTY)"));
 
-        assertEquals("geometrycollection EMPTY", WellKnownText.toWKT(GeometryCollection.EMPTY));
-        assertEquals(GeometryCollection.EMPTY, WellKnownText.fromWKT("geometrycollection EMPTY)"));
+        assertEquals("geometrycollection EMPTY", wkt.toWKT(GeometryCollection.EMPTY));
+        assertEquals(GeometryCollection.EMPTY, wkt.fromWKT("geometrycollection EMPTY)"));
     }
 
     @SuppressWarnings("ConstantConditions")
@@ -50,5 +53,9 @@ public class GeometryCollectionTests extends BaseGeometryTestCase<GeometryCollec
 
         ex = expectThrows(IllegalArgumentException.class, () -> new GeometryCollection<>(null));
         assertEquals("the list of shapes cannot be null or empty", ex.getMessage());
+
+        ex = expectThrows(IllegalArgumentException.class, () -> new GeometryCollection<>(
+            Arrays.asList(new Point(10, 20), new Point(10, 20, 30))));
+        assertEquals("all elements of the collection should have the same number of dimension", ex.getMessage());
     }
 }

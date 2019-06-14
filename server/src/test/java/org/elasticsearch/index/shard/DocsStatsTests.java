@@ -66,8 +66,7 @@ public class DocsStatsTests extends ESTestCase {
             originalStats.writeTo(out);
             BytesReference bytes = out.bytes();
             try (StreamInput in = bytes.streamInput()) {
-                DocsStats cloneStats = new DocsStats();
-                cloneStats.readFrom(in);
+                DocsStats cloneStats = new DocsStats(in);
                 assertThat(cloneStats.getCount(), equalTo(originalStats.getCount()));
                 assertThat(cloneStats.getDeleted(), equalTo(originalStats.getDeleted()));
                 assertThat(cloneStats.getAverageSizeInBytes(), equalTo(originalStats.getAverageSizeInBytes()));

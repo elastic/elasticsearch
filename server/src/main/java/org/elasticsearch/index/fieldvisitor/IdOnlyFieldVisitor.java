@@ -52,4 +52,9 @@ public final class IdOnlyFieldVisitor extends StoredFieldVisitor {
     public String getId() {
         return id;
     }
+
+    public void reset() {
+        id = null;
+        visited = false;
+    }
 }

@@ -2793,6 +2793,7 @@ public class InternalEngine extends Engine {
                 continue;
             }
             final CombinedDocValues dv = new CombinedDocValues(leaf.reader());
+            final IdOnlyFieldVisitor idFieldVisitor = new IdOnlyFieldVisitor();
             final DocIdSetIterator iterator = scorer.iterator();
             int docId;
             while ((docId = iterator.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {
@@ -2802,7 +2803,7 @@ public class InternalEngine extends Engine {
                 }
                 final long seqNo = dv.docSeqNo(docId);
                 localCheckpointTracker.markSeqNoAsCompleted(seqNo);
-                final IdOnlyFieldVisitor idFieldVisitor = new IdOnlyFieldVisitor();
+                idFieldVisitor.reset();
                 leaf.reader().document(docId, idFieldVisitor);
                 if (idFieldVisitor.getId() == null) {
                     assert dv.isTombstone(docId);

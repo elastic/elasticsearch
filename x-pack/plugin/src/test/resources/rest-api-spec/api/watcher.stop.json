@@ -1,6 +1,7 @@
 {
   "watcher.stop": {
     "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/current/watcher-api-stop.html",
+    "stability": "stable",
     "methods": [ "POST" ],
     "url": {
       "paths": [ "/_watcher/_stop" ],

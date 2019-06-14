@@ -1,6 +1,7 @@
 {
   "ml.get_records": {
     "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/current/ml-get-record.html",
+    "stability": "stable",
     "methods": ["GET", "POST"],
     "url": {
       "paths": [

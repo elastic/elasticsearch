@@ -45,6 +45,7 @@ import org.elasticsearch.index.search.MatchQuery;
 import org.elasticsearch.index.search.MatchQuery.Type;
 import org.elasticsearch.index.search.MatchQuery.ZeroTermsQuery;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.test.AbstractQueryTestCase;
 import org.hamcrest.Matcher;
 
 import java.io.IOException;
@@ -54,19 +55,13 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
-import static java.util.Collections.singletonList;
 import static org.hamcrest.CoreMatchers.either;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
-public class MatchQueryBuilderTests extends FullTextQueryTestCase<MatchQueryBuilder> {
-    @Override
-    protected boolean isCacheable(MatchQueryBuilder queryBuilder) {
-        return queryBuilder.fuzziness() != null
-                ||  isCacheable(singletonList(queryBuilder.fieldName()), queryBuilder.value().toString());
-    }
+public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuilder> {
 
     @Override
     protected MatchQueryBuilder doCreateTestQueryBuilder() {
@@ -512,5 +507,23 @@ public class MatchQueryBuilderTests extends FullTextQueryTestCase<MatchQueryBuil
             tokens.add(new CannedBinaryTokenStream.BinaryToken(term1, 0, 1));
         }
         return tokens.toArray(new CannedBinaryTokenStream.BinaryToken[0]);
+    }
+
+    /**
+     * "now" on date fields should make the query non-cachable.
+     */
+    public void testCachingStrategiesWithNow() throws IOException {
+        // if we hit a date field with "now", this should diable cachability
+        MatchQueryBuilder queryBuilder = new MatchQueryBuilder(DATE_FIELD_NAME, "now");
+        QueryShardContext context = createShardContext();
+        assert context.isCacheable();
+        /*
+         * We use a private rewrite context here since we want the most realistic way of asserting that we are cacheable or not. We do it
+         * this way in SearchService where we first rewrite the query with a private context, then reset the context and then build the
+         * actual lucene query
+         */
+        QueryBuilder rewritten = rewriteQuery(queryBuilder, new QueryShardContext(context));
+        assertNotNull(rewritten.toQuery(context));
+        assertFalse("query should not be cacheable: " + queryBuilder.toString(), context.isCacheable());
     }
 }

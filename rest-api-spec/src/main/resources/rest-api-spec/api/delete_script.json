@@ -1,6 +1,7 @@
 {
   "delete_script": {
     "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/modules-scripting.html",
+    "stability": "stable",
     "methods": ["DELETE"],
     "url": {
       "paths": [ "/_scripts/{id}" ],

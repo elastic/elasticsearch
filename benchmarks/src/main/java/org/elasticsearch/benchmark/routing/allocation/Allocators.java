@@ -22,6 +22,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.EmptyClusterInfoService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.FailedShard;
@@ -92,7 +93,7 @@ public final class Allocators {
 
     public static DiscoveryNode newNode(String nodeId, Map<String, String> attributes) {
         return new DiscoveryNode("", nodeId, new TransportAddress(TransportAddress.META_ADDRESS,
-            portGenerator.incrementAndGet()), attributes, Sets.newHashSet(DiscoveryNode.Role.MASTER,
-            DiscoveryNode.Role.DATA), Version.CURRENT);
+            portGenerator.incrementAndGet()), attributes, Sets.newHashSet(DiscoveryNodeRole.MASTER_ROLE,
+            DiscoveryNodeRole.DATA_ROLE), Version.CURRENT);
     }
 }

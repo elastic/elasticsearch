@@ -14,7 +14,7 @@ Might look like:
 [source,txt]
 --------------------------------------------------
 ip        heap.percent ram.percent cpu load_1m load_5m load_15m node.role master name
-127.0.0.1           65          99  42    3.07                  mdi       *      mJw06l1
+127.0.0.1           65          99  42    3.07                  dim       *      mJw06l1
 --------------------------------------------------
 // TESTRESPONSE[s/3.07/(\\d+\\.\\d+( \\d+\\.\\d+ (\\d+\\.\\d+)?)?)?/]
 // TESTRESPONSE[s/65          99  42/\\d+ \\d+ \\d+/]

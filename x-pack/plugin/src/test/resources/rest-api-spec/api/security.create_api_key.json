@@ -1,6 +1,7 @@
 {
   "security.create_api_key": {
     "documentation": "https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-create-api-key.html",
+    "stability": "stable",
     "methods": [ "PUT", "POST" ],
     "url": {
       "paths": [ "/_security/api_key" ],

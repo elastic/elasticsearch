@@ -1,6 +1,7 @@
 {
   "watcher.activate_watch": {
     "documentation": "https://www.elastic.co/guide/en/elasticsearch/reference/current/watcher-api-activate-watch.html",
+    "stability": "stable",
     "methods": [ "PUT", "POST" ],
     "url": {
       "paths": [ "/_watcher/watch/{watch_id}/_activate" ],

@@ -1,5 +1,6 @@
 {
   "ml.get_filters": {
+    "stability": "stable",
     "methods": [ "GET" ],
     "url": {
       "paths": [ "/_ml/filters", "/_ml/filters/{filter_id}" ],

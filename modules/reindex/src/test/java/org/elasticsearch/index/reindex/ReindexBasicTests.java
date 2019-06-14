@@ -104,6 +104,7 @@ public class ReindexBasicTests extends ReindexTestCase {
         // Copy all the docs
         ReindexRequestBuilder copy = reindex().source("source").destination("dest", "type").refresh(true);
         StartReindexJobAction.Request request = new StartReindexJobAction.Request(copy.request());
+        request.setWaitForCompletion(true);
         // Use a small batch size so we have to use more than one batch
         copy.source().setSize(5);
         BulkByScrollResponse reindexResponse = client().execute(StartReindexJobAction.INSTANCE, request).get().getReindexResponse();
@@ -117,6 +118,7 @@ public class ReindexBasicTests extends ReindexTestCase {
         copy.source().setSize(5);
         copy.maxDocs(half);
         request = new StartReindexJobAction.Request(copy.request());
+        request.setWaitForCompletion(true);
         BulkByScrollResponse reindexResponse2 = client().execute(StartReindexJobAction.INSTANCE, request).get().getReindexResponse();
         assertThat(reindexResponse2, matcher().created(half).batches(half, 5));
         assertHitCount(client().prepareSearch("dest_half").setSize(0).get(), half);

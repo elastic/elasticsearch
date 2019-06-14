@@ -25,39 +25,35 @@ esplugin {
 }
 
 dependencies {
-  compile 'com.google.cloud:google-cloud-storage:1.59.0'
-  compile 'com.google.cloud:google-cloud-core:1.59.0'
-  compile 'com.google.guava:guava:20.0'
-  compile "joda-time:joda-time:${versions.joda}"
-  compile 'com.google.http-client:google-http-client:1.24.1'
+  compile 'com.google.cloud:google-cloud-storage:1.77.0'
+  compile 'com.google.cloud:google-cloud-core:1.77.0'
+  compile 'com.google.guava:guava:26.0-jre'
+  compile 'com.google.http-client:google-http-client:1.30.1'
   compile "org.apache.httpcomponents:httpclient:${versions.httpclient}"
   compile "org.apache.httpcomponents:httpcore:${versions.httpcore}"
   compile "commons-logging:commons-logging:${versions.commonslogging}"
   compile "org.apache.logging.log4j:log4j-1.2-api:${versions.log4j}"
   compile "commons-codec:commons-codec:${versions.commonscodec}"
-  compile 'com.google.api:api-common:1.7.0'
-  compile 'com.google.api:gax:1.30.0'
+  compile 'com.google.api:api-common:1.8.1'
+  compile 'com.google.api:gax:1.45.0'
   compile 'org.threeten:threetenbp:1.3.3'
-  compile 'com.google.protobuf:protobuf-java-util:3.6.0'
-  compile 'com.google.protobuf:protobuf-java:3.6.0'
+  compile 'com.google.protobuf:protobuf-java-util:3.7.1'
+  compile 'com.google.protobuf:protobuf-java:3.7.1'
   compile 'com.google.code.gson:gson:2.7'
-  compile 'com.google.api.grpc:proto-google-common-protos:1.12.0'
+  compile 'com.google.api.grpc:proto-google-common-protos:1.16.0'
   compile 'com.google.api.grpc:proto-google-iam-v1:0.12.0'
-  compile 'com.google.cloud:google-cloud-core-http:1.59.0'
-  compile 'com.google.auth:google-auth-library-credentials:0.10.0'
-  compile 'com.google.auth:google-auth-library-oauth2-http:0.10.0'
-  compile 'com.google.oauth-client:google-oauth-client:1.24.1'
-  compile 'com.google.api-client:google-api-client:1.24.1'
-  compile 'com.google.http-client:google-http-client-appengine:1.24.1'
-  compile 'com.google.http-client:google-http-client-jackson:1.24.1'
-  compile 'org.codehaus.jackson:jackson-core-asl:1.9.11'
-  compile 'com.google.http-client:google-http-client-jackson2:1.24.1'
-  compile "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
-  compile 'com.google.api:gax-httpjson:0.47.0'
-  compile 'io.opencensus:opencensus-api:0.15.0'
+  compile 'com.google.cloud:google-cloud-core-http:1.77.0'
+  compile 'com.google.auth:google-auth-library-credentials:0.16.1'
+  compile 'com.google.auth:google-auth-library-oauth2-http:0.16.1'
+  compile 'com.google.oauth-client:google-oauth-client:1.28.0'
+  compile 'com.google.api-client:google-api-client:1.28.0'
+  compile 'com.google.http-client:google-http-client-appengine:1.29.2'
+  compile 'com.google.http-client:google-http-client-jackson2:1.29.2'
+  compile 'com.google.api:gax-httpjson:0.62.0'
   compile 'io.grpc:grpc-context:1.12.0'
-  compile 'io.opencensus:opencensus-contrib-http-util:0.15.0'
-  compile 'com.google.apis:google-api-services-storage:v1-rev135-1.24.1'
+  compile 'io.opencensus:opencensus-api:0.18.0'
+  compile 'io.opencensus:opencensus-contrib-http-util:0.18.0'
+  compile 'com.google.apis:google-api-services-storage:v1-rev20190426-1.28.0'
 }
 
 dependencyLicenses {
@@ -65,7 +61,6 @@ dependencyLicenses {
   mapping from: /google-auth-.*/, to: 'google-auth'
   mapping from: /google-http-.*/, to: 'google-http'
   mapping from: /opencensus.*/, to: 'opencensus'
-  mapping from: /jackson-.*/, to: 'jackson'
   mapping from: /http.*/, to: 'httpclient'
   mapping from: /protobuf.*/, to: 'protobuf'
   mapping from: /proto-google.*/, to: 'proto-google'
@@ -81,6 +76,10 @@ thirdPartyAudit {
         'com.google.common.cache.Striped64',
         'com.google.common.cache.Striped64$1',
         'com.google.common.cache.Striped64$Cell',
+        'com.google.common.hash.Striped64',
+        'com.google.common.hash.Striped64$1',
+        'com.google.common.hash.Striped64$Cell',
+        'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray',
         'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$1',
         'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$2',
         'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$3',

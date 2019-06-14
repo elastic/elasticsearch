@@ -15,6 +15,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.TimingStats;
 import org.elasticsearch.xpack.core.ml.job.results.AnomalyRecord;
 import org.elasticsearch.xpack.core.ml.job.results.Bucket;
 import org.elasticsearch.xpack.core.ml.job.results.BucketInfluencer;
@@ -27,7 +28,9 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Date;
 import java.util.List;
+import java.util.Map;
 
+import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -191,6 +194,34 @@ public class JobResultsPersisterTests extends ESTestCase {
         }
 
         verify(client, times(1)).bulk(any());
+        verify(client, times(1)).threadPool();
+        verifyNoMoreInteractions(client);
+    }
+
+    public void testPersistTimingStats() {
+        ArgumentCaptor<BulkRequest> bulkRequestCaptor = ArgumentCaptor.forClass(BulkRequest.class);
+        Client client = mockClient(bulkRequestCaptor);
+
+        JobResultsPersister persister = new JobResultsPersister(client);
+        TimingStats timingStats = new TimingStats("foo", 7, 1.0, 2.0, 1.23);
+        persister.bulkPersisterBuilder(JOB_ID).persistTimingStats(timingStats).executeRequest();
+
+        verify(client, times(1)).bulk(bulkRequestCaptor.capture());
+        BulkRequest bulkRequest = bulkRequestCaptor.getValue();
+        assertThat(bulkRequest.requests().size(), equalTo(1));
+        IndexRequest indexRequest = (IndexRequest) bulkRequest.requests().get(0);
+        assertThat(indexRequest.index(), equalTo(".ml-anomalies-.write-foo"));
+        assertThat(indexRequest.id(), equalTo("foo_timing_stats"));
+        assertThat(
+            indexRequest.sourceAsMap(),
+            equalTo(
+                Map.of(
+                    "job_id", "foo",
+                    "bucket_count", 7,
+                    "minimum_bucket_processing_time_ms", 1.0,
+                    "maximum_bucket_processing_time_ms", 2.0,
+                    "average_bucket_processing_time_ms", 1.23)));
+
         verify(client, times(1)).threadPool();
         verifyNoMoreInteractions(client);
     }

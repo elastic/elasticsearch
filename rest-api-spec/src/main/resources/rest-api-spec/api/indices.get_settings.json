@@ -1,6 +1,7 @@
 {
   "indices.get_settings": {
     "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/indices-get-settings.html",
+    "stability": "stable",
     "methods": ["GET"],
     "url": {
       "paths": ["/_settings", "/{index}/_settings", "/{index}/_settings/{name}", "/_settings/{name}"],

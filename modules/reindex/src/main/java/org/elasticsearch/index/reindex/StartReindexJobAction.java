@@ -65,6 +65,7 @@ public class StartReindexJobAction extends Action<StartReindexJobAction.Response
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
             reindexRequest = new ReindexRequest(in);
+            waitForCompletion = in.readBoolean();
         }
 
         @Override

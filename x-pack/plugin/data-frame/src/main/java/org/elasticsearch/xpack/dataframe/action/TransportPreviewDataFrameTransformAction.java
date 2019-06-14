@@ -6,6 +6,8 @@
 
 package org.elasticsearch.xpack.dataframe.action;
 
+import org.apache.log4j.LogManager;
+import org.apache.log4j.Logger;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ingest.SimulatePipelineAction;
@@ -57,6 +59,7 @@ import static org.elasticsearch.xpack.dataframe.transforms.DataFrameIndexer.COMP
 public class TransportPreviewDataFrameTransformAction extends
     HandledTransportAction<PreviewDataFrameTransformAction.Request, PreviewDataFrameTransformAction.Response> {
 
+    private static final Logger logger = LogManager.getLogger(TransportPreviewDataFrameTransformAction.class);
     private static final int NUMBER_OF_PREVIEW_BUCKETS = 100;
     private final XPackLicenseState licenseState;
     private final Client client;
@@ -101,17 +104,25 @@ public class TransportPreviewDataFrameTransformAction extends
 
         Pivot pivot = new Pivot(config.getPivotConfig());
 
-        getPreview(pivot, config.getSource(), config.getDestination().getPipeline(), ActionListener.wrap(
-            previewResponse -> listener.onResponse(new PreviewDataFrameTransformAction.Response(previewResponse)),
-            error -> {
-                logger.error("Failure gathering preview", error);
-                listener.onFailure(error);
-            }
+        getPreview(pivot,
+            config.getSource(),
+            config.getDestination().getPipeline(),
+            config.getDestination().getIndex(),
+            ActionListener.wrap(
+                previewResponse -> listener.onResponse(new PreviewDataFrameTransformAction.Response(previewResponse)),
+                error -> {
+                    logger.error("Failure gathering preview", error);
+                    listener.onFailure(error);
+                }
         ));
     }
 
     @SuppressWarnings("unchecked")
-    private void getPreview(Pivot pivot, SourceConfig source, String pipeline, ActionListener<List<Map<String, Object>>> listener) {
+    private void getPreview(Pivot pivot,
+                            SourceConfig source,
+                            String pipeline,
+                            String dest,
+                            ActionListener<List<Map<String, Object>>> listener) {
         ActionListener<SimulatePipelineResponse> pipelineResponseActionListener = ActionListener.wrap(
             simulatePipelineResponse -> {
                 List<Map<String, Object>> response = new ArrayList<>(simulatePipelineResponse.getResults().size());
@@ -155,6 +166,7 @@ public class TransportPreviewDataFrameTransformAction extends
                                             doc.keySet().removeIf(k -> k.startsWith("_"));
                                             src.put("_source", doc);
                                             src.put("_id", id);
+                                            src.put("_index", dest);
                                             return src;
                                         }).collect(Collectors.toList());
                                     try (XContentBuilder builder = jsonBuilder()) {
@@ -163,9 +175,8 @@ public class TransportPreviewDataFrameTransformAction extends
                                         builder.endObject();
                                         var pipelineRequest = new SimulatePipelineRequest(BytesReference.bytes(builder), XContentType.JSON);
                                         pipelineRequest.setId(pipeline);
-                                        ClientHelper.executeWithHeadersAsync(threadPool.getThreadContext().getHeaders(),
+                                        ClientHelper.executeAsyncWithOrigin(client,
                                             ClientHelper.DATA_FRAME_ORIGIN,
-                                            client,
                                             SimulatePipelineAction.INSTANCE,
                                             pipelineRequest,
                                             pipelineResponseActionListener);

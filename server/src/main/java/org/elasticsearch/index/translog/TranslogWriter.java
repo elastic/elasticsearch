@@ -19,16 +19,14 @@
 
 package org.elasticsearch.index.translog;
 
-import com.carrotsearch.hppc.LongArrayList;
-import com.carrotsearch.hppc.procedures.LongProcedure;
 import org.apache.lucene.store.AlreadyClosedException;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.Assertions;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.Channels;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
 
@@ -44,8 +42,8 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.LongConsumer;
 import java.util.function.LongSupplier;
+import java.util.function.Supplier;
 
 public class TranslogWriter extends BaseTranslogReader implements Closeable {
     private final ShardId shardId;
@@ -67,13 +65,14 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
     private final LongSupplier globalCheckpointSupplier;
     private final LongSupplier minTranslogGenerationSupplier;
 
-    private final LongConsumer persistedSequenceNumberConsumer;
+    // callback that allows to determine which operations have been fsynced. The callback is called just before flush & fsync is happening
+    // and the enclosing Runnable is then invoked to denote successful completion of flush & fsync. All operations that have been added
+    // before the call to the persistence callback will be successfully persisted upon the call of the enclosing Runnable.
+    private final Supplier<Runnable> persistenceCallback;
 
     protected final AtomicBoolean closed = new AtomicBoolean(false);
     // lock order synchronized(syncLock) -> synchronized(this)
     private final Object syncLock = new Object();
-
-    private volatile LongArrayList nonFsyncedSequenceNumbers;
 
     private final Map<Long, Tuple<BytesReference, Exception>> seenSequenceNumbers;
 
@@ -86,7 +85,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
         final ByteSizeValue bufferSize,
         final LongSupplier globalCheckpointSupplier, LongSupplier minTranslogGenerationSupplier, TranslogHeader header,
         TragicExceptionHolder tragedy,
-        final LongConsumer persistedSequenceNumberConsumer)
+        final Supplier<Runnable> persistenceCallback)
             throws
             IOException {
         super(initialCheckpoint.generation, channel, path, header);
@@ -105,8 +104,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
         this.maxSeqNo = initialCheckpoint.maxSeqNo;
         assert initialCheckpoint.trimmedAboveSeqNo == SequenceNumbers.UNASSIGNED_SEQ_NO : initialCheckpoint.trimmedAboveSeqNo;
         this.globalCheckpointSupplier = globalCheckpointSupplier;
-        this.nonFsyncedSequenceNumbers = new LongArrayList();
-        this.persistedSequenceNumberConsumer = persistedSequenceNumberConsumer;
+        this.persistenceCallback = persistenceCallback;
         this.seenSequenceNumbers = Assertions.ENABLED ? new HashMap<>() : null;
         this.tragedy = tragedy;
     }
@@ -114,7 +112,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
     public static TranslogWriter create(ShardId shardId, String translogUUID, long fileGeneration, Path file, ChannelFactory channelFactory,
                                         ByteSizeValue bufferSize, final long initialMinTranslogGen, long initialGlobalCheckpoint,
                                         final LongSupplier globalCheckpointSupplier, final LongSupplier minTranslogGenerationSupplier,
-                                        final long primaryTerm, TragicExceptionHolder tragedy, LongConsumer persistedSequenceNumberConsumer)
+                                        final long primaryTerm, TragicExceptionHolder tragedy, final Supplier<Runnable> persistenceCallback)
         throws IOException {
         final FileChannel channel = channelFactory.open(file);
         try {
@@ -135,7 +133,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
                 writerGlobalCheckpointSupplier = globalCheckpointSupplier;
             }
             return new TranslogWriter(channelFactory, shardId, checkpoint, channel, file, bufferSize,
-                writerGlobalCheckpointSupplier, minTranslogGenerationSupplier, header, tragedy, persistedSequenceNumberConsumer);
+                writerGlobalCheckpointSupplier, minTranslogGenerationSupplier, header, tragedy, persistenceCallback);
         } catch (Exception exception) {
             // if we fail to bake the file-generation into the checkpoint we stick with the file and once we recover and that
             // file exists we remove it. We only apply this logic to the checkpoint.generation+1 any other file with a higher generation
@@ -186,8 +184,6 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
 
         minSeqNo = SequenceNumbers.min(minSeqNo, seqNo);
         maxSeqNo = SequenceNumbers.max(maxSeqNo, seqNo);
-
-        nonFsyncedSequenceNumbers.add(seqNo);
 
         operationCounter++;
 
@@ -352,19 +348,18 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
     public boolean syncUpTo(long offset) throws IOException {
         boolean synced = false;
         if (lastSyncedCheckpoint.offset < offset && syncNeeded()) {
-            LongArrayList flushedSequenceNumbers = null;
             synchronized (syncLock) { // only one sync/checkpoint should happen concurrently but we wait
                 if (lastSyncedCheckpoint.offset < offset && syncNeeded()) {
                     // double checked locking - we don't want to fsync unless we have to and now that we have
                     // the lock we should check again since if this code is busy we might have fsynced enough already
                     final Checkpoint checkpointToSync;
+                    final Runnable persistenceConfirmation;
                     synchronized (this) {
                         ensureOpen();
                         try {
+                            persistenceConfirmation = persistenceCallback.get();
                             outputStream.flush();
                             checkpointToSync = getCheckpoint();
-                            flushedSequenceNumbers = nonFsyncedSequenceNumbers;
-                            nonFsyncedSequenceNumbers = new LongArrayList();
                         } catch (final Exception ex) {
                             closeWithTragicEvent(ex);
                             throw ex;
@@ -382,11 +377,9 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
                     assert lastSyncedCheckpoint.offset <= checkpointToSync.offset :
                         "illegal state: " + lastSyncedCheckpoint.offset + " <= " + checkpointToSync.offset;
                     lastSyncedCheckpoint = checkpointToSync; // write protected by syncLock
+                    persistenceConfirmation.run();
                     synced = true;
                 }
-            }
-            if (flushedSequenceNumbers != null) {
-                flushedSequenceNumbers.forEach((LongProcedure) persistedSequenceNumberConsumer::accept);
             }
         }
         return synced;

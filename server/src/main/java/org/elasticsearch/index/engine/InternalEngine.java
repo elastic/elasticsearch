@@ -108,7 +108,6 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.BiFunction;
-import java.util.function.LongConsumer;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
@@ -198,10 +197,10 @@ public class InternalEngine extends Engine {
             try {
                 trimUnsafeCommits(engineConfig);
                 translog = openTranslog(engineConfig, translogDeletionPolicy, engineConfig.getGlobalCheckpointSupplier(),
-                    seqNo -> {
+                    () -> {
                         final LocalCheckpointTracker tracker = getLocalCheckpointTracker();
                         assert tracker != null;
-                        tracker.markSeqNoAsPersisted(seqNo);
+                        return tracker.prepareForPersistence();
                     });
                 assert translog.getGeneration() != null;
                 this.translog = translog;
@@ -273,9 +272,10 @@ public class InternalEngine extends Engine {
             if (localCheckpoint < maxSeqNo && engineConfig.getIndexSettings().isSoftDeleteEnabled()) {
                 try (Searcher searcher = searcherSupplier.get()) {
                     Lucene.scanSeqNosInReader(searcher.getDirectoryReader(), localCheckpoint + 1, maxSeqNo,
-                        tracker::markSeqNoAsPersisted /* also marks them as processed */);
+                        tracker::markSeqNoAsProcessed);
                 }
             }
+            tracker.prepareForPersistence().run(); // advances persisted checkpoint
             return tracker;
         } catch (IOException ex) {
             throw new EngineCreationFailureException(engineConfig.getShardId(), "failed to create local checkpoint tracker", ex);
@@ -471,18 +471,19 @@ public class InternalEngine extends Engine {
             commitIndexWriter(indexWriter, translog, null);
             refreshLastCommittedSegmentInfos();
             refresh("translog_recovery");
+            getLocalCheckpointTracker().prepareForPersistence().run();
         }
         translog.trimUnreferencedReaders();
     }
 
     private Translog openTranslog(EngineConfig engineConfig, TranslogDeletionPolicy translogDeletionPolicy,
-                                  LongSupplier globalCheckpointSupplier, LongConsumer persistedSequenceNumberConsumer) throws IOException {
+                                  LongSupplier globalCheckpointSupplier, Supplier<Runnable> persistenceCallback) throws IOException {
 
         final TranslogConfig translogConfig = engineConfig.getTranslogConfig();
         final String translogUUID = loadTranslogUUIDFromLastCommit();
         // We expect that this shard already exists, so it must already have an existing translog else something is badly wrong!
         return new Translog(translogConfig, translogUUID, translogDeletionPolicy, globalCheckpointSupplier,
-            engineConfig.getPrimaryTermSupplier(), persistedSequenceNumberConsumer);
+            engineConfig.getPrimaryTermSupplier(), persistenceCallback);
     }
 
     // Package private for testing purposes only
@@ -919,11 +920,11 @@ public class InternalEngine extends Engine {
                         new IndexVersionValue(translogLocation, plan.versionForIndexing, index.seqNo(), index.primaryTerm()));
                 }
                 localCheckpointTracker.markSeqNoAsProcessed(indexResult.getSeqNo());
-                if (indexResult.getTranslogLocation() == null) {
-                    // the op is coming from the translog (and is hence persisted already) or it does not have a sequence number
-                    assert index.origin().isFromTranslog() || indexResult.getSeqNo() == SequenceNumbers.UNASSIGNED_SEQ_NO;
-                    localCheckpointTracker.markSeqNoAsPersisted(indexResult.getSeqNo());
-                }
+                // an op that's not put into the translog is coming already from the translog (and is hence persisted already) or does not
+                // have a sequence number (version conflict)
+                assert indexResult.getTranslogLocation() != null || index.origin().isFromTranslog() ||
+                    indexResult.getSeqNo() == SequenceNumbers.UNASSIGNED_SEQ_NO;
+
                 indexResult.setTook(System.nanoTime() - index.startTime());
                 indexResult.freeze();
                 return indexResult;
@@ -1277,11 +1278,11 @@ public class InternalEngine extends Engine {
                 deleteResult.setTranslogLocation(location);
             }
             localCheckpointTracker.markSeqNoAsProcessed(deleteResult.getSeqNo());
-            if (deleteResult.getTranslogLocation() == null) {
-                // the op is coming from the translog (and is hence persisted already) or does not have a sequence number (version conflict)
-                assert delete.origin().isFromTranslog() || deleteResult.getSeqNo() == SequenceNumbers.UNASSIGNED_SEQ_NO;
-                localCheckpointTracker.markSeqNoAsPersisted(deleteResult.getSeqNo());
-            }
+            // an op that's not put into the translog is coming already from the translog (and is hence persisted already) or does not
+            // have a sequence number (version conflict)
+            assert deleteResult.getTranslogLocation() != null || delete.origin().isFromTranslog() ||
+                deleteResult.getSeqNo() == SequenceNumbers.UNASSIGNED_SEQ_NO;
+
             deleteResult.setTook(System.nanoTime() - delete.startTime());
             deleteResult.freeze();
         } catch (RuntimeException | IOException e) {
@@ -1525,13 +1526,13 @@ public class InternalEngine extends Engine {
                 }
             }
             localCheckpointTracker.markSeqNoAsProcessed(noOpResult.getSeqNo());
-            if (noOpResult.getTranslogLocation() == null) {
-                // the op is coming from the translog (and is hence persisted already) or it does not have a sequence number, or we failed
-                // to add a tombstone doc to Lucene with a non-fatal error, which would be very surprising
-                // TODO: always fail the engine in the last case, as this creates gaps in the history
-                assert noOp.origin().isFromTranslog() || noOpResult.getSeqNo() == SequenceNumbers.UNASSIGNED_SEQ_NO || failure != null;
-                localCheckpointTracker.markSeqNoAsPersisted(noOpResult.getSeqNo());
-            }
+            // an op that's not put into the translog is coming already from the translog (and is hence persisted already) or does not
+            // have a sequence number (version conflict), or we failed to add a tombstone doc to Lucene with a non-fatal error, which
+            // would be very surprising
+            // TODO: always fail the engine in the last case, as this creates gaps in the history
+            assert noOpResult.getTranslogLocation() != null || noOp.origin().isFromTranslog() ||
+                noOpResult.getSeqNo() == SequenceNumbers.UNASSIGNED_SEQ_NO || failure != null;
+
             noOpResult.setTook(System.nanoTime() - noOp.startTime());
             noOpResult.freeze();
             return noOpResult;

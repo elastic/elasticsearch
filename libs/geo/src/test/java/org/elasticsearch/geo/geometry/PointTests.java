@@ -49,4 +49,10 @@ public class PointTests extends BaseGeometryTestCase<Point> {
         ex = expectThrows(IllegalArgumentException.class, () -> new Point(10, 500));
         assertEquals("invalid longitude 500.0; must be between -180.0 and 180.0", ex.getMessage());
     }
+
+    public void testWKTValidation() {
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class,
+            () -> new WellKnownText(randomBoolean(), false).fromWKT("point (20.0 10.0 100.0)"));
+        assertEquals("found Z value [100.0] but [ignore_z_value] parameter is [false]", ex.getMessage());
+    }
 }

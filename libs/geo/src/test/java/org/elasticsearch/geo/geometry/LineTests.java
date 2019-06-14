@@ -54,4 +54,10 @@ public class LineTests extends BaseGeometryTestCase<Line> {
         ex = expectThrows(IllegalArgumentException.class, () -> new Line(new double[]{1, 100, 3, 1}, new double[]{3, 4, 5, 3}));
         assertEquals("invalid latitude 100.0; must be between -90.0 and 90.0", ex.getMessage());
     }
+
+    public void testWKTValidation() {
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class,
+            () -> new WellKnownText(randomBoolean(), false).fromWKT("linestring (3 1 6, 4 2 5)"));
+        assertEquals("found Z value [6.0] but [ignore_z_value] parameter is [false]", ex.getMessage());
+    }
 }

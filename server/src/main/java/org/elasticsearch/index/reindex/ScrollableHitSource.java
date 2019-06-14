@@ -33,14 +33,17 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
+import java.util.function.ToLongFunction;
 
 import static java.util.Objects.requireNonNull;
 
@@ -54,33 +57,91 @@ public abstract class ScrollableHitSource {
     protected final BackoffPolicy backoffPolicy;
     protected final ThreadPool threadPool;
     protected final Runnable countSearchRetry;
+    private Consumer<AsyncResponse> onResponse;
     protected final Consumer<Exception> fail;
+    private final ToLongFunction<Hit> extractRetryValueFunction;;
+    private long retryFromValue = Long.MIN_VALUE; // need refinement if we support descending.
 
     public ScrollableHitSource(Logger logger, BackoffPolicy backoffPolicy, ThreadPool threadPool, Runnable countSearchRetry,
-            Consumer<Exception> fail) {
+                               Consumer<AsyncResponse> onResponse, Consumer<Exception> fail, String resumableSortingField) {
         this.logger = logger;
         this.backoffPolicy = backoffPolicy;
         this.threadPool = threadPool;
         this.countSearchRetry = countSearchRetry;
+        this.onResponse = onResponse;
         this.fail = fail;
+        if (resumableSortingField != null) {
+            if (SeqNoFieldMapper.NAME.equals(resumableSortingField)) {
+                extractRetryValueFunction = Hit::getSeqNo;
+            } else {
+                extractRetryValueFunction = hit -> Long.MIN_VALUE;
+                // need to extract field, either from source or by asking for it explicitly.
+                // also we need to handle missing values.
+                // hit -> ((Number) hit.field(resumableSortingField).getValue()).longValue();
+            }
+        } else {
+            extractRetryValueFunction = hit -> Long.MIN_VALUE;
+        }
     }
 
-    public final void start(Consumer<Response> onResponse) {
+    public final void start() {
         doStart(response -> {
-           setScroll(response.getScrollId());
-           logger.debug("scroll returned [{}] documents with a scroll id of [{}]", response.getHits().size(), response.getScrollId());
-           onResponse.accept(response);
+            logger.debug("scroll returned [{}] documents with a scroll id of [{}]", response.getHits().size(), response.getScrollId());
+            onResponse(response);
         });
     }
-    protected abstract void doStart(Consumer<? super Response> onResponse);
 
-    public final void startNextScroll(TimeValue extraKeepAlive, Consumer<Response> onResponse) {
-        doStartNextScroll(scrollId.get(), extraKeepAlive, response -> {
-            setScroll(response.getScrollId());
-            onResponse.accept(response);
+    public void retryFromValue(long retryFromValue) {
+        retryFromValue = retryFromValue;
+    }
+
+    public long retryFromValue() {
+        return retryFromValue;
+    }
+
+    public final void restart() {
+        clearScroll();
+        doRestart(response -> {
+            logger.debug("scroll returned [{}] documents with a scroll id of [{}]", response.getHits().size(), response.getScrollId());
+            onResponse(response);
         });
+    }
+
+    protected abstract void doStart(Consumer<? super Response> onResponse);
+    protected abstract void doRestart(Consumer<? super Response> onResponse);
+
+    public final void startNextScroll(TimeValue extraKeepAlive) {
+        doStartNextScroll(scrollId.get(), extraKeepAlive, this::onResponse);
     }
     protected abstract void doStartNextScroll(String scrollId, TimeValue extraKeepAlive, Consumer<? super Response> onResponse);
+
+    private void onResponse(Response response) {
+        setScroll(response.getScrollId());
+        onResponse.accept(new AsyncResponse() {
+            private AtomicBoolean alreadyDone = new AtomicBoolean();
+            @Override
+            public Response response() {
+                return response;
+            }
+
+            @Override
+            public void done(TimeValue extraKeepAlive) {
+                assert alreadyDone.compareAndSet(false, true);
+                retryFromValue = extractRetryFromValue(response, retryFromValue);
+                startNextScroll(extraKeepAlive);
+            }
+        });
+    }
+
+    private long extractRetryFromValue(Response response, long defaultValue) {
+        List<? extends Hit> hits = response.hits;
+        if (hits.size() != 0) {
+            return extractRetryValueFunction.applyAsLong(hits.get(hits.size() - 1));
+        } else {
+            return defaultValue;
+        }
+    }
+
 
     public final void close(Runnable onCompletion) {
         String scrollId = this.scrollId.get();
@@ -88,6 +149,14 @@ public abstract class ScrollableHitSource {
             clearScroll(scrollId, () -> cleanup(onCompletion));
         } else {
             cleanup(onCompletion);
+        }
+    }
+
+    protected void clearScroll() {
+        String scrollId = this.scrollId.get();
+        if (scrollId != null) {
+            clearScroll(scrollId, () -> {});
+            this.scrollId.set(null);
         }
     }
 
@@ -113,6 +182,11 @@ public abstract class ScrollableHitSource {
      */
     public final void setScroll(String scrollId) {
         this.scrollId.set(scrollId);
+    }
+
+    public interface AsyncResponse {
+        Response response();
+        void done(TimeValue extraKeepAlive);
     }
 
     /**

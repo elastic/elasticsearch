@@ -306,7 +306,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
                         new IndexResponse(shardId, "type", "id" + i, seqNo, primaryTerm, randomInt(), createdResponse);
                 responses[i] = new BulkItemResponse(i, opType, response);
             }
-            new DummyAsyncBulkByScrollAction().onBulkResponse(timeValueNanos(System.nanoTime()), new BulkResponse(responses, 0));
+            new DummyAsyncBulkByScrollAction().onBulkResponse(timeValueNanos(System.nanoTime()), new BulkResponse(responses, 0), () -> {});
             assertEquals(versionConflicts, testTask.getStatus().getVersionConflicts());
             assertEquals(updated, testTask.getStatus().getUpdated());
             assertEquals(created, testTask.getStatus().getCreated());
@@ -385,7 +385,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         DummyAsyncBulkByScrollAction action = new DummyAsyncBulkByScrollAction();
         BulkResponse bulkResponse = new BulkResponse(new BulkItemResponse[]
             {new BulkItemResponse(0, DocWriteRequest.OpType.CREATE, failure)}, randomLong());
-        action.onBulkResponse(timeValueNanos(System.nanoTime()), bulkResponse);
+        action.onBulkResponse(timeValueNanos(System.nanoTime()), bulkResponse, () -> {});
         BulkByScrollResponse response = listener.get();
         assertThat(response.getBulkFailures(), contains(failure));
         assertThat(response.getSearchFailures(), empty());
@@ -512,7 +512,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         for (int i = 0; i < size + 1; i++) {
             request.add(new IndexRequest("index", "type", "id" + i));
         }
-        action.sendBulkRequest(timeValueNanos(System.nanoTime()), request);
+        action.sendBulkRequest(timeValueNanos(System.nanoTime()), request, () -> {});
         if (failWithRejection) {
             BulkByScrollResponse response = listener.get();
             assertThat(response.getBulkFailures(), hasSize(1));
@@ -584,12 +584,12 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
 
     public void testCancelBeforeSendBulkRequest() throws Exception {
         cancelTaskCase((DummyAsyncBulkByScrollAction action) ->
-            action.sendBulkRequest(timeValueNanos(System.nanoTime()), new BulkRequest()));
+            action.sendBulkRequest(timeValueNanos(System.nanoTime()), new BulkRequest(), () -> {}));
     }
 
     public void testCancelBeforeOnBulkResponse() throws Exception {
         cancelTaskCase((DummyAsyncBulkByScrollAction action) ->
-                action.onBulkResponse(timeValueNanos(System.nanoTime()), new BulkResponse(new BulkItemResponse[0], 0)));
+                action.onBulkResponse(timeValueNanos(System.nanoTime()), new BulkResponse(new BulkItemResponse[0], 0), () -> {}));
     }
 
     public void testCancelBeforeStartNextScroll() throws Exception {
@@ -674,14 +674,24 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
     private void simulateScrollResponse(DummyAsyncBulkByScrollAction action, TimeValue lastBatchTime, int lastBatchSize,
             ScrollableHitSource.Response response) {
         action.setScroll(scrollId());
-        action.onScrollResponse(lastBatchTime, lastBatchSize, response);
+        action.onScrollResponse(lastBatchTime, lastBatchSize, new ScrollableHitSource.AsyncResponse() {
+            @Override
+            public ScrollableHitSource.Response response() {
+                return response;
+            }
+
+            @Override
+            public void done(TimeValue extraKeepAlive) {
+            }
+        });
     }
 
     private class DummyAsyncBulkByScrollAction
         extends AbstractAsyncBulkByScrollAction<DummyAbstractBulkByScrollRequest, DummyTransportAsyncBulkByScrollAction> {
         DummyAsyncBulkByScrollAction() {
             super(testTask, randomBoolean(), randomBoolean(), AsyncBulkByScrollActionTests.this.logger,
-                new ParentTaskAssigningClient(client, localNode, testTask), client.threadPool(), null, testRequest, listener);
+                new ParentTaskAssigningClient(AsyncBulkByScrollActionTests.this.client, localNode, testTask),
+                AsyncBulkByScrollActionTests.this.client.threadPool(), null, testRequest, listener);
         }
 
         @Override

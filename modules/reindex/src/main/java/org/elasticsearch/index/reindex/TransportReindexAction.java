@@ -52,6 +52,10 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.regex.Regex;
@@ -64,11 +68,15 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.VersionType;
+import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.VersionFieldMapper;
 import org.elasticsearch.index.reindex.ScrollableHitSource.SearchFailure;
 import org.elasticsearch.index.reindex.remote.RemoteScrollableHitSource;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.search.sort.FieldSortBuilder;
+import org.elasticsearch.search.sort.SortBuilder;
+import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -100,13 +108,15 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
     private final Client client;
     private final CharacterRunAutomaton remoteWhitelist;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
+    private final NamedWriteableRegistry registry;
 
     private final ReindexSslConfig sslConfig;
 
     @Inject
     public TransportReindexAction(Settings settings, ThreadPool threadPool, ActionFilters actionFilters,
             IndexNameExpressionResolver indexNameExpressionResolver, ClusterService clusterService, ScriptService scriptService,
-            AutoCreateIndex autoCreateIndex, Client client, TransportService transportService, ReindexSslConfig sslConfig) {
+            AutoCreateIndex autoCreateIndex, Client client, TransportService transportService, ReindexSslConfig sslConfig,
+            NamedWriteableRegistry registry) {
         super(ReindexAction.NAME, transportService, actionFilters, (Writeable.Reader<ReindexRequest>)ReindexRequest::new);
         this.threadPool = threadPool;
         this.clusterService = clusterService;
@@ -116,6 +126,7 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
         remoteWhitelist = buildRemoteWhitelist(REMOTE_CLUSTER_WHITELIST.get(settings));
         this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.sslConfig = sslConfig;
+        this.registry = registry;
     }
 
     @Override
@@ -125,6 +136,9 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
         validateAgainstAliases(request.getSearchRequest(), request.getDestination(), request.getRemoteInfo(),
             indexNameExpressionResolver, autoCreateIndex, state);
 
+        // Notice that this is called both on leader and workers when slicing.
+        String resumableSortingField = getOrAddResumableSortingField(request.getSearchRequest());
+
         BulkByScrollTask bulkByScrollTask = (BulkByScrollTask) task;
 
         BulkByScrollParallelizationHelper.startSlicedAction(request, bulkByScrollTask, ReindexAction.INSTANCE, listener, client,
@@ -132,10 +146,36 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
             () -> {
                 ParentTaskAssigningClient assigningClient = new ParentTaskAssigningClient(client, clusterService.localNode(),
                     bulkByScrollTask);
-                new AsyncIndexBySearchAction(bulkByScrollTask, logger, assigningClient, threadPool, this, request, state,
-                    listener).start();
+                new AsyncIndexBySearchAction(bulkByScrollTask, logger, assigningClient, threadPool, this, request,
+                    resumableSortingField, registry, listener).start();
             }
         );
+    }
+
+    private String getOrAddResumableSortingField(SearchRequest searchRequest) {
+        // we keep with the tradition of modifying the input request, though this can lead to strange results (in transport clients).
+        List<SortBuilder<?>> sorts = searchRequest.source().sorts();
+        if (sorts != null && sorts.size() >= 1) {
+            SortBuilder<?> firstSort = sorts.get(0);
+            if (firstSort instanceof FieldSortBuilder) {
+                FieldSortBuilder fieldSort = (FieldSortBuilder) firstSort;
+                if (SeqNoFieldMapper.NAME.equals(fieldSort.getFieldName())
+                    && fieldSort.order() == SortOrder.ASC) {
+                    // this ensures parallel sub tasks do not modify the request - though this would work with current request impl, this
+                    // seems safer.
+                    if (searchRequest.source().seqNoAndPrimaryTerm() == false) {
+                        searchRequest.source().seqNoAndPrimaryTerm(true);
+                    }
+                    return SeqNoFieldMapper.NAME;
+                }
+                // todo: support non seq_no fields and descending, but need to handle numeric fields and missing values too then.
+            }
+            return null;
+        }
+
+        searchRequest.source().sort(SeqNoFieldMapper.NAME);
+        searchRequest.source().seqNoAndPrimaryTerm(true);
+        return SeqNoFieldMapper.NAME;
     }
 
     static void checkRemoteWhitelist(CharacterRunAutomaton whitelist, RemoteInfo remoteInfo) {
@@ -246,6 +286,19 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
         return builder.build();
     }
 
+    // todo: is there a better way? Also done in TransportRollupSearchAction.
+    private static SearchRequest cloneSearchRequest(SearchRequest original, NamedWriteableRegistry namedWriteableRegistry) {
+        try (BytesStreamOutput output = new BytesStreamOutput()) {
+            original.writeTo(output);
+            try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), namedWriteableRegistry)) {
+                return new SearchRequest(in);
+            }
+        } catch (IOException e) {
+            assert false : "unexpected IOException: " + e.getMessage();
+            throw new RuntimeException(e);
+        }
+    }
+
     /**
      * Simple implementation of reindex using scrolling and bulk. There are tons
      * of optimizations that can be done on certain types of reindex requests
@@ -253,6 +306,8 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
      * possible.
      */
     static class AsyncIndexBySearchAction extends AbstractAsyncBulkByScrollAction<ReindexRequest, TransportReindexAction> {
+        private final String resumableSortingField;
+        private final NamedWriteableRegistry registry;
         /**
          * List of threads created by this process. Usually actions don't create threads in Elasticsearch. Instead they use the builtin
          * {@link ThreadPool}s. But reindex-from-remote uses Elasticsearch's {@link RestClient} which doesn't use the
@@ -262,7 +317,8 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
         private List<Thread> createdThreads = emptyList();
 
         AsyncIndexBySearchAction(BulkByScrollTask task, Logger logger, ParentTaskAssigningClient client,
-                ThreadPool threadPool, TransportReindexAction action, ReindexRequest request, ClusterState clusterState,
+                ThreadPool threadPool, TransportReindexAction action, ReindexRequest request, String resumableSortingField,
+                NamedWriteableRegistry registry,
                 ActionListener<BulkByScrollResponse> listener) {
             super(task,
                 /*
@@ -270,7 +326,10 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
                  * external versioning.
                  */
                 request.getDestination().versionType() != VersionType.INTERNAL,
-                false, logger, client, threadPool, action, request, listener);
+                resumableSortingField != null, logger, client, threadPool, action, request, listener);
+
+            this.resumableSortingField = resumableSortingField;
+            this.registry = registry;
         }
 
         @Override
@@ -279,10 +338,22 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
                 RemoteInfo remoteInfo = mainRequest.getRemoteInfo();
                 createdThreads = synchronizedList(new ArrayList<>());
                 RestClient restClient = buildRestClient(remoteInfo, mainAction.sslConfig, task.getId(), createdThreads);
-                return new RemoteScrollableHitSource(logger, backoffPolicy, threadPool, worker::countSearchRetry, this::finishHim,
+                return new RemoteScrollableHitSource(logger, backoffPolicy, threadPool, worker::countSearchRetry,
+                    this::onScrollResponse, this::finishHim,
                     restClient, remoteInfo.getQuery(), mainRequest.getSearchRequest());
             }
-            return super.buildScrollableResultSource(backoffPolicy);
+
+            if (resumableSortingField == null) {
+                return super.buildScrollableResultSource(backoffPolicy);
+            } else {
+                return new ClientScrollableHitSource(logger, backoffPolicy, threadPool, worker::countSearchRetry,
+                    this::onScrollResponse, this::finishHim, client,
+                    mainRequest.getSearchRequest(), resumableSortingField, this::cloneSearchRequest);
+            }
+        }
+
+        private SearchRequest cloneSearchRequest(SearchRequest searchRequest) {
+            return TransportReindexAction.cloneSearchRequest(searchRequest, registry);
         }
 
         @Override

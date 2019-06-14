@@ -40,13 +40,18 @@ import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
+import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.function.Consumer;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.unmodifiableList;
@@ -59,22 +64,58 @@ import static org.elasticsearch.common.util.CollectionUtils.isEmpty;
 public class ClientScrollableHitSource extends ScrollableHitSource {
     private final ParentTaskAssigningClient client;
     private final SearchRequest firstSearchRequest;
+    private final String resumableSortingField;
+    private Function<SearchRequest, SearchRequest> searchRequestCloner;
 
     public ClientScrollableHitSource(Logger logger, BackoffPolicy backoffPolicy, ThreadPool threadPool, Runnable countSearchRetry,
-            Consumer<Exception> fail, ParentTaskAssigningClient client, SearchRequest firstSearchRequest) {
-        super(logger, backoffPolicy, threadPool, countSearchRetry, fail);
+                                     Consumer<AsyncResponse> onResponse, Consumer<Exception> fail,
+                                     ParentTaskAssigningClient client, SearchRequest firstSearchRequest, String resumableSortingField,
+                                     Function<SearchRequest, SearchRequest> searchRequestCloner) {
+        super(logger, backoffPolicy, threadPool, countSearchRetry, onResponse, fail, resumableSortingField);
         this.client = client;
         this.firstSearchRequest = firstSearchRequest;
+        this.resumableSortingField = resumableSortingField;
+        this.searchRequestCloner = searchRequestCloner;
     }
 
     @Override
     public void doStart(Consumer<? super Response> onResponse) {
+        // todo: refactor logging and retry to parent class, so that only client/remote calls are in sub class.
         if (logger.isDebugEnabled()) {
             logger.debug("executing initial scroll against {}",
                     isEmpty(firstSearchRequest.indices()) ? "all indices" : firstSearchRequest.indices());
         }
         searchWithRetry(listener -> client.search(firstSearchRequest, listener), r -> consume(r, onResponse));
     }
+
+    @Override
+    protected void doRestart(Consumer<? super Response> onResponse) {
+        if (logger.isDebugEnabled()) {
+            logger.debug("retrying scroll against {} from resume marker {}",
+                isEmpty(firstSearchRequest.indices()) ? "all indices" : firstSearchRequest.indices(), retryFromValue());
+        }
+        // must change this to not recreate the retry-helper.
+        if (retryFromValue() == Long.MIN_VALUE) {
+            searchWithRetry(listener -> client.search(firstSearchRequest, listener), r -> consume(r, onResponse));
+        } else {
+            SearchRequest retryFromRequest = createRetryFromRequest();
+            searchWithRetry(listener -> client.search(retryFromRequest, listener), r -> consume(r, onResponse));
+        }
+    }
+
+    private SearchRequest createRetryFromRequest() {
+        SearchRequest retryFromRequest = searchRequestCloner.apply(firstSearchRequest);
+        RangeQueryBuilder rangeQueryBuilder = new RangeQueryBuilder(resumableSortingField).gte(retryFromValue());
+        if (retryFromRequest.source() == null) {
+            retryFromRequest.source(new SearchSourceBuilder().query(rangeQueryBuilder));
+        } else if (retryFromRequest.source().query() == null) {
+            retryFromRequest.source().query(rangeQueryBuilder);
+        } else {
+            throw new UnsupportedOperationException("not yet implemented");
+        }
+        return retryFromRequest;
+    }
+
 
     @Override
     protected void doStartNextScroll(String scrollId, TimeValue extraKeepAlive, Consumer<? super Response> onResponse) {
@@ -143,7 +184,25 @@ public class ClientScrollableHitSource extends ScrollableHitSource {
 
             @Override
             public void onResponse(SearchResponse response) {
-                onResponse.accept(response);
+                if (response.getShardFailures().length == 0) {
+                    onResponse.accept(response);
+                } else {
+                    if (retries.hasNext()) {
+                        retryCount += 1;
+                        TimeValue delay = retries.next();
+                        logger.trace(
+                            () -> new ParameterizedMessage("retrying rejected search after [{}] for shard failures [{}]",
+                                delay,
+                                Stream.of(response.getShardFailures()[0]).map(Object::toString).collect(Collectors.joining(","))));
+                        countSearchRetry.run();
+                        // todo: have to reuse the RetryHelper to not reset retries.
+                        // do we really also have to preserve context manually?
+                        threadPool.schedule(ClientScrollableHitSource.this::restart, delay, ThreadPool.Names.SAME);
+                    } else {
+                        // there is probably no reason to terminate it like this, but we would need a new fail listener.
+                        onResponse.accept(response);
+                    }
+                }
             }
 
             @Override
@@ -161,8 +220,19 @@ public class ClientScrollableHitSource extends ScrollableHitSource {
                         fail.accept(e);
                     }
                 } else {
-                    logger.warn("giving up on search because it failed with a non-retryable exception", e);
-                    fail.accept(e);
+                    if (retries.hasNext()) {
+                        retryCount += 1;
+                        TimeValue delay = retries.next();
+                        logger.trace(() -> new ParameterizedMessage("retrying rejected search after [{}]", delay), e);
+                        countSearchRetry.run();
+                        // todo: have to reuse the RetryHelper to not reset retries.
+                        // do we really also have to preserve context manually?
+                        threadPool.schedule(ClientScrollableHitSource.this::restart, delay, ThreadPool.Names.SAME);
+                    } else {
+                        logger.warn(() -> new ParameterizedMessage(
+                            "giving up on search because we retried [{}] times without success", retryCount), e);
+                        fail.accept(e);
+                    }
                 }
             }
         }

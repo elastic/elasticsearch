@@ -111,8 +111,8 @@ public class ReindexScriptTests extends AbstractAsyncBulkByScrollActionScriptTes
         TransportService transportService = Mockito.mock(TransportService.class);
         ReindexSslConfig sslConfig = Mockito.mock(ReindexSslConfig.class);
         TransportReindexAction transportAction = new TransportReindexAction(Settings.EMPTY, threadPool,
-            new ActionFilters(Collections.emptySet()), null, null, scriptService, null, null, transportService, sslConfig);
+            new ActionFilters(Collections.emptySet()), null, null, scriptService, null, null, transportService, sslConfig, null);
         return new TransportReindexAction.AsyncIndexBySearchAction(task, logger, null, threadPool, transportAction, request,
-            null, listener());
+            null, null, listener());
     }
 }

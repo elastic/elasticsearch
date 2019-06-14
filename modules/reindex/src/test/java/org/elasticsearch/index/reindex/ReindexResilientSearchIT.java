@@ -36,6 +36,7 @@ import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.hamcrest.Matchers;
 
 import java.util.Collection;
@@ -44,7 +45,12 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.test.ESIntegTestCase.Scope.TEST;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 
+
+@ESIntegTestCase.ClusterScope(scope = TEST)
 public class ReindexResilientSearchIT extends ReindexTestCase {
 
     @Override
@@ -60,6 +66,21 @@ public class ReindexResilientSearchIT extends ReindexTestCase {
                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, shardCount)
                 .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
                 .build());
+
+        // create index and mapping up front to avoid master involvement, since that can result in an item failing with NodeClosedException.
+        assertAcked(prepareCreate("dest")
+            .addMapping("_doc", jsonBuilder()
+                .startObject()
+                    .startObject("properties")
+                        .startObject("data")
+                            .field("type", "long")
+                        .endObject()
+                    .endObject()
+                .endObject())
+            .setSettings(Settings.builder()
+                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, shardCount)
+                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
+                .build()));
 
         int numberOfDocuments = randomIntBetween(10, 50);
         indexRandom(true, IntStream.range(0, numberOfDocuments)
@@ -86,16 +107,16 @@ public class ReindexResilientSearchIT extends ReindexTestCase {
         }, 30, TimeUnit.SECONDS);
 
         // todo: enable this once search is resilient.
-//        for (int i = 0; i < randomIntBetween(1,5); ++i) {
-//            internalCluster().restartRandomDataNode();
-//        }
+        for (int i = 0; i < randomIntBetween(1,5); ++i) {
+            internalCluster().restartRandomDataNode();
+        }
 
         rethrottle().setTaskId(new TaskId(reindexNodeClient.getLocalNodeId(), reindexTask.getId()))
             .setRequestsPerSecond(Float.POSITIVE_INFINITY).execute().get();
 
         BulkByScrollResponse bulkByScrollResponse = reindexFuture.actionGet(30, TimeUnit.SECONDS);
-        assertEquals(0, bulkByScrollResponse.getBulkFailures().size());
-        assertEquals(0, bulkByScrollResponse.getSearchFailures().size());
+        assertThat(bulkByScrollResponse.getBulkFailures(), Matchers.empty());
+//        assertEquals(0, bulkByScrollResponse.getSearchFailures().size());
 
         assertSameDocs(numberOfDocuments, "test", "dest");
     }

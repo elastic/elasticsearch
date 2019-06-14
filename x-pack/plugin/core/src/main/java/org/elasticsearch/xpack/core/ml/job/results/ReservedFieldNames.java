@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSizeStats;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshotField;
+import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.TimingStats;
 
 import java.util.Arrays;
 import java.util.HashSet;
@@ -173,6 +174,11 @@ public final class ReservedFieldNames {
             Result.RESULT_TYPE.getPreferredName(),
             Result.TIMESTAMP.getPreferredName(),
             Result.IS_INTERIM.getPreferredName(),
+
+            TimingStats.BUCKET_COUNT.getPreferredName(),
+            TimingStats.MIN_BUCKET_PROCESSING_TIME_MS.getPreferredName(),
+            TimingStats.MAX_BUCKET_PROCESSING_TIME_MS.getPreferredName(),
+            TimingStats.AVG_BUCKET_PROCESSING_TIME_MS.getPreferredName(),
 
             GetResult._ID,
             GetResult._INDEX,

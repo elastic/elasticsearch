@@ -58,7 +58,6 @@ import static java.util.Collections.singletonMap;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-
 /**
  * Tests for {@link TransportAnalyzeAction}. See the rest tests in the {@code analysis-common} module for places where this code gets a ton
  * more exercise.
@@ -66,6 +65,7 @@ import static org.mockito.Mockito.when;
 public class TransportAnalyzeActionTests extends ESTestCase {
 
     private IndexAnalyzers indexAnalyzers;
+    private IndexSettings indexSettings;
     private AnalysisRegistry registry;
     private int maxTokenCount;
     private int idxMaxTokenCount;
@@ -85,7 +85,7 @@ public class TransportAnalyzeActionTests extends ESTestCase {
                 .put("index.analysis.char_filter.my_append.suffix", "baz")
                 .put("index.analyze.max_token_count", 100)
                 .putList("index.analysis.normalizer.my_normalizer.filter", "lowercase").build();
-        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", indexSettings);
+        this.indexSettings = IndexSettingsModule.newIndexSettings("index", indexSettings);
         Environment environment = TestEnvironment.newEnvironment(settings);
         AnalysisPlugin plugin = new AnalysisPlugin() {
             class MockFactory extends AbstractTokenFilterFactory {
@@ -145,14 +145,15 @@ public class TransportAnalyzeActionTests extends ESTestCase {
             }
         };
         registry = new AnalysisModule(environment, singletonList(plugin)).getAnalysisRegistry();
-        indexAnalyzers = registry.build(idxSettings);
+        indexAnalyzers = registry.build(this.indexSettings);
         maxTokenCount = IndexSettings.MAX_TOKEN_COUNT_SETTING.getDefault(settings);
-        idxMaxTokenCount = idxSettings.getMaxTokenCount();
+        idxMaxTokenCount = this.indexSettings.getMaxTokenCount();
     }
 
     private IndexService mockIndexService() {
         IndexService is = mock(IndexService.class);
         when(is.getIndexAnalyzers()).thenReturn(indexAnalyzers);
+        when(is.getIndexSettings()).thenReturn(indexSettings);
         return is;
     }
 

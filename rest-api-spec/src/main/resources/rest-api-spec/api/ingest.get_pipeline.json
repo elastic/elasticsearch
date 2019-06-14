@@ -1,6 +1,7 @@
 {
   "ingest.get_pipeline": {
     "documentation": "https://www.elastic.co/guide/en/elasticsearch/reference/master/get-pipeline-api.html",
+    "stability": "stable",
     "methods": [ "GET" ],
     "url": {
       "paths": [ "/_ingest/pipeline", "/_ingest/pipeline/{id}" ],

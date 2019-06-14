@@ -1,6 +1,7 @@
 {
   "indices.get_template": {
     "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/indices-templates.html",
+    "stability": "stable",
     "methods": ["GET"],
     "url": {
       "paths": [

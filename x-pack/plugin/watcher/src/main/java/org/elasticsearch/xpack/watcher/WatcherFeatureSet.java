@@ -6,15 +6,24 @@
 package org.elasticsearch.xpack.watcher;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.protocol.xpack.XPackUsageRequest;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackFeatureSet;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
+import org.elasticsearch.xpack.core.action.XPackUsageFeatureResponse;
+import org.elasticsearch.xpack.core.action.XPackUsageFeatureTransportAction;
 import org.elasticsearch.xpack.core.watcher.WatcherFeatureSetUsage;
 import org.elasticsearch.xpack.core.watcher.common.stats.Counters;
 import org.elasticsearch.xpack.core.watcher.transport.actions.stats.WatcherStatsAction;
@@ -33,13 +42,11 @@ public class WatcherFeatureSet implements XPackFeatureSet {
 
     private final boolean enabled;
     private final XPackLicenseState licenseState;
-    private Client client;
 
     @Inject
-    public WatcherFeatureSet(Settings settings, @Nullable XPackLicenseState licenseState, Client client) {
+    public WatcherFeatureSet(Settings settings, XPackLicenseState licenseState) {
         this.enabled = XPackSettings.WATCHER_ENABLED.get(settings);
         this.licenseState = licenseState;
-        this.client = client;
     }
 
     @Override
@@ -62,25 +69,46 @@ public class WatcherFeatureSet implements XPackFeatureSet {
         return null;
     }
 
-    @Override
-    public void usage(ActionListener<XPackFeatureSet.Usage> listener) {
-        if (enabled) {
-            try (ThreadContext.StoredContext ignore =
-                    client.threadPool().getThreadContext().stashWithOrigin(WATCHER_ORIGIN)) {
-                WatcherStatsRequest request = new WatcherStatsRequest();
-                request.includeStats(true);
-                client.execute(WatcherStatsAction.INSTANCE, request, ActionListener.wrap(r -> {
-                    List<Counters> countersPerNode = r.getNodes()
+    public static class UsageTransportAction extends XPackUsageFeatureTransportAction {
+        private final boolean enabled;
+        private final XPackLicenseState licenseState;
+        private final Client client;
+
+        @Inject
+        public UsageTransportAction(TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
+                                    ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
+                                    Settings settings, XPackLicenseState licenseState, Client client) {
+            super(XPackUsageFeatureAction.WATCHER.name(), transportService, clusterService, threadPool, actionFilters,
+                  indexNameExpressionResolver);
+            this.enabled = XPackSettings.WATCHER_ENABLED.get(settings);
+            this.licenseState = licenseState;
+            this.client = client;
+        }
+
+        @Override
+        protected void masterOperation(XPackUsageRequest request, ClusterState state, ActionListener<XPackUsageFeatureResponse> listener) {
+            if (enabled) {
+                try (ThreadContext.StoredContext ignore =
+                         client.threadPool().getThreadContext().stashWithOrigin(WATCHER_ORIGIN)) {
+                    WatcherStatsRequest statsRequest = new WatcherStatsRequest();
+                    statsRequest.includeStats(true);
+                    client.execute(WatcherStatsAction.INSTANCE, statsRequest, ActionListener.wrap(r -> {
+                        List<Counters> countersPerNode = r.getNodes()
                             .stream()
                             .map(WatcherStatsResponse.Node::getStats)
                             .filter(Objects::nonNull)
                             .collect(Collectors.toList());
-                    Counters mergedCounters = Counters.merge(countersPerNode);
-                    listener.onResponse(new WatcherFeatureSetUsage(available(), enabled(), mergedCounters.toNestedMap()));
-                }, listener::onFailure));
+                        Counters mergedCounters = Counters.merge(countersPerNode);
+                        WatcherFeatureSetUsage usage =
+                            new WatcherFeatureSetUsage(licenseState.isWatcherAllowed(), true, mergedCounters.toNestedMap());
+                        listener.onResponse(new XPackUsageFeatureResponse(usage));
+                    }, listener::onFailure));
+                }
+            } else {
+                WatcherFeatureSetUsage usage =
+                    new WatcherFeatureSetUsage(licenseState.isWatcherAllowed(), false, Collections.emptyMap());
+                listener.onResponse(new XPackUsageFeatureResponse(usage));
             }
-        } else {
-            listener.onResponse(new WatcherFeatureSetUsage(available(), enabled(), Collections.emptyMap()));
         }
     }
 }

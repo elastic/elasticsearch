@@ -50,7 +50,6 @@ public abstract class SingleShardRequest<Request extends SingleShardRequest<Requ
 
     public SingleShardRequest(StreamInput in) throws IOException {
         super(in);
-        super.readFrom(in);
         if (in.readBoolean()) {
             internalShardId = new ShardId(in);
         }

@@ -16,7 +16,8 @@ import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
 
 public class LeakTracker {
 
-    private static final Logger logger = LogManager.getLogger(LeakTracker.class);
+    // TODO: Use our own name obviously
+    private static final Logger logger = LogManager.getLogger("io.netty.util.ResourceLeakDetector");
 
     // TODO: make tracking false by default
     private static final boolean ENABLED = Boolean.parseBoolean(System.getProperty("test.test.leak.tracker.enabled", "true"));

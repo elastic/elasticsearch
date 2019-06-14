@@ -65,8 +65,6 @@ import static org.hamcrest.core.Is.is;
 
 abstract class DataFrameIntegTestCase extends ESRestTestCase {
 
-    protected static final String REVIEWS_INDEX_NAME = "data_frame_reviews";
-
     private Map<String, DataFrameTransformConfig> transformConfigs = new HashMap<>();
 
     protected void cleanUp() throws IOException {

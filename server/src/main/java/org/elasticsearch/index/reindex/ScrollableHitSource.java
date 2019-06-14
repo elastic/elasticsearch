@@ -486,7 +486,8 @@ public abstract class ScrollableHitSource {
         }
     }
 
-    protected interface RejectAwareActionListener<T> extends ActionListener<T> {
+    // public for testing
+    public interface RejectAwareActionListener<T> extends ActionListener<T> {
         void onRejection(Exception e);
 
         /**
@@ -539,7 +540,7 @@ public abstract class ScrollableHitSource {
                 } // else respond to let action fail.
             }
             logger.debug("scroll returned [{}] documents with a scroll id of [{}]", response.getHits().size(), response.getScrollId());
-            this.onResponse(response);
+            ScrollableHitSource.this.onResponse(response);
         }
 
         @Override

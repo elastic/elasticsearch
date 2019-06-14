@@ -157,7 +157,7 @@ public class ElasticsearchDistribution implements Buildable {
 
     public Extracted getExtracted() {
         if (getType().equals("rpm") || getType().equals("deb")) {
-            throw new IllegalArgumentException("distribution type [" + getType() + "] for " +
+            throw new UnsupportedOperationException("distribution type [" + getType() + "] for " +
                 "elasticsearch distribution [" + name + "] cannot be extracted");
         }
         return extracted;

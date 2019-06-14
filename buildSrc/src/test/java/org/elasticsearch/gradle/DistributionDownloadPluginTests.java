@@ -60,7 +60,7 @@ public class DistributionDownloadPluginTests extends GradleUnitTestCase {
             "Invalid version format: 'badversion'");
     }
 
-    public void tesTypeDefault() {
+    public void testTypeDefault() {
         ElasticsearchDistribution distro = checkDistro(createProject(null), "testdistro", "5.0.0", null, "linux", "oss", true);
         assertEquals(distro.getType(), "archive");
     }

@@ -67,7 +67,8 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
         ExtraPropertiesExtension extraProperties = project.getExtensions().getExtraProperties();
         if (extraProperties.has("bwcVersions")) {
             this.bwcVersions = (BwcVersions) extraProperties.get("bwcVersions");
-        } // else - leniency for external plugins...TODO: setup snapshot dependency instead
+        } // else - leniency for external project...we need bwcversions to be loadable outside of ES repository
+          // TODO: setup snapshot dependency instead of pointing to bwc distribution projects
 
         project.afterEvaluate(this::setupDistributions);
     }
@@ -84,7 +85,7 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
             // no extraction allowed for rpm or deb
             if (distribution.getType().equals("rpm") == false && distribution.getType().equals("deb") == false) {
                 // for the distribution extracted, add a root level task that does the extraction, and depend on that
-                // extracted configuration as a fake artifact
+                // extracted configuration as an artifact consisting of the extracted distribution directory
                 dependencies.add(distribution.getExtracted().configuration.getName(),
                     projectDependency(project, ":", configName("extracted_elasticsearch", distribution)));
                 // ensure a root level download task exists
@@ -112,24 +113,27 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
         if (downloadConfig == null) {
             downloadConfig = configurations.create(downloadConfigName);
             configurations.create(extractedConfigName);
+            Object distroDep = dependencyNotation(rootProject, distribution);
+            rootProject.getDependencies().add(downloadConfigName, distroDep);
         }
-        Object distroDep = dependencyNotation(rootProject, distribution);
-        rootProject.getDependencies().add(downloadConfigName, distroDep);
 
         // add task for extraction, delaying resolving config until runtime
         if (distribution.getType().equals("archive") || distribution.getType().equals("integ-test-zip")) {
             Supplier<File> archiveGetter = downloadConfig::getSingleFile;
-            final Callable<FileTree> fileGetter;
-            if (distribution.getType().equals("integ-test-zip") || distribution.getPlatform().equals("windows")) {
-                fileGetter = () -> rootProject.zipTree(archiveGetter.get());
-            } else {
-                fileGetter = () -> rootProject.tarTree(rootProject.getResources().gzip(archiveGetter.get()));
-            }
             String extractDir = rootProject.getBuildDir().toPath().resolve("elasticsearch-distros").resolve(extractedConfigName).toString();
             TaskProvider<Copy> extractTask = rootProject.getTasks().register(extractTaskName, Copy.class, copyTask -> {
                 copyTask.doFirst(t -> rootProject.delete(extractDir));
                 copyTask.into(extractDir);
-                copyTask.from(fileGetter);
+                copyTask.from((Callable<FileTree>)() -> {
+                    File archiveFile = archiveGetter.get();
+                    String archivePath = archiveFile.toString();
+                    if (archivePath.endsWith(".zip")) {
+                        return rootProject.zipTree(archiveFile);
+                    } else if (archivePath.endsWith(".tar.gz")) {
+                        return rootProject.tarTree(rootProject.getResources().gzip(archiveFile));
+                    }
+                    throw new IllegalStateException("unexpected file extension on [" + archivePath + "]");
+                });
             });
             rootProject.getArtifacts().add(extractedConfigName,
                 rootProject.getLayout().getProjectDirectory().dir(extractDir),
@@ -163,6 +167,17 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
         // TODO: need maven repo just for integ-test-zip, but only in external cases
     }
 
+    /**
+     * Returns a dependency object representing the given distribution.
+     *
+     * The returned object is suitable to be passed to {@link DependencyHandler}.
+     * The concrete type of the object will either be a project {@link Dependency} or
+     * a set of maven coordinates as a {@link String}. Project dependencies point to
+     * a project in the Elasticsearch repo either under `:distribution:bwc`,
+     * `:distribution:archives` or :distribution:packages`. Maven coordinates point to
+     * either the integ-test-zip coordinates on maven central, or a set of artificial
+     * coordinates that resolve to the Elastic download service through an ivy repository.
+     */
     private Object dependencyNotation(Project project, ElasticsearchDistribution distribution) {
 
         if (Version.fromString(VersionProperties.getElasticsearch()).equals(distribution.getVersion())) {
@@ -191,6 +206,7 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
     }
 
     private static Dependency projectDependency(Project project, String projectPath, String projectConfig) {
+
         if (project.findProject(projectPath) == null) {
             throw new GradleException("no project [" + projectPath + "], project names: " + project.getRootProject().getAllprojects());
         }

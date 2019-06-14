@@ -113,7 +113,7 @@ public abstract class DiscoveryNodeRole {
      * Represents an unknown role. This can occur if a newer version adds a role that an older version does not know about, or a newer
      * version removes a role that an older version knows about.
      */
-    static class UnknownRole extends DiscoveryNodeRole {
+    public static class UnknownRole extends DiscoveryNodeRole {
 
         /**
          * Construct an unknown role with the specified role name and role name abbreviation.
@@ -132,6 +132,27 @@ public abstract class DiscoveryNodeRole {
             return Setting.boolSetting("node. " + roleName(), false, Setting.Property.NodeScope);
         }
 
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            UnknownRole that = (UnknownRole) o;
+            return Objects.equals(roleName(), that.roleName()) &&
+                Objects.equals(roleNameAbbreviation(), that.roleNameAbbreviation());
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(roleName(), roleNameAbbreviation());
+        }
+
+        @Override
+        public String toString() {
+            return "UnknownRole{" +
+                "roleName='" + roleName() + '\'' +
+                ", roleAbbreviation='" + roleNameAbbreviation() + '\'' +
+                '}';
+        }
     }
 
 }

@@ -27,6 +27,7 @@ import java.util.Set;
 
 import static org.elasticsearch.xpack.ml.datafeed.extractor.aggregation.AggregationTestUtils.Term;
 import static org.elasticsearch.xpack.ml.datafeed.extractor.aggregation.AggregationTestUtils.createAggs;
+import static org.elasticsearch.xpack.ml.datafeed.extractor.aggregation.AggregationTestUtils.createGeoCentroid;
 import static org.elasticsearch.xpack.ml.datafeed.extractor.aggregation.AggregationTestUtils.createHistogramAggregation;
 import static org.elasticsearch.xpack.ml.datafeed.extractor.aggregation.AggregationTestUtils.createHistogramBucket;
 import static org.elasticsearch.xpack.ml.datafeed.extractor.aggregation.AggregationTestUtils.createMax;
@@ -470,6 +471,20 @@ public class AggregationToJsonProcessorTests extends ESTestCase {
 
         expectThrows(IllegalArgumentException.class,
             () -> aggToString(Sets.newHashSet("my_field"), histogramBuckets));
+    }
+
+    public void testGeoCentroidAgg() throws IOException {
+        List<Histogram.Bucket> histogramBuckets = Arrays.asList(
+            createHistogramBucket(1000L, 4, Arrays.asList(
+                createMax("time", 1000),
+                createGeoCentroid("geo_field", 4, 92.1, 93.1))),
+            createHistogramBucket(2000L, 7, Arrays.asList(
+                createMax("time", 2000),
+                createGeoCentroid("geo_field", 0, -1, -1))));
+        String json = aggToString(Sets.newHashSet("geo_field"), histogramBuckets);
+
+        assertThat(json, equalTo("{\"time\":1000,\"geo_field\":\"92.1,93.1\",\"doc_count\":4}" +
+            " {\"time\":2000,\"doc_count\":7}"));
     }
 
     private String aggToString(Set<String> fields, Histogram.Bucket bucket) throws IOException {

@@ -139,13 +139,13 @@ abstract class InitialSearchPhase<FirstResult extends SearchPhaseResult> extends
                 for (int index = 0; index < shardsIts.size(); index++) {
                     final SearchShardIterator shardRoutings = shardsIts.get(index);
                     if (shardRoutings.size() == 0) {
-                        if(missingShards.length() >0 ){
+                        if(missingShards.length() > 0){
                             missingShards.append(", ");
                         }
                         missingShards.append(shardRoutings.shardId());
                     }
                 }
-                if (missingShards.length() >0) {
+                if (missingShards.length() > 0) {
                     //Status red - shard is missing all copies and would produce partial results for an index search
                     final String msg = "Search rejected due to missing shards ["+ missingShards +
                             "]. Consider using `allow_partial_search_results` setting to bypass this error.";

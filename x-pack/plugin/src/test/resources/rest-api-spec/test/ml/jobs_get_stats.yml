@@ -101,10 +101,10 @@ setup:
   - is_true:  jobs.0.open_time
   - match:  { jobs.0.timing_stats.job_id: job-stats-test }
   - match:  { jobs.0.timing_stats.bucket_count: 1 }  # Records are 1h apart and bucket span is 1h so 1 bucket is produced
-  - gt:     { jobs.0.timing_stats.minimum_bucket_processing_time_ms: 0.0 }
-  - gt:     { jobs.0.timing_stats.maximum_bucket_processing_time_ms: 0.0 }
-  - gt:     { jobs.0.timing_stats.average_bucket_processing_time_ms: 0.0 }
-  - gt:     { jobs.0.timing_stats.exponential_average_bucket_processing_time_ms: 0.0 }
+  - gte:    { jobs.0.timing_stats.minimum_bucket_processing_time_ms: 0.0 }
+  - gte:    { jobs.0.timing_stats.maximum_bucket_processing_time_ms: 0.0 }
+  - gte:    { jobs.0.timing_stats.average_bucket_processing_time_ms: 0.0 }
+  - gte:    { jobs.0.timing_stats.exponential_average_bucket_processing_time_ms: 0.0 }
 
 ---
 "Test get job stats for closed job":
@@ -140,10 +140,10 @@ setup:
   - is_false: jobs.0.open_time
   - match:  { jobs.0.timing_stats.job_id: job-stats-test }
   - match:  { jobs.0.timing_stats.bucket_count: 1 }  # Records are 1h apart and bucket span is 1h so 1 bucket is produced
-  - gt:     { jobs.0.timing_stats.minimum_bucket_processing_time_ms: 0.0 }
-  - gt:     { jobs.0.timing_stats.maximum_bucket_processing_time_ms: 0.0 }
-  - gt:     { jobs.0.timing_stats.average_bucket_processing_time_ms: 0.0 }
-  - gt:     { jobs.0.timing_stats.exponential_average_bucket_processing_time_ms: 0.0 }
+  - gte:    { jobs.0.timing_stats.minimum_bucket_processing_time_ms: 0.0 }
+  - gte:    { jobs.0.timing_stats.maximum_bucket_processing_time_ms: 0.0 }
+  - gte:    { jobs.0.timing_stats.average_bucket_processing_time_ms: 0.0 }
+  - gte:    { jobs.0.timing_stats.exponential_average_bucket_processing_time_ms: 0.0 }
 
 ---
 "Test get job stats of datafeed job that has not received any data":

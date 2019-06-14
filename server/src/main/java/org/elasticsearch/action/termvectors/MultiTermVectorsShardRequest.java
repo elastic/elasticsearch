@@ -44,7 +44,7 @@ public class MultiTermVectorsShardRequest extends SingleShardRequest<MultiTermVe
         requests = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
             locations.add(in.readVInt());
-            requests.add(TermVectorsRequest.readTermVectorsRequest(in));
+            requests.add(new TermVectorsRequest(in));
         }
 
         preference = in.readOptionalString();

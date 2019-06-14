@@ -481,12 +481,6 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
         return validationException;
     }
 
-    public static TermVectorsRequest readTermVectorsRequest(StreamInput in) throws IOException {
-        TermVectorsRequest termVectorsRequest = new TermVectorsRequest();
-        termVectorsRequest.readFrom(in);
-        return termVectorsRequest;
-    }
-
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);

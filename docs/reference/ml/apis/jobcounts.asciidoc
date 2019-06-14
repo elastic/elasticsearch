@@ -232,7 +232,7 @@ The `timing_stats` object shows timing-related statistics about the job's progre
   (double) Maximum among all bucket processing times in milliseconds.
 
 `average_bucket_processing_time_ms`::
-  (double) Cumulative moving average of all bucket processing times in milliseconds.
+  (double) Average of all bucket processing times in milliseconds.
 
 `exponential_average_bucket_processing_time_ms`::
   (double) Exponential moving average of all bucket processing times in milliseconds.

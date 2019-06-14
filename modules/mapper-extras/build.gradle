@@ -20,9 +20,4 @@
 esplugin {
     description 'Adds advanced field mappers'
     classname 'org.elasticsearch.index.mapper.MapperExtrasPlugin'
-    extendedPlugins = ['lang-painless']
-}
-
-dependencies {
-    compileOnly project(':modules:lang-painless')
 }

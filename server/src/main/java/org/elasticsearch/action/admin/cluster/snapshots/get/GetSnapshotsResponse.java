@@ -22,6 +22,7 @@ package org.elasticsearch.action.admin.cluster.snapshots.get;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.set.Sets;
@@ -263,5 +264,10 @@ public class GetSnapshotsResponse extends ActionResponse implements ToXContentOb
 
     public static GetSnapshotsResponse fromXContent(XContentParser parser) throws IOException {
         return PARSER.parse(parser, null);
+    }
+
+    @Override
+    public String toString() {
+        return Strings.toString(this);
     }
 }

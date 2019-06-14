@@ -184,11 +184,10 @@ public class TransportStartDataFrameTransformAction extends
 
                 if(dest.length == 0) {
                     auditor.info(request.getId(),
-                        "Could not find destination index [" +  destinationIndex + "]." +
-                            " Creating index with deduced mappings.");
+                        "Creating destination index [" +  destinationIndex + "] with deduced mappings.");
                     createDestinationIndex(config, createOrGetIndexListener);
                 } else {
-                    auditor.info(request.getId(), "Destination index [" + destinationIndex + "] already exists.");
+                    auditor.info(request.getId(), "Using existing destination index [" + destinationIndex + "].");
                     ClientHelper.executeAsyncWithOrigin(client.threadPool().getThreadContext(),
                         ClientHelper.DATA_FRAME_ORIGIN,
                         client.admin()

@@ -29,6 +29,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
+import org.elasticsearch.snapshots.SnapshotInfoTests;
 import org.elasticsearch.snapshots.SnapshotShardFailure;
 import org.elasticsearch.test.ESTestCase;
 
@@ -40,6 +41,8 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Predicate;
+import java.util.regex.Pattern;
 
 import static org.elasticsearch.test.AbstractXContentTestCase.xContentTester;
 import static org.hamcrest.CoreMatchers.containsString;
@@ -77,7 +80,8 @@ public class GetSnapshotsResponseTests extends ESTestCase {
             ShardId shardId = new ShardId("index", UUIDs.base64UUID(), 2);
             List<SnapshotShardFailure> shardFailures = Collections.singletonList(new SnapshotShardFailure("node-id", shardId, "reason"));
             snapshots.add(new SnapshotInfo(snapshotId, Arrays.asList("index1", "index2"), System.currentTimeMillis(), reason,
-                    System.currentTimeMillis(), randomIntBetween(2, 3), shardFailures, randomBoolean()));
+                    System.currentTimeMillis(), randomIntBetween(2, 3), shardFailures, randomBoolean(),
+                    SnapshotInfoTests.randomUserMetadata()));
 
         }
         return snapshots;
@@ -109,11 +113,20 @@ public class GetSnapshotsResponseTests extends ESTestCase {
     }
 
     public void testFromXContent() throws IOException {
+        final Predicate<String> predicate = Pattern.compile("responses\\.\\d+\\.snapshots\\.\\d+\\.metadata.*").asMatchPredicate();
         xContentTester(this::createParser, this::createTestInstance, ToXContent.EMPTY_PARAMS, this::doParseInstance)
                 .numberOfTestRuns(1)
                 .supportsUnknownFields(true)
                 .shuffleFieldsExceptions(Strings.EMPTY_ARRAY)
-                .randomFieldsExcludeFilter(field -> false)
+                // Don't inject random fields into the custom snapshot metadata, because the metadata map is equality-checked after doing a
+                // round-trip through xContent serialization/deserialization. Even though the rest of the object ignores unknown fields,
+                // `metadata` doesn't ignore unknown fields (it just includes them in the parsed object, because the keys are arbitrary),
+                // so any new fields added to the the metadata before it gets deserialized that weren't in the serialized version will
+                // cause the equality check to fail.
+
+                // The actual fields are nested in an array, so this regex matches fields with names of the form
+                // `responses.0.snapshots.3.metadata`
+                .randomFieldsExcludeFilter(predicate)
                 .assertEqualsConsumer(this::assertEqualInstances)
                 // We set it to false, because GetSnapshotsResponse contains
                 // ElasticsearchException, whose xContent creation/parsing are not stable.

@@ -24,6 +24,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.RequestValidators;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryAction;
 import org.elasticsearch.action.admin.cluster.repositories.put.TransportPutRepositoryAction;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteAction;
@@ -96,6 +97,7 @@ import org.elasticsearch.cluster.metadata.MetaDataDeleteIndexService;
 import org.elasticsearch.cluster.metadata.MetaDataIndexUpgradeService;
 import org.elasticsearch.cluster.metadata.MetaDataMappingService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingService;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -803,14 +805,14 @@ public class SnapshotResiliencyTests extends ESTestCase {
         }
 
         private TestClusterNode newMasterNode(String nodeName) throws IOException {
-            return newNode(nodeName, DiscoveryNode.Role.MASTER);
+            return newNode(nodeName, DiscoveryNodeRole.MASTER_ROLE);
         }
 
         private TestClusterNode newDataNode(String nodeName) throws IOException {
-            return newNode(nodeName, DiscoveryNode.Role.DATA);
+            return newNode(nodeName, DiscoveryNodeRole.DATA_ROLE);
         }
 
-        private TestClusterNode newNode(String nodeName, DiscoveryNode.Role role) throws IOException {
+        private TestClusterNode newNode(String nodeName, DiscoveryNodeRole role) throws IOException {
             return new TestClusterNode(
                 new DiscoveryNode(nodeName, randomAlphaOfLength(10), buildNewFakeTransportAddress(), emptyMap(),
                     Collections.singleton(role), Version.CURRENT), this::getDisruption);
@@ -1154,7 +1156,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
             );
             actions.put(PutMappingAction.INSTANCE,
                 new TransportPutMappingAction(transportService, clusterService, threadPool, metaDataMappingService,
-                    actionFilters, indexNameExpressionResolver, new TransportPutMappingAction.RequestValidators(Collections.emptyList())));
+                    actionFilters, indexNameExpressionResolver, new RequestValidators<>(Collections.emptyList())));
             final ResponseCollectorService responseCollectorService = new ResponseCollectorService(clusterService);
             final SearchTransportService searchTransportService = new SearchTransportService(transportService,
                 SearchExecutionStatsCollector.makeWrapper(responseCollectorService));
@@ -1243,7 +1245,8 @@ public class SnapshotResiliencyTests extends ESTestCase {
                 allocationService, masterService, () -> persistedState,
                 hostsResolver -> testClusterNodes.nodes.values().stream().filter(n -> n.node.isMasterNode())
                     .map(n -> n.node.getAddress()).collect(Collectors.toList()),
-                clusterService.getClusterApplierService(), Collections.emptyList(), random());
+                clusterService.getClusterApplierService(), Collections.emptyList(), random(),
+                new RoutingService(clusterService, allocationService)::reroute);
             masterService.setClusterStatePublisher(coordinator);
             coordinator.start();
             masterService.start();

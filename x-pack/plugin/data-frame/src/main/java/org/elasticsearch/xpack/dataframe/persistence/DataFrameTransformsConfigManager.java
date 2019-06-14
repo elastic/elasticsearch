@@ -197,7 +197,9 @@ public class DataFrameTransformsConfigManager {
      * @param pageParams             The paging params
      * @param foundIdsListener       The listener on signal on success or failure
      */
-    public void expandTransformIds(String transformIdsExpression, PageParams pageParams, ActionListener<Tuple<Long, List<String>>> foundIdsListener) {
+    public void expandTransformIds(String transformIdsExpression,
+                                   PageParams pageParams,
+                                   ActionListener<Tuple<Long, List<String>>> foundIdsListener) {
         String[] idTokens = ExpandedIdsMatcher.tokenizeExpression(transformIdsExpression);
         QueryBuilder queryBuilder = buildQueryFromTokenizedIds(idTokens, DataFrameTransformConfig.NAME);
 

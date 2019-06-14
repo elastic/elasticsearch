@@ -248,7 +248,7 @@ public class BucketScriptPipelineAggregationBuilder extends AbstractPipelineAggr
     public boolean equals(Object obj) {
         if (this == obj) return true;
         if (obj == null || getClass() != obj.getClass()) return false;
-        if (!super.equals(obj)) return false;
+        if (super.equals(obj) == false) return false;
         BucketScriptPipelineAggregationBuilder other = (BucketScriptPipelineAggregationBuilder) obj;
         return Objects.equals(bucketsPathsMap, other.bucketsPathsMap)
             && Objects.equals(script, other.script)

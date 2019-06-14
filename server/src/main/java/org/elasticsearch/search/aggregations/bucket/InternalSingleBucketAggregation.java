@@ -140,7 +140,7 @@ public abstract class InternalSingleBucketAggregation extends InternalAggregatio
     public boolean equals(Object obj) {
         if (this == obj) return true;
         if (obj == null || getClass() != obj.getClass()) return false;
-        if (!super.equals(obj)) return false;
+        if (super.equals(obj) == false) return false;
 
         InternalSingleBucketAggregation other = (InternalSingleBucketAggregation) obj;
         return Objects.equals(docCount, other.docCount) &&

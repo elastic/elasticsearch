@@ -280,7 +280,7 @@ public abstract class InternalSignificantTerms<A extends InternalSignificantTerm
     public boolean equals(Object obj) {
         if (this == obj) return true;
         if (obj == null || getClass() != obj.getClass()) return false;
-        if (!super.equals(obj)) return false;
+        if (super.equals(obj) == false) return false;
 
         InternalSignificantTerms<?, ?> that = (InternalSignificantTerms<?, ?>) obj;
         return Objects.equals(minDocCount, that.minDocCount)

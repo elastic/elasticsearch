@@ -223,7 +223,7 @@ public class InternalExtendedStats extends InternalStats implements ExtendedStat
     public boolean equals(Object obj) {
         if (this == obj) return true;
         if (obj == null || getClass() != obj.getClass()) return false;
-        if (!super.equals(obj)) return false;
+        if (super.equals(obj) == false) return false;
 
         InternalExtendedStats other = (InternalExtendedStats) obj;
         return Double.compare(sumOfSqrs, other.sumOfSqrs) == 0 &&

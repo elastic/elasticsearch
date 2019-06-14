@@ -346,7 +346,7 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
     public boolean equals(Object obj) {
         if (this == obj) return true;
         if (obj == null || getClass() != obj.getClass()) return false;
-        if (!super.equals(obj)) return false;
+        if (super.equals(obj) == false) return false;
 
         InternalRange<?,?> that = (InternalRange<?,?>) obj;
         return Objects.equals(ranges, that.ranges)

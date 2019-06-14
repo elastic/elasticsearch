@@ -98,7 +98,7 @@ public class InternalValueCount extends InternalNumericMetricsAggregation.Single
     public boolean equals(Object obj) {
         if (this == obj) return true;
         if (obj == null || getClass() != obj.getClass()) return false;
-        if (!super.equals(obj)) return false;
+        if (super.equals(obj) == false) return false;
 
         InternalValueCount that = (InternalValueCount) obj;
         return Objects.equals(this.value, that.value);

@@ -126,7 +126,7 @@ public final class InternalCardinality extends InternalNumericMetricsAggregation
     public boolean equals(Object obj) {
         if (this == obj) return true;
         if (obj == null || getClass() != obj.getClass()) return false;
-        if (!super.equals(obj)) return false;
+        if (super.equals(obj) == false) return false;
 
         InternalCardinality other = (InternalCardinality) obj;
         return counts.equals(0, other.counts);

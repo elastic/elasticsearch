@@ -183,7 +183,7 @@ public class InternalGeoCentroid extends InternalAggregation implements GeoCentr
     public boolean equals(Object obj) {
         if (this == obj) return true;
         if (obj == null || getClass() != obj.getClass()) return false;
-        if (!super.equals(obj)) return false;
+        if (super.equals(obj) == false) return false;
         InternalGeoCentroid that = (InternalGeoCentroid) obj;
         return count == that.count &&
                 Objects.equals(centroid, that.centroid);

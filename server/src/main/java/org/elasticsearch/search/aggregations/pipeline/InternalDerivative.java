@@ -106,7 +106,7 @@ public class InternalDerivative extends InternalSimpleValue implements Derivativ
     public boolean equals(Object obj) {
         if (this == obj) return true;
         if (obj == null || getClass() != obj.getClass()) return false;
-        if (!super.equals(obj)) return false;
+        if (super.equals(obj) == false) return false;
         InternalDerivative other = (InternalDerivative) obj;
         return Objects.equals(value, other.value)
                 && Objects.equals(normalizationFactor, other.normalizationFactor);

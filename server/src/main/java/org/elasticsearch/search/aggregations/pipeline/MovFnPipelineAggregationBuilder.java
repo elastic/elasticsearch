@@ -232,7 +232,7 @@ public class MovFnPipelineAggregationBuilder extends AbstractPipelineAggregation
     public boolean equals(Object obj) {
         if (this == obj) return true;
         if (obj == null || getClass() != obj.getClass()) return false;
-        if (!super.equals(obj)) return false;
+        if (super.equals(obj) == false) return false;
         MovFnPipelineAggregationBuilder other = (MovFnPipelineAggregationBuilder) obj;
         return Objects.equals(bucketsPathString, other.bucketsPathString)
             && Objects.equals(script, other.script)

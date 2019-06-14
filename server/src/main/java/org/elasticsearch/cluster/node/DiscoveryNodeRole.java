@@ -113,7 +113,7 @@ public abstract class DiscoveryNodeRole {
      * Represents an unknown role. This can occur if a newer version adds a role that an older version does not know about, or a newer
      * version removes a role that an older version knows about.
      */
-    public static class UnknownRole extends DiscoveryNodeRole {
+    static class UnknownRole extends DiscoveryNodeRole {
 
         /**
          * Construct an unknown role with the specified role name and role name abbreviation.

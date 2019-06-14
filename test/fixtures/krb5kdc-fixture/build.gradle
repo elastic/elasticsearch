@@ -47,7 +47,8 @@ postProcessFixture {
     }
 }
 
-buildFixture.enabled = true
+// AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/40678")
+buildFixture.enabled = false
 
 project.ext.krb5Conf = { service -> file("$buildDir/shared/${service}/krb5.conf") }
 project.ext.krb5Keytabs = { service, fileName -> file("$buildDir/shared/${service}/keytabs/${fileName}") }

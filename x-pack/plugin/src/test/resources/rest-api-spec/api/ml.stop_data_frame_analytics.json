@@ -1,5 +1,6 @@
 {
   "ml.stop_data_frame_analytics": {
+    "stability": "experimental",
     "methods": [ "POST" ],
     "url": {
       "path": "/_ml/data_frame/analytics/{id}/_stop",

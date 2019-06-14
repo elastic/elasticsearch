@@ -1,5 +1,6 @@
 {
   "ml.get_data_frame_analytics": {
+    "stability": "experimental",
     "methods": [ "GET"],
     "url": {
       "path": "/_ml/data_frame/analytics/{id}",

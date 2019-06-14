@@ -1,5 +1,6 @@
 {
   "ml.delete_data_frame_analytics": {
+    "stability": "experimental",
     "methods": [ "DELETE" ],
     "url": {
       "path": "/_ml/data_frame/analytics/{id}",

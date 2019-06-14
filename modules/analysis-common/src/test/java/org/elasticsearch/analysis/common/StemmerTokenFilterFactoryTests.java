@@ -97,6 +97,41 @@ public class StemmerTokenFilterFactoryTests extends ESTokenStreamTestCase {
             assertAnalyzesTo(analyzer, "possibly", new String[]{"possibl"});
         }
     }
+    
+    public void testEnglishPluralFilter() throws IOException {
+        int iters = scaledRandomIntBetween(20, 100);
+        for (int i = 0; i < iters; i++) {
+
+            Version v = VersionUtils.randomVersion(random());
+            Settings settings = Settings.builder()
+                    .put("index.analysis.filter.my_plurals.type", "stemmer")
+                    .put("index.analysis.filter.my_plurals.language", "plural_english")
+                    .put("index.analysis.analyzer.my_plurals.tokenizer","whitespace")
+                    .put("index.analysis.analyzer.my_plurals.filter","my_plurals")
+                    .put(SETTING_VERSION_CREATED,v)
+                    .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
+                    .build();
+
+            ESTestCase.TestAnalysis analysis = AnalysisTestsHelper.createTestAnalysisFromSettings(settings, PLUGIN);
+            TokenFilterFactory tokenFilter = analysis.tokenFilter.get("my_plurals");
+            assertThat(tokenFilter, instanceOf(StemmerTokenFilterFactory.class));
+            Tokenizer tokenizer = new WhitespaceTokenizer();
+            tokenizer.setReader(new StringReader("dresses"));
+            TokenStream create = tokenFilter.create(tokenizer);
+            IndexAnalyzers indexAnalyzers = analysis.indexAnalyzers;
+            NamedAnalyzer analyzer = indexAnalyzers.get("my_plurals");
+            assertThat(create, instanceOf(EnglishPluralStemFilter.class));
+            assertAnalyzesTo(analyzer, "phones", new String[]{"phone"});
+            assertAnalyzesTo(analyzer, "horses", new String[]{"horse"});
+            assertAnalyzesTo(analyzer, "dresses", new String[]{"dress"});
+            assertAnalyzesTo(analyzer, "watches", new String[]{"watch"});
+            assertAnalyzesTo(analyzer, "possess", new String[]{"possess"});
+            assertAnalyzesTo(analyzer, "possesses", new String[]{"possess"});
+            assertAnalyzesTo(analyzer, "boxes", new String[]{"box"});
+            assertAnalyzesTo(analyzer, "axes", new String[]{"axe"});
+            assertAnalyzesTo(analyzer, "dishes", new String[]{"dish"});
+        }
+    }    
 
     public void testMultipleLanguagesThrowsException() throws IOException {
         Version v = VersionUtils.randomVersion(random());

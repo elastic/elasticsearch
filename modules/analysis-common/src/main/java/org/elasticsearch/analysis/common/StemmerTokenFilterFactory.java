@@ -139,6 +139,8 @@ public class StemmerTokenFilterFactory extends AbstractTokenFilterFactory {
             return new SnowballFilter(tokenStream, new EnglishStemmer());
         } else if ("minimal_english".equalsIgnoreCase(language) || "minimalEnglish".equalsIgnoreCase(language)) {
             return new EnglishMinimalStemFilter(tokenStream);
+        } else if ("plural_english".equalsIgnoreCase(language) || "pluralEnglish".equalsIgnoreCase(language)) {
+            return new EnglishPluralStemFilter(tokenStream);
         } else if ("possessive_english".equalsIgnoreCase(language) || "possessiveEnglish".equalsIgnoreCase(language)) {
             return new EnglishPossessiveFilter(tokenStream);
 

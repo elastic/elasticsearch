@@ -343,13 +343,9 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
                     restClient, remoteInfo.getQuery(), mainRequest.getSearchRequest());
             }
 
-            if (resumableSortingField == null) {
-                return super.buildScrollableResultSource(backoffPolicy);
-            } else {
-                return new ClientScrollableHitSource(logger, backoffPolicy, threadPool, worker::countSearchRetry,
-                    this::onScrollResponse, this::finishHim, client,
-                    mainRequest.getSearchRequest(), resumableSortingField, this::cloneSearchRequest);
-            }
+            return new ClientScrollableHitSource(logger, backoffPolicy, threadPool, worker::countSearchRetry,
+                this::onScrollResponse, this::finishHim, client,
+                mainRequest.getSearchRequest(), resumableSortingField, this::cloneSearchRequest);
         }
 
         private SearchRequest cloneSearchRequest(SearchRequest searchRequest) {

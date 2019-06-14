@@ -181,10 +181,10 @@ POST /_security/oauth2/token
 --------------------------------------------------
 // NOTCONSOLE
 
-The API will return a new token and refresh token if kerberos authentication is successful. Each refresh token may only 
-be used one time. Along with this there might be an base64 encoded token for clients to consume and finalize the authentication.
-When the mutual authentication is requested on Spnego GSS context, this token will be presented by the server.
-`kerberos_authentication_response_token` is the field in the response containing the token.
+The API will return a new token and refresh token if kerberos authentication is successful.
+Each refresh token may only be used one time. When the mutual authentication is requested in the Spnego GSS context,
+ a base64 encoded token will be returned by the server in the `kerberos_authentication_response_token`
+ for clients to consume and finalize the authentication.
 
 [source,js]
 --------------------------------------------------

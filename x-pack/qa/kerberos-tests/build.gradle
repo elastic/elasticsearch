@@ -8,8 +8,7 @@ apply plugin: 'elasticsearch.test.fixtures'
 
 testFixtures.useFixture ":test:fixtures:krb5kdc-fixture"
 
-// https://github.com/elastic/elasticsearch/issues/40624
-integTest.enabled = false
+integTest.enabled = true
 
 dependencies {
     testCompile project(':x-pack:plugin:core')
@@ -59,9 +58,9 @@ integTestCluster {
 String realm = "BUILD.ELASTIC.CO"
 integTestRunner {
     Path peppaKeytab = Paths.get("${project.buildDir}", "generated-resources", "keytabs", "peppa.keytab")
-    systemProperty 'test.userkt', "peppa@${realm}"
-    systemProperty 'test.userkt.keytab', "${peppaKeytab}"
-    systemProperty 'test.userpwd', "george@${realm}"
+    nonInputProperties.systemProperty 'test.userkt', "peppa@${realm}"
+    nonInputProperties.systemProperty 'test.userkt.keytab', "${peppaKeytab}"
+    nonInputProperties.systemProperty 'test.userpwd', "george@${realm}"
     systemProperty 'test.userpwd.password', "dino"
     systemProperty 'tests.security.manager', 'true'
     jvmArgs([

@@ -101,11 +101,14 @@ public class TransportGetDataFrameTransformsStatsAction extends
     @Override
     protected void doExecute(Task task, Request request, ActionListener<Response> finalListener) {
         dataFrameTransformsConfigManager.expandTransformIds(request.getId(), request.getPageParams(), ActionListener.wrap(
-            ids -> {
-                request.setExpandedIds(ids);
-                request.setNodes(DataFrameNodes.dataFrameTaskNodes(ids, clusterService.state()));
+            hitsAndIds -> {
+                request.setExpandedIds(hitsAndIds.v2());
+                request.setNodes(DataFrameNodes.dataFrameTaskNodes(hitsAndIds.v2(), clusterService.state()));
                 super.doExecute(task, request, ActionListener.wrap(
-                    response -> collectStatsForTransformsWithoutTasks(request, response, finalListener),
+                    response -> collectStatsForTransformsWithoutTasks(request, response, ActionListener.wrap(
+                        finalResponse -> finalListener.onResponse(finalResponse.setTotalCount(hitsAndIds.v1())),
+                        finalListener::onFailure
+                    )),
                     finalListener::onFailure
                 ));
             },

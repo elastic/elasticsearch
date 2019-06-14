@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.core.dataframe.action;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.TaskOperationFailure;
@@ -138,6 +139,7 @@ public class GetDataFrameTransformsStatsAction extends Action<GetDataFrameTransf
 
     public static class Response extends BaseTasksResponse implements ToXContentObject {
         private List<DataFrameTransformStateAndStats> transformsStateAndStats;
+        private long totalCount;
 
         public Response(List<DataFrameTransformStateAndStats> transformsStateAndStats) {
             super(Collections.emptyList(), Collections.emptyList());
@@ -153,16 +155,33 @@ public class GetDataFrameTransformsStatsAction extends Action<GetDataFrameTransf
         public Response(StreamInput in) throws IOException {
             super(in);
             transformsStateAndStats = in.readList(DataFrameTransformStateAndStats::new);
+            if (in.getVersion().onOrAfter(Version.CURRENT)) {
+                totalCount = in.readLong();
+            } else {
+                totalCount = transformsStateAndStats.size();
+            }
+        }
+
+        public Response setTotalCount(long totalCount) {
+            this.totalCount = totalCount;
+            return this;
         }
 
         public List<DataFrameTransformStateAndStats> getTransformsStateAndStats() {
             return transformsStateAndStats;
         }
 
+        public long getTotalCount() {
+            return totalCount;
+        }
+
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeList(transformsStateAndStats);
+            if (out.getVersion().onOrAfter(Version.CURRENT)) {
+                out.writeLong(totalCount);
+            }
         }
 
         @Override
@@ -174,7 +193,7 @@ public class GetDataFrameTransformsStatsAction extends Action<GetDataFrameTransf
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             toXContentCommon(builder, params);
-            builder.field(DataFrameField.COUNT.getPreferredName(), transformsStateAndStats.size());
+            builder.field(DataFrameField.COUNT.getPreferredName(), totalCount == 0 ? transformsStateAndStats.size() : totalCount);
             builder.field(DataFrameField.TRANSFORMS.getPreferredName(), transformsStateAndStats);
             builder.endObject();
             return builder;
@@ -182,7 +201,7 @@ public class GetDataFrameTransformsStatsAction extends Action<GetDataFrameTransf
 
         @Override
         public int hashCode() {
-            return Objects.hash(transformsStateAndStats);
+            return Objects.hash(transformsStateAndStats, totalCount);
         }
 
         @Override
@@ -196,7 +215,7 @@ public class GetDataFrameTransformsStatsAction extends Action<GetDataFrameTransf
             }
 
             final Response that = (Response) other;
-            return Objects.equals(this.transformsStateAndStats, that.transformsStateAndStats);
+            return Objects.equals(this.transformsStateAndStats, that.transformsStateAndStats) && this.totalCount == that.totalCount;
         }
 
         @Override

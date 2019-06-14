@@ -303,15 +303,12 @@ public class DataFramePivotRestIT extends DataFrameRestTestCase {
         List<Map<String, Object>> preview = (List<Map<String, Object>>) previewDataframeResponse.get("preview");
         // preview is limited to 100
         assertThat(preview.size(), equalTo(100));
-        Set<String> expectedTopFields = new HashSet<>(Arrays.asList("_source", "_id"));
-        Set<String> expectedTopLevelSourceFields = new HashSet<>(Arrays.asList("user", "by_day"));
+        Set<String> expectedTopLevelFields = new HashSet<>(Arrays.asList("user", "by_day"));
         Set<String> expectedNestedFields = new HashSet<>(Arrays.asList("id", "avg_rating"));
         preview.forEach(p -> {
             Set<String> keys = p.keySet();
-            assertThat(keys, equalTo(expectedTopFields));
-            Map<String, Object> source = (Map<String, Object>) p.get("_source");
-            assertThat(source.keySet(), equalTo(expectedTopLevelSourceFields));
-            Map<String, Object> nestedObj = (Map<String, Object>) source.get("user");
+            assertThat(keys, equalTo(expectedTopLevelFields));
+            Map<String, Object> nestedObj = (Map<String, Object>) p.get("user");
             keys = nestedObj.keySet();
             assertThat(keys, equalTo(expectedNestedFields));
         });
@@ -356,16 +353,13 @@ public class DataFramePivotRestIT extends DataFrameRestTestCase {
         List<Map<String, Object>> preview = (List<Map<String, Object>>)previewDataframeResponse.get("preview");
         // preview is limited to 100
         assertThat(preview.size(), equalTo(100));
-        Set<String> expectedTopFields = new HashSet<>(Arrays.asList("_source", "_id", "_index", "_ingest", "_type"));
-        Set<String> expectedTopLevelSourceFields = new HashSet<>(Arrays.asList("user", "by_day", "pipeline_field"));
+        Set<String> expectedTopLevelFields = new HashSet<>(Arrays.asList("user", "by_day", "pipeline_field"));
         Set<String> expectedNestedFields = new HashSet<>(Arrays.asList("id", "avg_rating"));
         preview.forEach(p -> {
             Set<String> keys = p.keySet();
-            assertThat(keys, equalTo(expectedTopFields));
-            Map<String, Object> source = (Map<String, Object>)p.get("_source");
-            assertThat(source.keySet(), equalTo(expectedTopLevelSourceFields));
-            assertThat(source.get("pipeline_field"), equalTo(pipelineValue));
-            Map<String, Object> nestedObj = (Map<String, Object>)source.get("user");
+            assertThat(keys, equalTo(expectedTopLevelFields));
+            assertThat(p.get("pipeline_field"), equalTo(pipelineValue));
+            Map<String, Object> nestedObj = (Map<String, Object>)p.get("user");
             keys = nestedObj.keySet();
             assertThat(keys, equalTo(expectedNestedFields));
         });

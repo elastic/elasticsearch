@@ -26,6 +26,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestStatus;
@@ -120,7 +121,7 @@ public class TransportPreviewDataFrameTransformAction extends
                         Map<String, Object> tempMap = XContentHelper.convertToMap(BytesReference.bytes(content),
                             true,
                             XContentType.JSON).v2();
-                        response.add((Map<String, Object>)tempMap.get("doc"));
+                        response.add((Map<String, Object>)XContentMapValues.extractValue("doc._source", tempMap));
                     }
                 }
                 listener.onResponse(response);
@@ -140,7 +141,14 @@ public class TransportPreviewDataFrameTransformAction extends
                                 final CompositeAggregation agg = r.getAggregations().get(COMPOSITE_AGGREGATION_NAME);
                                 DataFrameIndexerTransformStats stats = DataFrameIndexerTransformStats.withDefaultTransformId();
                                 // remove all internal fields
-                                List<Map<String, Object>> results = pivot.extractResults(agg, deducedMappings, stats)
+
+                                if (pipeline == null) {
+                                    List<Map<String, Object>> results = pivot.extractResults(agg, deducedMappings, stats)
+                                        .peek(doc -> doc.keySet().removeIf(k -> k.startsWith("_")))
+                                        .collect(Collectors.toList());
+                                    listener.onResponse(results);
+                                } else {
+                                    List<Map<String, Object>> results = pivot.extractResults(agg, deducedMappings, stats)
                                         .map(doc -> {
                                             Map<String, Object> src = new HashMap<>();
                                             String id = (String) doc.get(DataFrameField.DOCUMENT_ID_FIELD);
@@ -149,9 +157,6 @@ public class TransportPreviewDataFrameTransformAction extends
                                             src.put("_id", id);
                                             return src;
                                         }).collect(Collectors.toList());
-                                if (pipeline == null) {
-                                    listener.onResponse(results);
-                                } else {
                                     try (XContentBuilder builder = jsonBuilder()) {
                                         builder.startObject();
                                         builder.field("docs", results);

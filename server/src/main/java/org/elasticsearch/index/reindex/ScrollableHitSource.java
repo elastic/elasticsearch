@@ -96,7 +96,7 @@ public abstract class ScrollableHitSource {
                 isEmpty(indices()) ? "all indices" : indices());
         }
 
-        doStart(new Retryable(new TimeValue(0)));
+        doStart(new RetryListener(new TimeValue(0)));
     }
 
     public final void retryFromValue(long retryFromValue) {
@@ -145,7 +145,7 @@ public abstract class ScrollableHitSource {
             public void done(TimeValue extraKeepAlive) {
                 assert alreadyDone.compareAndSet(false, true);
                 retryFromValue = extractRetryFromValue(response, retryFromValue);
-                startNextScroll(extraKeepAlive, new Retryable(extraKeepAlive));
+                startNextScroll(extraKeepAlive, new RetryListener(extraKeepAlive));
             }
         });
     }
@@ -516,13 +516,13 @@ public abstract class ScrollableHitSource {
         }
     }
 
-    // todo: figure out about thread-context.
-    private class Retryable implements RejectAwareActionListener<Response> {
+    // todo: figure out if/when thread-context handling is necessary.
+    private class RetryListener implements RejectAwareActionListener<Response> {
         private final Iterator<TimeValue> retries = backoffPolicy.iterator();
         private volatile int retryCount = 0;
         private TimeValue extraKeepAlive;
 
-        private Retryable(TimeValue extraKeepAlive) {
+        private RetryListener(TimeValue extraKeepAlive) {
             this.extraKeepAlive = extraKeepAlive;
         }
 

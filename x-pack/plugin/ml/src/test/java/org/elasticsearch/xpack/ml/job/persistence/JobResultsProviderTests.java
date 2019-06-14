@@ -13,7 +13,9 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.search.MultiSearchRequest;
 import org.elasticsearch.action.search.MultiSearchResponse;
+import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
@@ -44,6 +46,7 @@ import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndexFields;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
+import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.TimingStats;
 import org.elasticsearch.xpack.core.ml.job.results.AnomalyRecord;
 import org.elasticsearch.xpack.core.ml.job.results.Bucket;
 import org.elasticsearch.xpack.core.ml.job.results.CategoryDefinition;
@@ -54,6 +57,7 @@ import org.mockito.ArgumentCaptor;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
@@ -70,6 +74,7 @@ import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 public class JobResultsProviderTests extends ESTestCase {
@@ -822,6 +827,55 @@ public class JobResultsProviderTests extends ESTestCase {
 
         mapping.put("field4", objectField);
         assertEquals(7, JobResultsProvider.countFields(Collections.singletonMap("properties", mapping)));
+    }
+
+    public void testTimingStats_Ok() throws IOException {
+        String indexName = AnomalyDetectorsIndex.jobResultsAliasedName("foo");
+        List<Map<String, Object>> source =
+            Arrays.asList(
+                Map.of(
+                    Job.ID.getPreferredName(), "foo",
+                    TimingStats.BUCKET_COUNT.getPreferredName(), 7,
+                    TimingStats.MIN_BUCKET_PROCESSING_TIME_MS.getPreferredName(), 1.0,
+                    TimingStats.MAX_BUCKET_PROCESSING_TIME_MS.getPreferredName(), 1000.0,
+                    TimingStats.AVG_BUCKET_PROCESSING_TIME_MS.getPreferredName(), 666.0));
+        SearchResponse response = createSearchResponse(source);
+        Client client = getMockedClient(
+            queryBuilder -> assertThat(queryBuilder.getName(), equalTo("ids")),
+            response);
+
+        when(client.prepareSearch(indexName)).thenReturn(new SearchRequestBuilder(client, SearchAction.INSTANCE).setIndices(indexName));
+        JobResultsProvider provider = createProvider(client);
+        provider.timingStats(
+            "foo",
+            stats -> assertThat(stats, equalTo(new TimingStats("foo", 7, 1.0, 1000.0, 666.0))),
+            e -> { throw new AssertionError(); });
+
+        verify(client).prepareSearch(indexName);
+        verify(client).threadPool();
+        verify(client).search(any(SearchRequest.class), any(ActionListener.class));
+        verifyNoMoreInteractions(client);
+    }
+
+    public void testTimingStats_NotFound() throws IOException {
+        String indexName = AnomalyDetectorsIndex.jobResultsAliasedName("foo");
+        List<Map<String, Object>> source = new ArrayList<>();
+        SearchResponse response = createSearchResponse(source);
+        Client client = getMockedClient(
+            queryBuilder -> assertThat(queryBuilder.getName(), equalTo("ids")),
+            response);
+
+        when(client.prepareSearch(indexName)).thenReturn(new SearchRequestBuilder(client, SearchAction.INSTANCE).setIndices(indexName));
+        JobResultsProvider provider = createProvider(client);
+        provider.timingStats(
+            "foo",
+            stats -> assertThat(stats, equalTo(new TimingStats("foo"))),
+            e -> { throw new AssertionError(); });
+
+        verify(client).prepareSearch(indexName);
+        verify(client).threadPool();
+        verify(client).search(any(SearchRequest.class), any(ActionListener.class));
+        verifyNoMoreInteractions(client);
     }
 
     private Bucket createBucketAtEpochTime(long epoch) {

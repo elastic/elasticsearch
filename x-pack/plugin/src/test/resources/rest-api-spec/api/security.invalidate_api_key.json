@@ -1,6 +1,7 @@
 {
   "security.invalidate_api_key": {
     "documentation": "https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-invalidate-api-key.html",
+    "stability": "stable",
     "methods": [ "DELETE" ],
     "url": {
       "paths": [ "/_security/api_key" ],

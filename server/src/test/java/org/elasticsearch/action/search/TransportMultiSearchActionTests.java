@@ -28,6 +28,7 @@ import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Randomness;
@@ -154,12 +155,12 @@ public class TransportMultiSearchActionTests extends ESTestCase {
         DiscoveryNodes.Builder builder = DiscoveryNodes.builder();
         for (int i = 0; i < numDataNodes; i++) {
             builder.add(new DiscoveryNode("_id" + i, buildNewFakeTransportAddress(), Collections.emptyMap(),
-                    Collections.singleton(DiscoveryNode.Role.DATA), Version.CURRENT));
+                    Collections.singleton(DiscoveryNodeRole.DATA_ROLE), Version.CURRENT));
         }
         builder.add(new DiscoveryNode("master", buildNewFakeTransportAddress(), Collections.emptyMap(),
-                Collections.singleton(DiscoveryNode.Role.MASTER), Version.CURRENT));
+                Collections.singleton(DiscoveryNodeRole.MASTER_ROLE), Version.CURRENT));
         builder.add(new DiscoveryNode("ingest", buildNewFakeTransportAddress(), Collections.emptyMap(),
-                Collections.singleton(DiscoveryNode.Role.INGEST), Version.CURRENT));
+                Collections.singleton(DiscoveryNodeRole.INGEST_ROLE), Version.CURRENT));
 
         ClusterState state = ClusterState.builder(new ClusterName("_name")).nodes(builder).build();
         int result = TransportMultiSearchAction.defaultMaxConcurrentSearches(10, state);

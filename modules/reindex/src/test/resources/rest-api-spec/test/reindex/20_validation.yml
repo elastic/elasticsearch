@@ -114,8 +114,8 @@
 ---
 "invalid max_docs in body fails":
   - skip:
-      version: " - 7.1.99"
-      reason: "max_docs introduced in 7.2.0"
+      version: " - 7.2.99"
+      reason: "max_docs introduced in 7.3.0"
 
   - do:
       index:
@@ -135,8 +135,8 @@
 ---
 "invalid max_docs in URL fails":
   - skip:
-      version: " - 7.1.99"
-      reason: "max_docs introduced in 7.2.0"
+      version: " - 7.2.99"
+      reason: "max_docs introduced in 7.3.0"
 
   - do:
       index:
@@ -156,8 +156,8 @@
 ---
 "inconsistent max_docs and size fails":
   - skip:
-      version: " - 7.1.99"
-      reason: "max_docs introduced in 7.2.0"
+      version: " - 7.2.99"
+      reason: "max_docs introduced in 7.3.0"
 
   - do:
       index:
@@ -178,8 +178,8 @@
 ---
 "inconsistent max_docs in body and max_docs in URL fails":
   - skip:
-      version: " - 7.1.99"
-      reason: "max_docs introduced in 7.2.0"
+      version: " - 7.2.99"
+      reason: "max_docs introduced in 7.3.0"
 
   - do:
       index:

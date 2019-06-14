@@ -1,0 +1,46 @@
+
+plugins {
+    id 'elasticsearch.distribution-download'
+}
+
+String distroVersion = System.getProperty('tests.distro.version')
+String distroType = System.getProperty('tests.distro.type')
+String distroPlatform = System.getProperty('tests.distro.platform')
+String distroFlavor = System.getProperty('tests.distro.flavor')
+String distroBundledJdk = System.getProperty('tests.distro.bundledJdk')
+
+elasticsearch_distributions {
+  test_distro {
+    if (distroVersion != null) {
+      version = distroVersion
+    }
+    if (distroType != null) {
+      type = distroType
+    }
+    if (distroPlatform != null) {
+      platform = distroPlatform
+    }
+    if (distroFlavor != null) {
+      flavor = distroFlavor
+    }
+    if (distroBundledJdk != null) {
+      bundledJdk = Boolean.parseBoolean(distroBundledJdk)
+    }
+  }
+}
+
+task getDistro {
+  dependsOn elasticsearch_distributions.test_distro
+  doLast {
+    println "DISTRO FILE: " + elasticsearch_distributions.test_distro
+  }
+}
+
+if (['rpm', 'deb'].contains(distroType) == false) {
+  task getDistroExtracted {
+    dependsOn elasticsearch_distributions.test_distro.extracted
+    doLast {
+      println "DISTRO EXTRACTED: " + elasticsearch_distributions.test_distro.extracted
+    }
+  }
+}

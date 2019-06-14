@@ -194,7 +194,8 @@ public class ElasticsearchDistribution implements Buildable {
             }
         } else { // rpm or deb
             if (platform.isPresent()) {
-                throw new IllegalArgumentException("platform not allowed for elasticsearch distribution [" + name + "] of type [" + getType() + "]");
+                throw new IllegalArgumentException("platform not allowed for elasticsearch distribution ["
+                    + name + "] of type [" + getType() + "]");
             }
         }
 

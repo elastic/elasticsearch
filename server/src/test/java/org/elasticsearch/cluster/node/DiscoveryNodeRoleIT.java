@@ -19,7 +19,6 @@
 
 package org.elasticsearch.cluster.node;
 
-import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -36,7 +35,6 @@ import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
 
-@AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/43223")
 public class DiscoveryNodeRoleIT extends ESIntegTestCase {
 
     public static class AdditionalRolePlugin extends Plugin {
@@ -71,6 +69,11 @@ public class DiscoveryNodeRoleIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return Collections.singletonList(AdditionalRolePlugin.class);
+    }
+
+    @Override
+    protected Collection<Class<? extends Plugin>> transportClientPlugins() {
         return Collections.singletonList(AdditionalRolePlugin.class);
     }
 

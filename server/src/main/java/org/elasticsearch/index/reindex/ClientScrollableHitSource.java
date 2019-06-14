@@ -56,7 +56,6 @@ import java.util.stream.Stream;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.common.unit.TimeValue.timeValueNanos;
-import static org.elasticsearch.common.util.CollectionUtils.isEmpty;
 
 /**
  * A scrollable source of hits from a {@linkplain Client} instance.
@@ -80,20 +79,12 @@ public class ClientScrollableHitSource extends ScrollableHitSource {
 
     @Override
     public void doStart(Consumer<? super Response> onResponse) {
-        // todo: refactor logging and retry to parent class, so that only client/remote calls are in sub class.
-        if (logger.isDebugEnabled()) {
-            logger.debug("executing initial scroll against {}",
-                    isEmpty(firstSearchRequest.indices()) ? "all indices" : firstSearchRequest.indices());
-        }
+        // todo: refactor retry to parent class, so that only client/remote calls are in sub class.
         searchWithRetry(listener -> client.search(firstSearchRequest, listener), r -> consume(r, onResponse));
     }
 
     @Override
     protected void doRestart(Consumer<? super Response> onResponse) {
-        if (logger.isDebugEnabled()) {
-            logger.debug("retrying scroll against {} from resume marker {}",
-                isEmpty(firstSearchRequest.indices()) ? "all indices" : firstSearchRequest.indices(), retryFromValue());
-        }
         // must change this to not recreate the retry-helper.
         if (retryFromValue() == Long.MIN_VALUE) {
             searchWithRetry(listener -> client.search(firstSearchRequest, listener), r -> consume(r, onResponse));
@@ -116,6 +107,10 @@ public class ClientScrollableHitSource extends ScrollableHitSource {
         return retryFromRequest;
     }
 
+    @Override
+    protected String[] indices() {
+        return firstSearchRequest.indices();
+    }
 
     @Override
     protected void doStartNextScroll(String scrollId, TimeValue extraKeepAlive, Consumer<? super Response> onResponse) {

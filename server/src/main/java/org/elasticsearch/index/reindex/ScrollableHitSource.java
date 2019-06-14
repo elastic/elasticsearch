@@ -46,6 +46,7 @@ import java.util.function.Consumer;
 import java.util.function.ToLongFunction;
 
 import static java.util.Objects.requireNonNull;
+import static org.elasticsearch.common.util.CollectionUtils.isEmpty;
 
 /**
  * A scrollable source of results.
@@ -85,11 +86,17 @@ public abstract class ScrollableHitSource {
     }
 
     public final void start() {
+        if (logger.isDebugEnabled()) {
+            logger.debug("executing initial scroll against {}",
+                isEmpty(indices()) ? "all indices" : indices());
+        }
         doStart(response -> {
             logger.debug("scroll returned [{}] documents with a scroll id of [{}]", response.getHits().size(), response.getScrollId());
             onResponse(response);
         });
     }
+
+    protected abstract String[] indices();
 
     public void retryFromValue(long retryFromValue) {
         retryFromValue = retryFromValue;
@@ -101,6 +108,10 @@ public abstract class ScrollableHitSource {
 
     public final void restart() {
         clearScroll();
+        if (logger.isDebugEnabled()) {
+            logger.debug("retrying scroll against {} from resume marker {}",
+                isEmpty(indices()) ? "all indices" : indices(), retryFromValue());
+        }
         doRestart(response -> {
             logger.debug("scroll returned [{}] documents with a scroll id of [{}]", response.getHits().size(), response.getScrollId());
             onResponse(response);
@@ -110,7 +121,7 @@ public abstract class ScrollableHitSource {
     protected abstract void doStart(Consumer<? super Response> onResponse);
     protected abstract void doRestart(Consumer<? super Response> onResponse);
 
-    public final void startNextScroll(TimeValue extraKeepAlive) {
+    private void startNextScroll(TimeValue extraKeepAlive) {
         doStartNextScroll(scrollId.get(), extraKeepAlive, this::onResponse);
     }
     protected abstract void doStartNextScroll(String scrollId, TimeValue extraKeepAlive, Consumer<? super Response> onResponse);

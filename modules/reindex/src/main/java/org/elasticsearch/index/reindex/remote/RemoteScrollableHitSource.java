@@ -82,6 +82,11 @@ public class RemoteScrollableHitSource extends ScrollableHitSource {
     }
 
     @Override
+    protected String[] indices() {
+        return searchRequest.indices();
+    }
+
+    @Override
     protected void doStart(Consumer<? super Response> onResponse) {
         lookupRemoteVersion(version -> {
             remoteVersion = version;

@@ -42,6 +42,23 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
+/**
+ * The {@link OsProbe} class retrieves information about the physical and swap size of the machine
+ * memory, as well as the system load average and cpu load.
+ *
+ * In some exceptional cases, it's possible the underlying native method used by
+ * {@link #getFreePhysicalMemorySize()} and {@link #getTotalPhysicalMemorySize()} can return a
+ * negative value. Because of this, we prevent those methods from returning negative values,
+ * returning 0 instead.
+ *
+ * The OS can report a negative number in a number of cases:
+ * - Non-supported OSes (HP-UX, AIX, OSX after failing to initialize host statistics
+ * - An OS that does not support the {@code _SC_PHYS_PAGES} or {@code _SC_PAGE_SIZE} flags for the {@code sysconf()} linux kernel call
+ * - An overflow of the product of {@code _SC_PHYS_PAGES} and {@code _SC_PAGE_SIZE}
+ * - An error case retrieving these values from a linux kernel
+ * - A non-standard libc implementation not implementing the required values
+ * For a more exhaustive explanation, see https://github.com/elastic/elasticsearch/pull/42725
+ */
 public class OsProbe {
 
     private static final OperatingSystemMXBean osMxBean = ManagementFactory.getOperatingSystemMXBean();
@@ -67,7 +84,8 @@ public class OsProbe {
      */
     public long getFreePhysicalMemorySize() {
         if (getFreePhysicalMemorySize == null) {
-            return -1;
+            logger.warn("getFreePhysicalMemorySize is not available");
+            return 0;
         }
         try {
             final long freeMem = (long) getFreePhysicalMemorySize.invoke(osMxBean);
@@ -77,7 +95,8 @@ public class OsProbe {
             }
             return freeMem;
         } catch (Exception e) {
-            return -1;
+            logger.warn("exception retrieving free physical memory", e);
+            return 0;
         }
     }
 
@@ -86,7 +105,8 @@ public class OsProbe {
      */
     public long getTotalPhysicalMemorySize() {
         if (getTotalPhysicalMemorySize == null) {
-            return -1;
+            logger.warn("getTotalPhysicalMemorySize is not available");
+            return 0;
         }
         try {
             final long totalMem = (long) getTotalPhysicalMemorySize.invoke(osMxBean);
@@ -96,7 +116,8 @@ public class OsProbe {
             }
             return totalMem;
         } catch (Exception e) {
-            return -1;
+            logger.warn("exception retrieving total physical memory", e);
+            return 0;
         }
     }
 

@@ -435,14 +435,6 @@ public class SearchModuleTests extends ESTestCase {
             return null;
         }
 
-        public int hashCode() {
-            return 0;
-        }
-
-        public boolean equals(Object obj) {
-            return false;
-        }
-
         private static TestPipelineAggregationBuilder fromXContent(String name, XContentParser p) {
             return null;
         }

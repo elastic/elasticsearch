@@ -710,8 +710,8 @@ public class RestHighLevelClientTests extends ESTestCase {
             "indices.exists_type",
             "indices.get_upgrade",
             "indices.put_alias",
-            "render_search_template",
-            "scripts_painless_execute"
+            "scripts_painless_execute",
+            "render_search_template"
         };
         //These API are not required for high-level client feature completeness
         String[] notRequiredApi = new String[] {
@@ -731,7 +731,6 @@ public class RestHighLevelClientTests extends ESTestCase {
             "nodes.hot_threads",
             "nodes.usage",
             "nodes.reload_secure_settings",
-            "scripts_painless_context",
             "search_shards",
         };
         List<String> booleanReturnMethods = Arrays.asList(

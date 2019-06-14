@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.core.ml.job.process.autodetect.output.FlushAcknow
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSizeStats;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.Quantiles;
+import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.TimingStats;
 import org.elasticsearch.xpack.core.ml.job.results.AnomalyRecord;
 import org.elasticsearch.xpack.core.ml.job.results.Bucket;
 import org.elasticsearch.xpack.core.ml.job.results.CategoryDefinition;
@@ -89,13 +90,26 @@ public class AutoDetectResultProcessor {
      */
     private volatile ModelSizeStats latestModelSizeStats;
 
+    /**
+     * Current timing stats
+     */
+    private volatile TimingStats timingStats;
+
+    /**
+     * Persisted timing stats. May be stale
+     */
+    private TimingStats persistedTimingStats; // only used from the process() thread, so doesn't need to be volatile
+
     public AutoDetectResultProcessor(Client client, Auditor auditor, String jobId, Renormalizer renormalizer,
-                                     JobResultsPersister persister, ModelSizeStats latestModelSizeStats) {
-        this(client, auditor, jobId, renormalizer, persister, latestModelSizeStats, new FlushListener());
+                                     JobResultsPersister persister,
+                                     ModelSizeStats latestModelSizeStats,
+                                     TimingStats timingStats) {
+        this(client, auditor, jobId, renormalizer, persister, latestModelSizeStats, timingStats, new FlushListener());
     }
 
     AutoDetectResultProcessor(Client client, Auditor auditor, String jobId, Renormalizer renormalizer,
-                              JobResultsPersister persister, ModelSizeStats latestModelSizeStats, FlushListener flushListener) {
+                              JobResultsPersister persister, ModelSizeStats latestModelSizeStats, TimingStats timingStats,
+                              FlushListener flushListener) {
         this.client = Objects.requireNonNull(client);
         this.auditor = Objects.requireNonNull(auditor);
         this.jobId = Objects.requireNonNull(jobId);
@@ -103,6 +117,8 @@ public class AutoDetectResultProcessor {
         this.persister = Objects.requireNonNull(persister);
         this.flushListener = Objects.requireNonNull(flushListener);
         this.latestModelSizeStats = Objects.requireNonNull(latestModelSizeStats);
+        this.persistedTimingStats = Objects.requireNonNull(timingStats);
+        this.timingStats = new TimingStats(persistedTimingStats);
     }
 
     public void process(AutodetectProcess process) {
@@ -116,7 +132,9 @@ public class AutoDetectResultProcessor {
 
             try {
                 if (processKilled == false) {
-                    context.bulkResultsPersister.executeRequest();
+                    context.bulkResultsPersister
+                        .persistTimingStats(timingStats)
+                        .executeRequest();
                 }
             } catch (Exception e) {
                 LOGGER.warn(new ParameterizedMessage("[{}] Error persisting autodetect results", jobId), e);
@@ -194,7 +212,9 @@ public class AutoDetectResultProcessor {
 
             // persist after deleting interim results in case the new
             // results are also interim
+            processTimingStats(context, bucket.getProcessingTimeMs());
             context.bulkResultsPersister.persistBucket(bucket).executeRequest();
+
             ++bucketCount;
         }
         List<AnomalyRecord> records = result.getRecords();
@@ -274,6 +294,15 @@ public class AutoDetectResultProcessor {
             // which need to be
             // deleted when the next finalized results come through
             context.deleteInterimRequired = true;
+        }
+    }
+
+    private void processTimingStats(Context context, long bucketProcessingTimeMs) {
+        timingStats.updateStats(bucketProcessingTimeMs);
+        if (TimingStats.differSignificantly(timingStats, persistedTimingStats)) {
+            context.bulkResultsPersister.persistTimingStats(timingStats);
+            persistedTimingStats = timingStats;
+            timingStats = new TimingStats(persistedTimingStats);
         }
     }
 
@@ -407,5 +436,8 @@ public class AutoDetectResultProcessor {
     public ModelSizeStats modelSizeStats() {
         return latestModelSizeStats;
     }
-}
 
+    public TimingStats timingStats() {
+        return timingStats;
+    }
+}

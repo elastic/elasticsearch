@@ -1,6 +1,7 @@
 {
   "cat.thread_pool": {
     "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/cat-thread-pool.html",
+    "stability": "stable",
     "methods": ["GET"],
     "url": {
       "paths": ["/_cat/thread_pool","/_cat/thread_pool/{thread_pool_patterns}"],

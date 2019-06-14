@@ -1,6 +1,7 @@
 {
   "cat.templates": {
     "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/cat-templates.html",
+    "stability": "stable",
     "methods": ["GET"],
     "url": {
       "paths": ["/_cat/templates", "/_cat/templates/{name}"],

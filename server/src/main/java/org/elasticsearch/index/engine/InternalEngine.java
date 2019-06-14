@@ -677,7 +677,7 @@ public class InternalEngine extends Engine {
         LUCENE_DOC_NOT_FOUND
     }
 
-    private OpVsLuceneDocStatus compareOpToVersionMapOnSeqNo(String id, long seqNo, long primaryTerm, VersionValue versionValue) {
+    private static OpVsLuceneDocStatus compareOpToVersionMapOnSeqNo(String id, long seqNo, long primaryTerm, VersionValue versionValue) {
         Objects.requireNonNull(versionValue);
         if (seqNo > versionValue.seqNo) {
             return OpVsLuceneDocStatus.OP_NEWER;

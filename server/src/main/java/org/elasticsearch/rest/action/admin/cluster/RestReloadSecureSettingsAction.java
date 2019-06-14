@@ -56,11 +56,13 @@ public final class RestReloadSecureSettingsAction extends BaseRestHandler {
     public RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         final String[] nodesIds = Strings.splitStringByCommaToArray(request.param("nodeId"));
         final NodesReloadSecureSettingsRequestBuilder nodesRequestBuilder = client.admin()
-                .cluster()
-                .prepareReloadSecureSettings()
-                .setTimeout(request.param("timeout"))
-            .source(request.content(), request.getXContentType())
-                .setNodesIds(nodesIds);
+            .cluster()
+            .prepareReloadSecureSettings()
+            .setTimeout(request.param("timeout"))
+            .setNodesIds(nodesIds);
+        if (request.hasContent()) {
+            nodesRequestBuilder.source(request.content(), request.getXContentType());
+        }
         final NodesReloadSecureSettingsRequest nodesRequest = nodesRequestBuilder.request();
         return channel -> nodesRequestBuilder
                 .execute(new RestBuilderListener<NodesReloadSecureSettingsResponse>(channel) {

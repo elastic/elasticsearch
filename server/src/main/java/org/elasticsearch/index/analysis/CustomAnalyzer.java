@@ -25,15 +25,9 @@ import org.apache.lucene.analysis.Tokenizer;
 
 import java.io.Reader;
 
-public final class CustomAnalyzer extends Analyzer {
+public final class CustomAnalyzer extends Analyzer implements AnalyzerComponentsProvider {
 
-    private final String tokenizerName;
-    private final TokenizerFactory tokenizerFactory;
-
-    private final CharFilterFactory[] charFilters;
-
-    private final TokenFilterFactory[] tokenFilters;
-
+    private final AnalyzerComponents components;
     private final int positionIncrementGap;
     private final int offsetGap;
     private final AnalysisMode analysisMode;
@@ -45,10 +39,7 @@ public final class CustomAnalyzer extends Analyzer {
 
     public CustomAnalyzer(String tokenizerName, TokenizerFactory tokenizerFactory, CharFilterFactory[] charFilters,
             TokenFilterFactory[] tokenFilters, int positionIncrementGap, int offsetGap) {
-        this.tokenizerName = tokenizerName;
-        this.tokenizerFactory = tokenizerFactory;
-        this.charFilters = charFilters;
-        this.tokenFilters = tokenFilters;
+        this.components = new AnalyzerComponents(tokenizerName, tokenizerFactory, charFilters, tokenFilters);
         this.positionIncrementGap = positionIncrementGap;
         this.offsetGap = offsetGap;
         // merge and transfer token filter analysis modes with analyzer
@@ -63,19 +54,19 @@ public final class CustomAnalyzer extends Analyzer {
      * The name of the tokenizer as configured by the user.
      */
     public String getTokenizerName() {
-        return tokenizerName;
+        return this.components.getTokenizerName();
     }
 
     public TokenizerFactory tokenizerFactory() {
-        return tokenizerFactory;
+        return this.components.getTokenizerFactory();
     }
 
     public TokenFilterFactory[] tokenFilters() {
-        return tokenFilters;
+        return this.components.getTokenFilters();
     }
 
     public CharFilterFactory[] charFilters() {
-        return charFilters;
+        return this.components.getCharFilters();
     }
 
     @Override
@@ -96,10 +87,15 @@ public final class CustomAnalyzer extends Analyzer {
     }
 
     @Override
+    public AnalyzerComponents getComponents() {
+        return this.components;
+    }
+
+    @Override
     protected TokenStreamComponents createComponents(String fieldName) {
-        Tokenizer tokenizer = tokenizerFactory.create();
+        Tokenizer tokenizer = this.tokenizerFactory().create();
         TokenStream tokenStream = tokenizer;
-        for (TokenFilterFactory tokenFilter : tokenFilters) {
+        for (TokenFilterFactory tokenFilter : tokenFilters()) {
             tokenStream = tokenFilter.create(tokenStream);
         }
         return new TokenStreamComponents(tokenizer, tokenStream);
@@ -107,6 +103,7 @@ public final class CustomAnalyzer extends Analyzer {
 
     @Override
     protected Reader initReader(String fieldName, Reader reader) {
+        CharFilterFactory[] charFilters = charFilters();
         if (charFilters != null && charFilters.length > 0) {
             for (CharFilterFactory charFilter : charFilters) {
                 reader = charFilter.create(reader);
@@ -117,18 +114,18 @@ public final class CustomAnalyzer extends Analyzer {
 
     @Override
     protected Reader initReaderForNormalization(String fieldName, Reader reader) {
-      for (CharFilterFactory charFilter : charFilters) {
-          reader = charFilter.normalize(reader);
-      }
-      return reader;
+        for (CharFilterFactory charFilter : charFilters()) {
+            reader = charFilter.normalize(reader);
+        }
+        return reader;
     }
 
     @Override
     protected TokenStream normalize(String fieldName, TokenStream in) {
-      TokenStream result = in;
-      for (TokenFilterFactory filter : tokenFilters) {
-          result = filter.normalize(result);
-      }
-      return result;
+        TokenStream result = in;
+        for (TokenFilterFactory filter : tokenFilters()) {
+            result = filter.normalize(result);
+        }
+        return result;
     }
 }

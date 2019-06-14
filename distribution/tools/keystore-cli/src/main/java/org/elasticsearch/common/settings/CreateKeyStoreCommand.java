@@ -32,20 +32,20 @@ import org.elasticsearch.cli.UserException;
 import org.elasticsearch.env.Environment;
 
 /**
- * A subcommand for the keystore cli to create a new keystore.
+ * A sub-command for the keystore cli to create a new keystore.
  */
 class CreateKeyStoreCommand extends EnvironmentAwareCommand {
 
-    private final OptionSpec<Void> noPassOption;
+    private final OptionSpec<Void> passwordOption;
 
     CreateKeyStoreCommand() {
         super("Creates a new elasticsearch keystore");
-        this.noPassOption = parser.acceptsAll(Arrays.asList("n", "nopass"), "Creates an obfuscated (not passphrase protected) keystore");
+        this.passwordOption = parser.acceptsAll(Arrays.asList("p", "password"), "Prompt for password to encrypt the keystore");
     }
 
     @Override
     protected void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {
-        char[] passphrase = null;
+        char[] password = null;
         try {
             Path keystoreFile = KeyStoreWrapper.keystorePath(env.configFile());
             if (Files.exists(keystoreFile)) {
@@ -55,14 +55,14 @@ class CreateKeyStoreCommand extends EnvironmentAwareCommand {
                 }
             }
             KeyStoreWrapper keystore = KeyStoreWrapper.create();
-            passphrase = options.has(noPassOption) ? new char[0] : KeyStoreWrapper.readPassphrase(terminal, true);
-            keystore.save(env.configFile(), passphrase);
+            password = options.has(passwordOption) ? KeyStoreWrapper.readPassword(terminal, true) : new char[0];
+            keystore.save(env.configFile(), password);
             terminal.println("Created elasticsearch keystore in " + env.configFile());
         } catch (SecurityException e) {
             throw new UserException(ExitCodes.IO_ERROR, "Error creating the elasticsearch keystore.", e);
         } finally {
-            if (null != passphrase) {
-                Arrays.fill(passphrase, '\u0000');
+            if (null != password) {
+                Arrays.fill(password, '\u0000');
             }
         }
     }

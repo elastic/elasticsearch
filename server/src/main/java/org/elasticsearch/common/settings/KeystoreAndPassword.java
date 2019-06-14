@@ -23,27 +23,30 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.util.Arrays;
 
-public class KeystoreAndPassphrase implements Closeable {
+/**
+ * POJO containing the keystore and its password
+ */
+final class KeystoreAndPassword implements Closeable {
     private final KeyStoreWrapper keystore;
-    private final char[] passphrase;
+    private final char[] password;
 
-    public KeystoreAndPassphrase(KeyStoreWrapper keystore, char[] passphrase) {
+    KeystoreAndPassword(KeyStoreWrapper keystore, char[] password) {
         this.keystore = keystore;
-        this.passphrase = passphrase;
+        this.password = password;
     }
 
     public KeyStoreWrapper getKeystore() {
         return keystore;
     }
 
-    public char[] getPassphrase() {
-        return passphrase;
+    public char[] getPassword() {
+        return password;
     }
 
     @Override
     public void close() throws IOException {
-        if (null != passphrase) {
-            Arrays.fill(passphrase, '\u0000');
+        if (null != password) {
+            Arrays.fill(password, '\u0000');
         }
     }
 }

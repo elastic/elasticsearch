@@ -26,6 +26,8 @@ import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.env.Environment;
 
+import java.util.Arrays;
+
 /**
  * A sub-command for the keystore CLI that enables upgrading the keystore format.
  */
@@ -40,11 +42,19 @@ public class UpgradeKeyStoreCommand extends EnvironmentAwareCommand {
         final KeyStoreWrapper wrapper = KeyStoreWrapper.load(env.configFile());
         if (wrapper == null) {
             throw new UserException(
-                    ExitCodes.CONFIG,
-                    "keystore does not exist at [" + KeyStoreWrapper.keystorePath(env.configFile()) + "]");
+                ExitCodes.CONFIG,
+                "keystore does not exist at [" + KeyStoreWrapper.keystorePath(env.configFile()) + "]");
         }
-        wrapper.decrypt(new char[0]);
-        KeyStoreWrapper.upgrade(wrapper, env.configFile(), new char[0]);
+        char[] password;
+        password = wrapper.hasPassword() ? KeyStoreWrapper.readPassword(terminal, false) : new char[0];
+        try {
+            wrapper.decrypt(new char[0]);
+            KeyStoreWrapper.upgrade(wrapper, env.configFile(), new char[0]);
+        } catch (SecurityException e) {
+            throw new UserException(ExitCodes.DATA_ERROR, "Failed to access the keystore. Please make sure the password was correct.", e);
+        } finally {
+            Arrays.fill(password, '\u0000');
+        }
     }
 
 }

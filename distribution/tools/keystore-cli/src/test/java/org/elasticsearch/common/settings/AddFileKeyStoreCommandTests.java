@@ -59,165 +59,165 @@ public class AddFileKeyStoreCommandTests extends KeyStoreCommandTestCase {
     }
 
     public void testMissingPromptCreate() throws Exception {
-        String passphrase = "keystorepassphrase";
+        String password = "keystorepassword";
         Path file1 = createRandomFile();
-        terminal.addSecretInput(passphrase);
-        terminal.addSecretInput(passphrase);
+        terminal.addSecretInput(password);
+        terminal.addSecretInput(password);
         terminal.addTextInput("y");
         execute("foo", file1.toString());
-        assertSecureFile("foo", file1, passphrase);
+        assertSecureFile("foo", file1, password);
     }
 
     public void testMissingPromptCreateNotMatchingPasswpord() throws Exception {
-        String passphrase = "keystorepassphrase";
+        String password = "keystorepassword";
         Path file1 = createRandomFile();
         terminal.addTextInput("y");
-        terminal.addSecretInput(passphrase);
+        terminal.addSecretInput(password);
         terminal.addSecretInput("adifferentpassphase");
         UserException e = expectThrows(UserException.class, () -> execute("foo", file1.toString()));
         assertEquals(e.getMessage(), ExitCodes.DATA_ERROR, e.exitCode);
-        assertThat(e.getMessage(), containsString("Passphrases are not equal, exiting"));
+        assertThat(e.getMessage(), containsString("Passwords are not equal, exiting"));
     }
 
     public void testMissingForceCreate() throws Exception {
         Path file1 = createRandomFile();
-        String passphrase = "keystorepassphrase";
-        terminal.addSecretInput(passphrase);
-        terminal.addSecretInput(passphrase);
+        String password = "keystorepassword";
+        terminal.addSecretInput(password);
+        terminal.addSecretInput(password);
         execute("-f", "foo", file1.toString());
-        assertSecureFile("foo", file1, passphrase);
+        assertSecureFile("foo", file1, password);
     }
 
     public void testMissingNoCreate() throws Exception {
-        terminal.addSecretInput(randomFrom("", "keystorepassphrase"));
+        terminal.addSecretInput(randomFrom("", "keystorepassword"));
         terminal.addTextInput("n"); // explicit no
         execute("foo");
         assertNull(KeyStoreWrapper.load(env.configFile()));
     }
 
     public void testOverwritePromptDefault() throws Exception {
-        String passphrase = "keystorepassphrase";
+        String password = "keystorepassword";
         Path file = createRandomFile();
-        KeyStoreWrapper keystore = createKeystore(passphrase);
-        addFile(keystore, "foo", file, passphrase);
-        terminal.addSecretInput(passphrase);
-        terminal.addSecretInput(passphrase);
+        KeyStoreWrapper keystore = createKeystore(password);
+        addFile(keystore, "foo", file, password);
+        terminal.addSecretInput(password);
+        terminal.addSecretInput(password);
         terminal.addTextInput("");
         execute("foo", "path/dne");
-        assertSecureFile("foo", file, passphrase);
+        assertSecureFile("foo", file, password);
     }
 
     public void testOverwritePromptExplicitNo() throws Exception {
-        String passphrase = "keystorepassphrase";
+        String password = "keystorepassword";
         Path file = createRandomFile();
-        KeyStoreWrapper keystore = createKeystore(passphrase);
-        addFile(keystore, "foo", file, passphrase);
-        terminal.addSecretInput(passphrase);
+        KeyStoreWrapper keystore = createKeystore(password);
+        addFile(keystore, "foo", file, password);
+        terminal.addSecretInput(password);
         terminal.addTextInput("n"); // explicit no
         execute("foo", "path/dne");
-        assertSecureFile("foo", file, passphrase);
+        assertSecureFile("foo", file, password);
     }
 
     public void testOverwritePromptExplicitYes() throws Exception {
-        String passphrase = "keystorepassphrase";
+        String password = "keystorepassword";
         Path file1 = createRandomFile();
-        KeyStoreWrapper keystore = createKeystore(passphrase);
-        addFile(keystore, "foo", file1, passphrase);
-        terminal.addSecretInput(passphrase);
-        terminal.addSecretInput(passphrase);
+        KeyStoreWrapper keystore = createKeystore(password);
+        addFile(keystore, "foo", file1, password);
+        terminal.addSecretInput(password);
+        terminal.addSecretInput(password);
         terminal.addTextInput("y");
         Path file2 = createRandomFile();
         execute("foo", file2.toString());
-        assertSecureFile("foo", file2, passphrase);
+        assertSecureFile("foo", file2, password);
     }
 
     public void testOverwriteForceShort() throws Exception {
-        String passphrase = "keystorepassphrase";
+        String password = "keystorepassword";
         Path file1 = createRandomFile();
-        KeyStoreWrapper keystore = createKeystore(passphrase);
-        addFile(keystore, "foo", file1, passphrase);
+        KeyStoreWrapper keystore = createKeystore(password);
+        addFile(keystore, "foo", file1, password);
         Path file2 = createRandomFile();
-        terminal.addSecretInput(passphrase);
-        terminal.addSecretInput(passphrase);
+        terminal.addSecretInput(password);
+        terminal.addSecretInput(password);
         execute("-f", "foo", file2.toString());
-        assertSecureFile("foo", file2, passphrase);
+        assertSecureFile("foo", file2, password);
     }
 
     public void testOverwriteForceLong() throws Exception {
-        String passphrase = "keystorepassphrase";
+        String password = "keystorepassword";
         Path file1 = createRandomFile();
-        KeyStoreWrapper keystore = createKeystore(passphrase);
-        addFile(keystore, "foo", file1, passphrase);
+        KeyStoreWrapper keystore = createKeystore(password);
+        addFile(keystore, "foo", file1, password);
         Path file2 = createRandomFile();
-        terminal.addSecretInput(passphrase);
+        terminal.addSecretInput(password);
         execute("--force", "foo", file2.toString());
-        assertSecureFile("foo", file2, passphrase);
+        assertSecureFile("foo", file2, password);
     }
 
     public void testForceNonExistent() throws Exception {
-        String passphrase = "keystorepassphrase";
-        createKeystore(passphrase);
+        String password = "keystorepassword";
+        createKeystore(password);
         Path file = createRandomFile();
-        terminal.addSecretInput(passphrase);
+        terminal.addSecretInput(password);
         execute("--force", "foo", file.toString());
-        assertSecureFile("foo", file, passphrase);
+        assertSecureFile("foo", file, password);
     }
 
     public void testMissingSettingName() throws Exception {
-        String passphrase = "keystorepassphrase";
-        createKeystore(passphrase);
-        terminal.addSecretInput(passphrase);
+        String password = "keystorepassword";
+        createKeystore(password);
+        terminal.addSecretInput(password);
         UserException e = expectThrows(UserException.class, this::execute);
         assertEquals(ExitCodes.USAGE, e.exitCode);
         assertThat(e.getMessage(), containsString("Missing setting name"));
     }
 
     public void testMissingFileName() throws Exception {
-        String passphrase = "keystorepassphrase";
-        createKeystore(passphrase);
-        terminal.addSecretInput(passphrase);
+        String password = "keystorepassword";
+        createKeystore(password);
+        terminal.addSecretInput(password);
         UserException e = expectThrows(UserException.class, () -> execute("foo"));
         assertEquals(ExitCodes.USAGE, e.exitCode);
         assertThat(e.getMessage(), containsString("Missing file name"));
     }
 
     public void testFileDNE() throws Exception {
-        String passphrase = "keystorepassphrase";
-        createKeystore(passphrase);
-        terminal.addSecretInput(passphrase);
+        String password = "keystorepassword";
+        createKeystore(password);
+        terminal.addSecretInput(password);
         UserException e = expectThrows(UserException.class, () -> execute("foo", "path/dne"));
         assertEquals(ExitCodes.IO_ERROR, e.exitCode);
         assertThat(e.getMessage(), containsString("File [path/dne] does not exist"));
     }
 
     public void testExtraArguments() throws Exception {
-        String passphrase = "keystorepassphrase";
-        createKeystore(passphrase);
+        String password = "keystorepassword";
+        createKeystore(password);
         Path file = createRandomFile();
-        terminal.addSecretInput(passphrase);
+        terminal.addSecretInput(password);
         UserException e = expectThrows(UserException.class, () -> execute("foo", file.toString(), "bar"));
         assertEquals(e.getMessage(), ExitCodes.USAGE, e.exitCode);
         assertThat(e.getMessage(), containsString("Unrecognized extra arguments [bar]"));
     }
 
     public void testIncorrectPassword() throws Exception {
-        String passphrase = "keystorepassphrase";
-        createKeystore(passphrase);
+        String password = "keystorepassword";
+        createKeystore(password);
         Path file = createRandomFile();
-        terminal.addSecretInput("thewrongkeystorepassphrase");
+        terminal.addSecretInput("thewrongkeystorepassword");
         UserException e = expectThrows(UserException.class, () -> execute("foo", file.toString()));
         assertEquals(e.getMessage(), ExitCodes.DATA_ERROR, e.exitCode);
-        assertThat(e.getMessage(), containsString("Please make sure the passphrase was correct"));
+        assertThat(e.getMessage(), containsString("Please make sure the password was correct"));
     }
 
     public void testAddToUnprotectedKeystore() throws Exception {
-        String passphrase = "";
+        String password = "";
         Path file = createRandomFile();
-        KeyStoreWrapper keystore = createKeystore(passphrase);
-        addFile(keystore, "foo", file, passphrase);
+        KeyStoreWrapper keystore = createKeystore(password);
+        addFile(keystore, "foo", file, password);
         terminal.addTextInput("");
-        // will not be prompted for a passphrase
+        // will not be prompted for a password
         execute("foo", "path/dne");
-        assertSecureFile("foo", file, passphrase);
+        assertSecureFile("foo", file, password);
     }
 }

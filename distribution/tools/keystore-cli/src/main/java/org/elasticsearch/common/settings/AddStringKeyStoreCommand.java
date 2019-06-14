@@ -56,7 +56,7 @@ class AddStringKeyStoreCommand extends EnvironmentAwareCommand {
 
     @Override
     protected void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {
-        try (KeystoreAndPassphrase keyAndPass = KeyStoreWrapper.readOrCreate(terminal, env.configFile(), options.has(forceOption))) {
+        try (KeystoreAndPassword keyAndPass = KeyStoreWrapper.readOrCreate(terminal, env.configFile(), options.has(forceOption))) {
             if (null == keyAndPass) {
                 return;
             }
@@ -86,9 +86,9 @@ class AddStringKeyStoreCommand extends EnvironmentAwareCommand {
             } catch (IllegalArgumentException e) {
                 throw new UserException(ExitCodes.DATA_ERROR, "String value must contain only ASCII");
             }
-            keystore.save(env.configFile(), keyAndPass.getPassphrase());
+            keystore.save(env.configFile(), keyAndPass.getPassword());
         } catch (SecurityException e) {
-            throw new UserException(ExitCodes.DATA_ERROR, "Failed to access the keystore. Please make sure the passphrase was correct.");
+            throw new UserException(ExitCodes.DATA_ERROR, "Failed to access the keystore. Please make sure the password was correct.", e);
         }
     }
 }

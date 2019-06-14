@@ -28,10 +28,10 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
 
-public class ChangeKeyStorePassphraseCommandTests extends KeyStoreCommandTestCase {
+public class ChangeKeyStorePasswordCommandTests extends KeyStoreCommandTestCase {
     @Override
     protected Command newCommand() {
-        return new ChangeKeyStorePassphraseCommand() {
+        return new ChangeKeyStorePasswordCommand() {
             @Override
             protected Environment createEnv(Map<String, String> settings) throws UserException {
                 return env;
@@ -42,28 +42,28 @@ public class ChangeKeyStorePassphraseCommandTests extends KeyStoreCommandTestCas
     public void testSetKeyStorePassword() throws Exception {
         createKeystore("");
         loadKeystore("");
-        terminal.addSecretInput("thepassphrase");
-        terminal.addSecretInput("thepassphrase");
+        terminal.addSecretInput("thepassword");
+        terminal.addSecretInput("thepassword");
         // Prompted twice for the new password, since we didn't have an existing password
         execute();
-        loadKeystore("thepassphrase");
+        loadKeystore("thepassword");
     }
 
     public void testChangeKeyStorePassword() throws Exception {
-        createKeystore("theoldpassphrase");
-        loadKeystore("theoldpassphrase");
-        terminal.addSecretInput("theoldpassphrase");
-        terminal.addSecretInput("thepassphrase");
-        terminal.addSecretInput("thepassphrase");
+        createKeystore("theoldpassword");
+        loadKeystore("theoldpassword");
+        terminal.addSecretInput("theoldpassword");
+        terminal.addSecretInput("thepassword");
+        terminal.addSecretInput("thepassword");
         // Prompted thrice: Once for the existing and twice for the new password
         execute();
-        loadKeystore("thepassphrase");
+        loadKeystore("thepassword");
     }
 
     public void testChangeKeyStorePasswordToEmpty() throws Exception {
-        createKeystore("theoldpassphrase");
-        loadKeystore("theoldpassphrase");
-        terminal.addSecretInput("theoldpassphrase");
+        createKeystore("theoldpassword");
+        loadKeystore("theoldpassword");
+        terminal.addSecretInput("theoldpassword");
         terminal.addSecretInput("");
         terminal.addSecretInput("");
         // Prompted thrice: Once for the existing and twice for the new password
@@ -72,24 +72,24 @@ public class ChangeKeyStorePassphraseCommandTests extends KeyStoreCommandTestCas
     }
 
     public void testChangeKeyStorePasswordWrongVerification() throws Exception {
-        createKeystore("theoldpassphrase");
-        loadKeystore("theoldpassphrase");
-        terminal.addSecretInput("theoldpassphrase");
-        terminal.addSecretInput("thepassphrase");
-        terminal.addSecretInput("themisspelledpassphrase");
+        createKeystore("theoldpassword");
+        loadKeystore("theoldpassword");
+        terminal.addSecretInput("theoldpassword");
+        terminal.addSecretInput("thepassword");
+        terminal.addSecretInput("themisspelledpassword");
         // Prompted thrice: Once for the existing and twice for the new password
         UserException e = expectThrows(UserException.class, this::execute);
         assertEquals(e.getMessage(), ExitCodes.DATA_ERROR, e.exitCode);
-        assertThat(e.getMessage(), containsString("Passphrases are not equal, exiting"));
+        assertThat(e.getMessage(), containsString("Passwords are not equal, exiting"));
     }
 
     public void testChangeKeyStorePasswordWrongExistingPassword() throws Exception {
-        createKeystore("theoldpassphrase");
-        loadKeystore("theoldpassphrase");
-        terminal.addSecretInput("theoldmisspelledpassphrase");
+        createKeystore("theoldpassword");
+        loadKeystore("theoldpassword");
+        terminal.addSecretInput("theoldmisspelledpassword");
         // We'll only be prompted once (for the old password)
         UserException e = expectThrows(UserException.class, this::execute);
         assertEquals(e.getMessage(), ExitCodes.DATA_ERROR, e.exitCode);
-        assertThat(e.getMessage(), containsString("Please make sure the passphrase was correct"));
+        assertThat(e.getMessage(), containsString("Please make sure the password was correct"));
     }
 }

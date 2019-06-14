@@ -50,43 +50,43 @@ public class AddStringKeyStoreCommandTests extends KeyStoreCommandTestCase {
     }
 
     public void testInvalidPassphrease() throws Exception {
-        String passphrase = "keystorepassphrase";
-        createKeystore(passphrase, "foo", "bar");
-        terminal.addSecretInput("thewrongpassphrase");
+        String password = "keystorepassword";
+        createKeystore(password, "foo", "bar");
+        terminal.addSecretInput("thewrongpassword");
         UserException e = expectThrows(UserException.class, () -> execute("foo2"));
         assertEquals(e.getMessage(), ExitCodes.DATA_ERROR, e.exitCode);
-        assertThat(e.getMessage(), containsString("Please make sure the passphrase was correct"));
+        assertThat(e.getMessage(), containsString("Please make sure the password was correct"));
 
     }
 
     public void testMissingPromptCreate() throws Exception {
-        String passphrase = "keystorepassphrase";
+        String password = "keystorepassword";
         terminal.addTextInput("y");
-        terminal.addSecretInput(passphrase);
-        terminal.addSecretInput(passphrase);
+        terminal.addSecretInput(password);
+        terminal.addSecretInput(password);
         terminal.addSecretInput("bar");
         execute("foo");
-        assertSecureString("foo", "bar", passphrase);
+        assertSecureString("foo", "bar", password);
     }
 
     public void testMissingPromptCreateNotMatchingPasswords() throws Exception {
-        String passphrase = "keystorepassphrase";
+        String password = "keystorepassword";
         terminal.addTextInput("y");
-        terminal.addSecretInput(passphrase);
-        terminal.addSecretInput("anotherpassphrase");
+        terminal.addSecretInput(password);
+        terminal.addSecretInput("anotherpassword");
         terminal.addSecretInput("bar");
         UserException e = expectThrows(UserException.class, () -> execute("foo"));
         assertEquals(e.getMessage(), ExitCodes.DATA_ERROR, e.exitCode);
-        assertThat(e.getMessage(), containsString("Passphrases are not equal, exiting"));
+        assertThat(e.getMessage(), containsString("Passwords are not equal, exiting"));
     }
 
     public void testMissingForceCreate() throws Exception {
-        String passphrase = "keystorepassphrase";
-        terminal.addSecretInput(passphrase);
-        terminal.addSecretInput(passphrase);
+        String password = "keystorepassword";
+        terminal.addSecretInput(password);
+        terminal.addSecretInput(password);
         terminal.addSecretInput("bar");
         execute("-f", "foo");
-        assertSecureString("foo", "bar", passphrase);
+        assertSecureString("foo", "bar", password);
     }
 
     public void testMissingNoCreate() throws Exception {
@@ -96,92 +96,92 @@ public class AddStringKeyStoreCommandTests extends KeyStoreCommandTestCase {
     }
 
     public void testOverwritePromptDefault() throws Exception {
-        String passphrase = "keystorepassphrase";
-        createKeystore(passphrase, "foo", "bar");
-        terminal.addSecretInput(passphrase);
+        String password = "keystorepassword";
+        createKeystore(password, "foo", "bar");
+        terminal.addSecretInput(password);
         terminal.addTextInput("");
         execute("foo");
-        assertSecureString("foo", "bar", passphrase);
+        assertSecureString("foo", "bar", password);
     }
 
     public void testOverwritePromptExplicitNo() throws Exception {
-        String passphrase = "keystorepassphrase";
-        createKeystore(passphrase, "foo", "bar");
-        terminal.addSecretInput(passphrase);
+        String password = "keystorepassword";
+        createKeystore(password, "foo", "bar");
+        terminal.addSecretInput(password);
         terminal.addTextInput("n"); // explicit no
         execute("foo");
-        assertSecureString("foo", "bar", passphrase);
+        assertSecureString("foo", "bar", password);
     }
 
     public void testOverwritePromptExplicitYes() throws Exception {
-        String passphrase = "keystorepassphrase";
-        createKeystore(passphrase, "foo", "bar");
+        String password = "keystorepassword";
+        createKeystore(password, "foo", "bar");
         terminal.addTextInput("y");
-        terminal.addSecretInput(passphrase);
+        terminal.addSecretInput(password);
         terminal.addSecretInput("newvalue");
         execute("foo");
-        assertSecureString("foo", "newvalue", passphrase);
+        assertSecureString("foo", "newvalue", password);
     }
 
     public void testOverwriteForceShort() throws Exception {
-        String passphrase = "keystorepassphrase";
-        createKeystore(passphrase, "foo", "bar");
-        terminal.addSecretInput(passphrase);
+        String password = "keystorepassword";
+        createKeystore(password, "foo", "bar");
+        terminal.addSecretInput(password);
         terminal.addSecretInput("newvalue");
         execute("-f", "foo"); // force
-        assertSecureString("foo", "newvalue", passphrase);
+        assertSecureString("foo", "newvalue", password);
     }
 
     public void testOverwriteForceLong() throws Exception {
-        String passphrase = "keystorepassphrase";
-        createKeystore(passphrase, "foo", "bar");
-        terminal.addSecretInput(passphrase);
+        String password = "keystorepassword";
+        createKeystore(password, "foo", "bar");
+        terminal.addSecretInput(password);
         terminal.addSecretInput("and yet another secret value");
         execute("--force", "foo"); // force
-        assertSecureString("foo", "and yet another secret value", passphrase);
+        assertSecureString("foo", "and yet another secret value", password);
     }
 
     public void testForceNonExistent() throws Exception {
-        String passphrase = "keystorepassphrase";
-        createKeystore(passphrase);
-        terminal.addSecretInput(passphrase);
+        String password = "keystorepassword";
+        createKeystore(password);
+        terminal.addSecretInput(password);
         terminal.addSecretInput("value");
         execute("--force", "foo"); // force
-        assertSecureString("foo", "value", passphrase);
+        assertSecureString("foo", "value", password);
     }
 
     public void testPromptForValue() throws Exception {
-        String passphrase = "keystorepassphrase";
-        KeyStoreWrapper.create().save(env.configFile(), passphrase.toCharArray());
-        terminal.addSecretInput(passphrase);
+        String password = "keystorepassword";
+        KeyStoreWrapper.create().save(env.configFile(), password.toCharArray());
+        terminal.addSecretInput(password);
         terminal.addSecretInput("secret value");
         execute("foo");
-        assertSecureString("foo", "secret value", passphrase);
+        assertSecureString("foo", "secret value", password);
     }
 
     public void testStdinShort() throws Exception {
-        String passphrase = "keystorepassphrase";
-        KeyStoreWrapper.create().save(env.configFile(), passphrase.toCharArray());
-        terminal.addSecretInput(passphrase);
+        String password = "keystorepassword";
+        KeyStoreWrapper.create().save(env.configFile(), password.toCharArray());
+        terminal.addSecretInput(password);
         setInput("secret value 1");
         execute("-x", "foo");
-        assertSecureString("foo", "secret value 1", passphrase);
+        assertSecureString("foo", "secret value 1", password);
     }
 
     public void testStdinLong() throws Exception {
-        String passphrase = "keystorepassphrase";
-        KeyStoreWrapper.create().save(env.configFile(), passphrase.toCharArray());
-        terminal.addSecretInput(passphrase);
+        String password = "keystorepassword";
+        KeyStoreWrapper.create().save(env.configFile(), password.toCharArray());
+        terminal.addSecretInput(password);
         setInput("secret value 2");
         execute("--stdin", "foo");
-        assertSecureString("foo", "secret value 2", passphrase);
+        assertSecureString("foo", "secret value 2", password);
     }
 
     public void testMissingSettingName() throws Exception {
-        String passphrase = "keystorepassphrase";
-        createKeystore(passphrase);
-        terminal.addSecretInput(passphrase);
-        terminal.addSecretInput(passphrase);
+        String password = "keystorepassword";
+        createKeystore(password);
+        terminal.addSecretInput(password);
+        terminal.addSecretInput(password);
         terminal.addTextInput("");
         UserException e = expectThrows(UserException.class, this::execute);
         assertEquals(ExitCodes.USAGE, e.exitCode);
@@ -189,12 +189,12 @@ public class AddStringKeyStoreCommandTests extends KeyStoreCommandTestCase {
     }
 
     public void testAddToUnprotectedKeystore() throws Exception {
-        String passphrase = "";
-        createKeystore(passphrase, "foo", "bar");
+        String password = "";
+        createKeystore(password, "foo", "bar");
         terminal.addTextInput("");
-        // will not be prompted for a passphrase
+        // will not be prompted for a password
         execute("foo");
-        assertSecureString("foo", "bar", passphrase);
+        assertSecureString("foo", "bar", password);
     }
 
     void setInput(String inputStr) {

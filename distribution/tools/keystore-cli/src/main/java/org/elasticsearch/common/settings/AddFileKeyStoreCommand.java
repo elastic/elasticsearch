@@ -53,7 +53,7 @@ class AddFileKeyStoreCommand extends EnvironmentAwareCommand {
 
     @Override
     protected void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {
-        try (KeystoreAndPassphrase keyAndPass = KeyStoreWrapper.readOrCreate(terminal, env.configFile(), options.has(forceOption))) {
+        try (KeystoreAndPassword keyAndPass = KeyStoreWrapper.readOrCreate(terminal, env.configFile(), options.has(forceOption))) {
             if (null == keyAndPass) {
                 return;
             }
@@ -83,13 +83,13 @@ class AddFileKeyStoreCommand extends EnvironmentAwareCommand {
                     String.join(", ", argumentValues.subList(2, argumentValues.size())) + "] after filepath");
             }
             keystore.setFile(setting, Files.readAllBytes(file));
-            keystore.save(env.configFile(), keyAndPass.getPassphrase());
+            keystore.save(env.configFile(), keyAndPass.getPassword());
         } catch (SecurityException e) {
-            throw new UserException(ExitCodes.DATA_ERROR, "Failed to access the keystore. Please make sure the passphrase was correct.");
+            throw new UserException(ExitCodes.DATA_ERROR, "Failed to access the keystore. Please make sure the password was correct.", e);
         }
     }
 
-    @SuppressForbidden(reason="file arg for cli")
+    @SuppressForbidden(reason = "file arg for cli")
     private Path getPath(String file) {
         return PathUtils.get(file);
     }

@@ -28,29 +28,31 @@ import org.elasticsearch.env.Environment;
 
 import java.util.Arrays;
 
-public class ChangeKeyStorePassphraseCommand extends EnvironmentAwareCommand {
+/**
+ * A sub-command for the keystore cli which changes the password.
+ */
+class ChangeKeyStorePasswordCommand extends EnvironmentAwareCommand {
 
-
-    ChangeKeyStorePassphraseCommand() {
-        super("Changes the passphrase of a keystore");
+    ChangeKeyStorePasswordCommand() {
+        super("Changes the password of a keystore");
     }
 
     @Override
     protected void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {
-        char[] newPassphrase = null;
-        try (KeystoreAndPassphrase keyAndPass = KeyStoreWrapper.readOrCreate(terminal, env.configFile(), false)) {
+        char[] newPassword = null;
+        try (KeystoreAndPassword keyAndPass = KeyStoreWrapper.readOrCreate(terminal, env.configFile(), false)) {
             if (null == keyAndPass) {
                 return;
             }
             KeyStoreWrapper keystore = keyAndPass.getKeystore();
-            newPassphrase = KeyStoreWrapper.readPassphrase(terminal, true);
-            keystore.save(env.configFile(), newPassphrase);
-            terminal.println("Elasticsearch keystore passphrase changed successfully." + env.configFile());
+            newPassword = KeyStoreWrapper.readPassword(terminal, true);
+            keystore.save(env.configFile(), newPassword);
+            terminal.println("Elasticsearch keystore password changed successfully." + env.configFile());
         } catch (SecurityException e) {
-            throw new UserException(ExitCodes.DATA_ERROR, "Failed to access the keystore. Please make sure the passphrase was correct.");
+            throw new UserException(ExitCodes.DATA_ERROR, "Failed to access the keystore. Please make sure the password was correct.", e);
         } finally {
-            if (null != newPassphrase) {
-                Arrays.fill(newPassphrase, '\u0000');
+            if (null != newPassword) {
+                Arrays.fill(newPassword, '\u0000');
             }
         }
     }

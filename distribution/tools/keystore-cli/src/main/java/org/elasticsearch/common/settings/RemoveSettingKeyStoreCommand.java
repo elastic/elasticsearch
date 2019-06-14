@@ -53,22 +53,22 @@ class RemoveSettingKeyStoreCommand extends EnvironmentAwareCommand {
         if (keystore == null) {
             throw new UserException(ExitCodes.DATA_ERROR, "Elasticsearch keystore not found. Use 'create' command to create one.");
         }
-        char[] passphrase = null;
+        char[] password = null;
         try {
-            passphrase = keystore.hasPassword() ? KeyStoreWrapper.readPassphrase(terminal, false) : new char[0];
-            keystore.decrypt(passphrase);
+            password = keystore.hasPassword() ? KeyStoreWrapper.readPassword(terminal, false) : new char[0];
+            keystore.decrypt(password);
             for (String setting : arguments.values(options)) {
                 if (keystore.getSettingNames().contains(setting) == false) {
                     throw new UserException(ExitCodes.CONFIG, "Setting [" + setting + "] does not exist in the keystore.");
                 }
                 keystore.remove(setting);
             }
-            keystore.save(env.configFile(), passphrase);
+            keystore.save(env.configFile(), password);
         } catch (SecurityException e) {
-            throw new UserException(ExitCodes.DATA_ERROR, "Failed to access the keystore. Please make sure the passphrase was correct.");
+            throw new UserException(ExitCodes.DATA_ERROR, "Failed to access the keystore. Please make sure the password was correct.", e);
         } finally {
-            if (null != passphrase) {
-                Arrays.fill(passphrase, '\u0000');
+            if (null != password) {
+                Arrays.fill(password, '\u0000');
             }
         }
     }

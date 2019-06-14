@@ -44,39 +44,33 @@ public class CreateKeyStoreCommandTests extends KeyStoreCommandTestCase {
     }
 
     public void testNotMatchingPasswords() throws Exception {
-        String passphrase = randomFrom("", "keystorepassphrase");
-        terminal.addSecretInput(passphrase);
-        terminal.addSecretInput("notthekeystorepassphraseyouarelookingfor");
-        UserException e = expectThrows(UserException.class, this::execute);
+        String password = randomFrom("", "keystorepassword");
+        terminal.addSecretInput(password);
+        terminal.addSecretInput("notthekeystorepasswordyouarelookingfor");
+        UserException e = expectThrows(UserException.class, () -> execute(randomFrom("-p", "--password")));
         assertEquals(e.getMessage(), ExitCodes.DATA_ERROR, e.exitCode);
-        assertThat(e.getMessage(), containsString("Passphrases are not equal, exiting"));
+        assertThat(e.getMessage(), containsString("Passwords are not equal, exiting"));
     }
 
-    public void testNotPromptForPassword() throws Exception {
-        execute("-n");
-        Path configDir = env.configFile();
-        assertNotNull(KeyStoreWrapper.load(configDir));
-    }
-
-    public void testNotPromptForPasswordFullOptionName() throws Exception {
-        execute("--nopass");
+    public void testDefaultNotPromptForPassword() throws Exception {
+        execute();
         Path configDir = env.configFile();
         assertNotNull(KeyStoreWrapper.load(configDir));
     }
 
     public void testPosix() throws Exception {
-        String passphrase = randomFrom("", "keystorepassphrase");
-        terminal.addSecretInput(passphrase);
-        terminal.addSecretInput(passphrase);
+        String password = randomFrom("", "keystorepassword");
+        terminal.addSecretInput(password);
+        terminal.addSecretInput(password);
         execute();
         Path configDir = env.configFile();
         assertNotNull(KeyStoreWrapper.load(configDir));
     }
 
     public void testNotPosix() throws Exception {
-        String passphrase = randomFrom("", "keystorepassphrase");
-        terminal.addSecretInput(passphrase);
-        terminal.addSecretInput(passphrase);
+        String password = randomFrom("", "keystorepassword");
+        terminal.addSecretInput(password);
+        terminal.addSecretInput(password);
         env = setupEnv(false, fileSystems);
         execute();
         Path configDir = env.configFile();
@@ -84,7 +78,7 @@ public class CreateKeyStoreCommandTests extends KeyStoreCommandTestCase {
     }
 
     public void testOverwrite() throws Exception {
-        String passphrase = randomFrom("", "keystorepassphrase");
+        String password = randomFrom("", "keystorepassword");
         Path keystoreFile = KeyStoreWrapper.keystorePath(env.configFile());
         byte[] content = "not a keystore".getBytes(StandardCharsets.UTF_8);
         Files.write(keystoreFile, content);
@@ -98,8 +92,8 @@ public class CreateKeyStoreCommandTests extends KeyStoreCommandTestCase {
         assertArrayEquals(content, Files.readAllBytes(keystoreFile));
 
         terminal.addTextInput("y");
-        terminal.addSecretInput(passphrase);
-        terminal.addSecretInput(passphrase);
+        terminal.addSecretInput(password);
+        terminal.addSecretInput(password);
         execute();
         assertNotNull(KeyStoreWrapper.load(env.configFile()));
     }

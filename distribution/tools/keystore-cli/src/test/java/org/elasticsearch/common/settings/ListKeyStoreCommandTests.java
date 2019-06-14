@@ -47,36 +47,36 @@ public class ListKeyStoreCommandTests extends KeyStoreCommandTestCase {
     }
 
     public void testEmpty() throws Exception {
-        String passphrase = randomFrom("", "keystorepassphrase");
-        createKeystore(passphrase);
-        terminal.addSecretInput(passphrase);
+        String password = randomFrom("", "keystorepassword");
+        createKeystore(password);
+        terminal.addSecretInput(password);
         execute();
         assertEquals("keystore.seed\n", terminal.getOutput());
     }
 
     public void testOne() throws Exception {
-        String passphrase = randomFrom("", "keystorepassphrase");
-        createKeystore(passphrase, "foo", "bar");
-        terminal.addSecretInput(passphrase);
+        String password = randomFrom("", "keystorepassword");
+        createKeystore(password, "foo", "bar");
+        terminal.addSecretInput(password);
         execute();
         assertEquals("foo\nkeystore.seed\n", terminal.getOutput());
     }
 
     public void testMultiple() throws Exception {
-        String passphrase = randomFrom("", "keystorepassphrase");
-        createKeystore(passphrase, "foo", "1", "baz", "2", "bar", "3");
-        terminal.addSecretInput(passphrase);
+        String password = randomFrom("", "keystorepassword");
+        createKeystore(password, "foo", "1", "baz", "2", "bar", "3");
+        terminal.addSecretInput(password);
         execute();
         assertEquals("bar\nbaz\nfoo\nkeystore.seed\n", terminal.getOutput()); // sorted
     }
 
-    public void testListWithIncorrectPassphrase() throws Exception {
-        String passphrase = "keystorepassphrase";
-        createKeystore(passphrase, "foo", "bar");
-        terminal.addSecretInput("thewrongkeystorepassphrase");
+    public void testListWithIncorrectPassword() throws Exception {
+        String password = "keystorepassword";
+        createKeystore(password, "foo", "bar");
+        terminal.addSecretInput("thewrongkeystorepassword");
         UserException e = expectThrows(UserException.class, this::execute);
         assertEquals(e.getMessage(), ExitCodes.DATA_ERROR, e.exitCode);
-        assertThat(e.getMessage(), containsString("Please make sure the passphrase was correct"));
+        assertThat(e.getMessage(), containsString("Please make sure the password was correct"));
     }
 
     public void testListWithUnprotectedKeystore() throws Exception {

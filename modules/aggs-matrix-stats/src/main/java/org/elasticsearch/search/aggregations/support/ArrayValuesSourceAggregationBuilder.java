@@ -354,30 +354,21 @@ public abstract class ArrayValuesSourceAggregationBuilder<VS extends ValuesSourc
     protected abstract XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException;
 
     @Override
-    protected final int doHashCode() {
-        return Objects.hash(fields, format, missing, targetValueType, valueType, valuesSourceType,
-            innerHashCode());
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), fields, format, missing, targetValueType, valueType, valuesSourceType);
     }
-
-    protected abstract int innerHashCode();
 
     @Override
-    protected final boolean doEquals(Object obj) {
-        ArrayValuesSourceAggregationBuilder<?, ?> other = (ArrayValuesSourceAggregationBuilder<?, ?>) obj;
-        if (!Objects.equals(fields, other.fields))
-            return false;
-        if (!Objects.equals(format, other.format))
-            return false;
-        if (!Objects.equals(missing, other.missing))
-            return false;
-        if (!Objects.equals(targetValueType, other.targetValueType))
-            return false;
-        if (!Objects.equals(valueType, other.valueType))
-            return false;
-        if (!Objects.equals(valuesSourceType, other.valuesSourceType))
-            return false;
-        return innerEquals(obj);
+    public boolean equals(Object obj) {
+        if (this == obj) return true;
+        if (obj == null || getClass() != obj.getClass()) return false;
+        if (super.equals(obj) == false) return false;
+        ArrayValuesSourceAggregationBuilder<?, ?> that = (ArrayValuesSourceAggregationBuilder<?, ?>) obj;
+        return valuesSourceType == that.valuesSourceType &&
+            targetValueType == that.targetValueType &&
+            Objects.equals(fields, that.fields) &&
+            valueType == that.valueType &&
+            Objects.equals(format, that.format) &&
+            Objects.equals(missing, that.missing);
     }
-
-    protected abstract boolean innerEquals(Object obj);
 }

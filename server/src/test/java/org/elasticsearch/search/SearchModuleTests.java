@@ -396,16 +396,6 @@ public class SearchModuleTests extends ESTestCase {
             return null;
         }
 
-        @Override
-        protected int innerHashCode() {
-            return 0;
-        }
-
-        @Override
-        protected boolean innerEquals(Object obj) {
-            return false;
-        }
-
         private static TestAggregationBuilder fromXContent(String name, XContentParser p) {
             return null;
         }

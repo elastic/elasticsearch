@@ -325,18 +325,21 @@ public class ScriptedMetricAggregationBuilder extends AbstractAggregationBuilder
     }
 
     @Override
-    protected int doHashCode() {
-        return Objects.hash(initScript, mapScript, combineScript, reduceScript, params);
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), initScript, mapScript, combineScript, reduceScript, params);
     }
 
     @Override
-    protected boolean doEquals(Object obj) {
+    public boolean equals(Object obj) {
+        if (this == obj) return true;
+        if (obj == null || getClass() != obj.getClass()) return false;
+        if (super.equals(obj) == false) return false;
         ScriptedMetricAggregationBuilder other = (ScriptedMetricAggregationBuilder) obj;
         return Objects.equals(initScript, other.initScript)
-                && Objects.equals(mapScript, other.mapScript)
-                && Objects.equals(combineScript, other.combineScript)
-                && Objects.equals(reduceScript, other.reduceScript)
-                && Objects.equals(params, other.params);
+            && Objects.equals(mapScript, other.mapScript)
+            && Objects.equals(combineScript, other.combineScript)
+            && Objects.equals(reduceScript, other.reduceScript)
+            && Objects.equals(params, other.params);
     }
 
 }

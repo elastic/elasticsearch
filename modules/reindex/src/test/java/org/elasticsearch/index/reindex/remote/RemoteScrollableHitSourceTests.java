@@ -141,6 +141,7 @@ public class RemoteScrollableHitSourceTests extends ESTestCase {
             }
         };
     }
+
     public void testLookupRemoteVersion() throws Exception {
         AtomicBoolean called = new AtomicBoolean();
         assertLookupRemoteVersion("main/0_20_5.json", Version.fromString("0.20.5"));

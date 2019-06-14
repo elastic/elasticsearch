@@ -366,8 +366,7 @@ public class IngestService implements ClusterStateApplier {
         BiConsumer<IndexRequest, Exception> itemFailureHandler, Consumer<Exception> completionHandler,
         Consumer<IndexRequest> itemDroppedHandler) {
 
-        // TODO: Make underlying Iterator thread safe.
-        // (multiple threads may use it, but not concurrently)
+        // Multiple threads may use this iterator, but not concurrently:
         final Iterator<DocWriteRequest<?>> actionRequestsIterator = actionRequests.iterator();
         threadPool.executor(ThreadPool.Names.WRITE).execute(new AbstractRunnable() {
 

@@ -620,8 +620,8 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         final SparseFixedBitSet failedSlots;
         final List<BulkItemResponse> itemResponses;
 
-        int currentSlot = -1;
-        int[] originalSlots;
+        volatile int currentSlot = -1;
+        volatile int[] originalSlots;
 
         BulkRequestModifier(BulkRequest bulkRequest) {
             this.bulkRequest = bulkRequest;

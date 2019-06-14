@@ -97,6 +97,7 @@ import org.elasticsearch.cluster.metadata.MetaDataDeleteIndexService;
 import org.elasticsearch.cluster.metadata.MetaDataIndexUpgradeService;
 import org.elasticsearch.cluster.metadata.MetaDataMappingService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingService;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -804,14 +805,14 @@ public class SnapshotResiliencyTests extends ESTestCase {
         }
 
         private TestClusterNode newMasterNode(String nodeName) throws IOException {
-            return newNode(nodeName, DiscoveryNode.Role.MASTER);
+            return newNode(nodeName, DiscoveryNodeRole.MASTER_ROLE);
         }
 
         private TestClusterNode newDataNode(String nodeName) throws IOException {
-            return newNode(nodeName, DiscoveryNode.Role.DATA);
+            return newNode(nodeName, DiscoveryNodeRole.DATA_ROLE);
         }
 
-        private TestClusterNode newNode(String nodeName, DiscoveryNode.Role role) throws IOException {
+        private TestClusterNode newNode(String nodeName, DiscoveryNodeRole role) throws IOException {
             return new TestClusterNode(
                 new DiscoveryNode(nodeName, randomAlphaOfLength(10), buildNewFakeTransportAddress(), emptyMap(),
                     Collections.singleton(role), Version.CURRENT), this::getDisruption);

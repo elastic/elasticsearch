@@ -20,10 +20,8 @@
 package org.elasticsearch.common.settings;
 
 import java.io.ByteArrayInputStream;
-import java.io.CharArrayWriter;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
-import java.util.Locale;
 import java.util.Map;
 
 import org.elasticsearch.cli.Command;
@@ -32,7 +30,6 @@ import org.elasticsearch.cli.UserException;
 import org.elasticsearch.env.Environment;
 
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.hasToString;
 
 public class AddStringKeyStoreCommandTests extends KeyStoreCommandTestCase {
     InputStream input;

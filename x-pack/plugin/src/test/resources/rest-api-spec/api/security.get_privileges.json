@@ -1,6 +1,7 @@
 {
   "security.get_privileges": {
     "documentation": "TODO",
+    "stability": "stable",
     "methods": [ "GET" ],
     "url": {
       "paths": [

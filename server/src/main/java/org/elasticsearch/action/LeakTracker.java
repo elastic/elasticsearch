@@ -1,3 +1,21 @@
+/*
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
 package org.elasticsearch.action;
 
 import org.apache.logging.log4j.LogManager;
@@ -16,38 +34,24 @@ import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
 
 public class LeakTracker {
 
-    // TODO: Use our own name obviously
-    private static final Logger logger = LogManager.getLogger("io.netty.util.ResourceLeakDetector");
+    private static final Logger logger = LogManager.getLogger(LeakTracker.class);
 
-    // TODO: make tracking false by default
-    private static final boolean ENABLED = Boolean.parseBoolean(System.getProperty("test.test.leak.tracker.enabled", "true"));
+    private static final boolean ENABLED = Boolean.parseBoolean(System.getProperty("test.leak.tracker.enabled", "false"));
 
     private static final int TARGET_RECORDS = 4;
 
-    /**
-     * the collection of active resources
-     */
-    private final Set<Leak<?>> allLeaks =
-        Collections.newSetFromMap(new ConcurrentHashMap<>());
+    private final Set<Leak<?>> allLeaks = Collections.newSetFromMap(new ConcurrentHashMap<>());
 
     private final ReferenceQueue<Object> refQueue = new ReferenceQueue<>();
     private final ConcurrentMap<String, Boolean> reportedLeaks = ConcurrentCollections.newConcurrentMap();
 
     private final String resourceType;
 
-    public LeakTracker(String resourceType) {
-        if (resourceType == null) {
-            throw new NullPointerException("resourceType");
-        }
-
-        this.resourceType = resourceType;
+    public LeakTracker(Class<?> clazz) {
+        this.resourceType = clazz.getName();
     }
 
     public final <T> Leak<T> track(T obj) {
-        return track0(obj);
-    }
-
-    private <T> Leak<T> track0(T obj) {
         if (ENABLED == false) {
             return null;
         }
@@ -83,17 +87,9 @@ public class LeakTracker {
 
             String records = ref.toString();
             if (reportedLeaks.putIfAbsent(records, Boolean.TRUE) == null) {
-                reportTracedLeak(resourceType, records);
+                logger.error("LEAK: {} was not cleaned up before it was garbage-collected.{}", resourceType, records);
             }
         }
-    }
-
-    /**
-     * This method is called when a traced leak is detected. It can be overridden for tracking how many times leaks
-     * have been detected.
-     */
-    private void reportTracedLeak(String resourceType, String records) {
-        logger.error("LEAK: {}.release() was not called before it's garbage-collected.{}", resourceType, records);
     }
 
     public static final class Leak<T> extends WeakReference<Object> {
@@ -130,35 +126,28 @@ public class LeakTracker {
         }
 
         public void record() {
-            record0();
-        }
-
-        private void record0() {
-            // Check TARGET_RECORDS > 0 here to avoid similar check before remove from and add to lastRecords
-            if (TARGET_RECORDS > 0) {
-                Record oldHead;
-                Record prevHead;
-                Record newHead;
-                boolean dropped;
-                do {
-                    if ((prevHead = oldHead = headUpdater.get(this)) == null) {
-                        // already closed.
-                        return;
-                    }
-                    final int numElements = oldHead.pos + 1;
-                    if (numElements >= TARGET_RECORDS) {
-                        final int backOffFactor = Math.min(numElements - TARGET_RECORDS, 30);
-                        if (dropped = ThreadLocalRandom.current().nextInt(1 << backOffFactor) != 0) {
-                            prevHead = oldHead.next;
-                        }
-                    } else {
-                        dropped = false;
-                    }
-                    newHead = new Record(prevHead);
-                } while (!headUpdater.compareAndSet(this, oldHead, newHead));
-                if (dropped) {
-                    droppedRecordsUpdater.incrementAndGet(this);
+            Record oldHead;
+            Record prevHead;
+            Record newHead;
+            boolean dropped;
+            do {
+                if ((prevHead = oldHead = headUpdater.get(this)) == null) {
+                    // already closed.
+                    return;
                 }
+                final int numElements = oldHead.pos + 1;
+                if (numElements >= TARGET_RECORDS) {
+                    final int backOffFactor = Math.min(numElements - TARGET_RECORDS, 30);
+                    if (dropped = ThreadLocalRandom.current().nextInt(1 << backOffFactor) != 0) {
+                        prevHead = oldHead.next;
+                    }
+                } else {
+                    dropped = false;
+                }
+                newHead = new Record(prevHead);
+            } while (!headUpdater.compareAndSet(this, oldHead, newHead));
+            if (dropped) {
+                droppedRecordsUpdater.incrementAndGet(this);
             }
         }
 
@@ -178,16 +167,11 @@ public class LeakTracker {
         }
 
         public boolean close(T trackedObject) {
-            // Ensure that the object that was tracked is the same as the one that was passed to close(...).
             assert trackedHash == System.identityHashCode(trackedObject);
 
             try {
                 return close();
             } finally {
-                // This method will do `synchronized(trackedObject)` and we should be sure this will not cause deadlock.
-                // It should not, because somewhere up the callstack should be a (successful) `trackedObject.release`,
-                // therefore it is unreasonable that anyone else, anywhere, is holding a lock on the trackedObject.
-                // (Unreasonable but possible, unfortunately.)
                 reachabilityFence0(trackedObject);
             }
         }
@@ -213,7 +197,6 @@ public class LeakTracker {
             this.pos = next.pos + 1;
         }
 
-        // Used to terminate the stack
         private Record() {
             next = null;
             pos = -1;

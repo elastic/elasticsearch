@@ -47,6 +47,7 @@ import org.apache.lucene.util.TestRuleMarkFailure;
 import org.apache.lucene.util.TestUtil;
 import org.apache.lucene.util.TimeUnits;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.LeakTracker;
 import org.elasticsearch.bootstrap.BootstrapForTesting;
 import org.elasticsearch.bootstrap.JavaVersion;
 import org.elasticsearch.client.Requests;
@@ -193,7 +194,7 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     private static final AtomicInteger portGenerator = new AtomicInteger();
 
-    private static final Collection<String> nettyLoggedLeaks = new ArrayList<>();
+    private static final Collection<String> loggedLeaks = new ArrayList<>();
 
     @AfterClass
     public static void resetPortCounter() {
@@ -204,29 +205,30 @@ public abstract class ESTestCase extends LuceneTestCase {
         setTestSysProps();
         LogConfigurator.loadLog4jPlugins();
 
-        String leakLoggerName = "io.netty.util.ResourceLeakDetector";
-        Logger leakLogger = LogManager.getLogger(leakLoggerName);
-        Appender leakAppender = new AbstractAppender(leakLoggerName, null,
-            PatternLayout.newBuilder().withPattern("%m").build()) {
-            @Override
-            public void append(LogEvent event) {
-                String message = event.getMessage().getFormattedMessage();
-                if (Level.ERROR.equals(event.getLevel()) && message.contains("LEAK:")) {
-                    synchronized (nettyLoggedLeaks) {
-                        nettyLoggedLeaks.add(message);
+        for (final String leakLoggerName : new String[]{"io.netty.util.ResourceLeakDetector", LeakTracker.class.getCanonicalName()}) {
+            Logger leakLogger = LogManager.getLogger(leakLoggerName);
+            Appender leakAppender = new AbstractAppender(leakLoggerName, null,
+                PatternLayout.newBuilder().withPattern("%m").build()) {
+                @Override
+                public void append(LogEvent event) {
+                    String message = event.getMessage().getFormattedMessage();
+                    if (Level.ERROR.equals(event.getLevel()) && message.contains("LEAK:")) {
+                        synchronized (loggedLeaks) {
+                            loggedLeaks.add(message);
+                        }
                     }
                 }
-            }
-        };
-        leakAppender.start();
-        Loggers.addAppender(leakLogger, leakAppender);
+            };
+            leakAppender.start();
+            Loggers.addAppender(leakLogger, leakAppender);
 
-        // shutdown hook so that when the test JVM exits, logging is shutdown too
-        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
-            leakAppender.stop();
-            LoggerContext context = (LoggerContext) LogManager.getContext(false);
-            Configurator.shutdown(context);
-        }));
+            // shutdown hook so that when the test JVM exits, logging is shutdown too
+            Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+                leakAppender.stop();
+                LoggerContext context = (LoggerContext) LogManager.getContext(false);
+                Configurator.shutdown(context);
+            }));
+        }
 
         BootstrapForTesting.ensureInitialized();
 
@@ -250,6 +252,8 @@ public abstract class ESTestCase extends LuceneTestCase {
 
         // Enable Netty leak detection and monitor logger for logged leak errors
         System.setProperty("io.netty.leakDetection.level", "paranoid");
+        // Enable our own leak detection
+        System.setProperty("test.leak.tracker.enabled", "true");
     }
 
     protected final Logger logger = LogManager.getLogger(getClass());
@@ -501,11 +505,11 @@ public abstract class ESTestCase extends LuceneTestCase {
                 statusData.clear();
             }
         }
-        synchronized (nettyLoggedLeaks) {
+        synchronized (loggedLeaks) {
             try {
-                assertThat(nettyLoggedLeaks, empty());
+                assertThat(loggedLeaks, empty());
             } finally {
-                nettyLoggedLeaks.clear();
+                loggedLeaks.clear();
             }
         }
     }

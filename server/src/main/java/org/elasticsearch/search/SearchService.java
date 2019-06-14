@@ -416,7 +416,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             } finally {
                 cleanContext(context);
             }
-        }, listener);
+        }, ActionListener.trackLeaks(listener));
     }
 
     public void executeQueryPhase(QuerySearchRequest request, SearchTask task, ActionListener<QuerySearchResult> listener) {
@@ -489,7 +489,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             } finally {
                 cleanContext(context);
             }
-        }, listener);
+        },  ActionListener.trackLeaks(listener));
     }
 
     public void executeFetchPhase(ShardFetchRequest request, SearchTask task, ActionListener<FetchSearchResult> listener) {
@@ -520,7 +520,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             } finally {
                 cleanContext(context);
             }
-        }, listener);
+        },  ActionListener.trackLeaks(listener));
     }
 
     private SearchContext findContext(long id, TransportRequest request) throws SearchContextMissingException {

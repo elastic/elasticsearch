@@ -1,6 +1,7 @@
 {
   "cluster.allocation_explain": {
     "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/cluster-allocation-explain.html",
+    "stability": "stable",
     "methods": ["GET", "POST"],
     "url": {
       "paths": ["/_cluster/allocation/explain"],

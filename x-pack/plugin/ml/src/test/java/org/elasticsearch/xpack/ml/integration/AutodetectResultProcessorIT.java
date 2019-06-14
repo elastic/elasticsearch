@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.core.ml.job.process.autodetect.output.FlushAcknow
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSizeStats;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.Quantiles;
+import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.TimingStats;
 import org.elasticsearch.xpack.core.ml.job.results.AnomalyRecord;
 import org.elasticsearch.xpack.core.ml.job.results.Bucket;
 import org.elasticsearch.xpack.core.ml.job.results.CategoryDefinition;
@@ -89,7 +90,7 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
         renormalizer = mock(Renormalizer.class);
         capturedUpdateModelSnapshotOnJobRequests = new ArrayList<>();
         resultProcessor = new AutoDetectResultProcessor(client(), auditor, JOB_ID, renormalizer,
-                new JobResultsPersister(client()), new ModelSizeStats.Builder(JOB_ID).build()) {
+                new JobResultsPersister(client()), new ModelSizeStats.Builder(JOB_ID).build(), new TimingStats(JOB_ID)) {
             @Override
             protected void updateModelSnapshotOnJob(ModelSnapshot modelSnapshot) {
                 capturedUpdateModelSnapshotOnJobRequests.add(modelSnapshot);
@@ -116,8 +117,8 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
         builder.addInfluencers(influencers);
         CategoryDefinition categoryDefinition = createCategoryDefinition();
         builder.addCategoryDefinition(categoryDefinition);
-        ModelPlot modelPlot = createmodelPlot();
-        builder.addmodelPlot(modelPlot);
+        ModelPlot modelPlot = createModelPlot();
+        builder.addModelPlot(modelPlot);
         ModelSizeStats modelSizeStats = createModelSizeStats();
         builder.addModelSizeStats(modelSizeStats);
         ModelSnapshot modelSnapshot = createModelSnapshot();
@@ -326,7 +327,7 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
         return new CategoryDefinitionTests().createTestInstance(JOB_ID);
     }
 
-    private ModelPlot createmodelPlot() {
+    private ModelPlot createModelPlot() {
         return new ModelPlotTests().createTestInstance(JOB_ID);
     }
 
@@ -379,7 +380,7 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
             return this;
         }
 
-        ResultsBuilder addmodelPlot(ModelPlot modelPlot) {
+        ResultsBuilder addModelPlot(ModelPlot modelPlot) {
             results.add(new AutodetectResult(null, null, null, null, null, null, modelPlot, null, null, null, null));
             return this;
         }

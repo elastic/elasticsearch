@@ -16,11 +16,11 @@ public final class DataFrameStrings {
 
     /**
      * Valid user id pattern.
-     * Matches a string that contains characters, digits, hyphens, underscores or dots.
+     * Matches a string that contains lowercase characters, digits, hyphens, underscores or dots.
      * The string may start and end only in characters or digits.
      * Note that '.' is allowed but not documented.
      */
-    private static final Pattern VALID_ID_CHAR_PATTERN = Pattern.compile("[a-zA-Z0-9](?:[a-zA-Z0-9_\\-\\.]*[a-zA-Z0-9])?");
+    private static final Pattern VALID_ID_CHAR_PATTERN = Pattern.compile("[a-z0-9](?:[a-z0-9_\\-\\.]*[a-z0-9])?");
 
     public static final int ID_LENGTH_LIMIT = 64;
 

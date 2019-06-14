@@ -1,6 +1,7 @@
 {
   "tasks.get": {
     "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/tasks.html",
+    "stability": "stable",
     "methods": ["GET"],
     "url": {
       "paths": ["/_tasks/{task_id}"],

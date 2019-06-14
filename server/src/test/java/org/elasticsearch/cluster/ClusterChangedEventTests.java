@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.metadata.IndexGraveyard;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.common.UUIDs;
@@ -422,24 +423,24 @@ public class ClusterChangedEventTests extends ESTestCase {
         final int localNodeIndex = isLocalMaster ? 0 : randomIntBetween(1, numNodes - 1); // randomly assign the local node if not master
         for (int i = 0; i < numNodes; i++) {
             final String nodeId = NODE_ID_PREFIX + i;
-            Set<DiscoveryNode.Role> roles = new HashSet<>();
+            Set<DiscoveryNodeRole> roles = new HashSet<>();
             if (i == 0) {
                 // the master node
                 builder.masterNodeId(nodeId);
-                roles.add(DiscoveryNode.Role.MASTER);
+                roles.add(DiscoveryNodeRole.MASTER_ROLE);
             } else if (i == 1) {
                 // the alternate master node
-                roles.add(DiscoveryNode.Role.MASTER);
+                roles.add(DiscoveryNodeRole.MASTER_ROLE);
             } else if (i == 2) {
                 // we need at least one data node
-                roles.add(DiscoveryNode.Role.DATA);
+                roles.add(DiscoveryNodeRole.DATA_ROLE);
             } else {
                 // remaining nodes can be anything (except for master)
                 if (randomBoolean()) {
-                    roles.add(DiscoveryNode.Role.MASTER);
+                    roles.add(DiscoveryNodeRole.MASTER_ROLE);
                 }
                 if (randomBoolean()) {
-                    roles.add(DiscoveryNode.Role.DATA);
+                    roles.add(DiscoveryNodeRole.DATA_ROLE);
                 }
             }
             final DiscoveryNode node = newNode(nodeId, roles);
@@ -452,7 +453,7 @@ public class ClusterChangedEventTests extends ESTestCase {
     }
 
     // Create a new DiscoveryNode
-    private static DiscoveryNode newNode(final String nodeId, Set<DiscoveryNode.Role> roles) {
+    private static DiscoveryNode newNode(final String nodeId, Set<DiscoveryNodeRole> roles) {
         return new DiscoveryNode(nodeId, nodeId, nodeId, "host", "host_address", buildNewFakeTransportAddress(),
             Collections.emptyMap(), roles, Version.CURRENT);
     }

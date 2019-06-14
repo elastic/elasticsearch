@@ -472,7 +472,7 @@ that setting `verbose` to `false` will omit all other information about the snap
 such as status information, the number of snapshotted shards, etc.  The default
 value of the `verbose` parameter is `true`.
 
-It is also possible to retrieve snapshots for multiple repositories in one go, for example:
+It is also possible to retrieve snapshots from multiple repositories in one go, for example:
 [source,sh]
 -----------------------------------
 GET /_snapshot/_all

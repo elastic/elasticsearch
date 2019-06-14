@@ -172,8 +172,8 @@ setup:
 ---
 "Get snapshot info with metadata":
   - skip:
-      version: " - 7.2.99"
-      reason: "metadata field was added in 7.3"
+      version: " - 7.9.99"
+      reason: "8.0 changes get snapshots response format"
 
   - do:
       indices.create:
@@ -196,11 +196,11 @@ setup:
         repository: test_repo_get_1
         snapshot: test_snapshot_with_metadata
 
-  - is_true: snapshots
-  - match: { snapshots.0.snapshot: test_snapshot_with_metadata }
-  - match: { snapshots.0.state: SUCCESS }
-  - match: { snapshots.0.metadata.taken_by: test }
-  - match: { snapshots.0.metadata.foo.bar: baz }
+  - is_true: responses.0.snapshots
+  - match: { responses.0.snapshots.0.snapshot: test_snapshot_with_metadata }
+  - match: { responses.0.snapshots.0.state: SUCCESS }
+  - match: { responses.0.snapshots.0.metadata.taken_by: test }
+  - match: { responses.0.snapshots.0.metadata.foo.bar: baz }
 
   - do:
       snapshot.delete:

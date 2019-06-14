@@ -2,6 +2,8 @@
 [[separating-node-client-traffic]]
 === Separating node-to-node and client traffic
 
+deprecated[7.3.0, Transport Client is deprecated and will be removed]
+
 Elasticsearch has the feature of so called 
 {ref}/modules-transport.html[TCP transport profiles]
 that allows it to bind to several ports and addresses. The {es}

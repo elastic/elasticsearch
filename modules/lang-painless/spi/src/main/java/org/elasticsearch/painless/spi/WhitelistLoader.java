@@ -56,7 +56,7 @@ public final class WhitelistLoader {
      *     a Painless type name with the exception that any dollar symbols used as part of inner classes will
      *     be replaced with dot symbols. </li>
      *     <li> short Java type name - The text after the final dot symbol of any specified Java class. A
-     *     short type Java name may be excluded by using the 'no_import' token during Painless class parsing
+     *     short type Java name may be excluded by using the 'no_import' attribute during Painless class parsing
      *     as described later. </li>
      * </ul>
      *
@@ -67,8 +67,8 @@ public final class WhitelistLoader {
      *   be ignored by the parser. </li>
      *   <li> Primitive types may be specified starting with 'class' and followed by the Java type name,
      *   an opening bracket, a newline, a closing bracket, and a final newline. </li>
-     *   <li> Complex types may be specified starting with 'class' and followed the fully-qualified Java
-     *   class name, optionally followed by an 'no_import' token, an opening bracket, a newline,
+     *   <li> Complex types may be specified starting with 'class' and followed by the fully-qualified Java
+     *   class name, optionally followed by a 'no_import' attribute, an opening bracket, a newline,
      *   constructor/method/field specifications, a closing bracket, and a final newline. Within a complex
      *   type the following may be parsed:
      *   <ul>
@@ -92,6 +92,10 @@ public final class WhitelistLoader {
      *     of the field, followed by the Java name of the field (which all be the Painless name
      *     for the field), and a newline. </li>
      *   </ul>
+     *   <li> Attributes may be added starting with an at '@' symbol, followed by a name, optionally
+     *   an opening brace '[' symbol, optionally a piece of text, and optionally closed by a closing brace
+     *   ']' symbol. Multiple attributes may be added after a class (before the opening bracket '{' symbol),
+     *   after a method, or after field. </li>
      * </ul>
      *
      * Note there must be a one-to-one correspondence of Painless type names to Java type/class names.
@@ -112,7 +116,7 @@ public final class WhitelistLoader {
      *
      * # complex types
      *
-     * class my.package.Example no_import {
+     * class my.package.Example @no_import {
      *   # constructors
      *   ()
      *   (int)
@@ -122,7 +126,8 @@ public final class WhitelistLoader {
      *   # method
      *   Example add(int, def)
      *   int add(Example, Example)
-     *   void example()
+     *   void example() @deprecated[use example 2 instead]
+     *   void example2()
      *
      *   # augmented
      *   Example some.other.Class sub(Example, int, def)

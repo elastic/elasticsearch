@@ -45,6 +45,7 @@ import org.elasticsearch.xpack.core.ml.job.process.autodetect.output.FlushAcknow
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSizeStats;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
+import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.TimingStats;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.action.TransportOpenJobAction.JobTask;
@@ -509,8 +510,15 @@ public class AutodetectProcessManager implements ClusterStateListener {
 
         AutodetectProcess process = autodetectProcessFactory.createAutodetectProcess(job, autodetectParams, autoDetectExecutorService,
                 onProcessCrash(jobTask));
-        AutoDetectResultProcessor processor = new AutoDetectResultProcessor(
-                client, auditor, jobId, renormalizer, jobResultsPersister, autodetectParams.modelSizeStats());
+        AutoDetectResultProcessor processor =
+            new AutoDetectResultProcessor(
+                client,
+                auditor,
+                jobId,
+                renormalizer,
+                jobResultsPersister,
+                autodetectParams.modelSizeStats(),
+                autodetectParams.timingStats());
         ExecutorService autodetectWorkerExecutor;
         try (ThreadContext.StoredContext ignore = threadPool.getThreadContext().stashContext()) {
             autodetectWorkerExecutor = createAutodetectExecutorService(autoDetectExecutorService);
@@ -716,12 +724,13 @@ public class AutodetectProcessManager implements ClusterStateListener {
         });
     }
 
-    public Optional<Tuple<DataCounts, ModelSizeStats>> getStatistics(JobTask jobTask) {
+    public Optional<Tuple<DataCounts, Tuple<ModelSizeStats, TimingStats>>> getStatistics(JobTask jobTask) {
         AutodetectCommunicator communicator = getAutodetectCommunicator(jobTask);
         if (communicator == null) {
             return Optional.empty();
         }
-        return Optional.of(new Tuple<>(communicator.getDataCounts(), communicator.getModelSizeStats()));
+        return Optional.of(
+            new Tuple<>(communicator.getDataCounts(), new Tuple<>(communicator.getModelSizeStats(), communicator.getTimingStats())));
     }
 
     ExecutorService createAutodetectExecutorService(ExecutorService executorService) {

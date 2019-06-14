@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.security.support;
 
 import org.elasticsearch.action.ActionFuture;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.xpack.core.security.action.user.PutUserRequestBuilder;
@@ -44,10 +45,11 @@ public class SecurityIndexManagerIntegTests extends SecurityIntegTestCase {
                 @Override
                 protected void doRun() throws Exception {
                     final List<PutUserRequestBuilder> requests = new ArrayList<>(numRequests);
+                    final SecureString password = new SecureString("password".toCharArray());
                     for (int i = 0; i < numRequests; i++) {
                         requests.add(new PutUserRequestBuilder(client())
                             .username("user" + userNumber.getAndIncrement())
-                            .password("password".toCharArray(), getFastStoredHashAlgoForTests())
+                            .password(password, getFastStoredHashAlgoForTests())
                             .roles(randomAlphaOfLengthBetween(1, 16)));
                     }
 

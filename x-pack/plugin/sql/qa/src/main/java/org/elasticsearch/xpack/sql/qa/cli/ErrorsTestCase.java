@@ -97,8 +97,15 @@ public abstract class ErrorsTestCase extends CliIntegrationTestCase implements o
         assertEquals("line 1:12: [SCORE()] cannot be an argument to a function" + END, readLine());
     }
 
+    @Override
+    public void testHardLimitForSortOnAggregate() throws Exception {
+        index("test", body -> body.field("a", 1).field("b", 2));
+        String commandResult = command("SELECT max(a) max FROM test GROUP BY b ORDER BY max LIMIT 10000");
+        assertEquals(START + "Bad request [[3;33;22mThe maximum LIMIT for aggregate sorting is [512], received [10000]" + END,
+            commandResult);
+    }
+
     public static void assertFoundOneProblem(String commandResult) {
         assertEquals(START + "Bad request [[3;33;22mFound 1 problem(s)", commandResult);
     }
-
 }

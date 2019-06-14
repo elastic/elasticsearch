@@ -33,6 +33,30 @@ import java.util.function.Consumer;
  * A listener for action responses or failures.
  */
 public interface ActionListener<Response> {
+
+    LeakTracker leakDetector = new LeakTracker(ActionListener.class.getName());
+
+    static <T> ActionListener<T> trackLeaks(ActionListener<T> listener) {
+        final LeakTracker.Leak<ActionListener<T>> leak = leakDetector.track(listener);
+        if (leak == null) {
+            return listener;
+        }
+        return new ActionListener<>() {
+
+            @Override
+            public void onResponse(T t) {
+                leak.close(listener);
+                listener.onResponse(t);
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                leak.close(listener);
+                listener.onFailure(e);
+            }
+        };
+    }
+
     /**
      * Handle action response. This response may constitute a failure or a
      * success but it is up to the listener to make that decision.

@@ -443,7 +443,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             } finally {
                 cleanContext(context);
             }
-        }, listener);
+        }, ActionListener.trackLeaks(listener));
     }
 
     private boolean fetchPhaseShouldFreeContext(SearchContext context) {

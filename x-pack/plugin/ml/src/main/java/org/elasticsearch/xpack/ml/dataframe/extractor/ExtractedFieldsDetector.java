@@ -10,6 +10,7 @@ import org.elasticsearch.action.fieldcaps.FieldCapabilities;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
@@ -88,9 +89,13 @@ public class ExtractedFieldsDetector {
         if (extractedFields.getAllFields().isEmpty()) {
             throw ExceptionsHelper.badRequestException("No compatible fields could be detected in index [{}]", index);
         }
-        if (extractedFields.getAllFields().size() > docValueFieldsLimit) {
-            extractedFields = new ExtractedFields(extractedFields.getAllFields().stream().map(ExtractedField::newFromSource)
-                .collect(Collectors.toList()));
+        if (extractedFields.getDocValueFields().size() > docValueFieldsLimit) {
+            extractedFields = fetchFromSourceIfSupported(extractedFields);
+            if (extractedFields.getDocValueFields().size() > docValueFieldsLimit) {
+                throw ExceptionsHelper.badRequestException("[{}] fields must be retrieved from doc_values but the limit is [{}]; " +
+                    "please adjust the index level setting [{}]", extractedFields.getDocValueFields().size(), docValueFieldsLimit,
+                    IndexSettings.MAX_DOCVALUE_FIELDS_SEARCH_SETTING.getKey());
+            }
         }
         return extractedFields;
     }
@@ -147,4 +152,11 @@ public class ExtractedFieldsDetector {
         }
     }
 
+    private ExtractedFields fetchFromSourceIfSupported(ExtractedFields extractedFields) {
+        List<ExtractedField> adjusted = new ArrayList<>(extractedFields.getAllFields().size());
+        for (ExtractedField field : extractedFields.getDocValueFields()) {
+            adjusted.add(field.supportsFromSource() ? field.newFromSource() : field);
+        }
+        return new ExtractedFields(adjusted);
+    }
 }

@@ -58,7 +58,7 @@ public abstract class ExtractedField {
 
     public abstract Object[] value(SearchHit hit);
 
-    protected abstract boolean supportsFromSource();
+    public abstract boolean supportsFromSource();
 
     public String getDocValueFormat() {
         return null;
@@ -96,11 +96,11 @@ public abstract class ExtractedField {
     }
 
     public ExtractedField newFromSource() {
-        if (supportsFromSource() == false) {
-            throw new IllegalStateException("Field (alias [" + alias + "], name [" + name + "]) should be extracted via ["
-                + extractionMethod + "] and cannot be extracted from source");
+        if (supportsFromSource()) {
+            return new FromSource(alias, name);
         }
-        return new FromSource(alias, name);
+        throw new IllegalStateException("Field (alias [" + alias + "], name [" + name + "]) should be extracted via ["
+            + extractionMethod + "] and cannot be extracted from source");
     }
 
     private static class FromFields extends ExtractedField {
@@ -120,7 +120,7 @@ public abstract class ExtractedField {
         }
 
         @Override
-        protected boolean supportsFromSource() {
+        public boolean supportsFromSource() {
             return getExtractionMethod() == ExtractionMethod.DOC_VALUE;
         }
     }
@@ -210,6 +210,11 @@ public abstract class ExtractedField {
                 throw new IllegalArgumentException("Unexpected value for a geo_point field: " + geoString);
             }
         }
+
+        @Override
+        public boolean supportsFromSource() {
+            return false;
+        }
     }
 
     private static class TimeField extends FromFields {
@@ -237,6 +242,11 @@ public abstract class ExtractedField {
         @Override
         public String getDocValueFormat() {
             return EPOCH_MILLIS_FORMAT;
+        }
+
+        @Override
+        public boolean supportsFromSource() {
+            return false;
         }
     }
 
@@ -273,7 +283,7 @@ public abstract class ExtractedField {
         }
 
         @Override
-        protected boolean supportsFromSource() {
+        public boolean supportsFromSource() {
             return true;
         }
 

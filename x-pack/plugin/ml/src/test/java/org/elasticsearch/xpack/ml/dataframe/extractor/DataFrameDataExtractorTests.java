@@ -14,7 +14,6 @@ import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -26,6 +25,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.ml.datafeed.extractor.fields.ExtractedField;
 import org.elasticsearch.xpack.ml.datafeed.extractor.fields.ExtractedFields;
+import org.elasticsearch.xpack.ml.test.SearchHitBuilder;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 
@@ -33,7 +33,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
@@ -262,6 +261,58 @@ public class DataFrameDataExtractorTests extends ESTestCase {
         expectThrows(RuntimeException.class, () -> dataExtractor.next());
     }
 
+    public void testIncludeSourceIsFalseAndNoSourceFields() throws IOException {
+        TestExtractor dataExtractor = createExtractor(false);
+
+        SearchResponse response = createSearchResponse(Arrays.asList(1_1), Arrays.asList(2_1));
+        dataExtractor.setNextResponse(response);
+        dataExtractor.setNextResponse(createEmptySearchResponse());
+
+        assertThat(dataExtractor.hasNext(), is(true));
+
+        Optional<List<DataFrameDataExtractor.Row>> rows = dataExtractor.next();
+        assertThat(rows.isPresent(), is(true));
+        assertThat(rows.get().size(), equalTo(1));
+        assertThat(rows.get().get(0).getValues(), equalTo(new String[] {"11", "21"}));
+        assertThat(dataExtractor.hasNext(), is(true));
+
+        assertThat(dataExtractor.next().isEmpty(), is(true));
+        assertThat(dataExtractor.hasNext(), is(false));
+
+        assertThat(dataExtractor.capturedSearchRequests.size(), equalTo(1));
+        String searchRequest = dataExtractor.capturedSearchRequests.get(0).request().toString().replaceAll("\\s", "");
+        assertThat(searchRequest, containsString("\"docvalue_fields\":[{\"field\":\"field_1\"},{\"field\":\"field_2\"}]"));
+        assertThat(searchRequest, containsString("\"_source\":false"));
+    }
+
+    public void testIncludeSourceIsFalseAndAtLeastOneSourceField() throws IOException {
+        extractedFields = new ExtractedFields(Arrays.asList(
+            ExtractedField.newField("field_1", ExtractedField.ExtractionMethod.DOC_VALUE),
+            ExtractedField.newField("field_2", ExtractedField.ExtractionMethod.SOURCE)));
+
+        TestExtractor dataExtractor = createExtractor(false);
+
+        SearchResponse response = createSearchResponse(Arrays.asList(1_1), Arrays.asList(2_1));
+        dataExtractor.setNextResponse(response);
+        dataExtractor.setNextResponse(createEmptySearchResponse());
+
+        assertThat(dataExtractor.hasNext(), is(true));
+
+        Optional<List<DataFrameDataExtractor.Row>> rows = dataExtractor.next();
+        assertThat(rows.isPresent(), is(true));
+        assertThat(rows.get().size(), equalTo(1));
+        assertThat(rows.get().get(0).getValues(), equalTo(new String[] {"11", "21"}));
+        assertThat(dataExtractor.hasNext(), is(true));
+
+        assertThat(dataExtractor.next().isEmpty(), is(true));
+        assertThat(dataExtractor.hasNext(), is(false));
+
+        assertThat(dataExtractor.capturedSearchRequests.size(), equalTo(1));
+        String searchRequest = dataExtractor.capturedSearchRequests.get(0).request().toString().replaceAll("\\s", "");
+        assertThat(searchRequest, containsString("\"docvalue_fields\":[{\"field\":\"field_1\"}]"));
+        assertThat(searchRequest, containsString("\"_source\":{\"includes\":[\"field_2\"],\"excludes\":[]}"));
+    }
+
     private TestExtractor createExtractor(boolean includeSource) {
         DataFrameDataExtractorContext context = new DataFrameDataExtractorContext(
             JOB_ID, extractedFields, indices, query, scrollSize, headers, includeSource);
@@ -275,11 +326,11 @@ public class DataFrameDataExtractorTests extends ESTestCase {
         List<SearchHit> hits = new ArrayList<>();
         for (int i = 0; i < field1Values.size(); i++) {
             SearchHit hit = new SearchHit(randomInt());
-            Map<String, DocumentField> fields = new HashMap<>();
-            fields.put("field_1", new DocumentField("field_1", Collections.singletonList(field1Values.get(i))));
-            fields.put("field_2", new DocumentField("field_2", Collections.singletonList(field2Values.get(i))));
-            hit.fields(fields);
-            hits.add(hit);
+            SearchHitBuilder searchHitBuilder = new SearchHitBuilder(randomInt())
+                .addField("field_1", Collections.singletonList(field1Values.get(i)))
+                .addField("field_2", Collections.singletonList(field2Values.get(i)))
+                .setSource("{\"field_1\":" + field1Values.get(i) + ",\"field_2\":" + field2Values.get(i) + "}");
+            hits.add(searchHitBuilder.build());
         }
         SearchHits searchHits = new SearchHits(hits.toArray(new SearchHit[0]), new TotalHits(hits.size(), TotalHits.Relation.EQUAL_TO), 1);
         when(searchResponse.getHits()).thenReturn(searchHits);

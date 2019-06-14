@@ -10,6 +10,7 @@ import org.elasticsearch.action.fieldcaps.FieldCapabilities;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
@@ -57,13 +58,15 @@ public class ExtractedFieldsDetector {
     private final String index;
     private final DataFrameAnalyticsConfig config;
     private final boolean isTaskRestarting;
+    private final int docValueFieldsLimit;
     private final FieldCapabilitiesResponse fieldCapabilitiesResponse;
 
-    ExtractedFieldsDetector(String index, DataFrameAnalyticsConfig config, boolean isTaskRestarting,
+    ExtractedFieldsDetector(String index, DataFrameAnalyticsConfig config, boolean isTaskRestarting, int docValueFieldsLimit,
                             FieldCapabilitiesResponse fieldCapabilitiesResponse) {
         this.index = Objects.requireNonNull(index);
         this.config = Objects.requireNonNull(config);
         this.isTaskRestarting = isTaskRestarting;
+        this.docValueFieldsLimit = docValueFieldsLimit;
         this.fieldCapabilitiesResponse = Objects.requireNonNull(fieldCapabilitiesResponse);
     }
 
@@ -85,6 +88,14 @@ public class ExtractedFieldsDetector {
             .filterFields(ExtractedField.ExtractionMethod.DOC_VALUE);
         if (extractedFields.getAllFields().isEmpty()) {
             throw ExceptionsHelper.badRequestException("No compatible fields could be detected in index [{}]", index);
+        }
+        if (extractedFields.getDocValueFields().size() > docValueFieldsLimit) {
+            extractedFields = fetchFromSourceIfSupported(extractedFields);
+            if (extractedFields.getDocValueFields().size() > docValueFieldsLimit) {
+                throw ExceptionsHelper.badRequestException("[{}] fields must be retrieved from doc_values but the limit is [{}]; " +
+                    "please adjust the index level setting [{}]", extractedFields.getDocValueFields().size(), docValueFieldsLimit,
+                    IndexSettings.MAX_DOCVALUE_FIELDS_SEARCH_SETTING.getKey());
+            }
         }
         return extractedFields;
     }
@@ -141,4 +152,11 @@ public class ExtractedFieldsDetector {
         }
     }
 
+    private ExtractedFields fetchFromSourceIfSupported(ExtractedFields extractedFields) {
+        List<ExtractedField> adjusted = new ArrayList<>(extractedFields.getAllFields().size());
+        for (ExtractedField field : extractedFields.getDocValueFields()) {
+            adjusted.add(field.supportsFromSource() ? field.newFromSource() : field);
+        }
+        return new ExtractedFields(adjusted);
+    }
 }

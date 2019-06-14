@@ -25,6 +25,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
@@ -41,12 +42,13 @@ public class ExtractedFieldsDetectorTests extends ESTestCase {
             .addAggregatableField("some_float", "float").build();
 
         ExtractedFieldsDetector extractedFieldsDetector = new ExtractedFieldsDetector(
-            SOURCE_INDEX, buildAnalyticsConfig(), false, fieldCapabilities);
+            SOURCE_INDEX, buildAnalyticsConfig(), false, 100, fieldCapabilities);
         ExtractedFields extractedFields = extractedFieldsDetector.detect();
 
         List<ExtractedField> allFields = extractedFields.getAllFields();
         assertThat(allFields.size(), equalTo(1));
         assertThat(allFields.get(0).getName(), equalTo("some_float"));
+        assertThat(allFields.get(0).getExtractionMethod(), equalTo(ExtractedField.ExtractionMethod.DOC_VALUE));
     }
 
     public void testDetect_GivenNumericFieldWithMultipleTypes() {
@@ -55,12 +57,13 @@ public class ExtractedFieldsDetectorTests extends ESTestCase {
             .build();
 
         ExtractedFieldsDetector extractedFieldsDetector = new ExtractedFieldsDetector(
-            SOURCE_INDEX, buildAnalyticsConfig(), false, fieldCapabilities);
+            SOURCE_INDEX, buildAnalyticsConfig(), false, 100, fieldCapabilities);
         ExtractedFields extractedFields = extractedFieldsDetector.detect();
 
         List<ExtractedField> allFields = extractedFields.getAllFields();
         assertThat(allFields.size(), equalTo(1));
         assertThat(allFields.get(0).getName(), equalTo("some_number"));
+        assertThat(allFields.get(0).getExtractionMethod(), equalTo(ExtractedField.ExtractionMethod.DOC_VALUE));
     }
 
     public void testDetect_GivenNonNumericField() {
@@ -68,7 +71,7 @@ public class ExtractedFieldsDetectorTests extends ESTestCase {
             .addAggregatableField("some_keyword", "keyword").build();
 
         ExtractedFieldsDetector extractedFieldsDetector = new ExtractedFieldsDetector(
-            SOURCE_INDEX, buildAnalyticsConfig(), false, fieldCapabilities);
+            SOURCE_INDEX, buildAnalyticsConfig(), false, 100, fieldCapabilities);
         ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, () -> extractedFieldsDetector.detect());
 
         assertThat(e.getMessage(), equalTo("No compatible fields could be detected in index [source_index]"));
@@ -79,7 +82,7 @@ public class ExtractedFieldsDetectorTests extends ESTestCase {
             .addAggregatableField("indecisive_field", "float", "keyword").build();
 
         ExtractedFieldsDetector extractedFieldsDetector = new ExtractedFieldsDetector(
-            SOURCE_INDEX, buildAnalyticsConfig(), false, fieldCapabilities);
+            SOURCE_INDEX, buildAnalyticsConfig(), false, 100, fieldCapabilities);
         ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, () -> extractedFieldsDetector.detect());
 
         assertThat(e.getMessage(), equalTo("No compatible fields could be detected in index [source_index]"));
@@ -93,13 +96,15 @@ public class ExtractedFieldsDetectorTests extends ESTestCase {
             .build();
 
         ExtractedFieldsDetector extractedFieldsDetector = new ExtractedFieldsDetector(
-            SOURCE_INDEX, buildAnalyticsConfig(), false, fieldCapabilities);
+            SOURCE_INDEX, buildAnalyticsConfig(), false, 100, fieldCapabilities);
         ExtractedFields extractedFields = extractedFieldsDetector.detect();
 
         List<ExtractedField> allFields = extractedFields.getAllFields();
         assertThat(allFields.size(), equalTo(2));
         assertThat(allFields.stream().map(ExtractedField::getName).collect(Collectors.toSet()),
             containsInAnyOrder("some_float", "some_long"));
+        assertThat(allFields.stream().map(ExtractedField::getExtractionMethod).collect(Collectors.toSet()),
+            contains(equalTo(ExtractedField.ExtractionMethod.DOC_VALUE)));
     }
 
     public void testDetect_GivenIgnoredField() {
@@ -107,7 +112,7 @@ public class ExtractedFieldsDetectorTests extends ESTestCase {
             .addAggregatableField("_id", "float").build();
 
         ExtractedFieldsDetector extractedFieldsDetector = new ExtractedFieldsDetector(
-            SOURCE_INDEX, buildAnalyticsConfig(), false, fieldCapabilities);
+            SOURCE_INDEX, buildAnalyticsConfig(), false, 100, fieldCapabilities);
         ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, () -> extractedFieldsDetector.detect());
 
         assertThat(e.getMessage(), equalTo("No compatible fields could be detected in index [source_index]"));
@@ -129,7 +134,7 @@ public class ExtractedFieldsDetectorTests extends ESTestCase {
         FieldCapabilitiesResponse fieldCapabilities = mockFieldCapsResponseBuilder.build();
 
         ExtractedFieldsDetector extractedFieldsDetector = new ExtractedFieldsDetector(
-            SOURCE_INDEX, buildAnalyticsConfig(), false, fieldCapabilities);
+            SOURCE_INDEX, buildAnalyticsConfig(), false, 100, fieldCapabilities);
         ExtractedFields extractedFields = extractedFieldsDetector.detect();
 
         List<String> extractedFieldNames = extractedFields.getAllFields().stream().map(ExtractedField::getName)
@@ -146,7 +151,7 @@ public class ExtractedFieldsDetectorTests extends ESTestCase {
         FetchSourceContext desiredFields = new FetchSourceContext(true, new String[]{"your_field1", "my*"}, new String[0]);
 
         ExtractedFieldsDetector extractedFieldsDetector = new ExtractedFieldsDetector(
-            SOURCE_INDEX, buildAnalyticsConfig(desiredFields), false, fieldCapabilities);
+            SOURCE_INDEX, buildAnalyticsConfig(desiredFields), false, 100, fieldCapabilities);
         ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, () -> extractedFieldsDetector.detect());
 
         assertThat(e.getMessage(), equalTo("No compatible fields could be detected in index [source_index] with name [your_field1]"));
@@ -161,7 +166,7 @@ public class ExtractedFieldsDetectorTests extends ESTestCase {
         FetchSourceContext desiredFields = new FetchSourceContext(true, new String[0], new String[]{"my_*"});
 
         ExtractedFieldsDetector extractedFieldsDetector = new ExtractedFieldsDetector(
-            SOURCE_INDEX, buildAnalyticsConfig(desiredFields), false, fieldCapabilities);
+            SOURCE_INDEX, buildAnalyticsConfig(desiredFields), false, 100, fieldCapabilities);
         ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, () -> extractedFieldsDetector.detect());
         assertThat(e.getMessage(), equalTo("No compatible fields could be detected in index [source_index]"));
     }
@@ -177,7 +182,7 @@ public class ExtractedFieldsDetectorTests extends ESTestCase {
         FetchSourceContext desiredFields = new FetchSourceContext(true, new String[]{"your*", "my_*"}, new String[]{"*nope"});
 
         ExtractedFieldsDetector extractedFieldsDetector = new ExtractedFieldsDetector(
-            SOURCE_INDEX, buildAnalyticsConfig(desiredFields), false, fieldCapabilities);
+            SOURCE_INDEX, buildAnalyticsConfig(desiredFields), false, 100, fieldCapabilities);
         ExtractedFields extractedFields = extractedFieldsDetector.detect();
 
         List<String> extractedFieldNames = extractedFields.getAllFields().stream().map(ExtractedField::getName)
@@ -194,7 +199,7 @@ public class ExtractedFieldsDetectorTests extends ESTestCase {
             .build();
 
         ExtractedFieldsDetector extractedFieldsDetector = new ExtractedFieldsDetector(
-            SOURCE_INDEX, buildAnalyticsConfig(), false, fieldCapabilities);
+            SOURCE_INDEX, buildAnalyticsConfig(), false, 100, fieldCapabilities);
         ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, () -> extractedFieldsDetector.detect());
 
         assertThat(e.getMessage(), equalTo("Index [source_index] already has a field that matches the dest.results_field [ml]; " +
@@ -210,12 +215,69 @@ public class ExtractedFieldsDetectorTests extends ESTestCase {
             .build();
 
         ExtractedFieldsDetector extractedFieldsDetector = new ExtractedFieldsDetector(
-            SOURCE_INDEX, buildAnalyticsConfig(), true, fieldCapabilities);
+            SOURCE_INDEX, buildAnalyticsConfig(), true, 100, fieldCapabilities);
         ExtractedFields extractedFields = extractedFieldsDetector.detect();
 
         List<String> extractedFieldNames = extractedFields.getAllFields().stream().map(ExtractedField::getName)
             .collect(Collectors.toList());
         assertThat(extractedFieldNames, equalTo(Arrays.asList("my_field1", "your_field2")));
+    }
+
+    public void testDetectedExtractedFields_GivenLessFieldsThanDocValuesLimit() {
+        FieldCapabilitiesResponse fieldCapabilities = new MockFieldCapsResponseBuilder()
+            .addAggregatableField("field_1", "float")
+            .addAggregatableField("field_2", "float")
+            .addAggregatableField("field_3", "float")
+            .addAggregatableField("a_keyword", "keyword")
+            .build();
+
+        ExtractedFieldsDetector extractedFieldsDetector = new ExtractedFieldsDetector(
+            SOURCE_INDEX, buildAnalyticsConfig(), true, 4, fieldCapabilities);
+        ExtractedFields extractedFields = extractedFieldsDetector.detect();
+
+        List<String> extractedFieldNames = extractedFields.getAllFields().stream().map(ExtractedField::getName)
+            .collect(Collectors.toList());
+        assertThat(extractedFieldNames, equalTo(Arrays.asList("field_1", "field_2", "field_3")));
+        assertThat(extractedFields.getAllFields().stream().map(ExtractedField::getExtractionMethod).collect(Collectors.toSet()),
+            contains(equalTo(ExtractedField.ExtractionMethod.DOC_VALUE)));
+    }
+
+    public void testDetectedExtractedFields_GivenEqualFieldsToDocValuesLimit() {
+        FieldCapabilitiesResponse fieldCapabilities = new MockFieldCapsResponseBuilder()
+            .addAggregatableField("field_1", "float")
+            .addAggregatableField("field_2", "float")
+            .addAggregatableField("field_3", "float")
+            .addAggregatableField("a_keyword", "keyword")
+            .build();
+
+        ExtractedFieldsDetector extractedFieldsDetector = new ExtractedFieldsDetector(
+            SOURCE_INDEX, buildAnalyticsConfig(), true, 3, fieldCapabilities);
+        ExtractedFields extractedFields = extractedFieldsDetector.detect();
+
+        List<String> extractedFieldNames = extractedFields.getAllFields().stream().map(ExtractedField::getName)
+            .collect(Collectors.toList());
+        assertThat(extractedFieldNames, equalTo(Arrays.asList("field_1", "field_2", "field_3")));
+        assertThat(extractedFields.getAllFields().stream().map(ExtractedField::getExtractionMethod).collect(Collectors.toSet()),
+            contains(equalTo(ExtractedField.ExtractionMethod.DOC_VALUE)));
+    }
+
+    public void testDetectedExtractedFields_GivenMoreFieldsThanDocValuesLimit() {
+        FieldCapabilitiesResponse fieldCapabilities = new MockFieldCapsResponseBuilder()
+            .addAggregatableField("field_1", "float")
+            .addAggregatableField("field_2", "float")
+            .addAggregatableField("field_3", "float")
+            .addAggregatableField("a_keyword", "keyword")
+            .build();
+
+        ExtractedFieldsDetector extractedFieldsDetector = new ExtractedFieldsDetector(
+            SOURCE_INDEX, buildAnalyticsConfig(), true, 2, fieldCapabilities);
+        ExtractedFields extractedFields = extractedFieldsDetector.detect();
+
+        List<String> extractedFieldNames = extractedFields.getAllFields().stream().map(ExtractedField::getName)
+            .collect(Collectors.toList());
+        assertThat(extractedFieldNames, equalTo(Arrays.asList("field_1", "field_2", "field_3")));
+        assertThat(extractedFields.getAllFields().stream().map(ExtractedField::getExtractionMethod).collect(Collectors.toSet()),
+            contains(equalTo(ExtractedField.ExtractionMethod.SOURCE)));
     }
 
     private static DataFrameAnalyticsConfig buildAnalyticsConfig() {

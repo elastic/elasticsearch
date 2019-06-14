@@ -37,6 +37,7 @@ import org.elasticsearch.xpack.core.indexlifecycle.MockAction;
 import org.elasticsearch.xpack.core.indexlifecycle.OperationMode;
 import org.elasticsearch.xpack.core.indexlifecycle.Phase;
 import org.elasticsearch.xpack.core.indexlifecycle.ShrinkAction;
+import org.elasticsearch.xpack.core.indexlifecycle.ShrinkStep;
 import org.elasticsearch.xpack.core.indexlifecycle.Step;
 import org.elasticsearch.xpack.core.scheduler.SchedulerEngine;
 import org.junit.After;
@@ -47,9 +48,11 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.util.Collections;
+import java.util.List;
 import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.concurrent.ExecutorService;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.node.Node.NODE_MASTER_SETTING;
 import static org.elasticsearch.xpack.core.indexlifecycle.AbstractStepTestCase.randomStepKey;
@@ -58,6 +61,7 @@ import static org.elasticsearch.xpack.core.indexlifecycle.LifecyclePolicyTestsUt
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyString;
+import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -148,7 +152,7 @@ public class IndexLifecycleServiceTests extends ESTestCase {
     }
 
     public void testRequestedStopOnShrink() {
-        Step.StepKey mockShrinkStep = new Step.StepKey(randomAlphaOfLength(4), ShrinkAction.NAME, randomAlphaOfLength(5));
+        Step.StepKey mockShrinkStep = new Step.StepKey(randomAlphaOfLength(4), ShrinkAction.NAME, ShrinkStep.NAME);
         String policyName = randomAlphaOfLengthBetween(1, 20);
         IndexLifecycleRunnerTests.MockClusterStateActionStep mockStep =
             new IndexLifecycleRunnerTests.MockClusterStateActionStep(mockShrinkStep, randomStepKey());
@@ -180,14 +184,64 @@ public class IndexLifecycleServiceTests extends ESTestCase {
             .build();
 
         ClusterChangedEvent event = new ClusterChangedEvent("_source", currentState, ClusterState.EMPTY_STATE);
-        SetOnce<Boolean> executedShrink = new SetOnce<>();
+        SetOnce<Boolean> changedOperationMode = new SetOnce<>();
         doAnswer(invocationOnMock -> {
-            executedShrink.set(true);
+            changedOperationMode.set(true);
             return null;
-        }).when(clusterService).submitStateUpdateTask(anyString(), any(ExecuteStepsUpdateTask.class));
+        }).when(clusterService).submitStateUpdateTask(eq("ilm_operation_mode_update"), any(OperationModeUpdateTask.class));
         indexLifecycleService.applyClusterState(event);
         indexLifecycleService.triggerPolicies(currentState, true);
-        assertTrue(executedShrink.get());
+        assertNull(changedOperationMode.get());
+    }
+
+    public void testRequestedStopInShrinkActionButNotShrinkStep() {
+        // Create a list of all the shrink action steps that can be stopped during (basically all of them minus the actual shrink)
+        ShrinkAction action = new ShrinkAction(1);
+        List<String> stoppableSteps = action.toSteps(mock(Client.class), "warm", randomStepKey()).stream()
+            .map(sk -> sk.getKey().getName())
+            .filter(name -> name.equals(ShrinkStep.NAME) == false)
+            .collect(Collectors.toList());
+
+        Step.StepKey mockShrinkStep = new Step.StepKey(randomAlphaOfLength(4), ShrinkAction.NAME, randomFrom(stoppableSteps));
+        String policyName = randomAlphaOfLengthBetween(1, 20);
+        IndexLifecycleRunnerTests.MockClusterStateActionStep mockStep =
+            new IndexLifecycleRunnerTests.MockClusterStateActionStep(mockShrinkStep, randomStepKey());
+        MockAction mockAction = new MockAction(Collections.singletonList(mockStep));
+        Phase phase = new Phase("phase", TimeValue.ZERO, Collections.singletonMap("action", mockAction));
+        LifecyclePolicy policy = newTestLifecyclePolicy(policyName, Collections.singletonMap(phase.getName(), phase));
+        SortedMap<String, LifecyclePolicyMetadata> policyMap = new TreeMap<>();
+        policyMap.put(policyName, new LifecyclePolicyMetadata(policy, Collections.emptyMap(),
+            randomNonNegativeLong(), randomNonNegativeLong()));
+        Index index = new Index(randomAlphaOfLengthBetween(1, 20), randomAlphaOfLengthBetween(1, 20));
+        LifecycleExecutionState.Builder lifecycleState = LifecycleExecutionState.builder();
+        lifecycleState.setPhase(mockShrinkStep.getPhase());
+        lifecycleState.setAction(mockShrinkStep.getAction());
+        lifecycleState.setStep(mockShrinkStep.getName());
+        IndexMetaData indexMetadata = IndexMetaData.builder(index.getName())
+            .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME_SETTING.getKey(), policyName))
+            .putCustom(ILM_CUSTOM_METADATA_KEY, lifecycleState.build().asMap())
+            .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
+        ImmutableOpenMap.Builder<String, IndexMetaData> indices = ImmutableOpenMap.<String, IndexMetaData> builder()
+            .fPut(index.getName(), indexMetadata);
+        MetaData metaData = MetaData.builder()
+            .putCustom(IndexLifecycleMetadata.TYPE, new IndexLifecycleMetadata(policyMap, OperationMode.STOPPING))
+            .indices(indices.build())
+            .persistentSettings(settings(Version.CURRENT).build())
+            .build();
+        ClusterState currentState = ClusterState.builder(ClusterName.DEFAULT)
+            .metaData(metaData)
+            .nodes(DiscoveryNodes.builder().localNodeId(nodeId).masterNodeId(nodeId).add(masterNode).build())
+            .build();
+
+        ClusterChangedEvent event = new ClusterChangedEvent("_source", currentState, ClusterState.EMPTY_STATE);
+        SetOnce<Boolean> changedOperationMode = new SetOnce<>();
+        doAnswer(invocationOnMock -> {
+            changedOperationMode.set(true);
+            return null;
+        }).when(clusterService).submitStateUpdateTask(eq("ilm_operation_mode_update"), any(OperationModeUpdateTask.class));
+        indexLifecycleService.applyClusterState(event);
+        indexLifecycleService.triggerPolicies(currentState, true);
+        assertTrue(changedOperationMode.get());
     }
 
     public void testRequestedStopOnSafeAction() {
@@ -236,7 +290,7 @@ public class IndexLifecycleServiceTests extends ESTestCase {
             assertThat(task.getOperationMode(), equalTo(OperationMode.STOPPED));
             moveToMaintenance.set(true);
             return null;
-        }).when(clusterService).submitStateUpdateTask(anyString(), any(OperationModeUpdateTask.class));
+        }).when(clusterService).submitStateUpdateTask(eq("ilm_operation_mode_update"), any(OperationModeUpdateTask.class));
 
         indexLifecycleService.applyClusterState(event);
         indexLifecycleService.triggerPolicies(currentState, randomBoolean());

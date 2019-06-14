@@ -1667,7 +1667,6 @@ public final class InternalTestCluster extends TestCluster {
         return previous;
     }
 
-
     private Set<String> excludeMasters(Collection<NodeAndClient> nodeAndClients) {
         assert Thread.holdsLock(this);
         final Set<String> excludedNodeIds = new HashSet<>();

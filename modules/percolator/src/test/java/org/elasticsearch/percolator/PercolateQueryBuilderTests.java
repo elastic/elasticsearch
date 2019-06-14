@@ -296,9 +296,17 @@ public class PercolateQueryBuilderTests extends AbstractQueryTestCase<PercolateQ
         }
     }
 
+    /**
+     * Test that this query is never cacheable
+     */
     @Override
-    protected boolean isCacheable(PercolateQueryBuilder queryBuilder) {
-        return false;
+    public void testCacheability() throws IOException {
+        PercolateQueryBuilder queryBuilder = createTestQueryBuilder();
+        QueryShardContext context = createShardContext();
+        assert context.isCacheable();
+        QueryBuilder rewritten = rewriteQuery(queryBuilder, new QueryShardContext(context));
+        assertNotNull(rewritten.toQuery(context));
+        assertFalse("query should not be cacheable: " + queryBuilder.toString(), context.isCacheable());
     }
 
     @Override

@@ -756,14 +756,13 @@ public abstract class ESRestTestCase extends ESTestCase {
                 throw new RuntimeException("Error setting up ssl", e);
             }
         }
-        try (ThreadContext threadContext = new ThreadContext(settings)) {
-            Header[] defaultHeaders = new Header[threadContext.getHeaders().size()];
-            int i = 0;
-            for (Map.Entry<String, String> entry : threadContext.getHeaders().entrySet()) {
-                defaultHeaders[i++] = new BasicHeader(entry.getKey(), entry.getValue());
-            }
-            builder.setDefaultHeaders(defaultHeaders);
+        ThreadContext threadContext = new ThreadContext(settings);
+        Header[] defaultHeaders = new Header[threadContext.getHeaders().size()];
+        int i = 0;
+        for (Map.Entry<String, String> entry : threadContext.getHeaders().entrySet()) {
+            defaultHeaders[i++] = new BasicHeader(entry.getKey(), entry.getValue());
         }
+        builder.setDefaultHeaders(defaultHeaders);
         final String socketTimeoutString = settings.get(CLIENT_SOCKET_TIMEOUT);
         if (socketTimeoutString != null) {
             final TimeValue socketTimeout = TimeValue.parseTimeValue(socketTimeoutString, CLIENT_SOCKET_TIMEOUT);

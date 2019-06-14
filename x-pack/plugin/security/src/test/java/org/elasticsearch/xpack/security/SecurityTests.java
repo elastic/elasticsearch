@@ -143,8 +143,6 @@ public class SecurityTests extends ESTestCase {
     @Before
     public void cleanup() throws IOException {
         if (threadContext != null) {
-            threadContext.stashContext();
-            threadContext.close();
             threadContext = null;
         }
     }

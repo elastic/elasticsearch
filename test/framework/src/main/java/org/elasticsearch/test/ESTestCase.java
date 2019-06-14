@@ -453,7 +453,6 @@ public abstract class ESTestCase extends LuceneTestCase {
     private void resetDeprecationLogger(final boolean setNewThreadContext) {
         // "clear" current warning headers by setting a new ThreadContext
         DeprecationLogger.removeThreadContext(this.threadContext);
-        this.threadContext.close();
         if (setNewThreadContext) {
             this.threadContext = new ThreadContext(Settings.EMPTY);
             DeprecationLogger.setThreadContext(this.threadContext);

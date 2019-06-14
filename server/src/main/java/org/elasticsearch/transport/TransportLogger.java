@@ -97,9 +97,8 @@ public final class TransportLogger {
                         streamInput = compressor.streamInput(streamInput);
                     }
 
-                    try (ThreadContext context = new ThreadContext(Settings.EMPTY)) {
-                        context.readHeaders(streamInput);
-                    }
+                    ThreadContext context = new ThreadContext(Settings.EMPTY);
+                    context.readHeaders(streamInput);
                     // now we decode the features
                     streamInput.readStringArray();
                     sb.append(", action: ").append(streamInput.readString());

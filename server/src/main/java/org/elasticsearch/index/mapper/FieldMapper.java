@@ -268,24 +268,6 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         return copyTo;
     }
 
-    private String readComplexJsonElement(XContentParser parser) throws IOException {
-        int tokenDepth = 10;
-        XContentParser.Token closingToken = null;
-        if (parser.currentToken() == XContentParser.Token.START_ARRAY) {
-            closingToken = XContentParser.Token.END_ARRAY;
-        } else if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
-            closingToken = XContentParser.Token.END_OBJECT;
-        } else return null;
-
-        StringBuilder builder = new StringBuilder();
-        for (int i = 0; i < tokenDepth
-            && parser.currentToken() != null
-            && parser.currentToken() != closingToken; i++) {
-            builder.append(parser.text());
-        }
-        return builder.toString();
-    }
-
     /**
      * Parse the field value using the provided {@link ParseContext}.
      */

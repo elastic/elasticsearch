@@ -36,6 +36,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 import org.elasticsearch.xpack.core.indexlifecycle.AllocateAction;
 import org.elasticsearch.xpack.core.indexlifecycle.DeleteAction;
 import org.elasticsearch.xpack.core.indexlifecycle.ForceMergeAction;
@@ -108,6 +109,7 @@ import java.util.List;
 import java.util.function.Supplier;
 
 import static java.util.Collections.emptyList;
+import static java.util.Collections.singletonList;
 
 public class IndexLifecycle extends Plugin implements ActionPlugin {
     private final SetOnce<IndexLifecycleService> indexLifecycleInitialisationService = new SetOnce<>();
@@ -217,8 +219,10 @@ public class IndexLifecycle extends Plugin implements ActionPlugin {
 
     @Override
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
+        var usageAction =
+            new ActionHandler<>(XPackUsageFeatureAction.INDEX_LIFECYCLE, IndexLifecycleFeatureSet.UsageTransportAction.class);
         if (enabled == false) {
-            return emptyList();
+            return singletonList(usageAction);
         }
         return Arrays.asList(
                 new ActionHandler<>(PutLifecycleAction.INSTANCE, TransportPutLifecycleAction.class),
@@ -235,7 +239,8 @@ public class IndexLifecycle extends Plugin implements ActionPlugin {
                 new ActionHandler<>(PutSnapshotLifecycleAction.INSTANCE, TransportPutSnapshotLifecycleAction.class),
                 new ActionHandler<>(DeleteSnapshotLifecycleAction.INSTANCE, TransportDeleteSnapshotLifecycleAction.class),
                 new ActionHandler<>(GetSnapshotLifecycleAction.INSTANCE, TransportGetSnapshotLifecycleAction.class),
-                new ActionHandler<>(ExecuteSnapshotLifecycleAction.INSTANCE, TransportExecuteSnapshotLifecycleAction.class));
+                new ActionHandler<>(ExecuteSnapshotLifecycleAction.INSTANCE, TransportExecuteSnapshotLifecycleAction.class),
+                usageAction);
     }
 
     @Override

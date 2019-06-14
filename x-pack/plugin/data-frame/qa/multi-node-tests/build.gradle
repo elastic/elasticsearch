@@ -1,3 +1,4 @@
+apply plugin: 'elasticsearch.testclusters'
 apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
 
@@ -25,8 +26,10 @@ task copyKeyCerts(type: Copy) {
 sourceSets.test.resources.srcDir(keystoreDir)
 processTestResources.dependsOn(copyKeyCerts)
 
-integTestCluster {
-  dependsOn copyKeyCerts
+integTest.dependsOn copyKeyCerts
+
+testClusters.integTest {
+  distribution = 'DEFAULT'
   setting 'xpack.security.enabled', 'true'
   setting 'xpack.license.self_generated.type', 'trial'
   setting 'xpack.monitoring.enabled', 'false'
@@ -37,22 +40,11 @@ integTestCluster {
   setting 'xpack.security.transport.ssl.verification_mode', 'certificate'
   setting 'xpack.security.audit.enabled', 'false'
   setting 'xpack.license.self_generated.type', 'trial'
-  keystoreSetting 'bootstrap.password', 'x-pack-test-password'
-  keystoreSetting 'xpack.security.transport.ssl.secure_key_passphrase', 'testnode'
-  setupCommand 'setupDummyUser',
-          'bin/elasticsearch-users', 'useradd', 'x_pack_rest_user', '-p', 'x-pack-test-password', '-r', 'superuser'
+  keystore 'bootstrap.password', 'x-pack-test-password'
+  keystore 'xpack.security.transport.ssl.secure_key_passphrase', 'testnode'
+  numberOfNodes = 3
 
-  numNodes = 3
   extraConfigFile nodeKey.name, nodeKey
   extraConfigFile nodeCert.name, nodeCert
-  waitCondition = { node, ant ->
-      File tmpFile = new File(node.cwd, 'wait.success')
-      ant.get(src: "http://${node.httpUri()}/_cluster/health?wait_for_nodes=>=${numNodes}&wait_for_status=yellow",
-              dest: tmpFile.toString(),
-              username: 'x_pack_rest_user',
-              password: 'x-pack-test-password',
-              ignoreerrors: true,
-              retries: 10)
-      return tmpFile.exists()
-  }
+  user username: "x_pack_rest_user", password: "x-pack-test-password"
 }

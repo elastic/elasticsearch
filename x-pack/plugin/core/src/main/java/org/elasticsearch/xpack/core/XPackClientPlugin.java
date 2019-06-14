@@ -35,7 +35,7 @@ import org.elasticsearch.xpack.core.action.XPackInfoAction;
 import org.elasticsearch.xpack.core.action.XPackUsageAction;
 import org.elasticsearch.xpack.core.beats.BeatsFeatureSetUsage;
 import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata;
-import org.elasticsearch.xpack.core.ccr.CCRFeatureSet;
+import org.elasticsearch.xpack.ccr.CCRFeatureSet;
 import org.elasticsearch.xpack.core.dataframe.DataFrameFeatureSetUsage;
 import org.elasticsearch.xpack.core.dataframe.DataFrameField;
 import org.elasticsearch.xpack.core.dataframe.action.DeleteDataFrameTransformAction;

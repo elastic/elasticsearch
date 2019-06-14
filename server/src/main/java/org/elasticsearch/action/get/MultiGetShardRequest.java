@@ -33,14 +33,26 @@ public class MultiGetShardRequest extends SingleShardRequest<MultiGetShardReques
 
     private int shardId;
     private String preference;
-    boolean realtime = true;
-    boolean refresh;
+    private boolean realtime;
+    private boolean refresh;
 
     IntArrayList locations;
     List<MultiGetRequest.Item> items;
 
-    public MultiGetShardRequest() {
+    MultiGetShardRequest(StreamInput in) throws IOException {
+        super(in);
+        int size = in.readVInt();
+        locations = new IntArrayList(size);
+        items = new ArrayList<>(size);
 
+        for (int i = 0; i < size; i++) {
+            locations.add(in.readVInt());
+            items.add(MultiGetRequest.Item.readItem(in));
+        }
+
+        preference = in.readOptionalString();
+        refresh = in.readBoolean();
+        realtime = in.readBoolean();
     }
 
     MultiGetShardRequest(MultiGetRequest multiGetRequest, String index, int shardId) {
@@ -106,23 +118,6 @@ public class MultiGetShardRequest extends SingleShardRequest<MultiGetShardReques
             indices[i] = items.get(i).index();
         }
         return indices;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        int size = in.readVInt();
-        locations = new IntArrayList(size);
-        items = new ArrayList<>(size);
-
-        for (int i = 0; i < size; i++) {
-            locations.add(in.readVInt());
-            items.add(MultiGetRequest.Item.readItem(in));
-        }
-
-        preference = in.readOptionalString();
-        refresh = in.readBoolean();
-        realtime = in.readBoolean();
     }
 
     @Override

@@ -48,6 +48,16 @@ public abstract class SingleShardRequest<Request extends SingleShardRequest<Requ
     public SingleShardRequest() {
     }
 
+    public SingleShardRequest(StreamInput in) throws IOException {
+        super(in);
+        super.readFrom(in);
+        if (in.readBoolean()) {
+            internalShardId = new ShardId(in);
+        }
+        index = in.readOptionalString();
+        // no need to pass threading over the network, they are always false when coming throw a thread pool
+    }
+
     protected SingleShardRequest(String index) {
         this.index = index;
     }
@@ -91,16 +101,6 @@ public abstract class SingleShardRequest<Request extends SingleShardRequest<Requ
     @Override
     public IndicesOptions indicesOptions() {
         return INDICES_OPTIONS;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        if (in.readBoolean()) {
-            internalShardId = new ShardId(in);
-        }
-        index = in.readOptionalString();
-        // no need to pass threading over the network, they are always false when coming throw a thread pool
     }
 
     @Override

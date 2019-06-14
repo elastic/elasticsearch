@@ -1,6 +1,7 @@
 {
   "msearch": {
     "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/search-multi-search.html",
+    "stability": "stable",
     "methods": ["GET", "POST"],
     "url": {
       "paths": ["/_msearch", "/{index}/_msearch"],

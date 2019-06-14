@@ -1,6 +1,7 @@
 {
   "scripts_painless_execute": {
     "documentation": "https://www.elastic.co/guide/en/elasticsearch/painless/master/painless-execute-api.html",
+    "stability" : "experimental",
     "methods": ["GET", "POST"],
     "url": {
       "paths": ["/_scripts/painless/_execute"],

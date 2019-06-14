@@ -446,6 +446,13 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     }
 
     private void runElaticsearchBinScriptWithInput(String input, String tool, String... args) {
+        if (
+            Files.exists(workingDir.resolve("bin").resolve(tool)) == false &&
+                Files.exists(workingDir.resolve("bin").resolve(tool + ".bat")) == false
+        ) {
+            throw new TestClustersException("Can't run bin script: `" + tool + "` does not exist. " +
+                "Is this the distribution you expect it to be ?");
+        }
         try (InputStream byteArrayInputStream = new ByteArrayInputStream(input.getBytes(StandardCharsets.UTF_8))) {
             services.loggedExec(spec -> {
                 spec.setEnvironment(getESEnvironment());

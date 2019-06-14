@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.core.ml.job.process.autodetect.output.FlushAcknow
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSizeStats;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
+import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.TimingStats;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.job.categorization.CategorizationAnalyzer;
@@ -332,6 +333,10 @@ public class AutodetectCommunicator implements Closeable {
 
     public ModelSizeStats getModelSizeStats() {
         return autoDetectResultProcessor.modelSizeStats();
+    }
+
+    public TimingStats getTimingStats() {
+        return autoDetectResultProcessor.timingStats();
     }
 
     public DataCounts getDataCounts() {

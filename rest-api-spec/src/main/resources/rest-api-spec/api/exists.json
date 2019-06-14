@@ -1,6 +1,7 @@
 {
   "exists": {
     "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/docs-get.html",
+    "stability": "stable",
     "methods": ["HEAD"],
     "url": {
       "paths": ["/{index}/_doc/{id}"],

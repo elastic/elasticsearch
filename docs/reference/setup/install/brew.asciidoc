@@ -9,7 +9,7 @@ Elastic Homebrew repository:
 
 [source,sh]
 -------------------------
-brew tap elastic/elastic-stack
+brew tap elastic/tap
 -------------------------
 
 Once you've tapped the Elastic Homebrew repo, you can use `brew install` to
@@ -17,13 +17,13 @@ install {es}:
 
 [source,sh]
 -------------------------
-brew install elastic/elastic-stack/elasticsearch
+brew install elastic/tap/elasticsearch
 -------------------------
 
 This installs the most recently released default distribution of {es}.
 Append the version number to install a previous version, for example
-`elastic/elastic-stack/elasticsearch@6.8`. To install the OSS distribution,
-specify `elastic/elastic-stack/elasticsearch-oss`.
+`elastic/tap/elasticsearch@6.8`. To install the OSS distribution,
+specify `elastic/tap/elasticsearch-oss`.
 
 [[brew-layout]]
 ==== Directory layout for Homebrew installs

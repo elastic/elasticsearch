@@ -66,6 +66,13 @@ public final class IndexAnalyzers extends AbstractIndexComponent implements Clos
     }
 
     /**
+     * Returns an (unmodifiable) map of containing the index analyzers
+     */
+    public Map<String, NamedAnalyzer> getAnalyzers() {
+        return analyzers;
+    }
+
+    /**
      * Returns a normalizer mapped to the given name or <code>null</code> if not present
      */
     public NamedAnalyzer getNormalizer(String name) {

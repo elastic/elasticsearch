@@ -317,8 +317,8 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
     @Override
     public void testHardLimitForSortOnAggregate() throws Exception {
         index("{\"a\": 1, \"b\": 2}");
-        expectBadRequest(() -> runSql(randomMode(), "SELECT max(a) max FROM test GROUP BY b ORDER BY max LIMIT 10000"),
-            containsString("The maximum LIMIT for aggregate sorting is [512], received [10000]"));
+        expectBadRequest(() -> runSql(randomMode(), "SELECT max(a) max FROM test GROUP BY b ORDER BY max LIMIT 12000"),
+            containsString("The maximum LIMIT for aggregate sorting is [10000], received [12000]"));
     }
 
     public void testUseColumnarForUnsupportedFormats() throws Exception {

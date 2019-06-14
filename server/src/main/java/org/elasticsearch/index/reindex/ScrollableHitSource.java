@@ -52,7 +52,9 @@ import static java.util.Objects.requireNonNull;
 import static org.elasticsearch.common.util.CollectionUtils.isEmpty;
 
 /**
- * A scrollable source of results.
+ * A scrollable source of results. Pumps data out into the passed onResponse consumer. Same data may come out several times in case
+ * of failures during searching. Once the onResponse consumer is done, it should call AsyncResponse.isDone(time) to receive more data
+ * (only receives one response at a time).
  */
 public abstract class ScrollableHitSource {
     private final AtomicReference<String> scrollId = new AtomicReference<>();
@@ -60,9 +62,9 @@ public abstract class ScrollableHitSource {
     protected final Logger logger;
     protected final BackoffPolicy backoffPolicy;
     protected final ThreadPool threadPool;
-    protected final Runnable countSearchRetry;
-    private Consumer<AsyncResponse> onResponse;
-    protected final Consumer<Exception> fail;
+    private final Runnable countSearchRetry;
+    private final Consumer<AsyncResponse> onResponse;
+    private final Consumer<Exception> fail;
     private final ToLongFunction<Hit> extractRetryValueFunction;
     private long retryFromValue = Long.MIN_VALUE; // need refinement if we support descending.
 

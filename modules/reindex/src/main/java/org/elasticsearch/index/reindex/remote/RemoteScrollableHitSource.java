@@ -222,12 +222,13 @@ public class RemoteScrollableHitSource extends ScrollableHitSource {
                                 e = wrapExceptionToPreserveStatus(statusCode, re.getResponse().getEntity(), re);
                                 if (RestStatus.TOO_MANY_REQUESTS.getStatus() == statusCode) {
                                     listener.onRejection(e);
+                                    return;
                                 }
                             } else if (e instanceof ContentTooLongException) {
                                 e = new IllegalArgumentException(
                                     "Remote responded with a chunk that was too large. Use a smaller batch size.", e);
                             }
-                            fail.accept(e);
+                            listener.onFailure(e);
                         }
                     }
                 });
@@ -235,7 +236,7 @@ public class RemoteScrollableHitSource extends ScrollableHitSource {
 
             @Override
             public void onFailure(Exception t) {
-                fail.accept(t);
+                listener.onFailure(t);
             }
         }
         new Helper().run();

@@ -326,7 +326,7 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
                  * external versioning.
                  */
                 request.getDestination().versionType() != VersionType.INTERNAL,
-                resumableSortingField != null, logger, client, threadPool, action, request, listener);
+                SeqNoFieldMapper.NAME.equals(resumableSortingField), logger, client, threadPool, action, request, listener);
 
             this.resumableSortingField = resumableSortingField;
             this.registry = registry;

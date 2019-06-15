@@ -22,6 +22,7 @@ import com.carrotsearch.hppc.IntArrayList;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.search.ScoreDoc;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
@@ -76,8 +77,8 @@ final class FetchSearchPhase extends SearchPhase {
     }
 
     @Override
-    public void run() throws IOException {
-        context.execute(new ActionRunnable<SearchResponse>(context) {
+    public void run() {
+        context.execute(new ActionRunnable<>(context) {
             @Override
             public void doRun() throws IOException {
                 // we do the heavy lifting in this inner run method where we reduce aggs etc. that's why we fork this phase
@@ -160,7 +161,7 @@ final class FetchSearchPhase extends SearchPhase {
                               final ShardFetchSearchRequest fetchSearchRequest, final QuerySearchResult querySearchResult,
                               final Transport.Connection connection) {
         context.getSearchTransport().sendExecuteFetch(connection, fetchSearchRequest, context.getTask(),
-            new SearchActionListener<>(shardTarget, shardIndex) {
+            ActionListener.trackLeaks(new SearchActionListener<>(shardTarget, shardIndex) {
                 @Override
                 public void innerOnResponse(FetchSearchResult result) {
                     counter.onResult(result);
@@ -178,7 +179,7 @@ final class FetchSearchPhase extends SearchPhase {
                         releaseIrrelevantSearchContext(querySearchResult);
                     }
                 }
-            });
+            }));
     }
 
     /**

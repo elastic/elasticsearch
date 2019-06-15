@@ -151,24 +151,24 @@ public class SearchTransportService {
     }
 
     public void sendExecuteScrollFetch(Transport.Connection connection, final InternalScrollSearchRequest request, SearchTask task,
-                                       final SearchActionListener<ScrollQueryFetchSearchResult> listener) {
+                                       final ActionListener<ScrollQueryFetchSearchResult> listener) {
         transportService.sendChildRequest(connection, QUERY_FETCH_SCROLL_ACTION_NAME, request, task,
                 new ConnectionCountingHandler<>(listener, ScrollQueryFetchSearchResult::new, clientConnections,
                     connection.getNode().getId()));
     }
 
     public void sendExecuteFetch(Transport.Connection connection, final ShardFetchSearchRequest request, SearchTask task,
-                                 final SearchActionListener<FetchSearchResult> listener) {
+                                 final ActionListener<FetchSearchResult> listener) {
         sendExecuteFetch(connection, FETCH_ID_ACTION_NAME, request, task, listener);
     }
 
     public void sendExecuteFetchScroll(Transport.Connection connection, final ShardFetchRequest request, SearchTask task,
-                                       final SearchActionListener<FetchSearchResult> listener) {
+                                       final ActionListener<FetchSearchResult> listener) {
         sendExecuteFetch(connection, FETCH_ID_SCROLL_ACTION_NAME, request, task, listener);
     }
 
     private void sendExecuteFetch(Transport.Connection connection, String action, final ShardFetchRequest request, SearchTask task,
-                                  final SearchActionListener<FetchSearchResult> listener) {
+                                  final ActionListener<FetchSearchResult> listener) {
         transportService.sendChildRequest(connection, action, request, task,
                 new ConnectionCountingHandler<>(listener, FetchSearchResult::new, clientConnections, connection.getNode().getId()));
     }

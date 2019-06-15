@@ -1020,11 +1020,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
 
     public void canMatch(ShardSearchRequest request, ActionListener<CanMatchResponse> listener) {
-        try {
-            listener.onResponse(new CanMatchResponse(canMatch(request)));
-        } catch (IOException e) {
-            listener.onFailure(e);
-        }
+        ActionListener.completeWith(listener, () -> new CanMatchResponse(canMatch(request)));
     }
 
     /**
@@ -1045,22 +1041,26 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
      * The action listener is guaranteed to be executed on the search thread-pool
      */
     private void rewriteShardRequest(ShardSearchRequest request, ActionListener<ShardSearchRequest> listener) {
-        IndexShard shard = indicesService.indexServiceSafe(request.shardId().getIndex()).getShard(request.shardId().id());
-        Executor executor = getExecutor(shard);
-        ActionListener<Rewriteable> actionListener = ActionListener.wrap(r ->
-            // now we need to check if there is a pending refresh and register
-            shard.awaitShardSearchActive(b ->
-                executor.execute(new ActionRunnable<ShardSearchRequest>(listener) {
-                    @Override
-                    protected void doRun() {
-                        listener.onResponse(request);
-                    }
-                })
-            ), listener::onFailure);
-        // we also do rewrite on the coordinating node (TransportSearchService) but we also need to do it here for BWC as well as
-        // AliasFilters that might need to be rewritten. These are edge-cases but we are every efficient doing the rewrite here so it's not
-        // adding a lot of overhead
-        Rewriteable.rewriteAndFetch(request.getRewriteable(), indicesService.getRewriteContext(request::nowInMillis), actionListener);
+        try {
+            IndexShard shard = indicesService.indexServiceSafe(request.shardId().getIndex()).getShard(request.shardId().id());
+            Executor executor = getExecutor(shard);
+            ActionListener<Rewriteable> actionListener = ActionListener.wrap(r ->
+                // now we need to check if there is a pending refresh and register
+                shard.awaitShardSearchActive(b ->
+                    executor.execute(new ActionRunnable<ShardSearchRequest>(listener) {
+                        @Override
+                        protected void doRun() {
+                            listener.onResponse(request);
+                        }
+                    })
+                ), listener::onFailure);
+            // we also do rewrite on the coordinating node (TransportSearchService) but we also need to do it here for BWC as well as
+            // AliasFilters that might need to be rewritten. These are edge-cases but we are every efficient doing the rewrite here so it's not
+            // adding a lot of overhead
+            Rewriteable.rewriteAndFetch(request.getRewriteable(), indicesService.getRewriteContext(request::nowInMillis), actionListener);
+        } catch (Exception e) {
+            listener.onFailure(e);
+        }
     }
 
     /**

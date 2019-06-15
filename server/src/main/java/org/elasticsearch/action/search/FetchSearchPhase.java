@@ -160,7 +160,7 @@ final class FetchSearchPhase extends SearchPhase {
                               final ShardFetchSearchRequest fetchSearchRequest, final QuerySearchResult querySearchResult,
                               final Transport.Connection connection) {
         context.getSearchTransport().sendExecuteFetch(connection, fetchSearchRequest, context.getTask(),
-            new SearchActionListener<FetchSearchResult>(shardTarget, shardIndex) {
+            new SearchActionListener<>(shardTarget, shardIndex) {
                 @Override
                 public void innerOnResponse(FetchSearchResult result) {
                     counter.onResult(result);

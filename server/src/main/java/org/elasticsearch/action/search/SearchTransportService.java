@@ -324,8 +324,8 @@ public class SearchTransportService {
             (in) -> TransportResponse.Empty.INSTANCE);
 
         transportService.registerRequestHandler(DFS_ACTION_NAME, ThreadPool.Names.SAME, ShardSearchTransportRequest::new,
-            (request, channel, task) -> {
-                searchService.executeDfsPhase(request, (SearchTask) task, new ActionListener<SearchPhaseResult>() {
+            (request, channel, task) -> searchService.executeDfsPhase(request, (SearchTask) task, ActionListener.trackLeaks(
+                new ActionListener<>() {
                     @Override
                     public void onResponse(SearchPhaseResult searchPhaseResult) {
                         try {
@@ -343,8 +343,7 @@ public class SearchTransportService {
                             throw new UncheckedIOException(e1);
                         }
                     }
-                });
-            });
+                })));
         TransportActionProxy.registerProxyAction(transportService, DFS_ACTION_NAME, DfsSearchResult::new);
 
         transportService.registerRequestHandler(QUERY_ACTION_NAME, ThreadPool.Names.SAME, ShardSearchTransportRequest::new,

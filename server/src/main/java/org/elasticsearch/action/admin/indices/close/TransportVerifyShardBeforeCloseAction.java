@@ -111,6 +111,12 @@ public class TransportVerifyShardBeforeCloseAction extends TransportReplicationA
             throw new IllegalStateException("Index shard " + shardId + " must be blocked by " + request.clusterBlock() + " before closing");
         }
         if (request.isPhase1()) {
+            // in order to advance the global checkpoint to the maximum sequence number, the (persisted) local checkpoint needs to be
+            // advanced first, which, when using async translog syncing, does not automatically hold at the time where we have acquired
+            // all operation permits. Instead, this requires and explicit sync, which communicates the updated (persisted) local checkpoint
+            // to the primary (we call this phase1), and phase2 can then use the fact that the global checkpoint has moved to the maximum
+            // sequence number to pass the verifyShardBeforeIndexClosing check and create a safe commit where the maximum sequence number
+            // is equal to the global checkpoint.
             indexShard.sync();
         } else {
             indexShard.verifyShardBeforeIndexClosing();

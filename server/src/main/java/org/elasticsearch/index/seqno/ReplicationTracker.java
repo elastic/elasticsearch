@@ -714,8 +714,8 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
          * replica shards). In these cases, the local knowledge of the global checkpoint could be higher than the sync from the lagging
          * primary.
          */
-        if (newGlobalCheckpoint > globalCheckpoint) {
-            final long previousGlobalCheckpoint = globalCheckpoint;
+        final long previousGlobalCheckpoint = globalCheckpoint;
+        if (newGlobalCheckpoint > previousGlobalCheckpoint) {
             globalCheckpoint = newGlobalCheckpoint;
             logger.trace("updated global checkpoint from [{}] to [{}] due to [{}]", previousGlobalCheckpoint, globalCheckpoint, reason);
             onGlobalCheckpointUpdated.accept(globalCheckpoint);
@@ -736,9 +736,10 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
         final CheckpointState cps = checkpoints.get(allocationId);
         assert !this.shardAllocationId.equals(allocationId) || cps != null;
         if (cps != null && globalCheckpoint > cps.globalCheckpoint) {
+            final long previousGlobalCheckpoint = cps.globalCheckpoint;
             cps.globalCheckpoint = globalCheckpoint;
             logger.trace("updated local knowledge for [{}] on the primary of the global checkpoint from [{}] to [{}]",
-                allocationId, cps.globalCheckpoint, globalCheckpoint);
+                allocationId, previousGlobalCheckpoint, globalCheckpoint);
         }
         assert invariant();
     }

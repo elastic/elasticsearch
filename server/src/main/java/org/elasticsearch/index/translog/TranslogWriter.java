@@ -347,17 +347,17 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
      */
     public boolean syncUpTo(long offset) throws IOException {
         boolean synced = false;
+        Runnable persistenceConfirmation = persistenceCallback.get();
         if (lastSyncedCheckpoint.offset < offset && syncNeeded()) {
             synchronized (syncLock) { // only one sync/checkpoint should happen concurrently but we wait
                 if (lastSyncedCheckpoint.offset < offset && syncNeeded()) {
                     // double checked locking - we don't want to fsync unless we have to and now that we have
                     // the lock we should check again since if this code is busy we might have fsynced enough already
                     final Checkpoint checkpointToSync;
-                    final Runnable persistenceConfirmation;
                     synchronized (this) {
                         ensureOpen();
                         try {
-                            persistenceConfirmation = persistenceCallback.get();
+                            persistenceConfirmation = persistenceCallback.get(); // sample again to capture more ops
                             outputStream.flush();
                             checkpointToSync = getCheckpoint();
                         } catch (final Exception ex) {
@@ -377,10 +377,15 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
                     assert lastSyncedCheckpoint.offset <= checkpointToSync.offset :
                         "illegal state: " + lastSyncedCheckpoint.offset + " <= " + checkpointToSync.offset;
                     lastSyncedCheckpoint = checkpointToSync; // write protected by syncLock
-                    persistenceConfirmation.run();
                     synced = true;
                 }
             }
+        }
+        // All operations that have been fully added to the translog before the call to the syncUpTo method are marked as successfully
+        // persisted upon the call of the enclosing Runnable. This is ensured because any earlier failed attempt at flushing or fsyncing
+        // closes the writer with a tragic event.
+        if (isClosed() == false) {
+            persistenceConfirmation.run();
         }
         return synced;
     }

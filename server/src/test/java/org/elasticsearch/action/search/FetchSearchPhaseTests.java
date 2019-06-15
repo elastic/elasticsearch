@@ -22,6 +22,7 @@ import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.store.MockDirectoryWrapper;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.common.util.BigArrays;
@@ -114,7 +115,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
         SearchTransportService searchTransportService = new SearchTransportService(null, null) {
             @Override
             public void sendExecuteFetch(Transport.Connection connection, ShardFetchSearchRequest request, SearchTask task,
-                                         SearchActionListener<FetchSearchResult> listener) {
+                                         ActionListener<FetchSearchResult> listener) {
                 FetchSearchResult fetchResult = new FetchSearchResult();
                 if (request.id() == 321) {
                     fetchResult.hits(new SearchHits(new SearchHit[] {new SearchHit(84)},
@@ -173,7 +174,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
         SearchTransportService searchTransportService = new SearchTransportService(null, null) {
             @Override
             public void sendExecuteFetch(Transport.Connection connection, ShardFetchSearchRequest request, SearchTask task,
-                                         SearchActionListener<FetchSearchResult> listener) {
+                                         ActionListener<FetchSearchResult> listener) {
                 if (request.id() == 321) {
                     FetchSearchResult fetchResult = new FetchSearchResult();
                     fetchResult.hits(new SearchHits(new SearchHit[] {new SearchHit(84)},
@@ -229,7 +230,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
         SearchTransportService searchTransportService = new SearchTransportService(null, null) {
             @Override
             public void sendExecuteFetch(Transport.Connection connection, ShardFetchSearchRequest request, SearchTask task,
-                                         SearchActionListener<FetchSearchResult> listener) {
+                                         ActionListener<FetchSearchResult> listener) {
                 new Thread(() -> {
                     FetchSearchResult fetchResult = new FetchSearchResult();
                     fetchResult.hits(new SearchHits(new SearchHit[] {new SearchHit((int) (request.id()+1))},
@@ -294,7 +295,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
         SearchTransportService searchTransportService = new SearchTransportService(null, null) {
             @Override
             public void sendExecuteFetch(Transport.Connection connection, ShardFetchSearchRequest request, SearchTask task,
-                                         SearchActionListener<FetchSearchResult> listener) {
+                                         ActionListener<FetchSearchResult> listener) {
                 FetchSearchResult fetchResult = new FetchSearchResult();
                 if (numFetches.incrementAndGet() == 1) {
                     throw new RuntimeException("BOOM");
@@ -352,7 +353,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
         SearchTransportService searchTransportService = new SearchTransportService(null, null) {
             @Override
             public void sendExecuteFetch(Transport.Connection connection, ShardFetchSearchRequest request, SearchTask task,
-                                         SearchActionListener<FetchSearchResult> listener) {
+                                         ActionListener<FetchSearchResult> listener) {
                 FetchSearchResult fetchResult = new FetchSearchResult();
                 if (request.id() == 321) {
                     fetchResult.hits(new SearchHits(new SearchHit[] {new SearchHit(84)},

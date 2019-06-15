@@ -20,6 +20,7 @@ package org.elasticsearch.action;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 
 import java.lang.ref.ReferenceQueue;
@@ -28,7 +29,6 @@ import java.util.Collections;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
-import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
 import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
 
@@ -138,7 +138,7 @@ public class LeakTracker {
                 final int numElements = oldHead.pos + 1;
                 if (numElements >= TARGET_RECORDS) {
                     final int backOffFactor = Math.min(numElements - TARGET_RECORDS, 30);
-                    if (dropped = ThreadLocalRandom.current().nextInt(1 << backOffFactor) != 0) {
+                    if (dropped = Randomness.get().nextInt(1 << backOffFactor) != 0) {
                         prevHead = oldHead.next;
                     }
                 } else {

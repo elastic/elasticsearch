@@ -341,12 +341,16 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     private <T> void runAsync(long id, Supplier<T> executable, ActionListener<T> listener) {
-        getExecutor(id).execute(new ActionRunnable<T>(listener) {
-            @Override
-            protected void doRun() {
-                listener.onResponse(executable.get());
-            }
-        });
+        try {
+            getExecutor(id).execute(new ActionRunnable<>(listener) {
+                @Override
+                protected void doRun() {
+                    listener.onResponse(executable.get());
+                }
+            });
+        } catch (Exception e) {
+            listener.onFailure(e);
+        }
     }
 
     private SearchPhaseResult executeQueryPhase(ShardSearchRequest request, SearchTask task) throws Exception {

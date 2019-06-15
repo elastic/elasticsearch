@@ -26,6 +26,7 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import java.lang.ref.ReferenceQueue;
 import java.lang.ref.WeakReference;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -183,6 +184,56 @@ public class LeakTracker {
                 }
             }
         }
+
+        @Override
+        public String toString() {
+            Record oldHead = headUpdater.getAndSet(this, null);
+            if (oldHead == null) {
+                // Already closed
+                return "";
+            }
+
+            final int dropped = droppedRecordsUpdater.get(this);
+            int duped = 0;
+
+            int present = oldHead.pos + 1;
+            // Guess about 2 kilobytes per stack trace
+            StringBuilder buf = new StringBuilder(present * 2048).append('\n');
+            buf.append("Recent access records: ").append('\n');
+
+            int i = 1;
+            Set<String> seen = new HashSet<>(present);
+            for (; oldHead != Record.BOTTOM; oldHead = oldHead.next) {
+                String s = oldHead.toString();
+                if (seen.add(s)) {
+                    if (oldHead.next == Record.BOTTOM) {
+                        buf.append("Created at:").append('\n').append(s);
+                    } else {
+                        buf.append('#').append(i++).append(':').append('\n').append(s);
+                    }
+                } else {
+                    duped++;
+                }
+            }
+
+            if (duped > 0) {
+                buf.append(": ")
+                    .append(duped)
+                    .append(" leak records were discarded because they were duplicates")
+                    .append('\n');
+            }
+
+            if (dropped > 0) {
+                buf.append(": ")
+                    .append(dropped)
+                    .append(" leak records were discarded because the leak record count is targeted to ")
+                    .append(TARGET_RECORDS)
+                    .append('.')
+                    .append('\n');
+            }
+            buf.setLength(buf.length() - "\n".length());
+            return buf.toString();
+        }
     }
 
     private static final class Record extends Throwable {
@@ -200,6 +251,22 @@ public class LeakTracker {
         private Record() {
             next = null;
             pos = -1;
+        }
+
+        @Override
+        public String toString() {
+            StringBuilder buf = new StringBuilder(2048);
+            // Append the stack trace.
+            StackTraceElement[] array = getStackTrace();
+            // Skip the first three elements.
+            out:
+            for (int i = 3; i < array.length; i++) {
+                StackTraceElement element = array[i];
+                buf.append('\t');
+                buf.append(element.toString());
+                buf.append('\n');
+            }
+            return buf.toString();
         }
     }
 }

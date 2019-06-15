@@ -19,6 +19,9 @@
 
 package org.elasticsearch.gradle;
 
+import org.elasticsearch.gradle.ElasticsearchDistribution.Flavor;
+import org.elasticsearch.gradle.ElasticsearchDistribution.Platform;
+import org.elasticsearch.gradle.ElasticsearchDistribution.Type;
 import org.gradle.api.GradleException;
 import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Plugin;
@@ -191,17 +194,17 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
             return projectDependency(project, unreleasedInfo.gradleProjectPath, distributionProjectName(distribution));
         }
 
-        if (distribution.getType().equals("integ-test-zip")) {
+        if (distribution.getType() == Type.INTEG_TEST_ZIP) {
             return "org.elasticsearch.distribution.integ-test-zip:elasticsearch:" + distribution.getVersion();
         }
 
-        String extension = distribution.getType();
+        String extension = distribution.getType().toString();
         String classifier = "x86_64";
-        if (distribution.getType().equals("archive")) {
-            extension = distribution.getPlatform().equals("windows") ? "zip" : "tar.gz";
+        if (distribution.getType() == Type.ARCHIVE) {
+            extension = distribution.getPlatform() == Platform.WINDOWS ? "zip" : "tar.gz";
             classifier = distribution.getPlatform() + "-" + classifier;
         }
-        return FAKE_GROUP + ":elasticsearch" + (distribution.getType().equals("oss") ? "-oss:" : ":")
+        return FAKE_GROUP + ":elasticsearch" + (distribution.getFlavor() == Flavor.OSS ? "-oss:" : ":")
             + distribution.getVersion() + ":" + classifier + "@" + extension;
     }
 
@@ -218,10 +221,10 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
 
     private static String distributionProjectPath(ElasticsearchDistribution distribution) {
         String projectPath = ":distribution";
-        if (distribution.getType().equals("integ-test-zip")) {
+        if (distribution.getType() == Type.INTEG_TEST_ZIP) {
             projectPath += ":archives:integ-test-zip";
         } else {
-            projectPath += distribution.getType().equals("archive") ? ":archives:" : ":packages:";
+            projectPath += distribution.getType() == Type.ARCHIVE ? ":archives:" : ":packages:";
             projectPath += distributionProjectName(distribution);
         }
         return projectPath;
@@ -229,15 +232,15 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
 
     private static String distributionProjectName(ElasticsearchDistribution distribution) {
         String projectName = "";
-        if (distribution.getFlavor().equals("oss")) {
+        if (distribution.getFlavor() == Flavor.OSS) {
             projectName += "oss-";
         }
         if (distribution.getBundledJdk() == false) {
             projectName += "no-jdk-";
         }
-        if (distribution.getType().equals("archive")) {
-            String platform = distribution.getPlatform();
-            projectName += platform + (platform.equals("windows") ? "-zip" : "-tar");
+        if (distribution.getType() == Type.ARCHIVE) {
+            Platform platform = distribution.getPlatform();
+            projectName += platform.toString() + (platform == Platform.WINDOWS ? "-zip" : "-tar");
         } else {
             projectName += distribution.getType();
         }
@@ -245,7 +248,8 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
     }
 
     private static String configName(String prefix, ElasticsearchDistribution distribution) {
-        return prefix + "_" + distribution.getVersion() + "_" + distribution.getPlatform() + "_" + distribution.getType() + "_"
+        return prefix + "_" + distribution.getVersion() + "_" + distribution.getType() + "_" +
+            (distribution.getPlatform() == null ? "" : distribution.getPlatform() + "_")
             + distribution.getFlavor() + (distribution.getBundledJdk() ? "" : "_nojdk");
     }
 
@@ -255,18 +259,18 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
 
     private static String extractTaskName(ElasticsearchDistribution distribution) {
         String taskName = "extractElasticsearch";
-        if (distribution.getType().equals("integ-test-zip") == false) {
-            if (distribution.getFlavor().equals("oss")) {
+        if (distribution.getType() != Type.INTEG_TEST_ZIP) {
+            if (distribution.getFlavor() == Flavor.OSS) {
                 taskName += "Oss";
             }
             if (distribution.getBundledJdk() == false) {
                 taskName += "NoJdk";
             }
         }
-        if (distribution.getType().equals("archive")) {
-            taskName += capitalize(distribution.getPlatform());
-        } else if (distribution.getType().equals("integ-test-zip") == false) {
-            taskName += capitalize(distribution.getType());
+        if (distribution.getType() == Type.ARCHIVE) {
+            taskName += capitalize(distribution.getPlatform().toString());
+        } else if (distribution.getType() != Type.INTEG_TEST_ZIP) {
+            taskName += capitalize(distribution.getType().toString());
         }
         taskName += distribution.getVersion();
         return taskName;

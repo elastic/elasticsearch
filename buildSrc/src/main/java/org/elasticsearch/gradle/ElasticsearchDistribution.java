@@ -26,23 +26,49 @@ import org.gradle.api.provider.Property;
 import org.gradle.api.tasks.TaskDependency;
 
 import java.io.File;
-import java.util.Arrays;
-import java.util.Collections;
 import java.util.Iterator;
-import java.util.List;
+import java.util.Locale;
 
 public class ElasticsearchDistribution implements Buildable {
 
-    static final List<String> ALLOWED_PLATFORMS = Collections.unmodifiableList(Arrays.asList("linux", "windows", "darwin"));
-    static final List<String> ALLOWED_TYPES =
-        Collections.unmodifiableList(Arrays.asList("integ-test-zip", "archive", "rpm", "deb"));
-    static final List<String> ALLOWED_FLAVORS = Collections.unmodifiableList(Arrays.asList("default", "oss"));
+    public enum Platform {
+        LINUX,
+        WINDOWS,
+        DARWIN;
+
+        @Override
+        public String toString() {
+            return super.toString().toLowerCase(Locale.ROOT);
+        }
+    }
+
+    public enum Type {
+        INTEG_TEST_ZIP,
+        ARCHIVE,
+        RPM,
+        DEB;
+
+        @Override
+        public String toString() {
+            return super.toString().toLowerCase(Locale.ROOT);
+        }
+    }
+
+    public enum Flavor {
+        DEFAULT,
+        OSS;
+
+        @Override
+        public String toString() {
+            return super.toString().toLowerCase(Locale.ROOT);
+        }
+    }
 
     // package private to tests can use
-    static final String CURRENT_PLATFORM = OS.<String>conditional()
-        .onLinux(() -> "linux")
-        .onWindows(() -> "windows")
-        .onMac(() -> "darwin")
+    static final Platform CURRENT_PLATFORM = OS.<Platform>conditional()
+        .onLinux(() -> Platform.LINUX)
+        .onWindows(() -> Platform.WINDOWS)
+        .onMac(() -> Platform.DARWIN)
         .supply();
 
     public static final class Extracted implements Buildable, Iterable<File> {
@@ -76,9 +102,9 @@ public class ElasticsearchDistribution implements Buildable {
     private final Extracted extracted;
 
     private final Property<Version> version;
-    private final Property<String> type;
-    private final Property<String> platform;
-    private final Property<String> flavor;
+    private final Property<Type> type;
+    private final Property<Platform> platform;
+    private final Property<Flavor> flavor;
     private final Property<Boolean> bundledJdk;
 
     ElasticsearchDistribution(String name, Project project) {
@@ -86,10 +112,10 @@ public class ElasticsearchDistribution implements Buildable {
         this.configuration = project.getConfigurations().create("es_distro_file_" + name);
         this.version = project.getObjects().property(Version.class);
         this.version.convention(Version.fromString(VersionProperties.getElasticsearch()));
-        this.type = project.getObjects().property(String.class);
-        this.type.convention("archive");
-        this.platform = project.getObjects().property(String.class);
-        this.flavor = project.getObjects().property(String.class);
+        this.type = project.getObjects().property(Type.class);
+        this.type.convention(Type.ARCHIVE);
+        this.platform = project.getObjects().property(Platform.class);
+        this.flavor = project.getObjects().property(Flavor.class);
         this.bundledJdk = project.getObjects().property(Boolean.class);
         this.extracted = new Extracted(project.getConfigurations().create("es_distro_extracted_" + name));
     }
@@ -106,44 +132,32 @@ public class ElasticsearchDistribution implements Buildable {
         this.version.set(Version.fromString(version));
     }
 
-    public String getPlatform() {
-        return platform.get();
+    public Platform getPlatform() {
+        return platform.getOrNull();
     }
 
-    public void setPlatform(String platform) {
-        if (ALLOWED_PLATFORMS.contains(platform) == false) {
-            throw new IllegalArgumentException(
-                "unknown platform [" + platform + "] for elasticsearch distribution [" + name + "], must be one of " + ALLOWED_PLATFORMS);
-        }
+    public void setPlatform(Platform platform) {
         this.platform.set(platform);
     }
 
-    public String getType() {
+    public Type getType() {
         return type.get();
     }
 
-    public void setType(String type) {
-        if (ALLOWED_TYPES.contains(type) == false) {
-            throw new IllegalArgumentException(
-                "unknown type [" + type+ "] for elasticsearch distribution [" + name + "], must be one of " + ALLOWED_TYPES);
-        }
+    public void setType(Type type) {
         this.type.set(type);
     }
 
-    public String getFlavor() {
-        return flavor.get();
+    public Flavor getFlavor() {
+        return flavor.getOrNull();
     }
 
-    public void setFlavor(String flavor) {
-        if (ALLOWED_FLAVORS.contains(flavor) == false) {
-            throw new IllegalArgumentException(
-                "unknown flavor [" + flavor + "] for elasticsearch distribution [" + name + "], must be one of " + ALLOWED_FLAVORS);
-        }
+    public void setFlavor(Flavor flavor) {
         this.flavor.set(flavor);
     }
 
     public boolean getBundledJdk() {
-        return bundledJdk.get();
+        return bundledJdk.getOrElse(true);
     }
 
     public void setBundledJdk(boolean bundledJdk) {
@@ -171,7 +185,7 @@ public class ElasticsearchDistribution implements Buildable {
     // internal, make this distribution's configuration unmodifiable
     void finalizeValues() {
 
-        if (getType().equals("integ-test-zip")) {
+        if (getType() == Type.INTEG_TEST_ZIP) {
             if (platform.isPresent()) {
                 throw new IllegalArgumentException(
                     "platform not allowed for elasticsearch distribution [" + name + "] of type [integ-test-zip]");
@@ -187,7 +201,7 @@ public class ElasticsearchDistribution implements Buildable {
             return;
         }
 
-        if (getType().equals("archive")){
+        if (getType() == Type.ARCHIVE) {
             // defaults for archive, set here instead of via convention so integ-test-zip can verify they are not set
             if (platform.isPresent() == false) {
                 platform.set(CURRENT_PLATFORM);
@@ -200,7 +214,7 @@ public class ElasticsearchDistribution implements Buildable {
         }
 
         if (flavor.isPresent() == false) {
-            flavor.set("default");
+            flavor.set(Flavor.DEFAULT);
         }
         if (bundledJdk.isPresent() == false) {
             bundledJdk.set(true);
@@ -212,6 +226,4 @@ public class ElasticsearchDistribution implements Buildable {
         flavor.finalizeValue();
         bundledJdk.finalizeValue();
     }
-
-
 }

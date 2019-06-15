@@ -19,6 +19,9 @@
 
 package org.elasticsearch.gradle;
 
+import org.elasticsearch.gradle.ElasticsearchDistribution.Flavor;
+import org.elasticsearch.gradle.ElasticsearchDistribution.Platform;
+import org.elasticsearch.gradle.ElasticsearchDistribution.Type;
 import org.elasticsearch.gradle.test.GradleUnitTestCase;
 import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Project;
@@ -51,57 +54,53 @@ public class DistributionDownloadPluginTests extends GradleUnitTestCase {
         new BwcVersions(new TreeSet<>(Arrays.asList(BWC_MAINTENANCE_VERSION, BWC_STAGED_VERSION, BWC_MINOR_VERSION)), BWC_MINOR_VERSION);
 
     public void testVersionDefault() {
-        ElasticsearchDistribution distro = checkDistro(createProject(null), "testdistro", null, "archive", "linux", "oss", true);
+        ElasticsearchDistribution distro = checkDistro(createProject(null),
+            "testdistro", null, Type.ARCHIVE, Platform.LINUX, Flavor.OSS, true);
         assertEquals(distro.getVersion(), Version.fromString(VersionProperties.getElasticsearch()));
     }
 
     public void testBadVersionFormat() {
-        assertDistroError(createProject(null), "testdistro", "badversion", "archive", "linux", "oss", true,
+        assertDistroError(createProject(null), "testdistro", "badversion", Type.ARCHIVE, Platform.LINUX, Flavor.OSS, true,
             "Invalid version format: 'badversion'");
     }
 
     public void testTypeDefault() {
-        ElasticsearchDistribution distro = checkDistro(createProject(null), "testdistro", "5.0.0", null, "linux", "oss", true);
-        assertEquals(distro.getType(), "archive");
+        ElasticsearchDistribution distro = checkDistro(createProject(null),
+            "testdistro", "5.0.0", null, Platform.LINUX, Flavor.OSS, true);
+        assertEquals(distro.getType(), Type.ARCHIVE);
     }
 
     public void testPlatformDefault() {
-        ElasticsearchDistribution distro = checkDistro(createProject(null), "testdistro", "5.0.0", "archive", null, "oss", true);
+        ElasticsearchDistribution distro = checkDistro(createProject(null),
+            "testdistro", "5.0.0", Type.ARCHIVE, null, Flavor.OSS, true);
         assertEquals(distro.getPlatform(), ElasticsearchDistribution.CURRENT_PLATFORM);
     }
 
-    public void testUnknownPlatform() {
-        assertDistroError(createProject(null), "testdistro", "5.0.0", "archive", "unknown", "oss", true,
-            "unknown platform [unknown] for elasticsearch distribution [testdistro], must be one of [linux, windows, darwin]");
-    }
-
     public void testPlatformForIntegTest() {
-        assertDistroError(createProject(null), "testdistro", "5.0.0", "integ-test-zip", "linux", null, null,
+        assertDistroError(createProject(null), "testdistro", "5.0.0", Type.INTEG_TEST_ZIP, Platform.LINUX, null, null,
             "platform not allowed for elasticsearch distribution [testdistro]");
     }
 
     public void testFlavorDefault() {
-        ElasticsearchDistribution distro = checkDistro(createProject(null), "testdistro", "5.0.0", "archive", "linux", null, true);
-        assertEquals(distro.getFlavor(), "default");
-    }
-
-    public void testUnknownFlavor() {
-        assertDistroError(createProject(null), "testdistro", "5.0.0", "archive", "linux", "unknown", true,
-            "unknown flavor [unknown] for elasticsearch distribution [testdistro], must be one of [default, oss]");
+        ElasticsearchDistribution distro = checkDistro(createProject(null),
+            "testdistro", "5.0.0", Type.ARCHIVE, Platform.LINUX, null, true);
+        assertEquals(distro.getFlavor(), Flavor.DEFAULT);
     }
 
     public void testFlavorForIntegTest() {
-        assertDistroError(createProject(null), "testdistro", "5.0.0", "integ-test-zip", null, "oss", null,
+        assertDistroError(createProject(null),
+            "testdistro", "5.0.0", Type.INTEG_TEST_ZIP, null, Flavor.OSS, null,
             "flavor not allowed for elasticsearch distribution [testdistro]");
     }
 
     public void testBundledJdkDefault() {
-        ElasticsearchDistribution distro = checkDistro(createProject(null), "testdistro", "5.0.0", "archive", "linux", null, true);
+        ElasticsearchDistribution distro = checkDistro(createProject(null),
+            "testdistro", "5.0.0", Type.ARCHIVE, Platform.LINUX, null, true);
         assertTrue(distro.getBundledJdk());
     }
 
     public void testBundledJdkForIntegTest() {
-        assertDistroError(createProject(null), "testdistro", "5.0.0", "integ-test-zip", null, null, true,
+        assertDistroError(createProject(null), "testdistro", "5.0.0", Type.INTEG_TEST_ZIP, null, null, true,
             "bundledJdk not allowed for elasticsearch distribution [testdistro]");
     }
 
@@ -111,23 +110,23 @@ public class DistributionDownloadPluginTests extends GradleUnitTestCase {
         archiveProject.getConfigurations().create("default");
         archiveProject.getArtifacts().add("default", new File("doesnotmatter"));
         createDistro(project, "distro",
-            VersionProperties.getElasticsearch(), "integ-test-zip", null, null, null);
+            VersionProperties.getElasticsearch(), Type.INTEG_TEST_ZIP, null, null, null);
         checkPlugin(project);
     }
 
     public void testCurrentVersionArchives() {
-        for (String platform : ElasticsearchDistribution.ALLOWED_PLATFORMS) {
-            for (String flavor : ElasticsearchDistribution.ALLOWED_FLAVORS) {
+        for (Platform platform : Platform.values()) {
+            for (Flavor flavor : Flavor.values()) {
                 for (boolean bundledJdk : new boolean[] { true, false}) {
                     // create a new project in each iteration, so that we know we are resolving the only additional project being created
                     Project project = createProject(null);
-                    String projectName = projectName(platform, flavor, bundledJdk);
-                    projectName += (platform.equals("windows") ? "-zip" : "-tar");
+                    String projectName = projectName(platform.toString(), flavor, bundledJdk);
+                    projectName += (platform == Platform.WINDOWS ? "-zip" : "-tar");
                     Project archiveProject = ProjectBuilder.builder().withParent(archivesProject).withName(projectName).build();
                     archiveProject.getConfigurations().create("default");
                     archiveProject.getArtifacts().add("default", new File("doesnotmatter"));
                     createDistro(project, "distro",
-                        VersionProperties.getElasticsearch(), "archive", platform, flavor, bundledJdk);
+                        VersionProperties.getElasticsearch(), Type.ARCHIVE, platform, flavor, bundledJdk);
                     checkPlugin(project);
                 }
             }
@@ -135,11 +134,11 @@ public class DistributionDownloadPluginTests extends GradleUnitTestCase {
     }
 
     public void testCurrentVersionPackages() {
-        for (String packageType : new String[] { "rpm", "deb" }) {
-            for (String flavor : ElasticsearchDistribution.ALLOWED_FLAVORS) {
+        for (Type packageType : new Type[] { Type.RPM, Type.DEB }) {
+            for (Flavor flavor : Flavor.values()) {
                 for (boolean bundledJdk : new boolean[] { true, false}) {
                     Project project = createProject(null);
-                    String projectName = projectName(packageType, flavor, bundledJdk);
+                    String projectName = projectName(packageType.toString(), flavor, bundledJdk);
                     Project packageProject = ProjectBuilder.builder().withParent(packagesProject).withName(projectName).build();
                     packageProject.getConfigurations().create("default");
                     packageProject.getArtifacts().add("default", new File("doesnotmatter"));
@@ -152,25 +151,25 @@ public class DistributionDownloadPluginTests extends GradleUnitTestCase {
     }
 
     public void testLocalBwcArchives() {
-        for (String platform : ElasticsearchDistribution.ALLOWED_PLATFORMS) {
-            for (String flavor : ElasticsearchDistribution.ALLOWED_FLAVORS) {
+        for (Platform platform : Platform.values()) {
+            for (Flavor flavor : Flavor.values()) {
                 // note: no non bundled jdk for bwc
-                String configName = projectName(platform, flavor, true);
-                configName += (platform.equals("windows") ? "-zip" : "-tar");
+                String configName = projectName(platform.toString(), flavor, true);
+                configName += (platform == Platform.WINDOWS ? "-zip" : "-tar");
 
-                checkBwc("minor", configName, BWC_MINOR_VERSION, BWC_MINOR, "archive", platform, flavor);
-                checkBwc("staged", configName, BWC_STAGED_VERSION, BWC_STAGED, "archive", platform, flavor);
-                checkBwc("bugfix", configName, BWC_BUGFIX_VERSION, BWC_BUGFIX, "archive", platform, flavor);
-                checkBwc("maintenance", configName, BWC_MAINTENANCE_VERSION, BWC_MAINTENANCE, "archive", platform, flavor);
+                checkBwc("minor", configName, BWC_MINOR_VERSION, BWC_MINOR, Type.ARCHIVE, platform, flavor);
+                checkBwc("staged", configName, BWC_STAGED_VERSION, BWC_STAGED, Type.ARCHIVE, platform, flavor);
+                checkBwc("bugfix", configName, BWC_BUGFIX_VERSION, BWC_BUGFIX, Type.ARCHIVE, platform, flavor);
+                checkBwc("maintenance", configName, BWC_MAINTENANCE_VERSION, BWC_MAINTENANCE, Type.ARCHIVE, platform, flavor);
             }
         }
     }
 
     public void testLocalBwcPackages() {
-        for (String packageType : new String[] { "rpm", "deb" }) {
-            for (String flavor : ElasticsearchDistribution.ALLOWED_FLAVORS) {
+        for (Type packageType : new Type[] { Type.RPM, Type.DEB }) {
+            for (Flavor flavor : Flavor.values()) {
                 // note: no non bundled jdk for bwc
-                String configName = projectName(packageType, flavor, true);
+                String configName = projectName(packageType.toString(), flavor, true);
 
                 checkBwc("minor", configName, BWC_MINOR_VERSION, BWC_MINOR, packageType, null, flavor);
                 checkBwc("staged", configName, BWC_STAGED_VERSION, BWC_STAGED, packageType, null, flavor);
@@ -180,15 +179,15 @@ public class DistributionDownloadPluginTests extends GradleUnitTestCase {
         }
     }
 
-    private void assertDistroError(Project project, String name, String version, String type, String platform,
-                                   String flavor, Boolean bundledJdk, String message) {
+    private void assertDistroError(Project project, String name, String version, Type type, Platform platform,
+                                   Flavor flavor, Boolean bundledJdk, String message) {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
             () -> checkDistro(project, name, version, type, platform, flavor, bundledJdk));
         assertThat(e.getMessage(), containsString(message));
     }
 
-    private ElasticsearchDistribution createDistro(Project project, String name, String version, String type,
-                              String platform, String flavor, Boolean bundledJdk) {
+    private ElasticsearchDistribution createDistro(Project project, String name, String version, Type type,
+                              Platform platform, Flavor flavor, Boolean bundledJdk) {
         @SuppressWarnings("unchecked")
         NamedDomainObjectContainer<ElasticsearchDistribution> distros =
             (NamedDomainObjectContainer<ElasticsearchDistribution>) project.getExtensions().getByName("elasticsearch_distributions");
@@ -212,8 +211,8 @@ public class DistributionDownloadPluginTests extends GradleUnitTestCase {
     }
 
     // create a distro and finalize its configuration
-    private ElasticsearchDistribution checkDistro(Project project, String name, String version, String type,
-                                                  String platform, String flavor, Boolean bundledJdk) {
+    private ElasticsearchDistribution checkDistro(Project project, String name, String version, Type type,
+                                                  Platform platform, Flavor flavor, Boolean bundledJdk) {
         ElasticsearchDistribution distribution = createDistro(project, name, version, type, platform, flavor, bundledJdk);
         distribution.finalizeValues();
         return distribution;
@@ -226,7 +225,7 @@ public class DistributionDownloadPluginTests extends GradleUnitTestCase {
     }
 
     private void checkBwc(String projectName, String config, Version version, BwcVersions bwcVersions,
-                          String type, String platform, String flavor) {
+                          Type type, Platform platform, Flavor flavor) {
         Project project = createProject(bwcVersions);
         Project archiveProject = ProjectBuilder.builder().withParent(bwcProject).withName(projectName).build();
         archiveProject.getConfigurations().create(config);
@@ -247,9 +246,9 @@ public class DistributionDownloadPluginTests extends GradleUnitTestCase {
         return project;
     }
 
-    private static String projectName(String base, String flavor, boolean bundledJdk) {
+    private static String projectName(String base, Flavor flavor, boolean bundledJdk) {
         String prefix = "";
-        if (flavor.equals("oss")) {
+        if (flavor == Flavor.OSS) {
             prefix += "oss-";
         }
         if (bundledJdk == false) {

@@ -1047,7 +1047,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             ActionListener<Rewriteable> actionListener = ActionListener.wrap(r ->
                 // now we need to check if there is a pending refresh and register
                 shard.awaitShardSearchActive(b ->
-                    executor.execute(new ActionRunnable<ShardSearchRequest>(listener) {
+                    executor.execute(new ActionRunnable<>(listener) {
                         @Override
                         protected void doRun() {
                             listener.onResponse(request);
@@ -1055,8 +1055,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                     })
                 ), listener::onFailure);
             // we also do rewrite on the coordinating node (TransportSearchService) but we also need to do it here for BWC as well as
-            // AliasFilters that might need to be rewritten. These are edge-cases but we are every efficient doing the rewrite here so it's not
-            // adding a lot of overhead
+            // AliasFilters that might need to be rewritten. These are edge-cases but we are every efficient doing the rewrite here so it's
+            // not adding a lot of overhead
             Rewriteable.rewriteAndFetch(request.getRewriteable(), indicesService.getRewriteContext(request::nowInMillis), actionListener);
         } catch (Exception e) {
             listener.onFailure(e);

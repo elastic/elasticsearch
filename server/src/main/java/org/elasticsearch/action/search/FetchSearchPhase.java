@@ -22,7 +22,6 @@ import com.carrotsearch.hppc.IntArrayList;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.search.ScoreDoc;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
@@ -161,7 +160,7 @@ final class FetchSearchPhase extends SearchPhase {
                               final ShardFetchSearchRequest fetchSearchRequest, final QuerySearchResult querySearchResult,
                               final Transport.Connection connection) {
         context.getSearchTransport().sendExecuteFetch(connection, fetchSearchRequest, context.getTask(),
-            ActionListener.trackLeaks(new SearchActionListener<>(shardTarget, shardIndex) {
+            new SearchActionListener<>(shardTarget, shardIndex) {
                 @Override
                 public void innerOnResponse(FetchSearchResult result) {
                     counter.onResult(result);
@@ -179,7 +178,7 @@ final class FetchSearchPhase extends SearchPhase {
                         releaseIrrelevantSearchContext(querySearchResult);
                     }
                 }
-            }));
+            });
     }
 
     /**

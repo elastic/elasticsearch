@@ -62,7 +62,7 @@ public class LeakTracker {
     }
 
     private void clearRefQueue() {
-        for (; ; ) {
+        while (true) {
             Leak<?> ref = (Leak<?>) refQueue.poll();
             if (ref == null) {
                 break;
@@ -76,7 +76,7 @@ public class LeakTracker {
             clearRefQueue();
             return;
         }
-        for (; ; ) {
+        while (true) {
             Leak<?> ref = (Leak<?>) refQueue.poll();
             if (ref == null) {
                 break;
@@ -95,11 +95,11 @@ public class LeakTracker {
 
     public static final class Leak<T> extends WeakReference<Object> {
 
-        @SuppressWarnings("unchecked") // generics and updaters do not mix.
+        @SuppressWarnings("unchecked")
         private static final AtomicReferenceFieldUpdater<Leak<?>, Record> headUpdater =
             (AtomicReferenceFieldUpdater) AtomicReferenceFieldUpdater.newUpdater(Leak.class, Record.class, "head");
 
-        @SuppressWarnings("unchecked") // generics and updaters do not mix.
+        @SuppressWarnings("unchecked")
         private static final AtomicIntegerFieldUpdater<Leak<?>> droppedRecordsUpdater =
             (AtomicIntegerFieldUpdater) AtomicIntegerFieldUpdater.newUpdater(Leak.class, "droppedRecords");
 
@@ -116,22 +116,18 @@ public class LeakTracker {
 
             assert referent != null;
 
-            // Store the hash of the tracked object to later assert it in the close(...) method.
-            // It's important that we not store a reference to the referent as this would disallow it from
-            // be collected via the WeakReference.
             trackedHash = System.identityHashCode(referent);
             allLeaks.add(this);
-            // Create a new Record so we always have the creation stacktrace included.
             headUpdater.set(this, new Record(Record.BOTTOM));
             this.allLeaks = allLeaks;
         }
 
         public void record() {
             Record oldHead;
-            Record prevHead;
             Record newHead;
             boolean dropped;
             do {
+                Record prevHead;
                 if ((prevHead = oldHead = headUpdater.get(this)) == null) {
                     // already closed.
                     return;
@@ -255,11 +251,9 @@ public class LeakTracker {
 
         @Override
         public String toString() {
-            StringBuilder buf = new StringBuilder(2048);
-            // Append the stack trace.
+            StringBuilder buf = new StringBuilder();
             StackTraceElement[] array = getStackTrace();
-            // Skip the first three elements.
-            out:
+            // Skip the first three elements since those are just related to the leak tracker.
             for (int i = 3; i < array.length; i++) {
                 StackTraceElement element = array[i];
                 buf.append('\t');

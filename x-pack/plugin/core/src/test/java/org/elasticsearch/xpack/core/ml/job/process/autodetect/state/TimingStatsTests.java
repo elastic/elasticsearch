@@ -161,7 +161,7 @@ public class TimingStatsTests extends AbstractSerializingTestCase<TimingStats> {
      *     the delta (+/-) within which matches will be allowed
      */
     private static Matcher<TimingStats> areCloseTo(TimingStats operand, double error) {
-        return new CustomTypeSafeMatcher<>("TimingStats close to " + operand) {
+        return new CustomTypeSafeMatcher<TimingStats>("TimingStats close to " + operand) {
             @Override
             protected boolean matchesSafely(TimingStats item) {
                 return equalTo(operand.getJobId()).matches(item.getJobId())

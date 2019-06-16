@@ -1,6 +1,7 @@
 {
   "indices.reload_search_analyzers": {
     "documentation": "https://www.elastic.co/guide/en/elasticsearch/reference/master/indices-reload-analyzers.html",
+    "stability": "experimental",
     "methods": ["GET", "POST"],
     "url": {
       "paths": ["/{index}/_reload_search_analyzers"],

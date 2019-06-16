@@ -15,13 +15,13 @@ public class AutodetectParamsTests extends ESTestCase {
     private static final String JOB_ID = "my-job";
 
     public void testBuilder_WithTimingStats() {
-        TimingStats timingStats = new TimingStats(JOB_ID, 7, 1.0, 1000.0, 666.0);
+        TimingStats timingStats = new TimingStats(JOB_ID, 7, 1.0, 1000.0, 666.0, 1000.0);
         AutodetectParams params = new AutodetectParams.Builder(JOB_ID).setTimingStats(timingStats).build();
         assertThat(params.timingStats(), equalTo(timingStats));
 
         timingStats.updateStats(2000.0);
-        assertThat(timingStats, equalTo(new TimingStats(JOB_ID, 8, 1.0, 2000.0, 832.75)));
-        assertThat(params.timingStats(), equalTo(new TimingStats(JOB_ID, 7, 1.0, 1000.0, 666.0)));
+        assertThat(timingStats, equalTo(new TimingStats(JOB_ID, 8, 1.0, 2000.0, 832.75, 1010.0)));
+        assertThat(params.timingStats(), equalTo(new TimingStats(JOB_ID, 7, 1.0, 1000.0, 666.0, 1000.0)));
     }
 
     public void testBuilder_WithoutTimingStats() {

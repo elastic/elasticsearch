@@ -1,3 +1,6 @@
+import org.elasticsearch.gradle.test.RestIntegTestTask
+
+apply plugin: 'elasticsearch.testclusters'
 apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
 
@@ -5,15 +8,18 @@ dependencies {
     testCompile project(path: xpackProject('plugin').path, configuration: 'testArtifacts')
 }
 
-integTestRunner {
+File repoDir = file("$buildDir/testclusters/repo")
+
+integTest.runner {
     /* To support taking index snapshots, we have to set path.repo setting */
-    systemProperty 'tests.path.repo', new File(buildDir, "cluster/shared/repo")
+    systemProperty 'tests.path.repo', repoDir
 }
 
-integTestCluster {
-    numNodes = 4
-    clusterName = 'ilm'
+testClusters.integTest {
+    distribution = 'DEFAULT'
+    numberOfNodes = 4
     
+    setting 'path.repo', repoDir.absolutePath
     setting 'xpack.ilm.enabled', 'true'
     setting 'xpack.security.enabled', 'false'
     setting 'xpack.watcher.enabled', 'false'

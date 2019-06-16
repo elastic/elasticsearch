@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.ccr;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -15,9 +16,9 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.core.XPackFeatureSet;
+import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.action.XPackUsageFeatureResponse;
 import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata;
-import org.elasticsearch.xpack.core.ccr.CCRFeatureSet;
 import org.junit.Before;
 import org.mockito.Mockito;
 
@@ -43,7 +44,7 @@ public class CCRFeatureSetTests extends ESTestCase {
     }
 
     public void testAvailable() {
-        CCRFeatureSet featureSet = new CCRFeatureSet(Settings.EMPTY, licenseState, clusterService);
+        CCRFeatureSet featureSet = new CCRFeatureSet(Settings.EMPTY, licenseState);
 
         when(licenseState.isCcrAllowed()).thenReturn(false);
         assertThat(featureSet.available(), equalTo(false));
@@ -51,27 +52,27 @@ public class CCRFeatureSetTests extends ESTestCase {
         when(licenseState.isCcrAllowed()).thenReturn(true);
         assertThat(featureSet.available(), equalTo(true));
 
-        featureSet = new CCRFeatureSet(Settings.EMPTY, null, clusterService);
+        featureSet = new CCRFeatureSet(Settings.EMPTY, null);
         assertThat(featureSet.available(), equalTo(false));
     }
 
     public void testEnabled() {
         Settings.Builder settings = Settings.builder().put("xpack.ccr.enabled", false);
-        CCRFeatureSet featureSet = new CCRFeatureSet(settings.build(), licenseState, clusterService);
+        CCRFeatureSet featureSet = new CCRFeatureSet(settings.build(), licenseState);
         assertThat(featureSet.enabled(), equalTo(false));
 
         settings = Settings.builder().put("xpack.ccr.enabled", true);
-        featureSet = new CCRFeatureSet(settings.build(), licenseState, clusterService);
+        featureSet = new CCRFeatureSet(settings.build(), licenseState);
         assertThat(featureSet.enabled(), equalTo(true));
     }
 
     public void testName() {
-        CCRFeatureSet featureSet = new CCRFeatureSet(Settings.EMPTY, licenseState, clusterService);
+        CCRFeatureSet featureSet = new CCRFeatureSet(Settings.EMPTY, licenseState);
         assertThat(featureSet.name(), equalTo("ccr"));
     }
 
     public void testNativeCodeInfo() {
-        CCRFeatureSet featureSet = new CCRFeatureSet (Settings.EMPTY, licenseState, clusterService);
+        CCRFeatureSet featureSet = new CCRFeatureSet (Settings.EMPTY, licenseState);
         assertNull(featureSet.nativeCodeInfo());
     }
 
@@ -109,12 +110,13 @@ public class CCRFeatureSetTests extends ESTestCase {
         ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).metaData(metaData).build();
         Mockito.when(clusterService.state()).thenReturn(clusterState);
 
-        PlainActionFuture<XPackFeatureSet.Usage> future = new PlainActionFuture<>();
-        CCRFeatureSet ccrFeatureSet = new CCRFeatureSet(Settings.EMPTY, licenseState, clusterService);
-        ccrFeatureSet.usage(future);
-        CCRFeatureSet.Usage ccrUsage = (CCRFeatureSet.Usage) future.get();
-        assertThat(ccrUsage.enabled(), equalTo(ccrFeatureSet.enabled()));
-        assertThat(ccrUsage.available(), equalTo(ccrFeatureSet.available()));
+        var usageAction = new CCRFeatureSet.UsageTransportAction(mock(TransportService.class), null, null,
+            mock(ActionFilters.class), null, Settings.EMPTY, licenseState);
+        PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();
+        usageAction.masterOperation(null, clusterState, future);
+        CCRFeatureSet.Usage ccrUsage = (CCRFeatureSet.Usage) future.get().getUsage();
+        assertThat(ccrUsage.enabled(), equalTo(true));
+        assertThat(ccrUsage.available(), equalTo(false));
 
         assertThat(ccrUsage.getNumberOfFollowerIndices(), equalTo(numFollowerIndices));
         if (numFollowerIndices != 0) {

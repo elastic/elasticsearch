@@ -1,6 +1,7 @@
 {
   "snapshot.get_repository": {
     "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/modules-snapshots.html",
+    "stability": "stable",
     "methods": ["GET"],
     "url": {
       "paths": ["/_snapshot", "/_snapshot/{repository}"],

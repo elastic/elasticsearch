@@ -1,6 +1,7 @@
 {
   "ml.get_influencers": {
     "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/current/ml-get-influencer.html",
+    "stability": "stable",
     "methods": [ "GET", "POST" ],
     "url": {
       "paths": [ "/_ml/anomaly_detectors/{job_id}/results/influencers" ],

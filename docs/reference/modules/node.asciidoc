@@ -2,7 +2,7 @@
 == Node
 
 Any time that you start an instance of Elasticsearch, you are starting a
-_node_. A collection of connected nodes is  called a
+_node_. A collection of connected nodes is called a
 <<modules-cluster,cluster>>. If you are running a single node of Elasticsearch,
 then you have a cluster of one node.
 
@@ -12,8 +12,14 @@ is used exclusively for communication between nodes; the HTTP layer is
 used by REST clients.
 
 All nodes know about all the other nodes in the cluster and can forward client
-requests to the appropriate node. Besides that, each node serves one or more
-purpose:
+requests to the appropriate node. 
+
+By default, a node is all of the following types: master-eligible, data, ingest,
+and machine learning (if available).
+
+TIP: As the cluster grows and in particular if you have large {ml} jobs,
+consider separating dedicated master-eligible nodes from dedicated data nodes
+and dedicated {ml} nodes.
 
 <<master-node,Master-eligible node>>::
 
@@ -33,6 +39,17 @@ to apply an <<pipeline,ingest pipeline>> to a document in order to transform
 and enrich the document before indexing. With a heavy ingest load, it makes
 sense to use dedicated ingest nodes and to mark the master and data nodes as
 `node.ingest: false`.
+
+<<ml-node,Machine learning node>>::
+
+A node that has `xpack.ml.enabled` and `node.ml` set to `true`, which is the
+default behavior in the {es} {default-dist}. If you want to use {ml-features},
+there must be at least one {ml} node in your cluster. For more information about
+{ml-features}, see
+{stack-ov}/xpack-ml.html[Machine learning in the {stack}].
++
+IMPORTANT: If you use the {oss-dist}, do not set `node.ml`. Otherwise, the node
+fails to start.
 
 [NOTE]
 [[coordinating-node]]
@@ -85,7 +102,25 @@ better _not_ to use dedicated master nodes for this purpose. It is important
 for the stability of the cluster that master-eligible nodes do as little work
 as possible.
 
-To create a dedicated master-eligible node, set:
+To create a dedicated master-eligible node in the {default-dist}, set:
+
+[source,yaml]
+-------------------
+node.master: true <1>
+node.data: false <2>
+node.ingest: false <3>
+node.ml: false <4>
+xpack.ml.enabled: true <5>
+cluster.remote.connect: false <6>
+-------------------
+<1> The `node.master` role is enabled by default.
+<2> Disable the `node.data` role (enabled by default).
+<3> Disable the `node.ingest` role (enabled by default).
+<4> Disable the `node.ml` role (enabled by default).
+<5> The `xpack.ml.enabled` setting is enabled by default.
+<6> Disable {ccs} (enabled by default).
+
+To create a dedicated master-eligible node in the {oss-dist}, set:
 
 [source,yaml]
 -------------------
@@ -99,11 +134,6 @@ cluster.remote.connect: false <4>
 <3> Disable the `node.ingest` role (enabled by default).
 <4> Disable {ccs} (enabled by default).
 
-ifdef::include-xpack[]
-NOTE: These settings apply only when {xpack} is not installed. To create a
-dedicated master-eligible node when {xpack} is installed, see <<modules-node-xpack,{xpack} node settings>>.
-endif::include-xpack[]
-
 [float]
 [[data-node]]
 === Data Node
@@ -116,8 +146,22 @@ monitor these resources and to add more data nodes if they are overloaded.
 The main benefit of having dedicated data nodes is the separation of the
 master and data roles.
 
-To create a dedicated data node, set:
+To create a dedicated data node in the {default-dist}, set:
+[source,yaml]
+-------------------
+node.master: false <1>
+node.data: true <2>
+node.ingest: false <3>
+node.ml: false <4>
+cluster.remote.connect: false <5>
+-------------------
+<1> Disable the `node.master` role (enabled by default).
+<2> The `node.data` role is enabled by default.
+<3> Disable the `node.ingest` role (enabled by default).
+<4> Disable the `node.ml` role (enabled by default).
+<5> Disable {ccs} (enabled by default).
 
+To create a dedicated data node in the {oss-dist}, set:
 [source,yaml]
 -------------------
 node.master: false <1>
@@ -130,11 +174,6 @@ cluster.remote.connect: false <4>
 <3> Disable the `node.ingest` role (enabled by default).
 <4> Disable {ccs} (enabled by default).
 
-ifdef::include-xpack[]
-NOTE: These settings apply only when {xpack} is not installed. To create a
-dedicated data node when {xpack} is installed, see <<modules-node-xpack,{xpack} node settings>>.
-endif::include-xpack[]
-
 [float]
 [[node-ingest-node]]
 === Ingest Node
@@ -144,7 +183,23 @@ ingest processors. Depending on the type of operations performed by the ingest
 processors and the required resources, it may make sense to have dedicated
 ingest nodes, that will only perform this specific task.
 
-To create a dedicated ingest node, set:
+To create a dedicated ingest node in the {default-dist}, set:
+
+[source,yaml]
+-------------------
+node.master: false <1>
+node.data: false <2>
+node.ingest: true <3>
+node.ml: false <4>
+cluster.remote.connect: false <5>
+-------------------
+<1> Disable the `node.master` role (enabled by default).
+<2> Disable the `node.data` role (enabled by default).
+<3> The `node.ingest` role is enabled by default.
+<4> Disable the `node.ml` role (enabled by default).
+<5> Disable {ccs} (enabled by default).
+
+To create a dedicated ingest node in the {oss-dist}, set:
 
 [source,yaml]
 -------------------
@@ -157,11 +212,6 @@ cluster.remote.connect: false <4>
 <2> Disable the `node.data` role (enabled by default).
 <3> The `node.ingest` role is enabled by default.
 <4> Disable {ccs} (enabled by default).
-
-ifdef::include-xpack[]
-NOTE: These settings apply only when {xpack} is not installed. To create a
-dedicated ingest node when {xpack} is installed, see <<modules-node-xpack,{xpack} node settings>>.
-endif::include-xpack[]
 
 [float]
 [[coordinating-only-node]]
@@ -184,7 +234,23 @@ acknowledgement of cluster state updates from every node! The benefit of
 coordinating only nodes should not be overstated -- data nodes can happily
 serve the same purpose.
 
-To create a dedicated coordinating node, set:
+To create a dedicated coordinating node in the {default-dist}, set:
+
+[source,yaml]
+-------------------
+node.master: false <1>
+node.data: false <2>
+node.ingest: false <3>
+node.ml: false <4>
+cluster.remote.connect: false <5>
+-------------------
+<1> Disable the `node.master` role (enabled by default).
+<2> Disable the `node.data` role (enabled by default).
+<3> Disable the `node.ingest` role (enabled by default).
+<4> Disable the `node.ml` role (enabled by default).
+<5> Disable {ccs} (enabled by default).
+
+To create a dedicated coordinating node in the {oss-dist}, set:
 
 [source,yaml]
 -------------------
@@ -198,10 +264,37 @@ cluster.remote.connect: false <4>
 <3> Disable the `node.ingest` role (enabled by default).
 <4> Disable {ccs} (enabled by default).
 
-ifdef::include-xpack[]
-NOTE: These settings apply only when {xpack} is not installed. To create a
-dedicated coordinating node when {xpack} is installed, see <<modules-node-xpack,{xpack} node settings>>.
-endif::include-xpack[]
+[float]
+[[ml-node]]
+=== [xpack]#Machine learning node#
+
+The {ml-features} provide {ml} nodes, which run jobs and handle {ml} API
+requests. If `xpack.ml.enabled` is set to true and `node.ml` is set to `false`,
+the node can service API requests but it cannot run jobs.
+
+If you want to use {ml-features} in your cluster, you must enable {ml}
+(set `xpack.ml.enabled` to `true`) on all master-eligible nodes. If you have the
+{oss-dist}, do not use these settings.
+
+For more information about these settings, see <<ml-settings>>.
+
+To create a dedicated {ml} node in the {default-dist}, set:
+
+[source,yaml]
+-------------------
+node.master: false <1>
+node.data: false <2>
+node.ingest: false <3>
+node.ml: true <4>
+xpack.ml.enabled: true <5>
+cluster.remote.connect: false <6>
+-------------------
+<1> Disable the `node.master` role (enabled by default).
+<2> Disable the `node.data` role (enabled by default).
+<3> Disable the `node.ingest` role (enabled by default).
+<4> The `node.ml` role is enabled by default.
+<5> The `xpack.ml.enabled` setting is enabled by default.
+<6> Disable {ccs} (enabled by default).
 
 [float]
 [[change-node-role]]
@@ -282,7 +375,3 @@ your data! The RPM and Debian distributions do this for you already.
 More node settings can be found in <<modules,Modules>>.  Of particular note are
 the <<cluster.name,`cluster.name`>>, the <<node.name,`node.name`>> and the
 <<modules-network,network settings>>.
-
-ifdef::include-xpack[]
-include::ml-node.asciidoc[]
-endif::include-xpack[]

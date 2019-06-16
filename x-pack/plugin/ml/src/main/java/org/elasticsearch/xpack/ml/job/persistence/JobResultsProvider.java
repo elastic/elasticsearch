@@ -91,6 +91,7 @@ import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSizeSta
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshotField;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.Quantiles;
+import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.TimingStats;
 import org.elasticsearch.xpack.core.ml.job.results.AnomalyRecord;
 import org.elasticsearch.xpack.core.ml.job.results.Bucket;
 import org.elasticsearch.xpack.core.ml.job.results.CategoryDefinition;
@@ -417,6 +418,30 @@ public class JobResultsProvider {
                 .addSort(SortBuilders.fieldSort(DataCounts.LATEST_RECORD_TIME.getPreferredName()).order(SortOrder.DESC));
     }
 
+    /**
+     * Get the job's timing stats
+     *
+     * @param jobId The job id
+     */
+    public void timingStats(String jobId, Consumer<TimingStats> handler, Consumer<Exception> errorHandler) {
+        String indexName = AnomalyDetectorsIndex.jobResultsAliasedName(jobId);
+        searchSingleResult(
+            jobId,
+            TimingStats.TYPE.getPreferredName(),
+            createTimingStatsSearch(indexName, jobId),
+            TimingStats.PARSER,
+            result -> handler.accept(result.result),
+            errorHandler,
+            () -> new TimingStats(jobId));
+    }
+
+    private SearchRequestBuilder createTimingStatsSearch(String indexName, String jobId) {
+        return client.prepareSearch(indexName)
+            .setSize(1)
+            .setIndicesOptions(IndicesOptions.lenientExpandOpen())
+            .setQuery(QueryBuilders.idsQuery().addIds(TimingStats.documentId(jobId)));
+    }
+
     public void getAutodetectParams(Job job, Consumer<AutodetectParams> consumer, Consumer<Exception> errorHandler) {
 
         String jobId = job.getId();
@@ -443,6 +468,7 @@ public class JobResultsProvider {
         MultiSearchRequestBuilder msearch = client.prepareMultiSearch()
                 .add(createLatestDataCountsSearch(resultsIndex, jobId))
                 .add(createLatestModelSizeStatsSearch(resultsIndex))
+                .add(createTimingStatsSearch(resultsIndex, jobId))
                 // These next two document IDs never need to be the legacy ones due to the rule
                 // that you cannot open a 5.4 job in a subsequent version of the product
                 .add(createDocIdSearch(resultsIndex, ModelSnapshot.documentId(jobId, job.getModelSnapshotId())))
@@ -504,6 +530,8 @@ public class JobResultsProvider {
         String hitId = hit.getId();
         if (DataCounts.documentId(jobId).equals(hitId)) {
             paramsBuilder.setDataCounts(parseSearchHit(hit, DataCounts.PARSER, errorHandler));
+        } else if (TimingStats.documentId(jobId).equals(hitId)) {
+            paramsBuilder.setTimingStats(parseSearchHit(hit, TimingStats.PARSER, errorHandler));
         } else if (hitId.startsWith(ModelSizeStats.documentIdPrefix(jobId))) {
             ModelSizeStats.Builder modelSizeStats = parseSearchHit(hit, ModelSizeStats.LENIENT_PARSER, errorHandler);
             paramsBuilder.setModelSizeStats(modelSizeStats == null ? null : modelSizeStats.build());

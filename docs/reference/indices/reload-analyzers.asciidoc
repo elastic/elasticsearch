@@ -59,6 +59,7 @@ reload to ensure the new state of the file is reflected everywhere in the cluste
 
 [source,js]
 --------------------------------------------------
-POST /test_index/_reload_search_analyzers
+POST /my_index/_reload_search_analyzers
 --------------------------------------------------
 // CONSOLE
+// TEST[s/^/PUT my_index\n/]

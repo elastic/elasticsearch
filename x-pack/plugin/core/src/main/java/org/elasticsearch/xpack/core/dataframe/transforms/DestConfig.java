@@ -50,7 +50,7 @@ public class DestConfig implements Writeable, ToXContentObject {
 
     public DestConfig(final StreamInput in) throws IOException {
         index = in.readString();
-        if (in.getVersion().onOrAfter(Version.CURRENT)) {
+        if (in.getVersion().onOrAfter(Version.V_7_3_0)) {
             pipeline = in.readOptionalString();
         } else {
             pipeline = null;
@@ -72,7 +72,7 @@ public class DestConfig implements Writeable, ToXContentObject {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(index);
-        if (out.getVersion().onOrAfter(Version.CURRENT)) {
+        if (out.getVersion().onOrAfter(Version.V_7_3_0)) {
             out.writeOptionalString(pipeline);
         }
     }

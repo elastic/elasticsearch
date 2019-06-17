@@ -558,7 +558,7 @@ public final class AnalysisRegistry implements Closeable {
                 throw new IllegalArgumentException("analyzer name must not start with '_'. got \"" + analyzer.getKey() + "\"");
             }
         }
-        return new IndexAnalyzers(indexSettings, analyzers, normalizers, whitespaceNormalizers);
+        return new IndexAnalyzers(analyzers, normalizers, whitespaceNormalizers);
     }
 
     private static NamedAnalyzer produceAnalyzer(String name, AnalyzerProvider<?> analyzerFactory,

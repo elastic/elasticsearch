@@ -1,6 +1,7 @@
 {
   "tasks.cancel": {
     "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/tasks.html",
+    "stability": "stable",
     "methods": ["POST"],
     "url": {
       "paths": ["/_tasks/_cancel", "/_tasks/{task_id}/_cancel"],

@@ -30,6 +30,7 @@ import org.elasticsearch.cluster.MockInternalClusterInfoService.DevNullClusterIn
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
@@ -912,9 +913,9 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
 
         logger.info("--> adding one master node, one data node");
         DiscoveryNode discoveryNode1 = new DiscoveryNode("", "node1", buildNewFakeTransportAddress(), emptyMap(),
-                singleton(DiscoveryNode.Role.MASTER), Version.CURRENT);
+                singleton(DiscoveryNodeRole.MASTER_ROLE), Version.CURRENT);
         DiscoveryNode discoveryNode2 = new DiscoveryNode("", "node2", buildNewFakeTransportAddress(), emptyMap(),
-                singleton(DiscoveryNode.Role.DATA), Version.CURRENT);
+                singleton(DiscoveryNodeRole.DATA_ROLE), Version.CURRENT);
 
         DiscoveryNodes discoveryNodes = DiscoveryNodes.builder().add(discoveryNode1).add(discoveryNode2).build();
         ClusterState baseClusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
@@ -977,7 +978,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
         // Add another datanode, it should relocate.
         logger.info("--> adding node3");
         DiscoveryNode discoveryNode3 = new DiscoveryNode("", "node3", buildNewFakeTransportAddress(), emptyMap(),
-                singleton(DiscoveryNode.Role.DATA), Version.CURRENT);
+                singleton(DiscoveryNodeRole.DATA_ROLE), Version.CURRENT);
         ClusterState updateClusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes())
                 .add(discoveryNode3)).build();
 

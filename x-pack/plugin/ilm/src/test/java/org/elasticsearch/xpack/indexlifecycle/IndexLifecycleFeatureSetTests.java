@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.indexlifecycle;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -16,6 +17,8 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.action.XPackUsageFeatureResponse;
 import org.elasticsearch.xpack.core.indexlifecycle.IndexLifecycleFeatureSetUsage;
 import org.elasticsearch.xpack.core.indexlifecycle.IndexLifecycleFeatureSetUsage.PolicyStats;
 import org.elasticsearch.xpack.core.indexlifecycle.IndexLifecycleMetadata;
@@ -51,7 +54,7 @@ public class IndexLifecycleFeatureSetTests extends ESTestCase {
     }
 
     public void testAvailable() {
-        IndexLifecycleFeatureSet featureSet = new IndexLifecycleFeatureSet(Settings.EMPTY, licenseState, clusterService);
+        IndexLifecycleFeatureSet featureSet = new IndexLifecycleFeatureSet(Settings.EMPTY, licenseState);
 
         when(licenseState.isIndexLifecycleAllowed()).thenReturn(false);
         assertThat(featureSet.available(), equalTo(false));
@@ -59,27 +62,27 @@ public class IndexLifecycleFeatureSetTests extends ESTestCase {
         when(licenseState.isIndexLifecycleAllowed()).thenReturn(true);
         assertThat(featureSet.available(), equalTo(true));
 
-        featureSet = new IndexLifecycleFeatureSet(Settings.EMPTY, null, clusterService);
+        featureSet = new IndexLifecycleFeatureSet(Settings.EMPTY, null);
         assertThat(featureSet.available(), equalTo(false));
     }
 
     public void testEnabled() {
         Settings.Builder settings = Settings.builder().put("xpack.ilm.enabled", false);
-        IndexLifecycleFeatureSet featureSet = new IndexLifecycleFeatureSet(settings.build(), licenseState, clusterService);
+        IndexLifecycleFeatureSet featureSet = new IndexLifecycleFeatureSet(settings.build(), licenseState);
         assertThat(featureSet.enabled(), equalTo(false));
 
         settings = Settings.builder().put("xpack.ilm.enabled", true);
-        featureSet = new IndexLifecycleFeatureSet(settings.build(), licenseState, clusterService);
+        featureSet = new IndexLifecycleFeatureSet(settings.build(), licenseState);
         assertThat(featureSet.enabled(), equalTo(true));
     }
 
     public void testName() {
-        IndexLifecycleFeatureSet featureSet = new IndexLifecycleFeatureSet(Settings.EMPTY, licenseState, clusterService);
+        IndexLifecycleFeatureSet featureSet = new IndexLifecycleFeatureSet(Settings.EMPTY, licenseState);
         assertThat(featureSet.name(), equalTo("ilm"));
     }
 
     public void testNativeCodeInfo() {
-        IndexLifecycleFeatureSet featureSet = new IndexLifecycleFeatureSet(Settings.EMPTY, licenseState, clusterService);
+        IndexLifecycleFeatureSet featureSet = new IndexLifecycleFeatureSet(Settings.EMPTY, licenseState);
         assertNull(featureSet.nativeCodeInfo());
     }
 
@@ -110,12 +113,13 @@ public class IndexLifecycleFeatureSetTests extends ESTestCase {
         ClusterState clusterState = buildClusterState(policies, indexPolicies);
         Mockito.when(clusterService.state()).thenReturn(clusterState);
 
-        PlainActionFuture<IndexLifecycleFeatureSet.Usage> future = new PlainActionFuture<>();
-        IndexLifecycleFeatureSet ilmFeatureSet = new IndexLifecycleFeatureSet(Settings.EMPTY, licenseState, clusterService);
-        ilmFeatureSet.usage(future);
-        IndexLifecycleFeatureSetUsage ilmUsage = (IndexLifecycleFeatureSetUsage) future.get();
-        assertThat(ilmUsage.enabled(), equalTo(ilmFeatureSet.enabled()));
-        assertThat(ilmUsage.available(), equalTo(ilmFeatureSet.available()));
+        var usageAction = new IndexLifecycleFeatureSet.UsageTransportAction(mock(TransportService.class), null, null,
+            mock(ActionFilters.class), null, Settings.EMPTY, licenseState);
+        PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();
+        usageAction.masterOperation(null, clusterState, future);
+        IndexLifecycleFeatureSetUsage ilmUsage = (IndexLifecycleFeatureSetUsage) future.get().getUsage();
+        assertThat(ilmUsage.enabled(), equalTo(true));
+        assertThat(ilmUsage.available(), equalTo(false));
 
         List<PolicyStats> policyStatsList = ilmUsage.getPolicyStats();
         assertThat(policyStatsList.size(), equalTo(policies.size()));

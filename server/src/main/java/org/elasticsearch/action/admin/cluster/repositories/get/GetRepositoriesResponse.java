@@ -50,7 +50,7 @@ public class GetRepositoriesResponse extends ActionResponse implements ToXConten
     }
 
     public GetRepositoriesResponse(StreamInput in) throws IOException {
-        readFrom(in);
+        repositories = new RepositoriesMetaData(in);
     }
 
     /**
@@ -65,7 +65,7 @@ public class GetRepositoriesResponse extends ActionResponse implements ToXConten
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        repositories = new RepositoriesMetaData(in);
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override

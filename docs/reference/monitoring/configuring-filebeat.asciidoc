@@ -30,34 +30,8 @@ from impacting the performance of your production cluster. See
 . Enable the collection of monitoring data on your cluster.
 +
 --
-//include::configuring-metricbeat.asciidoc[tag=enable-collection]
-Set `xpack.monitoring.collection.enabled` to `true` on each node in the
-production cluster. By default, it is is disabled (`false`). 
-
-NOTE: You can specify this setting in either the `elasticsearch.yml` on each 
-node or across the cluster as a dynamic cluster setting. If {es} 
-{security-features} are enabled, you must have `monitor` cluster privileges to 
-view the cluster settings and `manage` cluster privileges to change them.
-
-For example, you can use the following APIs to review and change this setting:
-
-[source,js]
-----------------------------------
-GET _cluster/settings
-
-PUT _cluster/settings
-{
-  "persistent": {
-    "xpack.monitoring.collection.enabled": true
-  }
-}
-----------------------------------
-// CONSOLE 
-For more information, see <<monitoring-settings>> and <<cluster-update-settings>>.
+include::configuring-metricbeat.asciidoc[tag=enable-collection]
 --
-
-. Optional: Collect metrics about {es}. See <<configuring-metricbeat>> or
-<<collecting-monitoring-data>>.
 
 . Identify which logs you want to monitor. 
 +
@@ -101,7 +75,7 @@ must access it via HTTPS. For example, use a `hosts` setting like
 
 IMPORTANT: The {es} {monitor-features} use ingest pipelines, therefore the
 cluster that stores the monitoring data must have at least one 
-ingest node.
+{ref}/ingest.html[ingest node].
  
 If {es} {security-features} are enabled on the monitoring cluster, you must
 provide a valid user ID and password so that {filebeat} can send metrics 
@@ -184,6 +158,18 @@ appropriate path variables in the `modules.d/elasticsearch.yml` file. See
 NOTE: Depending on how you’ve installed {filebeat}, you might see errors related
 to file ownership or permissions when you try to run {filebeat} modules. See
 {beats-ref}/config-file-permissions.html[Config file ownership and permissions].
+
+--
+
+. Check whether the appropriate indices exist on the monitoring cluster.
++
+--
+For example, use the {ref}/cat-indices.html[cat indices] command to verify
+that there are new `filebeat-*` indices. 
+
+TIP: If you want to use the *Monitoring* UI in {kib}, there must also be 
+`.monitoring-*` indices. Those indices are generated when you collect metrics
+about {stack} products. For example, see <<configuring-metricbeat>>.
 
 --
 

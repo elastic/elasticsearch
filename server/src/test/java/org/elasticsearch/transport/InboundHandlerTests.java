@@ -54,7 +54,6 @@ public class InboundHandlerTests extends ESTestCase {
     @Before
     public void setUp() throws Exception {
         super.setUp();
-        TransportLogger transportLogger = new TransportLogger();
         taskManager = new TaskManager(Settings.EMPTY, threadPool, Collections.emptySet());
         channel = new FakeTcpChannel(randomBoolean(), buildNewFakeTransportAddress().address(), buildNewFakeTransportAddress().address());
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(Collections.emptyList());
@@ -63,9 +62,9 @@ public class InboundHandlerTests extends ESTestCase {
         }, (v, f, c, r, r_id) -> {
         });
         TransportKeepAlive keepAlive = new TransportKeepAlive(threadPool, TcpChannel::sendMessage);
-        OutboundHandler outboundHandler = new OutboundHandler("node", version, new String[0], threadPool, BigArrays.NON_RECYCLING_INSTANCE,
-            transportLogger);
-        handler = new InboundHandler(threadPool, outboundHandler, reader, new NoneCircuitBreakerService(), transportLogger, handshaker,
+        OutboundHandler outboundHandler = new OutboundHandler("node", version, new String[0], threadPool, BigArrays.NON_RECYCLING_INSTANCE
+        );
+        handler = new InboundHandler(threadPool, outboundHandler, reader, new NoneCircuitBreakerService(), handshaker,
             keepAlive);
     }
 

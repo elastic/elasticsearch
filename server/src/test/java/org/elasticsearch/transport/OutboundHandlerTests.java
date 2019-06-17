@@ -62,12 +62,11 @@ public class OutboundHandlerTests extends ESTestCase {
     @Before
     public void setUp() throws Exception {
         super.setUp();
-        TransportLogger transportLogger = new TransportLogger();
         channel = new FakeTcpChannel(randomBoolean(), buildNewFakeTransportAddress().address(), buildNewFakeTransportAddress().address());
         TransportAddress transportAddress = buildNewFakeTransportAddress();
         node = new DiscoveryNode("", transportAddress, Version.CURRENT);
         String[] features = {feature1, feature2};
-        handler = new OutboundHandler("node", Version.CURRENT, features, threadPool, BigArrays.NON_RECYCLING_INSTANCE, transportLogger);
+        handler = new OutboundHandler("node", Version.CURRENT, features, threadPool, BigArrays.NON_RECYCLING_INSTANCE);
     }
 
     @After

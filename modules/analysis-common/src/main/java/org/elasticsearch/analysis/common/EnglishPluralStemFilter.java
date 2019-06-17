@@ -60,7 +60,13 @@ public final class EnglishPluralStemFilter extends TokenFilter {
      * <li>shes - "dishes" becomes "dish"</li>
      * <li>tches - "watches" becomes "watch"</li>
      * </ul>
-     * See https://github.com/elastic/elasticsearch/issues/42892
+     * See https://github.com/elastic/elasticsearch/issues/42892 
+     * <p>
+     * In addition the s stemmer logic is amended so that
+     * <ul>
+     * <li>ees->ee so that bees matches bee</li>
+     * <li>ies->y only on longer words to that ties matches tie</li>
+     * </ul>
      */
     public static class EnglishPlurallStemmer {
         @SuppressWarnings("fallthrough")
@@ -73,7 +79,11 @@ public final class EnglishPluralStemFilter extends TokenFilter {
             case 's':
                 return len;
             case 'e':
-                if (len > 3 && s[len - 3] == 'i' && s[len - 4] != 'a' && s[len - 4] != 'e') {
+                // Modified ies->y logic from original s-stemmer - only work on strings > 4
+                // so spies -> spy still but pies->pie.
+                // The original code also special-cased aies and eies for no good reason as far as I can tell.
+                // ( no words of consequence - eg http://www.thefreedictionary.com/words-that-end-in-aies )
+                if (len > 4 && s[len - 3] == 'i') {
                     s[len - 3] = 'y';
                     return len - 2;
                 }
@@ -89,7 +99,7 @@ public final class EnglishPluralStemFilter extends TokenFilter {
                         if (s[len -4] == 's' && (s[len -3] == 'h' || s[len -3] == 's')){
                             return len - 2;
                         }
-                        // tches
+                        // tches (TODO consider just ches? Gains: lunches == lunch, losses: moustaches!= moustache
                         if (len > 5) {
                             if (s[len -5] == 't' && s[len -4] == 'c' && s[len -3] == 'h' ){
                                 return len - 2;
@@ -98,9 +108,10 @@ public final class EnglishPluralStemFilter extends TokenFilter {
                     }
                 }
                 
-                if (s[len - 3] == 'i' || s[len - 3] == 'a' || s[len - 3] == 'o' || s[len - 3] == 'e')
-                    return len; /* intentional fallthrough */
-                if (s[len - 3] == 'i' || s[len - 3] == 'a' || s[len - 3] == 'o' || s[len - 3] == 'e')
+                // oes condition below is taken from original s-stemmer and is a cop-out because there are too many special cases 
+                // e.g. shoes->shoe but heroes->hero so just doesn't try stem these words at all.
+                // TODO Would be good to find a heuristic for stemming here (see https://howtospell.co.uk/making-O-words-plural )
+                if (  s[len - 3] == 'o')
                     return len; /* intentional fallthrough */
             default:
                 return len - 1;

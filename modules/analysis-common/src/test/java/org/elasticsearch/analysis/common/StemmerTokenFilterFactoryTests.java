@@ -121,15 +121,49 @@ public class StemmerTokenFilterFactoryTests extends ESTokenStreamTestCase {
             IndexAnalyzers indexAnalyzers = analysis.indexAnalyzers;
             NamedAnalyzer analyzer = indexAnalyzers.get("my_plurals");
             assertThat(create, instanceOf(EnglishPluralStemFilter.class));
+
+            // Check old EnglishMinimalStemmer ("S" stemmer) logic
             assertAnalyzesTo(analyzer, "phones", new String[]{"phone"});
             assertAnalyzesTo(analyzer, "horses", new String[]{"horse"});
+            assertAnalyzesTo(analyzer, "cameras", new String[]{"camera"});
+            
+            // TODO The orginal s stemmer gives up on stemming oes words because English has no fixed rule for the stem
+            // (see https://howtospell.co.uk/making-O-words-plural )
+            // Would be good to find a heuristic for stemming oes words.
+            assertAnalyzesTo(analyzer, "toes", new String[]{"toes"});
+            assertAnalyzesTo(analyzer, "shoes", new String[]{"shoes"});
+            assertAnalyzesTo(analyzer, "heroes", new String[]{"heroes"});
+
+            // Check improved EnglishPluralStemFilter logic
+            //sses
             assertAnalyzesTo(analyzer, "dresses", new String[]{"dress"});
-            assertAnalyzesTo(analyzer, "watches", new String[]{"watch"});
             assertAnalyzesTo(analyzer, "possess", new String[]{"possess"});
             assertAnalyzesTo(analyzer, "possesses", new String[]{"possess"});
+            // xes
             assertAnalyzesTo(analyzer, "boxes", new String[]{"box"});
             assertAnalyzesTo(analyzer, "axes", new String[]{"axe"});
+            //shes
             assertAnalyzesTo(analyzer, "dishes", new String[]{"dish"});
+            assertAnalyzesTo(analyzer, "washes", new String[]{"wash"});
+            //ees
+            assertAnalyzesTo(analyzer, "employees", new String[]{"employee"});
+            assertAnalyzesTo(analyzer, "bees", new String[]{"bee"});
+            //tch
+            assertAnalyzesTo(analyzer, "watches", new String[]{"watch"});
+            assertAnalyzesTo(analyzer, "itches", new String[]{"itch"});
+            // ies->y but only for length >4
+            assertAnalyzesTo(analyzer, "spies", new String[]{"spy"});
+            assertAnalyzesTo(analyzer, "ties", new String[]{"tie"});
+            assertAnalyzesTo(analyzer, "lies", new String[]{"lie"});
+            assertAnalyzesTo(analyzer, "pies", new String[]{"pie"});
+            assertAnalyzesTo(analyzer, "dies", new String[]{"die"});
+
+            
+            // *CHES - would be good to find a simple rule that solves lunches, churches but doesn't break aches
+            // documenting current behaviour here as a known issue:
+            assertAnalyzesTo(analyzer, "lunches", new String[]{"lunche"});
+            assertAnalyzesTo(analyzer, "avalanches", new String[]{"avalanche"});
+            assertAnalyzesTo(analyzer, "headaches", new String[]{"headache"});
         }
     }    
 

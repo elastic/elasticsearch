@@ -273,7 +273,7 @@ public class InternalEngineTests extends EngineTestCase {
         }
     }
 
-    public void testSegments() throws Exception {
+    public void testSegmentsWithoutSoftDeletes() throws Exception {
         Settings settings = Settings.builder()
             .put(defaultSettings.getSettings())
             .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), false).build();
@@ -598,6 +598,68 @@ public class InternalEngineTests extends EngineTestCase {
             engine.refresh("test");
 
             assertThat(engine.segmentsStats(true, false).getFileSizes().get(firstEntry.key), greaterThan(firstEntry.value));
+        }
+    }
+
+    public void testSegmentsWithSoftDeletes() throws Exception {
+        Settings.Builder settings = Settings.builder()
+            .put(defaultSettings.getSettings())
+            .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true);
+        final IndexMetaData indexMetaData = IndexMetaData.builder(defaultSettings.getIndexMetaData()).settings(settings).build();
+        final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(indexMetaData);
+        final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
+        try (Store store = createStore();
+             InternalEngine engine = createEngine(config(indexSettings, store, createTempDir(), NoMergePolicy.INSTANCE, null,
+                 null, globalCheckpoint::get))) {
+            assertThat(engine.segments(false), empty());
+            int numDocsFirstSegment = randomIntBetween(5, 50);
+            Set<String> liveDocsFirstSegment = new HashSet<>();
+            for (int i = 0; i < numDocsFirstSegment; i++) {
+                String id = Integer.toString(i);
+                ParsedDocument doc = testParsedDocument(id, null, testDocument(), B_1, null);
+                engine.index(indexForDoc(doc));
+                liveDocsFirstSegment.add(id);
+            }
+            engine.refresh("test");
+            List<Segment> segments = engine.segments(randomBoolean());
+            assertThat(segments, hasSize(1));
+            assertThat(segments.get(0).getNumDocs(), equalTo(liveDocsFirstSegment.size()));
+            assertThat(segments.get(0).getDeletedDocs(), equalTo(0));
+            assertFalse(segments.get(0).committed);
+            int deletes = 0;
+            int updates = 0;
+            int appends = 0;
+            int iterations = scaledRandomIntBetween(1, 50);
+            for (int i = 0; i < iterations && liveDocsFirstSegment.isEmpty() == false; i++) {
+                String idToUpdate = randomFrom(liveDocsFirstSegment);
+                liveDocsFirstSegment.remove(idToUpdate);
+                ParsedDocument doc = testParsedDocument(idToUpdate, null, testDocument(), B_1, null);
+                if (randomBoolean()) {
+                    engine.delete(new Engine.Delete(doc.type(), doc.id(), newUid(doc), primaryTerm.get()));
+                    deletes++;
+                } else {
+                    engine.index(indexForDoc(doc));
+                    updates++;
+                }
+                if (randomBoolean()) {
+                    engine.index(indexForDoc(testParsedDocument(UUIDs.randomBase64UUID(), null, testDocument(), B_1, null)));
+                    appends++;
+                }
+            }
+            boolean committed = randomBoolean();
+            if (committed) {
+                engine.flush();
+            }
+            engine.refresh("test");
+            segments = engine.segments(randomBoolean());
+            assertThat(segments, hasSize(2));
+            assertThat(segments.get(0).getNumDocs(), equalTo(liveDocsFirstSegment.size()));
+            assertThat(segments.get(0).getDeletedDocs(), equalTo(updates + deletes));
+            assertThat(segments.get(0).committed, equalTo(committed));
+
+            assertThat(segments.get(1).getNumDocs(), equalTo(updates + appends));
+            assertThat(segments.get(1).getDeletedDocs(), equalTo(deletes)); // delete tombstones
+            assertThat(segments.get(1).committed, equalTo(committed));
         }
     }
 

@@ -336,7 +336,7 @@ Further more, it is possible to order groups based on aggregations of their valu
 include-tagged::{sql-specs}/docs/docs.csv-spec[orderByAgg]
 ----
 
-IMPORTANT: Ordering by aggregation is possible for up to 512 entries for memory consumption reasons.
+IMPORTANT: Ordering by aggregation is possible for up to *10000* entries for memory consumption reasons.
 In cases where the results pass this threshold, use <<sql-syntax-limit,`LIMIT`>> to reduce the number
 of results.
 

@@ -1,5 +1,6 @@
 {
   "ml.update_filter": {
+    "stability": "stable",
     "methods": [ "POST" ],
     "url": {
       "paths": [ "/_ml/filters/{filter_id}/_update" ],

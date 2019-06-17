@@ -148,7 +148,7 @@ NOTE: Transient settings are not considered for backup.
 ===== Controlling access to the backup repository
 
 If a third party reads the snapshot and exposes the contents of the `.security` index, 
-snapshot does not equate to compromised cluster security. An attacker would
+it does not mean you have compromised cluster security. An attacker would
 still need to brute force cryptographic hashes before it can impersonate users
 or use API keys. However, every document in the security index is sensitive to
 changes. Modifications to that index have the potential to compromise the

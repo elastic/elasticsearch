@@ -30,6 +30,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.node.Node;
+import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xpack.core.indexlifecycle.AsyncActionStep.Listener;
 import org.elasticsearch.xpack.core.indexlifecycle.Step.StepKey;
 import org.hamcrest.Matchers;
@@ -39,7 +40,9 @@ import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -394,6 +397,80 @@ public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSing
         Mockito.verify(client, Mockito.only()).admin();
         Mockito.verify(adminClient, Mockito.only()).indices();
         Mockito.verify(indicesClient, Mockito.only()).updateSettings(Mockito.any(), Mockito.any());
+    }
+
+    public void testPerformActionHighestVersionNodeIsPicked() throws IOException {
+        final Version indexCreationVersion = VersionUtils.randomPreviousCompatibleVersion(random(), Version.CURRENT);
+        IndexMetaData indexMetaData = IndexMetaData.builder(randomAlphaOfLength(10)).settings(settings(indexCreationVersion))
+            .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
+        Index index = indexMetaData.getIndex();
+        Map<Version, Set<String>> nodesByVersion = new HashMap<>();
+        Settings validNodeSettings = Settings.EMPTY;
+        DiscoveryNodes.Builder nodes = DiscoveryNodes.builder();
+        int numNodes = randomIntBetween(1, 20);
+        Version highestAvailableVersion = indexCreationVersion;
+        for (int i = 0; i < numNodes; i++) {
+            String nodeId = "node_id_" + i;
+            String nodeName = "node_" + i;
+            int nodePort = 9300 + i;
+            Settings nodeSettings = Settings.builder().put(validNodeSettings).put(Node.NODE_NAME_SETTING.getKey(), nodeName).build();
+            Version nodeVersion = VersionUtils.randomVersionBetween(random(), indexCreationVersion, Version.CURRENT);
+            highestAvailableVersion = Version.max(highestAvailableVersion, nodeVersion);
+            nodesByVersion.computeIfAbsent(nodeVersion, (version) -> new HashSet<>()).add(nodeId);
+            nodes.add(new DiscoveryNode(
+                Node.NODE_NAME_SETTING.get(nodeSettings),
+                nodeId,
+                new TransportAddress(TransportAddress.META_ADDRESS, nodePort),
+                Node.NODE_ATTRIBUTES.getAsMap(nodeSettings),
+                DiscoveryNode.getRolesFromSettings(nodeSettings),
+                nodeVersion));
+        }
+
+        Set<String> validNodeIds = nodesByVersion.get(highestAvailableVersion);
+        assertNodeSelected(indexMetaData, index, validNodeIds, nodes);
+    }
+
+    public void testPerformActionAttrsOnlyAvailableOnOldNodes() throws IOException {
+        final String[] validAttr = new String[] { "box_type", "valid" };
+        final String[] invalidAttr = new String[] { "box_type", "not_valid" };
+        final Version indexCreationVersion = VersionUtils.randomPreviousCompatibleVersion(random(), Version.CURRENT);
+        final Builder indexSettings = settings(indexCreationVersion);
+        indexSettings.put(IndexMetaData.INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + validAttr[0], validAttr[1]);
+        IndexMetaData indexMetaData = IndexMetaData.builder(randomAlphaOfLength(10)).settings(indexSettings)
+            .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
+        Index index = indexMetaData.getIndex();
+        Map<Version, Set<String>> nodesByVersion = new HashMap<>();
+        Settings validNodeSettings = Settings.builder().put(Node.NODE_ATTRIBUTES.getKey() + validAttr[0], validAttr[1]).build();
+        Settings invalidNodeSettings = Settings.builder().put(Node.NODE_ATTRIBUTES.getKey() + invalidAttr[0], invalidAttr[1]).build();
+        DiscoveryNodes.Builder nodes = DiscoveryNodes.builder();
+        int numNodes = randomIntBetween(1, 20);
+        for (int i = 0; i < numNodes; i++) {
+            String nodeId = "node_id_" + i;
+            String nodeName = "node_" + i;
+            int nodePort = 9300 + i;
+            Version nodeVersion;
+            Settings nodeSettings;
+            // Randomize whether the node has (an old version and valid attributes) OR (the current version and invalid attributes) and
+            // make sure at least one node has the latter
+            if (randomBoolean() || (i == numNodes - 1 && (nodesByVersion.containsKey(Version.CURRENT) == false))) {
+                nodeSettings = Settings.builder().put(invalidNodeSettings).put(Node.NODE_NAME_SETTING.getKey(), nodeName).build();
+                nodeVersion = Version.CURRENT;
+            } else {
+                nodeSettings = Settings.builder().put(validNodeSettings).put(Node.NODE_NAME_SETTING.getKey(), nodeName).build();
+                nodeVersion = VersionUtils.randomVersionBetween(random(), indexCreationVersion,
+                    VersionUtils.getPreviousVersion(Version.CURRENT));
+            }
+            nodesByVersion.computeIfAbsent(nodeVersion, (version) -> new HashSet<>()).add(nodeId);
+            nodes.add(new DiscoveryNode(
+                Node.NODE_NAME_SETTING.get(nodeSettings),
+                nodeId,
+                new TransportAddress(TransportAddress.META_ADDRESS, nodePort),
+                Node.NODE_ATTRIBUTES.getAsMap(nodeSettings),
+                DiscoveryNode.getRolesFromSettings(nodeSettings),
+                nodeVersion));
+        }
+
+        assertNoValidNode(indexMetaData, index, nodes);
     }
 
     private void assertNoValidNode(IndexMetaData indexMetaData, Index index, DiscoveryNodes.Builder nodes) {

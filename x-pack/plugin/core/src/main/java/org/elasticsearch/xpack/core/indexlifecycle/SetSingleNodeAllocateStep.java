@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.core.indexlifecycle;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.client.Client;
@@ -13,6 +14,7 @@ import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RoutingNode;
+import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
@@ -44,15 +46,23 @@ public class SetSingleNodeAllocateStep extends AsyncActionStep {
 
     @Override
     public void performAction(IndexMetaData indexMetaData, ClusterState clusterState, ClusterStateObserver observer, Listener listener) {
-        RoutingAllocation allocation = new RoutingAllocation(ALLOCATION_DECIDERS, clusterState.getRoutingNodes(), clusterState, null,
+        final RoutingNodes routingNodes = clusterState.getRoutingNodes();
+        RoutingAllocation allocation = new RoutingAllocation(ALLOCATION_DECIDERS, routingNodes, clusterState, null,
                 System.nanoTime());
         List<String> validNodeIds = new ArrayList<>();
         Optional<ShardRouting> anyShard = clusterState.getRoutingTable().allShards(indexMetaData.getIndex().getName()).stream().findAny();
         if (anyShard.isPresent()) {
+            // Find the highest node version in the cluster - shards can't be allocated to a node running an older version than they're
+            // currently on, so we should only pick one of the newest version nodes to reallocate to
+            Version highestNodeVersion = indexMetaData.getCreationVersion();
+            for (RoutingNode node : routingNodes) {
+                highestNodeVersion = Version.max(highestNodeVersion, node.node().getVersion());
+            }
             // Iterate through the nodes finding ones that are acceptable for the current allocation rules of the shard
-            for (RoutingNode node : clusterState.getRoutingNodes()) {
-                boolean canRemainOnCurrentNode = ALLOCATION_DECIDERS.canRemain(anyShard.get(), node, allocation)
-                        .type() == Decision.Type.YES;
+            for (RoutingNode node : routingNodes) {
+                boolean canRemainOnCurrentNode =
+                    ALLOCATION_DECIDERS.canRemain(anyShard.get(), node, allocation).type() == Decision.Type.YES
+                    && highestNodeVersion.onOrBefore(node.node().getVersion());
                 if (canRemainOnCurrentNode) {
                     DiscoveryNode discoveryNode = node.node();
                     validNodeIds.add(discoveryNode.getId());

@@ -45,7 +45,7 @@ import java.util.function.LongSupplier;
 public class IndexLifecycleService
     implements ClusterStateListener, ClusterStateApplier, SchedulerEngine.Listener, Closeable, LocalNodeMasterListener {
     private static final Logger logger = LogManager.getLogger(IndexLifecycleService.class);
-    private static final Set<String> IGNORE_ACTIONS_MAINTENANCE_REQUESTED = Collections.singleton(ShrinkStep.NAME);
+    private static final Set<String> IGNORE_STEPS_MAINTENANCE_REQUESTED = Collections.singleton(ShrinkStep.NAME);
     private volatile boolean isMaster = false;
     private volatile TimeValue pollInterval;
 
@@ -115,7 +115,7 @@ public class IndexLifecycleService
                     StepKey stepKey = IndexLifecycleRunner.getCurrentStepKey(lifecycleState);
 
                     if (OperationMode.STOPPING == currentMode) {
-                        if (stepKey != null && IGNORE_ACTIONS_MAINTENANCE_REQUESTED.contains(stepKey.getName())) {
+                        if (stepKey != null && IGNORE_STEPS_MAINTENANCE_REQUESTED.contains(stepKey.getName())) {
                             logger.info("waiting to stop ILM because index [{}] with policy [{}] is currently in step [{}]",
                                 idxMeta.getIndex().getName(), policyName, stepKey.getName());
                             lifecycleRunner.maybeRunAsyncAction(clusterState, idxMeta, policyName, stepKey);
@@ -249,7 +249,7 @@ public class IndexLifecycleService
                 StepKey stepKey = IndexLifecycleRunner.getCurrentStepKey(lifecycleState);
 
                 if (OperationMode.STOPPING == currentMode) {
-                    if (stepKey != null && IGNORE_ACTIONS_MAINTENANCE_REQUESTED.contains(stepKey.getName())) {
+                    if (stepKey != null && IGNORE_STEPS_MAINTENANCE_REQUESTED.contains(stepKey.getName())) {
                         logger.info("waiting to stop ILM because index [{}] with policy [{}] is currently in step [{}]",
                             idxMeta.getIndex().getName(), policyName, stepKey.getName());
                         if (fromClusterStateChange) {

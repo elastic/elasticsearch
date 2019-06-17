@@ -199,8 +199,12 @@ public class InternalEngine extends Engine {
                 translog = openTranslog(engineConfig, translogDeletionPolicy, engineConfig.getGlobalCheckpointSupplier(),
                     () -> {
                         final LocalCheckpointTracker tracker = getLocalCheckpointTracker();
-                        assert tracker != null;
-                        return tracker.prepareForPersistence();
+                        assert tracker != null || getTranslog().isOpen() == false;
+                        if (tracker != null) {
+                            return tracker.prepareForPersistence();
+                        } else {
+                            return () -> {};
+                        }
                     });
                 assert translog.getGeneration() != null;
                 this.translog = translog;

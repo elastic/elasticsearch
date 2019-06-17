@@ -11,7 +11,6 @@ Java High Level REST Client::
 * Added param ignore_throttled=false when indicesOptions.ignoreThrottle {pull}42393[#42393] (issue: {issue}42358[#42358])
 
 
-
 [[bug-6.8.1]]
 [float]
 === Bug fixes
@@ -36,14 +35,14 @@ Infra/Core::
 * Deprecation info for joda-java migration {pull}41956[#41956] (issue: {issue}42010[#42010])
 
 Machine Learning::
-* [ML] Fix possible race condition when closing an opening job {pull}42506[#42506]
+* Fix possible race condition when closing an opening job {pull}42506[#42506]
 
 Mapping::
 * Fix possible NPE in put mapping validators {pull}43000[#43000] (issue: {issue}37675[#37675])
 
 Percolator::
-* fixed ignoring name parameter for percolator queries {pull}42598[#42598] (issue: {issue}40405[#40405])
-* Percolator: Exclude nested documents {pull}42554[#42554] (issue: {issue}42361[#42361])
+* Fixed ignoring name parameter for percolator queries {pull}42598[#42598] (issue: {issue}40405[#40405])
+* Exclude nested documents {pull}42554[#42554] (issue: {issue}42361[#42361])
 
 Recovery::
 * Recovery with syncId should verify seqno infos {pull}41265[#41265]
@@ -55,8 +54,8 @@ Rollup::
 * Fix max boundary for rollup jobs that use a delay {pull}42158[#42158]
 
 SQL::
-* SQL: Fix wrong results when sorting on aggregate {pull}43154[#43154] (issue: {issue}42851[#42851])
-* SQL: cover the Integer type when extracting values from _source {pull}42859[#42859] (issue: {issue}42858[#42858])
+* Fix wrong results when sorting on aggregate {pull}43154[#43154] (issue: {issue}42851[#42851])
+* Cover the Integer type when extracting values from _source {pull}42859[#42859] (issue: {issue}42858[#42858])
 
 Search::
 * SearchRequest#allowPartialSearchResults does not handle successful retries {pull}43095[#43095] (issue: {issue}40743[#40743])

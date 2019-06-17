@@ -52,7 +52,8 @@ import java.util.stream.Collectors;
  * returning 0 instead.
  *
  * The OS can report a negative number in a number of cases:
- * - Non-supported OSes (HP-UX, AIX, OSX after failing to initialize host statistics
+ * - Non-supported OSes (HP-UX, or AIX)
+ * - A failure of macOS to initialize host statistics
  * - An OS that does not support the {@code _SC_PHYS_PAGES} or {@code _SC_PAGE_SIZE} flags for the {@code sysconf()} linux kernel call
  * - An overflow of the product of {@code _SC_PHYS_PAGES} and {@code _SC_PAGE_SIZE}
  * - An error case retrieving these values from a linux kernel

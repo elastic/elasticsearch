@@ -46,6 +46,9 @@ import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 
 public class TranslogWriter extends BaseTranslogReader implements Closeable {
+
+    private static final long SYNC_ALL_OFFSET = Long.MAX_VALUE;
+
     private final ShardId shardId;
     private final ChannelFactory channelFactory;
     // the last checkpoint that was written when the translog was last synced
@@ -259,7 +262,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
      * raising the exception.
      */
     public void sync() throws IOException {
-        syncUpTo(Long.MAX_VALUE);
+        syncUpTo(SYNC_ALL_OFFSET);
     }
 
     /**
@@ -347,7 +350,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
      */
     public boolean syncUpTo(long offset) throws IOException {
         boolean synced = false;
-        Runnable persistenceConfirmation = persistenceCallback.get();
+        Runnable persistenceConfirmation = offset == SYNC_ALL_OFFSET ? persistenceCallback.get() : () -> {};
         if (lastSyncedCheckpoint.offset < offset && syncNeeded()) {
             synchronized (syncLock) { // only one sync/checkpoint should happen concurrently but we wait
                 if (lastSyncedCheckpoint.offset < offset && syncNeeded()) {

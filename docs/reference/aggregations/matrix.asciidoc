@@ -7,3 +7,4 @@ The aggregations in this family operate on multiple fields and produce a matrix 
 the requested document fields. Unlike metric and bucket aggregations, this aggregation family does not yet support scripting.
 
 include::matrix/stats-aggregation.asciidoc[]
+include::matrix/pca-aggregation.asciidoc[]

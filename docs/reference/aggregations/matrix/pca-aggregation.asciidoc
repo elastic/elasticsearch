@@ -31,7 +31,8 @@ POST /_refresh
 
 //////////////////////////
 
-The following example demonstrates the use of principal component analysis to describe the relationship between income and poverty.
+The following example demonstrates the use of principal component analysis to describe the relationship between income,
+education, age, and savings.
 
 [source,js]
 --------------------------------------------------
@@ -153,5 +154,5 @@ GET /_search
 
 ==== Script
 
-This aggregation family does not yet support scripting.
+This aggregation does not yet support scripting.
 

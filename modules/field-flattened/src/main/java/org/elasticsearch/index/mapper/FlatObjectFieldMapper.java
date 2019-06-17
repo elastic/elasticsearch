@@ -88,7 +88,7 @@ import static org.elasticsearch.index.mapper.TypeParsers.parseField;
  * "key\0some value" and "key2.key3\0true". Note that \0 is used as a reserved separator
  *  character (see {@link FlatObjectFieldParser#SEPARATOR}).
  */
-public final class FlatObjectFieldMapper extends FieldMapper {
+public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
 
     public static final String CONTENT_TYPE = "flattened";
     private static final String KEYED_FIELD_SUFFIX = "._keyed";
@@ -539,7 +539,7 @@ public final class FlatObjectFieldMapper extends FieldMapper {
                                   int ignoreAbove,
                                   int depthLimit,
                                   Settings indexSettings) {
-        super(simpleName, fieldType, defaultFieldType, indexSettings, MultiFields.empty(), CopyTo.empty());
+        super(simpleName, fieldType, defaultFieldType, indexSettings, CopyTo.empty());
         assert fieldType.indexOptions().compareTo(IndexOptions.DOCS_AND_FREQS) <= 0;
 
         this.depthLimit = depthLimit;
@@ -562,11 +562,6 @@ public final class FlatObjectFieldMapper extends FieldMapper {
     @Override
     protected FlatObjectFieldMapper clone() {
         return (FlatObjectFieldMapper) super.clone();
-    }
-
-    @Override
-    public boolean supportsKeyedLookup() {
-        return true;
     }
 
     @Override

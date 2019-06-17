@@ -19,6 +19,8 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.elasticsearch.action.bulk.BulkRequestBuilder;
+import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.common.document.DocumentField;
@@ -27,6 +29,11 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.plugin.mapper.FlattenedMapperPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.search.aggregations.Aggregator;
+import org.elasticsearch.search.aggregations.bucket.terms.Terms;
+import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregatorFactory;
+import org.elasticsearch.search.aggregations.metrics.Cardinality;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESSingleNodeTestCase;
@@ -44,10 +51,16 @@ import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.elasticsearch.index.query.QueryBuilders.multiMatchQuery;
 import static org.elasticsearch.index.query.QueryBuilders.queryStringQuery;
 import static org.elasticsearch.index.query.QueryBuilders.simpleQueryStringQuery;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.cardinality;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertOrderedSearchHits;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.startsWith;
 
 public class FlatObjectSearchTests extends ESSingleNodeTestCase {
 
@@ -68,7 +81,9 @@ public class FlatObjectSearchTests extends ESSingleNodeTestCase {
                         .field("type", "flattened")
                         .field("split_queries_on_whitespace", true)
                     .endObject()
-
+                    .startObject("labels")
+                        .field("type", "flattened")
+                    .endObject()
                 .endObject()
            .endObject()
         .endObject();
@@ -92,6 +107,7 @@ public class FlatObjectSearchTests extends ESSingleNodeTestCase {
             .get();
         assertHitCount(searchResponse, 1L);
 
+        // Check that queries are split on whitespace.
         searchResponse = client().prepareSearch()
             .setQuery(matchQuery("headers.content-type", "application/json text/plain"))
             .get();
@@ -129,10 +145,14 @@ public class FlatObjectSearchTests extends ESSingleNodeTestCase {
             .setQuery(multiMatchQuery("application/json", "headers.origin"))
             .get();
         assertHitCount(searchResponse, 0L);
+
+        searchResponse = client().prepareSearch()
+            .setQuery(multiMatchQuery("application/json", "headers.origin", "headers.contentType"))
+            .get();
+        assertHitCount(searchResponse, 0L);
     }
 
-
-    public void testQueryString() throws Exception {
+    public void testQueryStringQuery() throws Exception {
         client().prepareIndex("test", "_doc", "1")
             .setRefreshPolicy(RefreshPolicy.IMMEDIATE)
             .setSource(XContentFactory.jsonBuilder()
@@ -163,7 +183,7 @@ public class FlatObjectSearchTests extends ESSingleNodeTestCase {
         assertHitCount(response, 1);
     }
 
-    public void testSimpleQueryString() throws Exception {
+    public void testSimpleQueryStringQuery() throws Exception {
         client().prepareIndex("test", "_doc", "1")
             .setRefreshPolicy(RefreshPolicy.IMMEDIATE)
             .setSource(XContentFactory.jsonBuilder()
@@ -221,15 +241,181 @@ public class FlatObjectSearchTests extends ESSingleNodeTestCase {
         assertHitCount(searchResponse, 0L);
     }
 
-    public void testDocValuesFields() throws Exception {
+    public void testCardinalityAggregation() throws IOException {
+        int numDocs = randomIntBetween(2, 100);
+        int precisionThreshold = randomIntBetween(0, 1 << randomInt(20));
+
+        BulkRequestBuilder bulkRequest = client().prepareBulk("test", "_doc")
+            .setRefreshPolicy(RefreshPolicy.IMMEDIATE);
+
+        // Add a random number of documents containing a flat object field, plus
+        // a small number of dummy documents.
+        for (int i = 0; i < numDocs; ++i) {
+            bulkRequest.add(client().prepareIndex()
+                .setSource(XContentFactory.jsonBuilder().startObject()
+                    .startObject("flat_object")
+                        .field("first", i)
+                        .field("second", i / 2)
+                    .endObject()
+                .endObject()));
+        }
+
+        for (int i = 0; i < 10; i++) {
+            bulkRequest.add(client().prepareIndex("test", "_doc")
+                .setSource("other_field", "1"));
+        }
+
+        BulkResponse bulkResponse = bulkRequest.get();
+        assertNoFailures(bulkResponse);
+
+        // Test the root flat object field.
+        SearchResponse response = client().prepareSearch("test")
+            .addAggregation(cardinality("cardinality")
+                .precisionThreshold(precisionThreshold)
+                .field("flat_object"))
+            .get();
+
+        assertSearchResponse(response);
+        Cardinality count = response.getAggregations().get("cardinality");
+        assertCardinality(count, numDocs, precisionThreshold);
+
+        // Test two keyed flat object fields.
+        SearchResponse firstResponse = client().prepareSearch("test")
+            .addAggregation(cardinality("cardinality")
+                .precisionThreshold(precisionThreshold)
+                .field("flat_object.first"))
+            .get();
+        assertSearchResponse(firstResponse);
+
+        Cardinality firstCount = firstResponse.getAggregations().get("cardinality");
+        assertCardinality(firstCount, numDocs, precisionThreshold);
+
+        SearchResponse secondResponse = client().prepareSearch("test")
+            .addAggregation(cardinality("cardinality")
+                .precisionThreshold(precisionThreshold)
+                .field("flat_object.second"))
+            .get();
+        assertSearchResponse(secondResponse);
+
+        Cardinality secondCount = secondResponse.getAggregations().get("cardinality");
+        assertCardinality(secondCount, (numDocs + 1) / 2, precisionThreshold);
+    }
+
+    private void assertCardinality(Cardinality count, long value, int precisionThreshold) {
+        if (value <= precisionThreshold) {
+            // linear counting should be picked, and should be accurate
+            assertEquals(value, count.getValue());
+        } else {
+            // error is not bound, so let's just make sure it is > 0
+            assertThat(count.getValue(), greaterThan(0L));
+        }
+    }
+
+    public void testTermsAggregation() throws IOException {
+        BulkRequestBuilder bulkRequest = client().prepareBulk("test", "_doc")
+            .setRefreshPolicy(RefreshPolicy.IMMEDIATE);
+        for (int i = 0; i < 5; i++) {
+            bulkRequest.add(client().prepareIndex()
+                .setSource(XContentFactory.jsonBuilder().startObject()
+                        .startObject("labels")
+                            .field("priority", "urgent")
+                            .field("release", "v1.2." + i)
+                        .endObject()
+                    .endObject()));
+        }
+
+        BulkResponse bulkResponse = bulkRequest.get();
+        assertNoFailures(bulkResponse);
+
+        // Aggregate on the root 'labels' field.
+        TermsAggregationBuilder builder = createTermsAgg("labels");
+        SearchResponse response = client().prepareSearch("test")
+            .addAggregation(builder)
+            .get();
+        assertSearchResponse(response);
+
+        Terms terms = response.getAggregations().get("terms");
+        assertThat(terms, notNullValue());
+        assertThat(terms.getName(), equalTo("terms"));
+        assertThat(terms.getBuckets().size(), equalTo(6));
+
+        Terms.Bucket bucket1 = terms.getBuckets().get(0);
+        assertEquals("urgent", bucket1.getKey());
+        assertEquals(5, bucket1.getDocCount());
+
+        Terms.Bucket bucket2 = terms.getBuckets().get(1);
+        assertThat(bucket2.getKeyAsString(), startsWith("v1.2."));
+        assertEquals(1, bucket2.getDocCount());
+
+        // Aggregate on the 'priority' subfield.
+        TermsAggregationBuilder priorityAgg = createTermsAgg("labels.priority");
+        SearchResponse priorityResponse = client().prepareSearch("test")
+            .addAggregation(priorityAgg)
+            .get();
+        assertSearchResponse(priorityResponse);
+
+        Terms priorityTerms = priorityResponse.getAggregations().get("terms");
+        assertThat(priorityTerms, notNullValue());
+        assertThat(priorityTerms.getName(), equalTo("terms"));
+        assertThat(priorityTerms.getBuckets().size(), equalTo(1));
+
+        Terms.Bucket priorityBucket = priorityTerms.getBuckets().get(0);
+        assertEquals("urgent", priorityBucket.getKey());
+        assertEquals(5, priorityBucket.getDocCount());
+
+        // Aggregate on the 'release' subfield.
+        TermsAggregationBuilder releaseAgg = createTermsAgg("labels.release");
+        SearchResponse releaseResponse = client().prepareSearch("test")
+            .addAggregation(releaseAgg)
+            .get();
+        assertSearchResponse(releaseResponse);
+
+        Terms releaseTerms = releaseResponse.getAggregations().get("terms");
+        assertThat(releaseTerms, notNullValue());
+        assertThat(releaseTerms.getName(), equalTo("terms"));
+        assertThat(releaseTerms.getBuckets().size(), equalTo(5));
+
+        for (Terms.Bucket bucket : releaseTerms.getBuckets()) {
+            assertThat(bucket.getKeyAsString(), startsWith("v1.2."));
+            assertEquals(1, bucket.getDocCount());
+        }
+
+        // Aggregate on the 'priority' subfield with a min_doc_count of 0.
+        TermsAggregationBuilder minDocCountAgg = createTermsAgg("labels.priority")
+            .minDocCount(0);
+        SearchResponse minDocCountResponse = client().prepareSearch("test")
+            .addAggregation(minDocCountAgg)
+            .get();
+        assertSearchResponse(minDocCountResponse);
+
+        Terms minDocCountTerms = minDocCountResponse.getAggregations().get("terms");
+        assertThat(minDocCountTerms, notNullValue());
+        assertThat(minDocCountTerms.getName(), equalTo("terms"));
+        assertThat(minDocCountTerms.getBuckets().size(), equalTo(1));
+    }
+
+    private TermsAggregationBuilder createTermsAgg(String field) {
+        TermsAggregatorFactory.ExecutionMode executionMode = randomFrom(
+            TermsAggregatorFactory.ExecutionMode.values());
+        Aggregator.SubAggCollectionMode collectionMode = randomFrom(
+            Aggregator.SubAggCollectionMode.values());
+
+        return terms("terms")
+            .field(field)
+            .collectMode(collectionMode)
+            .executionHint(executionMode.toString());
+    }
+
+
+    public void testLoadDocValuesFields() throws Exception {
         client().prepareIndex("test", "_doc", "1")
             .setRefreshPolicy(RefreshPolicy.IMMEDIATE)
             .setSource(XContentFactory.jsonBuilder()
                 .startObject()
-                    .startObject("flat_object")
-                        .field("key", "value")
-                        .field("other_key", "other_value")
-                    .endObject()
+                .startObject("flat_object")
+                .field("key", "value")
+                .field("other_key", "other_value")
+                .endObject()
                 .endObject())
             .get();
 
@@ -249,40 +435,39 @@ public class FlatObjectSearchTests extends ESSingleNodeTestCase {
         DocumentField keyedField = fields.get("flat_object.key");
         assertEquals("flat_object.key", keyedField.getName());
         assertEquals("value", keyedField.getValue());
-     }
-
+    }
 
     public void testFieldSort() throws Exception {
         client().prepareIndex("test", "_doc", "1")
             .setRefreshPolicy(RefreshPolicy.IMMEDIATE)
             .setSource(XContentFactory.jsonBuilder()
-            .startObject()
+                .startObject()
                 .startObject("flat_object")
-                    .field("key", "A")
-                    .field("other_key", "D")
+                .field("key", "A")
+                .field("other_key", "D")
                 .endObject()
-            .endObject())
+                .endObject())
             .get();
 
         client().prepareIndex("test", "_doc", "2")
             .setRefreshPolicy(RefreshPolicy.IMMEDIATE)
             .setSource(XContentFactory.jsonBuilder()
-            .startObject()
+                .startObject()
                 .startObject("flat_object")
-                    .field("key", "B")
-                    .field("other_key", "C")
+                .field("key", "B")
+                .field("other_key", "C")
                 .endObject()
-            .endObject())
+                .endObject())
             .get();
 
         client().prepareIndex("test", "_doc", "3")
             .setRefreshPolicy(RefreshPolicy.IMMEDIATE)
             .setSource(XContentFactory.jsonBuilder()
-            .startObject()
+                .startObject()
                 .startObject("flat_object")
-                    .field("other_key", "E")
+                .field("other_key", "E")
                 .endObject()
-            .endObject())
+                .endObject())
             .get();
 
         SearchResponse response = client().prepareSearch("test")
@@ -336,161 +521,4 @@ public class FlatObjectSearchTests extends ESSingleNodeTestCase {
             Collections.singletonMap("origin", "https://www.elastic.co"));
         assertThat(response.getHits().getAt(0).getSourceAsMap(), equalTo(filteredSource));
     }
-
-
-// TODO(jtibs): convert these tests brought over from MultiMatchQueryTests, CardinalityIT, and StringTermsIT
-//    public void testFlatObjectSplitQueriesOnWhitespace() throws IOException {
-//        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject()
-//            .startObject("type")
-//                .startObject("properties")
-//                    .startObject("field")
-//                        .field("type", "flattened")
-//                    .endObject()
-//                    .startObject("field_split")
-//                        .field("type", "flattened")
-//                        .field("split_queries_on_whitespace", true)
-//                    .endObject()
-//                .endObject()
-//            .endObject().endObject());
-//        mapperService.merge("type", new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE);
-//
-//        QueryShardContext queryShardContext = indexService.newQueryShardContext(randomInt(20),
-//            null, () -> { throw new UnsupportedOperationException(); }, null);
-//        MultiMatchQuery parser = new MultiMatchQuery(queryShardContext);
-//
-//        Map<String, Float> fieldNames = new HashMap<>();
-//        fieldNames.put("field", 1.0f);
-//        fieldNames.put("field_split", 1.0f);
-//        Query query = parser.parse(MultiMatchQueryBuilder.Type.BEST_FIELDS, fieldNames, "Foo Bar", null);
-//
-//        DisjunctionMaxQuery expected = new DisjunctionMaxQuery(Arrays.asList(
-//            new TermQuery(new Term("field", "Foo Bar")),
-//            new BooleanQuery.Builder()
-//                .add(new TermQuery(new Term("field_split", "Foo")), BooleanClause.Occur.SHOULD)
-//                .add(new TermQuery(new Term("field_split", "Bar")), BooleanClause.Occur.SHOULD)
-//                .build()
-//        ), 0.0f);
-//        assertThat(query, equalTo(expected));
-//    }
-//
-//      public void testFlatObjectField() {
-//        SearchResponse response = client().prepareSearch("idx")
-//            .addAggregation(cardinality("cardinality")
-//                .precisionThreshold(precisionThreshold)
-//                .field("flattened_values"))
-//            .get();
-//
-//        assertSearchResponse(response);
-//        Cardinality count = response.getAggregations().get("cardinality");
-//        assertCount(count, numDocs);
-//    }
-//
-//    public void testFlatObjectWithKey() {
-//        SearchResponse firstResponse = client().prepareSearch("idx")
-//            .addAggregation(cardinality("cardinality")
-//                .precisionThreshold(precisionThreshold)
-//                .field("flattened_values.first"))
-//            .get();
-//        assertSearchResponse(firstResponse);
-//
-//        Cardinality firstCount = firstResponse.getAggregations().get("cardinality");
-//        assertCount(firstCount, numDocs);
-//
-//        SearchResponse secondResponse = client().prepareSearch("idx")
-//            .addAggregation(cardinality("cardinality")
-//                .precisionThreshold(precisionThreshold)
-//                .field("flattened_values.second"))
-//            .get();
-//        assertSearchResponse(secondResponse);
-//
-//        Cardinality secondCount = secondResponse.getAggregations().get("cardinality");
-//        assertCount(secondCount, (numDocs + 1) / 2);
-//    }
-//
-//
-//    public void testFlatObjectField() {
-//        TermsAggregationBuilder builder = terms("terms")
-//            .field(FLAT_OBJECT_FIELD_NAME)
-//            .collectMode(randomFrom(SubAggCollectionMode.values()))
-//            .executionHint(randomExecutionHint());
-//
-//        SearchResponse response = client().prepareSearch("idx")
-//            .addAggregation(builder)
-//            .get();
-//        assertSearchResponse(response);
-//
-//        Terms terms = response.getAggregations().get("terms");
-//        assertThat(terms, notNullValue());
-//        assertThat(terms.getName(), equalTo("terms"));
-//        assertThat(terms.getBuckets().size(), equalTo(6));
-//
-//        Bucket bucket1 = terms.getBuckets().get(0);
-//        assertEquals("urgent", bucket1.getKey());
-//        assertEquals(5, bucket1.getDocCount());
-//
-//        Bucket bucket2 = terms.getBuckets().get(1);
-//        assertThat(bucket2.getKeyAsString(), startsWith("v1.2."));
-//        assertEquals(1, bucket2.getDocCount());
-//    }
-//
-//    public void testKeyedFlatObject() {
-//        // Aggregate on the 'priority' subfield.
-//        TermsAggregationBuilder priorityAgg = terms("terms")
-//            .field(FLAT_OBJECT_FIELD_NAME + ".priority")
-//            .collectMode(randomFrom(SubAggCollectionMode.values()))
-//            .executionHint(randomExecutionHint());
-//
-//        SearchResponse priorityResponse = client().prepareSearch("idx")
-//            .addAggregation(priorityAgg)
-//            .get();
-//        assertSearchResponse(priorityResponse);
-//
-//        Terms priorityTerms = priorityResponse.getAggregations().get("terms");
-//        assertThat(priorityTerms, notNullValue());
-//        assertThat(priorityTerms.getName(), equalTo("terms"));
-//        assertThat(priorityTerms.getBuckets().size(), equalTo(1));
-//
-//        Bucket priorityBucket = priorityTerms.getBuckets().get(0);
-//        assertEquals("urgent", priorityBucket.getKey());
-//        assertEquals(5, priorityBucket.getDocCount());
-//
-//        // Aggregate on the 'release' subfield.
-//        TermsAggregationBuilder releaseAgg = terms("terms")
-//            .field(FLAT_OBJECT_FIELD_NAME + ".release")
-//            .collectMode(randomFrom(SubAggCollectionMode.values()))
-//            .executionHint(randomExecutionHint());
-//
-//        SearchResponse releaseResponse = client().prepareSearch("idx")
-//            .addAggregation(releaseAgg)
-//            .get();
-//        assertSearchResponse(releaseResponse);
-//
-//        Terms releaseTerms = releaseResponse.getAggregations().get("terms");
-//        assertThat(releaseTerms, notNullValue());
-//        assertThat(releaseTerms.getName(), equalTo("terms"));
-//        assertThat(releaseTerms.getBuckets().size(), equalTo(5));
-//
-//        for (Bucket bucket : releaseTerms.getBuckets()) {
-//            assertThat(bucket.getKeyAsString(), startsWith("v1.2."));
-//            assertEquals(1, bucket.getDocCount());
-//        }
-//    }
-//
-//    public void testKeyedFlatObjectWithMinDocCount() {
-//        TermsAggregationBuilder priorityAgg = terms("terms")
-//            .field(FLAT_OBJECT_FIELD_NAME + ".priority")
-//            .collectMode(randomFrom(SubAggCollectionMode.values()))
-//            .executionHint(randomExecutionHint())
-//            .minDocCount(0);
-//
-//        SearchResponse priorityResponse = client().prepareSearch("idx")
-//            .addAggregation(priorityAgg)
-//            .get();
-//        assertSearchResponse(priorityResponse);
-//
-//        Terms priorityTerms = priorityResponse.getAggregations().get("terms");
-//        assertThat(priorityTerms, notNullValue());
-//        assertThat(priorityTerms.getName(), equalTo("terms"));
-//        assertThat(priorityTerms.getBuckets().size(), equalTo(1));
-//    }
 }

@@ -338,14 +338,6 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         this.copyTo = fieldMergeWith.copyTo;
     }
 
-    public boolean supportsKeyedLookup() {
-        return false;
-    }
-
-    public MappedFieldType keyedFieldType(String key) {
-        throw new IllegalArgumentException("");
-    }
-
     @Override
     public FieldMapper updateFieldType(Map<String, MappedFieldType> fullNameToFieldType) {
         final MappedFieldType newFieldType = fullNameToFieldType.get(fieldType.name());

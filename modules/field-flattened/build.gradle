@@ -18,10 +18,6 @@
  */
 
 esplugin {
-    description 'Flattened object fields'
+    description 'Module for the flattened field type, which allows JSON objects to be flattened into a single field.'
     classname 'org.elasticsearch.plugin.mapper.FlattenedMapperPlugin'
-}
-
-integTestRunner {
-    
 }

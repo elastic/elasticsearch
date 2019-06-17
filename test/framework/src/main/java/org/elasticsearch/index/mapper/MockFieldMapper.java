@@ -26,7 +26,6 @@ import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.query.QueryShardContext;
 
 import java.io.IOException;
@@ -36,23 +35,13 @@ import java.util.List;
 public class MockFieldMapper extends FieldMapper {
     static Settings dummySettings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT.id).build();
 
-    private final boolean supportsKeyedLookup;
-
     public MockFieldMapper(String fullName) {
         this(fullName, new FakeFieldType());
     }
 
-    public MockFieldMapper(String fullName,
-                           MappedFieldType fieldType) {
-      this(fullName, fieldType, false);
-    }
-
-    public MockFieldMapper(String fullName,
-                           MappedFieldType fieldType,
-                           boolean supportsKeyedLookup) {
+    public MockFieldMapper(String fullName, MappedFieldType fieldType) {
         super(findSimpleName(fullName), setName(fullName, fieldType), setName(fullName, fieldType), dummySettings,
             MultiFields.empty(), new CopyTo.Builder().build());
-        this.supportsKeyedLookup = supportsKeyedLookup;
     }
 
     static MappedFieldType setName(String fullName, MappedFieldType fieldType) {
@@ -63,20 +52,6 @@ public class MockFieldMapper extends FieldMapper {
     static String findSimpleName(String fullName) {
         int ndx = fullName.lastIndexOf('.');
         return fullName.substring(ndx + 1);
-    }
-
-    @Override
-    public boolean supportsKeyedLookup() {
-        return supportsKeyedLookup;
-    }
-
-    @Override
-    public FakeKeyedFieldType keyedFieldType(String key) {
-        if (supportsKeyedLookup) {
-            return new FakeKeyedFieldType(key);
-        } else {
-            throw new UnsupportedOperationException("Field [" + name() + "] does not support keyed lookup.");
-        }
     }
 
     public static class FakeFieldType extends TermBasedFieldType {
@@ -95,47 +70,6 @@ public class MockFieldMapper extends FieldMapper {
         @Override
         public String typeName() {
             return "faketype";
-        }
-
-        @Override
-        public Query existsQuery(QueryShardContext context) {
-            if (hasDocValues()) {
-                return new DocValuesFieldExistsQuery(name());
-            } else {
-                return new TermQuery(new Term(FieldNamesFieldMapper.NAME, name()));
-            }
-        }
-
-        @Override
-        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
-            return super.fielddataBuilder(fullyQualifiedIndexName);
-        }
-    }
-
-    public static class FakeKeyedFieldType extends TermBasedFieldType {
-        private final String key;
-
-        public FakeKeyedFieldType(String key) {
-            this.key = key;
-        }
-
-        protected FakeKeyedFieldType(FakeKeyedFieldType ref) {
-            super(ref);
-            this.key = ref.key;
-        }
-
-        public String key() {
-            return key;
-        }
-
-        @Override
-        public MappedFieldType clone() {
-            return new FakeKeyedFieldType(this);
-        }
-
-        @Override
-        public String typeName() {
-            return "fake_keyed_type";
         }
 
         @Override

@@ -1,6 +1,7 @@
 {
   "cat.nodes": {
     "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/cat-nodes.html",
+    "stability": "stable",
     "methods": ["GET"],
     "url": {
       "paths": ["/_cat/nodes"],

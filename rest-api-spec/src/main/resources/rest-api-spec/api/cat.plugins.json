@@ -1,6 +1,7 @@
 {
   "cat.plugins": {
     "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/cat-plugins.html",
+    "stability": "stable",
     "methods": ["GET"],
     "url": {
       "paths": ["/_cat/plugins"],

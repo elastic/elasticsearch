@@ -49,8 +49,8 @@
 ---
 "invalid max_docs fails":
   - skip:
-      version: " - 7.1.99"
-      reason: "max_docs introduced in 7.2.0"
+      version: " - 7.2.99"
+      reason: "max_docs introduced in 7.3.0"
 
   - do:
       index:
@@ -69,8 +69,8 @@
 ---
 "both max_docs and size fails":
   - skip:
-      version: " - 7.1.99"
-      reason: "max_docs introduced in 7.2.0"
+      version: " - 7.2.99"
+      reason: "max_docs introduced in 7.3.0"
 
   - do:
       index:

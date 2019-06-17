@@ -302,46 +302,47 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
                 leaderClient().admin().cluster().prepareState().clear().setMetaData(true).setIndices(leaderIndex).get();
         final String leaderUUID = leaderIndexClusterState.getState().metaData().index(leaderIndex).getIndexUUID();
 
-        // sample the leases after recovery
-        final List<RetentionLeases> retentionLeases = new ArrayList<>();
-        assertBusy(() -> {
-            retentionLeases.clear();
-            final IndicesStatsResponse stats =
-                    leaderClient().admin().indices().stats(new IndicesStatsRequest().clear().indices(leaderIndex)).actionGet();
-            assertNotNull(stats.getShards());
-            assertThat(stats.getShards(), arrayWithSize(numberOfShards * (1 + numberOfReplicas)));
-            final List<ShardStats> shardsStats = getShardsStats(stats);
-            for (int i = 0; i < numberOfShards * (1 + numberOfReplicas); i++) {
-                assertNotNull(shardsStats.get(i).getRetentionLeaseStats());
-                final RetentionLeases currentRetentionLeases = shardsStats.get(i).getRetentionLeaseStats().retentionLeases();
-                assertThat(Strings.toString(shardsStats.get(i)), currentRetentionLeases.leases(), hasSize(1));
-                final ClusterStateResponse followerIndexClusterState =
-                        followerClient().admin().cluster().prepareState().clear().setMetaData(true).setIndices(followerIndex).get();
-                final String followerUUID = followerIndexClusterState.getState().metaData().index(followerIndex).getIndexUUID();
-                final RetentionLease retentionLease =
-                        currentRetentionLeases.leases().iterator().next();
-                final String expectedRetentionLeaseId = retentionLeaseId(
-                        getFollowerCluster().getClusterName(),
-                        new Index(followerIndex, followerUUID),
-                        getLeaderCluster().getClusterName(),
-                        new Index(leaderIndex, leaderUUID));
-                assertThat(retentionLease.id(), equalTo(expectedRetentionLeaseId));
-                retentionLeases.add(currentRetentionLeases);
-            }
-        });
-
         /*
          * We want to ensure that the background renewal is cancelled at the end of recovery. To do this, we will sleep a small multiple
          * of the renew interval. If the renews are not cancelled, we expect that a renewal would have been sent while we were sleeping.
          * After we wake up, it should be the case that the retention leases are the same (same timestamp) as that indicates that they were
          * not renewed while we were sleeping.
          */
-        final TimeValue renewIntervalSetting = CcrRetentionLeases.RETENTION_LEASE_RENEW_INTERVAL_SETTING.get(followerClusterSettings());
-        final long renewEnd = System.nanoTime();
-        Thread.sleep(Math.max(0, randomIntBetween(2, 4) * renewIntervalSetting.millis() - TimeUnit.NANOSECONDS.toMillis(renewEnd - start)));
-
-        // now ensure that the retention leases are the same
         assertBusy(() -> {
+            // sample the leases after recovery
+            final List<RetentionLeases> retentionLeases = new ArrayList<>();
+            assertBusy(() -> {
+                retentionLeases.clear();
+                final IndicesStatsResponse stats =
+                    leaderClient().admin().indices().stats(new IndicesStatsRequest().clear().indices(leaderIndex)).actionGet();
+                assertNotNull(stats.getShards());
+                assertThat(stats.getShards(), arrayWithSize(numberOfShards * (1 + numberOfReplicas)));
+                final List<ShardStats> shardsStats = getShardsStats(stats);
+                for (int i = 0; i < numberOfShards * (1 + numberOfReplicas); i++) {
+                    assertNotNull(shardsStats.get(i).getRetentionLeaseStats());
+                    final RetentionLeases currentRetentionLeases = shardsStats.get(i).getRetentionLeaseStats().retentionLeases();
+                    assertThat(Strings.toString(shardsStats.get(i)), currentRetentionLeases.leases(), hasSize(1));
+                    final ClusterStateResponse followerIndexClusterState =
+                        followerClient().admin().cluster().prepareState().clear().setMetaData(true).setIndices(followerIndex).get();
+                    final String followerUUID = followerIndexClusterState.getState().metaData().index(followerIndex).getIndexUUID();
+                    final RetentionLease retentionLease =
+                        currentRetentionLeases.leases().iterator().next();
+                    final String expectedRetentionLeaseId = retentionLeaseId(
+                        getFollowerCluster().getClusterName(),
+                        new Index(followerIndex, followerUUID),
+                        getLeaderCluster().getClusterName(),
+                        new Index(leaderIndex, leaderUUID));
+                    assertThat(retentionLease.id(), equalTo(expectedRetentionLeaseId));
+                    retentionLeases.add(currentRetentionLeases);
+                }
+            });
+            // sleep a small multiple of the renew interval
+            final TimeValue renewIntervalSetting = CcrRetentionLeases.RETENTION_LEASE_RENEW_INTERVAL_SETTING.get(followerClusterSettings());
+            final long renewEnd = System.nanoTime();
+            Thread.sleep(
+                Math.max(0, randomIntBetween(2, 4) * renewIntervalSetting.millis() - TimeUnit.NANOSECONDS.toMillis(renewEnd - start)));
+
+            // now ensure that the retention leases are the same
             final IndicesStatsResponse stats =
                     leaderClient().admin().indices().stats(new IndicesStatsRequest().clear().indices(leaderIndex)).actionGet();
             assertNotNull(stats.getShards());
@@ -656,47 +657,47 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
         final ClusterStateResponse leaderIndexClusterState =
                 leaderClient().admin().cluster().prepareState().clear().setMetaData(true).setIndices(leaderIndex).get();
         final String leaderUUID = leaderIndexClusterState.getState().metaData().index(leaderIndex).getIndexUUID();
-
-        // sample the leases after pausing
-        final List<RetentionLeases> retentionLeases = new ArrayList<>();
-        assertBusy(() -> {
-            retentionLeases.clear();
-            final IndicesStatsResponse stats =
-                    leaderClient().admin().indices().stats(new IndicesStatsRequest().clear().indices(leaderIndex)).actionGet();
-            assertNotNull(stats.getShards());
-            assertThat(stats.getShards(), arrayWithSize(numberOfShards * (1 + numberOfReplicas)));
-            final List<ShardStats> shardsStats = getShardsStats(stats);
-            for (int i = 0; i < numberOfShards * (1 + numberOfReplicas); i++) {
-                assertNotNull(shardsStats.get(i).getRetentionLeaseStats());
-                final RetentionLeases currentRetentionLeases = shardsStats.get(i).getRetentionLeaseStats().retentionLeases();
-                assertThat(Strings.toString(shardsStats.get(i)), currentRetentionLeases.leases(), hasSize(1));
-                final ClusterStateResponse followerIndexClusterState =
-                        followerClient().admin().cluster().prepareState().clear().setMetaData(true).setIndices(followerIndex).get();
-                final String followerUUID = followerIndexClusterState.getState().metaData().index(followerIndex).getIndexUUID();
-                final RetentionLease retentionLease =
-                        currentRetentionLeases.leases().iterator().next();
-                final String expectedRetentionLeaseId = retentionLeaseId(
-                        getFollowerCluster().getClusterName(),
-                        new Index(followerIndex, followerUUID),
-                        getLeaderCluster().getClusterName(),
-                        new Index(leaderIndex, leaderUUID));
-                assertThat(retentionLease.id(), equalTo(expectedRetentionLeaseId));
-                retentionLeases.add(currentRetentionLeases);
-            }
-        });
-
         /*
          * We want to ensure that the background renewal is cancelled after pausing. To do this, we will sleep a small multiple of the renew
          * interval. If the renews are not cancelled, we expect that a renewal would have been sent while we were sleeping. After we wake
          * up, it should be the case that the retention leases are the same (same timestamp) as that indicates that they were not renewed
          * while we were sleeping.
          */
-        final TimeValue renewIntervalSetting = CcrRetentionLeases.RETENTION_LEASE_RENEW_INTERVAL_SETTING.get(followerClusterSettings());
-        final long renewEnd = System.nanoTime();
-        Thread.sleep(Math.max(0, randomIntBetween(2, 4) * renewIntervalSetting.millis() - TimeUnit.NANOSECONDS.toMillis(renewEnd - start)));
-
-        // now ensure that the retention leases are the same
         assertBusy(() -> {
+            // sample the leases after pausing
+            final List<RetentionLeases> retentionLeases = new ArrayList<>();
+            assertBusy(() -> {
+                retentionLeases.clear();
+                final IndicesStatsResponse stats =
+                    leaderClient().admin().indices().stats(new IndicesStatsRequest().clear().indices(leaderIndex)).actionGet();
+                assertNotNull(stats.getShards());
+                assertThat(stats.getShards(), arrayWithSize(numberOfShards * (1 + numberOfReplicas)));
+                final List<ShardStats> shardsStats = getShardsStats(stats);
+                for (int i = 0; i < numberOfShards * (1 + numberOfReplicas); i++) {
+                    assertNotNull(shardsStats.get(i).getRetentionLeaseStats());
+                    final RetentionLeases currentRetentionLeases = shardsStats.get(i).getRetentionLeaseStats().retentionLeases();
+                    assertThat(Strings.toString(shardsStats.get(i)), currentRetentionLeases.leases(), hasSize(1));
+                    final ClusterStateResponse followerIndexClusterState =
+                        followerClient().admin().cluster().prepareState().clear().setMetaData(true).setIndices(followerIndex).get();
+                    final String followerUUID = followerIndexClusterState.getState().metaData().index(followerIndex).getIndexUUID();
+                    final RetentionLease retentionLease =
+                        currentRetentionLeases.leases().iterator().next();
+                    final String expectedRetentionLeaseId = retentionLeaseId(
+                        getFollowerCluster().getClusterName(),
+                        new Index(followerIndex, followerUUID),
+                        getLeaderCluster().getClusterName(),
+                        new Index(leaderIndex, leaderUUID));
+                    assertThat(retentionLease.id(), equalTo(expectedRetentionLeaseId));
+                    retentionLeases.add(currentRetentionLeases);
+                }
+            });
+            // sleep a small multiple of the renew interval
+            final TimeValue renewIntervalSetting = CcrRetentionLeases.RETENTION_LEASE_RENEW_INTERVAL_SETTING.get(followerClusterSettings());
+            final long renewEnd = System.nanoTime();
+            Thread.sleep(
+                Math.max(0, randomIntBetween(2, 4) * renewIntervalSetting.millis() - TimeUnit.NANOSECONDS.toMillis(renewEnd - start)));
+
+            // now ensure that the retention leases are the same
             final IndicesStatsResponse stats =
                     leaderClient().admin().indices().stats(new IndicesStatsRequest().clear().indices(leaderIndex)).actionGet();
             assertNotNull(stats.getShards());

@@ -128,16 +128,12 @@
 
 ---
 "Test with new response format":
-
-  - skip:
-      version: "all"
-      reason: "AwaitsFix https://github.com/elastic/elasticsearch/issues/42664"
-
   - do:
       index:
         index:  test
         id:     1
         body:   {}
+        refresh: true
 
   - do:
       put_script:
@@ -150,5 +146,5 @@
       search_template:
         body: { "id": "template_1", "params": {} }
 
-  - match: { hits.total.value: 0 }
+  - match: { hits.total.value: 1 }
   - match: { hits.total.relation: eq }

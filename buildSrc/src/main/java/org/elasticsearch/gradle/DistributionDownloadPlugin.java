@@ -68,9 +68,9 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
         setupDownloadServiceRepo(project);
 
         ExtraPropertiesExtension extraProperties = project.getExtensions().getExtraProperties();
-        if (extraProperties.has("bwcVersions")) {
+        //if (extraProperties.has("bwcVersions")) {
             this.bwcVersions = (BwcVersions) extraProperties.get("bwcVersions");
-        } // else - leniency for external project...we need bwcversions to be loadable outside of ES repository
+        //} // else - leniency for external project...we need bwcversions to be loadable outside of ES repository
           // TODO: setup snapshot dependency instead of pointing to bwc distribution projects
 
         project.afterEvaluate(this::setupDistributions);
@@ -187,8 +187,7 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
             return projectDependency(project, distributionProjectPath(distribution), "default");
             // TODO: snapshot dep when not in ES repo
         }
-        BwcVersions.UnreleasedVersionInfo unreleasedInfo = bwcVersions == null ?
-            null : bwcVersions.unreleasedInfo(distribution.getVersion());
+        BwcVersions.UnreleasedVersionInfo unreleasedInfo = bwcVersions.unreleasedInfo(distribution.getVersion());
         if (unreleasedInfo != null) {
             assert distribution.getBundledJdk();
             return projectDependency(project, unreleasedInfo.gradleProjectPath, distributionProjectName(distribution));

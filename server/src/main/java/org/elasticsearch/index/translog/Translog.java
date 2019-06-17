@@ -63,8 +63,8 @@ import java.util.OptionalLong;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
+import java.util.function.LongConsumer;
 import java.util.function.LongSupplier;
-import java.util.function.Supplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -130,7 +130,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     private final LongSupplier primaryTermSupplier;
     private final String translogUUID;
     private final TranslogDeletionPolicy deletionPolicy;
-    private final Supplier<Runnable> persistenceCallback;
+    private final LongConsumer persistedSequenceNumberConsumer;
 
     /**
      * Creates a new Translog instance. This method will create a new transaction log unless the given {@link TranslogGeneration} is
@@ -152,12 +152,12 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     public Translog(
         final TranslogConfig config, final String translogUUID, TranslogDeletionPolicy deletionPolicy,
         final LongSupplier globalCheckpointSupplier, final LongSupplier primaryTermSupplier,
-        final Supplier<Runnable> persistenceCallback) throws IOException {
+        final LongConsumer persistedSequenceNumberConsumer) throws IOException {
         super(config.getShardId(), config.getIndexSettings());
         this.config = config;
         this.globalCheckpointSupplier = globalCheckpointSupplier;
         this.primaryTermSupplier = primaryTermSupplier;
-        this.persistenceCallback = persistenceCallback;
+        this.persistedSequenceNumberConsumer = persistedSequenceNumberConsumer;
         this.deletionPolicy = deletionPolicy;
         this.translogUUID = translogUUID;
         bigArrays = config.getBigArrays();
@@ -194,7 +194,8 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             boolean success = false;
             current = null;
             try {
-                current = createWriter(checkpoint.generation + 1, getMinFileGeneration(), checkpoint.globalCheckpoint, persistenceCallback);
+                current = createWriter(checkpoint.generation + 1, getMinFileGeneration(), checkpoint.globalCheckpoint,
+                    persistedSequenceNumberConsumer);
                 success = true;
             } finally {
                 // we have to close all the recovered ones otherwise we leak file handles here
@@ -476,7 +477,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
      */
     TranslogWriter createWriter(long fileGeneration) throws IOException {
         final TranslogWriter writer = createWriter(fileGeneration, getMinFileGeneration(), globalCheckpointSupplier.getAsLong(),
-            persistenceCallback);
+            persistedSequenceNumberConsumer);
         assert writer.sizeInBytes() == DEFAULT_HEADER_SIZE_IN_BYTES : "Mismatch translog header size; " +
             "empty translog size [" + writer.sizeInBytes() + ", header size [" + DEFAULT_HEADER_SIZE_IN_BYTES + "]";
         return writer;
@@ -492,7 +493,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
      * @param initialGlobalCheckpoint the global checkpoint to be written in the first checkpoint.
      */
     TranslogWriter createWriter(long fileGeneration, long initialMinTranslogGen, long initialGlobalCheckpoint,
-                                Supplier<Runnable> persistenceCallback) throws IOException {
+                                LongConsumer persistedSequenceNumberConsumer) throws IOException {
         final TranslogWriter newFile;
         try {
             newFile = TranslogWriter.create(
@@ -504,7 +505,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                 config.getBufferSize(),
                 initialMinTranslogGen, initialGlobalCheckpoint,
                 globalCheckpointSupplier, this::getMinFileGeneration, primaryTermSupplier.getAsLong(), tragedy,
-                persistenceCallback);
+                persistedSequenceNumberConsumer);
         } catch (final IOException e) {
             throw new TranslogException(shardId, "failed to create new translog file", e);
         }
@@ -1875,7 +1876,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             location.resolve(getFilename(1)), channelFactory,
             new ByteSizeValue(10), 1, initialGlobalCheckpoint,
             () -> { throw new UnsupportedOperationException(); }, () -> { throw new UnsupportedOperationException(); }, primaryTerm,
-                new TragicExceptionHolder(), () -> () -> {});
+                new TragicExceptionHolder(), seqNo -> { throw new UnsupportedOperationException(); });
         writer.close();
         return translogUUID;
     }

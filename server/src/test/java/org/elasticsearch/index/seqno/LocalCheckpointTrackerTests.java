@@ -68,11 +68,19 @@ public class LocalCheckpointTrackerTests extends ESTestCase {
         seqNo2 = tracker.generateSeqNo();
         assertThat(seqNo1, equalTo(1L));
         assertThat(seqNo2, equalTo(2L));
-        tracker.markSeqNoAsProcessed(seqNo2);
+        if (randomBoolean()) {
+            tracker.markSeqNoAsProcessed(seqNo2);
+        } else {
+            tracker.markSeqNoAsPersisted(seqNo2); // also marks as processed
+        }
         assertThat(tracker.getProcessedCheckpoint(), equalTo(0L));
         assertThat(tracker.hasProcessed(seqNo1), equalTo(false));
         assertThat(tracker.hasProcessed(seqNo2), equalTo(true));
-        tracker.markSeqNoAsProcessed(seqNo1);
+        if (randomBoolean()) {
+            tracker.markSeqNoAsProcessed(seqNo1);
+        } else {
+            tracker.markSeqNoAsPersisted(seqNo1); // also marks as processed
+        }
         assertThat(tracker.getProcessedCheckpoint(), equalTo(2L));
         assertThat(tracker.hasProcessed(between(0, 2)), equalTo(true));
         assertThat(tracker.hasProcessed(atLeast(3)), equalTo(false));
@@ -83,8 +91,7 @@ public class LocalCheckpointTrackerTests extends ESTestCase {
         assertThat(tracker.getPersistedCheckpoint(), equalTo(SequenceNumbers.NO_OPS_PERFORMED));
         seqNo1 = tracker.generateSeqNo();
         assertThat(seqNo1, equalTo(0L));
-        tracker.markSeqNoAsProcessed(seqNo1);
-        tracker.prepareForPersistence().run();
+        tracker.markSeqNoAsPersisted(seqNo1);
         assertThat(tracker.getPersistedCheckpoint(), equalTo(0L));
         assertThat(tracker.hasProcessed(0L), equalTo(true));
         assertThat(tracker.hasProcessed(atLeast(1)), equalTo(false));
@@ -92,13 +99,11 @@ public class LocalCheckpointTrackerTests extends ESTestCase {
         seqNo2 = tracker.generateSeqNo();
         assertThat(seqNo1, equalTo(1L));
         assertThat(seqNo2, equalTo(2L));
-        tracker.markSeqNoAsProcessed(seqNo2);
-        tracker.prepareForPersistence().run();
+        tracker.markSeqNoAsPersisted(seqNo2);
         assertThat(tracker.getPersistedCheckpoint(), equalTo(0L));
         assertThat(tracker.hasProcessed(seqNo1), equalTo(false));
         assertThat(tracker.hasProcessed(seqNo2), equalTo(true));
-        tracker.markSeqNoAsProcessed(seqNo1);
-        tracker.prepareForPersistence().run();
+        tracker.markSeqNoAsPersisted(seqNo1);
         assertThat(tracker.getPersistedCheckpoint(), equalTo(2L));
         assertThat(tracker.hasProcessed(between(0, 2)), equalTo(true));
         assertThat(tracker.hasProcessed(atLeast(3)), equalTo(false));
@@ -123,17 +128,14 @@ public class LocalCheckpointTrackerTests extends ESTestCase {
     public void testSimpleReplicaPersisted() {
         assertThat(tracker.getPersistedCheckpoint(), equalTo(SequenceNumbers.NO_OPS_PERFORMED));
         assertThat(tracker.hasProcessed(randomNonNegativeLong()), equalTo(false));
-        tracker.markSeqNoAsProcessed(0L);
-        tracker.prepareForPersistence().run();
+        tracker.markSeqNoAsPersisted(0L);
         assertThat(tracker.getPersistedCheckpoint(), equalTo(0L));
         assertThat(tracker.hasProcessed(0), equalTo(true));
-        tracker.markSeqNoAsProcessed(2L);
-        tracker.prepareForPersistence().run();
+        tracker.markSeqNoAsPersisted(2L);
         assertThat(tracker.getPersistedCheckpoint(), equalTo(0L));
         assertThat(tracker.hasProcessed(1L), equalTo(false));
         assertThat(tracker.hasProcessed(2L), equalTo(true));
-        tracker.markSeqNoAsProcessed(1L);
-        tracker.prepareForPersistence().run();
+        tracker.markSeqNoAsPersisted(1L);
         assertThat(tracker.getPersistedCheckpoint(), equalTo(2L));
         assertThat(tracker.hasProcessed(between(0, 2)), equalTo(true));
         assertThat(tracker.hasProcessed(atLeast(3)), equalTo(false));

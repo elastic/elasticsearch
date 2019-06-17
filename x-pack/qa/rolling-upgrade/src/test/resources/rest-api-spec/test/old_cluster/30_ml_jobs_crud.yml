@@ -41,18 +41,8 @@
   - match: { processed_record_count: 2 }
 
   - do:
-      ml.get_job_stats:
-        job_id: old-cluster-job
-  - match:  { jobs.0.job_id: old-cluster-job }
-
-  - do:
       ml.close_job:
         job_id: old-cluster-job
-
-  - do:
-      ml.get_job_stats:
-        job_id: old-cluster-job
-  - match:  { jobs.0.job_id: old-cluster-job }
 
   - do:
       ml.get_buckets:

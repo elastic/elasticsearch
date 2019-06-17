@@ -15,7 +15,6 @@ setup:
   - do:
       ml.get_job_stats:
         job_id: old-cluster-job
-  - match: { jobs.0.job_id: old-cluster-job }
   - match: { jobs.0.state: "opened" }
   - match: { jobs.0.data_counts.processed_record_count: 2 }
   - is_true: jobs.0.model_size_stats

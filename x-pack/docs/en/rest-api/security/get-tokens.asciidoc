@@ -41,9 +41,10 @@ The following parameters can be specified in the body of a POST request and
 pertain to creating a token:
 
 `grant_type`::
-(string) The type of grant. Supported grant types are: `password`, `_kerberos` (beta),
-`client_credentials` and `refresh_token`.
-`_kerberos` implements SPNEGO based Kerberos support.
+(string) The type of grant. Supported grant types are: `password`, `_kerberos`,
+`client_credentials` and `refresh_token`. The `_kerberos` grant type
+is supported internally and implements SPNEGO based Kerberos support. The `kerberos`
+grant type may change from version to version.
 
 `password`::
 (string) The user's password. If you specify the `password` grant type, this 

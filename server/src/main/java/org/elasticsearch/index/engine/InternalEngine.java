@@ -275,7 +275,10 @@ public class InternalEngine extends Engine {
             if (localCheckpoint < maxSeqNo && engineConfig.getIndexSettings().isSoftDeleteEnabled()) {
                 try (Searcher searcher = searcherSupplier.get()) {
                     Lucene.scanSeqNosInReader(searcher.getDirectoryReader(), localCheckpoint + 1, maxSeqNo,
-                        tracker::markSeqNoAsPersisted /* also marks them as processed */);
+                        seqNo -> {
+                            tracker.markSeqNoAsProcessed(seqNo);
+                            tracker.markSeqNoAsPersisted(seqNo);
+                        });
                 }
             }
             return tracker;

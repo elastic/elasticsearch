@@ -112,13 +112,11 @@ public class LocalCheckpointTracker {
     }
 
     /**
-     * Marks the persistence of the provided sequence number as completed and updates the checkpoint if possible. Also marks the
-     * sequence number as processed if necessary.
+     * Marks the provided sequence number as persisted and updates the checkpoint if possible.
      *
      * @param seqNo the sequence number to mark as persisted
      */
     public synchronized void markSeqNoAsPersisted(final long seqNo) {
-        markSeqNo(seqNo, processedCheckpoint, processedSeqNo);
         markSeqNo(seqNo, persistedCheckpoint, persistedSeqNo);
     }
 
@@ -262,13 +260,13 @@ public class LocalCheckpointTracker {
     private CountedBitSet getBitSetForSeqNo(final LongObjectHashMap<CountedBitSet> bitSetMap, final long seqNo) {
         assert Thread.holdsLock(this);
         final long bitSetKey = getBitSetKey(seqNo);
-        final int index = processedSeqNo.indexOf(bitSetKey);
+        final int index = bitSetMap.indexOf(bitSetKey);
         final CountedBitSet bitSet;
-        if (processedSeqNo.indexExists(index)) {
-            bitSet = processedSeqNo.indexGet(index);
+        if (bitSetMap.indexExists(index)) {
+            bitSet = bitSetMap.indexGet(index);
         } else {
             bitSet = new CountedBitSet(BIT_SET_SIZE);
-            processedSeqNo.indexInsert(index, bitSetKey, bitSet);
+            bitSetMap.indexInsert(index, bitSetKey, bitSet);
         }
         return bitSet;
     }

@@ -29,6 +29,7 @@ import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.UnassignedInfo.AllocationStatus;
 import org.elasticsearch.cluster.routing.allocation.AllocateUnassignedDecision;
 import org.elasticsearch.cluster.routing.allocation.AllocationDecision;
@@ -115,7 +116,8 @@ public class BalancedShardsAllocator implements ShardsAllocator {
     @Override
     public void allocate(RoutingAllocation allocation) {
         if (allocation.routingNodes().size() == 0) {
-            /* with no nodes this is pointless */
+            // If no data node then set AllocationStatus to DECIDERS_NO
+            setAllocationStatus(allocation);
             return;
         }
         final Balancer balancer = new Balancer(logger, allocation, weightFunction, threshold);
@@ -140,6 +142,35 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         }
         return new ShardAllocationDecision(allocateUnassignedDecision, moveDecision);
     }
+
+    /**
+     * This method is called when there are no data nodes in the cluster.
+     *
+     * Newly created unassigned primary shards, with no prior allocation attempts
+     * are classified as yellow instead of red by cluster health.
+     * This function explicitly sets their allocation status to DECIDERS_NO, to
+     * indicate red indices with unassigned shards.
+     */
+    private void setAllocationStatus(RoutingAllocation allocation){
+        RoutingNodes routingNodes = allocation.routingNodes();
+        RoutingNodes.UnassignedShards unassignedShards = routingNodes.unassigned();
+        if (unassignedShards.isEmpty()) {
+            return;
+        }
+        RoutingNodes.UnassignedShards.UnassignedIterator unassignedIterator = unassignedShards.iterator();
+        while (unassignedIterator.hasNext()) {
+            ShardRouting shard = unassignedIterator.next();
+            UnassignedInfo shardInfo = shard.unassignedInfo();
+            if (shard.primary() && shardInfo.getLastAllocationStatus() == AllocationStatus.NO_ATTEMPT) {
+                UnassignedInfo newInfo = new UnassignedInfo(shardInfo.getReason(), shardInfo.getMessage(), shardInfo.getFailure(),
+                        shardInfo.getNumFailedAllocations(), shardInfo.getUnassignedTimeInNanos(),
+                        shardInfo.getUnassignedTimeInMillis(), shardInfo.isDelayed(),
+                        AllocationStatus.DECIDERS_NO);
+                unassignedIterator.updateUnassigned(newInfo, shard.recoverySource(), allocation.changes());
+            }
+        }
+    }
+
 
     /**
      * Returns the currently configured delta threshold

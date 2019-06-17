@@ -18,6 +18,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.xpack.core.dataframe.DataFrameField;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformConfig;
+import org.elasticsearch.xpack.core.dataframe.transforms.pivot.DateHistogramGroupSource;
 import org.elasticsearch.xpack.core.dataframe.utils.DataFrameStrings;
 import org.elasticsearch.xpack.core.dataframe.DataFrameMessages;
 
@@ -72,6 +73,18 @@ public class PutDataFrameTransformAction extends Action<AcknowledgedResponse> {
             }
             for(String failure : config.getPivotConfig().aggFieldValidation()) {
                 validationException = addValidationError(failure, validationException);
+            }
+            for (var group : config.getPivotConfig().getGroupConfig().getGroups().entrySet()) {
+                if (group.getValue() instanceof DateHistogramGroupSource) {
+                    DateHistogramGroupSource dateHistogramGroupSource = (DateHistogramGroupSource) group.getValue();
+                    if (DateHistogramGroupSource.isInvalidFormat(dateHistogramGroupSource.getFormat(),
+                        dateHistogramGroupSource.getInterval().getInterval())) {
+                        validationException = addValidationError("pivot.group_by [" +
+                            group.getKey() +
+                            "] has invalid format [" + dateHistogramGroupSource.getFormat() + "] for interval [" +
+                            dateHistogramGroupSource.getInterval().getInterval() + "]", validationException);
+                    }
+                }
             }
             String destIndex = config.getDestination().getIndex();
             try {

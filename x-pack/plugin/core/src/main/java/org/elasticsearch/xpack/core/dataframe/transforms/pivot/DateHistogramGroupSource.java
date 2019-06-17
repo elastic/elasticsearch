@@ -6,9 +6,12 @@
 package org.elasticsearch.xpack.core.dataframe.transforms.pivot;
 
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
@@ -18,9 +21,12 @@ import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggre
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 
 import java.io.IOException;
+import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
+import java.util.Locale;
 import java.util.Objects;
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
@@ -29,6 +35,8 @@ public class DateHistogramGroupSource extends SingleGroupSource {
 
     private static final int CALENDAR_INTERVAL_ID = 1;
     private static final int FIXED_INTERVAL_ID = 0;
+    private static final long THIRTY_ONE_DAYS_MS = new TimeValue(31, TimeUnit.DAYS).getMillis();
+
 
     /**
      * Interval can be specified in 2 ways:
@@ -246,6 +254,71 @@ public class DateHistogramGroupSource extends SingleGroupSource {
 
     public static DateHistogramGroupSource fromXContent(final XContentParser parser, boolean lenient) throws IOException {
         return lenient ? LENIENT_PARSER.apply(parser, null) : STRICT_PARSER.apply(parser, null);
+    }
+
+    public static boolean isInvalidFormat(String format, DateHistogramInterval interval) {
+        if (format == null || interval == null) {
+            return false;
+        }
+        DateFormatter formatter = DateFormatter.forPattern(format);
+        String expression = interval.toString();
+        String epochFormat = formatter.formatMillis(Instant.EPOCH.toEpochMilli());
+        String epochPlusIntervalFormat = formatter.formatMillis(Instant.EPOCH.toEpochMilli() + interval.estimateMillis());
+        if (DateHistogramAggregationBuilder.DATE_FIELD_UNITS.containsKey(expression)) {
+            // The estimated rounding defaults to 30 days for monthly, EPOCH starts in January, which has 31 days.
+            if (Rounding.DateTimeUnit.MONTH_OF_YEAR.equals(DateHistogramAggregationBuilder.DATE_FIELD_UNITS.get(expression))) {
+                epochPlusIntervalFormat = formatter.formatMillis(Instant.EPOCH.toEpochMilli() + THIRTY_ONE_DAYS_MS);
+            }
+        } else {
+            // This should never really happen in practice. date_histogram does not support multiple month intervals
+            if (expression.endsWith("M")) {
+                throw new IllegalArgumentException("only single month intervals are supported");
+            }
+            final String normalized = expression.toLowerCase(Locale.ROOT).trim();
+            long millisecondLength;
+            if (normalized.endsWith("ms")) {
+                millisecondLength = unitMilliseconds(normalized, "ms", TimeUnit.MILLISECONDS).getMillis();
+            } else if (normalized.endsWith("s")) {
+                millisecondLength = unitMilliseconds(normalized, "s", TimeUnit.SECONDS).getMillis();
+            } else if (normalized.endsWith("m")) {
+                millisecondLength = unitMilliseconds(normalized, "m", TimeUnit.MINUTES).getMillis();
+            } else if (normalized.endsWith("h")) {
+                millisecondLength = unitMilliseconds(normalized, "h", TimeUnit.HOURS).getMillis();
+            } else if (normalized.endsWith("d")) {
+                millisecondLength = unitMilliseconds(normalized, "d", TimeUnit.DAYS).getMillis();
+            } else {
+                return true;
+            }
+            epochPlusIntervalFormat = formatter.formatMillis(Instant.EPOCH.toEpochMilli() + millisecondLength);
+        }
+        return epochFormat.equals(epochPlusIntervalFormat);
+    }
+
+    // We round down and + 1 for all format types to force the interval to make a change in the format time unit value
+    private static TimeValue unitMilliseconds(String value, String suffix, TimeUnit unit) {
+        long valueAsLong = parse(value, suffix);
+        switch (unit) {
+            case MILLISECONDS:
+                return new TimeValue((valueAsLong % 999) + 1, unit);
+            case SECONDS:
+            case MINUTES:
+                return new TimeValue((valueAsLong % 59) + 1, unit);
+            case HOURS:
+                return new TimeValue((valueAsLong % 23) + 1, unit);
+            case DAYS:
+                return new TimeValue((valueAsLong % 30) + 1, unit);
+            default:
+                throw new IllegalArgumentException("failed to determine TimeUnit [" + unit + "]");
+        }
+    }
+
+    private static long parse(final String value, final String suffix) {
+        final String s = value.substring(0, value.length() - suffix.length()).trim();
+        try {
+            return Long.parseLong(s);
+        } catch (final NumberFormatException e) {
+            throw new IllegalArgumentException("failed to parse [" + value + "]", e);
+        }
     }
 
     @Override

@@ -12,6 +12,7 @@ import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInter
 import org.elasticsearch.test.AbstractSerializingTestCase;
 
 import java.io.IOException;
+import java.util.stream.Stream;
 
 public class DateHistogramGroupSourceTests extends AbstractSerializingTestCase<DateHistogramGroupSource> {
 
@@ -50,4 +51,56 @@ public class DateHistogramGroupSourceTests extends AbstractSerializingTestCase<D
         return DateHistogramGroupSource::new;
     }
 
+    public void testIsInvalidFormatQuarter() {
+        String invalidFormat = "yyyy";
+        String validFormat = "yyyy-MM";
+        // Any quarterly interval greater than 1 is an invalid date_histogram interval
+        testFormatting(validFormat, invalidFormat, Stream.iterate(1, n -> n + 1).limit(1).map(v -> v + "q"));
+    }
+
+    public void testIsInvalidFormatMonth() {
+        String invalidFormat = "yyyy";
+        String validFormat = "yyyy-MM";
+        // Any monthly interval greater than 1 is an invalid date_histogram interval
+        testFormatting(validFormat, invalidFormat, Stream.iterate(1, n -> n + 1).limit(1).map(v -> v + "M"));
+    }
+
+    public void testIsInvalidFormatDay() {
+        String invalidFormat = "yyyy-MM";
+        String validFormat = "yyyy-MM-dd";
+        testFormatting(validFormat, invalidFormat, Stream.iterate(1, n -> n + 1).limit(10_000).map(v -> v + "d"));
+    }
+
+    public void testIsInvalidFormatHour() {
+        String invalidFormat = "yyyy-MM-dd";
+        String validFormat = "yyyy-MM-dd HH";
+        testFormatting(validFormat, invalidFormat, Stream.iterate(1, n -> n + 1).limit(10_000).map(v -> v + "h"));
+    }
+
+    public void testIsInvalidFormatMinute() {
+        String invalidFormat = "yyyy-MM-dd HH:00";
+        String validFormat = "yyyy-MM-dd HH:mm";
+        testFormatting(validFormat, invalidFormat, Stream.iterate(1, n -> n + 1).limit(10_000).map(v -> v + "m"));
+    }
+
+    public void testIsInvalidFormatSecond() {
+        String invalidFormat = "yyyy-MM-dd HH:mm:00";
+        String validFormat = "yyyy-MM-dd HH:mm:ss";
+        testFormatting(validFormat, invalidFormat, Stream.iterate(1, n -> n + 1).limit(10_000).map(v -> v + "s"));
+    }
+
+    public void testIsInvalidFormatMilliSecond() {
+        String invalidFormat = "yyyy-MM-dd HH:mm:ss";
+        String validFormat = "yyyy-MM-dd HH:mm:ss.SSS";
+        testFormatting(validFormat, invalidFormat, Stream.iterate(1, n -> n + 1).limit(10_000).map(v -> v + "ms"));
+    }
+
+    private void testFormatting(String validFormat, String invalidFormat, Stream<String> dateHistogramIntervalExpressionsToTest) {
+        dateHistogramIntervalExpressionsToTest.forEach(expression -> {
+            assertTrue("Invalid format [" + invalidFormat + "] considered valid for interval [" + expression + "]",
+                DateHistogramGroupSource.isInvalidFormat(invalidFormat, new DateHistogramInterval(expression)));
+            assertFalse("Valid format [" + validFormat + "] considered invalid for interval [" + expression + "]",
+                DateHistogramGroupSource.isInvalidFormat(validFormat, new DateHistogramInterval(expression)));
+        });
+    }
 }

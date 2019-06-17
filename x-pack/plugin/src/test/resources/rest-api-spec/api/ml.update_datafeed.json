@@ -1,6 +1,7 @@
 {
   "ml.update_datafeed": {
     "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/current/ml-update-datafeed.html",
+    "stability": "stable",
     "methods": [ "POST" ],
     "url": {
       "paths": [ "/_ml/datafeeds/{datafeed_id}/_update" ],

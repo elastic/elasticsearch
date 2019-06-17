@@ -143,7 +143,7 @@ final class RemoteResponseParsers {
                 return new SearchFailure(reasonThrowable, index, shardId, nodeId);
             });
     static {
-        SEARCH_FAILURE_PARSER.declareString(optionalConstructorArg(), new ParseField("index"));
+        SEARCH_FAILURE_PARSER.declareStringOrNull(optionalConstructorArg(), new ParseField("index"));
         SEARCH_FAILURE_PARSER.declareInt(optionalConstructorArg(), new ParseField("shard"));
         SEARCH_FAILURE_PARSER.declareString(optionalConstructorArg(), new ParseField("node"));
         SEARCH_FAILURE_PARSER.declareField(constructorArg(), (p, c) -> {

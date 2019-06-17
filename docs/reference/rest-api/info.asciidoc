@@ -64,32 +64,26 @@ Example response:
    },
    "features" : {
       "ccr" : {
-        "description" : "Cross Cluster Replication",
         "available" : true,
         "enabled" : true
       },
       "data_frame" : {
-          "description" : "Data Frame for the Elastic Stack",
           "available" : true,
           "enabled" : true
       },
       "graph" : {
-         "description" : "Graph Data Exploration for the Elastic Stack",
          "available" : true,
          "enabled" : true
       },
       "ilm" : {
-         "description" : "Index lifecycle management for the Elastic Stack",
          "available" : true,
          "enabled" : true
       },
       "logstash" : {
-         "description" : "Logstash management component for X-Pack",
          "available" : true,
          "enabled" : true
       },
       "ml" : {
-         "description" : "Machine Learning for the Elastic Stack",
          "available" : true,
          "enabled" : true,
          "native_code_info" : {
@@ -98,27 +92,22 @@ Example response:
         }
       },
       "monitoring" : {
-         "description" : "Monitoring for the Elastic Stack",
          "available" : true,
          "enabled" : true
       },
       "rollup": {
-        "description": "Time series pre-aggregation and rollup",
          "available": true,
          "enabled": true
       },
       "security" : {
-         "description" : "Security for the Elastic Stack",
          "available" : true,
          "enabled" : false
       },
       "sql" : {
-         "description" : "SQL access to Elasticsearch",
          "available" : true,
          "enabled" : true
       },
       "watcher" : {
-         "description" : "Alerting, Notification and Automation for the Elastic Stack",
          "available" : true,
          "enabled" : true
       }

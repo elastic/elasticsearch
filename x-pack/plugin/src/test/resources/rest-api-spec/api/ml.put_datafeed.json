@@ -1,6 +1,7 @@
 {
   "ml.put_datafeed": {
     "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/current/ml-put-datafeed.html",
+    "stability": "stable",
     "methods": [ "PUT" ],
     "url": {
       "paths": [ "/_ml/datafeeds/{datafeed_id}" ],

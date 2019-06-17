@@ -1,6 +1,7 @@
 {
   "security.put_privileges": {
     "documentation": "TODO",
+    "stability": "stable",
     "methods": [ "PUT", "POST" ],
     "url": {
       "paths": [

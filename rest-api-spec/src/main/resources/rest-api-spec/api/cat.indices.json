@@ -1,6 +1,7 @@
 {
   "cat.indices": {
     "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/cat-indices.html",
+    "stability": "stable",
     "methods": ["GET"],
     "url": {
       "paths": ["/_cat/indices", "/_cat/indices/{index}"],

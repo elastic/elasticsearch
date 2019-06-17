@@ -66,9 +66,9 @@ ZonedDateTime zdt = ZonedDateTime.ofInstant(instant, ZoneId.of('Z'));
 [source,Painless]
 ----
 String datetime = '1983-10-13T22:15:30Z';
-ZonedDateTime zdt = ZonedDateTime.parse(datetime);
+ZonedDateTime zdt = ZonedDateTime.parse(datetime); <1>
 ----
-Note the parse method uses ISO 8601 by default.
+<1> Note the parse method uses ISO 8601 by default.
 +
 * parse from RFC 1123
 +
@@ -76,9 +76,9 @@ Note the parse method uses ISO 8601 by default.
 ----
 String datetime = 'Thu, 13 Oct 1983 22:15:30 GMT';
 ZonedDateTime zdt = ZonedDateTime.parse(datetime,
-        DateTimeFormatter.RFC_1123_DATE_TIME);
+        DateTimeFormatter.RFC_1123_DATE_TIME); <1>
 ----
-Note the use of a built-in DateTimeFormatter.
+<1> Note the use of a built-in DateTimeFormatter.
 +
 * parse from a custom format
 +
@@ -87,9 +87,9 @@ Note the use of a built-in DateTimeFormatter.
 String datetime = 'custom y 1983 m 10 d 13 22:15:30 Z';
 DateTimeFormatter dtf = DateTimeFormatter.ofPattern(
         "'custom' 'y' yyyy 'm' MM 'd' dd HH:mm:ss VV");
-ZonedDateTime zdt = ZonedDateTime.parse(datetime, dtf);
+ZonedDateTime zdt = ZonedDateTime.parse(datetime, dtf); <1>
 ----
-Note the use of a custom DateTimeFormatter.
+<1> Note the use of a custom DateTimeFormatter.
 
 ===== Datetime Formatting Examples
 
@@ -99,9 +99,9 @@ Note the use of a custom DateTimeFormatter.
 ----
 ZonedDateTime zdt =
         ZonedDateTime.of(1983, 10, 13, 22, 15, 30, 0, ZoneId.of('Z'));
-String datetime = zdt.format(DateTimeFormatter.ISO_INSTANT);
+String datetime = zdt.format(DateTimeFormatter.ISO_INSTANT); <1>
 ----
-Note the use of a built-in DateTimeFormatter.
+<1> Note the use of a built-in DateTimeFormatter.
 +
 * format to a custom format
 +
@@ -111,9 +111,9 @@ ZonedDateTime zdt =
         ZonedDateTime.of(1983, 10, 13, 22, 15, 30, 0, ZoneId.of('Z'));
 DateTimeFormatter dtf = DateTimeFormatter.ofPattern(
         "'date:' yyyy/MM/dd 'time:' HH:mm:ss");
-String datetime = zdt.format(dtf);
+String datetime = zdt.format(dtf); <1>
 ----
-Note the use of a custom DateTimeFormatter.
+<1> Note the use of a custom DateTimeFormatter.
 
 ==== Datetime Conversion
 
@@ -400,9 +400,9 @@ ZonedDateTime zdt = ZonedDateTime.ofInstant(instant, ZoneId.of('Z'));
 String datetime = params['input_datetime'];
 DateTimeFormatter dtf = DateTimeFormatter.ofPattern(
         "'custom' 'y' yyyy 'm' MM 'd' dd HH:mm:ss VV");
-ZonedDateTime zdt = ZonedDateTime.parse(datetime, dtf);
+ZonedDateTime zdt = ZonedDateTime.parse(datetime, dtf); <1>
 ----
-Note the use of a custom DateTimeFormatter.
+<1> Note the use of a custom DateTimeFormatter.
 
 ===== Datetime Input From a Source Document
 
@@ -410,8 +410,8 @@ Use an original {ref}/mapping-source-field.html[source] document as a script
 input to access a numeric datetime or string datetime for a specific field
 within that document. Access to an original source document within a script is
 dependent on the Painless context and is not always available. An original
-source document is most commonly accessible through an input called `_source`
-or `ctx['_source']`.
+source document is most commonly accessible through an input called
+`ctx['_source']` or `params['_source']`.
 
 *Examples*
 
@@ -432,10 +432,11 @@ or `ctx['_source']`.
 +
 [source,Painless]
 ----
-long inputDatetime = _source['input_datetime'];
+long inputDatetime = ctx['_source']['input_datetime']; <1>
 Instant instant = Instant.ofEpochMilli(inputDateTime);
 ZonedDateTime zdt = ZonedDateTime.ofInstant(instant, ZoneId.of('Z'));
 ----
+<1> Note access to `_source` is dependent on the Painless context.
 +
 * Parse a string datetime from a sourced document to a complex datetime
 +
@@ -454,10 +455,11 @@ ZonedDateTime zdt = ZonedDateTime.ofInstant(instant, ZoneId.of('Z'));
 +
 [source,Painless]
 ----
-String datetime = ctx['_source']['input_datetime'];
-ZonedDateTime zdt = ZonedDateTime.parse(datetime);
+String datetime = params['_source']['input_datetime']; <1>
+ZonedDateTime zdt = ZonedDateTime.parse(datetime); <2>
 ----
-Note the parse method uses ISO 8601 by default.
+<1> Note access to `_source` is dependent on the Painless context.
+<2> Note the parse method uses ISO 8601 by default.
 
 ===== Datetime Input From an Indexed Document
 
@@ -502,10 +504,10 @@ document is most commonly accessible through an input called `doc`.
 +
 [source,Painless]
 ----
-def inputDatetime = doc['input_datetime'].value;
-String datetime = inputDateTime.format(DateTimeFormatter.ISO_INSTANT);
+def input = doc['input_datetime'].value;
+String output = input.format(DateTimeFormatter.ISO_INSTANT); <1>
 ----
-Note the use of a built-in DateTimeFormatter.
+<1> Note the use of a built-in DateTimeFormatter.
 +
 * Find the difference between two complex datetimes from an indexed document
 +
@@ -542,22 +544,26 @@ indexed documents
 +
 [source,Painless]
 ----
-// check for the existence of fields within the current document
-if (doc.containsKey('start_datetime') && doc.containsKey('end_datetime')) {
+if (doc.containsKey('start_datetime') && doc.containsKey('end_datetime')) { <1>
 
-    // check for the existence of values for fields within the current document
-    if (doc['start_datetime'].size() > 0 && doc['end_datetime'].size() > 0) {
+    if (doc['start_datetime'].size() > 0 && doc['end_datetime'].size() > 0) { <2>
 
         def startDatetime = doc['start_datetime'].value;
         def endDatetime = doc['end_datetime'].value;
         long differenceInMillis =
             ChronoUnit.MILLIS.between(startDateTime, endDateTime);
 
-        // handle the difference in datetimes
+        // handle difference in times
     } else {
-        // handle documents with missing start or end datetime values
+        // handle fields without values
     }
 } else {
-    // handle indexes without start or end datetime fields
+    // handle index with missing fields
 }
 ----
+<1> When a query's results span multiple indexes, some indexes may not
+contain a specific field. Use the `containsKey` method call on the `doc` input
+to ensure a field exists as part of the index for the current document.
+<2> Some field's within a document may have no values. Use the `size` method
+call on a field within the `doc` input to ensure that field has at least one
+value for the current document.

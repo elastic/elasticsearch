@@ -114,7 +114,7 @@ public interface XContentParser extends Closeable {
     }
 
     enum NumberType {
-        INT, LONG, FLOAT, DOUBLE
+        INT, BIG_INTEGER, LONG, FLOAT, DOUBLE, BIG_DECIMAL
     }
 
     XContentType contentType();

@@ -933,7 +933,7 @@ public abstract class Engine implements Closeable {
     /** How much heap is used that would be freed by a refresh.  Note that this may throw {@link AlreadyClosedException}. */
     public abstract long getIndexBufferRAMBytesUsed();
 
-    protected Segment[] getSegmentInfo(SegmentInfos lastCommittedSegmentInfos, boolean verbose) {
+    final Segment[] getSegmentInfo(SegmentInfos lastCommittedSegmentInfos, boolean verbose) {
         ensureOpen();
         Map<String, Segment> segments = new HashMap<>();
         // first, go over and compute the search ones...
@@ -960,8 +960,8 @@ public abstract class Engine implements Closeable {
                     segment = new Segment(info.info.name);
                     segment.search = false;
                     segment.committed = true;
-                    segment.docCount = info.info.maxDoc();
-                    segment.delDocCount = info.getDelCount();
+                    segment.delDocCount = info.getDelCount() + info.getSoftDelCount();
+                    segment.docCount = info.info.maxDoc() - segment.delDocCount;
                     segment.version = info.info.getVersion();
                     segment.compound = info.info.getUseCompoundFile();
                     try {

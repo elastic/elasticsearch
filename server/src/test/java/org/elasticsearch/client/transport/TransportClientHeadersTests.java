@@ -30,6 +30,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkModule;
@@ -173,7 +174,7 @@ public class TransportClientHeadersTests extends AbstractClientHeadersTestCase {
                         //the sniffer detects only data nodes
                         builder.nodes(DiscoveryNodes.builder().add(new DiscoveryNode("node_id", "someId", "some_ephemeralId_id",
                             address.address().getHostString(), address.getAddress(), address, Collections.emptyMap(),
-                                Collections.singleton(DiscoveryNode.Role.DATA), Version.CURRENT)));
+                                Collections.singleton(DiscoveryNodeRole.DATA_ROLE), Version.CURRENT)));
                         ((TransportResponseHandler<ClusterStateResponse>) handler)
                                 .handleResponse(new ClusterStateResponse(cluster1, builder.build(), false));
                         clusterStateLatch.countDown();

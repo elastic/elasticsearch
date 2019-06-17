@@ -21,7 +21,7 @@ package org.elasticsearch.cluster.coordination;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.DiscoveryNode.Role;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.node.Node;
@@ -43,7 +43,6 @@ import java.util.stream.Stream;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
-import static java.util.Collections.singleton;
 import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.cluster.coordination.ClusterBootstrapService.BOOTSTRAP_PLACEHOLDER_PREFIX;
@@ -89,8 +88,13 @@ public class ClusterBootstrapServiceTests extends ESTestCase {
     }
 
     private DiscoveryNode newDiscoveryNode(String nodeName) {
-        return new DiscoveryNode(nodeName, randomAlphaOfLength(10), buildNewFakeTransportAddress(), emptyMap(), singleton(Role.MASTER),
-            Version.CURRENT);
+        return new DiscoveryNode(
+                nodeName,
+                randomAlphaOfLength(10),
+                buildNewFakeTransportAddress(),
+                emptyMap(),
+                Collections.singleton(DiscoveryNodeRole.MASTER_ROLE),
+                Version.CURRENT);
     }
 
     public void testBootstrapsAutomaticallyWithDefaultConfiguration() {
@@ -157,7 +161,7 @@ public class ClusterBootstrapServiceTests extends ESTestCase {
 
     public void testDoesNothingByDefaultIfZen1NodesDiscovered() {
         final DiscoveryNode zen1Node = new DiscoveryNode("zen1", buildNewFakeTransportAddress(), singletonMap("zen1", "true"),
-            singleton(Role.MASTER), Version.CURRENT);
+            Collections.singleton(DiscoveryNodeRole.MASTER_ROLE), Version.CURRENT);
         ClusterBootstrapService clusterBootstrapService = new ClusterBootstrapService(Settings.EMPTY, transportService, () ->
             Stream.of(localNode, zen1Node).collect(Collectors.toSet()), () -> false, vc -> {
             throw new AssertionError("should not be called");
@@ -356,7 +360,7 @@ public class ClusterBootstrapServiceTests extends ESTestCase {
 
     public void testDoesNotBootstrapsIfZen1NodesDiscovered() {
         final DiscoveryNode zen1Node = new DiscoveryNode("zen1", buildNewFakeTransportAddress(), singletonMap("zen1", "true"),
-            singleton(Role.MASTER), Version.CURRENT);
+            Collections.singleton(DiscoveryNodeRole.MASTER_ROLE), Version.CURRENT);
 
         ClusterBootstrapService clusterBootstrapService = new ClusterBootstrapService(Settings.builder().putList(
             INITIAL_MASTER_NODES_SETTING.getKey(), localNode.getName(), otherNode1.getName(), otherNode2.getName()).build(),
@@ -420,10 +424,22 @@ public class ClusterBootstrapServiceTests extends ESTestCase {
         clusterBootstrapService.onFoundPeersUpdated();
         deterministicTaskQueue.runAllTasks();
 
-        discoveredNodes.set(Stream.of(new DiscoveryNode(otherNode1.getName(), randomAlphaOfLength(10), buildNewFakeTransportAddress(),
-                emptyMap(), singleton(Role.MASTER), Version.CURRENT),
-            new DiscoveryNode("yet-another-node", randomAlphaOfLength(10), otherNode1.getAddress(), emptyMap(), singleton(Role.MASTER),
-                Version.CURRENT)).collect(Collectors.toList()));
+        discoveredNodes.set(Stream.of(
+                new DiscoveryNode(
+                        otherNode1.getName(),
+                        randomAlphaOfLength(10),
+                        buildNewFakeTransportAddress(),
+                        emptyMap(),
+                        Collections.singleton(DiscoveryNodeRole.MASTER_ROLE),
+                        Version.CURRENT),
+                new DiscoveryNode(
+                        "yet-another-node",
+                        randomAlphaOfLength(10),
+                        otherNode1.getAddress(),
+                        emptyMap(),
+                        Collections.singleton(DiscoveryNodeRole.MASTER_ROLE),
+                        Version.CURRENT))
+                .collect(Collectors.toList()));
 
         clusterBootstrapService.onFoundPeersUpdated();
         deterministicTaskQueue.runAllTasks();

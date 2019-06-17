@@ -127,12 +127,16 @@ public class StemmerTokenFilterFactoryTests extends ESTokenStreamTestCase {
             assertAnalyzesTo(analyzer, "horses", new String[]{"horse"});
             assertAnalyzesTo(analyzer, "cameras", new String[]{"camera"});
             
-            // TODO The orginal s stemmer gives up on stemming oes words because English has no fixed rule for the stem
+            // The orginal s stemmer gives up on stemming oes words because English has no fixed rule for the stem
             // (see https://howtospell.co.uk/making-O-words-plural )
-            // Would be good to find a heuristic for stemming oes words.
-            assertAnalyzesTo(analyzer, "toes", new String[]{"toes"});
-            assertAnalyzesTo(analyzer, "shoes", new String[]{"shoes"});
-            assertAnalyzesTo(analyzer, "heroes", new String[]{"heroes"});
+            // This stemmer removes the es but retains e for a small number of exceptions 
+            assertAnalyzesTo(analyzer, "mosquitoes", new String[]{"mosquito"});
+            assertAnalyzesTo(analyzer, "heroes", new String[]{"hero"});
+            // oes exceptions that retain the e.
+            assertAnalyzesTo(analyzer, "shoes", new String[]{"shoe"});
+            assertAnalyzesTo(analyzer, "horseshoes", new String[]{"horseshoe"});
+            assertAnalyzesTo(analyzer, "canoes", new String[]{"canoe"});
+            assertAnalyzesTo(analyzer, "oboes", new String[]{"oboe"});
 
             // Check improved EnglishPluralStemFilter logic
             //sses

@@ -28,7 +28,7 @@ import org.apache.lucene.analysis.tokenattributes.KeywordAttribute;
 import java.io.IOException;
 
 public final class EnglishPluralStemFilter extends TokenFilter {
-    private final EnglishPlurallStemmer stemmer = new EnglishPlurallStemmer();
+    private final EnglishPluralStemmer stemmer = new EnglishPluralStemmer();
     private final CharTermAttribute termAtt = addAttribute(CharTermAttribute.class);
     private final KeywordAttribute keywordAttr = addAttribute(KeywordAttribute.class);
 
@@ -66,9 +66,18 @@ public final class EnglishPluralStemFilter extends TokenFilter {
      * <ul>
      * <li>ees-&gt;ee so that bees matches bee</li>
      * <li>ies-&gt;y only on longer words to that ties matches tie</li>
+     * <li>oes-&gt;o rule so that tomatoes matches tomato but retains e for some words eg shoes to shoe</li>
      * </ul>
      */
-    public static class EnglishPlurallStemmer {
+    public static class EnglishPluralStemmer {
+        
+        // Words ending in oes that retain the e when stemmed 
+        public static final char [][] oesExceptions = { 
+                "shoes".toCharArray(), 
+                "canoes".toCharArray(), 
+                "oboes".toCharArray() 
+                }; 
+        
         @SuppressWarnings("fallthrough")
         public int stem(char s[], int len) {
             if (len < 3 || s[len - 1] != 's')
@@ -94,11 +103,21 @@ public final class EnglishPluralStemFilter extends TokenFilter {
                     if (len > 4 && s[len -3] == 'x') {
                         return len - 2;
                     }
-                    // shes/sses
+                    // oes
+                    if (len > 3 && s[len -3] == 'o') {
+                        if (isOesException(s, len)) {
+                            // Only remove the S
+                            return len -1;
+                        }
+                        // Remove the es 
+                        return len - 2;
+                    }                    
                     if (len > 4) {
+                        // shes/sses
                         if (s[len -4] == 's' && (s[len -3] == 'h' || s[len -3] == 's')){
                             return len - 2;
                         }
+                        
                         // tches (TODO consider just ches? Gains: lunches == lunch, losses: moustaches!= moustache
                         if (len > 5) {
                             if (s[len -5] == 't' && s[len -4] == 'c' && s[len -3] == 'h' ){
@@ -107,15 +126,30 @@ public final class EnglishPluralStemFilter extends TokenFilter {
                         }                        
                     }
                 }
-                
-                // oes condition below is taken from original s-stemmer and is a cop-out because there are too many special cases 
-                // e.g. shoes->shoe but heroes->hero so just doesn't try stem these words at all.
-                // TODO Would be good to find a heuristic for stemming here (see https://howtospell.co.uk/making-O-words-plural )
-                if (  s[len - 3] == 'o')
-                    return len; /* intentional fallthrough */
+
             default:
                 return len - 1;
             }
+        }
+
+        private final boolean isOesException(char[] s, int len) {
+            for (char[] oesRule : oesExceptions) {
+                int rulePos = oesRule.length - 1;
+                int sPos = len - 1;
+                boolean matched = true;
+                while (rulePos >= 0 && sPos >= 0) {
+                    if (oesRule[rulePos] != s[sPos]) {
+                        matched = false;
+                        break;
+                    }
+                    rulePos--;
+                    sPos--;
+                }
+                if (matched) {
+                    return true;
+                }
+            }
+            return false;
         }
     }
 

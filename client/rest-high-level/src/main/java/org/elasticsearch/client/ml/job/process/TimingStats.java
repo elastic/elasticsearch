@@ -42,12 +42,15 @@ public class TimingStats implements ToXContentObject {
     public static final ParseField MIN_BUCKET_PROCESSING_TIME_MS = new ParseField("minimum_bucket_processing_time_ms");
     public static final ParseField MAX_BUCKET_PROCESSING_TIME_MS = new ParseField("maximum_bucket_processing_time_ms");
     public static final ParseField AVG_BUCKET_PROCESSING_TIME_MS = new ParseField("average_bucket_processing_time_ms");
+    public static final ParseField EXPONENTIAL_AVG_BUCKET_PROCESSING_TIME_MS =
+        new ParseField("exponential_average_bucket_processing_time_ms");
 
     public static final ConstructingObjectParser<TimingStats, Void> PARSER =
         new ConstructingObjectParser<>(
             "timing_stats",
             true,
-            args -> new TimingStats((String) args[0], (long) args[1], (Double) args[2], (Double) args[3], (Double) args[4]));
+            args ->
+                new TimingStats((String) args[0], (long) args[1], (Double) args[2], (Double) args[3], (Double) args[4], (Double) args[5]));
 
     static {
         PARSER.declareString(constructorArg(), Job.ID);
@@ -55,6 +58,7 @@ public class TimingStats implements ToXContentObject {
         PARSER.declareDouble(optionalConstructorArg(), MIN_BUCKET_PROCESSING_TIME_MS);
         PARSER.declareDouble(optionalConstructorArg(), MAX_BUCKET_PROCESSING_TIME_MS);
         PARSER.declareDouble(optionalConstructorArg(), AVG_BUCKET_PROCESSING_TIME_MS);
+        PARSER.declareDouble(optionalConstructorArg(), EXPONENTIAL_AVG_BUCKET_PROCESSING_TIME_MS);
     }
 
     private final String jobId;
@@ -62,18 +66,21 @@ public class TimingStats implements ToXContentObject {
     private Double minBucketProcessingTimeMs;
     private Double maxBucketProcessingTimeMs;
     private Double avgBucketProcessingTimeMs;
+    private Double exponentialAvgBucketProcessingTimeMs;
 
     public TimingStats(
             String jobId,
             long bucketCount,
             @Nullable Double minBucketProcessingTimeMs,
             @Nullable Double maxBucketProcessingTimeMs,
-            @Nullable Double avgBucketProcessingTimeMs) {
+            @Nullable Double avgBucketProcessingTimeMs,
+            @Nullable Double exponentialAvgBucketProcessingTimeMs) {
         this.jobId = jobId;
         this.bucketCount = bucketCount;
         this.minBucketProcessingTimeMs = minBucketProcessingTimeMs;
         this.maxBucketProcessingTimeMs = maxBucketProcessingTimeMs;
         this.avgBucketProcessingTimeMs = avgBucketProcessingTimeMs;
+        this.exponentialAvgBucketProcessingTimeMs = exponentialAvgBucketProcessingTimeMs;
     }
 
     public String getJobId() {
@@ -96,6 +103,10 @@ public class TimingStats implements ToXContentObject {
         return avgBucketProcessingTimeMs;
     }
 
+    public Double getExponentialAvgBucketProcessingTimeMs() {
+        return exponentialAvgBucketProcessingTimeMs;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
         builder.startObject();
@@ -110,6 +121,9 @@ public class TimingStats implements ToXContentObject {
         if (avgBucketProcessingTimeMs != null) {
             builder.field(AVG_BUCKET_PROCESSING_TIME_MS.getPreferredName(), avgBucketProcessingTimeMs);
         }
+        if (exponentialAvgBucketProcessingTimeMs != null) {
+            builder.field(EXPONENTIAL_AVG_BUCKET_PROCESSING_TIME_MS.getPreferredName(), exponentialAvgBucketProcessingTimeMs);
+        }
         builder.endObject();
         return builder;
     }
@@ -123,12 +137,19 @@ public class TimingStats implements ToXContentObject {
             && this.bucketCount == that.bucketCount
             && Objects.equals(this.minBucketProcessingTimeMs, that.minBucketProcessingTimeMs)
             && Objects.equals(this.maxBucketProcessingTimeMs, that.maxBucketProcessingTimeMs)
-            && Objects.equals(this.avgBucketProcessingTimeMs, that.avgBucketProcessingTimeMs);
+            && Objects.equals(this.avgBucketProcessingTimeMs, that.avgBucketProcessingTimeMs)
+            && Objects.equals(this.exponentialAvgBucketProcessingTimeMs, that.exponentialAvgBucketProcessingTimeMs);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(jobId, bucketCount, minBucketProcessingTimeMs, maxBucketProcessingTimeMs, avgBucketProcessingTimeMs);
+        return Objects.hash(
+            jobId,
+            bucketCount,
+            minBucketProcessingTimeMs,
+            maxBucketProcessingTimeMs,
+            avgBucketProcessingTimeMs,
+            exponentialAvgBucketProcessingTimeMs);
     }
 
     @Override

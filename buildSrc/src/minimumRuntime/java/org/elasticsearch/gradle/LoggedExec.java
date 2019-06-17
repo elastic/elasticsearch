@@ -17,7 +17,6 @@ import java.io.File;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.io.UnsupportedEncodingException;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -79,7 +78,13 @@ public class LoggedExec extends Exec {
             };
         } else {
             out = new ByteArrayOutputStream();
-            outputLogger = logger -> logger.error(((ByteArrayOutputStream) out).toString(StandardCharsets.UTF_8));
+            outputLogger = logger -> {
+                try {
+                    logger.error(((ByteArrayOutputStream) out).toString("UTF-8"));
+                } catch (UnsupportedEncodingException e) {
+                    throw new RuntimeException(e);
+                }
+            };
         }
         setStandardOutput(out);
         setErrorOutput(out);

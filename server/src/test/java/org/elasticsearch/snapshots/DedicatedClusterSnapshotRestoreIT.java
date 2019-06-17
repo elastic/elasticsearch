@@ -42,6 +42,7 @@ import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedFunction;
@@ -81,6 +82,7 @@ import org.elasticsearch.test.TestCustomMetaData;
 import org.elasticsearch.test.disruption.BusyMasterServiceDisruption;
 import org.elasticsearch.test.disruption.ServiceDisruptionScheme;
 import org.elasticsearch.test.rest.FakeRestRequest;
+import org.junit.After;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -419,7 +421,6 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         SnapshotInfo snapshotInfo = waitForCompletion("test-repo", "test-snap", TimeValue.timeValueSeconds(60));
         logger.info("Number of failed shards [{}]", snapshotInfo.shardFailures().size());
         logger.info("--> done");
-        BlobStoreTestUtil.assertRepoConsistency(internalCluster(), "test-repo");
     }
 
     public void testSnapshotWithStuckNode() throws Exception {
@@ -494,7 +495,6 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         //   (4) incompatible-snapshots
         assertFileCount(repo, 4);
         logger.info("--> done");
-        BlobStoreTestUtil.assertRepoConsistency(internalCluster(), "test-repo");
     }
 
     public void testRestoreIndexWithMissingShards() throws Exception {
@@ -656,7 +656,6 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         assertThat(restoreSnapshotResponse.getRestoreInfo().failedShards(), equalTo(0));
 
         assertThat(client().prepareSearch("test-idx-closed").setSize(0).get().getHits().getTotalHits().value, equalTo(100L));
-        BlobStoreTestUtil.assertRepoConsistency(internalCluster(), "test-repo");
     }
 
     public void testRestoreIndexWithShardsMissingInLocalGateway() throws Exception {
@@ -723,10 +722,10 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         }
         logger.info("--> check that at least half of the shards had some reuse: [{}]", reusedShards);
         assertThat(reusedShards.size(), greaterThanOrEqualTo(numberOfShards / 2));
-        BlobStoreTestUtil.assertRepoConsistency(internalCluster(), "test-repo");
     }
 
     public void testRegistrationFailure() {
+        disableRepoConsistencyCheck("This test does not create any data in the repository.");
         logger.info("--> start first node");
         internalCluster().startNode();
         logger.info("--> start second node");
@@ -746,6 +745,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
     }
 
     public void testThatSensitiveRepositorySettingsAreNotExposed() throws Exception {
+        disableRepoConsistencyCheck("This test does not create any data in the repository.");
         Settings nodeSettings = Settings.EMPTY;
         logger.info("--> start two nodes");
         internalCluster().startNodes(2, nodeSettings);
@@ -857,7 +857,6 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         assertEquals(SnapshotState.SUCCESS, snapshotInfo.state());
         assertEquals(snapshotInfo.totalShards(), snapshotInfo.successfulShards());
         assertEquals(0, snapshotInfo.failedShards());
-        BlobStoreTestUtil.assertRepoConsistency(internalCluster(), "test-repo");
     }
 
     public void testMasterAndDataShutdownDuringSnapshot() throws Exception {
@@ -921,7 +920,6 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         for (SnapshotShardFailure failure : snapshotInfo.shardFailures()) {
             assertNotNull(failure.reason());
         }
-        BlobStoreTestUtil.assertRepoConsistency(internalCluster(), "test-repo");
     }
 
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/25281")
@@ -1054,7 +1052,6 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         assertEquals(restoreResponse.getRestoreInfo().totalShards(),
             restoreResponse.getRestoreInfo().successfulShards());
         ensureYellow();
-        BlobStoreTestUtil.assertRepoConsistency(internalCluster(), repo);
     }
 
     public void testSnapshotWithDateMath() {
@@ -1087,7 +1084,6 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         List<SnapshotStatus> snapshots = response.getSnapshots();
         assertThat(snapshots, hasSize(1));
         assertThat(snapshots.get(0).getState().completed(), equalTo(true));
-        BlobStoreTestUtil.assertRepoConsistency(internalCluster(), repo);
     }
 
     public void testSnapshotTotalAndIncrementalSizes() throws IOException {
@@ -1185,7 +1181,6 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
 
         assertThat(anotherStats.getTotalFileCount(), is(snapshot1FileCount));
         assertThat(anotherStats.getTotalSize(), is(snapshot1FileSize));
-        BlobStoreTestUtil.assertRepoConsistency(internalCluster(), repositoryName);
     }
 
     public void testDataNodeRestartWithBusyMasterDuringSnapshot() throws Exception {
@@ -1229,7 +1224,6 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
             SnapshotInfo snapshotInfo = snapshotsStatusResponse.getSnapshots().get(0);
             assertTrue(snapshotInfo.state().toString(), snapshotInfo.state().completed());
         }, 60L, TimeUnit.SECONDS);
-        BlobStoreTestUtil.assertRepoConsistency(internalCluster(),"test-repo");
     }
 
     private long calculateTotalFilesSize(List<Path> files) {

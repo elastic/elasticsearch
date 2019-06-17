@@ -91,7 +91,6 @@ import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.RepositoryException;
-import org.elasticsearch.repositories.blobstore.BlobStoreTestUtil;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.StoredScriptsIT;
@@ -322,7 +321,6 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
             // Finish flush
             flushResponseFuture.actionGet();
         }
-        BlobStoreTestUtil.assertRepoConsistency(internalCluster(), "test-repo");
     }
 
     public void testSingleGetAfterRestore() throws Exception {
@@ -364,7 +362,6 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         assertThat(restoreSnapshotResponse.getRestoreInfo().totalShards(), greaterThan(0));
 
         assertThat(client.prepareGet(restoredIndexName, typeName, docId).get().isExists(), equalTo(true));
-        BlobStoreTestUtil.assertRepoConsistency(internalCluster(), repoName);
     }
 
     public void testFreshIndexUUID() throws InterruptedException {
@@ -419,7 +416,6 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
             .getSetting("test-copy", IndexMetaData.SETTING_INDEX_UUID);
         assertFalse("UUID has been reused on restore: " + copyRestoreUUID + " vs. " + originalIndexUUID,
             copyRestoreUUID.equals(originalIndexUUID));
-        BlobStoreTestUtil.assertRepoConsistency(internalCluster(), repoName);
     }
 
     public void testRestoreWithDifferentMappingsAndSettings() throws Exception {
@@ -469,7 +465,6 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         logger.info("--> assert that old settings are restored");
         GetSettingsResponse getSettingsResponse = client.admin().indices().prepareGetSettings("test-idx").execute().actionGet();
         assertThat(getSettingsResponse.getSetting("test-idx", "index.refresh_interval"), equalTo("10s"));
-        BlobStoreTestUtil.assertRepoConsistency(internalCluster(), "test-repo");
     }
 
     public void testEmptySnapshot() throws Exception {
@@ -488,7 +483,6 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
 
         assertThat(client.admin().cluster().prepareGetSnapshots("test-repo").setSnapshots("test-snap").get().getSnapshots().get(0).state(),
             equalTo(SnapshotState.SUCCESS));
-        BlobStoreTestUtil.assertRepoConsistency(internalCluster(), "test-repo");
     }
 
     public void testRestoreAliases() throws Exception {
@@ -549,7 +543,6 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         logger.info("--> check that aliases are not restored and existing aliases still exist");
         assertAliasesMissing(client.admin().indices().prepareAliasesExist("alias-123", "alias-1").get());
         assertAliasesExist(client.admin().indices().prepareAliasesExist("alias-3").get());
-        BlobStoreTestUtil.assertRepoConsistency(internalCluster(), "test-repo");
     }
 
     public void testRestoreTemplates() throws Exception {
@@ -602,7 +595,6 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         logger.info("--> check that template is restored");
         getIndexTemplatesResponse = client().admin().indices().prepareGetTemplates().get();
         assertIndexTemplateExists(getIndexTemplatesResponse, "test-template");
-        BlobStoreTestUtil.assertRepoConsistency(internalCluster(), "test-repo");
     }
 
     public void testIncludeGlobalState() throws Exception {
@@ -789,10 +781,10 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         assertFalse(client().admin().cluster().prepareGetPipeline("barbaz").get().isFound());
         assertNull(client().admin().cluster().prepareGetStoredScript("foobar").get().getSource());
         assertThat(client.prepareSearch("test-idx").setSize(0).get().getHits().getTotalHits().value, equalTo(100L));
-        BlobStoreTestUtil.assertRepoConsistency(internalCluster(), "test-repo");
     }
 
     public void testSnapshotFileFailureDuringSnapshot() throws InterruptedException {
+        disableRepoConsistencyCheck("This test uses a purposely broken repository so it would fail consistency checks.");
         Client client = client();
 
         logger.info("-->  creating repository");
@@ -916,7 +908,6 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
             }
             assertThat(indexStatus.getShardsStats().getFailedShards(), equalTo(numberOfFailures));
         }
-        BlobStoreTestUtil.assertRepoConsistency(internalCluster(), "test-repo");
     }
 
     public void testDataFileFailureDuringRestore() throws Exception {
@@ -980,7 +971,6 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
             assertEquals(restoreInfo.failedShards(),
                 clusterStateResponse.getState().getRoutingTable().shardsWithState(ShardRoutingState.UNASSIGNED).size());
         }
-        BlobStoreTestUtil.assertRepoConsistency(internalCluster(), "test-repo");
     }
 
     public void testDataFileCorruptionDuringRestore() throws Exception {
@@ -1032,7 +1022,6 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         // is completed and marked as failed, which can lead to nodes having pending
         // cluster states to process in their queue when the test is finished
         cluster().wipeIndices("test-idx");
-        BlobStoreTestUtil.assertRepoConsistency(internalCluster(), "test-repo");
     }
 
     /**
@@ -1084,7 +1073,6 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         };
 
         unrestorableUseCase(indexName, Settings.EMPTY, Settings.EMPTY, restoreIndexSettings, checkUnassignedInfo, fixupAction);
-        BlobStoreTestUtil.assertRepoConsistency(internalCluster(), "test-repo");
     }
 
     /** Execute the unrestorable test use case **/
@@ -1250,7 +1238,6 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         assertThat(restoreSnapshotResponse.getRestoreInfo().failedShards(), equalTo(0));
         SearchResponse countResponse = client.prepareSearch("test-idx").setSize(0).get();
         assertThat(countResponse.getHits().getTotalHits().value, equalTo(100L));
-        BlobStoreTestUtil.assertRepoConsistency(internalCluster(), "test-repo");
     }
 
     public void testUnallocatedShards() throws Exception {
@@ -1272,7 +1259,6 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), equalTo(0));
         assertThat(createSnapshotResponse.getSnapshotInfo().totalShards(), equalTo(3));
         assertThat(createSnapshotResponse.getSnapshotInfo().reason(), startsWith("Indices don't have primary shards"));
-        BlobStoreTestUtil.assertRepoConsistency(internalCluster(), "test-repo");
     }
 
     public void testDeleteSnapshot() throws Exception {
@@ -1334,7 +1320,6 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         logger.info("--> make sure that number of files is back to what it was when the first snapshot was made, " +
                     "plus two because one backup index-N file should remain and incompatible-snapshots");
         assertThat(numberOfFiles(repo), equalTo(numberOfFiles[0] + 2));
-        BlobStoreTestUtil.assertRepoConsistency(internalCluster(), "test-repo");
     }
 
     public void testDeleteSnapshotWithMissingIndexAndShardMetadata() throws Exception {
@@ -1387,7 +1372,6 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         for (String index : indices) {
             assertTrue(Files.notExists(indicesPath.resolve(indexIds.get(index).getId())));
         }
-        BlobStoreTestUtil.assertRepoConsistency(internalCluster(), "test-repo");
     }
 
     public void testDeleteSnapshotWithMissingMetadata() throws Exception {
@@ -1424,7 +1408,6 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         logger.info("--> make sure snapshot doesn't exist");
         assertThrows(client.admin().cluster().prepareGetSnapshots("test-repo")
                                              .addSnapshots("test-snap-1"), SnapshotMissingException.class);
-        BlobStoreTestUtil.assertRepoConsistency(internalCluster(), "test-repo");
     }
 
     public void testDeleteSnapshotWithCorruptedSnapshotFile() throws Exception {
@@ -1468,7 +1451,6 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), greaterThan(0));
         assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(),
             equalTo(createSnapshotResponse.getSnapshotInfo().totalShards()));
-        BlobStoreTestUtil.assertRepoConsistency(internalCluster(), "test-repo");
     }
 
     /** Tests that a snapshot with a corrupted global state file can still be deleted */
@@ -1530,7 +1512,6 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         snapshotInfo = createSnapshotResponse.getSnapshotInfo();
         assertThat(snapshotInfo.successfulShards(), greaterThan(0));
         assertThat(snapshotInfo.successfulShards(), equalTo(snapshotInfo.totalShards()));
-        BlobStoreTestUtil.assertRepoConsistency(internalCluster(), "test-repo");
     }
 
     public void testSnapshotWithMissingShardLevelIndexFile() throws Exception {
@@ -1573,7 +1554,6 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         RestoreSnapshotResponse restoreSnapshotResponse =
             client().admin().cluster().prepareRestoreSnapshot("test-repo", "test-snap-1").setWaitForCompletion(true).get();
         assertEquals(0, restoreSnapshotResponse.getRestoreInfo().failedShards());
-        BlobStoreTestUtil.assertRepoConsistency(internalCluster(), "test-repo");
     }
 
     public void testSnapshotClosedIndex() throws Exception {
@@ -1597,7 +1577,6 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
             .setWaitForCompletion(true).setIndices("test-idx*").get();
         assertThat(createSnapshotResponse.getSnapshotInfo().indices().size(), equalTo(2));
         assertThat(createSnapshotResponse.getSnapshotInfo().shardFailures().size(), equalTo(0));
-        BlobStoreTestUtil.assertRepoConsistency(internalCluster(), "test-repo");
     }
 
     public void testRenameOnRestore() throws Exception {
@@ -1723,7 +1702,6 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
                 .setIndices("test-idx-1").setRenamePattern("test-idx").setRenameReplacement("alias")
                 .setWaitForCompletion(true).setIncludeAliases(false).execute().actionGet();
         assertThat(restoreSnapshotResponse.getRestoreInfo().totalShards(), greaterThan(0));
-        BlobStoreTestUtil.assertRepoConsistency(internalCluster(), "test-repo");
     }
 
     public void testMoveShardWhileSnapshotting() throws Exception {
@@ -1787,10 +1765,10 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         assertThat(restoreSnapshotResponse.getRestoreInfo().totalShards(), greaterThan(0));
 
         assertThat(client.prepareSearch("test-idx").setSize(0).get().getHits().getTotalHits().value, equalTo(100L));
-        BlobStoreTestUtil.assertRepoConsistency(internalCluster(), "test-repo");
     }
 
     public void testDeleteRepositoryWhileSnapshotting() throws Exception {
+        disableRepoConsistencyCheck("This test uses a purposely broken repository so it would fail consistency checks.");
         Client client = client();
         Path repositoryLocation = randomRepoPath();
         logger.info("-->  creating repository");
@@ -1873,7 +1851,6 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         assertThat(restoreSnapshotResponse.getRestoreInfo().totalShards(), greaterThan(0));
 
         assertThat(client.prepareSearch("test-idx").setSize(0).get().getHits().getTotalHits().value, equalTo(100L));
-        BlobStoreTestUtil.assertRepoConsistency(internalCluster(), "test-repo");
     }
 
     @TestLogging("_root:DEBUG")  // this fails every now and then: https://github.com/elastic/elasticsearch/issues/18121 but without
@@ -1938,7 +1915,6 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
                 .setWaitForCompletion(true).setIndices("test-idx"),
             RepositoryException.class,
             "cannot create snapshot in a readonly repository");
-        BlobStoreTestUtil.assertRepoConsistency(internalCluster(), "test-repo");
     }
 
     public void testThrottling() throws Exception {
@@ -2000,7 +1976,6 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         } else {
             assertThat(restorePause, equalTo(0L));
         }
-        BlobStoreTestUtil.assertRepoConsistency(internalCluster(), "test-repo");
     }
 
     public void testSnapshotStatus() throws Exception {
@@ -2122,7 +2097,6 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
                        .get();
         assertEquals(1, response.getSnapshots().size());
         assertEquals("test-snap", response.getSnapshots().get(0).getSnapshot().getSnapshotId().getName());
-        BlobStoreTestUtil.assertRepoConsistency(internalCluster(), "test-repo");
     }
 
     public void testSnapshotRelocatingPrimary() throws Exception {
@@ -2159,7 +2133,6 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         assertThat(snapshotInfo.state(), equalTo(SnapshotState.SUCCESS));
         assertThat(snapshotInfo.shardFailures().size(), equalTo(0));
         logger.info("--> done");
-        BlobStoreTestUtil.assertRepoConsistency(internalCluster(), "test-repo");
     }
 
     public void testSnapshotMoreThanOnce() throws ExecutionException, InterruptedException {
@@ -2243,7 +2216,6 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
                 }
             }
         }
-        BlobStoreTestUtil.assertRepoConsistency(internalCluster(), "test-repo");
     }
 
     public void testChangeSettingsOnRestore() throws Exception {
@@ -2357,7 +2329,6 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
 
         assertHitCount(client.prepareSearch("test-idx").setSize(0).setQuery(matchQuery("field1", "Foo")).get(), numdocs);
         assertHitCount(client.prepareSearch("test-idx").setSize(0).setQuery(matchQuery("field1", "bar")).get(), numdocs);
-        BlobStoreTestUtil.assertRepoConsistency(internalCluster(), "test-repo");
     }
 
     public void testRecreateBlocksOnRestore() throws Exception {
@@ -2448,7 +2419,6 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
             disableIndexBlock("test-idx", IndexMetaData.SETTING_BLOCKS_WRITE);
             disableIndexBlock("test-idx", IndexMetaData.SETTING_BLOCKS_READ);
         }
-        BlobStoreTestUtil.assertRepoConsistency(internalCluster(), "test-repo");
     }
 
     public void testCloseOrDeleteIndexDuringSnapshot() throws Exception {
@@ -2555,7 +2525,6 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
             logger.info("Snapshot successfully completed");
             assertThat(createSnapshotResponse.getSnapshotInfo().state(), equalTo((SnapshotState.SUCCESS)));
         }
-        BlobStoreTestUtil.assertRepoConsistency(internalCluster(), "test-repo");
     }
 
     public void testCloseIndexDuringRestore() throws Exception {
@@ -2620,7 +2589,6 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         assertThat(restoreSnapshotResponse.getRestoreInfo().totalShards(), greaterThan(0));
         assertThat(restoreSnapshotResponse.getRestoreInfo().successfulShards(), greaterThan(0));
         assertThat(restoreSnapshotResponse.getRestoreInfo().failedShards(), equalTo(0));
-        BlobStoreTestUtil.assertRepoConsistency(internalCluster(), "test-repo");
     }
 
     public void testDeleteSnapshotWhileRestoringFails() throws Exception {
@@ -2688,7 +2656,6 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
 
         logger.info("--> wait for restore to finish");
         restoreFut.get();
-        BlobStoreTestUtil.assertRepoConsistency(internalCluster(), "test-repo");
     }
 
     public void testDeleteOrphanSnapshot() throws Exception {
@@ -2764,7 +2731,6 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         logger.info("--> try deleting the orphan snapshot");
 
         assertAcked(client.admin().cluster().prepareDeleteSnapshot(repositoryName, snapshotName).get("10s"));
-        BlobStoreTestUtil.assertRepoConsistency(internalCluster(), "test-repo");
     }
 
     private boolean waitForIndex(final String index, TimeValue timeout) throws InterruptedException {
@@ -2778,6 +2744,8 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
     }
 
     public void testSnapshotName() throws Exception {
+        disableRepoConsistencyCheck("This test does not create any data in the repository.");
+
         final Client client = client();
 
         logger.info("-->  creating repository");
@@ -2845,7 +2813,6 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
             client.admin().cluster().prepareGetSnapshots("test-repo").setIgnoreUnavailable(false).get());
         assertThat(ex.getRepositoryName(), equalTo("test-repo"));
         assertThat(ex.getSnapshotName(), equalTo("test-snap-2"));
-        BlobStoreTestUtil.assertRepoConsistency(internalCluster(), "test-repo");
     }
 
     /** Tests that a snapshot with a corrupted global state file can still be restored */
@@ -2907,7 +2874,6 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
 
         ensureGreen("test-idx-1", "test-idx-2");
         assertHitCount(client().prepareSearch("test-idx-*").setSize(0).get(), 3);
-        BlobStoreTestUtil.assertRepoConsistency(internalCluster(), "test-repo");
     }
 
     /**
@@ -2992,7 +2958,6 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         }
 
         assertAcked(client().admin().cluster().prepareDeleteSnapshot("test-repo", snapshotInfo.snapshotId().getName()).get());
-        BlobStoreTestUtil.assertRepoConsistency(internalCluster(), "test-repo");
     }
 
     /**
@@ -3095,7 +3060,6 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         ensureGreen();
 
         assertHitCount(client().prepareSearch(indexName).setSize(0).get(), 2 * nDocs);
-        BlobStoreTestUtil.assertRepoConsistency(internalCluster(), "test-repo");
     }
 
     public void testCannotCreateSnapshotsWithSameName() throws Exception {
@@ -3161,7 +3125,6 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
                                        .setIndices(indexName)
                                        .get();
         assertThat(createSnapshotResponse.getSnapshotInfo().snapshotId().getName(), equalTo(snapshotName));
-        BlobStoreTestUtil.assertRepoConsistency(internalCluster(), "test-repo");
     }
 
     public void testGetSnapshotsRequest() throws Exception {
@@ -3307,7 +3270,6 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
 
         unblockNode(repositoryName, blockedNode); // unblock node
         waitForCompletion(repositoryName, inProgressSnapshot, TimeValue.timeValueSeconds(60));
-        BlobStoreTestUtil.assertRepoConsistency(internalCluster(), repositoryName);
     }
 
     /**
@@ -3370,10 +3332,12 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         assertEquals(1, snapshotInfo.shardFailures().size());
         assertEquals(0, snapshotInfo.shardFailures().get(0).shardId());
         assertEquals("IndexShardSnapshotFailedException[Aborted]", snapshotInfo.shardFailures().get(0).reason());
-        BlobStoreTestUtil.assertRepoConsistency(internalCluster(), "test-repo");
     }
 
     public void testSnapshotSucceedsAfterSnapshotFailure() throws Exception {
+        // TODO: Fix repo cleanup logic to handle these leaked snap-file and only exclude test-repo (the mock repo) here.
+        disableRepoConsistencyCheck(
+            "This test uses a purposely broken repository implementation that results in leaking snap-{uuid}.dat files");
         logger.info("--> creating repository");
         final Path repoPath = randomRepoPath();
         final Client client = client();
@@ -3500,7 +3464,6 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
                 assertEquals("primary shard is not allocated", shardStatus.getFailure());
             }
         }
-        BlobStoreTestUtil.assertRepoConsistency(internalCluster(), "test-repo");
     }
 
     public void testGetSnapshotsFromIndexBlobOnly() throws Exception {
@@ -3580,7 +3543,6 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
             assertEquals(1, response.getSnapshots().size());
             verifySnapshotInfo(response, indicesPerSnapshot);
         }
-        BlobStoreTestUtil.assertRepoConsistency(internalCluster(), "test-repo");
     }
 
     public void testSnapshottingWithMissingSequenceNumbers() {
@@ -3653,7 +3615,6 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         assertThat(shardStats.getSeqNoStats().getLocalCheckpoint(), equalTo(15L)); // 15 indexed docs and one "missing" op.
         assertThat(shardStats.getSeqNoStats().getGlobalCheckpoint(), equalTo(15L));
         assertThat(shardStats.getSeqNoStats().getMaxSeqNo(), equalTo(15L));
-        BlobStoreTestUtil.assertRepoConsistency(internalCluster(), "test-repo");
     }
 
     public void testParallelRestoreOperations() {
@@ -3717,7 +3678,6 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         ensureGreen(restoredIndexName1, restoredIndexName2);
         assertThat(client.prepareGet(restoredIndexName1, typeName, docId).get().isExists(), equalTo(true));
         assertThat(client.prepareGet(restoredIndexName2, typeName, docId2).get().isExists(), equalTo(true));
-        BlobStoreTestUtil.assertRepoConsistency(internalCluster(), repoName);
     }
 
     public void testParallelRestoreOperationsFromSingleSnapshot() throws Exception {
@@ -3776,7 +3736,6 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         ensureGreen(restoredIndexName1, restoredIndexName2);
         assertThat(client.prepareGet(restoredIndexName1, typeName, docId).get().isExists(), equalTo(true));
         assertThat(client.prepareGet(restoredIndexName2, typeName, sameSourceIndex ? docId : docId2).get().isExists(), equalTo(true));
-        BlobStoreTestUtil.assertRepoConsistency(internalCluster(), repoName);
     }
 
     @TestLogging("org.elasticsearch.snapshots:TRACE")
@@ -3847,7 +3806,6 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
                 unblockNode("repository", internalCluster().getMasterName());
             }
         }
-        BlobStoreTestUtil.assertRepoConsistency(internalCluster(), "repository");
     }
 
     public void testRestoreIncreasesPrimaryTerms() {
@@ -3890,7 +3848,6 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         for (int shardId = 0; shardId < numPrimaries; shardId++) {
             assertThat(restoredIndexMetaData.primaryTerm(shardId), greaterThan(primaryTerms.get(shardId)));
         }
-        BlobStoreTestUtil.assertRepoConsistency(internalCluster(), "test-repo");
     }
 
     private RepositoryData getRepositoryData(Repository repository) throws InterruptedException {

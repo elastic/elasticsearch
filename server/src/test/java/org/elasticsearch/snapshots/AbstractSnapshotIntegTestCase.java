@@ -20,11 +20,13 @@ package org.elasticsearch.snapshots;
 
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.cluster.SnapshotsInProgress;
+import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.RepositoriesService;
+import org.elasticsearch.repositories.blobstore.BlobStoreTestUtil;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.After;
@@ -63,6 +65,23 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
     @After
     public void assertConsistentHistoryInLuceneIndex() throws Exception {
         internalCluster().assertConsistentHistoryBetweenTranslogAndLuceneIndex();
+    }
+
+    private String skipRepoConsistencyCheckReason;
+
+    @After
+    public void assertRepoConsistency() {
+        if (skipRepoConsistencyCheckReason == null) {
+            client().admin().cluster().prepareGetRepositories().get().repositories()
+                .stream()
+                .map(RepositoryMetaData::name)
+                .forEach(name -> BlobStoreTestUtil.assertRepoConsistency(internalCluster(), name));
+        }
+    }
+
+    protected void disableRepoConsistencyCheck(String reason) {
+        assertNotNull(reason);
+        skipRepoConsistencyCheckReason = reason;
     }
 
     public static long getFailureCount(String repository) {

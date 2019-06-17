@@ -115,6 +115,7 @@ POST /_security/user/snapshot_user
   "roles" : [ "snapshot_user" ]
 }
 --------------------------------------------------
+// CONSOLE
 --
 
 . Create a snapshot.
@@ -131,6 +132,7 @@ PUT /_snapshot/my_backup/snapshot_1
   "include_global_state": true <1>
 }
 --------------------------------------------------
+// CONSOLE
 
 <1> A few security settings are stored in the global cluster metadata as
 persistent settings. These are included in the snapshot by default, but for
@@ -141,7 +143,6 @@ out to stand in their own file.
 --------------------------------------------------
 curl -X GET -u elastic "localhost:9200/_cluster/settings?pretty&flat_settings" | jq '.persistent | with_entries(select(.key|startswith("xpack.security")))'
 --------------------------------------------------
-// NOTCONSOLE
 
 You can store the output of this together with the other configuration files.
 
@@ -190,10 +191,11 @@ hosts, navigate to {es} installation directory, and follow these steps:
 +
 --
 For example:
-[source,shell]
+[source,js]
 --------------------------------------------------
 GET /_snapshot/my_backup
 --------------------------------------------------
+// CONSOLE
 --
 
 . Add a new user with the `superuser` built-in role to the file based realm.
@@ -202,7 +204,7 @@ GET /_snapshot/my_backup
 For example, create a user named `jacknich`:
 [source,shell]
 --------------------------------------------------
- bin/elasticsearch-users useradd jacknich -p password -r superuser
+bin/elasticsearch-users useradd jacknich -p password -r superuser
 --------------------------------------------------
 --
 

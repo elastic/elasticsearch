@@ -307,7 +307,12 @@ class GoogleCloudStorageBlobStore implements BlobStore {
         }
     }
 
-    void deleteBlobRecursively(String pathStr) throws IOException {
+    /**
+     * Deletes the given path and all its children.
+     *
+     * @param pathStr Name of path to delete
+     */
+    void deleteDirectory(String pathStr) throws IOException {
         SocketAccess.doPrivilegedVoidIOException(() -> {
             Page<Blob> page = client().get(bucketName).list(BlobListOption.prefix(pathStr));
             do {

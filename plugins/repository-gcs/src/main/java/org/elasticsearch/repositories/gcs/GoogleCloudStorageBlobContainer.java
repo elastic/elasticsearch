@@ -88,7 +88,7 @@ class GoogleCloudStorageBlobContainer extends AbstractBlobContainer {
 
     @Override
     public void delete() throws IOException {
-        blobStore.deleteBlobRecursively(path().buildAsString());
+        blobStore.deleteDirectory(path().buildAsString());
     }
 
     @Override

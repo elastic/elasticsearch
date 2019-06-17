@@ -9,8 +9,8 @@
 ++++
 
 You can use {filebeat} to monitor the {es} log files, collect log events, and
-ship them to the monitoring cluster. In 7.2 and later, your recent logs are
-visible on the *Monitoring* page in {kib}.
+ship them to the monitoring cluster. Your recent logs are visible on the
+*Monitoring* page in {kib}.
 
 //NOTE: The tagged regions are re-used in the Stack Overview.
 
@@ -31,6 +31,8 @@ from impacting the performance of your production cluster. See
 +
 --
 include::configuring-metricbeat.asciidoc[tag=enable-collection]
+
+For more information, see <<monitoring-settings>> and <<cluster-update-settings>>.
 --
 
 . Identify which logs you want to monitor. 
@@ -75,7 +77,7 @@ must access it via HTTPS. For example, use a `hosts` setting like
 
 IMPORTANT: The {es} {monitor-features} use ingest pipelines, therefore the
 cluster that stores the monitoring data must have at least one 
-{ref}/ingest.html[ingest node].
+<<ingest,ingest node>>.
  
 If {es} {security-features} are enabled on the monitoring cluster, you must
 provide a valid user ID and password so that {filebeat} can send metrics 

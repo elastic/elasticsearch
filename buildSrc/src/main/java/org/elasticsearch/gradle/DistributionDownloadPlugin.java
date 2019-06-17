@@ -69,7 +69,7 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
 
         ExtraPropertiesExtension extraProperties = project.getExtensions().getExtraProperties();
         this.bwcVersions = (BwcVersions) extraProperties.get("bwcVersions");
-        // TODO: setup snapshot dependency instead of pointing to bwc distribution projects
+        // TODO: setup snapshot dependency instead of pointing to bwc distribution projects for external projects
 
         project.afterEvaluate(this::setupDistributions);
     }

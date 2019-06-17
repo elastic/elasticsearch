@@ -46,10 +46,9 @@ import org.elasticsearch.search.internal.SearchContext;
 import java.io.IOException;
 import java.time.ZoneId;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
-
-import static java.util.Map.entry;
 
 public class AutoDateHistogramAggregationBuilder
         extends ValuesSourceAggregationBuilder<ValuesSource.Numeric, AutoDateHistogramAggregationBuilder> {
@@ -67,14 +66,14 @@ public class AutoDateHistogramAggregationBuilder
         PARSER.declareStringOrNull(AutoDateHistogramAggregationBuilder::setMinimumIntervalExpression, MINIMUM_INTERVAL_FIELD);
     }
 
-    public static final Map<Rounding.DateTimeUnit, String> ALLOWED_INTERVALS = Map.ofEntries(
-        entry(Rounding.DateTimeUnit.YEAR_OF_CENTURY, "year"),
-        entry(Rounding.DateTimeUnit.MONTH_OF_YEAR, "month"),
-        entry(Rounding.DateTimeUnit.DAY_OF_MONTH, "day"),
-        entry( Rounding.DateTimeUnit.HOUR_OF_DAY, "hour"),
-        entry(Rounding.DateTimeUnit.MINUTES_OF_HOUR, "minute"),
-        entry(Rounding.DateTimeUnit.SECOND_OF_MINUTE, "second")
-    );
+    public static final Map<Rounding.DateTimeUnit, String> ALLOWED_INTERVALS = new HashMap<>();
+    static {
+        ALLOWED_INTERVALS.put(Rounding.DateTimeUnit.YEAR_OF_CENTURY, "year");
+        ALLOWED_INTERVALS.put(Rounding.DateTimeUnit.DAY_OF_MONTH, "day");
+        ALLOWED_INTERVALS.put( Rounding.DateTimeUnit.HOUR_OF_DAY, "hour");
+        ALLOWED_INTERVALS.put(Rounding.DateTimeUnit.MINUTES_OF_HOUR, "minute");
+        ALLOWED_INTERVALS.put(Rounding.DateTimeUnit.SECOND_OF_MINUTE, "second");
+    }
 
     /**
      *
@@ -141,8 +140,7 @@ public class AutoDateHistogramAggregationBuilder
     public AutoDateHistogramAggregationBuilder(StreamInput in) throws IOException {
         super(in, ValuesSourceType.NUMERIC, ValueType.DATE);
         numBuckets = in.readVInt();
-        //TODO[PCS] update after backport
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (in.getVersion().onOrAfter(Version.V_7_3_0)) {
             minimumIntervalExpression = in.readOptionalString();
         }
     }
@@ -162,7 +160,7 @@ public class AutoDateHistogramAggregationBuilder
     @Override
     protected void innerWriteTo(StreamOutput out) throws IOException {
         out.writeVInt(numBuckets);
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_7_3_0)) {
             out.writeOptionalString(minimumIntervalExpression);
         }
     }

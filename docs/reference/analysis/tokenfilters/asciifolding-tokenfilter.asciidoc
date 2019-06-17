@@ -13,7 +13,7 @@ PUT /asciifold_example
     "settings" : {
         "analysis" : {
             "analyzer" : {
-                "my_default" : {
+                "default" : {
                     "tokenizer" : "standard",
                     "filter" : ["asciifolding"]
                 }
@@ -35,7 +35,7 @@ PUT /asciifold_example
     "settings" : {
         "analysis" : {
             "analyzer" : {
-                "my_default" : {
+                "default" : {
                     "tokenizer" : "standard",
                     "filter" : ["my_ascii_folding"]
                 }

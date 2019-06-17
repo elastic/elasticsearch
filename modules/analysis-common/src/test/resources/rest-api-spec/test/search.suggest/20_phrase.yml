@@ -18,7 +18,7 @@ setup:
                   filter: [lowercase, bigram]
                 ngram:
                   tokenizer: standard
-                  filter: [lowercase, ngram]
+                  filter: [lowercase, my_ngram]
                 reverse:
                   tokenizer: standard
                   filter: [lowercase, reverse]
@@ -28,7 +28,7 @@ setup:
                   output_unigrams: false
                   min_shingle_size: 2
                   max_shingle_size: 2
-                ngram:
+                my_ngram:
                   type: shingle
                   output_unigrams: true
                   min_shingle_size: 2

@@ -388,12 +388,16 @@ public final class AnalysisRegistry implements Closeable {
         Map<String, T> factories = new HashMap<>();
         for (Map.Entry<String, Settings> entry : settingsMap.entrySet()) {
             String name = entry.getKey();
+            if (settings.getIndexVersionCreated().onOrAfter(Version.V_8_0_0) && defaultInstance.containsKey(name)) {
+                boolean defaultAnalyzerSetting = (component == Component.ANALYZER) && (name.equals(DEFAULT_ANALYZER_NAME) ||
+                    name.equals(DEFAULT_SEARCH_ANALYZER_NAME) || name.equals(DEFAULT_SEARCH_QUOTED_ANALYZER_NAME));
+                if (defaultAnalyzerSetting == false) {
+                    throw new IllegalArgumentException("Custom analysis component [" +  component.toString() +
+                        "] [" + name + "] may not reuse the name of a built-in component");
+                }
+            }
             Settings currentSettings = entry.getValue();
             String typeName = currentSettings.get("type");
-            if (settings.getIndexVersionCreated().onOrAfter(Version.V_8_0_0) && defaultInstance.containsKey(name)) {
-                throw new IllegalArgumentException(
-                    "Custom analysis component [" + name + "] may not reuse the name of a built-in component");
-            }
             if (component == Component.ANALYZER) {
                 T factory = null;
                 if (typeName == null) {

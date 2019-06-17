@@ -272,6 +272,7 @@ public class AnalysisRegistryTests extends ESTestCase {
             .build();
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", settings);
         Exception e = expectThrows(IllegalArgumentException.class, () -> emptyRegistry.build(idxSettings));
-        assertThat(e.getMessage(), equalTo("Custom analysis component [whitespace] may not reuse the name of a built-in component"));
+        assertThat(e.getMessage(), equalTo(
+            "Custom analysis component [analyzer] [whitespace] may not reuse the name of a built-in component"));
     }
 }

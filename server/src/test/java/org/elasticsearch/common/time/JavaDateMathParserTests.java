@@ -34,8 +34,8 @@ import static org.hamcrest.Matchers.is;
 
 public class JavaDateMathParserTests extends ESTestCase {
 
-    private final DateFormatter formatter = DateFormatter.forPattern("dateOptionalTime||epoch_millis");
-    private final DateMathParser parser = formatter.toDateMathParser();
+    private final static DateFormatter formatter = DateFormatter.forPattern("dateOptionalTime||epoch_millis");
+    private final static DateMathParser parser = formatter.toDateMathParser();
 
     public void testOverridingLocaleOrZoneAndCompositeRoundUpParser() {
         //the pattern has to be composite and the match should not be on the first one
@@ -139,8 +139,13 @@ public class JavaDateMathParserTests extends ESTestCase {
 
         assertDateMathEquals("now", "2014-11-18T14:27:32", now, false, null);
         assertDateMathEquals("now+M", "2014-12-18T14:27:32", now, false, null);
+        assertDateMathEquals("now+M", "2014-12-18T14:27:32", now, true, null);
         assertDateMathEquals("now-2d", "2014-11-16T14:27:32", now, false, null);
+        assertDateMathEquals("now-2d", "2014-11-16T14:27:32", now, true, null);
         assertDateMathEquals("now/m", "2014-11-18T14:27", now, false, null);
+        assertDateMathEquals("now/m", "2014-11-18T14:27:59.999Z", now, true, null);
+        assertDateMathEquals("now/M", "2014-11-01T00:00:00", now, false, null);
+        assertDateMathEquals("now/M", "2014-11-30T23:59:59.999Z", now, true, null);
 
         // timezone does not affect now
         assertDateMathEquals("now/m", "2014-11-18T14:27", now, false, ZoneId.of("+02:00"));
@@ -291,16 +296,16 @@ public class JavaDateMathParserTests extends ESTestCase {
         assertTrue(called.get());
     }
 
-    private void assertDateMathEquals(String toTest, String expected) {
+    private static void assertDateMathEquals(String toTest, String expected) {
         assertDateMathEquals(toTest, expected, 0, false, null);
     }
 
-    private void assertDateMathEquals(String toTest, String expected, final long now, boolean roundUp, ZoneId timeZone) {
+    private static void assertDateMathEquals(String toTest, String expected, final long now, boolean roundUp, ZoneId timeZone) {
         long gotMillis = parser.parse(toTest, () -> now, roundUp, timeZone).toEpochMilli();
         assertDateEquals(gotMillis, toTest, expected);
     }
 
-    private void assertDateEquals(long gotMillis, String original, String expected) {
+    private static void assertDateEquals(long gotMillis, String original, String expected) {
         long expectedMillis = parser.parse(expected, () -> 0).toEpochMilli();
         if (gotMillis != expectedMillis) {
             ZonedDateTime zonedDateTime = ZonedDateTime.ofInstant(Instant.ofEpochMilli(gotMillis), ZoneOffset.UTC);

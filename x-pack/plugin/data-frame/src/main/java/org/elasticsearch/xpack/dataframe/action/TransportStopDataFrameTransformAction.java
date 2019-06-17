@@ -76,12 +76,12 @@ public class TransportStopDataFrameTransformAction extends
             }
 
             dataFrameTransformsConfigManager.expandTransformIds(request.getId(), new PageParams(0, 10_000), ActionListener.wrap(
-                    expandedIdsAndHits -> {
-                        request.setExpandedIds(new HashSet<>(expandedIdsAndHits.v2()));
-                        request.setNodes(DataFrameNodes.dataFrameTaskNodes(expandedIdsAndHits.v2(), clusterService.state()));
-                        super.doExecute(task, request, finalListener);
-                    },
-                    listener::onFailure
+                hitsAndIds -> {
+                    request.setExpandedIds(new HashSet<>(hitsAndIds.v2()));
+                    request.setNodes(DataFrameNodes.dataFrameTaskNodes(hitsAndIds.v2(), clusterService.state()));
+                    super.doExecute(task, request, finalListener);
+                },
+                listener::onFailure
             ));
         }
     }

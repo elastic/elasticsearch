@@ -24,6 +24,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xpack.core.action.util.PageParams;
 import org.elasticsearch.xpack.core.dataframe.DataFrameField;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformStateAndStats;
+import org.elasticsearch.xpack.core.dataframe.utils.ExceptionsHelper;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -143,26 +144,30 @@ public class GetDataFrameTransformsStatsAction extends Action<GetDataFrameTransf
 
         public Response(List<DataFrameTransformStateAndStats> transformsStateAndStats) {
             super(Collections.emptyList(), Collections.emptyList());
-            this.transformsStateAndStats = transformsStateAndStats;
+            this.transformsStateAndStats = ExceptionsHelper.requireNonNull(transformsStateAndStats, "transformsStateAndStats");
+            this.totalCount = transformsStateAndStats.size();
         }
 
         public Response(List<DataFrameTransformStateAndStats> transformsStateAndStats, List<TaskOperationFailure> taskFailures,
                 List<? extends ElasticsearchException> nodeFailures) {
             super(taskFailures, nodeFailures);
-            this.transformsStateAndStats = transformsStateAndStats;
+            this.transformsStateAndStats = ExceptionsHelper.requireNonNull(transformsStateAndStats, "transformsStateAndStats");
+            this.totalCount = transformsStateAndStats.size();
         }
 
         public Response(StreamInput in) throws IOException {
             super(in);
             transformsStateAndStats = in.readList(DataFrameTransformStateAndStats::new);
-            if (in.getVersion().onOrAfter(Version.CURRENT)) {
+            if (in.getVersion().onOrAfter(Version.V_7_3_0)) {
                 totalCount = in.readLong();
             } else {
                 totalCount = transformsStateAndStats.size();
             }
         }
 
+        // Set the total count if it is different than transformsStateAndStats.size()
         public Response setTotalCount(long totalCount) {
+            assert totalCount >= transformsStateAndStats.size();
             this.totalCount = totalCount;
             return this;
         }
@@ -179,7 +184,7 @@ public class GetDataFrameTransformsStatsAction extends Action<GetDataFrameTransf
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeList(transformsStateAndStats);
-            if (out.getVersion().onOrAfter(Version.CURRENT)) {
+            if (out.getVersion().onOrAfter(Version.V_7_3_0)) {
                 out.writeLong(totalCount);
             }
         }
@@ -193,7 +198,7 @@ public class GetDataFrameTransformsStatsAction extends Action<GetDataFrameTransf
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             toXContentCommon(builder, params);
-            builder.field(DataFrameField.COUNT.getPreferredName(), totalCount == 0 ? transformsStateAndStats.size() : totalCount);
+            builder.field(DataFrameField.COUNT.getPreferredName(), totalCount);
             builder.field(DataFrameField.TRANSFORMS.getPreferredName(), transformsStateAndStats);
             builder.endObject();
             return builder;

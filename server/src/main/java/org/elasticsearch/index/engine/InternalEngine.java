@@ -279,7 +279,7 @@ public class InternalEngine extends Engine {
                         tracker::markSeqNoAsProcessed);
                 }
             }
-            tracker.prepareForPersistence().run(); // advances persisted checkpoint to processed checkpoint
+            tracker.prepareForPersistence().run(); // advances persisted checkpoint
             return tracker;
         } catch (IOException ex) {
             throw new EngineCreationFailureException(engineConfig.getShardId(), "failed to create local checkpoint tracker", ex);
@@ -472,10 +472,10 @@ public class InternalEngine extends Engine {
             logger.trace("flushing post recovery from translog. ops recovered [{}]. committed translog id [{}]. current id [{}]",
                 opsRecovered, translogGeneration == null ? null :
                     translogGeneration.translogFileGeneration, translog.currentFileGeneration());
-            translog.sync(); // advances persisted local checkpoint to processed local checkpoint
             commitIndexWriter(indexWriter, translog, null);
             refreshLastCommittedSegmentInfos();
             refresh("translog_recovery");
+            getLocalCheckpointTracker().prepareForPersistence().run();
         }
         translog.trimUnreferencedReaders();
     }

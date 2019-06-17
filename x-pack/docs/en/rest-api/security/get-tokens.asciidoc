@@ -43,7 +43,7 @@ pertain to creating a token:
 `grant_type`::
 (string) The type of grant. Supported grant types are: `password`, `_kerberos`,
 `client_credentials` and `refresh_token`. The `_kerberos` grant type
-is supported internally and implements SPNEGO based Kerberos support. The `kerberos`
+is supported internally and implements SPNEGO based Kerberos support. The `_kerberos`
 grant type may change from version to version.
 
 `password`::

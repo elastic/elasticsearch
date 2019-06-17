@@ -34,8 +34,8 @@ import static org.hamcrest.Matchers.is;
 
 public class JavaDateMathParserTests extends ESTestCase {
 
-    private final static DateFormatter formatter = DateFormatter.forPattern("dateOptionalTime||epoch_millis");
-    private final static DateMathParser parser = formatter.toDateMathParser();
+    private final DateFormatter formatter = DateFormatter.forPattern("dateOptionalTime||epoch_millis");
+    private final DateMathParser parser = formatter.toDateMathParser();
 
     public void testOverridingLocaleOrZoneAndCompositeRoundUpParser() {
         //the pattern has to be composite and the match should not be on the first one
@@ -296,16 +296,16 @@ public class JavaDateMathParserTests extends ESTestCase {
         assertTrue(called.get());
     }
 
-    private static void assertDateMathEquals(String toTest, String expected) {
+    private void assertDateMathEquals(String toTest, String expected) {
         assertDateMathEquals(toTest, expected, 0, false, null);
     }
 
-    private static void assertDateMathEquals(String toTest, String expected, final long now, boolean roundUp, ZoneId timeZone) {
+    private void assertDateMathEquals(String toTest, String expected, final long now, boolean roundUp, ZoneId timeZone) {
         long gotMillis = parser.parse(toTest, () -> now, roundUp, timeZone).toEpochMilli();
         assertDateEquals(gotMillis, toTest, expected);
     }
 
-    private static void assertDateEquals(long gotMillis, String original, String expected) {
+    private void assertDateEquals(long gotMillis, String original, String expected) {
         long expectedMillis = parser.parse(expected, () -> 0).toEpochMilli();
         if (gotMillis != expectedMillis) {
             ZonedDateTime zonedDateTime = ZonedDateTime.ofInstant(Instant.ofEpochMilli(gotMillis), ZoneOffset.UTC);

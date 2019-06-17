@@ -43,8 +43,8 @@ public interface DateMathParser {
 
     // exists for backcompat, do not use!
     @Deprecated
-    default Instant parse(String text, LongSupplier now, boolean roundUp, DateTimeZone tz) {
-        return parse(text, now, roundUp, tz == null ? null : ZoneId.of(tz.getID()));
+    default Instant parse(String text, LongSupplier now, boolean roundUpProperty, DateTimeZone tz) {
+        return parse(text, now, roundUpProperty, tz == null ? null : ZoneId.of(tz.getID()));
     }
 
     /**

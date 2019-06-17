@@ -59,7 +59,7 @@ public class JavaDateMathParser implements DateMathParser {
     }
 
     @Override
-    public Instant parse(String text, LongSupplier now, boolean roundUp, ZoneId timeZone) {
+    public Instant parse(String text, LongSupplier now, boolean roundUpProperty, ZoneId timeZone) {
         Instant time;
         String mathString;
         if (text.startsWith("now")) {
@@ -73,13 +73,13 @@ public class JavaDateMathParser implements DateMathParser {
         } else {
             int index = text.indexOf("||");
             if (index == -1) {
-                return parseDateTime(text, timeZone, roundUp);
+                return parseDateTime(text, timeZone, roundUpProperty);
             }
             time = parseDateTime(text.substring(0, index), timeZone, false);
             mathString = text.substring(index + 2);
         }
 
-        return parseMath(mathString, time, roundUp, timeZone);
+        return parseMath(mathString, time, roundUpProperty, timeZone);
     }
 
     private Instant parseMath(final String mathString, final Instant time, final boolean roundUpProperty,

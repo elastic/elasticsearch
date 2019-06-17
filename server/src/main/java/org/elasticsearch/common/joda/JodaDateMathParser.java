@@ -51,7 +51,7 @@ public class JodaDateMathParser implements DateMathParser {
     // if it has been used. For instance, the request cache does not cache requests that make
     // use of `now`.
     @Override
-    public Instant parse(String text, LongSupplier now, boolean roundUpProperty, ZoneId tz) {
+    public Instant parse(String text, LongSupplier now, boolean roundUp, ZoneId tz) {
         final DateTimeZone timeZone = tz == null ? null : DateUtils.zoneIdToDateTimeZone(tz);
         long time;
         String mathString;
@@ -65,16 +65,16 @@ public class JodaDateMathParser implements DateMathParser {
         } else {
             int index = text.indexOf("||");
             if (index == -1) {
-                return Instant.ofEpochMilli(parseDateTime(text, timeZone, roundUpProperty));
+                return Instant.ofEpochMilli(parseDateTime(text, timeZone, roundUp));
             }
             time = parseDateTime(text.substring(0, index), timeZone, false);
             mathString = text.substring(index + 2);
         }
 
-        return Instant.ofEpochMilli(parseMath(mathString, time, roundUpProperty, timeZone));
+        return Instant.ofEpochMilli(parseMath(mathString, time, roundUp, timeZone));
     }
 
-    private long parseMath(String mathString, long time, boolean roundUpProperty, DateTimeZone timeZone) throws ElasticsearchParseException {
+    private long parseMath(String mathString, long time, boolean roundUp, DateTimeZone timeZone) throws ElasticsearchParseException {
         if (timeZone == null) {
             timeZone = DateTimeZone.UTC;
         }
@@ -176,7 +176,7 @@ public class JodaDateMathParser implements DateMathParser {
                     throw new ElasticsearchParseException("unit [{}] not supported for date math [{}]", unit, mathString);
             }
             if (propertyToRound != null) {
-                if (roundUpProperty) {
+                if (roundUp) {
                     // we want to go up to the next whole value, even if we are already on a rounded value
                     propertyToRound.add(1);
                     propertyToRound.roundFloor();

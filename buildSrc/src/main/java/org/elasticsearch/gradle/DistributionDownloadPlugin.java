@@ -86,7 +86,7 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
             dependencies.add(distribution.configuration.getName(), dependencyNotation(project, distribution));
 
             // no extraction allowed for rpm or deb
-            if (distribution.getType().equals("rpm") == false && distribution.getType().equals("deb") == false) {
+            if (distribution.getType() != Type.RPM && distribution.getType() != Type.DEB) {
                 // for the distribution extracted, add a root level task that does the extraction, and depend on that
                 // extracted configuration as an artifact consisting of the extracted distribution directory
                 dependencies.add(distribution.getExtracted().configuration.getName(),
@@ -121,7 +121,7 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
         }
 
         // add task for extraction, delaying resolving config until runtime
-        if (distribution.getType().equals("archive") || distribution.getType().equals("integ-test-zip")) {
+        if (distribution.getType() == Type.ARCHIVE || distribution.getType() == Type.INTEG_TEST_ZIP) {
             Supplier<File> archiveGetter = downloadConfig::getSingleFile;
             String extractDir = rootProject.getBuildDir().toPath().resolve("elasticsearch-distros").resolve(extractedConfigName).toString();
             TaskProvider<Copy> extractTask = rootProject.getTasks().register(extractTaskName, Copy.class, copyTask -> {

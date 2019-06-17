@@ -31,9 +31,6 @@ import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.function.Consumer;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 import static com.github.tomakehurst.wiremock.client.WireMock.aResponse;
 import static com.github.tomakehurst.wiremock.client.WireMock.get;
@@ -42,27 +39,16 @@ import static com.github.tomakehurst.wiremock.client.WireMock.urlEqualTo;
 
 public class DistributionDownloadPluginIT extends GradleIntegrationTestCase {
     // TODO: check reuse of root task across projects MOVE TO UNIT TEST
-    // TODO: make extracted assert also do file assert, to reduce separate test builds
     // TODO: future: check integ-test-zip to maven, snapshots to snapshot service for external project
-
-    private static final Pattern DISTRO_FILE_LOGLINE = Pattern.compile("DISTRO FILE: (.*)");
-    private static final Pattern DISTRO_EXTRACTED_LOGLINE = Pattern.compile("DISTRO EXTRACTED: (.*)");
 
     public void testCurrent() throws Exception {
         String projectName = ":distribution:archives:linux-tar";
-        assertFileDistro(VersionProperties.getElasticsearch(), "archive", "linux", null, null,
-            "tests.local_distro.config", "default",
-            "tests.local_distro.project", projectName);
         assertExtractedDistro(VersionProperties.getElasticsearch(), "archive", "linux", null, null,
             "tests.local_distro.config", "default",
             "tests.local_distro.project", projectName);
     }
 
     public void testBwc() throws Exception {
-        assertFileDistro("1.1.0", "archive", "linux", null, null,
-            "tests.local_distro.config", "linux-tar",
-            "tests.local_distro.project", ":distribution:bwc:minor",
-            "tests.current_version", "2.0.0");
         assertExtractedDistro("1.1.0", "archive", "linux", null, null,
             "tests.local_distro.config", "linux-tar",
             "tests.local_distro.project", ":distribution:bwc:minor",
@@ -82,8 +68,6 @@ public class DistributionDownloadPluginIT extends GradleIntegrationTestCase {
             wireMock.stubFor(get(urlEqualTo(urlPath)).willReturn(aResponse().withStatus(200).withBody(filebytes)));
             wireMock.start();
 
-            assertFileDistro("1.0.0", "archive", "windows", null, null,
-                "tests.download_service", wireMock.baseUrl());
             assertExtractedDistro("1.0.0", "archive", "windows", null, null,
                 "tests.download_service", wireMock.baseUrl());
         } catch (Exception e) {
@@ -100,12 +84,7 @@ public class DistributionDownloadPluginIT extends GradleIntegrationTestCase {
         List<String> finalSysProps = new ArrayList<>();
         addDistroSysProps(finalSysProps, version, type, platform, flavor, bundledJdk);
         finalSysProps.addAll(Arrays.asList(sysProps));
-        runBuild(":subproj:getDistro", result -> {
-                Matcher matcher = DISTRO_FILE_LOGLINE.matcher(result.getOutput());
-                assertTrue("could not find distro file in output: " + result.getOutput(), matcher.find());
-                String distroFile = matcher.group(1);
-                assertTrue(distroFile, Files.exists(Paths.get(distroFile)));
-            }, finalSysProps.toArray(new String[0]));
+        runBuild(":subproj:assertDistroFile", finalSysProps.toArray(new String[0]));
     }
 
     private void assertExtractedDistro(String version, String type, String platform, String flavor, Boolean bundledJdk,
@@ -113,15 +92,10 @@ public class DistributionDownloadPluginIT extends GradleIntegrationTestCase {
         List<String> finalSysProps = new ArrayList<>();
         addDistroSysProps(finalSysProps, version, type, platform, flavor, bundledJdk);
         finalSysProps.addAll(Arrays.asList(sysProps));
-        runBuild(":subproj:getDistroExtracted", result -> {
-            Matcher matcher = DISTRO_EXTRACTED_LOGLINE.matcher(result.getOutput());
-            assertTrue("could not find distro extracted in output: " + result.getOutput(), matcher.find());
-            String distroDir = matcher.group(1);
-            assertTrue(distroDir, Files.isDirectory(Paths.get(distroDir)));
-        }, finalSysProps.toArray(new String[0]));
+        runBuild(":subproj:assertDistroExtracted", finalSysProps.toArray(new String[0]));
     }
 
-    private void runBuild(String taskname, Consumer<BuildResult> assertions, String... sysProps) throws IOException {
+    private BuildResult runBuild(String taskname, String... sysProps) throws IOException {
         assert sysProps.length % 2 == 0;
         List<String> args = new ArrayList<>();
         args.add(taskname);
@@ -132,8 +106,7 @@ public class DistributionDownloadPluginIT extends GradleIntegrationTestCase {
         args.add("-s");
         GradleRunner runner = getGradleRunner("distribution-download").withArguments(args);
 
-        BuildResult result = runner.build();
-        assertions.accept(result);
+        return runner.build();
     }
 
     private void addDistroSysProps(List<String> sysProps, String version, String type, String platform, String flavor, Boolean bundledJdk) {

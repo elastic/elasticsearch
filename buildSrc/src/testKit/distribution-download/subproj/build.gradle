@@ -29,18 +29,30 @@ elasticsearch_distributions {
   }
 }
 
-task getDistro {
+task assertDistroFile {
   dependsOn elasticsearch_distributions.test_distro
   doLast {
-    println "DISTRO FILE: " + elasticsearch_distributions.test_distro
+    File distroFile = new File(elasticsearch_distributions.test_distro.toString())
+    if (distroFile.exists() == false) {
+      throw new GradleException("distro file does not exist: ${distroFile}")
+    }
+    if (distroFile.isFile() == false) {
+      throw new GradleException("distro file is not a regular file: ${distroFile}")
+    }
   }
 }
 
 if (['rpm', 'deb'].contains(distroType) == false) {
-  task getDistroExtracted {
-    dependsOn elasticsearch_distributions.test_distro.extracted
+  task assertDistroExtracted {
+    dependsOn elasticsearch_distributions.test_distro.extracted, assertDistroFile
     doLast {
-      println "DISTRO EXTRACTED: " + elasticsearch_distributions.test_distro.extracted
+      File distroExtracted = new File(elasticsearch_distributions.test_distro.extracted.toString())
+      if (distroExtracted.exists() == false) {
+        throw new GradleException("extracted does not exist: ${distroExtracted}")
+      }
+      if (distroExtracted.isDirectory() == false) {
+        throw new GradleException("extracted distro is not a directory: ${distroExtracted}")
+      }
     }
   }
 }

@@ -132,7 +132,7 @@ public final class EnglishPluralStemFilter extends TokenFilter {
             }
         }
 
-        private final boolean isOesException(char[] s, int len) {
+        private boolean isOesException(char[] s, int len) {
             for (char[] oesRule : oesExceptions) {
                 int rulePos = oesRule.length - 1;
                 int sPos = len - 1;

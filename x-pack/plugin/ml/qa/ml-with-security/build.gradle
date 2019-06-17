@@ -18,7 +18,7 @@ task copyMlRestTests(type: Copy) {
   include 'rest-api-spec/test/ml/**'
 }
 
-integTest {
+integTest.runner {
   dependsOn copyMlRestTests
 }
 integTest.runner  {

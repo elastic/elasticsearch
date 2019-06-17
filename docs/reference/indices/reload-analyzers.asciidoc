@@ -1,0 +1,65 @@
+[[indices-reload-analyzers]]
+== Reload Search Analyzers
+
+experimental[]
+
+Reloads search analyzers and its resources.
+
+The `_reload_search_analyzers` API can be run on one or more indices and will
+reload all search analyzers that contain components that were marked as
+updateable when they were created, such as 
+<<analysis-synonym-tokenfilter,synonym token filters>>:
+
+[source,js]
+--------------------------------------------------
+PUT /test_index
+{
+    "settings": {
+        "index" : {
+            "analysis" : {
+                "analyzer" : {
+                    "my_synonyms" : {
+                        "tokenizer" : "whitespace",
+                        "filter" : ["synonym"]
+                    }
+                },
+                "filter" : {
+                    "synonym" : {
+                        "type" : "synonym",
+                        "synonyms_path" : "analysis/synonym.txt",
+                        "updateable" : true <1>
+                    }
+                }
+            }
+        }
+    },
+    "mappings": {
+        "properties": {
+            "text": {
+                "type": "text",
+                "analyzer" : "standard",
+                "search_analyzer": "my_synonyms" <2>
+            }
+        }
+    }
+}
+--------------------------------------------------
+// CONSOLE
+
+<1> Mark the synonym filter as updateable.
+<2> Synonym analyzer is usable as a search_analyzer.
+
+Calling the `_reload_search_analyzers` endpoint will now trigger reloading of the
+synonyms from the configured "synonym.txt" file.
+
+NOTE: Reloading will happen on every node the index has shards, so its important
+to update the synonym file contents on every data node (even the ones that don't currently
+hold shard copies; shards might be relocated there in the future) before calling
+reload to ensure the new state of the file is reflected everywhere in the cluster.
+
+[source,js]
+--------------------------------------------------
+POST /my_index/_reload_search_analyzers
+--------------------------------------------------
+// CONSOLE
+// TEST[s/^/PUT my_index\n/]

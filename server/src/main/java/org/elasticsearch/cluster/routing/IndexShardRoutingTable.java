@@ -215,7 +215,7 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
     }
 
     /**
-     * Returns a {@link List} of assigned shards
+     * Returns a {@link List} of assigned shards, including relocation targets
      *
      * @return a {@link List} of shards
      */

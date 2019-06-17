@@ -587,7 +587,9 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
     void processBulkIndexIngestRequest(Task task, BulkRequest original, ActionListener<BulkResponse> listener) {
         long ingestStartTimeInNanos = System.nanoTime();
         BulkRequestModifier bulkRequestModifier = new BulkRequestModifier(original);
-        ingestService.executeBulkRequest(() -> bulkRequestModifier,
+        ingestService.executeBulkRequest(
+            original.numberOfActions(),
+            () -> bulkRequestModifier,
             (indexRequest, exception) -> {
                 logger.debug(() -> new ParameterizedMessage("failed to execute pipeline [{}] for document [{}/{}/{}]",
                     indexRequest.getPipeline(), indexRequest.index(), indexRequest.type(), indexRequest.id()), exception);
@@ -611,7 +613,8 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                     }
                 }
             },
-            indexRequest -> bulkRequestModifier.markCurrentItemAsDropped());
+            indexRequest -> bulkRequestModifier.markCurrentItemAsDropped()
+        );
     }
 
     static final class BulkRequestModifier implements Iterator<DocWriteRequest<?>> {

@@ -69,6 +69,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
@@ -362,12 +363,12 @@ public class IngestService implements ClusterStateApplier {
         ExceptionsHelper.rethrowAndSuppress(exceptions);
     }
 
-    public void executeBulkRequest(Iterable<DocWriteRequest<?>> actionRequests,
-        BiConsumer<IndexRequest, Exception> itemFailureHandler, Consumer<Exception> completionHandler,
-        Consumer<IndexRequest> itemDroppedHandler) {
+    public void executeBulkRequest(int numberOfActionRequests,
+                                   Iterable<DocWriteRequest<?>> actionRequests,
+                                   BiConsumer<IndexRequest, Exception> itemFailureHandler,
+                                   Consumer<Exception> completionHandler,
+                                   Consumer<IndexRequest> itemDroppedHandler) {
 
-        // Multiple threads may use this iterator, but not concurrently:
-        final Iterator<DocWriteRequest<?>> actionRequestsIterator = actionRequests.iterator();
         threadPool.executor(ThreadPool.Names.WRITE).execute(new AbstractRunnable() {
 
             @Override
@@ -377,41 +378,50 @@ public class IngestService implements ClusterStateApplier {
 
             @Override
             protected void doRun() {
-                if (actionRequestsIterator.hasNext()) {
+                // Multiple threads may use this iterator, but not concurrently:
+                final Iterator<DocWriteRequest<?>> actionRequestsIterator = actionRequests.iterator();
+                AtomicInteger counter = new AtomicInteger(numberOfActionRequests);
+                while (actionRequestsIterator.hasNext()) {
                     IndexRequest indexRequest = TransportBulkAction.getIndexWriteRequest(actionRequestsIterator.next());
                     if (indexRequest == null) {
-                        doRun();
-                        return;
+                        if (counter.decrementAndGet() == 0){
+                            completionHandler.accept(null);
+                        }
+                        continue;
                     }
                     String pipelineId = indexRequest.getPipeline();
-                    if (NOOP_PIPELINE_NAME.equals(pipelineId) == false) {
-                        try {
-                            PipelineHolder holder = pipelines.get(pipelineId);
-                            if (holder == null) {
-                                throw new IllegalArgumentException("pipeline with id [" + pipelineId + "] does not exist");
-                            }
-                            Pipeline pipeline = holder.pipeline;
-                            innerExecute(indexRequest, pipeline, itemDroppedHandler, e -> {
-                                if (e == null) {
-                                    // this shouldn't be needed here but we do it for consistency with index api
-                                    // which requires it to prevent double execution
-                                    indexRequest.setPipeline(NOOP_PIPELINE_NAME);
-                                } else {
-                                    itemFailureHandler.accept(indexRequest, e);
-                                }
-                                // TODO: fork? If there are many index requests and
-                                //  a processor (most processors don't) didn't fork then a SO may occur...
-                                doRun();
-                            });
-                        } catch (Exception e) {
-                            itemFailureHandler.accept(indexRequest, e);
-                            doRun();
+                    if (NOOP_PIPELINE_NAME.equals(pipelineId)) {
+                        if (counter.decrementAndGet() == 0){
+                            completionHandler.accept(null);
                         }
-                    } else {
-                        doRun();
+                        continue;
                     }
-                } else {
-                    completionHandler.accept(null);
+
+                    try {
+                        PipelineHolder holder = pipelines.get(pipelineId);
+                        if (holder == null) {
+                            throw new IllegalArgumentException("pipeline with id [" + pipelineId + "] does not exist");
+                        }
+                        Pipeline pipeline = holder.pipeline;
+                        innerExecute(indexRequest, pipeline, itemDroppedHandler, e -> {
+                            if (e == null) {
+                                // this shouldn't be needed here but we do it for consistency with index api
+                                // which requires it to prevent double execution
+                                indexRequest.setPipeline(NOOP_PIPELINE_NAME);
+                            } else {
+                                itemFailureHandler.accept(indexRequest, e);
+                            }
+
+                            if (counter.decrementAndGet() == 0){
+                                completionHandler.accept(null);
+                            }
+                        });
+                    } catch (Exception e) {
+                        itemFailureHandler.accept(indexRequest, e);
+                        if (counter.decrementAndGet() == 0){
+                            completionHandler.accept(null);
+                        }
+                    }
                 }
             }
         });

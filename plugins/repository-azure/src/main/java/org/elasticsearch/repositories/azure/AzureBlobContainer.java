@@ -38,6 +38,7 @@ import java.io.InputStream;
 import java.net.HttpURLConnection;
 import java.net.URISyntaxException;
 import java.nio.file.NoSuchFileException;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -124,6 +125,31 @@ public class AzureBlobContainer extends AbstractBlobContainer {
         } catch (URISyntaxException e) {
             throw new IOException(e);
         }
+    }
+
+    @Override
+    public void delete() throws IOException {
+        final Collection<BlobContainer> childContainers = children().values();
+        if (childContainers.isEmpty() == false) {
+            final PlainActionFuture<Collection<Void>> result = PlainActionFuture.newFuture();
+            final GroupedActionListener<Void> listener = new GroupedActionListener<>(result, childContainers.size());
+            final ExecutorService executor = threadPool.executor(AzureRepositoryPlugin.REPOSITORY_THREAD_POOL_NAME);
+            for (BlobContainer container : childContainers) {
+                executor.submit(new ActionRunnable<>(listener) {
+                    @Override
+                    protected void doRun() throws IOException {
+                        container.delete();
+                        listener.onResponse(null);
+                    }
+                });
+            }
+            try {
+                result.actionGet();
+            } catch (Exception e) {
+                throw new IOException("Exception during bulk delete", e);
+            }
+        }
+        deleteBlobsIgnoringIfNotExists(new ArrayList<>(listBlobs().keySet()));
     }
 
     @Override

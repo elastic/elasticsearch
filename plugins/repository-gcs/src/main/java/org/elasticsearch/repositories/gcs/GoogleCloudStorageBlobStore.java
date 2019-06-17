@@ -19,6 +19,7 @@
 
 package org.elasticsearch.repositories.gcs;
 
+import com.google.api.gax.paging.Page;
 import com.google.cloud.BatchResult;
 import com.google.cloud.ReadChannel;
 import com.google.cloud.WriteChannel;
@@ -304,6 +305,18 @@ class GoogleCloudStorageBlobStore implements BlobStore {
         if (deleted == false) {
             throw new NoSuchFileException("Blob [" + blobName + "] does not exist");
         }
+    }
+
+    void deleteBlobRecursively(String pathStr) throws IOException {
+        SocketAccess.doPrivilegedVoidIOException(() -> {
+            Page<Blob> page = client().get(bucketName).list(BlobListOption.prefix(pathStr));
+            do {
+                final Collection<String> blobsToDelete = new ArrayList<>();
+                page.getValues().forEach(b -> blobsToDelete.add(b.getName()));
+                deleteBlobsIgnoringIfNotExists(blobsToDelete);
+                page = page.getNextPage();
+            } while (page != null);
+        });
     }
 
     /**

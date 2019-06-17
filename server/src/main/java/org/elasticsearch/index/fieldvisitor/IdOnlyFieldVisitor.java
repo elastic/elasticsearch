@@ -43,10 +43,10 @@ public final class IdOnlyFieldVisitor extends StoredFieldVisitor {
 
     @Override
     public void binaryField(FieldInfo fieldInfo, byte[] value) {
+        assert IdFieldMapper.NAME.equals(fieldInfo.name) : fieldInfo;
         if (IdFieldMapper.NAME.equals(fieldInfo.name)) {
             id = Uid.decodeId(value);
         }
-        assert IdFieldMapper.NAME.equals(fieldInfo.name) : fieldInfo;
     }
 
     public String getId() {

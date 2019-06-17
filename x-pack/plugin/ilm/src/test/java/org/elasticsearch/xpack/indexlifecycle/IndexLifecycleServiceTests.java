@@ -48,11 +48,9 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.util.Collections;
-import java.util.List;
 import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.concurrent.ExecutorService;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.node.Node.NODE_MASTER_SETTING;
 import static org.elasticsearch.xpack.core.indexlifecycle.AbstractStepTestCase.randomStepKey;
@@ -195,14 +193,17 @@ public class IndexLifecycleServiceTests extends ESTestCase {
     }
 
     public void testRequestedStopInShrinkActionButNotShrinkStep() {
-        // Create a list of all the shrink action steps that can be stopped during (basically all of them minus the actual shrink)
+        // test all the shrink action steps that ILM can be stopped during (basically all of them minus the actual shrink)
         ShrinkAction action = new ShrinkAction(1);
-        List<String> stoppableSteps = action.toSteps(mock(Client.class), "warm", randomStepKey()).stream()
+        action.toSteps(mock(Client.class), "warm", randomStepKey()).stream()
             .map(sk -> sk.getKey().getName())
             .filter(name -> name.equals(ShrinkStep.NAME) == false)
-            .collect(Collectors.toList());
+            .forEach(this::verifyCanStopWithStep);
+    }
 
-        Step.StepKey mockShrinkStep = new Step.StepKey(randomAlphaOfLength(4), ShrinkAction.NAME, randomFrom(stoppableSteps));
+    // Check that ILM can stop when in the shrink action on the provided step
+    private void verifyCanStopWithStep(String stoppableStep) {
+        Step.StepKey mockShrinkStep = new Step.StepKey(randomAlphaOfLength(4), ShrinkAction.NAME, stoppableStep);
         String policyName = randomAlphaOfLengthBetween(1, 20);
         IndexLifecycleRunnerTests.MockClusterStateActionStep mockStep =
             new IndexLifecycleRunnerTests.MockClusterStateActionStep(mockShrinkStep, randomStepKey());

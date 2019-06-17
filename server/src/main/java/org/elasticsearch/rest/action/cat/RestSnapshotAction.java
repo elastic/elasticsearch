@@ -109,10 +109,19 @@ public class RestSnapshotAction extends AbstractCatAction {
         Table table = getTableWithHeader(req);
 
         if (getSnapshotsResponse.isFailed()) {
+            ElasticsearchException causes = null;
+
+            for (ElasticsearchException e : getSnapshotsResponse.getFailedResponses().values()) {
+                if (causes == null) {
+                    causes = e;
+                } else {
+                    causes.addSuppressed(e);
+                }
+            }
             throw new ElasticsearchException(
                     "Repositories [" +
                             Strings.collectionToCommaDelimitedString(getSnapshotsResponse.getFailedResponses().keySet()) +
-                    "] failed to retrieve snapshots");
+                    "] failed to retrieve snapshots", causes);
         }
 
         for (Map.Entry<String, List<SnapshotInfo>> response : getSnapshotsResponse.getSuccessfulResponses().entrySet()) {

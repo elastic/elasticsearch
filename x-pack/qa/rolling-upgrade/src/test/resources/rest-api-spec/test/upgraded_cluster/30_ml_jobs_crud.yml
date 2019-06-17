@@ -21,12 +21,6 @@ setup:
   - is_true: jobs.0.model_size_stats
   - is_true: jobs.0.node
   - is_true: jobs.0.open_time
-  - match: { jobs.0.timing_stats.job_id: old-cluster-job }
-  - match: { jobs.0.timing_stats.bucket_count: 1 }
-  - gte:   { jobs.0.timing_stats.minimum_bucket_processing_time_ms: 0.0 }
-  - gte:   { jobs.0.timing_stats.maximum_bucket_processing_time_ms: 0.0 }
-  - gte:   { jobs.0.timing_stats.average_bucket_processing_time_ms: 0.0 }
-  - gte:   { jobs.0.timing_stats.exponential_average_bucket_processing_time_ms: 0.0 }
 
   - do:
       ml.open_job:
@@ -115,6 +109,20 @@ setup:
       indices.exists_alias:
         name: ".ml-state-write"
   - is_true: ''
+
+---
+"Test get old cluster job's timing stats":
+  - do:
+      ml.get_job_stats:
+        job_id: old-cluster-job
+  - match: { jobs.0.job_id: old-cluster-job }
+  - match: { jobs.0.state: "closed" }
+  - match: { jobs.0.timing_stats.job_id: old-cluster-job }
+  - match: { jobs.0.timing_stats.bucket_count: 1 }
+  - gte:   { jobs.0.timing_stats.minimum_bucket_processing_time_ms: 0.0 }
+  - gte:   { jobs.0.timing_stats.maximum_bucket_processing_time_ms: 0.0 }
+  - gte:   { jobs.0.timing_stats.average_bucket_processing_time_ms: 0.0 }
+  - gte:   { jobs.0.timing_stats.exponential_average_bucket_processing_time_ms: 0.0 }
 
 ---
 "Test job with pre 6.4 rules":

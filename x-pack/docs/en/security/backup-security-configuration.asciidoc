@@ -6,11 +6,12 @@ The {es} {security-features} are configured by files and by various API
 endpoints. The security settings, which are prefixed with `xpack.security`, are
 ordinarily included in regular backups. However, the backup is not complete
 until a special index, which holds most of the non-setting configuration, is
-also included.
+also included. Hence, the backup and restore of the security configuration
+entails an extra step to a conventional backup and restore.
 
 [float]
-[[backup-security-location]]
-==== Location of security configuration details
+[[backup-security-files-location]]
+==== Location of security configuration files
 
 The configuration files reside on every node and are usually identical across
 nodes. They are formatted as YAML text files. Also, on every node there is a
@@ -18,8 +19,13 @@ secure store file named `elasticsearch.keystore`, which is binary formatted.
 This file is used only for sensitive settings such as service passwords. Some
 setting values are paths pointing to other files, such as the keys and
 certificates to configure TLS. Reassuringly, all these files are stored inside
-the `$ES_PATH_CONF` directory, so when you back up the whole directory, you
-capture all of the file-based configuration for the {security-features}.
+the `$ES_PATH_CONF` directory, so when you back up the whole directory, as part
+of a conventional backup, you capture all of the file-based configuration for
+the {security-features}.
+
+[float]
+[[backup-security-configuration-inside-cluster]]
+==== Security configuration inside the cluster
 
 The API calls act on configuration information that is stored in the global
 cluster metadata as well as inside a dedicated {es} index. This index is named
@@ -49,20 +55,19 @@ the security details.
 ==== Backing up configuration files
 
 The simplest way to backup configuration files is to copy the `$ES_PATH_CONF`
-directory. Overall, this procedure is identical to a complete backup.
+directory. Overall, this procedure is identical to a conventional backup.
 
-TIP: In a typical {es} deployment, all the configuration files are identical on
+NOTE: In a typical {es} deployment, all the configuration files are identical on
 each node.
 
 It is recommended that you back up the configuration files every time they are
-modified. In a typical deployment, after you achieve a desired configuration,
-you update these files infrequently. If you change the contents of the
-configuration files, the changes usually don't take effect until you restart
-the node. Therefore, configuration files should contain only the settings that
+modified. This is not as difficult as it sounds because, in a typical
+deployment, after you achieve a desired configuration, you update these files
+infrequently. Configuration files purposefully contain only the settings that
 change rarely or are required for cluster formation or require file system
 privileges.
 
-For the YAML text files, you also have the option of storing diffs against a
+TIP: For the YAML text files, you also have the option of storing diffs against a
 baseline or checking them into `git`. This method makes it easier for the {es}
 administrator to review the changes.
 
@@ -71,16 +76,17 @@ file, are extra sensitive; they require restricted read access.
 
 [float]
 [[backup-security-snapshots]]
-==== Snapshotting security indices and global cluster metadata
+==== Snapshotting the security index and the global cluster metadata
 
-To back up API-based configuration, you use the
-<<modules-snapshots,regular snapshot functionality>>. The snapshot API saves the
-settings, the type mapping, and the contents of any index to a location on a
-cloud storage service or on a shared network file system. The snapshot operation
-can also optionally capture the persistent settings from the global cluster
-metadata.
+To back up API-based configuration, which is stored inside the cluster, you use
+the <<modules-snapshots,regular snapshot functionality>>. The snapshot API
+saves the settings, the type mapping, and the contents of any index to a
+location on a cloud storage service or on a shared network file system. This is
+used to snapshot the `.security` index. The snapshot operation can also
+optionally capture the persistent settings from the global cluster metadata.
 
 . Create a repository that you can use to backup the `.security` index.
+Ideally this repository is dedicated only to this scope.
 +
 --
 You must have the elevated `manage` cluster privilege to create it, yet it's a
@@ -127,9 +133,9 @@ PUT /_snapshot/my_backup/snapshot_1
 --------------------------------------------------
 
 <1> A few security settings are stored in the global cluster metadata as
-persistent settings. These are included in the snapshot by default, but for facilitating
-change reviews as well as restore convenience, we can pull them out to stand in
-their own file.
+persistent settings. These are included in the snapshot by default, but for
+facilitating change reviews as well as restore convenience, we can pull them
+out to stand in their own file.
 
 [source,shell]
 --------------------------------------------------
@@ -147,12 +153,13 @@ NOTE: Transient settings are not considered for backup.
 [[backup-security-repos]]
 ===== Controlling access to the backup repository
 
-If a third party reads the snapshot and exposes the contents of the `.security` index, 
-it does not mean you have compromised cluster security. An attacker would
-still need to brute force cryptographic hashes before they can impersonate users
-or use API keys. However, every document in the security index is sensitive to
-changes. Modifications to that index have the potential to compromise the
-integrity of all the data in the cluster. To prevent that situation:
+If a third party reads the snapshot and exposes the contents of the `.security`
+index, it does not mean you have compromised cluster security. An attacker
+would still need to brute force cryptographic hashes before they can
+impersonate users or use API keys. However, every document in the security
+index is sensitive to changes. Modifications to that index have the potential
+to compromise the integrity of all the data in the cluster. To prevent this
+situation:
 
 * Snapshot the `.security` index in a dedicated repository, where read and write
 access is strictly restricted and audited.
@@ -205,7 +212,7 @@ For example, create a user named `jacknich`:
 --
 [source,shell]
 --------------------------------------------------
-curl -u jacknich-X DELETE "localhost:9200/.security-7"
+curl -u jacknich -X DELETE "localhost:9200/.security-7"
 --------------------------------------------------
 
 WARNING: After this step authentication will not work; all API calls will fail.
@@ -225,16 +232,18 @@ WARNING: After this step authentication will not work; all API calls will fail.
  '
 --------------------------------------------------
 
-NOTE: Restoring the global state is optional, but it will help make sure the
-
+NOTE: The `include_global_state` is optional but it will help to make sure the
+configuration in the index is compatible with the rest of the configuration, as
+was the case at the time of the snapshot. But be advised that this will also
+restore non-security persistent cluster seetting.
 --
 
-. Copy the backup configuration details by overwriting the contents of
-`$ES_PATH_CONF` and restart the node.
-+
---
-This step is common to every other backup restore.
---
+. Optionally, cherry-pick and <<cluster-update-settings,apply the persistent
+settings>> that you have extracted with the `GET _cluster/settings` API, if you
+need to review and override the settings that were included in the snapshot (by
+the `include_global_state` flag).
 
-. Cherry-pick and
-<<cluster-update-settings,apply the persistent secure settings>> from earlier.
+Lastly, if your backup included configuration files copy these and overwrite
+the contents of `$ES_PATH_CONF` and restart the node. This needs to be done on
+*every node*. Usually rolling restarts won't work, a full cluster restart is
+required. This is a conventional file configuration restore.

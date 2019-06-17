@@ -170,7 +170,7 @@ public class ElasticsearchDistribution implements Buildable {
     }
 
     public Extracted getExtracted() {
-        if (getType().equals("rpm") || getType().equals("deb")) {
+        if (getType() == Type.RPM || getType() == Type.DEB) {
             throw new UnsupportedOperationException("distribution type [" + getType() + "] for " +
                 "elasticsearch distribution [" + name + "] cannot be extracted");
         }
@@ -188,15 +188,15 @@ public class ElasticsearchDistribution implements Buildable {
         if (getType() == Type.INTEG_TEST_ZIP) {
             if (platform.isPresent()) {
                 throw new IllegalArgumentException(
-                    "platform not allowed for elasticsearch distribution [" + name + "] of type [integ-test-zip]");
+                    "platform not allowed for elasticsearch distribution [" + name + "] of type [integ_test_zip]");
             }
             if (flavor.isPresent()) {
                 throw new IllegalArgumentException(
-                    "flavor not allowed for elasticsearch distribution [" + name + "] of type [integ-test-zip]");
+                    "flavor not allowed for elasticsearch distribution [" + name + "] of type [integ_test_zip]");
             }
             if (bundledJdk.isPresent()) {
                 throw new IllegalArgumentException(
-                    "bundledJdk not allowed for elasticsearch distribution [" + name + "] of type [integ-test-zip]");
+                    "bundledJdk not allowed for elasticsearch distribution [" + name + "] of type [integ_test_zip]");
             }
             return;
         }

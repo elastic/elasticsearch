@@ -110,19 +110,17 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
         final ConfigurationContainer configurations = rootProject.getConfigurations();
         String downloadConfigName = configName("elasticsearch", distribution);
         String extractedConfigName = "extracted_" + downloadConfigName;
-        Configuration downloadConfig = configurations.findByName(downloadConfigName);
-        if (downloadConfig == null) {
-            downloadConfig = configurations.create(downloadConfigName);
-            configurations.create(extractedConfigName);
-            Object distroDep = dependencyNotation(rootProject, distribution);
-            rootProject.getDependencies().add(downloadConfigName, distroDep);
-        }
+        final Configuration downloadConfig = configurations.create(downloadConfigName);
+        configurations.create(extractedConfigName);
+        Object distroDep = dependencyNotation(rootProject, distribution);
+        rootProject.getDependencies().add(downloadConfigName, distroDep);
 
         // add task for extraction, delaying resolving config until runtime
         if (distribution.getType() == Type.ARCHIVE || distribution.getType() == Type.INTEG_TEST_ZIP) {
             Supplier<File> archiveGetter = downloadConfig::getSingleFile;
             String extractDir = rootProject.getBuildDir().toPath().resolve("elasticsearch-distros").resolve(extractedConfigName).toString();
             TaskProvider<Copy> extractTask = rootProject.getTasks().register(extractTaskName, Copy.class, copyTask -> {
+                copyTask.dependsOn(downloadConfig);
                 copyTask.doFirst(t -> rootProject.delete(extractDir));
                 copyTask.into(extractDir);
                 copyTask.from((Callable<FileTree>)() -> {

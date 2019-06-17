@@ -5,10 +5,13 @@ import com.amazonaws.auth.AWSStaticCredentialsProvider;
 import com.amazonaws.auth.BasicAWSCredentials;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3ClientBuilder;
+import com.amazonaws.services.s3.model.DeleteObjectRequest;
+import com.amazonaws.services.s3.model.DeleteObjectsRequest;
 import com.amazonaws.services.s3.model.ObjectListing;
 import com.amazonaws.services.s3.model.S3ObjectSummary;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.common.Numbers;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -126,8 +129,50 @@ public class S3Repository implements Repository {
         }
     }
 
+    private List<String> listAllFiles(String prefix) {
+        List<String> files = new ArrayList<>();
+
+        ObjectListing listing = client.listObjects(prefix);
+        while (true) {
+            List<S3ObjectSummary> summaries = listing.getObjectSummaries();
+            for (S3ObjectSummary obj : summaries) {
+                files.add(obj.getKey());
+            }
+
+            for (String newPrefix : listing.getCommonPrefixes()) {
+                files.addAll(listAllFiles(newPrefix));
+            }
+            if (listing.isTruncated()) {
+                listing = client.listNextBatchOfObjects(listing);
+            } else {
+                return files;
+            }
+        }
+    }
+
+    private void deleteFiles(List<String> files) {
+        List<List<String>> deletePartitions = new ArrayList<>();
+        List<String> currentDeletePartition = new ArrayList<>();
+        for (String file : files) {
+            if (currentDeletePartition.size() == 1000) {
+                currentDeletePartition = new ArrayList<>();
+                deletePartitions.add(currentDeletePartition);
+            }
+            currentDeletePartition.add(file);
+        }
+        if (currentDeletePartition.isEmpty() == false) {
+            deletePartitions.add(currentDeletePartition);
+        }
+        for (List<String> partition: deletePartitions) {
+            client.deleteObjects(new DeleteObjectsRequest(bucket).withKeys(Strings.toStringArray(partition)));
+        }
+    }
+
     @Override
     public void deleteIndices(Set<String> leakedIndexIds) {
-
+        for (String indexId : leakedIndexIds) {
+            List<String> files = listAllFiles("indices/" + indexId);
+            deleteFiles(files);
+        }
     }
 }

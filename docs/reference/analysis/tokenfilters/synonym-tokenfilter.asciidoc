@@ -223,4 +223,4 @@ Using the <<indices-reload-analyzers,analyzer reload API>>, you can trigger relo
 synonym definition. The contents of the configured synonyms file will be reloaded and the
 synonyms definition the filter uses will be updated. 
 
-Note: Trying to use the above analyzer as an index analyzer will result in an error.
+NOTE: Trying to use the above analyzer as an index analyzer will result in an error.

@@ -39,7 +39,7 @@ import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpect
  */
 public class GetRepositoriesResponse extends ActionResponse implements ToXContentObject {
 
-    private RepositoriesMetaData repositories;
+    private final RepositoriesMetaData repositories;
 
     GetRepositoriesResponse() {
         repositories = new RepositoriesMetaData(Collections.emptyList());

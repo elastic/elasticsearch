@@ -1,6 +1,7 @@
 {
   "rollup.get_jobs": {
     "documentation": "",
+    "stability" : "experimental",
     "methods": [ "GET" ],
     "url": {
       "paths": [ "/_rollup/job/{id}", "/_rollup/job/" ],

@@ -1,6 +1,7 @@
 {
   "security.get_token": {
     "documentation": "https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-get-token.html",
+    "stability": "stable",
     "methods": [ "POST" ],
     "url": {
       "paths": [

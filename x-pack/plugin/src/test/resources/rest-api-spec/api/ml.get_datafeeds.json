@@ -1,6 +1,7 @@
 {
   "ml.get_datafeeds": {
     "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/current/ml-get-datafeed.html",
+    "stability": "stable",
     "methods": [ "GET"],
     "url": {
       "paths": [

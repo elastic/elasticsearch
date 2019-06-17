@@ -63,6 +63,8 @@ import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.hamcrest.Matchers.closeTo;
+import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -162,6 +164,31 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
         Optional<Quantiles> persistedQuantiles = getQuantiles();
         assertTrue(persistedQuantiles.isPresent());
         assertEquals(quantiles, persistedQuantiles.get());
+    }
+
+    public void testProcessResults_TimingStats() throws Exception {
+        ResultsBuilder resultBuilder = new ResultsBuilder()
+                .addBucket(createBucket(true, 100))
+                .addBucket(createBucket(true, 1000))
+                .addBucket(createBucket(true, 100))
+                .addBucket(createBucket(true, 1000))
+                .addBucket(createBucket(true, 100))
+                .addBucket(createBucket(true, 1000))
+                .addBucket(createBucket(true, 100))
+                .addBucket(createBucket(true, 1000))
+                .addBucket(createBucket(true, 100))
+                .addBucket(createBucket(true, 1000));
+
+        resultProcessor.process(resultBuilder.buildTestProcess());
+        resultProcessor.awaitCompletion();
+
+        TimingStats timingStats = resultProcessor.timingStats();
+        assertThat(timingStats.getJobId(), equalTo(JOB_ID));
+        assertThat(timingStats.getBucketCount(), equalTo(10L));
+        assertThat(timingStats.getMinBucketProcessingTimeMs(), equalTo(100.0));
+        assertThat(timingStats.getMaxBucketProcessingTimeMs(), equalTo(1000.0));
+        assertThat(timingStats.getAvgBucketProcessingTimeMs(), equalTo(550.0));
+        assertThat(timingStats.getExponentialAvgBucketProcessingTimeMs(), closeTo(143.244, 1e-3));
     }
 
     public void testParseQuantiles_GivenRenormalizationIsEnabled() throws Exception {
@@ -284,18 +311,24 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
         client().execute(PutJobAction.INSTANCE, request).actionGet();
     }
 
-    private Bucket createBucket(boolean isInterim) {
+    private static Bucket createBucket(boolean isInterim) {
         Bucket bucket = new BucketTests().createTestInstance(JOB_ID);
         bucket.setInterim(isInterim);
         return bucket;
     }
 
-    private Date randomDate() {
+    private static Bucket createBucket(boolean isInterim, long processingTimeMs) {
+        Bucket bucket = createBucket(isInterim);
+        bucket.setProcessingTimeMs(processingTimeMs);
+        return bucket;
+    }
+
+    private static Date randomDate() {
         // between 1970 and 2065
         return new Date(randomLongBetween(0, 3000000000000L));
     }
 
-    private List<AnomalyRecord> createRecords(boolean isInterim) {
+    private static List<AnomalyRecord> createRecords(boolean isInterim) {
         List<AnomalyRecord> records = new ArrayList<>();
 
         int count = randomIntBetween(0, 100);
@@ -310,7 +343,7 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
         return records;
     }
 
-    private List<Influencer> createInfluencers(boolean isInterim) {
+    private static List<Influencer> createInfluencers(boolean isInterim) {
         List<Influencer> influencers = new ArrayList<>();
 
         int count = randomIntBetween(0, 100);
@@ -323,15 +356,15 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
         return influencers;
     }
 
-    private CategoryDefinition createCategoryDefinition() {
+    private static CategoryDefinition createCategoryDefinition() {
         return new CategoryDefinitionTests().createTestInstance(JOB_ID);
     }
 
-    private ModelPlot createModelPlot() {
+    private static ModelPlot createModelPlot() {
         return new ModelPlotTests().createTestInstance(JOB_ID);
     }
 
-    private ModelSizeStats createModelSizeStats() {
+    private static ModelSizeStats createModelSizeStats() {
         ModelSizeStats.Builder builder = new ModelSizeStats.Builder(JOB_ID);
         builder.setTimestamp(randomDate());
         builder.setLogTime(randomDate());
@@ -344,15 +377,15 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
         return builder.build();
     }
 
-    private ModelSnapshot createModelSnapshot() {
+    private static ModelSnapshot createModelSnapshot() {
         return new ModelSnapshot.Builder(JOB_ID).setSnapshotId(randomAlphaOfLength(12)).build();
     }
 
-    private Quantiles createQuantiles() {
+    private static Quantiles createQuantiles() {
         return new Quantiles(JOB_ID, randomDate(), randomAlphaOfLength(100));
     }
 
-    private FlushAcknowledgement createFlushAcknowledgement() {
+    private static FlushAcknowledgement createFlushAcknowledgement() {
         return new FlushAcknowledgement(randomAlphaOfLength(5), randomDate());
     }
 

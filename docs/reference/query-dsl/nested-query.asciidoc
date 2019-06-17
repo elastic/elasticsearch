@@ -21,17 +21,15 @@ Enter the mappings, add the data you wish to query, then query the data with a
 PUT my_index
 {
   "mappings": {
-    "_doc": {
-      "properties": {
-        "user": {
-          "type": "nested"
-        }
+    "properties": {
+      "user": {
+        "type": "nested"
       }
     }
   }
 }
 
-PUT my_index/_doc/1
+PUT my_index/1
 {
   "group" : "fans",
   "user" : [
@@ -73,14 +71,15 @@ GET my_index/_search
 --------------------------------------------------
 // CONSOLE
 
-The query `path` points to the nested object path, and the `query`
-includes the query that will run on the nested docs matching the
-direct path, and joining with the root parent docs.
+The query `path` points to the nested object path, and the `query` includes the 
+query that will run on the nested docs matching the direct path, and joining 
+with the root parent docs.
 
-NOTE: Any fields referenced inside the query must use the complete path (fully
-qualified).
+NOTE: Any fields referenced inside the query must use the complete path 
+(fully-qualified).
 
-Here is a second example with refinements. First, the mappings:
+Here is a second example with refinements, showing the mappings followed by the 
+nested query usage.
 
 [source,js]
 --------------------------------------------------
@@ -95,14 +94,6 @@ PUT /my_index
     }
 }
 
---------------------------------------------------
-// CONSOLE
-// TESTSETUP
-
-And then the nested query usage:
-
-[source,js]
---------------------------------------------------
 GET /_search
 {
     "query": {

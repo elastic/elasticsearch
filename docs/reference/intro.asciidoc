@@ -61,14 +61,14 @@ results is what makes {es} so fast.
 {es} also has the ability to be schema-less, which means that documents can be
 indexed without explicitly specifying how to handle each of the different fields
 that might occur in a document. When dynamic mapping is enabled, {es}
-automatically detects and adds new fields to the index settings. This default
-behavior makes it easy to start indexing and exploring your data--just start
+automatically detects and adds new fields to the index. This default
+behavior makes it easy to index and explore your data--just start
 indexing documents and {es} will detect and map booleans, floating point and
 integer values, dates, and strings to the appropriate {es} datatypes.
 
 Ultimately, however, you know more about your data and how you want to use it
-than {es} can. You can define rules to control dynamic mapping and use custom
-mappings to take full control of how fields are stored and indexed.
+than {es} can. You can define rules to control dynamic mapping and explicitly
+define mappings to take full control of how fields are stored and indexed.
 
 Defining your own mappings enables you to:
 
@@ -108,8 +108,8 @@ or Ruby.
 [[search-data]]
 === Searching your data
 
-The {es} REST APIs support structured queries, full text queries, and the
-ability to combine them into more complex queries. Structured queries are
+The {es} REST APIs support structured queries, full text queries, and complex
+queries that combine the two. Structured queries are
 similar to the types of queries you can construct in SQL. For example, you
 could search the `gender` and `age` fields in your `employee` index and sort the
 matches by the `hire_date` field. Full-text queries find all documents that
@@ -117,15 +117,15 @@ match the query string and return them sorted by _relevance_--how good a match
 they are for your search terms.
 
 In addition to searching for individual terms, you can perform phrase searches,
-similarity searches, prefix searches, and get autocomplete suggestions.
+similarity searches, and prefix searches, and get autocomplete suggestions.
 
 Have geospatial or other numerical data {es} you want to search? {es} indexes
-non-textual data in highly-optimized data structures that support
+non-textual data in optimized data structures that support
 high-performance geo and numerical queries.
 
 You can access all of these search capabilities using {es}'s
 comprehensive JSON-style query language (Query DSL). You can also
-construct SQL style queries to search and aggregate data natively inside
+construct SQL-style queries to search and aggregate data natively inside
 {es}, and JDBC and ODBC drivers enable a broad range of third-party
 applications to interact with {es} via SQL.
 
@@ -157,14 +157,15 @@ What’s more, aggregations operate alongside search requests. You can search
 documents, filter results, and perform analytics at the same time, on the same
 data, in a single request. And because aggregations are calculated in the
 context of a particular search, you’re not just displaying a count of all
-four-star hotels, you’re displaying a count of the four-star hotels
-that match your users' search criteria.
+size 7 needles, you’re displaying a count of the size 7 needles
+that match your users' search criteria--for example, all size 7 _non-stick
+embroidery_ needles.
 
 [float]
 [[more-features]]
 ==== But wait, there’s more
 
-Want to automate the analysis of your time-series data? You can use the machine
+Want to automate the analysis of your time-series data? You can use machine
 learning features to create accurate baselines of normal behavior in your data
 and identify anomalous patterns. With machine learning, you can detect:
 
@@ -189,26 +190,32 @@ How does this work? Under the covers, an {es} index is really just a logical
 grouping of one or more physical shards, where each shard is actually a
 self-contained index. By distributing the documents in an index across multiple
 shards, and distributing those shards across multiple nodes, {es} can ensure
-redundancy to protect against hardware failures and benefit from increased
+redundancy, which both protects against hardware failures and increases
 query capacity as nodes are added to a cluster. As the cluster grows (or shrinks),
 {es} automatically migrates shards to rebalance the cluster.
 
 There are two types of shards: primaries and replicas. Each document in an index
 belongs to one primary shard. A replica shard is a copy of a primary shard.
-Replicas provide redundant copies of your data to  protect against hardware
-failure and provide increased capacity to serve read requests
+Replicas provide redundant copies of your data to protect against hardware
+failure and increase capacity to serve read requests
 like searching or retrieving a document.
 
 The number of primary shards in an index is fixed at the time that an index is
 created, but the number of replica shards can be changed at any time, without
 interrupting indexing or query operations.
 
+[float]
+[[it-depends]]
+=== It depends
+
 There are a number of performance considerations and trade offs with respect
 to shard size and the number of primary shards configured for an index. The more
 shards, the more overhead there is simply in maintaining those indices. The
 larger the shard size, the longer it takes to move shards around when {es}
-needs to rebalance a cluster. Querying lots of small shards makes the processing
-per shard faster, but more queries means more overhead, so querying a smaller
+needs to rebalance a cluster.
+
+Querying lots of small shards makes the processing per shard faster, but more
+queries means more overhead, so querying a smaller
 number of larger shards might be faster. In short...it depends. The best way
 to determine the optimal configuration for your use case is to through testing
 with your own data and queries.
@@ -222,14 +229,14 @@ network. Balancing shards in a cluster across nodes in different data centers
 simply takes too long. But high-availability architectures demand that you avoid
 putting all of your eggs in one basket. In the event of a major outage in one
 location, servers in another location need to be able to take over. Seamlessly.
-The answer? Cross-cluster replication (CCR).
+The answer? {ccr-cap} (CCR).
 
 CCR provides a way to automatically synchronize indices from your primary cluster
 to a secondary remote cluster that can serve as a hot backup. If the primary
 cluster fails, the secondary cluster can take over. You can also use CCR to
 create secondary clusters to serve read requests in geo-proximity to your users.
 
-Cross cluster replication is active-passive. The index on the primary cluster is
+{ccr-cap} is active-passive. The index on the primary cluster is
 the active leader index and handles all write requests. Indices replicated to
 secondary clusters are read-only followers.
 

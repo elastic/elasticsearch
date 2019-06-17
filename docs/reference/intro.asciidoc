@@ -29,7 +29,7 @@ to handle data in a wide variety of use cases:
   information system (GIS)
 * Store and process genetic data using {es} as a bioinformatics research tool
 
-We’re continually amazed by the novel ways people use search. Whether
+We’re continually amazed by the novel ways people use search. But whether
 your use case is similar to one of these, or you're using {es} to tackle a new
 problem, the way you work with your data, documents, and indices in {es} is
 the same.
@@ -76,7 +76,7 @@ Defining your own mappings enables you to:
 * Perform language-specific text analysis
 * Optimize fields for partial matching
 * Use custom date formats
-* Use data types such as  geo_point and geo_shape that cannot be automatically
+* Use data types such as `geo_point` and `geo_shape` that cannot be automatically
 detected
 
 It’s often useful to index the same field in different ways for different
@@ -113,8 +113,8 @@ queries that combine the two. Structured queries are
 similar to the types of queries you can construct in SQL. For example, you
 could search the `gender` and `age` fields in your `employee` index and sort the
 matches by the `hire_date` field. Full-text queries find all documents that
-match the query string and return them sorted by _relevance_--how good a match
-they are for your search terms.
+match the query string and return them sorted by _relevance_&mdash;how good a
+match they are for your search terms.
 
 In addition to searching for individual terms, you can perform phrase searches,
 similarity searches, and prefix searches, and get autocomplete suggestions.
@@ -165,9 +165,10 @@ embroidery_ needles.
 [[more-features]]
 ==== But wait, there’s more
 
-Want to automate the analysis of your time-series data? You can use machine
-learning features to create accurate baselines of normal behavior in your data
-and identify anomalous patterns. With machine learning, you can detect:
+Want to automate the analysis of your time-series data? You can use
+{stack-ov}/ml-overview.html[machine learning] features to create accurate
+baselines of normal behavior in your data and identify anomalous patterns. With
+machine learning, you can detect:
 
 * Anomalies related to temporal deviations in values, counts, or frequencies
 * Statistical rarity
@@ -178,6 +179,9 @@ or other data science-related configurations.
 
 [[scalability]]
 == Scalability and resilience: clusters, nodes, and shards
+++++
+<titleabbrev>Scalability and resilience</titleabbrev>
+++++
 
 {es} is built to be always available and to scale with your needs. It does this
 by being distributed by nature. You can add servers (nodes) to a cluster to
@@ -246,6 +250,7 @@ secondary clusters are read-only followers.
 
 As with any enterprise system, you need tools to secure, manage, and
 monitor your {es} clusters. Security, monitoring, and administrative features
-that are integrated into {es} enable you to use {kib} as a control center for
-managing a cluster. Features like data rollups and index lifecycle
-management help you intelligently manage your data over time.
+that are integrated into {es} enable you to use {kib-ref}[{kib}] as a control
+center for managing a cluster. Features like <<rollup-overview,data rollups>>
+and <<index-lifecycle-management, index lifecycle management>> help you
+intelligently manage your data over time.

@@ -90,7 +90,10 @@ public class NetworkUtilsTests extends ESTestCase {
     public void testAddressInterfaceLookup() throws Exception {
         for (NetworkInterface netIf : NetworkUtils.getInterfaces()) {
             try {
-                if (!netIf.isUp() || Collections.list(netIf.getInetAddresses()).isEmpty()) {
+                // Ignoring virtual ethernet devices since e.g. Docker could be creating or removing them in the background breaking tests.
+                final String interfaceName = netIf.getName();
+                if ((interfaceName != null && interfaceName.startsWith("veth")) || netIf.isUp() == false
+                    || Collections.list(netIf.getInetAddresses()).isEmpty()) {
                     continue;
                 }
             } catch (SocketException e) {

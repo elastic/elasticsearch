@@ -60,23 +60,23 @@ the principal component analysis. The above request returns the following respon
     "aggregations": {
         "myPCA" : {
             "doc_count" : 50,
-            "fields" : ["income", "education", "age", "savings"],
+            "fields" : ["income", "education", "savings", "age"],
             "pc" : [
                 {
-                    "eigenvalue" : "3.5476",
-                    "eigenvector" : [0.314, 0.145, -0.676, 0.494]
+                    "eigenvalue" : "3.8534182566444692",
+                    "eigenvector" : [-0.5086679339865403, -0.5078760992486404, -0.48174192271159044, -0.5012419781382936]
                 },
                 {
-                    "eigenvalue" : "2.1320",
-                    "eigenvector" : [0.237, 0.444, -0.401, -0.357]
+                    "eigenvalue" : "0.14658174335553148",
+                    "eigenvector" : [0.14197759363370058, 0.20326876329772592, -0.8492434869223836, 0.4661648557037606]
                 },
                 {
-                    "eigenvalue" : "1.0447",
-                    "eigenvector" : [0.484, -0.135, -0.004, -0.487]
+                    "eigenvalue" : "1.515365883014861E-16",
+                    "eigenvector" : [0.8284892979154816, -0.16198321899252208, -0.17785254643655324, -0.5057028690153601]
                 },
                 {
-                    "eigenvalue" : "0.1665",
-                    "eigenvector" : [0.404, 0.219, 0.366, 0.568]
+                    "eigenvalue" : "-1.3158726832780656E-16",
+                    "eigenvector" : [-0.18629218738143716, 0.8212826032762528, -0.12279532380381906, -0.5250822934820177]
                 }
             ]
         }

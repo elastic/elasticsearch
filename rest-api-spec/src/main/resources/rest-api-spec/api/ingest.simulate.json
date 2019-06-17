@@ -1,6 +1,7 @@
 {
   "ingest.simulate": {
     "documentation": "https://www.elastic.co/guide/en/elasticsearch/reference/master/simulate-pipeline-api.html",
+    "stability": "stable",
     "methods": [ "GET", "POST" ],
     "url": {
       "paths": [ "/_ingest/pipeline/_simulate", "/_ingest/pipeline/{id}/_simulate" ],

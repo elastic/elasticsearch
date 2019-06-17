@@ -1,6 +1,7 @@
 {
   "indices.flush_synced": {
     "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/indices-synced-flush.html",
+    "stability": "stable",
     "methods": ["POST", "GET"],
     "url": {
       "paths": [

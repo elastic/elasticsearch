@@ -1,6 +1,7 @@
 {
   "ml.get_model_snapshots": {
     "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/current/ml-get-snapshot.html",
+    "stability": "stable",
     "methods": [ "GET", "POST" ],
     "url": {
       "paths": [

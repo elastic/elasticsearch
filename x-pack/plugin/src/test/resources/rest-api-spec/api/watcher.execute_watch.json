@@ -1,6 +1,7 @@
 {
   "watcher.execute_watch": {
     "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/current/watcher-api-execute-watch.html",
+    "stability": "stable",
     "methods": [ "PUT", "POST" ],
     "url": {
       "paths": [ "/_watcher/watch/{id}/_execute", "/_watcher/watch/_execute" ],

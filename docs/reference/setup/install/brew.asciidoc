@@ -22,7 +22,7 @@ brew install elastic/tap/elasticsearch
 
 This installs the most recently released default distribution of {es}.
 Append the version number to install a previous version, for example
-`elastic/tap/elasticsearch@6.8`. To install the OSS distribution,
+`elastic/tap/elasticsearch@7.2`. To install the OSS distribution,
 specify `elastic/tap/elasticsearch-oss`.
 
 [[brew-layout]]

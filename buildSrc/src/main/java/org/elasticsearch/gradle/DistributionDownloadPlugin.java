@@ -68,10 +68,8 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
         setupDownloadServiceRepo(project);
 
         ExtraPropertiesExtension extraProperties = project.getExtensions().getExtraProperties();
-        //if (extraProperties.has("bwcVersions")) {
-            this.bwcVersions = (BwcVersions) extraProperties.get("bwcVersions");
-        //} // else - leniency for external project...we need bwcversions to be loadable outside of ES repository
-          // TODO: setup snapshot dependency instead of pointing to bwc distribution projects
+        this.bwcVersions = (BwcVersions) extraProperties.get("bwcVersions");
+        // TODO: setup snapshot dependency instead of pointing to bwc distribution projects
 
         project.afterEvaluate(this::setupDistributions);
     }

@@ -2780,7 +2780,7 @@ public class InternalEngine extends Engine {
     /**
      * Restores the live version map and local checkpoint of this engine using documents (including soft-deleted)
      * after the local checkpoint in the safe commit. This step ensures the live version map and checkpoint tracker
-     * in sync with Lucene commit.
+     * are in sync with the Lucene commit.
      */
     private void restoreVersionMapAndCheckpointTracker(DirectoryReader directoryReader) throws IOException {
         final IndexSearcher searcher = new IndexSearcher(directoryReader);

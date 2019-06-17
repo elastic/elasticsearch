@@ -253,7 +253,7 @@ abstract class DataFrameIntegTestCase extends ESRestTestCase {
             int min = 10 + (i % 49);
             int sec = 10 + (i % 49);
 
-            String date_string = "2017-01-" + day + "T" + hour + ":" + min + ":" + sec + "Z";
+            String date_string = "2017-01-" + (day < 10 ? "0" + day : day) + "T" + hour + ":" + min + ":" + sec + "Z";
 
             StringBuilder sourceBuilder = new StringBuilder();
             sourceBuilder.append("{\"user_id\":\"")
@@ -275,7 +275,7 @@ abstract class DataFrameIntegTestCase extends ESRestTestCase {
                 BulkResponse response = restClient.bulk(bulk, RequestOptions.DEFAULT);
                 assertThat(response.buildFailureMessage(), response.hasFailures(), is(false));
                 bulk = new BulkRequest(indexName);
-                day = (day % 18) + 10;
+                day = (day + 1) % 28;
             }
         }
         BulkResponse response = restClient.bulk(bulk, RequestOptions.DEFAULT);

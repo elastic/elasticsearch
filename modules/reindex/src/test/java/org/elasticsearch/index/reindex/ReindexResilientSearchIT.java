@@ -106,7 +106,6 @@ public class ReindexResilientSearchIT extends ReindexTestCase {
                 Matchers.equalTo((long) shardCount));
         }, 30, TimeUnit.SECONDS);
 
-        // todo: enable this once search is resilient.
         for (int i = 0; i < randomIntBetween(1,5); ++i) {
             internalCluster().restartRandomDataNode();
         }

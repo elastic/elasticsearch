@@ -127,7 +127,7 @@ PUT /_snapshot/my_backup/snapshot_1
 --------------------------------------------------
 
 <1> A few security settings are stored in the global cluster metadata as
-persistent settings. These are included in the snapshot by, but for facilitating
+persistent settings. These are included in the snapshot by default, but for facilitating
 change reviews as well as restore convenience, we can pull them out to stand in
 their own file.
 

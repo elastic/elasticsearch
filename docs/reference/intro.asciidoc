@@ -124,10 +124,10 @@ non-textual data in optimized data structures that support
 high-performance geo and numerical queries.
 
 You can access all of these search capabilities using {es}'s
-comprehensive JSON-style query language (Query DSL). You can also
-construct SQL-style queries to search and aggregate data natively inside
-{es}, and JDBC and ODBC drivers enable a broad range of third-party
-applications to interact with {es} via SQL.
+comprehensive JSON-style query language (<<query-dsl, Query DSL>>). You can also
+construct <<sql-overview, SQL-style queries>> to search and aggregate data
+natively inside {es}, and JDBC and ODBC drivers enable a broad range of
+third-party applications to interact with {es} via SQL.
 
 [float]
 [[analyze-data]]
@@ -210,7 +210,7 @@ interrupting indexing or query operations.
 
 [float]
 [[it-depends]]
-=== It depends
+=== It depends...
 
 There are a number of performance considerations and trade offs with respect
 to shard size and the number of primary shards configured for an index. The more
@@ -220,9 +220,21 @@ needs to rebalance a cluster.
 
 Querying lots of small shards makes the processing per shard faster, but more
 queries means more overhead, so querying a smaller
-number of larger shards might be faster. In short...it depends. The best way
-to determine the optimal configuration for your use case is to through testing
-with your own data and queries.
+number of larger shards might be faster. In short...it depends.
+
+As a starting point:
+
+* Aim to keep the average shard size between a few GB and a few tens of GB. For
+  use cases with time-based data, it is common to see shards in the 20GB to 40GB
+  range.
+
+* Avoid the gazillion shards problem. The number of shards a node can hold is
+  proportional to the available heap space. As a general rule, the number of
+  shards per GB of heap space should be less than 20.
+
+The best way to determine the optimal configuration for your use case is
+through https://www.elastic.co/elasticon/conf/2016/sf/quantitative-cluster-sizing[
+testing with your own data and queries].
 
 [float]
 [[disaster-ccr]]
@@ -250,7 +262,7 @@ secondary clusters are read-only followers.
 
 As with any enterprise system, you need tools to secure, manage, and
 monitor your {es} clusters. Security, monitoring, and administrative features
-that are integrated into {es} enable you to use {kib-ref}[{kib}] as a control
-center for managing a cluster. Features like <<rollup-overview,data rollups>>
-and <<index-lifecycle-management, index lifecycle management>> help you
-intelligently manage your data over time.
+that are integrated into {es} enable you to use {kibana-ref}/introduction.html[{kib}]
+as a control center for managing a cluster. Features like <<rollup-overview,
+data rollups>> and <<index-lifecycle-management, index lifecycle management>>
+help you intelligently manage your data over time.

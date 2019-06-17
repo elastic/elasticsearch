@@ -22,11 +22,11 @@ apply plugin: 'elasticsearch.build'
 archivesBaseName = 'elasticsearch-plugin-cli'
 
 dependencies {
-  compileOnly "org.elasticsearch:elasticsearch:${version}"
-  compileOnly "org.elasticsearch:elasticsearch-cli:${version}"
+  compileOnly project(":server")
+  compileOnly project(":libs:elasticsearch-cli")
   compile "org.bouncycastle:bcpg-jdk15on:${versions.bouncycastle}"
   compile "org.bouncycastle:bcprov-jdk15on:${versions.bouncycastle}"
-  testCompile "org.elasticsearch.test:framework:${version}"
+  testCompile project(":test:framework")
   testCompile 'com.google.jimfs:jimfs:1.1'
   testCompile 'com.google.guava:guava:18.0'
 }

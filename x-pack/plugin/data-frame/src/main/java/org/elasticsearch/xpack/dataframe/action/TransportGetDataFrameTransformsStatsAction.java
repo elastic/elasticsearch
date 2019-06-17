@@ -26,7 +26,10 @@ import org.elasticsearch.xpack.core.dataframe.action.GetDataFrameTransformsStats
 import org.elasticsearch.xpack.core.dataframe.action.GetDataFrameTransformsStatsAction.Request;
 import org.elasticsearch.xpack.core.dataframe.action.GetDataFrameTransformsStatsAction.Response;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformCheckpointingInfo;
+import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformState;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformStateAndStats;
+import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformTaskState;
+import org.elasticsearch.xpack.core.indexing.IndexerState;
 import org.elasticsearch.xpack.dataframe.checkpoint.DataFrameTransformsCheckpointService;
 import org.elasticsearch.xpack.dataframe.persistence.DataFrameTransformsConfigManager;
 import org.elasticsearch.xpack.dataframe.transforms.DataFrameTransformTask;
@@ -136,7 +139,21 @@ public class TransportGetDataFrameTransformsStatsAction extends
         ActionListener<List<DataFrameTransformStateAndStats>> searchStatsListener = ActionListener.wrap(
             stats -> {
                 List<DataFrameTransformStateAndStats> allStateAndStats = response.getTransformsStateAndStats();
-                allStateAndStats.addAll(stats);
+                // If the persistent task does NOT exist, it is STOPPED
+                // There is a potential race condition where the saved document does not actually have a STOPPED state
+                //    as the task is cancelled before we persist state.
+                stats.forEach(stat ->
+                    allStateAndStats.add(new DataFrameTransformStateAndStats(
+                        stat.getId(),
+                        new DataFrameTransformState(DataFrameTransformTaskState.STOPPED,
+                            IndexerState.STOPPED,
+                            stat.getTransformState().getPosition(),
+                            stat.getTransformState().getCheckpoint(),
+                            stat.getTransformState().getReason(),
+                            stat.getTransformState().getProgress()),
+                        stat.getTransformStats(),
+                        stat.getCheckpointingInfo()))
+                );
                 transformsWithoutTasks.removeAll(
                         stats.stream().map(DataFrameTransformStateAndStats::getId).collect(Collectors.toSet()));
 

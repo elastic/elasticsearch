@@ -17,7 +17,7 @@ include::common-options.asciidoc[]
 [source,js]
 --------------------------------------------------
 {
-  "description" : "sets the value of count to 1"
+  "description" : "sets the value of count to 1",
   "set": {
     "field": "count",
     "value": 1

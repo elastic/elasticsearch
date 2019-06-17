@@ -78,6 +78,7 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
     private int numOutstandingWrites = 0;
     private long currentMappingVersion = 0;
     private long currentSettingsVersion = 0;
+    private long currentAliasesVersion = 0;
     private long totalReadRemoteExecTimeMillis = 0;
     private long totalReadTimeMillis = 0;
     private long successfulReadRequests = 0;
@@ -154,15 +155,27 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
                 synchronized (ShardFollowNodeTask.this) {
                     currentSettingsVersion = leaderSettingsVersion;
                 }
+            });
+            updateAliases(leaderAliasesVersion -> {
+                synchronized (ShardFollowNodeTask.this) {
+                    currentAliasesVersion = leaderAliasesVersion;
+                }
+            });
+            synchronized (ShardFollowNodeTask.this) {
                 LOGGER.info(
-                        "{} following leader shard {}, follower global checkpoint=[{}], mapping version=[{}], settings version=[{}]",
+                        "{} following leader shard {}, " +
+                                "follower global checkpoint=[{}], " +
+                                "mapping version=[{}], " +
+                                "settings version=[{}], " +
+                                "aliases version=[{}]",
                         params.getFollowShardId(),
                         params.getLeaderShardId(),
                         followerGlobalCheckpoint,
-                        leaderMappingVersion,
-                        leaderSettingsVersion);
-                coordinateReads();
-            });
+                        currentMappingVersion,
+                        currentSettingsVersion,
+                        currentAliasesVersion);
+            }
+            coordinateReads();
         });
     }
 
@@ -306,12 +319,14 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
         // In order to process this read response (3), we need to check and potentially update the follow index's setting (1) and
         // check and potentially update the follow index's mappings (2).
 
-        // 3) handle read response:
+        // 4) handle read response:
         Runnable handleResponseTask = () -> innerHandleReadResponse(from, maxRequiredSeqNo, response);
-        // 2) update follow index mapping:
+        // 3) update follow index mapping:
         Runnable updateMappingsTask = () -> maybeUpdateMapping(response.getMappingVersion(), handleResponseTask);
-        // 1) update follow index settings:
-        maybeUpdateSettings(response.getSettingsVersion(), updateMappingsTask);
+        // 2) update follow index settings:
+        Runnable updateSettingsTask = () -> maybeUpdateSettings(response.getSettingsVersion(), updateMappingsTask);
+        // 1) update follow index aliases:
+        maybeUpdateAliases(response.getAliasesVersion(), updateSettingsTask);
     }
 
     void handleFallenBehindLeaderShard(Exception e, long from, int maxOperationCount, long maxRequiredSeqNo, AtomicInteger retryCounter) {
@@ -423,7 +438,7 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
 
     private synchronized void maybeUpdateSettings(final Long minimumRequiredSettingsVersion, Runnable task) {
         if (currentSettingsVersion >= minimumRequiredSettingsVersion) {
-            LOGGER.trace("{} settings version [{}] is higher or equal than minimum required mapping version [{}]",
+            LOGGER.trace("{} settings version [{}] is higher or equal than minimum required settings version [{}]",
                     params.getFollowShardId(), currentSettingsVersion, minimumRequiredSettingsVersion);
             task.run();
         } else {
@@ -431,6 +446,27 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
                     params.getFollowShardId(), currentSettingsVersion, minimumRequiredSettingsVersion);
             updateSettings(settingsVersion -> {
                 currentSettingsVersion = settingsVersion;
+                task.run();
+            });
+        }
+    }
+
+    private synchronized void maybeUpdateAliases(final Long minimumRequiredAliasesVersion, final Runnable task) {
+        if (currentAliasesVersion >= minimumRequiredAliasesVersion) {
+            LOGGER.trace(
+                    "{} aliases version [{}] is higher or equal than minimum required aliases version [{}]",
+                    params.getFollowShardId(),
+                    currentAliasesVersion,
+                    minimumRequiredAliasesVersion);
+            task.run();
+        } else {
+            LOGGER.trace(
+                    "{} updating aliases, aliases version [{}] is lower than minimum required aliases version [{}]",
+                    params.getFollowShardId(),
+                    currentAliasesVersion,
+                    minimumRequiredAliasesVersion);
+            updateAliases(aliasesVersion -> {
+                currentAliasesVersion = aliasesVersion;
                 task.run();
             });
         }
@@ -451,6 +487,14 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
 
     private void updateSettings(final LongConsumer handler, final AtomicInteger retryCounter) {
         innerUpdateSettings(handler, e -> handleFailure(e, retryCounter, () -> updateSettings(handler, retryCounter)));
+    }
+
+    private void updateAliases(final LongConsumer handler) {
+        updateAliases(handler, new AtomicInteger());
+    }
+
+    private void updateAliases(final LongConsumer handler, final AtomicInteger retryCounter) {
+        innerUpdateAliases(handler, e -> handleFailure(e, retryCounter, () -> updateAliases(handler, retryCounter)));
     }
 
     private void handleFailure(Exception e, AtomicInteger retryCounter, Runnable task) {
@@ -511,6 +555,8 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
 
     protected abstract void innerUpdateSettings(LongConsumer handler, Consumer<Exception> errorHandler);
 
+    protected abstract void innerUpdateAliases(LongConsumer handler, Consumer<Exception> errorHandler);
+
     protected abstract void innerSendBulkShardOperationsRequest(String followerHistoryUUID,
                                                                 List<Translog.Operation> operations,
                                                                 long leaderMaxSeqNoOfUpdatesOrDeletes,
@@ -566,6 +612,7 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
                 bufferSizeInBytes,
                 currentMappingVersion,
                 currentSettingsVersion,
+                currentAliasesVersion,
                 totalReadTimeMillis,
                 totalReadRemoteExecTimeMillis,
                 successfulReadRequests,

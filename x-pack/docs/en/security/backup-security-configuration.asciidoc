@@ -71,7 +71,7 @@ file, are extra sensitive; they require restricted read access.
 
 [float]
 [[backup-security-snapshots]]
-==== Backing up API-based configuration
+==== Snapshotting security indices and global cluster metadata
 
 To back up API-based configuration, you use the
 <<modules-snapshots,regular snapshot functionality>>. The snapshot API saves the

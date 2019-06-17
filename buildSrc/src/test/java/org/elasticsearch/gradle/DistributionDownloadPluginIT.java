@@ -103,10 +103,12 @@ public class DistributionDownloadPluginIT extends GradleIntegrationTestCase {
         for (int i = 0; i < sysProps.length; i += 2) {
             args.add("-D" + sysProps[i] + "=" + sysProps[i + 1]);
         }
-        args.add("-s");
+        args.add("-i");
         GradleRunner runner = getGradleRunner("distribution-download").withArguments(args);
 
-        return runner.build();
+        BuildResult result = runner.build();
+        System.out.println(result.getOutput());
+        return result;
     }
 
     private void addDistroSysProps(List<String> sysProps, String version, String type, String platform, String flavor, Boolean bundledJdk) {

@@ -84,6 +84,7 @@ English::
 http://snowball.tartarus.org/algorithms/porter/stemmer.html[*`english`*],
 http://ciir.cs.umass.edu/pubfiles/ir-35.pdf[`light_english`],
 http://www.researchgate.net/publication/220433848_How_effective_is_suffixing[`minimal_english`],
+https://github.com/elastic/elasticsearch/issues/42892[`plural_english`],
 http://lucene.apache.org/core/4_9_0/analyzers-common/org/apache/lucene/analysis/en/EnglishPossessiveFilter.html[`possessive_english`],
 http://snowball.tartarus.org/algorithms/english/stemmer.html[`porter2`],
 http://snowball.tartarus.org/algorithms/lovins/stemmer.html[`lovins`]

@@ -55,6 +55,40 @@ public class GetSnapshotsResponse extends ActionResponse implements ToXContentOb
                 (p, c) -> Response.fromXContent(p), new ParseField("responses"));
     }
 
+    public GetSnapshotsResponse(StreamInput in) throws IOException {
+        if (in.getVersion().onOrAfter(GetSnapshotsRequest.MULTIPLE_REPOSITORIES_SUPPORT_ADDED)) {
+            int successfulSize = in.readVInt();
+            Map<String, List<SnapshotInfo>> successfulResponses = new HashMap<>(successfulSize);
+            for (int i = 0; i < successfulSize; i++) {
+                String repository = in.readString();
+                int size = in.readVInt();
+                List<SnapshotInfo> snapshotInfos = new ArrayList<>(size);
+                for (int j = 0; j < size; j++) {
+                    snapshotInfos.add(new SnapshotInfo(in));
+                }
+                successfulResponses.put(repository, snapshotInfos);
+            }
+
+            int failedSize = in.readVInt();
+            Map<String, ElasticsearchException> failedResponses = new HashMap<>(failedSize);
+            for (int i = 0; i < failedSize; i++) {
+                String repository = in.readString();
+                ElasticsearchException error = in.readException();
+                failedResponses.put(repository, error);
+            }
+            this.successfulResponses = Collections.unmodifiableMap(successfulResponses);
+            this.failedResponses = Collections.unmodifiableMap(failedResponses);
+        } else {
+            int size = in.readVInt();
+            List<SnapshotInfo> snapshots = new ArrayList<>(size);
+            for (int i = 0; i < size; i++) {
+                snapshots.add(new SnapshotInfo(in));
+            }
+            this.successfulResponses = Collections.singletonMap("unknown", snapshots);
+            this.failedResponses = Collections.emptyMap();
+        }
+    }
+
 
     public static class Response {
         private String repository;
@@ -93,26 +127,23 @@ public class GetSnapshotsResponse extends ActionResponse implements ToXContentOb
         }
     }
 
-    private Map<String, List<SnapshotInfo>> successfulResponses = Collections.emptyMap();
-    private Map<String, ElasticsearchException> failedResponses = Collections.emptyMap();
+    private final Map<String, List<SnapshotInfo>> successfulResponses;
+    private final Map<String, ElasticsearchException> failedResponses;
 
     public GetSnapshotsResponse(Collection<Response> responses) {
-        this.successfulResponses = new HashMap<>();
-        this.failedResponses = new HashMap<>();
+        Map<String, List<SnapshotInfo>> successfulResponses = new HashMap<>();
+        Map<String, ElasticsearchException> failedResponses = new HashMap<>();
         for (Response response : responses) {
             if (response.snapshots != null) {
                 assert response.error == null;
-                this.successfulResponses.put(response.repository, response.snapshots);
+                successfulResponses.put(response.repository, response.snapshots);
             } else {
                 assert response.snapshots == null;
-                this.failedResponses.put(response.repository, response.error);
+                failedResponses.put(response.repository, response.error);
             }
         }
-        successfulResponses = Collections.unmodifiableMap(successfulResponses);
-        failedResponses = Collections.unmodifiableMap(failedResponses);
-    }
-
-    public GetSnapshotsResponse() {
+        this.successfulResponses = Collections.unmodifiableMap(successfulResponses);
+        this.failedResponses = Collections.unmodifiableMap(failedResponses);
     }
 
     /**
@@ -229,37 +260,7 @@ public class GetSnapshotsResponse extends ActionResponse implements ToXContentOb
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        if (in.getVersion().onOrAfter(GetSnapshotsRequest.MULTIPLE_REPOSITORIES_SUPPORT_ADDED)) {
-            int successfulSize = in.readVInt();
-            successfulResponses = new HashMap<>(successfulSize);
-            for (int i = 0; i < successfulSize; i++) {
-                String repository = in.readString();
-                int size = in.readVInt();
-                List<SnapshotInfo> snapshotInfos = new ArrayList<>(size);
-                for (int j = 0; j < size; j++) {
-                    snapshotInfos.add(new SnapshotInfo(in));
-                }
-                successfulResponses.put(repository, snapshotInfos);
-            }
-
-            int failedSize = in.readVInt();
-            failedResponses = new HashMap<>(failedSize);
-            for (int i = 0; i < failedSize; i++) {
-                String repository = in.readString();
-                ElasticsearchException error = in.readException();
-                failedResponses.put(repository, error);
-            }
-            successfulResponses = Collections.unmodifiableMap(successfulResponses);
-            failedResponses = Collections.unmodifiableMap(failedResponses);
-        } else {
-            int size = in.readVInt();
-            List<SnapshotInfo> snapshots = new ArrayList<>(size);
-            for (int i = 0; i < size; i++) {
-                snapshots.add(new SnapshotInfo(in));
-            }
-            successfulResponses = Collections.singletonMap("unknown", snapshots);
-        }
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     public static GetSnapshotsResponse fromXContent(XContentParser parser) throws IOException {

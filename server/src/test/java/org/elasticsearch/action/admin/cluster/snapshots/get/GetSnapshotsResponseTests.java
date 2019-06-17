@@ -59,7 +59,9 @@ public class GetSnapshotsResponseTests extends ESTestCase {
     }
 
     private GetSnapshotsResponse copyInstance(GetSnapshotsResponse instance, Version version) throws IOException {
-        return copyStreamable(instance, new NamedWriteableRegistry(Collections.emptyList()), () -> new GetSnapshotsResponse(), version);
+        return copyInstance(instance, new NamedWriteableRegistry(Collections.emptyList()), (out, value) -> value.writeTo(out),
+                in -> new GetSnapshotsResponse(in), version);
+
     }
 
     private void assertEqualInstances(GetSnapshotsResponse expectedInstance, GetSnapshotsResponse newInstance) {

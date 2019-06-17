@@ -76,7 +76,8 @@ for its modifiers:
   but rather than the setup defined in `docs/build.gradle` the setup is defined
   right in the documentation file. In general, we should prefer `// TESTSETUP`
   over `// TEST[setup:name]` because it makes it more clear what steps have to
-  be taken before the examples will work.
+  be taken before the examples will work. Tip: `// TESTSETUP` can only be used
+  on the first snippet of a document.
 * `// NOTCONSOLE`: Marks this snippet as neither `// CONSOLE` nor
   `// TESTRESPONSE`, excluding it from the list of unconverted snippets. We
   should only use this for snippets that *are* JSON but are *not* responses or

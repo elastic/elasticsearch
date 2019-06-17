@@ -353,7 +353,7 @@ public class RestTestsFromSnippetsTask extends SnippetsTask {
 
         private void testSetup(Snippet snippet) {
             if (lastDocsPath == snippet.path) {
-                throw new InvalidUserDataException("$snippet: wasn't first")
+                throw new InvalidUserDataException("$snippet: wasn't first. TESTSETUP can only be used in the first snippet of a document.")
             }
             setupCurrent(snippet)
             current.println('---')

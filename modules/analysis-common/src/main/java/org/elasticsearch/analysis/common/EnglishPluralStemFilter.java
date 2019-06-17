@@ -64,8 +64,8 @@ public final class EnglishPluralStemFilter extends TokenFilter {
      * <p>
      * In addition the s stemmer logic is amended so that
      * <ul>
-     * <li>ees->ee so that bees matches bee</li>
-     * <li>ies->y only on longer words to that ties matches tie</li>
+     * <li>ees-&gt;ee so that bees matches bee</li>
+     * <li>ies-&gt;y only on longer words to that ties matches tie</li>
      * </ul>
      */
     public static class EnglishPlurallStemmer {

@@ -22,5 +22,8 @@ apply plugin: 'elasticsearch.build'
 dependencies {
   compileOnly project(":server")
   compileOnly project(":libs:elasticsearch-cli")
+  compile "com.amazonaws:aws-java-sdk-s3:${versions.aws}"
+  compile "com.amazonaws:aws-java-sdk-kms:${versions.aws}"
+  compile "com.amazonaws:aws-java-sdk-core:${versions.aws}"
   testCompile project(":test:framework")
 }

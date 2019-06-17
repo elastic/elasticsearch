@@ -31,7 +31,7 @@ public class LineTests extends BaseGeometryTestCase<Line> {
     }
 
     public void testBasicSerialization() throws IOException, ParseException {
-        WellKnownText wkt = new WellKnownText();
+        WellKnownText wkt = new WellKnownText(true, true);
         assertEquals("linestring (3.0 1.0, 4.0 2.0)", wkt.toWKT(new Line(new double[]{1, 2}, new double[]{3, 4})));
         assertEquals(new Line(new double[]{1, 2}, new double[]{3, 4}), wkt.fromWKT("linestring (3 1, 4 2)"));
 

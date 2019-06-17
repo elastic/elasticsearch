@@ -31,7 +31,7 @@ public class PointTests extends BaseGeometryTestCase<Point> {
     }
 
     public void testBasicSerialization() throws IOException, ParseException {
-        WellKnownText wkt = new WellKnownText();
+        WellKnownText wkt = new WellKnownText(true, true);
         assertEquals("point (20.0 10.0)", wkt.toWKT(new Point(10, 20)));
         assertEquals(new Point(10, 20), wkt.fromWKT("point (20.0 10.0)"));
 

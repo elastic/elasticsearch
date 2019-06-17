@@ -147,7 +147,7 @@ NOTE: Transient settings are not considered for backup.
 [[backup-security-repos]]
 ===== Controlling access to the backup repository
 
-Exposing the contents of the `.security` index by having a third party read the
+If a third party reads the snapshot and exposes the contents of the `.security` index, 
 snapshot does not equate to compromised cluster security. An attacker would
 still need to brute force cryptographic hashes before it can impersonate users
 or use API keys. However, every document in the security index is sensitive to

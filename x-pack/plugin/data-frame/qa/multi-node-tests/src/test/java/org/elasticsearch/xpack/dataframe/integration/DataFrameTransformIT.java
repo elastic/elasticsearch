@@ -30,7 +30,8 @@ public class DataFrameTransformIT extends DataFrameIntegTestCase {
     }
 
     public void testDataFrameTransformCrud() throws Exception {
-        createReviewsIndex();
+        String indexName = "basic-crud-reviews";
+        createReviewsIndex(indexName, 100);
 
         Map<String, SingleGroupSource> groups = new HashMap<>();
         groups.put("by-day", createDateHistogramGroupSourceWithCalendarInterval("timestamp", DateHistogramInterval.DAY, null, null));
@@ -45,7 +46,7 @@ public class DataFrameTransformIT extends DataFrameIntegTestCase {
             groups,
             aggs,
             "reviews-by-user-business-day",
-            REVIEWS_INDEX_NAME);
+            indexName);
 
         assertTrue(putDataFrameTransform(config, RequestOptions.DEFAULT).isAcknowledged());
         assertTrue(startDataFrameTransform(config.getId(), RequestOptions.DEFAULT).isAcknowledged());
@@ -56,7 +57,8 @@ public class DataFrameTransformIT extends DataFrameIntegTestCase {
         assertBusy(() ->
             assertThat(getDataFrameTransformStats(config.getId()).getTransformsStateAndStats().get(0).getTransformState().getIndexerState(),
                 equalTo(IndexerState.STOPPED)));
+        stopDataFrameTransform(config.getId());
+        deleteDataFrameTransform(config.getId());
     }
-
 
 }

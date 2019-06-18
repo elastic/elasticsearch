@@ -40,8 +40,10 @@ import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -423,7 +425,7 @@ public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSing
         ImmutableOpenMap.Builder<String, IndexMetaData> indices = ImmutableOpenMap.<String, IndexMetaData> builder().fPut(index.getName(),
                 indexMetaData);
         IndexRoutingTable.Builder indexRoutingTable = IndexRoutingTable.builder(index)
-                .addShard(TestShardRouting.newShardRouting(new ShardId(index, 0), "node_id_0", true, ShardRoutingState.STARTED));
+                .addShard(TestShardRouting.newShardRouting(new ShardId(index, 0), randomFrom(validNodeIds), true, ShardRoutingState.STARTED));
         ClusterState clusterState = ClusterState.builder(ClusterState.EMPTY_STATE).metaData(MetaData.builder().indices(indices.build()))
                 .nodes(nodes).routingTable(RoutingTable.builder().add(indexRoutingTable).build()).build();
 
@@ -474,12 +476,18 @@ public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSing
     }
 
     private void assertNoValidNode(IndexMetaData indexMetaData, Index index, DiscoveryNodes.Builder nodes) {
+        DiscoveryNodes discoveryNodes = nodes.build();
+        List<String> nodeIds = new ArrayList<>();
+        for (DiscoveryNode node : discoveryNodes) {
+            nodeIds.add(node.getId());
+        }
+        String currentNode = randomFrom(nodeIds);
         ImmutableOpenMap.Builder<String, IndexMetaData> indices = ImmutableOpenMap.<String, IndexMetaData> builder().fPut(index.getName(),
                 indexMetaData);
         IndexRoutingTable.Builder indexRoutingTable = IndexRoutingTable.builder(index)
-                .addShard(TestShardRouting.newShardRouting(new ShardId(index, 0), "node_id_0", true, ShardRoutingState.STARTED));
+                .addShard(TestShardRouting.newShardRouting(new ShardId(index, 0), currentNode, true, ShardRoutingState.STARTED));
         ClusterState clusterState = ClusterState.builder(ClusterState.EMPTY_STATE).metaData(MetaData.builder().indices(indices.build()))
-                .nodes(nodes).routingTable(RoutingTable.builder().add(indexRoutingTable).build()).build();
+                .nodes(discoveryNodes).routingTable(RoutingTable.builder().add(indexRoutingTable).build()).build();
 
         SetSingleNodeAllocateStep step = createRandomInstance();
 

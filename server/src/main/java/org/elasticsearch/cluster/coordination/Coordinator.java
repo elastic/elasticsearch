@@ -22,6 +22,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
@@ -100,6 +101,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
 
     private final Settings settings;
     private final boolean singleNodeDiscovery;
+    private final ElectionStrategy electionStrategy;
     private final TransportService transportService;
     private final MasterService masterService;
     private final AllocationService allocationService;
@@ -150,13 +152,14 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                        NamedWriteableRegistry namedWriteableRegistry, AllocationService allocationService, MasterService masterService,
                        Supplier<CoordinationState.PersistedState> persistedStateSupplier, SeedHostsProvider seedHostsProvider,
                        ClusterApplier clusterApplier, Collection<BiConsumer<DiscoveryNode, ClusterState>> onJoinValidators, Random random,
-                       Consumer<String> reroute) {
+                       Consumer<String> reroute, ElectionStrategy electionStrategy) {
         this.settings = settings;
         this.transportService = transportService;
         this.masterService = masterService;
         this.allocationService = allocationService;
         this.onJoinValidators = JoinTaskExecutor.addBuiltInJoinValidators(onJoinValidators);
         this.singleNodeDiscovery = DiscoveryModule.SINGLE_NODE_DISCOVERY_TYPE.equals(DiscoveryModule.DISCOVERY_TYPE_SETTING.get(settings));
+        this.electionStrategy = electionStrategy;
         this.joinHelper = new JoinHelper(settings, allocationService, masterService, transportService,
             this::getCurrentTerm, this::getStateForMasterService, this::handleJoinRequest, this::joinLeaderInTerm, this.onJoinValidators,
             reroute);
@@ -168,7 +171,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         this.publishTimeout = PUBLISH_TIMEOUT_SETTING.get(settings);
         this.random = random;
         this.electionSchedulerFactory = new ElectionSchedulerFactory(settings, random, transportService.getThreadPool());
-        this.preVoteCollector = new PreVoteCollector(transportService, this::startElection, this::updateMaxTermSeen);
+        this.preVoteCollector = new PreVoteCollector(transportService, this::startElection, this::updateMaxTermSeen, electionStrategy);
         configuredHostsResolver = new SeedHostsResolver(nodeName, settings, transportService, seedHostsProvider);
         this.peerFinder = new CoordinatorPeerFinder(settings, transportService,
             new HandshakingTransportAddressConnector(settings, transportService), configuredHostsResolver);
@@ -179,7 +182,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         this.nodeRemovalExecutor = new NodeRemovalClusterStateTaskExecutor(allocationService, logger);
         this.clusterApplier = clusterApplier;
         masterService.setClusterStateSupplier(this::getStateForMasterService);
-        this.reconfigurator = new Reconfigurator(settings, clusterSettings);
+        this.reconfigurator = new Reconfigurator(settings, clusterSettings, electionStrategy);
         this.clusterBootstrapService = new ClusterBootstrapService(settings, transportService, this::getFoundPeers,
             this::isInitialConfigurationSet, this::setInitialConfiguration);
         this.lagDetector = new LagDetector(settings, transportService.getThreadPool(), n -> removeNode(n, "lagging"),
@@ -191,7 +194,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
     private ClusterFormationState getClusterFormationState() {
         return new ClusterFormationState(settings, getStateForMasterService(), peerFinder.getLastResolvedAddresses(),
             Stream.concat(Stream.of(getLocalNode()), StreamSupport.stream(peerFinder.getFoundPeers().spliterator(), false))
-                .collect(Collectors.toList()), getCurrentTerm());
+                    .collect(Collectors.toList()), getCurrentTerm(), electionStrategy);
     }
 
     private void onLeaderFailure(Exception e) {
@@ -649,7 +652,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
     protected void doStart() {
         synchronized (mutex) {
             CoordinationState.PersistedState persistedState = persistedStateSupplier.get();
-            coordinationState.set(new CoordinationState(settings, getLocalNode(), persistedState));
+            coordinationState.set(new CoordinationState(getLocalNode(), persistedState, electionStrategy));
             peerFinder.setCurrentTerm(getCurrentTerm());
             configuredHostsResolver.start();
             final ClusterState lastAcceptedState = coordinationState.get().getLastAcceptedState();
@@ -1104,9 +1107,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                     final CoordinationState.VoteCollection expectedVotes = new CoordinationState.VoteCollection();
                     foundPeers.forEach(expectedVotes::addVote);
                     expectedVotes.addVote(Coordinator.this.getLocalNode());
-                    final ClusterState lastAcceptedState = coordinationState.get().getLastAcceptedState();
-                    final boolean foundQuorum = CoordinationState.isElectionQuorum(expectedVotes, lastAcceptedState);
-
+                    final boolean foundQuorum = coordinationState.get().isElectionQuorum(expectedVotes);
                     if (foundQuorum) {
                         if (electionScheduler == null) {
                             startElectionScheduler();
@@ -1305,6 +1306,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                                             final List<DiscoveryNode> masterCandidates = completedNodes().stream()
                                                 .filter(DiscoveryNode::isMasterNode)
                                                 .filter(node -> nodeMayWinElection(state, node))
+                                                .filter(electionStrategy::isAbdicationTarget)
                                                 .collect(Collectors.toList());
                                             if (masterCandidates.isEmpty() == false) {
                                                 abdicateTo(masterCandidates.get(random.nextInt(masterCandidates.size())));
@@ -1386,7 +1388,13 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         @Override
         protected void sendPublishRequest(DiscoveryNode destination, PublishRequest publishRequest,
                                           ActionListener<PublishWithJoinResponse> responseActionListener) {
-            publicationContext.sendPublishRequest(destination, publishRequest, wrapWithMutex(responseActionListener));
+            if (electionStrategy.shouldReceivePublication(destination)) {
+                publicationContext.sendPublishRequest(destination, publishRequest,
+                    electionStrategy.wrapPublishResponseHandler(wrapWithMutex(responseActionListener)));
+            } else {
+                logger.debug("sendPublishRequest: suppressing publication to [{}]", destination);
+                responseActionListener.onFailure(new ElasticsearchException("suppressing publication at source"));
+            }
         }
 
         @Override

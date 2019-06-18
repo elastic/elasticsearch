@@ -1,0 +1,21 @@
+evaluationDependsOn(xpackModule('core'))
+
+apply plugin: 'elasticsearch.esplugin'
+esplugin {
+    name 'x-pack-voting-only-node'
+    description 'Elasticsearch Expanded Pack Plugin - Voting-only node'
+    classname 'org.elasticsearch.cluster.coordination.VotingOnlyNodePlugin'
+    extendedPlugins = ['x-pack-core']
+}
+archivesBaseName = 'x-pack-voting-only-node'
+
+dependencies {
+    compileOnly "org.elasticsearch:elasticsearch:${version}"
+
+    // "org.elasticsearch.plugin:x-pack-core:${version}" doesn't work with idea because the testArtifacts are also here
+    compileOnly project(path: xpackModule('core'), configuration: 'default')
+    testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
+    if (isEclipse) {
+      testCompile project(path: xpackModule('core-tests'), configuration: 'testArtifacts')
+    }
+}

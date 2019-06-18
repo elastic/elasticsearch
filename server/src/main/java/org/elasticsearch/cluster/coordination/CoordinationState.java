@@ -24,7 +24,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.coordination.CoordinationMetaData.VotingConfiguration;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.settings.Settings;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -44,6 +43,7 @@ public class CoordinationState {
 
     // persisted state
     private final PersistedState persistedState;
+    private final ElectionStrategy electionStrategy;
 
     // transient state
     private VoteCollection joinVotes;
@@ -53,11 +53,12 @@ public class CoordinationState {
     private VotingConfiguration lastPublishedConfiguration;
     private VoteCollection publishVotes;
 
-    public CoordinationState(Settings settings, DiscoveryNode localNode, PersistedState persistedState) {
+    public CoordinationState(DiscoveryNode localNode, PersistedState persistedState, ElectionStrategy electionStrategy) {
         this.localNode = localNode;
 
         // persisted state
         this.persistedState = persistedState;
+        this.electionStrategy = electionStrategy;
 
         // transient state
         this.joinVotes = new VoteCollection();
@@ -101,11 +102,12 @@ public class CoordinationState {
     }
 
     public boolean isElectionQuorum(VoteCollection votes) {
-        return isElectionQuorum(votes, getLastAcceptedState());
+        return isElectionQuorum(votes, getLastAcceptedState(), electionStrategy);
     }
 
-    static boolean isElectionQuorum(VoteCollection votes, ClusterState lastAcceptedState) {
-        return votes.isQuorum(lastAcceptedState.getLastCommittedConfiguration())
+    static boolean isElectionQuorum(VoteCollection votes, ClusterState lastAcceptedState, ElectionStrategy electionStrategy) {
+        return electionStrategy.isGoodQuorum(votes.nodes())
+            && votes.isQuorum(lastAcceptedState.getLastCommittedConfiguration())
             && votes.isQuorum(lastAcceptedState.getLastAcceptedConfiguration());
     }
 

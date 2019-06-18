@@ -32,7 +32,6 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
 import org.junit.Before;
@@ -770,8 +769,7 @@ public class CoordinationStateTests extends ESTestCase {
     }
 
     public static CoordinationState createCoordinationState(PersistedState storage, DiscoveryNode localNode) {
-        final Settings initialSettings = Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), localNode.getId()).build();
-        return new CoordinationState(initialSettings, localNode, storage);
+        return new CoordinationState(localNode, storage, ElectionStrategy.DefaultElectionStrategy.INSTANCE);
     }
 
     public static ClusterState clusterState(long term, long version, DiscoveryNode localNode, VotingConfiguration lastCommittedConfig,
@@ -821,11 +819,11 @@ public class CoordinationStateTests extends ESTestCase {
             this.localNode = localNode;
             persistedState = new InMemoryPersistedState(0L,
                 clusterState(0L, 0L, localNode, VotingConfiguration.EMPTY_CONFIG, VotingConfiguration.EMPTY_CONFIG, 0L));
-            state = new CoordinationState(Settings.EMPTY, localNode, persistedState);
+            state = new CoordinationState(localNode, persistedState, ElectionStrategy.DefaultElectionStrategy.INSTANCE);
         }
 
         void reboot() {
-            state = new CoordinationState(Settings.EMPTY, localNode, persistedState);
+            state = new CoordinationState(localNode, persistedState, ElectionStrategy.DefaultElectionStrategy.INSTANCE);
         }
 
         void setInitialState(VotingConfiguration initialConfig, long initialValue) {

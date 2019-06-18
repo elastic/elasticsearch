@@ -39,7 +39,6 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.LongConsumer;
 
-import static org.elasticsearch.cluster.coordination.CoordinationState.isElectionQuorum;
 import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.newConcurrentSet;
 
 public class PreVoteCollector {
@@ -51,14 +50,17 @@ public class PreVoteCollector {
     private final TransportService transportService;
     private final Runnable startElection;
     private final LongConsumer updateMaxTermSeen;
+    private final ElectionStrategy electionStrategy;
 
     // Tuple for simple atomic updates. null until the first call to `update()`.
     private volatile Tuple<DiscoveryNode, PreVoteResponse> state; // DiscoveryNode component is null if there is currently no known leader.
 
-    PreVoteCollector(final TransportService transportService, final Runnable startElection, final LongConsumer updateMaxTermSeen) {
+    PreVoteCollector(final TransportService transportService, final Runnable startElection, final LongConsumer updateMaxTermSeen,
+                     final ElectionStrategy electionStrategy) {
         this.transportService = transportService;
         this.startElection = startElection;
         this.updateMaxTermSeen = updateMaxTermSeen;
+        this.electionStrategy = electionStrategy;
 
         // TODO does this need to be on the generic threadpool or can it use SAME?
         transportService.registerRequestHandler(REQUEST_PRE_VOTE_ACTION_NAME, Names.GENERIC, false, false,
@@ -185,11 +187,16 @@ public class PreVoteCollector {
                 return;
             }
 
+            if (electionStrategy.acceptPrevote(response, sender, clusterState) == false) {
+                return;
+            }
+
             preVotesReceived.add(sender);
+
             final VoteCollection voteCollection = new VoteCollection();
             preVotesReceived.forEach(voteCollection::addVote);
 
-            if (isElectionQuorum(voteCollection, clusterState) == false) {
+            if (CoordinationState.isElectionQuorum(voteCollection, clusterState, electionStrategy) == false) {
                 logger.debug("{} added {} from {}, no quorum yet", this, response, sender);
                 return;
             }

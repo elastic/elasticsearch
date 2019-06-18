@@ -344,61 +344,6 @@ public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSing
         Mockito.verifyZeroInteractions(client);
     }
 
-    private void assertNodeSelected(IndexMetaData indexMetaData, Index index,
-                                    Set<String> validNodeIds, DiscoveryNodes.Builder nodes) throws IOException {
-        ImmutableOpenMap.Builder<String, IndexMetaData> indices = ImmutableOpenMap.<String, IndexMetaData> builder().fPut(index.getName(),
-                indexMetaData);
-        IndexRoutingTable.Builder indexRoutingTable = IndexRoutingTable.builder(index)
-                .addShard(TestShardRouting.newShardRouting(new ShardId(index, 0), "node_id_0", true, ShardRoutingState.STARTED));
-        ClusterState clusterState = ClusterState.builder(ClusterState.EMPTY_STATE).metaData(MetaData.builder().indices(indices.build()))
-                .nodes(nodes).routingTable(RoutingTable.builder().add(indexRoutingTable).build()).build();
-
-        SetSingleNodeAllocateStep step = createRandomInstance();
-
-        AdminClient adminClient = Mockito.mock(AdminClient.class);
-        IndicesAdminClient indicesClient = Mockito.mock(IndicesAdminClient.class);
-
-        Mockito.when(client.admin()).thenReturn(adminClient);
-        Mockito.when(adminClient.indices()).thenReturn(indicesClient);
-
-        Mockito.doAnswer(new Answer<Void>() {
-
-            @Override
-            public Void answer(InvocationOnMock invocation) throws Throwable {
-                UpdateSettingsRequest request = (UpdateSettingsRequest) invocation.getArguments()[0];
-                @SuppressWarnings("unchecked")
-                ActionListener<AcknowledgedResponse> listener = (ActionListener<AcknowledgedResponse>) invocation.getArguments()[1];
-                assertSettingsRequestContainsValueFrom(request,
-                        IndexMetaData.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + "_id", validNodeIds, true,
-                        indexMetaData.getIndex().getName());
-                listener.onResponse(new AcknowledgedResponse(true));
-                return null;
-            }
-
-        }).when(indicesClient).updateSettings(Mockito.any(), Mockito.any());
-
-        SetOnce<Boolean> actionCompleted = new SetOnce<>();
-
-        step.performAction(indexMetaData, clusterState, null, new Listener() {
-
-            @Override
-            public void onResponse(boolean complete) {
-                actionCompleted.set(complete);
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                throw new AssertionError("Unexpected method call", e);
-            }
-        });
-
-        assertEquals(true, actionCompleted.get());
-
-        Mockito.verify(client, Mockito.only()).admin();
-        Mockito.verify(adminClient, Mockito.only()).indices();
-        Mockito.verify(indicesClient, Mockito.only()).updateSettings(Mockito.any(), Mockito.any());
-    }
-
     public void testPerformActionHighestVersionNodeIsPicked() throws IOException {
         final Version indexCreationVersion = VersionUtils.randomPreviousCompatibleVersion(random(), Version.CURRENT);
         IndexMetaData indexMetaData = IndexMetaData.builder(randomAlphaOfLength(10)).settings(settings(indexCreationVersion))
@@ -471,6 +416,61 @@ public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSing
         }
 
         assertNoValidNode(indexMetaData, index, nodes);
+    }
+
+    private void assertNodeSelected(IndexMetaData indexMetaData, Index index,
+                                    Set<String> validNodeIds, DiscoveryNodes.Builder nodes) throws IOException {
+        ImmutableOpenMap.Builder<String, IndexMetaData> indices = ImmutableOpenMap.<String, IndexMetaData> builder().fPut(index.getName(),
+                indexMetaData);
+        IndexRoutingTable.Builder indexRoutingTable = IndexRoutingTable.builder(index)
+                .addShard(TestShardRouting.newShardRouting(new ShardId(index, 0), "node_id_0", true, ShardRoutingState.STARTED));
+        ClusterState clusterState = ClusterState.builder(ClusterState.EMPTY_STATE).metaData(MetaData.builder().indices(indices.build()))
+                .nodes(nodes).routingTable(RoutingTable.builder().add(indexRoutingTable).build()).build();
+
+        SetSingleNodeAllocateStep step = createRandomInstance();
+
+        AdminClient adminClient = Mockito.mock(AdminClient.class);
+        IndicesAdminClient indicesClient = Mockito.mock(IndicesAdminClient.class);
+
+        Mockito.when(client.admin()).thenReturn(adminClient);
+        Mockito.when(adminClient.indices()).thenReturn(indicesClient);
+
+        Mockito.doAnswer(new Answer<Void>() {
+
+            @Override
+            public Void answer(InvocationOnMock invocation) throws Throwable {
+                UpdateSettingsRequest request = (UpdateSettingsRequest) invocation.getArguments()[0];
+                @SuppressWarnings("unchecked")
+                ActionListener<AcknowledgedResponse> listener = (ActionListener<AcknowledgedResponse>) invocation.getArguments()[1];
+                assertSettingsRequestContainsValueFrom(request,
+                        IndexMetaData.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + "_id", validNodeIds, true,
+                        indexMetaData.getIndex().getName());
+                listener.onResponse(new AcknowledgedResponse(true));
+                return null;
+            }
+
+        }).when(indicesClient).updateSettings(Mockito.any(), Mockito.any());
+
+        SetOnce<Boolean> actionCompleted = new SetOnce<>();
+
+        step.performAction(indexMetaData, clusterState, null, new Listener() {
+
+            @Override
+            public void onResponse(boolean complete) {
+                actionCompleted.set(complete);
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                throw new AssertionError("Unexpected method call", e);
+            }
+        });
+
+        assertEquals(true, actionCompleted.get());
+
+        Mockito.verify(client, Mockito.only()).admin();
+        Mockito.verify(adminClient, Mockito.only()).indices();
+        Mockito.verify(indicesClient, Mockito.only()).updateSettings(Mockito.any(), Mockito.any());
     }
 
     private void assertNoValidNode(IndexMetaData indexMetaData, Index index, DiscoveryNodes.Builder nodes) {

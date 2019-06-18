@@ -445,7 +445,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 try {
                     if (survivingIndexIds.contains(indexSnId) == false) {
                         logger.debug("[{}] Found stale index [{}]. Cleaning it up.", metadata.name(), indexSnId);
-                        deleteContents(indexEntry.getValue());
+                        indexEntry.getValue().delete();
                         toDelete.add(indexSnId);
                         logger.debug("[{}] Cleaned up stale index [{}].", metadata.name(), indexSnId);
                     }
@@ -468,16 +468,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             //       bubbling up and breaking the snapshot functionality.
             logger.warn(new ParameterizedMessage("[{}] Exception during cleanup of stale indices.", metadata.name()), e);
         }
-    }
-
-    private static void deleteContents(BlobContainer container) throws IOException {
-        final List<String> toDelete = new ArrayList<>();
-        for (Map.Entry<String, BlobContainer> child : container.children().entrySet()) {
-            deleteContents(child.getValue());
-            toDelete.add(child.getKey());
-        }
-        toDelete.addAll(container.listBlobs().keySet());
-        container.deleteBlobsIgnoringIfNotExists(toDelete);
     }
 
     private void deleteIndices(List<IndexId> indices, SnapshotId snapshotId, ActionListener<Void> listener) {

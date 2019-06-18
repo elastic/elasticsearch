@@ -85,7 +85,7 @@ public class NoOpEngineTests extends EngineTestCase {
 
         flushAndTrimTranslog(engine);
 
-        long localCheckpoint = engine.getProcessedLocalCheckpoint();
+        long localCheckpoint = engine.getPersistedLocalCheckpoint();
         long maxSeqNo = engine.getSeqNoStats(100L).getMaxSeqNo();
         engine.close();
 
@@ -114,8 +114,8 @@ public class NoOpEngineTests extends EngineTestCase {
                     if (rarely()) {
                         engine.flush();
                     }
-                    engine.syncTranslog(); // advance local checkpoint
-                    globalCheckpoint.set(engine.getProcessedLocalCheckpoint());
+                    engine.syncTranslog(); // advance persisted local checkpoint
+                    globalCheckpoint.set(engine.getPersistedLocalCheckpoint());
                 }
 
                 for (int i = 0; i < numDocs; i++) {
@@ -123,8 +123,8 @@ public class NoOpEngineTests extends EngineTestCase {
                         String delId = Integer.toString(i);
                         Engine.DeleteResult result = engine.delete(new Engine.Delete("test", delId, newUid(delId), primaryTerm.get()));
                         assertTrue(result.isFound());
-                        engine.syncTranslog(); // advance local checkpoint
-                        globalCheckpoint.set(engine.getProcessedLocalCheckpoint());
+                        engine.syncTranslog(); // advance persisted local checkpoint
+                        globalCheckpoint.set(engine.getPersistedLocalCheckpoint());
                         deletions += 1;
                     }
                 }

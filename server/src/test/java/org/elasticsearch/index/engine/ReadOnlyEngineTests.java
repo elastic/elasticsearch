@@ -62,9 +62,10 @@ public class ReadOnlyEngineTests extends EngineTestCase {
                     if (rarely()) {
                         engine.flush();
                     }
-                    globalCheckpoint.set(randomLongBetween(globalCheckpoint.get(), engine.getProcessedLocalCheckpoint()));
+                    globalCheckpoint.set(randomLongBetween(globalCheckpoint.get(), engine.getPersistedLocalCheckpoint()));
                 }
                 engine.syncTranslog();
+                globalCheckpoint.set(randomLongBetween(globalCheckpoint.get(), engine.getPersistedLocalCheckpoint()));
                 engine.flush();
                 readOnlyEngine = new ReadOnlyEngine(engine.engineConfig, engine.getSeqNoStats(globalCheckpoint.get()),
                     engine.getTranslogStats(), false, Function.identity());
@@ -129,10 +130,10 @@ public class ReadOnlyEngineTests extends EngineTestCase {
                     if (rarely()) {
                         engine.flush();
                     }
-                    engine.syncTranslog(); // advance local checkpoint
-                    globalCheckpoint.set(engine.getProcessedLocalCheckpoint());
+                    engine.syncTranslog(); // advance persisted local checkpoint
+                    globalCheckpoint.set(engine.getPersistedLocalCheckpoint());
                 }
-                globalCheckpoint.set(engine.getProcessedLocalCheckpoint());
+                globalCheckpoint.set(engine.getPersistedLocalCheckpoint());
                 engine.syncTranslog();
                 engine.flushAndClose();
                 readOnlyEngine = new ReadOnlyEngine(engine.engineConfig, null , null, true, Function.identity());
@@ -156,11 +157,10 @@ public class ReadOnlyEngineTests extends EngineTestCase {
                     ParsedDocument doc = testParsedDocument(Integer.toString(i), null, testDocument(), new BytesArray("{}"), null);
                     engine.index(new Engine.Index(newUid(doc), doc, i, primaryTerm.get(), 1, null, Engine.Operation.Origin.REPLICA,
                         System.nanoTime(), -1, false, SequenceNumbers.UNASSIGNED_SEQ_NO, 0));
-                    engine.syncTranslog(); // advance local checkpoint
                     maxSeqNo = engine.getProcessedLocalCheckpoint();
                 }
-                globalCheckpoint.set(engine.getProcessedLocalCheckpoint() - 1);
                 engine.syncTranslog();
+                globalCheckpoint.set(engine.getPersistedLocalCheckpoint() - 1);
                 engine.flushAndClose();
 
                 IllegalStateException exception = expectThrows(IllegalStateException.class,

@@ -201,6 +201,10 @@ public class LocalCheckpointTracker {
         final long bitSetKey = getBitSetKey(seqNo);
         final int bitSetOffset = seqNoToBitSetOffset(seqNo);
         synchronized (this) {
+            // check again under lock
+            if (seqNo <= processedCheckpoint.get()) {
+                return true;
+            }
             final CountedBitSet bitSet = processedSeqNo.get(bitSetKey);
             return bitSet != null && bitSet.get(bitSetOffset);
         }

@@ -76,6 +76,8 @@ public class LocalCheckpointTrackerTests extends ESTestCase {
         assertThat(tracker.getProcessedCheckpoint(), equalTo(2L));
         assertThat(tracker.hasProcessed(between(0, 2)), equalTo(true));
         assertThat(tracker.hasProcessed(atLeast(3)), equalTo(false));
+        assertThat(tracker.getPersistedCheckpoint(), equalTo(SequenceNumbers.NO_OPS_PERFORMED));
+        assertThat(tracker.getMaxSeqNo(), equalTo(2L));
     }
 
     public void testSimplePrimaryPersisted() {
@@ -93,6 +95,8 @@ public class LocalCheckpointTrackerTests extends ESTestCase {
         assertThat(tracker.getPersistedCheckpoint(), equalTo(0L));
         tracker.markSeqNoAsPersisted(seqNo1);
         assertThat(tracker.getPersistedCheckpoint(), equalTo(2L));
+        assertThat(tracker.getProcessedCheckpoint(), equalTo(SequenceNumbers.NO_OPS_PERFORMED));
+        assertThat(tracker.getMaxSeqNo(), equalTo(2L));
     }
 
     public void testSimpleReplicaProcessed() {
@@ -109,6 +113,8 @@ public class LocalCheckpointTrackerTests extends ESTestCase {
         assertThat(tracker.getProcessedCheckpoint(), equalTo(2L));
         assertThat(tracker.hasProcessed(between(0, 2)), equalTo(true));
         assertThat(tracker.hasProcessed(atLeast(3)), equalTo(false));
+        assertThat(tracker.getPersistedCheckpoint(), equalTo(SequenceNumbers.NO_OPS_PERFORMED));
+        assertThat(tracker.getMaxSeqNo(), equalTo(2L));
     }
 
     public void testSimpleReplicaPersisted() {
@@ -120,6 +126,8 @@ public class LocalCheckpointTrackerTests extends ESTestCase {
         assertThat(tracker.getPersistedCheckpoint(), equalTo(0L));
         tracker.markSeqNoAsPersisted(1L);
         assertThat(tracker.getPersistedCheckpoint(), equalTo(2L));
+        assertThat(tracker.getProcessedCheckpoint(), equalTo(SequenceNumbers.NO_OPS_PERFORMED));
+        assertThat(tracker.getMaxSeqNo(), equalTo(2L));
     }
 
     public void testLazyInitialization() {

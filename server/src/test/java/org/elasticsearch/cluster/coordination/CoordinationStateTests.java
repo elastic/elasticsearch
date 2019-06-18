@@ -20,6 +20,7 @@ package org.elasticsearch.cluster.coordination;
 
 import org.elasticsearch.Assertions;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.coordination.CoordinationMetaData.VotingConfiguration;
@@ -37,8 +38,11 @@ import org.elasticsearch.test.EqualsHashCodeTestUtils;
 import org.junit.Before;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -813,17 +817,49 @@ public class CoordinationStateTests extends ESTestCase {
 
         final DiscoveryNode localNode;
         final PersistedState persistedState;
+        private final ElectionStrategy electionStrategy;
         CoordinationState state;
 
         ClusterNode(DiscoveryNode localNode) {
             this.localNode = localNode;
             persistedState = new InMemoryPersistedState(0L,
                 clusterState(0L, 0L, localNode, VotingConfiguration.EMPTY_CONFIG, VotingConfiguration.EMPTY_CONFIG, 0L));
-            state = new CoordinationState(localNode, persistedState, ElectionStrategy.DefaultElectionStrategy.INSTANCE);
+            electionStrategy = randomBoolean() ? ElectionStrategy.DefaultElectionStrategy.INSTANCE
+                : new ElectionStrategy() {
+
+                private final Map<DiscoveryNode, Boolean> goodNodes = new HashMap<>();
+
+                @Override
+                public boolean isAbdicationTarget(DiscoveryNode discoveryNode) {
+                    throw new AssertionError("irrelevant");
+                }
+
+                @Override
+                public boolean isGoodQuorum(Collection<DiscoveryNode> votingNodes) {
+                    votingNodes.forEach(n -> goodNodes.putIfAbsent(n, usually()));
+                    return votingNodes.stream().allMatch(goodNodes::get);
+                }
+
+                @Override
+                public boolean acceptPrevote(PreVoteResponse response, DiscoveryNode sender, ClusterState clusterState) {
+                    throw new AssertionError("irrelevant");
+                }
+
+                @Override
+                public boolean shouldReceivePublication(DiscoveryNode destination) {
+                    throw new AssertionError("irrelevant");
+                }
+
+                @Override
+                public ActionListener<PublishWithJoinResponse> wrapPublishResponseHandler(ActionListener<PublishWithJoinResponse> listener) {
+                    throw new AssertionError("irrelevant");
+                }
+            };
+            state = new CoordinationState(localNode, persistedState, electionStrategy);
         }
 
         void reboot() {
-            state = new CoordinationState(localNode, persistedState, ElectionStrategy.DefaultElectionStrategy.INSTANCE);
+            state = new CoordinationState(localNode, persistedState, electionStrategy);
         }
 
         void setInitialState(VotingConfiguration initialConfig, long initialValue) {

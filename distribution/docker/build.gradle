@@ -2,6 +2,7 @@ import org.elasticsearch.gradle.BuildPlugin
 import org.elasticsearch.gradle.LoggedExec
 import org.elasticsearch.gradle.MavenFilteringHack
 import org.elasticsearch.gradle.VersionProperties
+import org.elasticsearch.gradle.testfixtures.TestFixturesPlugin
 
 apply plugin: 'base'
 apply plugin: 'elasticsearch.test.fixtures'
@@ -77,7 +78,10 @@ void addCopyDockerContextTask(final boolean oss) {
 }
 
 preProcessFixture {
-  dependsOn assemble
+  // don't add the tasks to build the docker images if we have no way of testing them
+  if (TestFixturesPlugin.dockerComposeSupported()) {
+    dependsOn assemble
+  }
 }
 
 postProcessFixture.doLast {

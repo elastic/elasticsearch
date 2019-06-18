@@ -446,6 +446,13 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     }
 
     private void runElaticsearchBinScriptWithInput(String input, String tool, String... args) {
+        if (
+            Files.exists(workingDir.resolve("bin").resolve(tool)) == false &&
+                Files.exists(workingDir.resolve("bin").resolve(tool + ".bat")) == false
+        ) {
+            throw new TestClustersException("Can't run bin script: `" + tool + "` does not exist. " +
+                "Is this the distribution you expect it to be ?");
+        }
         try (InputStream byteArrayInputStream = new ByteArrayInputStream(input.getBytes(StandardCharsets.UTF_8))) {
             services.loggedExec(spec -> {
                 spec.setEnvironment(getESEnvironment());
@@ -865,5 +872,20 @@ public class ElasticsearchNode implements TestClusterConfiguration {
             throw new TestClustersException("Interrupted while waiting for ports files", e);
         }
         return Files.exists(httpPortsFile) && Files.exists(transportPortFile);
+    }
+
+    public boolean isHttpSslEnabled() {
+        return Boolean.valueOf(
+            settings.getOrDefault("xpack.security.http.ssl.enabled", () -> "false").get().toString()
+        );
+    }
+
+    public File getHttpCertificateAuthoritiesFile() {
+        if (settings.containsKey("xpack.security.http.ssl.certificate_authorities") == false) {
+            throw new TestClustersException("Can't get certificates authority file, not configured for " + this);
+        }
+        return getConfigDir()
+            .resolve(settings.get("xpack.security.http.ssl.certificate_authorities").get().toString())
+            .toFile();
     }
 }

@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.dataframe.integration;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.core.IndexerState;
 import org.elasticsearch.client.dataframe.transforms.DataFrameTransformConfig;
-import org.elasticsearch.client.dataframe.transforms.DataFrameTransformStateAndStats;
 import org.elasticsearch.client.dataframe.transforms.pivot.SingleGroupSource;
 import org.elasticsearch.client.dataframe.transforms.pivot.TermsGroupSource;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
@@ -31,7 +30,8 @@ public class DataFrameTransformIT extends DataFrameIntegTestCase {
     }
 
     public void testDataFrameTransformCrud() throws Exception {
-        createReviewsIndex();
+        String indexName = "basic-crud-reviews";
+        createReviewsIndex(indexName, 100);
 
         Map<String, SingleGroupSource> groups = new HashMap<>();
         groups.put("by-day", createDateHistogramGroupSourceWithCalendarInterval("timestamp", DateHistogramInterval.DAY, null, null));
@@ -46,17 +46,19 @@ public class DataFrameTransformIT extends DataFrameIntegTestCase {
             groups,
             aggs,
             "reviews-by-user-business-day",
-            REVIEWS_INDEX_NAME);
+            indexName);
 
         assertTrue(putDataFrameTransform(config, RequestOptions.DEFAULT).isAcknowledged());
         assertTrue(startDataFrameTransform(config.getId(), RequestOptions.DEFAULT).isAcknowledged());
 
         waitUntilCheckpoint(config.getId(), 1L);
 
-        DataFrameTransformStateAndStats stats = getDataFrameTransformStats(config.getId()).getTransformsStateAndStats().get(0);
-
-        assertThat(stats.getTransformState().getIndexerState(), equalTo(IndexerState.STARTED));
+        // It will eventually be stopped
+        assertBusy(() ->
+            assertThat(getDataFrameTransformStats(config.getId()).getTransformsStateAndStats().get(0).getTransformState().getIndexerState(),
+                equalTo(IndexerState.STOPPED)));
+        stopDataFrameTransform(config.getId());
+        deleteDataFrameTransform(config.getId());
     }
-
 
 }

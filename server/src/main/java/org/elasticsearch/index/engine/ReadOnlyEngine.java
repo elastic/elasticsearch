@@ -67,10 +67,10 @@ public class ReadOnlyEngine extends Engine {
 
     /**
      * Reader attributes used for read only engines. These attributes prevent loading term dictionaries on-heap even if the field is an
-     * ID field.
+     * ID field if we are reading form memory maps.
      */
     public static final Map<String, String> OFF_HEAP_READER_ATTRIBUTES = Collections.singletonMap(BlockTreeTermsReader.FST_MODE_KEY,
-        BlockTreeTermsReader.FSTLoadMode.OFF_HEAP.name());
+        BlockTreeTermsReader.FSTLoadMode.AUTO.name());
     private final SegmentInfos lastCommittedSegmentInfos;
     private final SeqNoStats seqNoStats;
     private final TranslogStats translogStats;

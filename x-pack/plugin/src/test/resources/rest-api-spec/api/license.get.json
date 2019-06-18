@@ -1,9 +1,9 @@
 {
   "license.get": {
     "documentation": "https://www.elastic.co/guide/en/elasticsearch/reference/master/get-license.html",
+    "stability": "stable",
     "methods": ["GET"],
     "url": {
-      "path": "/_license",
       "paths": ["/_license"],
       "parts" : {
       },

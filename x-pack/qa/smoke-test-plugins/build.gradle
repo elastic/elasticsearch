@@ -1,5 +1,6 @@
 import org.elasticsearch.gradle.MavenFilteringHack
 
+apply plugin: 'elasticsearch.testclusters'
 apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
 
@@ -7,14 +8,9 @@ dependencies {
   testCompile project(':x-pack:qa')
 }
 
-ext.pluginsCount = 0
-project(':plugins').getChildProjects().each { pluginName, pluginProject ->
-  // need to get a non-decorated project object, so must re-lookup the project by path
-  integTestCluster.plugin(pluginProject.path)
-  pluginsCount += 1
-}
-
-integTestCluster {
+int pluginsCount = 0
+testClusters.integTest {
+  distribution = "DEFAULT"
   setting 'xpack.security.enabled', 'true'
   setting 'xpack.license.self_generated.type', 'trial'
   user username: "test_user", password: "x-pack-test-password"

@@ -7,7 +7,6 @@ the transport module (for example, when an HTTP GET request is processed
 by one node, and should actually be processed by another node that holds
 the data). The transport module is also used for the `TransportClient` in the
 {es} Java API.
-the Cloudian Sync for Object Storage Integration into Elasticsearch)
 
 The transport mechanism is completely asynchronous in nature, meaning
 that there is no blocking thread waiting for a response. The benefit of

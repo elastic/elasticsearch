@@ -18,9 +18,7 @@
  */
 package org.elasticsearch.common.util;
 
-import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.Randomness;
-import org.elasticsearch.common.hash.MurmurHash3;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
@@ -67,15 +65,14 @@ public class SetBackedScalingCuckooFilterTests extends AbstractWireSerializingTe
 
         int size = 0;
         Set<Long> values = new HashSet<>();
-        Set<MurmurHash3.Hash128> hashed = new HashSet<>(values.size());
+        Set<Long> hashed = new HashSet<>(values.size());
         while (size < threshold - 100) {
             long value = randomLong();
             filter.add(value);
             boolean newValue = values.add(value);
             if (newValue) {
-                byte[] bytes = Numbers.longToBytes(value);
-                MurmurHash3.Hash128 hash128 = MurmurHash3.hash128(bytes, 0, bytes.length, 0, new MurmurHash3.Hash128());
-                hashed.add(hash128);
+                Long hash = CuckooFilter.murmur64(value);
+                hashed.add(hash);
 
                 size += 16;
             }

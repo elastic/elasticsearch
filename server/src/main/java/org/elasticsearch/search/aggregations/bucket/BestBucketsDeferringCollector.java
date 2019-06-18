@@ -40,6 +40,7 @@ import org.elasticsearch.search.internal.SearchContext;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * A specialization of {@link DeferringBucketCollector} that collects all
@@ -54,9 +55,9 @@ public class BestBucketsDeferringCollector extends DeferringBucketCollector {
         final PackedLongValues buckets;
 
         Entry(LeafReaderContext context, PackedLongValues docDeltas, PackedLongValues buckets) {
-            this.context = context;
-            this.docDeltas = docDeltas;
-            this.buckets = buckets;
+            this.context = Objects.requireNonNull(context);
+            this.docDeltas = Objects.requireNonNull(docDeltas);
+            this.buckets = Objects.requireNonNull(buckets);
         }
     }
 
@@ -166,6 +167,7 @@ public class BestBucketsDeferringCollector extends DeferringBucketCollector {
         }
 
         for (Entry entry : entries) {
+            assert entry.docDeltas.size() > 0 : "segment should have at least one document to replay, got 0";
             final LeafBucketCollector leafCollector = collector.getLeafCollector(entry.context);
             DocIdSetIterator scoreIt = null;
             if (needsScores) {

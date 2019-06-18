@@ -73,7 +73,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
     // lock order synchronized(syncLock) -> synchronized(this)
     private final Object syncLock = new Object();
 
-    private volatile LongArrayList nonFsyncedSequenceNumbers;
+    private LongArrayList nonFsyncedSequenceNumbers;
 
     private final Map<Long, Tuple<BytesReference, Exception>> seenSequenceNumbers;
 

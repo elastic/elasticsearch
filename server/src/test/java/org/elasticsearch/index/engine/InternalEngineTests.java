@@ -4194,7 +4194,7 @@ public class InternalEngineTests extends EngineTestCase {
         } finally {
             IOUtils.close(initialEngine);
         }
-        try (Engine recoveringEngine = new InternalEngine(initialEngine.config())) {
+        try (InternalEngine recoveringEngine = new InternalEngine(initialEngine.config())) {
             recoveringEngine.recoverFromTranslog(translogHandler, Long.MAX_VALUE);
             recoveringEngine.fillSeqNoGaps(2);
             assertThat(recoveringEngine.getProcessedLocalCheckpoint(), greaterThanOrEqualTo((long) (docs - 1)));
@@ -4585,7 +4585,7 @@ public class InternalEngineTests extends EngineTestCase {
 
         boolean flushed = false;
         AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
-        Engine recoveringEngine = null;
+        InternalEngine recoveringEngine = null;
         try {
             assertEquals(docs - 1, engine.getSeqNoStats(-1).getMaxSeqNo());
             assertEquals(docs - 1, engine.getProcessedLocalCheckpoint());

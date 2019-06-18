@@ -90,7 +90,7 @@ public class NoOpEngineTests extends EngineTestCase {
         engine.close();
 
         final NoOpEngine noOpEngine = new NoOpEngine(noOpConfig(INDEX_SETTINGS, store, primaryTranslogDir, tracker));
-        assertThat(noOpEngine.getProcessedLocalCheckpoint(), equalTo(localCheckpoint));
+        assertThat(noOpEngine.getPersistedLocalCheckpoint(), equalTo(localCheckpoint));
         assertThat(noOpEngine.getSeqNoStats(100L).getMaxSeqNo(), equalTo(maxSeqNo));
         try (Engine.IndexCommitRef ref = noOpEngine.acquireLastIndexCommit(false)) {
             try (IndexReader reader = DirectoryReader.open(ref.getIndexCommit())) {

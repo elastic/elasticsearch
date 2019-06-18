@@ -70,7 +70,7 @@ public class ReadOnlyEngineTests extends EngineTestCase {
                     engine.getTranslogStats(), false, Function.identity());
                 lastSeqNoStats = engine.getSeqNoStats(globalCheckpoint.get());
                 lastDocIds = getDocIds(engine, true);
-                assertThat(readOnlyEngine.getProcessedLocalCheckpoint(), equalTo(lastSeqNoStats.getLocalCheckpoint()));
+                assertThat(readOnlyEngine.getPersistedLocalCheckpoint(), equalTo(lastSeqNoStats.getLocalCheckpoint()));
                 assertThat(readOnlyEngine.getSeqNoStats(globalCheckpoint.get()).getMaxSeqNo(), equalTo(lastSeqNoStats.getMaxSeqNo()));
                 assertThat(getDocIds(readOnlyEngine, false), equalTo(lastDocIds));
                 for (int i = 0; i < numDocs; i++) {
@@ -94,7 +94,7 @@ public class ReadOnlyEngineTests extends EngineTestCase {
 
                 IOUtils.close(external, internal);
                 // the locked down engine should still point to the previous commit
-                assertThat(readOnlyEngine.getProcessedLocalCheckpoint(), equalTo(lastSeqNoStats.getLocalCheckpoint()));
+                assertThat(readOnlyEngine.getPersistedLocalCheckpoint(), equalTo(lastSeqNoStats.getLocalCheckpoint()));
                 assertThat(readOnlyEngine.getSeqNoStats(globalCheckpoint.get()).getMaxSeqNo(), equalTo(lastSeqNoStats.getMaxSeqNo()));
                 assertThat(getDocIds(readOnlyEngine, false), equalTo(lastDocIds));
                 try (Engine.GetResult getResult = readOnlyEngine.get(get, readOnlyEngine::acquireSearcher)) {
@@ -105,7 +105,7 @@ public class ReadOnlyEngineTests extends EngineTestCase {
             try (InternalEngine recoveringEngine = new InternalEngine(config)) {
                 recoveringEngine.recoverFromTranslog(translogHandler, Long.MAX_VALUE);
                 // the locked down engine should still point to the previous commit
-                assertThat(readOnlyEngine.getProcessedLocalCheckpoint(), equalTo(lastSeqNoStats.getLocalCheckpoint()));
+                assertThat(readOnlyEngine.getPersistedLocalCheckpoint(), equalTo(lastSeqNoStats.getLocalCheckpoint()));
                 assertThat(readOnlyEngine.getSeqNoStats(globalCheckpoint.get()).getMaxSeqNo(), equalTo(lastSeqNoStats.getMaxSeqNo()));
                 assertThat(getDocIds(readOnlyEngine, false), equalTo(lastDocIds));
             }

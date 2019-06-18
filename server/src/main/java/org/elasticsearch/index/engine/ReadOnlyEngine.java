@@ -329,11 +329,6 @@ public class ReadOnlyEngine extends Engine {
     }
 
     @Override
-    public long getProcessedLocalCheckpoint() {
-        return seqNoStats.getLocalCheckpoint();
-    }
-
-    @Override
     public long getPersistedLocalCheckpoint() {
         return seqNoStats.getLocalCheckpoint();
     }

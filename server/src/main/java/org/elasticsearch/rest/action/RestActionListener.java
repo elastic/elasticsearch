@@ -22,6 +22,7 @@ package org.elasticsearch.rest.action;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.http.HttpChannel;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
 
@@ -42,7 +43,7 @@ public abstract class RestActionListener<Response> implements ActionListener<Res
     }
 
     @Override
-    public final void onResponse(Response response) {
+    public void onResponse(Response response) {
         try {
             processResponse(response);
         } catch (Exception e) {
@@ -53,12 +54,43 @@ public abstract class RestActionListener<Response> implements ActionListener<Res
     protected abstract void processResponse(Response response) throws Exception;
 
     @Override
-    public final void onFailure(Exception e) {
+    public void onFailure(Exception e) {
         try {
             channel.sendResponse(new BytesRestResponse(channel, e));
         } catch (Exception inner) {
             inner.addSuppressed(e);
             logger.error("failed to send failure response", inner);
         }
+    }
+
+    public HttpChannel getHttpChannel() {
+        return channel.request().getHttpChannel();
+    }
+
+    public static <Response> RestActionListener<Response> runBefore(RestActionListener<Response> restActionListener, Runnable runnable) {
+        return new RestActionListener<>(restActionListener.channel) {
+            @Override
+            public void onResponse(Response response) {
+                try {
+                    runnable.run();
+                } finally {
+                    restActionListener.onResponse(response);
+                }
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                try {
+                    runnable.run();
+                } finally {
+                    restActionListener.onFailure(e);
+                }
+            }
+
+            @Override
+            protected void processResponse(Response response) throws Exception {
+                restActionListener.processResponse(response);
+            }
+        };
     }
 }

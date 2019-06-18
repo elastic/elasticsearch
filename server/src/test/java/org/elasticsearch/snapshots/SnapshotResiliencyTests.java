@@ -1165,7 +1165,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
             actions.put(SearchAction.INSTANCE,
                 new TransportSearchAction(threadPool, transportService, searchService,
                     searchTransportService, new SearchPhaseController(searchService::createReduceContext), clusterService,
-                    actionFilters, indexNameExpressionResolver));
+                    actionFilters, indexNameExpressionResolver, client));
             actions.put(RestoreSnapshotAction.INSTANCE,
                 new TransportRestoreSnapshotAction(transportService, clusterService, threadPool, restoreService, actionFilters,
                     indexNameExpressionResolver));

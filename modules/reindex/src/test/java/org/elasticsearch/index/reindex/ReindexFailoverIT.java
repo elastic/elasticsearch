@@ -103,27 +103,8 @@ public class ReindexFailoverIT extends ReindexTestCase {
             String nodeId = taskInfo.get().getTaskId().getNodeId();
             String nodeName = nodeIdToName.get(nodeId);
 
-            // interrupt communication between data node with task and other nodes in cluster
-//            Set<String> otherNodes = new HashSet<>(Arrays.asList(internalCluster().getNodeNames()));
-//            otherNodes.remove(nodeName);
-//            NetworkDisruption partition = new NetworkDisruption(
-//                new NetworkDisruption.TwoPartitions(Collections.singleton(nodeName), otherNodes),
-//                new NetworkDisruption.NetworkDisconnect());
-//            internalCluster().setDisruptionScheme(partition);
-
-//            logger.info("--> disrupting network, separating node: " + nodeName);
-//            partition.startDisrupting();
-
-//            assertBusy(() -> {
-//                List<TaskInfo> tasks = client().admin().cluster().prepareListTasks().get().getTasks();
-//                assertFalse(tasks.stream().anyMatch(t -> t.getAction().contains("reindex")));
-//            });
-
             logger.info("--> restarting node: " + nodeName);
             internalCluster().restartNode(nodeName, new InternalTestCluster.RestartCallback());
-
-//            logger.info("--> ending network disruption");
-//            partition.stopDisrupting();
 
             logger.info("--> waiting to cluster to heal");
             ensureStableCluster(4);

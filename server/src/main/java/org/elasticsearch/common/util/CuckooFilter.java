@@ -450,8 +450,8 @@ public class CuckooFilter implements Writeable {
         }
         /*
           Empirical constants from the paper:
-            "With k = 2 hash functions, the load factor	α is 50% when bucket size b = 1 (i.e
-            the hash table is directly mapped), bu tincreases to 84%, 95%, 98% respectively
+            "With k = 2 hash functions, the load factor α is 50% when bucket size b = 1 (i.e
+            the hash table is directly mapped), but increases to 84%, 95%, 98% respectively
             using bucket size b = 2, 4, 8"
          */
         if (b == 2) {

@@ -38,7 +38,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 
-public abstract class AbstractRareTermsAggregator<T extends ValuesSource, U extends IncludeExclude.Filter, V> extends DeferableBucketAggregator {
+public abstract class AbstractRareTermsAggregator<T extends ValuesSource,
+    U extends IncludeExclude.Filter, V> extends DeferableBucketAggregator {
 
     static final BucketOrder ORDER = BucketOrder.compound(BucketOrder.count(true), BucketOrder.key(true)); // sort by count ascending
 

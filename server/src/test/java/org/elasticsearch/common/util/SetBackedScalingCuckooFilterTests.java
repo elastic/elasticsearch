@@ -26,7 +26,6 @@ import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
 import java.io.IOException;
 import java.util.HashSet;
-import java.util.Random;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;

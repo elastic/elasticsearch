@@ -175,8 +175,7 @@ import static org.hamcrest.Matchers.hasItem;
 })
 @ThreadLeakScope(Scope.SUITE)
 @ThreadLeakLingering(linger = 5000) // 5 sec lingering
-// nocommit
-@TimeoutSuite(millis = 40 * TimeUnits.MINUTE)
+@TimeoutSuite(millis = 20 * TimeUnits.MINUTE)
 @LuceneTestCase.SuppressSysoutChecks(bugUrl = "we log a lot on purpose")
 // we suppress pretty much all the lucene codecs for now, except asserting
 // assertingcodec is the winner for a codec here: it finds bugs and gives clear exceptions.

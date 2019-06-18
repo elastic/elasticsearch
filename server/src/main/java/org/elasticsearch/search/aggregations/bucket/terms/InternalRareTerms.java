@@ -69,7 +69,7 @@ public abstract class InternalRareTerms<A extends InternalRareTerms<A, B>, B ext
         protected Bucket(StreamInput in, DocValueFormat formatter) throws IOException {
             this.format = formatter;
             docCount = in.readVLong();
-            aggregations = InternalAggregations.readAggregations(in);
+            aggregations = new InternalAggregations(in);
         }
 
         @Override

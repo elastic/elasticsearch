@@ -8,7 +8,9 @@ package org.elasticsearch.xpack.enrich;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.routing.Preference;
 import org.elasticsearch.common.CheckedFunction;
+import org.elasticsearch.index.query.ConstantScoreQueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.IngestDocument;
@@ -63,13 +65,17 @@ final class ExactMatchProcessor extends AbstractProcessor {
         }
 
         TermQueryBuilder termQuery = new TermQueryBuilder(enrichKey, value);
+        ConstantScoreQueryBuilder constantScore = new ConstantScoreQueryBuilder(termQuery);
         // TODO: Use a custom transport action instead of the search API
         SearchSourceBuilder searchBuilder = new SearchSourceBuilder();
+        searchBuilder.size(1);
+        searchBuilder.trackScores(false);
         searchBuilder.fetchSource(specifications.stream().map(s -> s.sourceField).toArray(String[]::new), null);
-        searchBuilder.query(termQuery);
+        searchBuilder.query(constantScore);
 
         SearchRequest req = new SearchRequest();
         req.indices(EnrichPolicy.getBaseName(policyName));
+        req.preference(Preference.LOCAL.type());
         req.source(searchBuilder);
 
         // TODO: Make this Async

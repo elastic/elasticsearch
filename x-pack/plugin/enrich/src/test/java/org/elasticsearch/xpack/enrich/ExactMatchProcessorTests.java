@@ -11,6 +11,7 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchResponseSections;
 import org.elasticsearch.action.search.ShardSearchFailure;
+import org.elasticsearch.cluster.routing.Preference;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.text.Text;
@@ -19,6 +20,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.query.ConstantScoreQueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.search.SearchHit;
@@ -54,11 +56,16 @@ public class ExactMatchProcessorTests extends ESTestCase {
         SearchRequest request = mockSearch.getCapturedRequest();
         assertThat(request.indices().length, equalTo(1));
         assertThat(request.indices()[0], equalTo(".enrich-_name"));
+        assertThat(request.preference(), equalTo(Preference.LOCAL.type()));
+        assertThat(request.source().size(), equalTo(1));
+        assertThat(request.source().trackScores(), equalTo(false));
         assertThat(request.source().fetchSource().fetchSource(), equalTo(true));
         assertThat(request.source().fetchSource().includes(), arrayContainingInAnyOrder("tldRank", "tld"));
-        assertThat(request.source().query(), instanceOf(TermQueryBuilder.class));
-        assertThat(((TermQueryBuilder) request.source().query()).fieldName(), equalTo("domain"));
-        assertThat(((TermQueryBuilder) request.source().query()).value(), equalTo("elastic.co"));
+        assertThat(request.source().query(), instanceOf(ConstantScoreQueryBuilder.class));
+        assertThat(((ConstantScoreQueryBuilder) request.source().query()).innerQuery(), instanceOf(TermQueryBuilder.class));
+        TermQueryBuilder termQueryBuilder = (TermQueryBuilder) ((ConstantScoreQueryBuilder) request.source().query()).innerQuery();
+        assertThat(termQueryBuilder.fieldName(), equalTo("domain"));
+        assertThat(termQueryBuilder.value(), equalTo("elastic.co"));
         // Check result
         assertThat(ingestDocument.getFieldValue("tld_rank", Integer.class), equalTo(23));
         assertThat(ingestDocument.getFieldValue("tld", String.class), equalTo("co"));
@@ -77,11 +84,16 @@ public class ExactMatchProcessorTests extends ESTestCase {
         SearchRequest request = mockSearch.getCapturedRequest();
         assertThat(request.indices().length, equalTo(1));
         assertThat(request.indices()[0], equalTo(".enrich-_name"));
+        assertThat(request.preference(), equalTo(Preference.LOCAL.type()));
+        assertThat(request.source().size(), equalTo(1));
+        assertThat(request.source().trackScores(), equalTo(false));
         assertThat(request.source().fetchSource().fetchSource(), equalTo(true));
         assertThat(request.source().fetchSource().includes(), arrayContainingInAnyOrder("tldRank", "tld"));
-        assertThat(request.source().query(), instanceOf(TermQueryBuilder.class));
-        assertThat(((TermQueryBuilder) request.source().query()).fieldName(), equalTo("domain"));
-        assertThat(((TermQueryBuilder) request.source().query()).value(), equalTo("elastic.com"));
+        assertThat(request.source().query(), instanceOf(ConstantScoreQueryBuilder.class));
+        assertThat(((ConstantScoreQueryBuilder) request.source().query()).innerQuery(), instanceOf(TermQueryBuilder.class));
+        TermQueryBuilder termQueryBuilder = (TermQueryBuilder) ((ConstantScoreQueryBuilder) request.source().query()).innerQuery();
+        assertThat(termQueryBuilder.fieldName(), equalTo("domain"));
+        assertThat(termQueryBuilder.value(), equalTo("elastic.com"));
         // Check result
         assertThat(ingestDocument.getSourceAndMetadata().size(), equalTo(numProperties));
     }
@@ -99,11 +111,16 @@ public class ExactMatchProcessorTests extends ESTestCase {
         SearchRequest request = mockSearch.getCapturedRequest();
         assertThat(request.indices().length, equalTo(1));
         assertThat(request.indices()[0], equalTo(".enrich-_name"));
+        assertThat(request.preference(), equalTo(Preference.LOCAL.type()));
+        assertThat(request.source().size(), equalTo(1));
+        assertThat(request.source().trackScores(), equalTo(false));
         assertThat(request.source().fetchSource().fetchSource(), equalTo(true));
         assertThat(request.source().fetchSource().includes(), arrayContainingInAnyOrder("tldRank", "tld"));
-        assertThat(request.source().query(), instanceOf(TermQueryBuilder.class));
-        assertThat(((TermQueryBuilder) request.source().query()).fieldName(), equalTo("domain"));
-        assertThat(((TermQueryBuilder) request.source().query()).value(), equalTo("elastic.com"));
+        assertThat(request.source().query(), instanceOf(ConstantScoreQueryBuilder.class));
+        assertThat(((ConstantScoreQueryBuilder) request.source().query()).innerQuery(), instanceOf(TermQueryBuilder.class));
+        TermQueryBuilder termQueryBuilder = (TermQueryBuilder) ((ConstantScoreQueryBuilder) request.source().query()).innerQuery();
+        assertThat(termQueryBuilder.fieldName(), equalTo("domain"));
+        assertThat(termQueryBuilder.value(), equalTo("elastic.com"));
         // Check result
         assertThat(expectedException.getMessage(), equalTo("no such index [" + indexName + "]"));
     }

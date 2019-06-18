@@ -1,0 +1,58 @@
+
+plugins {
+    id 'elasticsearch.distribution-download'
+}
+
+String distroVersion = System.getProperty('tests.distro.version')
+String distroType = System.getProperty('tests.distro.type')
+String distroPlatform = System.getProperty('tests.distro.platform')
+String distroFlavor = System.getProperty('tests.distro.flavor')
+String distroBundledJdk = System.getProperty('tests.distro.bundledJdk')
+
+elasticsearch_distributions {
+  test_distro {
+    if (distroVersion != null) {
+      version = distroVersion
+    }
+    if (distroType != null) {
+      type = distroType
+    }
+    if (distroPlatform != null) {
+      platform = distroPlatform
+    }
+    if (distroFlavor != null) {
+      flavor = distroFlavor
+    }
+    if (distroBundledJdk != null) {
+      bundledJdk = Boolean.parseBoolean(distroBundledJdk)
+    }
+  }
+}
+
+task assertDistroFile {
+  dependsOn elasticsearch_distributions.test_distro
+  doLast {
+    File distroFile = new File(elasticsearch_distributions.test_distro.toString())
+    if (distroFile.exists() == false) {
+      throw new GradleException("distro file does not exist: ${distroFile}")
+    }
+    if (distroFile.isFile() == false) {
+      throw new GradleException("distro file is not a regular file: ${distroFile}")
+    }
+  }
+}
+
+if (['rpm', 'deb'].contains(distroType) == false) {
+  task assertDistroExtracted {
+    dependsOn elasticsearch_distributions.test_distro.extracted, assertDistroFile
+    doLast {
+      File distroExtracted = new File(elasticsearch_distributions.test_distro.extracted.toString())
+      if (distroExtracted.exists() == false) {
+        throw new GradleException("extracted does not exist: ${distroExtracted}")
+      }
+      if (distroExtracted.isDirectory() == false) {
+        throw new GradleException("extracted distro is not a directory: ${distroExtracted}")
+      }
+    }
+  }
+}

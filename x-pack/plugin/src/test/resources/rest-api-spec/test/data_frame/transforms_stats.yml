@@ -47,8 +47,8 @@ teardown:
         transform_id: "airline-transform-stats"
   - match: { count: 1 }
   - match: { transforms.0.id: "airline-transform-stats" }
-  - match: { transforms.0.state.indexer_state: "/started|indexing/" }
-  - match: { transforms.0.state.task_state: "started" }
+  - match: { transforms.0.state.indexer_state: "/started|indexing|stopped/" }
+  - match: { transforms.0.state.task_state: "/started|stopped/" }
   - lte: { transforms.0.state.checkpoint: 1 }
   - lte: { transforms.0.stats.pages_processed: 1 }
   - match: { transforms.0.stats.documents_processed: 0 }
@@ -163,7 +163,7 @@ teardown:
         transform_id: "*"
   - match: { count: 2 }
   - match: { transforms.0.id: "airline-transform-stats" }
-  - match: { transforms.0.state.indexer_state: "/started|indexing/" }
+  - match: { transforms.0.state.indexer_state: "/started|indexing|stopped/" }
   - match: { transforms.1.id: "airline-transform-stats-dos" }
   - match: { transforms.1.state.indexer_state: "stopped" }
 
@@ -172,7 +172,7 @@ teardown:
         transform_id: "_all"
   - match: { count: 2 }
   - match: { transforms.0.id: "airline-transform-stats" }
-  - match: { transforms.0.state.indexer_state: "/started|indexing/" }
+  - match: { transforms.0.state.indexer_state: "/started|indexing|stopped/" }
   - match: { transforms.1.id: "airline-transform-stats-dos" }
   - match: { transforms.1.state.indexer_state: "stopped" }
 

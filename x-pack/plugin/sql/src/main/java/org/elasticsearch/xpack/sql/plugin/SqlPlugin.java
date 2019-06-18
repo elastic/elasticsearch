@@ -32,6 +32,7 @@ import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 import org.elasticsearch.xpack.sql.SqlFeatureSet;
 import org.elasticsearch.xpack.sql.action.SqlClearCursorAction;
 import org.elasticsearch.xpack.sql.action.SqlQueryAction;
@@ -46,6 +47,7 @@ import java.util.List;
 import java.util.function.Supplier;
 
 import static java.util.Collections.emptyList;
+import static java.util.Collections.singletonList;
 
 public class SqlPlugin extends Plugin implements ActionPlugin {
 
@@ -128,13 +130,15 @@ public class SqlPlugin extends Plugin implements ActionPlugin {
 
     @Override
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
+        var usageAction = new ActionHandler<>(XPackUsageFeatureAction.SQL, SqlFeatureSet.UsageTransportAction.class);
         if (false == enabled) {
-            return emptyList();
+            return singletonList(usageAction);
         }
 
         return Arrays.asList(new ActionHandler<>(SqlQueryAction.INSTANCE, TransportSqlQueryAction.class),
                 new ActionHandler<>(SqlTranslateAction.INSTANCE, TransportSqlTranslateAction.class),
                 new ActionHandler<>(SqlClearCursorAction.INSTANCE, TransportSqlClearCursorAction.class),
-                new ActionHandler<>(SqlStatsAction.INSTANCE, TransportSqlStatsAction.class));
+                new ActionHandler<>(SqlStatsAction.INSTANCE, TransportSqlStatsAction.class),
+                usageAction);
     }
 }

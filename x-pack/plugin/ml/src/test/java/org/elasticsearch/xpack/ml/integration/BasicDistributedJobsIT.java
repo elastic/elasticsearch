@@ -23,7 +23,6 @@ import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
 import org.elasticsearch.test.InternalTestCluster;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.CloseJobAction;
 import org.elasticsearch.xpack.core.ml.action.GetDatafeedsStatsAction;
@@ -64,19 +63,19 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
         Job.Builder job = createJob("fail-over-basics-job", new ByteSizeValue(2, ByteSizeUnit.MB));
         PutJobAction.Request putJobRequest = new PutJobAction.Request(job);
         client().execute(PutJobAction.INSTANCE, putJobRequest).actionGet();
-        ensureGreen();
+        ensureYellow(); // at least the primary shards of the indices a job uses should be started
         OpenJobAction.Request openJobRequest = new OpenJobAction.Request(job.getId());
         client().execute(OpenJobAction.INSTANCE, openJobRequest).actionGet();
         awaitJobOpenedAndAssigned(job.getId(), null);
 
+        ensureGreen(); // replicas must be assigned, otherwise we could lose a whole index
         internalCluster().stopRandomDataNode();
         ensureStableCluster(3);
-        ensureGreen();
         awaitJobOpenedAndAssigned(job.getId(), null);
 
+        ensureGreen(); // replicas must be assigned, otherwise we could lose a whole index
         internalCluster().stopRandomDataNode();
         ensureStableCluster(2);
-        ensureGreen();
         awaitJobOpenedAndAssigned(job.getId(), null);
     }
 
@@ -106,7 +105,7 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
         PutDatafeedAction.Request putDatafeedRequest = new PutDatafeedAction.Request(config);
         client().execute(PutDatafeedAction.INSTANCE, putDatafeedRequest).actionGet();
 
-        ensureGreen();
+        ensureYellow(); // at least the primary shards of the indices a job uses should be started
         OpenJobAction.Request openJobRequest = new OpenJobAction.Request(job.getId());
         client().execute(OpenJobAction.INSTANCE, openJobRequest).actionGet();
         awaitJobOpenedAndAssigned(job.getId(), null);
@@ -120,9 +119,9 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
             assertEquals(DatafeedState.STARTED, statsResponse.getResponse().results().get(0).getDatafeedState());
         });
 
+        ensureGreen(); // replicas must be assigned, otherwise we could lose a whole index
         internalCluster().stopRandomDataNode();
         ensureStableCluster(3);
-        ensureGreen();
         awaitJobOpenedAndAssigned(job.getId(), null);
         assertBusy(() -> {
             GetDatafeedsStatsAction.Response statsResponse =
@@ -131,9 +130,9 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
             assertEquals(DatafeedState.STARTED, statsResponse.getResponse().results().get(0).getDatafeedState());
         });
 
+        ensureGreen(); // replicas must be assigned, otherwise we could lose a whole index
         internalCluster().stopRandomDataNode();
         ensureStableCluster(2);
-        ensureGreen();
         awaitJobOpenedAndAssigned(job.getId(), null);
         assertBusy(() -> {
             GetDatafeedsStatsAction.Response statsResponse =
@@ -171,6 +170,7 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
         PutDatafeedAction.Request putDatafeedRequest = new PutDatafeedAction.Request(config);
         client().execute(PutDatafeedAction.INSTANCE, putDatafeedRequest).actionGet();
 
+        ensureYellow(); // at least the primary shards of the indices a job uses should be started
         client().execute(OpenJobAction.INSTANCE, new OpenJobAction.Request(job.getId())).get();
 
         StartDatafeedAction.Request startDatafeedRequest = new StartDatafeedAction.Request(config.getId(), 0L);
@@ -183,7 +183,6 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
         });
     }
 
-    @TestLogging("org.elasticsearch.xpack.persistent:TRACE,org.elasticsearch.cluster.service:DEBUG,org.elasticsearch.xpack.ml.action:DEBUG")
     public void testDedicatedMlNode() throws Exception {
         internalCluster().ensureAtMostNumDataNodes(0);
         // start 2 non ml node that will never get a job allocated. (but ml apis are accessible from this node)
@@ -203,6 +202,7 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
         PutJobAction.Request putJobRequest = new PutJobAction.Request(job);
         client().execute(PutJobAction.INSTANCE, putJobRequest).actionGet();
 
+        ensureYellow(); // at least the primary shards of the indices a job uses should be started
         OpenJobAction.Request openJobRequest = new OpenJobAction.Request(job.getId());
         client().execute(OpenJobAction.INSTANCE, openJobRequest).actionGet();
         assertBusy(() -> {
@@ -277,6 +277,7 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
             }
         });
 
+        ensureYellow(); // at least the primary shards of the indices a job uses should be started
         int numJobs = numMlNodes * 10;
         for (int i = 0; i < numJobs; i++) {
             Job.Builder job = createJob(Integer.toString(i), new ByteSizeValue(2, ByteSizeUnit.MB));

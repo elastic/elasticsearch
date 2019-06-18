@@ -320,8 +320,9 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
                 final List<ShardStats> shardsStats = getShardsStats(stats);
                 for (int i = 0; i < numberOfShards * (1 + numberOfReplicas); i++) {
                     assertNotNull(shardsStats.get(i).getRetentionLeaseStats());
-                    final Map<String, RetentionLease> currentRetentionLeases = RetentionLeaseUtils.toMapExcludingPeerRecoveryRetentionLeases(
-                        shardsStats.get(i).getRetentionLeaseStats().retentionLeases());
+                    final Map<String, RetentionLease> currentRetentionLeases
+                        = RetentionLeaseUtils.toMapExcludingPeerRecoveryRetentionLeases(
+                            shardsStats.get(i).getRetentionLeaseStats().retentionLeases());
                     assertThat(Strings.toString(shardsStats.get(i)), currentRetentionLeases.values(), hasSize(1));
                     final ClusterStateResponse followerIndexClusterState =
                         followerClient().admin().cluster().prepareState().clear().setMetaData(true).setIndices(followerIndex).get();
@@ -679,8 +680,9 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
                 final List<ShardStats> shardsStats = getShardsStats(stats);
                 for (int i = 0; i < numberOfShards * (1 + numberOfReplicas); i++) {
                     assertNotNull(shardsStats.get(i).getRetentionLeaseStats());
-                    final Map<String, RetentionLease> currentRetentionLeases = RetentionLeaseUtils.toMapExcludingPeerRecoveryRetentionLeases(
-                        shardsStats.get(i).getRetentionLeaseStats().retentionLeases());
+                    final Map<String, RetentionLease> currentRetentionLeases
+                        = RetentionLeaseUtils.toMapExcludingPeerRecoveryRetentionLeases(
+                            shardsStats.get(i).getRetentionLeaseStats().retentionLeases());
                     assertThat(Strings.toString(shardsStats.get(i)), currentRetentionLeases.values(), hasSize(1));
                     final ClusterStateResponse followerIndexClusterState =
                         followerClient().admin().cluster().prepareState().clear().setMetaData(true).setIndices(followerIndex).get();

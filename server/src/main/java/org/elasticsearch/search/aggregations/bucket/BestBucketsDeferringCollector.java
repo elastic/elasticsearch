@@ -49,7 +49,7 @@ import java.util.Objects;
  * this collector.
  */
 public class BestBucketsDeferringCollector extends DeferringBucketCollector {
-    private static class Entry {
+    static class Entry {
         final LeafReaderContext context;
         final PackedLongValues docDeltas;
         final PackedLongValues buckets;
@@ -61,16 +61,16 @@ public class BestBucketsDeferringCollector extends DeferringBucketCollector {
         }
     }
 
-    final List<Entry> entries = new ArrayList<>();
-    BucketCollector collector;
-    final SearchContext searchContext;
-    final boolean isGlobal;
-    LeafReaderContext context;
-    PackedLongValues.Builder docDeltasBuilder;
-    PackedLongValues.Builder bucketsBuilder;
-    long maxBucket = -1;
-    boolean finished = false;
-    LongHash selectedBuckets;
+    protected List<Entry> entries = new ArrayList<>();
+    protected BucketCollector collector;
+    protected final SearchContext searchContext;
+    protected final boolean isGlobal;
+    protected LeafReaderContext context;
+    protected PackedLongValues.Builder docDeltasBuilder;
+    protected PackedLongValues.Builder bucketsBuilder;
+    protected long maxBucket = -1;
+    protected boolean finished = false;
+    protected LongHash selectedBuckets;
 
     /**
      * Sole constructor.

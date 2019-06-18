@@ -89,6 +89,19 @@ optionally capture the persistent settings from the global cluster metadata.
 Ideally this repository is dedicated only to this scope.
 +
 --
+[source,js]
+-----------------------------------
+PUT /_snapshot/my_backup
+{
+  "type": "fs",
+  "settings": {
+    "location": "my_backup_location"
+  }
+}
+-----------------------------------
+// CONSOLE
+// TESTSETUP
+
 You must have the elevated `manage` cluster privilege to create it, yet it's a
 relatively infrequent operation. The elevated privileges are required to prevent
 regular users from exfiltrating data to locations of their choosing.
@@ -190,7 +203,6 @@ hosts, navigate to {es} installation directory, and follow these steps:
 . Make sure the repository holding the `.security` snapshot is installed.
 +
 --
-For example:
 [source,js]
 --------------------------------------------------
 GET /_snapshot/my_backup
@@ -235,9 +247,9 @@ WARNING: After this step authentication will not work; all API calls will fail.
 --------------------------------------------------
 
 NOTE: The `include_global_state` is optional but it will help to make sure the
-configuration in the index is compatible with the rest of the configuration, as
-was the case at the time of the snapshot. But be advised that this will also
-restore non-security persistent cluster seetting.
+configuration in the index is compatible with the rest of the configuration in
+the cluster, as was the case at the time of the snapshot. But be advised that
+this will also restore non-security persistent cluster seetting.
 --
 
 . Optionally, cherry-pick and <<cluster-update-settings,apply the persistent

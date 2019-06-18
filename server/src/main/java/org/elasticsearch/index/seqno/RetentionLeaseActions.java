@@ -45,7 +45,7 @@ import org.elasticsearch.transport.TransportService;
 import java.io.IOException;
 import java.util.Objects;
 
-/**˜
+/**
  * This class holds all actions related to retention leases. Note carefully that these actions are executed under a primary permit. Care is
  * taken to thread the listener through the invocations so that for the sync APIs we do not notify the listener until these APIs have
  * responded with success. Additionally, note the use of

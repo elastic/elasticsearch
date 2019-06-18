@@ -26,6 +26,7 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
+import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.action.bulk.BulkShardRequest;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
@@ -724,6 +725,9 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
                             }
                             if (randomInt(100) < 10) {
                                 shards.getPrimary().flush(new FlushRequest());
+                            }
+                            if (randomInt(100) < 5) {
+                                shards.getPrimary().forceMerge(new ForceMergeRequest().flush(randomBoolean()).maxNumSegments(1));
                             }
                         } catch (Exception ex) {
                             throw new AssertionError(ex);

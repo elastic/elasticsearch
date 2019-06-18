@@ -37,6 +37,7 @@ import org.apache.lucene.index.LiveIndexWriterConfig;
 import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.ReferenceManager;
@@ -1111,10 +1112,8 @@ public abstract class EngineTestCase extends ESTestCase {
         List<IndexCommit> commits = DirectoryReader.listCommits(engine.store.directory());
         for (IndexCommit commit : commits) {
             try (DirectoryReader reader = DirectoryReader.open(commit)) {
-                AtomicLong maxSeqNoFromDocs = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
-                Lucene.scanSeqNosInReader(reader, 0, Long.MAX_VALUE, n -> maxSeqNoFromDocs.set(Math.max(n, maxSeqNoFromDocs.get())));
                 assertThat(Long.parseLong(commit.getUserData().get(SequenceNumbers.MAX_SEQ_NO)),
-                    greaterThanOrEqualTo(maxSeqNoFromDocs.get()));
+                    greaterThanOrEqualTo(maxSeqNosInReader(reader)));
             }
         }
     }
@@ -1176,5 +1175,16 @@ public abstract class EngineTestCase extends ESTestCase {
         public long getAsLong() {
             return get();
         }
+    }
+
+    static long maxSeqNosInReader(DirectoryReader reader) throws IOException {
+        long maxSeqNo = SequenceNumbers.NO_OPS_PERFORMED;
+        for (LeafReaderContext leaf : reader.leaves()) {
+            final NumericDocValues seqNoDocValues = leaf.reader().getNumericDocValues(SeqNoFieldMapper.NAME);
+            while (seqNoDocValues.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
+                maxSeqNo = SequenceNumbers.max(maxSeqNo, seqNoDocValues.longValue());
+            }
+        }
+        return maxSeqNo;
     }
 }

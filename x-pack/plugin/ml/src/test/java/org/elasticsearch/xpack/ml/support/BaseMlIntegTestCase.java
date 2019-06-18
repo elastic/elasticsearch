@@ -23,6 +23,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.reindex.ReindexPlugin;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.license.LicenseService;
+import org.elasticsearch.persistent.PersistentTasksClusterService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.MockHttpTransport;
@@ -331,6 +332,17 @@ public abstract class BaseMlIntegTestCase extends ESIntegTestCase {
     }
 
     protected String awaitJobOpenedAndAssigned(String jobId, String queryNode) throws Exception {
+
+        PersistentTasksClusterService persistentTasksClusterService =
+            internalCluster().getInstance(PersistentTasksClusterService.class, internalCluster().getMasterName());
+        // Speed up rechecks to a rate that is quicker than what settings would allow.
+        // The check would work eventually without doing this, but the assertBusy() below
+        // would need to wait 30 seconds, which would make the test run very slowly.
+        // The 1 second refresh puts a greater burden on the master node to recheck
+        // persistent tasks, but it will cope in these tests as it's not doing much
+        // else.
+        persistentTasksClusterService.setRecheckInterval(TimeValue.timeValueSeconds(1));
+
         AtomicReference<String> jobNode = new AtomicReference<>();
         assertBusy(() -> {
             GetJobsStatsAction.Response statsResponse =

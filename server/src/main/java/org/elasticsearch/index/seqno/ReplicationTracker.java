@@ -696,9 +696,14 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
             && indexSettings.getIndexVersionCreated().onOrAfter(Version.V_8_0_0)) {
             // all tracked shard copies have a corresponding peer-recovery retention lease
             for (final ShardRouting shardRouting : routingTable.assignedShards()) {
-                assert checkpoints.get(shardRouting.allocationId().getId()).tracked == false
-                    || retentionLeases.contains(getPeerRecoveryRetentionLeaseId(shardRouting)) :
-                    "no retention lease for tracked shard " + shardRouting + " in " + retentionLeases;
+                if (checkpoints.get(shardRouting.allocationId().getId()).tracked) {
+                    assert retentionLeases.contains(getPeerRecoveryRetentionLeaseId(shardRouting))
+                        : "no retention lease for tracked shard [" + shardRouting + "] in " + retentionLeases;
+                    assert PEER_RECOVERY_RETENTION_LEASE_SOURCE.equals(
+                        retentionLeases.get(getPeerRecoveryRetentionLeaseId(shardRouting)).source())
+                        : "incorrect source [" + retentionLeases.get(getPeerRecoveryRetentionLeaseId(shardRouting)).source()
+                        + "] for [" + shardRouting + "] in " + retentionLeases;
+                }
             }
         }
 

@@ -1,3 +1,4 @@
+apply plugin: 'elasticsearch.testclusters'
 apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
 
@@ -17,7 +18,10 @@ task copyMlRestTests(type: Copy) {
   include 'rest-api-spec/test/ml/**'
 }
 
-integTestRunner {
+integTest.runner {
+  dependsOn copyMlRestTests
+}
+integTest.runner  {
   systemProperty 'tests.rest.blacklist', [
     // Remove this test because it doesn't call an ML endpoint and we don't want
     // to grant extra permissions to the users used in this test suite
@@ -106,27 +110,14 @@ integTestRunner {
   ].join(',')
 }
 
-integTestCluster {
-  dependsOn copyMlRestTests
-  extraConfigFile 'roles.yml', 'roles.yml'
-  setupCommand 'setupTestAdminUser',
-               'bin/elasticsearch-users', 'useradd', 'x_pack_rest_user', '-p', 'x-pack-test-password', '-r', 'superuser'
-  setupCommand 'setupMlAdminUser',
-               'bin/elasticsearch-users', 'useradd', 'ml_admin', '-p', 'x-pack-test-password', '-r', 'minimal,machine_learning_admin'
-  setupCommand 'setupMlUserUser',
-               'bin/elasticsearch-users', 'useradd', 'ml_user', '-p', 'x-pack-test-password', '-r', 'minimal,machine_learning_user'
-  setupCommand 'setupPowerlessUser',
-               'bin/elasticsearch-users', 'useradd', 'no_ml', '-p', 'x-pack-test-password', '-r', 'minimal'
+
+testClusters.integTest  {
+  distribution = 'DEFAULT'
+  extraConfigFile 'roles.yml', file('roles.yml')
+  user username: "x_pack_rest_user", password: "x-pack-test-password"
+  user username: "ml_admin", password: "x-pack-test-password", role: "minimal,machine_learning_admin"
+  user username: "ml_user", password: "x-pack-test-password", role: "minimal,machine_learning_user"
+  user username: "no_ml", password: "x-pack-test-password", role: "minimal"
   setting 'xpack.license.self_generated.type', 'trial'
   setting 'xpack.security.enabled', 'true'
-  waitCondition = { node, ant ->
-    File tmpFile = new File(node.cwd, 'wait.success')
-    ant.get(src: "http://${node.httpUri()}/_cluster/health?wait_for_nodes=>=${numNodes}&wait_for_status=yellow",
-            dest: tmpFile.toString(),
-            username: 'x_pack_rest_user',
-            password: 'x-pack-test-password',
-            ignoreerrors: true,
-            retries: 10)
-    return tmpFile.exists()
-  }
 }

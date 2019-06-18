@@ -459,7 +459,7 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
         });
         internalCluster().restartNode(masterNode1, InternalTestCluster.EMPTY_CALLBACK);
         ensureYellow();
-        assertFalse(client().admin().indices().prepareExists(idxName).get().isExists());
+        assertFalse(indexExists(idxName));
     }
 
     public void testRestartNodeWhileIndexing() throws Exception {

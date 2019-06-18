@@ -22,7 +22,6 @@ import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
@@ -34,8 +33,6 @@ import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
 import java.io.ByteArrayInputStream;
-import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -43,10 +40,12 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Executor;
 
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.not;
 
 public abstract class AbstractThirdPartyRepositoryTestCase extends ESSingleNodeTestCase {
 
@@ -66,27 +65,26 @@ public abstract class AbstractThirdPartyRepositoryTestCase extends ESSingleNodeT
     public void setUp() throws Exception {
         super.setUp();
         createRepository("test-repo");
+        deleteAndAssertEmpty(getRepository().basePath());
+    }
+
+    private void deleteAndAssertEmpty(BlobPath path) throws Exception {
         final BlobStoreRepository repo = getRepository();
         final PlainActionFuture<Void> future = PlainActionFuture.newFuture();
         repo.threadPool().generic().execute(new ActionRunnable<>(future) {
             @Override
             protected void doRun() throws Exception {
-                deleteContents(repo.blobStore().blobContainer(repo.basePath()));
+                repo.blobStore().blobContainer(path).delete();
                 future.onResponse(null);
             }
         });
         future.actionGet();
-        assertChildren(repo.basePath(), Collections.emptyList());
-    }
-
-    private static void deleteContents(BlobContainer container) throws IOException {
-        final List<String> toDelete = new ArrayList<>();
-        for (Map.Entry<String, BlobContainer> child : container.children().entrySet()) {
-            deleteContents(child.getValue());
-            toDelete.add(child.getKey());
+        final BlobPath parent = path.parent();
+        if (parent == null) {
+            assertChildren(path, Collections.emptyList());
+        } else {
+            assertDeleted(parent, path.toArray()[path.toArray().length - 1]);
         }
-        toDelete.addAll(container.listBlobs().keySet());
-        container.deleteBlobsIgnoringIfNotExists(toDelete);
     }
 
     public void testCreateSnapshot() {
@@ -158,6 +156,11 @@ public abstract class AbstractThirdPartyRepositoryTestCase extends ESSingleNodeT
         assertBlobsByPrefix(repo.basePath().add("foo"), "nest",
             Collections.singletonMap("nested-blob", new PlainBlobMetaData("nested-blob", testBlobLen)));
         assertChildren(repo.basePath().add("foo").add("nested"), Collections.emptyList());
+        if (randomBoolean()) {
+            deleteAndAssertEmpty(repo.basePath());
+        } else {
+            deleteAndAssertEmpty(repo.basePath().add("foo"));
+        }
     }
 
     protected void assertBlobsByPrefix(BlobPath path, String prefix, Map<String, BlobMetaData> blobs) throws Exception {
@@ -181,7 +184,21 @@ public abstract class AbstractThirdPartyRepositoryTestCase extends ESSingleNodeT
         }
     }
 
+    protected void assertDeleted(BlobPath path, String name) throws Exception {
+        assertThat(listChildren(path), not(contains(name)));
+    }
+
     protected void assertChildren(BlobPath path, Collection<String> children) throws Exception {
+        listChildren(path);
+        final Set<String> foundChildren = listChildren(path);
+        if (children.isEmpty()) {
+            assertThat(foundChildren, empty());
+        } else {
+            assertThat(foundChildren, containsInAnyOrder(children.toArray(Strings.EMPTY_ARRAY)));
+        }
+    }
+
+    private Set<String> listChildren(BlobPath path) {
         final PlainActionFuture<Set<String>> future = PlainActionFuture.newFuture();
         final BlobStoreRepository repository = getRepository();
         repository.threadPool().generic().execute(new ActionRunnable<>(future) {
@@ -191,12 +208,7 @@ public abstract class AbstractThirdPartyRepositoryTestCase extends ESSingleNodeT
                 future.onResponse(blobStore.blobContainer(path).children().keySet());
             }
         });
-        Set<String> foundChildren = future.actionGet();
-        if (children.isEmpty()) {
-            assertThat(foundChildren, empty());
-        } else {
-            assertThat(foundChildren, containsInAnyOrder(children.toArray(Strings.EMPTY_ARRAY)));
-        }
+        return future.actionGet();
     }
 
     private BlobStoreRepository getRepository() {

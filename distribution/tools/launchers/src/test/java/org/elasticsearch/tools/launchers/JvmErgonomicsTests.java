@@ -23,13 +23,16 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasToString;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.startsWith;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
@@ -85,6 +88,19 @@ public class JvmErgonomicsTests extends LaunchersTestCase {
         }
     }
 
+    public void testMaxDirectMemorySizeUnset() throws InterruptedException, IOException {
+        assertThat(
+                JvmErgonomics.extractMaxDirectMemorySize(JvmErgonomics.finalJvmOptions(Collections.singletonList("-Xmx1g"))),
+                equalTo(0L));
+    }
+
+    public void testMaxDirectMemorySizeSet() throws InterruptedException, IOException {
+        assertThat(
+                JvmErgonomics.extractMaxDirectMemorySize(JvmErgonomics.finalJvmOptions(
+                        Arrays.asList("-Xmx1g", "-XX:MaxDirectMemorySize=512m"))),
+                equalTo(512L << 20));
+    }
+
     public void testExtractSystemProperties() {
         Map<String, String> expectedSystemProperties = new HashMap<>();
         expectedSystemProperties.put("file.encoding", "UTF-8");
@@ -101,16 +117,39 @@ public class JvmErgonomicsTests extends LaunchersTestCase {
         assertTrue(parsedSystemProperties.isEmpty());
     }
 
-    public void testLittleMemoryErgonomicChoices() throws InterruptedException, IOException {
-        String smallHeap = randomFrom(Arrays.asList("64M", "512M", "1024M", "1G"));
-        List<String> expectedChoices = Collections.singletonList("-Dio.netty.allocator.type=unpooled");
-        assertEquals(expectedChoices, JvmErgonomics.choose(Arrays.asList("-Xms" + smallHeap, "-Xmx" + smallHeap)));
+    public void testPooledMemoryChoiceOnSmallHeap() throws InterruptedException, IOException {
+        final String smallHeap = randomFrom(Arrays.asList("64M", "512M", "1024M", "1G"));
+        assertThat(
+                JvmErgonomics.choose(Arrays.asList("-Xms" + smallHeap, "-Xmx" + smallHeap)),
+                hasItem("-Dio.netty.allocator.type=unpooled"));
     }
 
-    public void testPlentyMemoryErgonomicChoices() throws InterruptedException, IOException {
-        String largeHeap = randomFrom(Arrays.asList("1025M", "2048M", "2G", "8G"));
-        List<String> expectedChoices = Collections.singletonList("-Dio.netty.allocator.type=pooled");
-        assertEquals(expectedChoices, JvmErgonomics.choose(Arrays.asList("-Xms" + largeHeap, "-Xmx" + largeHeap)));
+    public void testPooledMemoryChoiceOnNotSmallHeap() throws InterruptedException, IOException {
+        final String largeHeap = randomFrom(Arrays.asList("1025M", "2048M", "2G", "8G"));
+        assertThat(
+                JvmErgonomics.choose(Arrays.asList("-Xms" + largeHeap, "-Xmx" + largeHeap)),
+                hasItem("-Dio.netty.allocator.type=pooled"));
+    }
+
+    public void testMaxDirectMemorySizeChoice() throws InterruptedException, IOException {
+        final Map<String, String> heapMaxDirectMemorySize = Map.of(
+                        "64M", Long.toString((64L << 20) / 2),
+                        "512M", Long.toString((512L << 20) / 2),
+                        "1024M", Long.toString((1024L << 20) / 2),
+                        "1G",  Long.toString((1L << 30) / 2),
+                        "2048M", Long.toString((2048L << 20) / 2),
+                        "2G", Long.toString((2L << 30) / 2),
+                        "8G", Long.toString((8L << 30) / 2));
+        final String heapSize = randomFrom(heapMaxDirectMemorySize.keySet().toArray(String[]::new));
+        assertThat(
+                JvmErgonomics.choose(Arrays.asList("-Xms" + heapSize, "-Xmx" + heapSize)),
+                hasItem("-XX:MaxDirectMemorySize=" + heapMaxDirectMemorySize.get(heapSize)));
+    }
+
+    public void testMaxDirectMemorySizeChoiceWhenSet() throws InterruptedException, IOException {
+        assertThat(
+                JvmErgonomics.choose(Arrays.asList("-Xms1g", "-Xmx1g", "-XX:MaxDirectMemorySize=1g")),
+                everyItem(not(startsWith("-XX:MaxDirectMemorySize="))));
     }
 
 }

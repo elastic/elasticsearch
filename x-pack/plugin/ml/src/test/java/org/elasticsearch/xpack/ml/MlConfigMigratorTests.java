@@ -20,6 +20,7 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.OpenJobAction;
@@ -52,7 +53,7 @@ public class MlConfigMigratorTests extends ESTestCase {
 
     @Override
     protected NamedXContentRegistry xContentRegistry() {
-        SearchModule searchModule = new SearchModule(Settings.EMPTY, false, Collections.emptyList());
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, Collections.emptyList());
         return new NamedXContentRegistry(searchModule.getNamedXContents());
     }
 
@@ -144,7 +145,7 @@ public class MlConfigMigratorTests extends ESTestCase {
 
     public void testUpdateJobForMigration() {
         Job.Builder oldJob = JobTests.buildJobBuilder("pre-migration");
-        Version oldVersion = Version.V_6_3_0;
+        Version oldVersion = VersionUtils.randomVersion(random());
         oldJob.setJobVersion(oldVersion);
 
         Job migratedJob = MlConfigMigrator.updateJobForMigration(oldJob.build());

@@ -55,18 +55,20 @@ import java.util.stream.Collectors;
 public class TestClustersPlugin implements Plugin<Project> {
 
     private static final String LIST_TASK_NAME = "listTestClusters";
-    private static final String NODE_EXTENSION_NAME = "testClusters";
+    public static final String EXTENSION_NAME = "testClusters";
     private static final String HELPER_CONFIGURATION_PREFIX = "testclusters";
     private static final String SYNC_ARTIFACTS_TASK_NAME = "syncTestClustersArtifacts";
     private static final int EXECUTOR_SHUTDOWN_TIMEOUT = 1;
     private static final TimeUnit EXECUTOR_SHUTDOWN_TIMEOUT_UNIT = TimeUnit.MINUTES;
 
     private static final Logger logger =  Logging.getLogger(TestClustersPlugin.class);
+    private static final String TESTCLUSTERS_INSPECT_FAILURE = "testclusters.inspect.failure";
 
     private final Map<Task, List<ElasticsearchCluster>> usedClusters = new HashMap<>();
     private final Map<ElasticsearchCluster, Integer> claimsInventory = new HashMap<>();
     private final Set<ElasticsearchCluster> runningClusters =new HashSet<>();
     private final Thread shutdownHook = new Thread(this::shutDownAllClusters);
+    private final Boolean allowClusterToSurvive = Boolean.valueOf(System.getProperty(TESTCLUSTERS_INSPECT_FAILURE, "false"));
     private ExecutorService executorService = Executors.newSingleThreadExecutor();
 
     public static String getHelperConfigurationName(String version) {
@@ -122,7 +124,7 @@ public class TestClustersPlugin implements Plugin<Project> {
                 new File(project.getBuildDir(), "testclusters")
             )
         );
-        project.getExtensions().add(NODE_EXTENSION_NAME, container);
+        project.getExtensions().add(EXTENSION_NAME, container);
         return container;
     }
 
@@ -182,8 +184,9 @@ public class TestClustersPlugin implements Plugin<Project> {
                         claimsInventory.put(elasticsearchCluster, claimsInventory.getOrDefault(elasticsearchCluster, 0) + 1);
                     }
                 }));
-
-            logger.info("Claims inventory: {}", claimsInventory);
+            if (claimsInventory.isEmpty() == false) {
+                logger.info("Claims inventory: {}", claimsInventory);
+            }
         });
     }
 
@@ -194,7 +197,7 @@ public class TestClustersPlugin implements Plugin<Project> {
                 public void beforeActions(Task task) {
                     // we only start the cluster before the actions, so we'll not start it if the task is up-to-date
                     usedClusters.getOrDefault(task, Collections.emptyList()).stream()
-                        .filter(each -> runningClusters.contains(each) == false)
+                        .filter(cluster -> runningClusters.contains(cluster) == false)
                         .forEach(elasticsearchCluster -> {
                             elasticsearchCluster.start();
                             runningClusters.add(elasticsearchCluster);
@@ -220,18 +223,18 @@ public class TestClustersPlugin implements Plugin<Project> {
                     if (state.getFailure() != null) {
                         // If the task fails, and other tasks use this cluster, the other task will likely never be
                         // executed at all, so we will never get to un-claim and terminate it.
-                        clustersUsedByTask.forEach(each -> each.stop(true));
+                        clustersUsedByTask.forEach(cluster -> stopCluster(cluster, true));
                     } else {
                         clustersUsedByTask.forEach(
-                            each -> claimsInventory.put(each, claimsInventory.getOrDefault(each, 0) - 1)
+                            cluster -> claimsInventory.put(cluster, claimsInventory.getOrDefault(cluster, 0) - 1)
                         );
                         claimsInventory.entrySet().stream()
                             .filter(entry -> entry.getValue() == 0)
                             .filter(entry -> runningClusters.contains(entry.getKey()))
                             .map(Map.Entry::getKey)
-                            .forEach(each -> {
-                                each.stop(false);
-                                runningClusters.remove(each);
+                            .forEach(cluster -> {
+                                stopCluster(cluster, false);
+                                runningClusters.remove(cluster);
                             });
                     }
                 }
@@ -239,6 +242,28 @@ public class TestClustersPlugin implements Plugin<Project> {
                 public void beforeExecute(Task task) {}
             }
         );
+    }
+
+    private void stopCluster(ElasticsearchCluster cluster, boolean taskFailed) {
+        if (allowClusterToSurvive) {
+            logger.info("Not stopping clusters, disabled by property");
+            if (taskFailed) {
+                // task failed or this is the last one to stop
+                for (int i=1 ; ; i += i) {
+                    logger.lifecycle(
+                        "No more test clusters left to run, going to sleep because {} was set," +
+                            " interrupt (^C) to stop clusters.", TESTCLUSTERS_INSPECT_FAILURE
+                    );
+                    try {
+                        Thread.sleep(1000 * i);
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                        return;
+                    }
+                }
+            }
+        }
+        cluster.stop(taskFailed);
     }
 
     /**
@@ -249,7 +274,7 @@ public class TestClustersPlugin implements Plugin<Project> {
     @SuppressWarnings("unchecked")
     public static NamedDomainObjectContainer<ElasticsearchCluster> getNodeExtension(Project project) {
         return (NamedDomainObjectContainer<ElasticsearchCluster>)
-            project.getExtensions().getByName(NODE_EXTENSION_NAME);
+            project.getExtensions().getByName(EXTENSION_NAME);
     }
 
     private static void autoConfigureClusterDependencies(
@@ -279,8 +304,14 @@ public class TestClustersPlugin implements Plugin<Project> {
         // the clusters will look for artifacts there based on the naming conventions.
         // Tasks that use a cluster will add this as a dependency automatically so it's guaranteed to run early in
         // the build.
-        Task sync = Boilerplate.maybeCreate(rootProject.getTasks(), SYNC_ARTIFACTS_TASK_NAME, onCreate -> {
+        Boilerplate.maybeCreate(rootProject.getTasks(), SYNC_ARTIFACTS_TASK_NAME, onCreate -> {
             onCreate.getOutputs().dir(getExtractDir(rootProject));
+            onCreate.getInputs().files(
+                project.getRootProject().getConfigurations().matching(conf -> conf.getName().startsWith(HELPER_CONFIGURATION_PREFIX))
+            );
+            onCreate.dependsOn(project.getRootProject().getConfigurations()
+                .matching(conf -> conf.getName().startsWith(HELPER_CONFIGURATION_PREFIX))
+            );
             // NOTE: Gradle doesn't allow a lambda here ( fails at runtime )
             onCreate.doFirst(new Action<Task>() {
                 @Override
@@ -289,6 +320,31 @@ public class TestClustersPlugin implements Plugin<Project> {
                     // previous builds of the same distribution
                     project.delete(getExtractDir(rootProject));
                 }
+            });
+            onCreate.doLast(new Action<Task>() {
+                    @Override
+                    public void execute(Task task) {
+                        project.getRootProject().getConfigurations()
+                            .matching(config -> config.getName().startsWith(HELPER_CONFIGURATION_PREFIX))
+                            .forEach(config -> project.copy(spec ->
+                                config.getResolvedConfiguration()
+                                    .getResolvedArtifacts()
+                                    .forEach(resolvedArtifact -> {
+                                        final FileTree files;
+                                        File file = resolvedArtifact.getFile();
+                                        if (file.getName().endsWith(".zip")) {
+                                            files = project.zipTree(file);
+                                        } else if (file.getName().endsWith("tar.gz")) {
+                                            files = project.tarTree(file);
+                                        } else {
+                                            throw new IllegalArgumentException("Can't extract " + file + " unknown file extension");
+                                        }
+                                        logger.info("Extracting {}@{}", resolvedArtifact, config);
+                                        spec.from(files, s -> s.into(resolvedArtifact.getModuleVersion().getId().getGroup()));
+                                        spec.into(getExtractDir(project));
+                                    }))
+                            );
+                    }
             });
         });
 
@@ -347,29 +403,6 @@ public class TestClustersPlugin implements Plugin<Project> {
                             distribution.getFileExtension());
 
                 }
-
-                sync.getInputs().files(helperConfiguration);
-                // NOTE: Gradle doesn't allow a lambda here ( fails at runtime )
-                sync.doLast(new Action<Task>() {
-                    @Override
-                    public void execute(Task task) {
-                        project.copy(spec ->
-                            helperConfiguration.getResolvedConfiguration().getResolvedArtifacts().forEach(resolvedArtifact -> {
-                                final FileTree files;
-                                File file = resolvedArtifact.getFile();
-                                if (file.getName().endsWith(".zip")) {
-                                    files = project.zipTree(file);
-                                } else if (file.getName().endsWith("tar.gz")) {
-                                    files = project.tarTree(file);
-                                } else {
-                                    throw new IllegalArgumentException("Can't extract " + file + " unknown file extension");
-                                }
-
-                                spec.from(files, s -> s.into(resolvedArtifact.getModuleVersion().getId().getGroup()));
-                                spec.into(getExtractDir(project));
-                            }));
-                    }
-                });
             })));
     }
 
@@ -419,13 +452,16 @@ public class TestClustersPlugin implements Plugin<Project> {
 
     private void shutDownAllClusters() {
         synchronized (runningClusters) {
+            if (runningClusters.isEmpty()) {
+                return;
+            }
             Iterator<ElasticsearchCluster> iterator = runningClusters.iterator();
             while (iterator.hasNext()) {
+                ElasticsearchCluster next = iterator.next();
                 iterator.remove();
-                iterator.next().stop(true);
+                next.stop(false);
             }
         }
     }
-
 
 }

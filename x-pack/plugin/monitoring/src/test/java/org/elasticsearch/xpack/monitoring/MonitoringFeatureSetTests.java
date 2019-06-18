@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.monitoring;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -15,9 +16,11 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.rest.yaml.ObjectPath;
+import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackFeatureSet;
-import org.elasticsearch.xpack.core.XPackFeatureSet.Usage;
+import org.elasticsearch.xpack.core.action.XPackUsageFeatureResponse;
 import org.elasticsearch.xpack.core.monitoring.MonitoringFeatureSetUsage;
 import org.elasticsearch.xpack.monitoring.exporter.Exporter;
 import org.elasticsearch.xpack.monitoring.exporter.Exporters;
@@ -42,7 +45,7 @@ public class MonitoringFeatureSetTests extends ESTestCase {
     private final Exporters exporters = mock(Exporters.class);
 
     public void testAvailable() {
-        MonitoringFeatureSet featureSet = new MonitoringFeatureSet(Settings.EMPTY, monitoring, licenseState, exporters);
+        MonitoringFeatureSet featureSet = new MonitoringFeatureSet(Settings.EMPTY, licenseState);
         boolean available = randomBoolean();
         when(licenseState.isMonitoringAllowed()).thenReturn(available);
         assertThat(featureSet.available(), is(available));
@@ -52,18 +55,17 @@ public class MonitoringFeatureSetTests extends ESTestCase {
         boolean enabled = randomBoolean();
         Settings.Builder settings = Settings.builder();
         settings.put("xpack.monitoring.enabled", enabled);
-        MonitoringFeatureSet featureSet = new MonitoringFeatureSet(settings.build(), monitoring, licenseState, exporters);
+        MonitoringFeatureSet featureSet = new MonitoringFeatureSet(settings.build(), licenseState);
         assertThat(featureSet.enabled(), is(enabled));
     }
 
     public void testEnabledDefault() {
-        MonitoringFeatureSet featureSet = new MonitoringFeatureSet(Settings.EMPTY, monitoring, licenseState, exporters);
+        MonitoringFeatureSet featureSet = new MonitoringFeatureSet(Settings.EMPTY, licenseState);
         assertThat(featureSet.enabled(), is(true));
     }
 
     public void testUsage() throws Exception {
-        // anything prior to 6.3 does not include collection_enabled (so defaults it to null)
-        final Version serializedVersion = randomFrom(Version.CURRENT, Version.V_6_3_0, Version.V_6_2_2);
+        final Version serializedVersion = VersionUtils.randomCompatibleVersion(random(), Version.CURRENT);
         final boolean collectionEnabled = randomBoolean();
         int localCount = randomIntBetween(0, 5);
         List<Exporter> exporterList = new ArrayList<>();
@@ -97,10 +99,11 @@ public class MonitoringFeatureSetTests extends ESTestCase {
         when(exporters.getEnabledExporters()).thenReturn(exporterList);
         when(monitoring.isMonitoringActive()).thenReturn(collectionEnabled);
 
-        MonitoringFeatureSet featureSet = new MonitoringFeatureSet(Settings.EMPTY, monitoring, licenseState, exporters);
-        PlainActionFuture<Usage> future = new PlainActionFuture<>();
-        featureSet.usage(future);
-        XPackFeatureSet.Usage monitoringUsage = future.get();
+        var usageAction = new MonitoringFeatureSet.UsageTransportAction(mock(TransportService.class), null, null,
+            mock(ActionFilters.class), null, Settings.EMPTY,licenseState,  monitoring, exporters);
+        PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();
+        usageAction.masterOperation(null, null, future);
+        MonitoringFeatureSetUsage monitoringUsage = (MonitoringFeatureSetUsage) future.get().getUsage();
         BytesStreamOutput out = new BytesStreamOutput();
         out.setVersion(serializedVersion);
         monitoringUsage.writeTo(out);
@@ -108,18 +111,12 @@ public class MonitoringFeatureSetTests extends ESTestCase {
         in.setVersion(serializedVersion);
         XPackFeatureSet.Usage serializedUsage = new MonitoringFeatureSetUsage(in);
         for (XPackFeatureSet.Usage usage : Arrays.asList(monitoringUsage, serializedUsage)) {
-            assertThat(usage.name(), is(featureSet.name()));
-            assertThat(usage.enabled(), is(featureSet.enabled()));
             ObjectPath  source;
             try (XContentBuilder builder = jsonBuilder()) {
                 usage.toXContent(builder, ToXContent.EMPTY_PARAMS);
                 source = ObjectPath.createFromXContent(builder.contentType().xContent(), BytesReference.bytes(builder));
             }
-            if (usage == monitoringUsage || serializedVersion.onOrAfter(Version.V_6_3_0)) {
-                assertThat(source.evaluate("collection_enabled"), is(collectionEnabled));
-            } else {
-                assertThat(source.evaluate("collection_enabled"), is(nullValue()));
-            }
+            assertThat(source.evaluate("collection_enabled"), is(collectionEnabled));
             assertThat(source.evaluate("enabled_exporters"), is(notNullValue()));
             if (localCount > 0) {
                 assertThat(source.evaluate("enabled_exporters.local"), is(localCount));

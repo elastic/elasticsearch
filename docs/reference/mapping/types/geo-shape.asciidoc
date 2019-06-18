@@ -615,7 +615,7 @@ POST /example/_doc
 
 Elasticsearch supports an `envelope` type, which consists of coordinates
 for upper left and lower right points of the shape to represent a
-bounding rectangle in the format [[minLon, maxLat],[maxLon, minLat]]:
+bounding rectangle in the format `[[minLon, maxLat], [maxLon, minLat]]`:
 
 [source,js]
 --------------------------------------------------

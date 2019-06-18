@@ -60,6 +60,7 @@ public class ExplainResponse extends ActionResponse implements StatusToXContentO
     private Explanation explanation;
     private GetResult getResult;
 
+    // TODO(talevy): remove dependency on empty constructor from ExplainResponseTests
     ExplainResponse() {
     }
 
@@ -78,6 +79,20 @@ public class ExplainResponse extends ActionResponse implements StatusToXContentO
     public ExplainResponse(String index, String type, String id, boolean exists, Explanation explanation, GetResult getResult) {
         this(index, type, id, exists, explanation);
         this.getResult = getResult;
+    }
+
+    public ExplainResponse(StreamInput in) throws IOException {
+        super(in);
+        index = in.readString();
+        type = in.readString();
+        id = in.readString();
+        exists = in.readBoolean();
+        if (in.readBoolean()) {
+            explanation = readExplanation(in);
+        }
+        if (in.readBoolean()) {
+            getResult = GetResult.readGetResult(in);
+        }
     }
 
     public String getIndex() {
@@ -123,17 +138,7 @@ public class ExplainResponse extends ActionResponse implements StatusToXContentO
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        index = in.readString();
-        type = in.readString();
-        id = in.readString();
-        exists = in.readBoolean();
-        if (in.readBoolean()) {
-            explanation = readExplanation(in);
-        }
-        if (in.readBoolean()) {
-            getResult = GetResult.readGetResult(in);
-        }
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override

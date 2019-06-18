@@ -25,6 +25,7 @@ import org.elasticsearch.action.update.UpdateAction;
 import org.elasticsearch.action.update.UpdateRequestBuilder;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.UUIDs;
@@ -364,7 +365,7 @@ public class AuthenticationServiceTests extends ESTestCase {
 
         // green to yellow or yellow to green
         previousState = dummyState(randomFrom(ClusterHealthStatus.GREEN, ClusterHealthStatus.YELLOW));
-        currentState = dummyState(previousState.indexStatus == ClusterHealthStatus.GREEN ?
+        currentState = dummyState(previousState.indexHealth == ClusterHealthStatus.GREEN ?
             ClusterHealthStatus.YELLOW : ClusterHealthStatus.GREEN);
         service.onSecurityIndexStateChange(previousState, currentState);
         assertEquals(expectedInvalidation, service.getNumInvalidation());
@@ -1108,14 +1109,16 @@ public class AuthenticationServiceTests extends ESTestCase {
         User user = new User("_username", "r1");
         final AtomicBoolean completed = new AtomicBoolean(false);
         final Authentication expected = new Authentication(user, new RealmRef("realm", "custom", "node"), null);
-        PlainActionFuture<Tuple<UserToken, String>> tokenFuture = new PlainActionFuture<>();
+        PlainActionFuture<Tuple<String, String>> tokenFuture = new PlainActionFuture<>();
+        final String userTokenId = UUIDs.randomBase64UUID();
+        final String refreshToken = UUIDs.randomBase64UUID();
         try (ThreadContext.StoredContext ctx = threadContext.stashContext()) {
             Authentication originatingAuth = new Authentication(new User("creator"), new RealmRef("test", "test", "test"), null);
-            tokenService.createOAuth2Tokens(expected, originatingAuth, Collections.emptyMap(), true, tokenFuture);
+            tokenService.createOAuth2Tokens(userTokenId, refreshToken, expected, originatingAuth, Collections.emptyMap(), tokenFuture);
         }
-        String token = tokenService.getAccessTokenAsString(tokenFuture.get().v1());
+        String token = tokenFuture.get().v1();
         when(client.prepareMultiGet()).thenReturn(new MultiGetRequestBuilder(client, MultiGetAction.INSTANCE));
-        mockGetTokenFromId(tokenFuture.get().v1(), false, client);
+        mockGetTokenFromId(tokenService, userTokenId, expected, false, client);
         when(securityIndex.isAvailable()).thenReturn(true);
         when(securityIndex.indexExists()).thenReturn(true);
         try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
@@ -1191,13 +1194,15 @@ public class AuthenticationServiceTests extends ESTestCase {
         when(securityIndex.indexExists()).thenReturn(true);
         User user = new User("_username", "r1");
         final Authentication expected = new Authentication(user, new RealmRef("realm", "custom", "node"), null);
-        PlainActionFuture<Tuple<UserToken, String>> tokenFuture = new PlainActionFuture<>();
+        PlainActionFuture<Tuple<String, String>> tokenFuture = new PlainActionFuture<>();
+        final String userTokenId = UUIDs.randomBase64UUID();
+        final String refreshToken = UUIDs.randomBase64UUID();
         try (ThreadContext.StoredContext ctx = threadContext.stashContext()) {
             Authentication originatingAuth = new Authentication(new User("creator"), new RealmRef("test", "test", "test"), null);
-            tokenService.createOAuth2Tokens(expected, originatingAuth, Collections.emptyMap(), true, tokenFuture);
+            tokenService.createOAuth2Tokens(userTokenId, refreshToken, expected, originatingAuth, Collections.emptyMap(), tokenFuture);
         }
-        String token = tokenService.getAccessTokenAsString(tokenFuture.get().v1());
-        mockGetTokenFromId(tokenFuture.get().v1(), true, client);
+        String token = tokenFuture.get().v1();
+        mockGetTokenFromId(tokenService, userTokenId, expected, true, client);
         doAnswer(invocationOnMock -> {
             ((Runnable) invocationOnMock.getArguments()[1]).run();
             return null;
@@ -1245,11 +1250,12 @@ public class AuthenticationServiceTests extends ESTestCase {
                 creatorMap.put("realm", "auth realm");
                 source.put("creator", creatorMap);
                 GetResponse getResponse = new GetResponse(new GetResult(request.index(), request.type(), request.id(), 0, 1, 1L, true,
-                    BytesReference.bytes(JsonXContent.contentBuilder().map(source)), Collections.emptyMap()));
+                    BytesReference.bytes(JsonXContent.contentBuilder().map(source)), Collections.emptyMap(), Collections.emptyMap()));
                 listener.onResponse(getResponse);
             } else {
                 listener.onResponse(new GetResponse(new GetResult(request.index(), request.type(), request.id(),
-                        SequenceNumbers.UNASSIGNED_SEQ_NO, 1, -1L, false, null, Collections.emptyMap())));
+                        SequenceNumbers.UNASSIGNED_SEQ_NO, 1, -1L, false, null,
+                    Collections.emptyMap(), Collections.emptyMap())));
             }
             return Void.TYPE;
         }).when(client).get(any(GetRequest.class), any(ActionListener.class));
@@ -1284,11 +1290,12 @@ public class AuthenticationServiceTests extends ESTestCase {
                 creatorMap.put("realm", "auth realm");
                 source.put("creator", creatorMap);
                 GetResponse getResponse = new GetResponse(new GetResult(request.index(), request.type(), request.id(), 0, 1, 1L, true,
-                        BytesReference.bytes(JsonXContent.contentBuilder().map(source)), Collections.emptyMap()));
+                        BytesReference.bytes(JsonXContent.contentBuilder().map(source)), Collections.emptyMap(), Collections.emptyMap()));
                 listener.onResponse(getResponse);
             } else {
                 listener.onResponse(new GetResponse(new GetResult(request.index(), request.type(), request.id(),
-                        SequenceNumbers.UNASSIGNED_SEQ_NO, 1, -1L, false, null, Collections.emptyMap())));
+                        SequenceNumbers.UNASSIGNED_SEQ_NO, 1, -1L, false, null,
+                    Collections.emptyMap(), Collections.emptyMap())));
             }
             return Void.TYPE;
         }).when(client).get(any(GetRequest.class), any(ActionListener.class));
@@ -1396,6 +1403,7 @@ public class AuthenticationServiceTests extends ESTestCase {
     }
 
     private SecurityIndexManager.State dummyState(ClusterHealthStatus indexStatus) {
-        return new SecurityIndexManager.State(Instant.now(), true, true, true, null, concreteSecurityIndexName, indexStatus);
+        return new SecurityIndexManager.State(
+            Instant.now(), true, true, true, null, concreteSecurityIndexName, indexStatus, IndexMetaData.State.OPEN);
     }
 }

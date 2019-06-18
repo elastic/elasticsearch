@@ -10,6 +10,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.ObjectPath;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.protocol.xpack.watcher.PutWatchResponse;
 import org.elasticsearch.search.aggregations.Aggregations;
@@ -18,7 +19,8 @@ import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.xpack.core.watcher.execution.ExecutionState;
 import org.elasticsearch.xpack.core.watcher.history.HistoryStoreField;
-import org.elasticsearch.common.xcontent.ObjectPath;
+import org.elasticsearch.xpack.core.watcher.transport.actions.execute.ExecuteWatchRequestBuilder;
+import org.elasticsearch.xpack.core.watcher.transport.actions.put.PutWatchRequestBuilder;
 import org.elasticsearch.xpack.watcher.common.http.HttpMethod;
 import org.elasticsearch.xpack.watcher.common.http.HttpRequestTemplate;
 import org.elasticsearch.xpack.watcher.condition.InternalAlwaysCondition;
@@ -66,7 +68,7 @@ public class HistoryTemplateHttpMappingsTests extends AbstractWatcherIntegration
     }
 
     public void testHttpFields() throws Exception {
-        PutWatchResponse putWatchResponse = watcherClient().preparePutWatch("_id").setSource(watchBuilder()
+        PutWatchResponse putWatchResponse = new PutWatchRequestBuilder(client(), "_id").setSource(watchBuilder()
                 .trigger(schedule(interval("5s")))
                 .input(httpInput(HttpRequestTemplate.builder("localhost", webServer.getPort()).path("/input/path")))
                 .condition(InternalAlwaysCondition.INSTANCE)
@@ -130,7 +132,7 @@ public class HistoryTemplateHttpMappingsTests extends AbstractWatcherIntegration
             webServer.enqueue(new MockResponse().setBeforeReplyDelay(TimeValue.timeValueSeconds(5)));
         }
 
-        PutWatchResponse putWatchResponse = watcherClient().preparePutWatch(id).setSource(watchBuilder()
+        PutWatchResponse putWatchResponse = new PutWatchRequestBuilder(client(), id).setSource(watchBuilder()
                 .trigger(schedule(interval("1h")))
                 .input(httpInput(HttpRequestTemplate.builder("localhost", webServer.getPort())
                         .path("/")
@@ -144,7 +146,7 @@ public class HistoryTemplateHttpMappingsTests extends AbstractWatcherIntegration
                 .get();
 
         assertThat(putWatchResponse.isCreated(), is(true));
-        watcherClient().prepareExecuteWatch(id).setRecordExecution(true).get();
+        new ExecuteWatchRequestBuilder(client(), id).setRecordExecution(true).get();
 
         // ensure watcher history index has been written with this id
         flushAndRefresh(HistoryStoreField.INDEX_PREFIX + "*");

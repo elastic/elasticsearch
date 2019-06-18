@@ -216,7 +216,7 @@ public class CancelTests extends ReindexTestCase {
             assertThat(response, matcher().created(modified).reasonCancelled(equalTo("by user request")));
 
             refresh("dest");
-            assertHitCount(client().prepareSearch("dest").setTypes(TYPE).setSize(0).get(), modified);
+            assertHitCount(client().prepareSearch("dest").setSize(0).get(), modified);
         }, equalTo("reindex from [" + INDEX + "] to [dest][" + TYPE + "]"));
     }
 
@@ -251,7 +251,7 @@ public class CancelTests extends ReindexTestCase {
                 (response, total, modified) -> {
                     assertThat(response, matcher().created(modified).reasonCancelled(equalTo("by user request")).slices(hasSize(5)));
                     refresh("dest");
-                    assertHitCount(client().prepareSearch("dest").setTypes(TYPE).setSize(0).get(), modified);
+                    assertHitCount(client().prepareSearch("dest").setSize(0).get(), modified);
                 },
                 equalTo("reindex from [" + INDEX + "] to [dest][" + TYPE + "]"));
     }

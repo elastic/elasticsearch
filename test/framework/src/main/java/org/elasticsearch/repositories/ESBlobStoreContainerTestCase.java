@@ -183,11 +183,7 @@ public abstract class ESBlobStoreContainerTestCase extends ESTestCase {
     protected void writeBlob(final BlobContainer container, final String blobName, final BytesArray bytesArray,
                              boolean failIfAlreadyExists) throws IOException {
         try (InputStream stream = bytesArray.streamInput()) {
-            if (randomBoolean()) {
-                container.writeBlob(blobName, stream, bytesArray.length(), failIfAlreadyExists);
-            } else {
-                container.writeBlobAtomic(blobName, stream, bytesArray.length(), failIfAlreadyExists);
-            }
+            container.writeBlob(blobName, stream, bytesArray.length(), failIfAlreadyExists);
         }
     }
 

@@ -197,7 +197,7 @@ public class BlobStoreFormatIT extends AbstractSnapshotIntegTestCase {
             Future<Void> future = threadPool.submit(new Callable<Void>() {
                 @Override
                 public Void call() throws Exception {
-                    checksumFormat.writeAtomic(blobObj, blobContainer, "test-blob");
+                    checksumFormat.write(blobObj, blobContainer, "test-blob");
                     return null;
                 }
             });
@@ -224,12 +224,12 @@ public class BlobStoreFormatIT extends AbstractSnapshotIntegTestCase {
             IOException writeBlobException = expectThrows(IOException.class, () -> {
                 BlobContainer wrapper = new BlobContainerWrapper(blobContainer) {
                     @Override
-                    public void writeBlobAtomic(String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists)
+                    public void writeBlob(String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists)
                         throws IOException {
                         throw new IOException("Exception thrown in writeBlobAtomic() for " + blobName);
                     }
                 };
-                checksumFormat.writeAtomic(blobObj, wrapper, name);
+                checksumFormat.write(blobObj, wrapper, name);
             });
 
             assertEquals("Exception thrown in writeBlobAtomic() for " + name, writeBlobException.getMessage());

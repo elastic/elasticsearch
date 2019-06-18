@@ -171,26 +171,6 @@ public final class ChecksumBlobStoreFormat<T extends ToXContent> {
     }
 
     /**
-     * Writes blob in atomic manner with resolving the blob name using {@link #blobName} method.
-     * <p>
-     * The blob will be compressed and checksum will be written if required.
-     *
-     * Atomic move might be very inefficient on some repositories. It also cannot override existing files.
-     *
-     * @param obj           object to be serialized
-     * @param blobContainer blob container
-     * @param name          blob name
-     */
-    public void writeAtomic(T obj, BlobContainer blobContainer, String name) throws IOException {
-        final String blobName = blobName(name);
-        writeTo(obj, blobName, bytesArray -> {
-            try (InputStream stream = bytesArray.streamInput()) {
-                blobContainer.writeBlobAtomic(blobName, stream, bytesArray.length(), true);
-            }
-        });
-    }
-
-    /**
      * Writes blob with resolving the blob name using {@link #blobName} method.
      * <p>
      * The blob will be compressed and checksum will be written if required.

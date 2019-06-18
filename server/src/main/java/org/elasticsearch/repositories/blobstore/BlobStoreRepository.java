@@ -592,7 +592,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 String blobName = "master.dat";
                 BytesArray bytes = new BytesArray(testBytes);
                 try (InputStream stream = bytes.streamInput()) {
-                    testContainer.writeBlobAtomic(blobName, stream, bytes.length(), true);
+                    testContainer.writeBlob(blobName, stream, bytes.length(), true);
                 }
                 return seed;
             }
@@ -801,7 +801,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     private void writeAtomic(final String blobName, final BytesReference bytesRef, boolean failIfAlreadyExists) throws IOException {
         try (InputStream stream = bytesRef.streamInput()) {
-            blobContainer().writeBlobAtomic(blobName, stream, bytesRef.length(), failIfAlreadyExists);
+            blobContainer().writeBlob(blobName, stream, bytesRef.length(), failIfAlreadyExists);
         }
     }
 
@@ -974,7 +974,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     blobsToDelete = List.copyOf(blobs.keySet());
                 } else {
                     final BlobStoreIndexShardSnapshots updatedSnapshots = new BlobStoreIndexShardSnapshots(snapshots);
-                    indexShardSnapshotsFormat.writeAtomic(updatedSnapshots, blobContainer, indexGeneration);
+                    indexShardSnapshotsFormat.write(updatedSnapshots, blobContainer, indexGeneration);
                     // Delete all previous index-N, data-blobs that are not referenced by the new index-N and temporary blobs
                     blobsToDelete = blobs.keySet().stream().filter(blob ->
                         blob.startsWith(SNAPSHOT_INDEX_PREFIX)

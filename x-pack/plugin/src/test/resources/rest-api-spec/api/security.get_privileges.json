@@ -9,7 +9,18 @@
         "/_security/privilege/{application}",
         "/_security/privilege/{application}/{name}"
       ],
-      "parts": { },
+      "parts": {
+        "application": {
+          "type" : "string",
+          "description" : "Application name",
+          "required" : false
+        },
+        "name": {
+          "type" : "string",
+          "description" : "Privilege name",
+          "required" : false
+        }
+      },
       "params": {}
     },
     "body": null

@@ -11,9 +11,9 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.security.action.privilege.GetBuiltinPrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.privilege.GetBuiltinPrivilegesRequest;
 import org.elasticsearch.xpack.core.security.action.privilege.GetBuiltinPrivilegesResponse;
-import org.elasticsearch.xpack.core.security.action.privilege.GetPrivilegesAction;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
 
@@ -26,7 +26,7 @@ public class TransportGetBuiltinPrivilegesAction extends HandledTransportAction<
 
     @Inject
     public TransportGetBuiltinPrivilegesAction(ActionFilters actionFilters, TransportService transportService) {
-        super(GetPrivilegesAction.NAME, transportService, actionFilters, GetBuiltinPrivilegesRequest::new);
+        super(GetBuiltinPrivilegesAction.NAME, transportService, actionFilters, GetBuiltinPrivilegesRequest::new);
     }
 
     @Override

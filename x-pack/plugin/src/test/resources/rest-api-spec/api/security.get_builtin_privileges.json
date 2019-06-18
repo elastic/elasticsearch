@@ -1,5 +1,5 @@
 {
-  "security.get_privileges": {
+  "security.get_builtin_privileges": {
     "documentation": "https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-get-builtin-privileges.html",
     "stability": "stable",
     "methods": [ "GET" ],
@@ -7,18 +7,7 @@
       "paths": [
         "/_security/privilege/_builtin"
       ],
-      "parts": {
-        "application": {
-          "type" : "string",
-          "description" : "Application name",
-          "required" : false
-        },
-        "name": {
-          "type" : "string",
-          "description" : "Privilege name",
-          "required" : false
-        }
-      },
+      "parts": {},
       "params": {}
     },
     "body": null

@@ -111,6 +111,9 @@ setup:
 
 ---
 "Test get old cluster job's timing stats":
+  - skip:
+      version: "all"
+      reason:  "AwaitsFix https://github.com/elastic/elasticsearch/issues/43342"
   - do:
       ml.get_job_stats:
         job_id: old-cluster-job-with-ts

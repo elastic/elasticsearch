@@ -1298,17 +1298,21 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                                     updateMaxTermSeen(getCurrentTerm());
 
                                     if (mode == Mode.LEADER) {
+                                        // if necessary, abdicate to another node or improve the voting configuration
+                                        boolean attemptReconfiguration = true;
                                         final ClusterState state = getLastAcceptedState(); // committed state
-                                        if (localNodeMayWinElection(state)) {
-                                            scheduleReconfigurationIfNeeded();
-                                        } else {
+                                        if (localNodeMayWinElection(state) == false) {
                                             final List<DiscoveryNode> masterCandidates = completedNodes().stream()
                                                 .filter(DiscoveryNode::isMasterNode)
                                                 .filter(node -> nodeMayWinElection(state, node))
                                                 .collect(Collectors.toList());
                                             if (masterCandidates.isEmpty() == false) {
                                                 abdicateTo(masterCandidates.get(random.nextInt(masterCandidates.size())));
+                                                attemptReconfiguration = false;
                                             }
+                                        }
+                                        if (attemptReconfiguration) {
+                                            scheduleReconfigurationIfNeeded();
                                         }
                                     }
                                     lagDetector.startLagDetector(publishRequest.getAcceptedState().version());

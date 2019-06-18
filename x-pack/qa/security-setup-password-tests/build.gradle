@@ -13,9 +13,11 @@ dependencies {
 
 integTest.runner {
     nonInputProperties.systemProperty 'tests.config.dir', "${-> testClusters.integTest.singleNode().getConfigDir()}"
+    systemProperty 'tests.security.manager', 'false'
 }
 
 testClusters.integTest {
+    distribution = "DEFAULT"
     setting 'xpack.security.enabled', 'true'
     setting 'xpack.license.self_generated.type', 'trial'
 

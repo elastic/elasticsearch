@@ -444,15 +444,15 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 final String indexSnId = indexEntry.getKey();
                 try {
                     if (survivingIndexIds.contains(indexSnId) == false) {
-                        logger.debug("[{}] Found stale index [{}]. Cleaning it up.", metadata.name(), indexSnId);
+                        logger.debug("[{}] Found stale index [{}]. Cleaning it up", metadata.name(), indexSnId);
                         indexEntry.getValue().delete();
                         toDelete.add(indexSnId);
-                        logger.debug("[{}] Cleaned up stale index [{}].", metadata.name(), indexSnId);
+                        logger.debug("[{}] Cleaned up stale index [{}]", metadata.name(), indexSnId);
                     }
                 } catch (IOException e) {
                     logger.warn(() -> new ParameterizedMessage(
                         "[{}] index {} is no longer part of any snapshots in the repository, " +
-                            "but failed to clean up their index folders.", metadata.name(), indexSnId), e);
+                            "but failed to clean up their index folders", metadata.name(), indexSnId), e);
                 }
             }
             try {
@@ -460,13 +460,13 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             } catch (IOException e) {
                 logger.warn(() ->
                     new ParameterizedMessage(
-                        "[{}] failed to clean up unreferenced index folders.", metadata.name()), e);
+                        "[{}] failed to clean up unreferenced index folders", metadata.name()), e);
             }
         } catch (Exception e) {
             // TODO: We shouldn't be blanket catching and suppressing all exceptions here and instead handle them safely upstream.
             //       Currently this catch exists as a stop gap solution to tackle unexpected runtime exceptions from implementations
             //       bubbling up and breaking the snapshot functionality.
-            logger.warn(new ParameterizedMessage("[{}] Exception during cleanup of stale indices.", metadata.name()), e);
+            logger.warn(new ParameterizedMessage("[{}] Exception during cleanup of stale indices", metadata.name()), e);
         }
     }
 

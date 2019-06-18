@@ -184,10 +184,22 @@ public class CuckooFilter implements Writeable {
         return numBuckets;
     }
 
+    /**
+     * Returns the number of bits used per entry
+     *
+     * Expert-level API
+     */
     int getBitsPerEntry() {
         return bitsPerEntry;
     }
 
+    /**
+     * Returns the cached fingerprint mask.  This is simply a mask for the
+     * first bitsPerEntry bits, used by {@link CuckooFilter#fingerprint(int, int, int)}
+     * to generate the fingerprint of a hash
+     *
+     * Expert-level API
+     */
     int getFingerprintMask() {
         return fingerprintMask;
     }
@@ -199,7 +211,7 @@ public class CuckooFilter implements Writeable {
      * Expert-level API
      */
     Iterator<long[]> getBuckets() {
-        return new Iterator<long[]>() {
+        return new Iterator<>() {
             int current = 0;
 
             @Override
@@ -263,8 +275,7 @@ public class CuckooFilter implements Writeable {
      * successful, false if the filter is saturated.
      */
     boolean add(long hash) {
-        // can only use 64 of 128 bytes unfortunately (32 for each bucket), simplest
-        // to just truncate h1 and h2 appropriately
+        // Each bucket needs 32 bits, so we truncate for the first bucket and shift/truncate for second
         int bucket = hashToIndex((int) hash, numBuckets);
         int fingerprint = fingerprint((int) (hash  >>> 32), bitsPerEntry, fingerprintMask);
         return mergeFingerprint(bucket, fingerprint);

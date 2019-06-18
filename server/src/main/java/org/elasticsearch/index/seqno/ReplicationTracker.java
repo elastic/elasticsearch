@@ -699,10 +699,6 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
                 assert checkpoints.get(shardRouting.allocationId().getId()).tracked == false
                     || retentionLeases.contains(getPeerRecoveryRetentionLeaseId(shardRouting)) :
                     "no retention lease for tracked shard " + shardRouting + " in " + retentionLeases;
-                assert shardRouting.relocating() == false
-                    || checkpoints.get(shardRouting.allocationId().getRelocationId()).tracked == false
-                    || retentionLeases.contains(getPeerRecoveryRetentionLeaseId(shardRouting.getTargetRelocatingShard()))
-                    : "no retention lease for relocation target " + shardRouting + " in " + retentionLeases;
             }
         }
 

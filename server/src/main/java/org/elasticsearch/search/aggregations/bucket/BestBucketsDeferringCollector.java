@@ -107,6 +107,7 @@ public class BestBucketsDeferringCollector extends DeferringBucketCollector {
         finishLeaf();
 
         context = null;
+        // allocates the builder lazily in case this segment doesn't contain any match
         docDeltasBuilder = null;
         bucketsBuilder = null;
 

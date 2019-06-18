@@ -33,38 +33,52 @@ public class PrivilegeTests extends ESTestCase {
 
     public void testCluster() throws Exception {
         Set<String> name = Sets.newHashSet("monitor");
-        ClusterPrivilege cluster = ClusterPrivilegeResolver.resolve(name).v1();
+        Tuple<ClusterPrivilege, Set<ConditionalClusterPrivilege>> resolvedPrivileges = ClusterPrivilegeResolver.resolve(name);
+        ClusterPrivilege cluster = resolvedPrivileges.v1();
         assertThat(cluster, is(DefaultClusterPrivilege.MONITOR.clusterPrivilege()));
+        assertThat(resolvedPrivileges.v2().isEmpty(), is(true));
 
         // since "all" implies "monitor", this should be the same language as All
         name = Sets.newHashSet("monitor", "all");
-        cluster = ClusterPrivilegeResolver.resolve(name).v1();
+        resolvedPrivileges = ClusterPrivilegeResolver.resolve(name);
+        cluster = resolvedPrivileges.v1();
         assertTrue(Operations.sameLanguage(DefaultClusterPrivilege.ALL.automaton(), cluster.automaton));
+        assertThat(resolvedPrivileges.v2().isEmpty(), is(true));
 
         name = Sets.newHashSet("monitor", "none");
-        cluster = ClusterPrivilegeResolver.resolve(name).v1();
+        resolvedPrivileges = ClusterPrivilegeResolver.resolve(name);
+        cluster = resolvedPrivileges.v1();
         assertTrue(Operations.sameLanguage(DefaultClusterPrivilege.MONITOR.automaton(), cluster.automaton));
+        assertThat(resolvedPrivileges.v2().isEmpty(), is(true));
 
         Set<String> name2 = Sets.newHashSet("none", "monitor");
-        ClusterPrivilege cluster2 = ClusterPrivilegeResolver.resolve(name2).v1();
+        resolvedPrivileges = ClusterPrivilegeResolver.resolve(name2);
+        ClusterPrivilege cluster2 = resolvedPrivileges.v1();
         assertThat(cluster, is(cluster2));
+        assertThat(resolvedPrivileges.v2().isEmpty(), is(true));
     }
 
     public void testClusterTemplateActions() throws Exception {
         Set<String> name = Sets.newHashSet("indices:admin/template/delete");
-        ClusterPrivilege cluster = ClusterPrivilegeResolver.resolve(name).v1();
+        Tuple<ClusterPrivilege, Set<ConditionalClusterPrivilege>> resolvedPrivileges = ClusterPrivilegeResolver.resolve(name);
+        ClusterPrivilege cluster = resolvedPrivileges.v1();
         assertThat(cluster, notNullValue());
         assertThat(cluster.predicate().test("indices:admin/template/delete"), is(true));
+        assertThat(resolvedPrivileges.v2().isEmpty(), is(true));
 
         name = Sets.newHashSet("indices:admin/template/get");
-        cluster = ClusterPrivilegeResolver.resolve(name).v1();
+        resolvedPrivileges = ClusterPrivilegeResolver.resolve(name);
+        cluster = resolvedPrivileges.v1();
         assertThat(cluster, notNullValue());
         assertThat(cluster.predicate().test("indices:admin/template/get"), is(true));
+        assertThat(resolvedPrivileges.v2().isEmpty(), is(true));
 
         name = Sets.newHashSet("indices:admin/template/put");
-        cluster = ClusterPrivilegeResolver.resolve(name).v1();
+        resolvedPrivileges = ClusterPrivilegeResolver.resolve(name);
+        cluster = resolvedPrivileges.v1();
         assertThat(cluster, notNullValue());
         assertThat(cluster.predicate().test("indices:admin/template/put"), is(true));
+        assertThat(resolvedPrivileges.v2().isEmpty(), is(true));
     }
 
     public void testClusterInvalidName() throws Exception {
@@ -75,10 +89,12 @@ public class PrivilegeTests extends ESTestCase {
 
     public void testClusterAction() throws Exception {
         Set<String> actionName = Sets.newHashSet("cluster:admin/snapshot/delete");
-        ClusterPrivilege cluster = ClusterPrivilegeResolver.resolve(actionName).v1();
+        Tuple<ClusterPrivilege, Set<ConditionalClusterPrivilege>> resolvedPrivileges = ClusterPrivilegeResolver.resolve(actionName);
+        ClusterPrivilege cluster = resolvedPrivileges.v1();
         assertThat(cluster, notNullValue());
         assertThat(cluster.predicate().test("cluster:admin/snapshot/delete"), is(true));
         assertThat(cluster.predicate().test("cluster:admin/snapshot/dele"), is(false));
+        assertThat(resolvedPrivileges.v2().isEmpty(), is(true));
     }
 
     public void testIndexAction() throws Exception {

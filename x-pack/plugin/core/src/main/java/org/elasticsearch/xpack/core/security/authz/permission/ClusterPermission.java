@@ -107,7 +107,9 @@ public abstract class ClusterPermission {
                 .map(ClusterPrivilege::name)
                 .flatMap(Set::stream)
                 .collect(Collectors.toSet());
-            return ClusterPrivilegeResolver.resolve(names).v1();
+            Tuple<ClusterPrivilege, Set<ConditionalClusterPrivilege>> resolvedPrivileges = ClusterPrivilegeResolver.resolve(names);
+            assert resolvedPrivileges.v2().isEmpty();
+            return resolvedPrivileges.v1();
         }
 
         @Override

@@ -13,7 +13,7 @@ import java.util.Set;
 /**
  * Enum that defines default conditional cluster privileges
  */
-enum DefaultConditionalClusterPrivilege {
+public enum DefaultConditionalClusterPrivilege {
     MANAGE_OWN_API_KEY("manage_own_api_key", ManageApiKeyConditionalClusterPrivilege.createOwnerManageApiKeyConditionalClusterPrivilege());
 
     final ConditionalClusterPrivilege conditionalClusterPrivilege;
@@ -41,7 +41,7 @@ enum DefaultConditionalClusterPrivilege {
         return privilegeNameToEnumMap.get(privilegeName);
     }
 
-    static String privilegeName(ConditionalClusterPrivilege ccp) {
+    public static String privilegeName(ConditionalClusterPrivilege ccp) {
         if (ccpToEnumMap.containsKey(ccp)) {
             return ccpToEnumMap.get(ccp).privilegeName;
         }

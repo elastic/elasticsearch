@@ -375,9 +375,19 @@ public class RBACEngine implements AuthorizationEngine {
 
         Map<String, Boolean> cluster = new HashMap<>();
         for (String checkAction : request.clusterPrivileges()) {
-            final ClusterPrivilege checkPrivilege = ClusterPrivilegeResolver.resolve(Collections.singleton(checkAction)).v1();
-            // should we check for conditional as well?
-            cluster.put(checkAction, userRole.grants(checkPrivilege));
+            Tuple<ClusterPrivilege, Set<ConditionalClusterPrivilege>> resolvedPrivileges = ClusterPrivilegeResolver.resolve(Collections.singleton(checkAction));
+            final ClusterPrivilege checkPrivilege = resolvedPrivileges.v1();
+            final Set<ConditionalClusterPrivilege> conditionalClusterPrivileges = resolvedPrivileges.v2();
+            boolean granted = userRole.grants(checkPrivilege);
+            // here we just check if the action would be allowed by the underlying cluster privilege without considering request as the
+            // request is not available for evaluation of conditional cluster privilege.
+            for (ConditionalClusterPrivilege conditionalClusterPrivilege : conditionalClusterPrivileges) {
+                granted = (granted || userRole.grants(conditionalClusterPrivilege.getPrivilege()));
+                if (granted) {
+                    break;
+                }
+            }
+            cluster.put(checkAction, granted);
         }
         boolean allMatch = cluster.values().stream().allMatch(Boolean::booleanValue);
         ResourcePrivilegesMap.Builder combineIndicesResourcePrivileges = ResourcePrivilegesMap.builder();

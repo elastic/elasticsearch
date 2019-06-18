@@ -721,6 +721,23 @@ public class RBACEngineTests extends ESTestCase {
         ));
     }
 
+    public void testCheckingHasPrivilegesWithConditionalClusterPrivilege() throws Exception {
+        User user = new User(randomAlphaOfLengthBetween(4, 12));
+        Authentication authentication = mock(Authentication.class);
+        when(authentication.getUser()).thenReturn(user);
+        Role role = Role.builder("test-write")
+            .cluster(Set.of("none", "manage_own_api_key"), Collections.emptySet())
+            .build();
+        RBACAuthorizationInfo authzInfo = new RBACAuthorizationInfo(role, null);
+
+        final HasPrivilegesResponse response = hasPrivileges(
+            new RoleDescriptor.IndicesPrivileges[0],
+            new RoleDescriptor.ApplicationResourcePrivileges[0], authentication, authzInfo, Collections.emptyList(), "monitor", "cluster:admin/xpack/security/api_key/invalidate");
+        assertThat(response.isCompleteMatch(), is(false));
+        assertThat(response.getClusterPrivileges().get("monitor"), is(false));
+        assertThat(response.getClusterPrivileges().get("cluster:admin/xpack/security/api_key/invalidate"), is(true));
+    }
+
     public void testIsCompleteMatch() throws Exception {
         final List<ApplicationPrivilegeDescriptor> privs = new ArrayList<>();
         final ApplicationPrivilege kibanaRead = defineApplicationPrivilege(privs, "kibana", "read", "data:read/*");

@@ -12,6 +12,7 @@ import org.elasticsearch.xpack.core.security.action.CreateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.GetApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.InvalidateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.support.Automatons;
 
 import java.util.List;
 import java.util.Objects;
@@ -48,7 +49,7 @@ public final class ManageApiKeyConditionalClusterPrivilege implements Conditiona
                         + API_KEY_ACTION_PATTERNS + " ]");
             }
         }
-        this.privilege = ClusterPrivilegeResolver.resolve(actions).v1();
+        this.privilege = new ClusterPrivilege(actions, Automatons.patterns(actions));
         this.restrictActionsToAuthenticatedUser = restrictActionsToAuthenticatedUser;
 
         this.requestPredicate = (request, authentication) -> {

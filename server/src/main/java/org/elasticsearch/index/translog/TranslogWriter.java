@@ -106,7 +106,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
         this.maxSeqNo = initialCheckpoint.maxSeqNo;
         assert initialCheckpoint.trimmedAboveSeqNo == SequenceNumbers.UNASSIGNED_SEQ_NO : initialCheckpoint.trimmedAboveSeqNo;
         this.globalCheckpointSupplier = globalCheckpointSupplier;
-        this.nonFsyncedSequenceNumbers = new LongArrayList();
+        this.nonFsyncedSequenceNumbers = new LongArrayList(64);
         this.persistedSequenceNumberConsumer = persistedSequenceNumberConsumer;
         this.seenSequenceNumbers = Assertions.ENABLED ? new HashMap<>() : null;
         this.tragedy = tragedy;
@@ -365,7 +365,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
                             outputStream.flush();
                             checkpointToSync = getCheckpoint();
                             flushedSequenceNumbers = nonFsyncedSequenceNumbers;
-                            nonFsyncedSequenceNumbers = new LongArrayList();
+                            nonFsyncedSequenceNumbers = new LongArrayList(64);
                         } catch (final Exception ex) {
                             closeWithTragicEvent(ex);
                             throw ex;

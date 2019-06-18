@@ -164,7 +164,7 @@ public class RankFeatureFieldMapper extends FieldMapper {
 
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
-            throw new UnsupportedOperationException("[rank_feature] fields do not support sorting, scripting or aggregating");
+            return new IndexFeatureFieldData.Builder();
         }
 
         @Override

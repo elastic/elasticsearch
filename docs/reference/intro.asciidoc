@@ -119,7 +119,7 @@ match they are for your search terms.
 In addition to searching for individual terms, you can perform phrase searches,
 similarity searches, and prefix searches, and get autocomplete suggestions.
 
-Have geospatial or other numerical data {es} you want to search? {es} indexes
+Have geospatial or other numerical data that you want to search? {es} indexes
 non-textual data in optimized data structures that support
 high-performance geo and numerical queries.
 

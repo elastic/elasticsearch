@@ -61,7 +61,7 @@ public abstract class TransportAction<Request extends ActionRequest, Response ex
          * this method.
          */
         Task task = taskManager.register("transport", actionName, request);
-        execute(task, request, new ActionListener<Response>() {
+        execute(task, request, ActionListener.trackLeaks(new ActionListener<>() {
             @Override
             public void onResponse(Response response) {
                 taskManager.unregister(task);
@@ -73,7 +73,7 @@ public abstract class TransportAction<Request extends ActionRequest, Response ex
                 taskManager.unregister(task);
                 listener.onFailure(e);
             }
-        });
+        }));
         return task;
     }
 
@@ -83,7 +83,7 @@ public abstract class TransportAction<Request extends ActionRequest, Response ex
      */
     public final Task execute(Request request, TaskListener<Response> listener) {
         Task task = taskManager.register("transport", actionName, request);
-        execute(task, request, new ActionListener<Response>() {
+        execute(task, request, ActionListener.trackLeaks(new ActionListener<>() {
             @Override
             public void onResponse(Response response) {
                 if (task != null) {
@@ -99,7 +99,7 @@ public abstract class TransportAction<Request extends ActionRequest, Response ex
                 }
                 listener.onFailure(task, e);
             }
-        });
+        }));
         return task;
     }
 

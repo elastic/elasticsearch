@@ -14,6 +14,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.reindex.AbstractBulkByScrollRequest;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.tasks.Task;
@@ -77,7 +78,7 @@ public class TransportDeleteCalendarAction extends HandledTransportAction<Delete
 
     private DeleteByQueryRequest buildDeleteByQuery(String calendarId) {
         DeleteByQueryRequest request = new DeleteByQueryRequest(MlMetaIndex.INDEX_NAME);
-        request.setSlices(5);
+        request.setSlices(AbstractBulkByScrollRequest.AUTO_SLICES);
         request.setRefresh(true);
 
         QueryBuilder query = QueryBuilders.termsQuery(Calendar.ID.getPreferredName(), calendarId);

@@ -2714,7 +2714,8 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
                                 Collections.singletonList(indexId),
                                 System.currentTimeMillis(),
                                 repositoryData.getGenId(),
-                                shards.build()))))
+                                shards.build(),
+                                SnapshotInfoTests.randomUserMetadata()))))
                         .build();
             }
 

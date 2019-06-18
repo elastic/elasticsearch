@@ -2474,7 +2474,6 @@ public class InternalEngine extends Engine {
         return mergeScheduler.stats();
     }
 
-    // Used only for testing! Package private to prevent anyone else from using it
     LocalCheckpointTracker getLocalCheckpointTracker() {
         return localCheckpointTracker;
     }

@@ -67,6 +67,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
     private final LongSupplier globalCheckpointSupplier;
     private final LongSupplier minTranslogGenerationSupplier;
 
+    // callback that's called whenever an operation with a given sequence number is successfully persisted.
     private final LongConsumer persistedSequenceNumberConsumer;
 
     protected final AtomicBoolean closed = new AtomicBoolean(false);

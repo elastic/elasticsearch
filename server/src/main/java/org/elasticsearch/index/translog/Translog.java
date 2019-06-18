@@ -148,6 +148,8 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
      *                                 examined and stored in the header whenever a new generation is rolled. It's guaranteed from outside
      *                                 that a new generation is rolled when the term is increased. This guarantee allows to us to validate
      *                                 and reject operation whose term is higher than the primary term stored in the translog header.
+     * @param persistedSequenceNumberConsumer a callback that's called whenever an operation with a given sequence number is successfully
+     *                                        persisted.
      */
     public Translog(
         final TranslogConfig config, final String translogUUID, TranslogDeletionPolicy deletionPolicy,

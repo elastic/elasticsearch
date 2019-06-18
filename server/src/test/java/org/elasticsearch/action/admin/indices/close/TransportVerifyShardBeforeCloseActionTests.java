@@ -136,9 +136,13 @@ public class TransportVerifyShardBeforeCloseActionTests extends ESTestCase {
     }
 
     private void executeOnPrimaryOrReplica() throws Throwable {
+        executeOnPrimaryOrReplica(false);
+    }
+
+    private void executeOnPrimaryOrReplica(boolean phase1) throws Throwable {
         final TaskId taskId = new TaskId("_node_id", randomNonNegativeLong());
         final TransportVerifyShardBeforeCloseAction.ShardRequest request =
-            new TransportVerifyShardBeforeCloseAction.ShardRequest(indexShard.shardId(), clusterBlock, false, taskId);
+            new TransportVerifyShardBeforeCloseAction.ShardRequest(indexShard.shardId(), clusterBlock, phase1, taskId);
         final PlainActionFuture<Void> res = PlainActionFuture.newFuture();
         action.shardOperationOnPrimary(request, indexShard, ActionListener.wrap(
             r -> {
@@ -163,6 +167,11 @@ public class TransportVerifyShardBeforeCloseActionTests extends ESTestCase {
         executeOnPrimaryOrReplica();
         verify(indexShard, times(1)).flush(any(FlushRequest.class));
         assertThat(flushRequest.getValue().force(), is(true));
+    }
+
+    public void testShardIsSynced() throws Throwable {
+        executeOnPrimaryOrReplica(true);
+        verify(indexShard, times(1)).sync();
     }
 
     public void testOperationFailsWhenNotBlocked() {

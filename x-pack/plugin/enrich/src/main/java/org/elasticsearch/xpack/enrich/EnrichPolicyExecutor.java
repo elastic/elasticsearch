@@ -56,8 +56,8 @@ public class EnrichPolicyExecutor {
         if (policyExecutionPermits.tryAcquire() == false) {
             // Release policy lock, and throw a different exception
             policyLocks.remove(policyName);
-            throw new EsRejectedExecutionException("Policy execution failed. Exceeded maximum concurrent policy executions [" +
-                maximumConcurrentPolicyExecutions + "]");
+            throw new EsRejectedExecutionException("Policy execution failed. Policy execution for [" + policyName + "] would exceed " +
+                "maximum concurrent policy executions [" + maximumConcurrentPolicyExecutions + "]");
         }
     }
 

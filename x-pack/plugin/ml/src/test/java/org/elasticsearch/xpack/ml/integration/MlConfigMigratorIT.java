@@ -35,6 +35,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
@@ -447,7 +448,7 @@ public class MlConfigMigratorIT extends MlSingleNodeTestCase {
     }
 
     private boolean configIndexExists() {
-        return client().admin().indices().prepareExists(AnomalyDetectorsIndex.configIndexName()).get().isExists();
+        return ESIntegTestCase.indexExists(AnomalyDetectorsIndex.configIndexName(), client());
     }
 }
 

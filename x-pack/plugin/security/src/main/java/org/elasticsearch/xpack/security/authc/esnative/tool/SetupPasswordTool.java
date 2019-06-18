@@ -193,7 +193,7 @@ public class SetupPasswordTool extends LoggingAwareMultiCommand {
             // loop for two consecutive good passwords
             while (true) {
                 SecureString password1 = new SecureString(terminal.readSecret("Enter password for [" + user + "]: "));
-                Validation.Error err = Validation.Users.validatePassword(password1.getChars());
+                Validation.Error err = Validation.Users.validatePassword(password1);
                 if (err != null) {
                     terminal.println(err.toString());
                     terminal.println("Try again.");

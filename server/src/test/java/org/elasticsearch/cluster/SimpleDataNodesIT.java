@@ -20,9 +20,12 @@
 package org.elasticsearch.cluster;
 
 import org.elasticsearch.action.UnavailableShardsException;
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.client.Requests;
+import org.elasticsearch.cluster.health.ClusterHealthStatus;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -35,13 +38,16 @@ import static org.elasticsearch.client.Requests.createIndexRequest;
 import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
 import static org.hamcrest.Matchers.equalTo;
 
-@ClusterScope(scope= Scope.TEST, numDataNodes =0)
+@ClusterScope(scope = Scope.TEST, numDataNodes = 0)
 public class SimpleDataNodesIT extends ESIntegTestCase {
-    public void testDataNodes() throws Exception {
+
+    private static final String SOURCE = "{\"type1\":{\"id\":\"1\",\"name\":\"test\"}}";
+
+    public void testIndexingBeforeAndAfterDataNodesStart() {
         internalCluster().startNode(Settings.builder().put(Node.NODE_DATA_SETTING.getKey(), false).build());
         client().admin().indices().create(createIndexRequest("test").waitForActiveShards(ActiveShardCount.NONE)).actionGet();
         try {
-            client().index(Requests.indexRequest("test").type("type1").id("1").source(source("1", "test"), XContentType.JSON)
+            client().index(Requests.indexRequest("test").id("1").source(SOURCE, XContentType.JSON)
                 .timeout(timeValueSeconds(1))).actionGet();
             fail("no allocation should happen");
         } catch (UnavailableShardsException e) {
@@ -54,7 +60,7 @@ public class SimpleDataNodesIT extends ESIntegTestCase {
 
         // still no shard should be allocated
         try {
-            client().index(Requests.indexRequest("test").type("type1").id("1").source(source("1", "test"), XContentType.JSON)
+            client().index(Requests.indexRequest("test").id("1").source(SOURCE, XContentType.JSON)
                 .timeout(timeValueSeconds(1))).actionGet();
             fail("no allocation should happen");
         } catch (UnavailableShardsException e) {
@@ -66,13 +72,43 @@ public class SimpleDataNodesIT extends ESIntegTestCase {
         assertThat(client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForNodes("3")
             .setLocal(true).execute().actionGet().isTimedOut(), equalTo(false));
 
-        IndexResponse indexResponse = client().index(Requests.indexRequest("test").type("type1").id("1")
-            .source(source("1", "test"), XContentType.JSON)).actionGet();
+        IndexResponse indexResponse = client().index(Requests.indexRequest("test").id("1")
+            .source(SOURCE, XContentType.JSON)).actionGet();
         assertThat(indexResponse.getId(), equalTo("1"));
-        assertThat(indexResponse.getType(), equalTo("type1"));
     }
 
-    private String source(String id, String nameValue) {
-        return "{ \"type1\" : { \"id\" : \"" + id + "\", \"name\" : \"" + nameValue + "\" } }";
+    public void testShardsAllocatedAfterDataNodesStart() {
+        internalCluster().startNode(Settings.builder().put(Node.NODE_DATA_SETTING.getKey(), false).build());
+        client().admin().indices().create(createIndexRequest("test")
+            .settings(Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)).waitForActiveShards(ActiveShardCount.NONE))
+            .actionGet();
+        final ClusterHealthResponse healthResponse1 = client().admin().cluster().prepareHealth()
+            .setWaitForEvents(Priority.LANGUID).execute().actionGet();
+        assertThat(healthResponse1.isTimedOut(), equalTo(false));
+        assertThat(healthResponse1.getStatus(), equalTo(ClusterHealthStatus.YELLOW)); // TODO should be RED, see #41073
+        assertThat(healthResponse1.getActiveShards(), equalTo(0));
+
+        internalCluster().startNode(Settings.builder().put(Node.NODE_DATA_SETTING.getKey(), true).build());
+
+        assertThat(client().admin().cluster().prepareHealth()
+            .setWaitForEvents(Priority.LANGUID).setWaitForNodes("2").setWaitForGreenStatus().execute().actionGet().isTimedOut(),
+            equalTo(false));
+    }
+
+    public void testAutoExpandReplicasAdjustedWhenDataNodeJoins() {
+        internalCluster().startNode(Settings.builder().put(Node.NODE_DATA_SETTING.getKey(), false).build());
+        client().admin().indices().create(createIndexRequest("test")
+            .settings(Settings.builder().put(IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS, "0-all"))
+            .waitForActiveShards(ActiveShardCount.NONE))
+            .actionGet();
+        final ClusterHealthResponse healthResponse1 = client().admin().cluster().prepareHealth()
+            .setWaitForEvents(Priority.LANGUID).execute().actionGet();
+        assertThat(healthResponse1.isTimedOut(), equalTo(false));
+        assertThat(healthResponse1.getStatus(), equalTo(ClusterHealthStatus.YELLOW)); // TODO should be RED, see #41073
+        assertThat(healthResponse1.getActiveShards(), equalTo(0));
+
+        internalCluster().startNode();
+        internalCluster().startNode();
+        client().admin().cluster().prepareReroute().setRetryFailed(true).get();
     }
 }

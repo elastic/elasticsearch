@@ -215,6 +215,9 @@ public class FollowerFailOverIT extends CcrIntegTestCase {
                         followerClient().admin().indices().prepareFlush("follower-index").get();
                     }
                     if (rarely()) {
+                        followerClient().admin().indices().prepareForceMerge("follower-index").setMaxNumSegments(1).get();
+                    }
+                    if (rarely()) {
                         followerClient().admin().indices().prepareRefresh("follower-index").get();
                     }
                 } catch (Exception ex) {

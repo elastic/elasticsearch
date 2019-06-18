@@ -5,17 +5,19 @@
  */
 package org.elasticsearch.xpack.rollup;
 
+import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackFeatureSet;
+import org.elasticsearch.xpack.core.action.XPackUsageFeatureResponse;
 import org.elasticsearch.xpack.core.rollup.RollupFeatureSetUsage;
 import org.junit.Before;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.concurrent.ExecutionException;
 
 import static org.hamcrest.core.Is.is;
@@ -51,17 +53,16 @@ public class RollupFeatureSetTests extends ESTestCase {
     }
 
     public void testUsage() throws ExecutionException, InterruptedException, IOException {
-        RollupFeatureSet featureSet = new RollupFeatureSet(Settings.EMPTY, licenseState);
-        PlainActionFuture<XPackFeatureSet.Usage> future = new PlainActionFuture<>();
-        featureSet.usage(future);
-        XPackFeatureSet.Usage rollupUsage = future.get();
+        var usageAction = new RollupFeatureSet.UsageTransportAction(mock(TransportService.class), null, null,
+            mock(ActionFilters.class), null, Settings.EMPTY, licenseState);
+        PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();
+        usageAction.masterOperation(null, null, future);
+        XPackFeatureSet.Usage rollupUsage = future.get().getUsage();
         BytesStreamOutput out = new BytesStreamOutput();
         rollupUsage.writeTo(out);
         XPackFeatureSet.Usage serializedUsage = new RollupFeatureSetUsage(out.bytes().streamInput());
-        for (XPackFeatureSet.Usage usage : Arrays.asList(rollupUsage, serializedUsage)) {
-            assertThat(usage.name(), is(featureSet.name()));
-            assertThat(usage.enabled(), is(featureSet.enabled()));
-        }
+        assertThat(rollupUsage.name(), is(serializedUsage.name()));
+        assertThat(rollupUsage.enabled(), is(serializedUsage.enabled()));
     }
 
 }

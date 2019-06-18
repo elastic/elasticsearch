@@ -363,12 +363,12 @@ public abstract class ArrayValuesSourceAggregationBuilder<VS extends ValuesSourc
         if (this == obj) return true;
         if (obj == null || getClass() != obj.getClass()) return false;
         if (super.equals(obj) == false) return false;
-        ArrayValuesSourceAggregationBuilder<?, ?> that = (ArrayValuesSourceAggregationBuilder<?, ?>) obj;
-        return valuesSourceType == that.valuesSourceType &&
-            targetValueType == that.targetValueType &&
-            Objects.equals(fields, that.fields) &&
-            valueType == that.valueType &&
-            Objects.equals(format, that.format) &&
-            Objects.equals(missing, that.missing);
+        ArrayValuesSourceAggregationBuilder<?, ?> other = (ArrayValuesSourceAggregationBuilder<?, ?>) obj;
+        return Objects.equals(fields, other.fields)
+            && Objects.equals(format, other.format)
+            && Objects.equals(missing, other.missing)
+            && Objects.equals(targetValueType, other.targetValueType)
+            && Objects.equals(valueType, other.valueType)
+            && Objects.equals(valuesSourceType, other.valuesSourceType);
     }
 }

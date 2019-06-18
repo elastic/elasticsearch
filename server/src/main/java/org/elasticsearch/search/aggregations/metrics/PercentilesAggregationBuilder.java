@@ -298,7 +298,7 @@ public class PercentilesAggregationBuilder extends LeafOnly<ValuesSource.Numeric
         if (super.equals(obj) == false) return false;
 
         PercentilesAggregationBuilder other = (PercentilesAggregationBuilder) obj;
-        if (!Objects.equals(method, other.method)) {
+        if (Objects.equals(method, other.method) == false) {
             return false;
         }
         boolean equalSettings = false;

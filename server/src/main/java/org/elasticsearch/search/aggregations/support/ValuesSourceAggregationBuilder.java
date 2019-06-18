@@ -355,13 +355,13 @@ public abstract class ValuesSourceAggregationBuilder<VS extends ValuesSource, AB
         if (obj == null || getClass() != obj.getClass()) return false;
         if (super.equals(obj) == false) return false;
         ValuesSourceAggregationBuilder<?, ?> other = (ValuesSourceAggregationBuilder<?, ?>) obj;
-        return valuesSourceType == other.valuesSourceType &&
-            Objects.equals(field, other.field) &&
-            Objects.equals(format, other.format) &&
-            Objects.equals(missing, other.missing) &&
-            Objects.equals(script, other.script) &&
-            Objects.equals(targetValueType, other.targetValueType) &&
-            Objects.equals(timeZone, other.timeZone) &&
-            Objects.equals(valueType, other.valueType);
+        return Objects.equals(valuesSourceType, other.valuesSourceType)
+            && Objects.equals(field, other.field)
+            && Objects.equals(format, other.format)
+            && Objects.equals(missing, other.missing)
+            && Objects.equals(script, other.script)
+            && Objects.equals(targetValueType, other.targetValueType)
+            && Objects.equals(timeZone, other.timeZone)
+            && Objects.equals(valueType, other.valueType);
     }
 }

@@ -107,6 +107,10 @@ Example response:
          "available" : true,
          "enabled" : true
       },
+      "vectors" : {
+         "available" : true,
+         "enabled" : true
+      },
       "watcher" : {
          "available" : true,
          "enabled" : true

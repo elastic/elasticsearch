@@ -33,6 +33,7 @@ import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.rest.action.document.RestIndexAction;
 import org.elasticsearch.test.rest.yaml.ObjectPath;
+import org.hamcrest.Matcher;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -40,6 +41,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Predicate;
@@ -172,6 +174,25 @@ public class RecoveryIT extends AbstractRollingTestCase {
         }
     }
 
+    private void assertDocCountOnAllCopies(String index, int expectedCount) throws Exception {
+        assertBusy(() -> {
+            Map<String, ?> state = entityAsMap(client().performRequest(new Request("GET", "/_cluster/state")));
+            String xpath = "routing_table.indices." + index + ".shards.0.node";
+            @SuppressWarnings("unchecked") List<String> assignedNodes = (List<String>) XContentMapValues.extractValue(xpath, state);
+            assertNotNull(state.toString(), assignedNodes);
+            for (String assignedNode : assignedNodes) {
+                try {
+                    assertCount(index, "_only_nodes:" + assignedNode, expectedCount);
+                } catch (ResponseException e) {
+                    if (e.getMessage().contains("no data nodes with criteria [" + assignedNode + "found for shard: [" + index + "][0]")) {
+                        throw new AssertionError(e); // shard is relocating - ask assert busy to retry
+                    }
+                    throw e;
+                }
+            }
+        });
+    }
+
     private void assertCount(final String index, final String preference, final int expectedCount) throws IOException {
         final int actualDocs;
         try {
@@ -275,34 +296,52 @@ public class RecoveryIT extends AbstractRollingTestCase {
         }
     }
 
+    /**
+     * This test ensures that peer recovery won't get stuck in a situation where the recovery target and recovery source
+     * have an identical sync id but different local checkpoint in the commit in particular the target does not have
+     * sequence numbers yet. This is possible if the primary is on 6.x while the replica was on 5.x and some write
+     * operations with sequence numbers have taken place. If this is not the case, then peer recovery should utilize
+     * syncId and skip copying files.
+     */
     public void testRecoverSyncedFlushIndex() throws Exception {
         final String index = "recover_synced_flush_index";
         if (CLUSTER_TYPE == ClusterType.OLD) {
             Settings.Builder settings = Settings.builder()
                 .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
-                .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 1)
-                // if the node with the replica is the first to be restarted, while a replica is still recovering
-                // then delayed allocation will kick in. When the node comes back, the master will search for a copy
-                // but the recovering copy will be seen as invalid and the cluster health won't return to GREEN
-                // before timing out
-                .put(INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), "100ms")
-                .put(SETTING_ALLOCATION_MAX_RETRY.getKey(), "0"); // fail faster
+                .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 2);
+            if (randomBoolean()) {
+                settings.put(IndexSettings.INDEX_TRANSLOG_RETENTION_AGE_SETTING.getKey(), "-1")
+                    .put(IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING.getKey(), "-1")
+                    .put(IndexSettings.INDEX_TRANSLOG_GENERATION_THRESHOLD_SIZE_SETTING.getKey(), "256b");
+            }
             createIndex(index, settings.build());
-            indexDocs(index, 0, randomInt(5));
-            // We have to spin synced-flush requests here because we fire the global checkpoint sync for the last write operation.
-            // A synced-flush request considers the global checkpoint sync as an going operation because it acquires a shard permit.
-            assertBusy(() -> {
-                try {
-                    Response resp = client().performRequest(new Request("POST", index + "/_flush/synced"));
-                    Map<String, Object> result = ObjectPath.createFromResponse(resp).evaluate("_shards");
-                    assertThat(result.get("successful"), equalTo(result.get("total")));
-                    assertThat(result.get("failed"), equalTo(0));
-                } catch (ResponseException ex) {
-                    throw new AssertionError(ex); // cause assert busy to retry
+            ensureGreen(index);
+            indexDocs(index, 0, 40);
+            syncedFlush(index);
+        } else if (CLUSTER_TYPE == ClusterType.MIXED) {
+            ensureGreen(index);
+            if (firstMixedRound) {
+                assertPeerRecoveredFiles("peer recovery with syncId should not copy files", index, "upgraded-node-0", equalTo(0));
+                assertDocCountOnAllCopies(index, 40);
+                indexDocs(index, 40, 50);
+                syncedFlush(index);
+            } else {
+                assertPeerRecoveredFiles("peer recovery with syncId should not copy files", index, "upgraded-node-1", equalTo(0));
+                assertDocCountOnAllCopies(index, 90);
+                indexDocs(index, 90, 60);
+                syncedFlush(index);
+                // exclude node-2 from allocation-filter so we can trim translog on the primary before node-2 starts recover
+                if (randomBoolean()) {
+                    updateIndexSettings(index, Settings.builder().put("index.routing.allocation.include._name", "upgraded-*"));
                 }
-            });
+            }
+        } else {
+            final int docsAfterUpgraded = randomIntBetween(0, 100);
+            indexDocs(index, 150, docsAfterUpgraded);
+            ensureGreen(index);
+            assertPeerRecoveredFiles("peer recovery with syncId should not copy files", index, "upgraded-node-2", equalTo(0));
+            assertDocCountOnAllCopies(index, 150 + docsAfterUpgraded);
         }
-        ensureGreen(index);
     }
 
     public void testRecoveryWithSoftDeletes() throws Exception {
@@ -317,7 +356,7 @@ public class RecoveryIT extends AbstractRollingTestCase {
                 // before timing out
                 .put(INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), "100ms")
                 .put(SETTING_ALLOCATION_MAX_RETRY.getKey(), "0"); // fail faster
-            if (getNodeId(v -> v.onOrAfter(Version.V_6_5_0)) != null && randomBoolean()) {
+            if (randomBoolean()) {
                 settings.put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true);
             }
             createIndex(index, settings.build());
@@ -478,6 +517,72 @@ public class RecoveryIT extends AbstractRollingTestCase {
         } else {
             assertThat(routingTable, nullValue());
             assertThat(XContentMapValues.extractValue("index.verified_before_close", settings), nullValue());
+        }
+    }
+
+    private void syncedFlush(String index) throws Exception {
+        // We have to spin synced-flush requests here because we fire the global checkpoint sync for the last write operation.
+        // A synced-flush request considers the global checkpoint sync as an going operation because it acquires a shard permit.
+        assertBusy(() -> {
+            try {
+                Response resp = client().performRequest(new Request("POST", index + "/_flush/synced"));
+                Map<String, Object> result = ObjectPath.createFromResponse(resp).evaluate("_shards");
+                assertThat(result.get("failed"), equalTo(0));
+            } catch (ResponseException ex) {
+                throw new AssertionError(ex); // cause assert busy to retry
+            }
+        });
+        // ensure the global checkpoint is synced; otherwise we might trim the commit with syncId
+        ensureGlobalCheckpointSynced(index);
+    }
+
+    @SuppressWarnings("unchecked")
+    private void assertPeerRecoveredFiles(String reason, String index, String targetNode, Matcher<Integer> sizeMatcher) throws IOException {
+        Map<?, ?> recoveryStats = entityAsMap(client().performRequest(new Request("GET", index + "/_recovery")));
+        List<Map<?, ?>> shards = (List<Map<?, ?>>) XContentMapValues.extractValue(index + "." + "shards", recoveryStats);
+        for (Map<?, ?> shard : shards) {
+            if (Objects.equals(XContentMapValues.extractValue("type", shard), "PEER")) {
+                if (Objects.equals(XContentMapValues.extractValue("target.name", shard), targetNode)) {
+                    Integer recoveredFileSize = (Integer) XContentMapValues.extractValue("index.files.recovered", shard);
+                    assertThat(reason + " target node [" + targetNode + "] stats [" + recoveryStats + "]", recoveredFileSize, sizeMatcher);
+                }
+            }
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private void ensureGlobalCheckpointSynced(String index) throws Exception {
+        assertBusy(() -> {
+            Map<?, ?> stats = entityAsMap(client().performRequest(new Request("GET", index + "/_stats?level=shards")));
+            List<Map<?, ?>> shardStats = (List<Map<?, ?>>) XContentMapValues.extractValue("indices." + index + ".shards.0", stats);
+            shardStats.stream()
+                .map(shard -> (Map<?, ?>) XContentMapValues.extractValue("seq_no", shard))
+                .filter(Objects::nonNull)
+                .forEach(seqNoStat -> {
+                    long globalCheckpoint = ((Number) XContentMapValues.extractValue("global_checkpoint", seqNoStat)).longValue();
+                    long localCheckpoint = ((Number) XContentMapValues.extractValue("local_checkpoint", seqNoStat)).longValue();
+                    long maxSeqNo = ((Number) XContentMapValues.extractValue("max_seq_no", seqNoStat)).longValue();
+                    assertThat(shardStats.toString(), localCheckpoint, equalTo(maxSeqNo));
+                    assertThat(shardStats.toString(), globalCheckpoint, equalTo(maxSeqNo));
+                });
+        }, 60, TimeUnit.SECONDS);
+    }
+
+    /** Ensure that we can always execute update requests regardless of the version of cluster */
+    public void testUpdateDoc() throws Exception {
+        final String index = "test_update_doc";
+        if (CLUSTER_TYPE == ClusterType.OLD) {
+            Settings.Builder settings = Settings.builder()
+                .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
+                .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 2);
+            createIndex(index, settings.build());
+        }
+        ensureGreen(index);
+        indexDocs(index, 0, 10);
+        for (int i = 0; i < 10; i++) {
+            Request update = new Request("POST", index + "/_update/" + i);
+            update.setJsonEntity("{\"doc\": {\"f\": " + randomNonNegativeLong() + "}}");
+            client().performRequest(update);
         }
     }
 }

@@ -23,10 +23,12 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.Aggregations;
+import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation.Bucket;
 import org.elasticsearch.search.aggregations.bucket.filter.Filters;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
+import org.elasticsearch.xpack.sql.analysis.index.IndexResolver;
 import org.elasticsearch.xpack.sql.execution.PlanExecutor;
 import org.elasticsearch.xpack.sql.execution.search.extractor.BucketExtractor;
 import org.elasticsearch.xpack.sql.execution.search.extractor.CompositeKeyExtractor;
@@ -108,14 +110,14 @@ public class Querier {
             log.trace("About to execute query {} on {}", StringUtils.toString(sourceBuilder), index);
         }
 
-        SearchRequest search = prepareRequest(client, sourceBuilder, timeout, Strings.commaDelimitedListToStringArray(index));
+        SearchRequest search = prepareRequest(client, sourceBuilder, timeout, query.shouldIncludeFrozen(),
+                Strings.commaDelimitedListToStringArray(index));
 
         @SuppressWarnings("rawtypes")
         List<Tuple<Integer, Comparator>> sortingColumns = query.sortingColumns();
         listener = sortingColumns.isEmpty() ? listener : new LocalAggregationSorterListener(listener, sortingColumns, query.limit());
 
         ActionListener<SearchResponse> l = null;
-
         if (query.isAggsOnly()) {
             if (query.aggs().useImplicitGroupBy()) {
                 l = new ImplicitGroupActionListener(listener, client, cfg, output, query, search);
@@ -130,15 +132,17 @@ public class Querier {
         client.search(search, l);
     }
 
-    public static SearchRequest prepareRequest(Client client, SearchSourceBuilder source, TimeValue timeout, String... indices) {
-        SearchRequest search = client.prepareSearch(indices)
+    public static SearchRequest prepareRequest(Client client, SearchSourceBuilder source, TimeValue timeout, boolean includeFrozen,
+            String... indices) {
+        return client.prepareSearch(indices)
                 // always track total hits accurately
                 .setTrackTotalHits(true)
                 .setAllowPartialSearchResults(false)
                 .setSource(source)
                 .setTimeout(timeout)
+                .setIndicesOptions(
+                        includeFrozen ? IndexResolver.FIELD_CAPS_FROZEN_INDICES_OPTIONS : IndexResolver.FIELD_CAPS_INDICES_OPTIONS)
                 .request();
-            return search;
     }
 
     /**
@@ -153,11 +157,14 @@ public class Querier {
         private final ActionListener<SchemaRowSet> listener;
 
         // keep the top N entries.
-        private final PriorityQueue<Tuple<List<?>, Integer>> data;
+        private final AggSortingQueue data;
         private final AtomicInteger counter = new AtomicInteger();
         private volatile Schema schema;
 
-        private static final int MAXIMUM_SIZE = 512;
+        /**
+         * Match the default value for {@link MultiBucketConsumerService#MAX_BUCKET_SETTING}
+         */
+        private static final int MAXIMUM_SIZE = 10_000;
         private final boolean noLimit;
 
         LocalAggregationSorterListener(ActionListener<SchemaRowSet> listener, List<Tuple<Integer, Comparator>> sortingColumns, int limit) {
@@ -169,53 +176,13 @@ public class Querier {
             } else {
                 noLimit = false;
                 if (limit > MAXIMUM_SIZE) {
-                    throw new PlanningException("The maximum LIMIT for aggregate sorting is [{}], received [{}]", limit, MAXIMUM_SIZE);
+                    throw new PlanningException("The maximum LIMIT for aggregate sorting is [{}], received [{}]", MAXIMUM_SIZE, limit);
                 } else {
                     size = limit;
                 }
             }
 
-            this.data = new PriorityQueue<Tuple<List<?>, Integer>>(size) {
-
-                // compare row based on the received attribute sort
-                // if a sort item is not in the list, it is assumed the sorting happened in ES
-                // and the results are left as is (by using the row ordering), otherwise it is sorted based on the given criteria.
-                //
-                // Take for example ORDER BY a, x, b, y
-                // a, b - are sorted in ES
-                // x, y - need to be sorted client-side
-                // sorting on x kicks in, only if the values for a are equal.
-
-                // thanks to @jpountz for the row ordering idea as a way to preserve ordering
-                @SuppressWarnings("unchecked")
-                @Override
-                protected boolean lessThan(Tuple<List<?>, Integer> l, Tuple<List<?>, Integer> r) {
-                    for (Tuple<Integer, Comparator> tuple : sortingColumns) {
-                        int i = tuple.v1().intValue();
-                        Comparator comparator = tuple.v2();
-
-                        Object vl = l.v1().get(i);
-                        Object vr = r.v1().get(i);
-                        if (comparator != null) {
-                            int result = comparator.compare(vl, vr);
-                            // if things are equals, move to the next comparator
-                            if (result != 0) {
-                                return result < 0;
-                            }
-                        }
-                        // no comparator means the existing order needs to be preserved
-                        else {
-                            // check the values - if they are equal move to the next comparator
-                            // otherwise return the row order
-                            if (Objects.equals(vl, vr) == false) {
-                                return l.v2().compareTo(r.v2()) < 0;
-                            }
-                        }
-                    }
-                    // everything is equal, fall-back to the row order
-                    return l.v2().compareTo(r.v2()) < 0;
-                }
-            };
+            this.data = new AggSortingQueue(size, sortingColumns);
         }
 
         @Override
@@ -226,9 +193,8 @@ public class Querier {
 
         private void doResponse(RowSet rowSet) {
             // 1. consume all pages received
-            if (consumeRowSet(rowSet) == false) {
-                return;
-            }
+            consumeRowSet(rowSet);
+
             Cursor cursor = rowSet.nextPageCursor();
             // 1a. trigger a next call if there's still data
             if (cursor != Cursor.EMPTY) {
@@ -243,31 +209,21 @@ public class Querier {
             sendResponse();
         }
 
-        private boolean consumeRowSet(RowSet rowSet) {
-            // use a synchronized block for visibility purposes (there's no concurrency)
+        private void consumeRowSet(RowSet rowSet) {
             ResultRowSet<?> rrs = (ResultRowSet<?>) rowSet;
-            synchronized (data) {
-                for (boolean hasRows = rrs.hasCurrentRow(); hasRows; hasRows = rrs.advanceRow()) {
-                    List<Object> row = new ArrayList<>(rrs.columnCount());
-                    rrs.forEachResultColumn(row::add);
-                    // if the queue overflows and no limit was specified, bail out
-                    if (data.insertWithOverflow(new Tuple<>(row, counter.getAndIncrement())) != null && noLimit) {
-                        onFailure(new SqlIllegalArgumentException(
-                                "The default limit [{}] for aggregate sorting has been reached; please specify a LIMIT"));
-                        return false;
-                    }
+            for (boolean hasRows = rrs.hasCurrentRow(); hasRows; hasRows = rrs.advanceRow()) {
+                List<Object> row = new ArrayList<>(rrs.columnCount());
+                rrs.forEachResultColumn(row::add);
+                // if the queue overflows and no limit was specified, throw an error
+                if (data.insertWithOverflow(new Tuple<>(row, counter.getAndIncrement())) != null && noLimit) {
+                    onFailure(new SqlIllegalArgumentException(
+                        "The default limit [{}] for aggregate sorting has been reached; please specify a LIMIT", MAXIMUM_SIZE));
                 }
             }
-            return true;
         }
 
         private void sendResponse() {
-            List<List<?>> list = new ArrayList<>(data.size());
-            Tuple<List<?>, Integer> pop = null;
-            while ((pop = data.pop()) != null) {
-                list.add(pop.v1());
-            }
-            listener.onResponse(new PagingListRowSet(schema, list, schema.size(), cfg.pageSize()));
+            listener.onResponse(new PagingListRowSet(schema, data.asList(), schema.size(), cfg.pageSize()));
         }
 
         @Override
@@ -368,7 +324,7 @@ public class Querier {
         @Override
         protected void handleResponse(SearchResponse response, ActionListener<SchemaRowSet> listener) {
             // there are some results
-            if (response.getAggregations().asList().size() > 0) {
+            if (response.getAggregations().asList().isEmpty() == false) {
 
                 // retry
                 if (CompositeAggregationCursor.shouldRetryDueToEmptyPage(response)) {
@@ -378,7 +334,7 @@ public class Querier {
                 }
 
                 CompositeAggregationCursor.updateCompositeAfterKey(response, request.source());
-                byte[] nextSearch = null;
+                byte[] nextSearch;
                 try {
                     nextSearch = CompositeAggregationCursor.serializeQuery(request.source());
                 } catch (Exception ex) {
@@ -387,8 +343,10 @@ public class Querier {
                 }
 
                 listener.onResponse(
-                        new SchemaCompositeAggsRowSet(schema, initBucketExtractors(response), mask, response, query.limit(),
+                        new SchemaCompositeAggsRowSet(schema, initBucketExtractors(response), mask, response,
+                                query.sortingColumns().isEmpty() ? query.limit() : -1,
                                 nextSearch,
+                                query.shouldIncludeFrozen(),
                                 request.indices()));
             }
             // no results
@@ -618,6 +576,65 @@ public class Querier {
         @Override
         public final void onFailure(Exception ex) {
             listener.onFailure(ex);
+        }
+    }
+
+    @SuppressWarnings("rawtypes")
+    static class AggSortingQueue extends PriorityQueue<Tuple<List<?>, Integer>> {
+
+        private List<Tuple<Integer, Comparator>> sortingColumns;
+
+        AggSortingQueue(int maxSize, List<Tuple<Integer, Comparator>> sortingColumns) {
+            super(maxSize);
+            this.sortingColumns = sortingColumns;
+        }
+
+        // compare row based on the received attribute sort
+        // if a sort item is not in the list, it is assumed the sorting happened in ES
+        // and the results are left as is (by using the row ordering), otherwise it is sorted based on the given criteria.
+        //
+        // Take for example ORDER BY a, x, b, y
+        // a, b - are sorted in ES
+        // x, y - need to be sorted client-side
+        // sorting on x kicks in, only if the values for a are equal.
+
+        // thanks to @jpountz for the row ordering idea as a way to preserve ordering
+        @SuppressWarnings("unchecked")
+        @Override
+        protected boolean lessThan(Tuple<List<?>, Integer> l, Tuple<List<?>, Integer> r) {
+            for (Tuple<Integer, Comparator> tuple : sortingColumns) {
+                int i = tuple.v1().intValue();
+                Comparator comparator = tuple.v2();
+
+                Object vl = l.v1().get(i);
+                Object vr = r.v1().get(i);
+                if (comparator != null) {
+                    int result = comparator.compare(vl, vr);
+                    // if things are equals, move to the next comparator
+                    if (result != 0) {
+                        return result > 0;
+                    }
+                }
+                // no comparator means the existing order needs to be preserved
+                else {
+                    // check the values - if they are equal move to the next comparator
+                    // otherwise return the row order
+                    if (Objects.equals(vl, vr) == false) {
+                        return l.v2().compareTo(r.v2()) > 0;
+                    }
+                }
+            }
+            // everything is equal, fall-back to the row order
+            return l.v2().compareTo(r.v2()) > 0;
+        }
+
+        List<List<?>> asList() {
+            List<List<?>> list = new ArrayList<>(super.size());
+            Tuple<List<?>, Integer> pop;
+            while ((pop = pop()) != null) {
+                list.add(0, pop.v1());
+            }
+            return list;
         }
     }
 }

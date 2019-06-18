@@ -41,20 +41,33 @@ import static org.hamcrest.CoreMatchers.equalTo;
 
 public class JdkDownloadPluginIT extends GradleIntegrationTestCase {
 
-    private static final String FAKE_JDK_VERSION = "1.0.2+99";
+    private static final String OLD_JDK_VERSION = "1+99";
+    private static final String JDK_VERSION = "12.0.1+99@123456789123456789123456789abcde";
     private static final Pattern JDK_HOME_LOGLINE = Pattern.compile("JDK HOME: (.*)");
     private static final Pattern NUM_CONFIGS_LOGLINE = Pattern.compile("NUM CONFIGS: (.*)");
 
     public void testLinuxExtraction() throws IOException {
-        assertExtraction("getLinuxJdk", "linux", "bin/java");
+        assertExtraction("getLinuxJdk", "linux", "bin/java", JDK_VERSION);
     }
 
     public void testDarwinExtraction() throws IOException {
-        assertExtraction("getDarwinJdk", "osx", "Contents/Home/bin/java");
+        assertExtraction("getDarwinJdk", "osx", "Contents/Home/bin/java", JDK_VERSION);
     }
 
     public void testWindowsExtraction() throws IOException {
-        assertExtraction("getWindowsJdk", "windows", "bin/java");
+        assertExtraction("getWindowsJdk", "windows", "bin/java", JDK_VERSION);
+    }
+
+    public void testLinuxExtractionOldVersion() throws IOException {
+        assertExtraction("getLinuxJdk", "linux", "bin/java", OLD_JDK_VERSION);
+    }
+
+    public void testDarwinExtractionOldVersion() throws IOException {
+        assertExtraction("getDarwinJdk", "osx", "Contents/Home/bin/java", OLD_JDK_VERSION);
+    }
+
+    public void testWindowsExtractionOldVersion() throws IOException {
+        assertExtraction("getWindowsJdk", "windows", "bin/java", OLD_JDK_VERSION);
     }
 
     public void testCrossProjectReuse() throws IOException {
@@ -62,39 +75,41 @@ public class JdkDownloadPluginIT extends GradleIntegrationTestCase {
             Matcher matcher = NUM_CONFIGS_LOGLINE.matcher(result.getOutput());
             assertTrue("could not find num configs in output: " + result.getOutput(), matcher.find());
             assertThat(Integer.parseInt(matcher.group(1)), equalTo(6)); // 3 import configs, 3 export configs
-        });
+        }, JDK_VERSION);
     }
 
-    public void assertExtraction(String taskname, String platform, String javaBin) throws IOException {
+    public void assertExtraction(String taskname, String platform, String javaBin, String version) throws IOException {
         runBuild(taskname, platform, result -> {
             Matcher matcher = JDK_HOME_LOGLINE.matcher(result.getOutput());
             assertTrue("could not find jdk home in output: " + result.getOutput(), matcher.find());
             String jdkHome = matcher.group(1);
             Path javaPath = Paths.get(jdkHome, javaBin);
             assertTrue(javaPath.toString(), Files.exists(javaPath));
-        });
+        }, version);
     }
 
-    private void runBuild(String taskname, String platform, Consumer<BuildResult> assertions) throws IOException {
+    private void runBuild(String taskname, String platform, Consumer<BuildResult> assertions, String version) throws IOException {
         WireMockServer wireMock = new WireMockServer(0);
         try {
             String extension = platform.equals("windows") ? "zip" : "tar.gz";
-            String filename = "openjdk-1.0.2_" + platform + "-x64_bin." + extension;
-            wireMock.stubFor(head(urlEqualTo("/java/GA/jdk1/99/GPL/" + filename))
-                .willReturn(aResponse().withStatus(200)));
+            boolean isOld = version.equals(OLD_JDK_VERSION);
+            String filename = "openjdk-" + (isOld ? "1" : "12.0.1") + "_" + platform + "-x64_bin." + extension;
             final byte[] filebytes;
-            try (InputStream stream = JdkDownloadPluginIT.class.getResourceAsStream(filename)) {
+            try (InputStream stream = JdkDownloadPluginIT.class.getResourceAsStream("fake_openjdk_" + platform + "." + extension)) {
                 filebytes = stream.readAllBytes();
             }
-            wireMock.stubFor(get(urlEqualTo("/java/GA/jdk1/99/GPL/" + filename))
-                .willReturn(aResponse().withStatus(200).withBody(filebytes)));
+            String versionPath = isOld ? "jdk1/99" : "jdk12.0.1/123456789123456789123456789abcde/99";
+            String urlPath = "/java/GA/" + versionPath + "/GPL/" + filename;
+            wireMock.stubFor(head(urlEqualTo(urlPath)).willReturn(aResponse().withStatus(200)));
+            wireMock.stubFor(get(urlEqualTo(urlPath)).willReturn(aResponse().withStatus(200).withBody(filebytes)));
             wireMock.start();
 
             GradleRunner runner = GradleRunner.create().withProjectDir(getProjectDir("jdk-download"))
                 .withArguments(taskname,
                     "-Dlocal.repo.path=" + getLocalTestRepoPath(),
-                    "-Dtests.jdk_version=" + FAKE_JDK_VERSION,
-                    "-Dtests.jdk_repo=" + wireMock.baseUrl())
+                    "-Dtests.jdk_version=" + version,
+                    "-Dtests.jdk_repo=" + wireMock.baseUrl(),
+                    "-i")
                 .withPluginClasspath();
 
             BuildResult result = runner.build();

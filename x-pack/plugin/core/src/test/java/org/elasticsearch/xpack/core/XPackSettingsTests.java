@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.core;
 
+import org.elasticsearch.bootstrap.JavaVersion;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 import javax.crypto.SecretKeyFactory;
@@ -14,12 +15,27 @@ import java.security.NoSuchAlgorithmException;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.not;
 
 public class XPackSettingsTests extends ESTestCase {
 
     public void testDefaultSSLCiphers() {
         assertThat(XPackSettings.DEFAULT_CIPHERS, hasItem("TLS_RSA_WITH_AES_128_CBC_SHA"));
         assertThat(XPackSettings.DEFAULT_CIPHERS, hasItem("TLS_RSA_WITH_AES_256_CBC_SHA"));
+    }
+
+    public void testChaCha20InCiphersOnJdk12Plus() {
+        assumeTrue("Test is only valid on JDK 12+ JVM", JavaVersion.current().compareTo(JavaVersion.parse("12")) > -1);
+        assertThat(XPackSettings.DEFAULT_CIPHERS, hasItem("TLS_CHACHA20_POLY1305_SHA256"));
+        assertThat(XPackSettings.DEFAULT_CIPHERS, hasItem("TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256"));
+        assertThat(XPackSettings.DEFAULT_CIPHERS, hasItem("TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256"));
+    }
+
+    public void testChaCha20NotInCiphersOnPreJdk12() {
+        assumeTrue("Test is only valid on pre JDK 12 JVM", JavaVersion.current().compareTo(JavaVersion.parse("12")) < 0);
+        assertThat(XPackSettings.DEFAULT_CIPHERS, not(hasItem("TLS_CHACHA20_POLY1305_SHA256")));
+        assertThat(XPackSettings.DEFAULT_CIPHERS, not(hasItem("TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256")));
+        assertThat(XPackSettings.DEFAULT_CIPHERS, not(hasItem("TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256")));
     }
 
     public void testPasswordHashingAlgorithmSettingValidation() {

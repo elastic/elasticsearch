@@ -137,6 +137,10 @@ Query timeout (in seconds). That is the maximum amount of time waiting for a que
 will be - typically the first in natural ascending order) for fields with multiple values (true) or throw an exception.
 
 [float]
+==== Index
+`index.include.frozen` (default `false`):: Whether to include <<frozen-indices, frozen-indices>> in the query execution or not (default).
+
+[float]
 ==== Additional
 
 `validate.properties` (default true):: If disabled, it will ignore any misspellings or unrecognizable properties. When enabled, an exception
@@ -203,3 +207,8 @@ connection. For example:
 --------------------------------------------------
 include-tagged::{jdbc-tests}/SimpleExampleTestCase.java[simple_example]
 --------------------------------------------------
+
+NOTE:: {es-sql} doesn't provide a connection pooling mechanism, thus the connections
+the JDBC driver creates are not pooled. In order to achieve pooled connections,
+a third-party connection pooling mechanism is required. Configuring and setting up the
+third-party provider is outside the scope of this documentation.

@@ -35,14 +35,15 @@ public class GeometryCollectionTests extends BaseGeometryTestCase<GeometryCollec
 
 
     public void testBasicSerialization() throws IOException, ParseException {
+        WellKnownText wkt = new WellKnownText();
         assertEquals("geometrycollection (point (20.0 10.0),point EMPTY)",
-            WellKnownText.toWKT(new GeometryCollection<Geometry>(Arrays.asList(new Point(10, 20), Point.EMPTY))));
+            wkt.toWKT(new GeometryCollection<Geometry>(Arrays.asList(new Point(10, 20), Point.EMPTY))));
 
         assertEquals(new GeometryCollection<Geometry>(Arrays.asList(new Point(10, 20), Point.EMPTY)),
-            WellKnownText.fromWKT("geometrycollection (point (20.0 10.0),point EMPTY)"));
+            wkt.fromWKT("geometrycollection (point (20.0 10.0),point EMPTY)"));
 
-        assertEquals("geometrycollection EMPTY", WellKnownText.toWKT(GeometryCollection.EMPTY));
-        assertEquals(GeometryCollection.EMPTY, WellKnownText.fromWKT("geometrycollection EMPTY)"));
+        assertEquals("geometrycollection EMPTY", wkt.toWKT(GeometryCollection.EMPTY));
+        assertEquals(GeometryCollection.EMPTY, wkt.fromWKT("geometrycollection EMPTY)"));
     }
 
     @SuppressWarnings("ConstantConditions")

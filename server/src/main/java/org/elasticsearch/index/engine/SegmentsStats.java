@@ -30,7 +30,6 @@ import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.Iterator;
 
 public class SegmentsStats implements Streamable, Writeable, ToXContentFragment {
 
@@ -54,7 +53,7 @@ public class SegmentsStats implements Streamable, Writeable, ToXContentFragment 
      * Ideally this should be in sync to what the current version of Lucene is using, but it's harmless to leave extensions out,
      * they'll just miss a proper description in the stats
      */
-    private static ImmutableOpenMap<String, String> fileDescriptions = ImmutableOpenMap.<String, String>builder()
+    private static final ImmutableOpenMap<String, String> FILE_DESCRIPTIONS = ImmutableOpenMap.<String, String>builder()
             .fPut("si", "Segment Info")
             .fPut("fnm", "Fields")
             .fPut("fdx", "Field Index")
@@ -150,8 +149,7 @@ public class SegmentsStats implements Streamable, Writeable, ToXContentFragment 
     public void addFileSizes(ImmutableOpenMap<String, Long> fileSizes) {
         ImmutableOpenMap.Builder<String, Long> map = ImmutableOpenMap.builder(this.fileSizes);
 
-        for (Iterator<ObjectObjectCursor<String, Long>> it = fileSizes.iterator(); it.hasNext();) {
-            ObjectObjectCursor<String, Long> entry = it.next();
+        for (ObjectObjectCursor<String, Long> entry : fileSizes) {
             if (map.containsKey(entry.key)) {
                 Long oldValue = map.get(entry.key);
                 map.put(entry.key, oldValue + entry.value);
@@ -206,7 +204,7 @@ public class SegmentsStats implements Streamable, Writeable, ToXContentFragment 
         return this.termsMemoryInBytes;
     }
 
-    public ByteSizeValue getTermsMemory() {
+    private ByteSizeValue getTermsMemory() {
         return new ByteSizeValue(termsMemoryInBytes);
     }
 
@@ -217,7 +215,7 @@ public class SegmentsStats implements Streamable, Writeable, ToXContentFragment 
         return this.storedFieldsMemoryInBytes;
     }
 
-    public ByteSizeValue getStoredFieldsMemory() {
+    private ByteSizeValue getStoredFieldsMemory() {
         return new ByteSizeValue(storedFieldsMemoryInBytes);
     }
 
@@ -228,7 +226,7 @@ public class SegmentsStats implements Streamable, Writeable, ToXContentFragment 
         return this.termVectorsMemoryInBytes;
     }
 
-    public ByteSizeValue getTermVectorsMemory() {
+    private ByteSizeValue getTermVectorsMemory() {
         return new ByteSizeValue(termVectorsMemoryInBytes);
     }
 
@@ -239,7 +237,7 @@ public class SegmentsStats implements Streamable, Writeable, ToXContentFragment 
         return this.normsMemoryInBytes;
     }
 
-    public ByteSizeValue getNormsMemory() {
+    private ByteSizeValue getNormsMemory() {
         return new ByteSizeValue(normsMemoryInBytes);
     }
 
@@ -250,7 +248,7 @@ public class SegmentsStats implements Streamable, Writeable, ToXContentFragment 
         return this.pointsMemoryInBytes;
     }
 
-    public ByteSizeValue getPointsMemory() {
+    private ByteSizeValue getPointsMemory() {
         return new ByteSizeValue(pointsMemoryInBytes);
     }
 
@@ -261,7 +259,7 @@ public class SegmentsStats implements Streamable, Writeable, ToXContentFragment 
         return this.docValuesMemoryInBytes;
     }
 
-    public ByteSizeValue getDocValuesMemory() {
+    private ByteSizeValue getDocValuesMemory() {
         return new ByteSizeValue(docValuesMemoryInBytes);
     }
 
@@ -326,11 +324,10 @@ public class SegmentsStats implements Streamable, Writeable, ToXContentFragment 
         builder.humanReadableField(Fields.FIXED_BIT_SET_MEMORY_IN_BYTES, Fields.FIXED_BIT_SET, getBitsetMemory());
         builder.field(Fields.MAX_UNSAFE_AUTO_ID_TIMESTAMP, maxUnsafeAutoIdTimestamp);
         builder.startObject(Fields.FILE_SIZES);
-        for (Iterator<ObjectObjectCursor<String, Long>> it = fileSizes.iterator(); it.hasNext();) {
-            ObjectObjectCursor<String, Long> entry = it.next();
+        for (ObjectObjectCursor<String, Long> entry : fileSizes) {
             builder.startObject(entry.key);
             builder.humanReadableField(Fields.SIZE_IN_BYTES, Fields.SIZE, new ByteSizeValue(entry.value));
-            builder.field(Fields.DESCRIPTION, fileDescriptions.getOrDefault(entry.key, "Others"));
+            builder.field(Fields.DESCRIPTION, FILE_DESCRIPTIONS.getOrDefault(entry.key, "Others"));
             builder.endObject();
         }
         builder.endObject();
@@ -391,7 +388,7 @@ public class SegmentsStats implements Streamable, Writeable, ToXContentFragment 
         out.writeVInt(fileSizes.size());
         for (ObjectObjectCursor<String, Long> entry : fileSizes) {
             out.writeString(entry.key);
-            out.writeLong(entry.value.longValue());
+            out.writeLong(entry.value);
         }
     }
 

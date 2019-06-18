@@ -37,6 +37,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 import org.elasticsearch.xpack.core.rollup.RollupField;
 import org.elasticsearch.xpack.core.rollup.action.DeleteRollupJobAction;
 import org.elasticsearch.xpack.core.rollup.action.GetRollupCapsAction;
@@ -78,6 +79,7 @@ import java.util.function.Supplier;
 import java.util.regex.Pattern;
 
 import static java.util.Collections.emptyList;
+import static java.util.Collections.singletonList;
 
 public class Rollup extends Plugin implements ActionPlugin, PersistentTaskPlugin {
 
@@ -108,12 +110,10 @@ public class Rollup extends Plugin implements ActionPlugin, PersistentTaskPlugin
     private final SetOnce<SchedulerEngine> schedulerEngine = new SetOnce<>();
     private final Settings settings;
     private final boolean enabled;
-    private final boolean transportClientMode;
 
     public Rollup(Settings settings) {
         this.settings = settings;
         this.enabled = XPackSettings.ROLLUP_ENABLED.get(settings);
-        this.transportClientMode = XPackPlugin.transportClientMode(settings);
     }
 
     @Override
@@ -127,10 +127,6 @@ public class Rollup extends Plugin implements ActionPlugin, PersistentTaskPlugin
     @Override
     public Collection<Module> createGuiceModules() {
         List<Module> modules = new ArrayList<>();
-
-        if (transportClientMode) {
-            return modules;
-        }
         modules.add(b -> XPackPlugin.bindFeatureSet(b, RollupFeatureSet.class));
         return modules;
     }
@@ -161,8 +157,9 @@ public class Rollup extends Plugin implements ActionPlugin, PersistentTaskPlugin
 
     @Override
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
+        var usageAction = new ActionHandler<>(XPackUsageFeatureAction.ROLLUP, RollupFeatureSet.UsageTransportAction.class);
         if (!enabled) {
-            return emptyList();
+            return singletonList(usageAction);
         }
         return Arrays.asList(
             new ActionHandler<>(RollupSearchAction.INSTANCE, TransportRollupSearchAction.class),
@@ -172,13 +169,13 @@ public class Rollup extends Plugin implements ActionPlugin, PersistentTaskPlugin
             new ActionHandler<>(DeleteRollupJobAction.INSTANCE, TransportDeleteRollupJobAction.class),
             new ActionHandler<>(GetRollupJobsAction.INSTANCE, TransportGetRollupJobAction.class),
             new ActionHandler<>(GetRollupCapsAction.INSTANCE, TransportGetRollupCapsAction.class),
-            new ActionHandler<>(GetRollupIndexCapsAction.INSTANCE, TransportGetRollupIndexCapsAction.class)
-        );
+            new ActionHandler<>(GetRollupIndexCapsAction.INSTANCE, TransportGetRollupIndexCapsAction.class),
+            usageAction);
     }
 
     @Override
     public List<ExecutorBuilder<?>> getExecutorBuilders(Settings settings) {
-        if (false == enabled || transportClientMode) {
+        if (false == enabled) {
             return emptyList();
         }
 
@@ -193,7 +190,7 @@ public class Rollup extends Plugin implements ActionPlugin, PersistentTaskPlugin
                                                                        ThreadPool threadPool,
                                                                        Client client,
                                                                        SettingsModule settingsModule) {
-        if (enabled == false || transportClientMode ) {
+        if (enabled == false) {
             return emptyList();
         }
 

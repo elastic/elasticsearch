@@ -68,7 +68,6 @@ public class SSLTrustRestrictionsTests extends SecurityIntegTestCase {
     protected int maxNumberOfNodes() {
         // We are trying to test the SSL configuration for which clients/nodes may join a cluster
         // We prefer the cluster to only have 1 node, so that the SSL checking doesn't happen until the test methods run
-        // (That's not _quite_ true, because the base setup code checks the cluster using transport client, but it's the best we can do)
         return 1;
     }
 
@@ -147,15 +146,6 @@ public class SSLTrustRestrictionsTests extends SecurityIntegTestCase {
             throw new ElasticsearchException("failed to write restrictions", e);
         }
         runResourceWatcher();
-    }
-
-    @Override
-    protected Settings transportClientSettings() {
-        Settings parentSettings = super.transportClientSettings();
-        Settings.Builder builder = Settings.builder()
-                .put(parentSettings.filter((s) -> s.startsWith("xpack.security.transport.ssl.") == false))
-                .put(nodeSSL);
-        return builder.build();
     }
 
     @Override

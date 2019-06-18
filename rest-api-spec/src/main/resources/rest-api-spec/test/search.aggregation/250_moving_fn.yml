@@ -2,7 +2,7 @@
 "Bad window":
 
   - skip:
-      version: " - 7.99.0" #TODO change this after backport
+      version: " - 7.1.99"
       reason:  "calendar_interval added in 7.2"
 
   - do:
@@ -30,7 +30,7 @@
 "Bad window deprecated interval":
 
   - skip:
-      version: " - 7.99.0" #TODO change this after backport
+      version: " - 7.1.99"
       reason:  "interval deprecation added in 7.2"
       features: "warnings"
 

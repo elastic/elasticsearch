@@ -21,8 +21,5 @@ GET /_search
 [[ids-query-top-level-parameters]]
 ==== Top-level parameters for `ids`
 
-[cols="v,v",options="header"]
-|======
-|Parameter  |Description
-|`values`   |An array of <<mapping-id-field, document IDs>>.
-|======
+`values`::
+An array of <<mapping-id-field, document IDs>>.

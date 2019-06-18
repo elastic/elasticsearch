@@ -109,16 +109,17 @@ public class SysColumns extends Command {
         }
 
         // save original index name (as the pattern can contain special chars)
-        String indexName = index != null ? index : (pattern != null ? StringUtils.likeToUnescaped(pattern.pattern(),
-                pattern.escape()) : "");
+        String indexName = index != null ? index :
+            (pattern != null ? StringUtils.likeToUnescaped(pattern.pattern(), pattern.escape()) : "");
         String idx = index != null ? index : (pattern != null ? pattern.asIndexNameWildcard() : "*");
         String regex = pattern != null ? pattern.asJavaRegex() : null;
 
         Pattern columnMatcher = columnPattern != null ? Pattern.compile(columnPattern.asJavaRegex()) : null;
+        boolean includeFrozen = session.configuration().includeFrozen();
 
         // special case for '%' (translated to *)
         if ("*".equals(idx)) {
-            session.indexResolver().resolveAsSeparateMappings(idx, regex, ActionListener.wrap(esIndices -> {
+            session.indexResolver().resolveAsSeparateMappings(idx, regex, includeFrozen, ActionListener.wrap(esIndices -> {
                 List<List<?>> rows = new ArrayList<>();
                 for (EsIndex esIndex : esIndices) {
                     fillInRows(cluster, esIndex.name(), esIndex.mapping(), null, rows, columnMatcher, mode);
@@ -129,7 +130,7 @@ public class SysColumns extends Command {
         }
         // otherwise use a merged mapping
         else {
-            session.indexResolver().resolveAsMergedMapping(idx, regex, ActionListener.wrap(r -> {
+            session.indexResolver().resolveAsMergedMapping(idx, regex, includeFrozen, ActionListener.wrap(r -> {
                 List<List<?>> rows = new ArrayList<>();
                 // populate the data only when a target is found
                 if (r.isValid() == true) {

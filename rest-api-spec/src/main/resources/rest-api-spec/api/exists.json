@@ -1,9 +1,9 @@
 {
   "exists": {
     "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/docs-get.html",
+    "stability": "stable",
     "methods": ["HEAD"],
     "url": {
-      "path": "/{index}/_doc/{id}",
       "paths": ["/{index}/_doc/{id}"],
       "deprecated_paths" : [
         {
@@ -32,10 +32,6 @@
         "stored_fields": {
           "type": "list",
           "description" : "A comma-separated list of stored fields to return in the response"
-        },
-        "parent": {
-          "type" : "string",
-          "description" : "The ID of the parent document"
         },
         "preference": {
           "type" : "string",

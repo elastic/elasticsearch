@@ -90,7 +90,7 @@ public class MultipleIndicesPermissionsTests extends SecurityIntegTestCase {
                 "  cluster: [monitor]\n" +
                 "  indices:\n" +
                 "    - names: '*'\n" +
-                "      privileges: [monitor]\n" +
+                "      privileges: ['monitor','indices:admin/get']\n" +
                 "\n" +
                 "role_b:\n" +
                 "  indices:\n" +

@@ -543,8 +543,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         return blobStore().blobContainer(indicesPath().add(indexId.getId()));
     }
 
-    private BlobContainer shardContainer(IndexId indexId, ShardId snapshotShardId) {
-        return blobStore().blobContainer(indicesPath().add(indexId.getId()).add(Integer.toString(snapshotShardId.getId())));
+    private BlobContainer shardContainer(IndexId indexId, ShardId shardId) {
+        return blobStore().blobContainer(indicesPath().add(indexId.getId()).add(Integer.toString(shardId.getId())));
     }
 
     /**
@@ -690,8 +690,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         // write the index file
         final String indexBlob = INDEX_FILE_PREFIX + Long.toString(newGen);
         logger.debug("Repository [{}] writing new index generational blob [{}]", metadata.name(), indexBlob);
-        writeAtomic(
-            indexBlob, BytesReference.bytes(repositoryData.snapshotsToXContent(XContentFactory.contentBuilder(XContentType.JSON))), true);
+        writeAtomic(indexBlob, BytesReference.bytes(repositoryData.snapshotsToXContent(XContentFactory.jsonBuilder())), true);
         // write the current generation to the index-latest file
         final BytesReference genBytes;
         try (BytesStreamOutput bStream = new BytesStreamOutput()) {
@@ -720,8 +719,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         assert isReadOnly() == false; // can not write to a read only repository
         // write the incompatible snapshots blob
         writeAtomic(INCOMPATIBLE_SNAPSHOTS_BLOB,
-            BytesReference.bytes(repositoryData.incompatibleSnapshotsToXContent(XContentFactory.contentBuilder(XContentType.JSON))),
-            false);
+            BytesReference.bytes(repositoryData.incompatibleSnapshotsToXContent(XContentFactory.jsonBuilder())), false);
     }
 
     /**

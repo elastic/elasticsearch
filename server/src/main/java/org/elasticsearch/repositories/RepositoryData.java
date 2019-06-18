@@ -443,7 +443,6 @@ public final class RepositoryData {
      * Writes the incompatible snapshot ids to x-content.
      */
     public XContentBuilder incompatibleSnapshotsToXContent(XContentBuilder builder) throws IOException {
-
         builder.startObject();
         // write the incompatible snapshots list
         builder.startArray(INCOMPATIBLE_SNAPSHOTS);

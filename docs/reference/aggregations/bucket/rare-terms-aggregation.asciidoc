@@ -174,7 +174,7 @@ which match the `max_doc_count` criteria will be returned.  The aggregation func
 the order-by-ascending issues that afflict the `terms` aggregation.
 
 This does, however, mean that  a large number of results can be returned if chosen incorrectly.
-To limit the danger of this setting, the maximum `max_doc_count` is 10.
+To limit the danger of this setting, the maximum `max_doc_count` is 100.
 
 [[search-aggregations-bucket-rare-terms-aggregation-approximate-counts]]
 ==== Document counts are approximate
@@ -200,8 +200,10 @@ a different shard's CuckooFilter) the term is removed from the merged list.  The
 to the user as the "rare" terms.
 
 CuckooFilters have the possibility of returning false positives (they can say a value exists in their collection when
-it does not actually).  Since the CuckooFilter is being used to see if a term is over threshold, this means a false positive
+it actually does not).  Since the CuckooFilter is being used to see if a term is over threshold, this means a false positive
 from the CuckooFilter will mistakenly say a value is common when it is not (and thus exclude it from it final list of buckets).
+Practically, this means the aggregations exhibits false-negative behavior since the filter is being used "in reverse"
+of how people generally think of approximate set membership sketches.
 
 CuckooFilters are described in more detail in the paper:
 
@@ -210,12 +212,44 @@ Proceedings of the 10th ACM International on Conference on emerging Networking E
 
 ==== Precision
 
-Although the internal CuckooFilter is approximate in nature, the false-positive rate can be controlled with a
+Although the internal CuckooFilter is approximate in nature, the false-negative rate can be controlled with a
 `precision` parameter.  This allows the user to trade more runtime memory for more accurate results.
 
-The default precision is `0.01`, and the smallest (e.g. most accurate and largest memory overhead) is `0.00001`.
+The default precision is `0.001`, and the smallest (e.g. most accurate and largest memory overhead) is `0.00001`.
+Below are some charts which demonstrate how the accuracy of the aggregation is affected by precision and number
+of distinct terms.
 
-TODO charts here
+The X-axis shows the number of distinct values the aggregation has seen, and the Y-axis shows the percent error.
+Each line series represents one "rarity" condition (ranging from one rare item to 100,000 rare items).  For example,
+the orange "10" line means ten of the values were "rare" (`doc_count == 1`), out of 1-20m distinct values (where the
+rest of the values had `doc_count > 1`)
+
+This first chart shows precision `0.01`:
+
+image:images/rare_terms/accuracy_01.png[]
+
+And precision `0.001` (the default):
+
+image:images/rare_terms/accuracy_001.png[]
+
+And finally `precision 0.0001`:
+
+image:images/rare_terms/accuracy_0001.png[]
+
+The default precision of `0.001` maintains an accuracy of < 2.5% for the tested conditions, and accuracy slowly
+degrades in a controlled, linear fashion as the number of distinct values increases.
+
+The default precision of `0.001` has a memory profile of `1.748⁻⁶ * n` bytes, where `n` is the number
+of distinct values the aggregation has seen (it can also be roughly eyeballed, e.g. 20 million unique values is about
+30mb of memory).  The memory usage is linear to the number of distinct values regardless of which precision is chosen,
+the precision only affects the slope of the memory profile as seen in this chart:
+
+image:images/rare_terms/memory.png[]
+
+For comparison, an equivalent terms aggregation at 20 million buckets would be roughly
+`20m * 69b == ~1.38gb` (with 69 bytes being a very optimistic estimate of an empty bucket cost, far lower than what
+the circuit breaker accounts for).  So although the `rare_terms` agg is relatively heavy, it is still orders of
+magnitude smaller than the equivalent terms aggregation
 
 ==== Filtering Values
 

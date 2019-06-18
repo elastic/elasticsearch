@@ -46,7 +46,7 @@ public class RareTermsAggregationBuilder extends ValuesSourceAggregationBuilder<
     private static final ParseField MAX_DOC_COUNT_FIELD_NAME = new ParseField("max_doc_count");
     private static final ParseField PRECISION = new ParseField("precision");
 
-    private static final int MAX_MAX_DOC_COUNT = 10;
+    private static final int MAX_MAX_DOC_COUNT = 100;
     private static final ObjectParser<RareTermsAggregationBuilder, Void> PARSER;
     static {
         PARSER = new ObjectParser<>(RareTermsAggregationBuilder.NAME);
@@ -68,7 +68,7 @@ public class RareTermsAggregationBuilder extends ValuesSourceAggregationBuilder<
 
     private IncludeExclude includeExclude = null;
     private int maxDocCount = 1;
-    private double precision = 0.01;
+    private double precision = 0.001;
 
     public RareTermsAggregationBuilder(String name, ValueType valueType) {
         super(name, ValuesSourceType.ANY, valueType);

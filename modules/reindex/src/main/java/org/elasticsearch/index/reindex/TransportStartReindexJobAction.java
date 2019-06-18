@@ -68,17 +68,17 @@ public class TransportStartReindexJobAction
     @Override
     protected void masterOperation(StartReindexJobAction.Request request, ClusterState clusterState,
                                    ActionListener<StartReindexJobAction.Response> listener) {
-        String taskId = UUIDs.randomBase64UUID();
+        String generatedId = UUIDs.randomBase64UUID();
 
         // TODO: Task name
-        persistentTasksService.sendStartRequest(taskId, ReindexTask.NAME, new ReindexJob(request.getReindexRequest()),
+        persistentTasksService.sendStartRequest(generatedId, ReindexTask.NAME, new ReindexJob(request.getReindexRequest()),
             new ActionListener<>() {
                 @Override
                 public void onResponse(PersistentTasksCustomMetaData.PersistentTask<ReindexJob> persistentTask) {
                     if (request.getWaitForCompletion()) {
-                        waitForReindexDone(taskId, listener);
+                        waitForReindexDone(persistentTask.getId(), listener);
                     } else {
-                        waitForReindexTask(taskId, listener);
+                        waitForReindexTask(persistentTask.getId(), listener);
                     }
                 }
 
@@ -86,7 +86,7 @@ public class TransportStartReindexJobAction
                 public void onFailure(Exception e) {
                     // TODO: This probably should not happen as we are generating the UUID ourselves?
                     if (e instanceof ResourceAlreadyExistsException) {
-                        e = new ElasticsearchStatusException("Cannot create job [" + taskId +
+                        e = new ElasticsearchStatusException("Cannot create job [" + generatedId +
                             "] because it has already been created (task exists)", RestStatus.CONFLICT, e);
                     }
                     listener.onFailure(e);

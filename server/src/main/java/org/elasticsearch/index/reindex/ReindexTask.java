@@ -46,7 +46,7 @@ public class ReindexTask extends AllocatedPersistentTask {
 
         private final Client client;
 
-        protected ReindexPersistentTasksExecutor(final Client client) {
+        public ReindexPersistentTasksExecutor(final Client client) {
             super(NAME, ThreadPool.Names.GENERIC);
             this.client = client;
         }
@@ -84,15 +84,15 @@ public class ReindexTask extends AllocatedPersistentTask {
 
                     @Override
                     public void onFailure(Exception e) {
-                        logger.error("Failed to update task state.", e);
+                        logger.error("Failed to update task state to success.", e);
                         markAsCompleted();
                     }
                 });
             }
 
             @Override
-            public void onFailure(Exception e) {
-                updatePersistentTaskState(new ReindexJobState(null, wrapException(e)), new ActionListener<>() {
+            public void onFailure(Exception ex) {
+                updatePersistentTaskState(new ReindexJobState(null,  new ElasticsearchException(ex)), new ActionListener<>() {
                     @Override
                     public void onResponse(PersistentTasksCustomMetaData.PersistentTask<?> persistentTask) {
                         markAsCompleted();
@@ -100,19 +100,11 @@ public class ReindexTask extends AllocatedPersistentTask {
 
                     @Override
                     public void onFailure(Exception e) {
-                        logger.error("Failed to update task state.", e);
+                        logger.error("Failed to update task state to failed.", e);
                         markAsCompleted();
                     }
                 });
             }
         });
-    }
-
-    private ElasticsearchException wrapException(Exception e) {
-        if (e instanceof ElasticsearchException) {
-            return (ElasticsearchException) e;
-        } else {
-            return new ElasticsearchException(e);
-        }
     }
 }

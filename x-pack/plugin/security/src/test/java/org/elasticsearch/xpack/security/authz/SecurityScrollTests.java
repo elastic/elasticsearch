@@ -34,7 +34,7 @@ public class SecurityScrollTests extends SecurityIntegTestCase {
                 .addIndices(new String[] { randomAlphaOfLengthBetween(4, 12) }, new String[] { "read" }, null, null, null, randomBoolean())
                 .get();
         new PutUserRequestBuilder(client()).username("other")
-            .password(SecuritySettingsSourceField.TEST_PASSWORD.toCharArray(), getFastStoredHashAlgoForTests())
+            .password(SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING, getFastStoredHashAlgoForTests())
             .roles("scrollable")
             .get();
 

@@ -838,7 +838,8 @@ public class JobResultsProviderTests extends ESTestCase {
                     TimingStats.BUCKET_COUNT.getPreferredName(), 7,
                     TimingStats.MIN_BUCKET_PROCESSING_TIME_MS.getPreferredName(), 1.0,
                     TimingStats.MAX_BUCKET_PROCESSING_TIME_MS.getPreferredName(), 1000.0,
-                    TimingStats.AVG_BUCKET_PROCESSING_TIME_MS.getPreferredName(), 666.0));
+                    TimingStats.AVG_BUCKET_PROCESSING_TIME_MS.getPreferredName(), 666.0,
+                    TimingStats.EXPONENTIAL_AVERAGE_BUCKET_PROCESSING_TIME_MS.getPreferredName(), 777.0));
         SearchResponse response = createSearchResponse(source);
         Client client = getMockedClient(
             queryBuilder -> assertThat(queryBuilder.getName(), equalTo("ids")),
@@ -848,7 +849,7 @@ public class JobResultsProviderTests extends ESTestCase {
         JobResultsProvider provider = createProvider(client);
         provider.timingStats(
             "foo",
-            stats -> assertThat(stats, equalTo(new TimingStats("foo", 7, 1.0, 1000.0, 666.0))),
+            stats -> assertThat(stats, equalTo(new TimingStats("foo", 7, 1.0, 1000.0, 666.0, 777.0))),
             e -> { throw new AssertionError(); });
 
         verify(client).prepareSearch(indexName);

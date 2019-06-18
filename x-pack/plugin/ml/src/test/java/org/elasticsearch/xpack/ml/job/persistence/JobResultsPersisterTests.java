@@ -203,7 +203,7 @@ public class JobResultsPersisterTests extends ESTestCase {
         Client client = mockClient(bulkRequestCaptor);
 
         JobResultsPersister persister = new JobResultsPersister(client);
-        TimingStats timingStats = new TimingStats("foo", 7, 1.0, 2.0, 1.23);
+        TimingStats timingStats = new TimingStats("foo", 7, 1.0, 2.0, 1.23, 7.89);
         persister.bulkPersisterBuilder(JOB_ID).persistTimingStats(timingStats).executeRequest();
 
         verify(client, times(1)).bulk(bulkRequestCaptor.capture());
@@ -220,7 +220,8 @@ public class JobResultsPersisterTests extends ESTestCase {
                     "bucket_count", 7,
                     "minimum_bucket_processing_time_ms", 1.0,
                     "maximum_bucket_processing_time_ms", 2.0,
-                    "average_bucket_processing_time_ms", 1.23)));
+                    "average_bucket_processing_time_ms", 1.23,
+                    "exponential_average_bucket_processing_time_ms", 7.89)));
 
         verify(client, times(1)).threadPool();
         verifyNoMoreInteractions(client);

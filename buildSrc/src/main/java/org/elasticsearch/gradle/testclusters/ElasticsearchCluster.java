@@ -319,10 +319,18 @@ public class ElasticsearchCluster implements TestClusterConfiguration {
 
     private void addWaitForClusterHealth() {
         waitConditions.put("cluster health yellow", (node) -> {
+
             try {
+                boolean httpSslEnabled = getFirstNode().isHttpSslEnabled();
                 WaitForHttpResource wait = new WaitForHttpResource(
-                    "http", getFirstNode().getHttpSocketURI(), nodes.size()
+                    httpSslEnabled ? "https" : "http",
+                    getFirstNode().getHttpSocketURI(),
+                    nodes.size()
                 );
+                if (httpSslEnabled) {
+
+                    getFirstNode().configureHttpWait(wait);
+                }
                 List<Map<String, String>> credentials = getFirstNode().getCredentials();
                 if (getFirstNode().getCredentials().isEmpty() == false) {
                     wait.setUsername(credentials.get(0).get("useradd"));

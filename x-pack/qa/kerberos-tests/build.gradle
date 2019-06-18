@@ -2,13 +2,12 @@ import java.nio.file.Path
 import java.nio.file.Paths
 import java.nio.file.Files
 
+apply plugin: 'elasticsearch.testclusters'
 apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
 apply plugin: 'elasticsearch.test.fixtures'
 
 testFixtures.useFixture ":test:fixtures:krb5kdc-fixture"
-
-integTest.enabled = true
 
 dependencies {
     testCompile project(':x-pack:plugin:core')
@@ -19,7 +18,8 @@ dependencies {
     testCompile project(path: xpackModule('security'), configuration: 'testArtifacts')
 }
 
-integTestCluster {
+testClusters.integTest {
+    distribution = 'DEFAULT'
     // force localhost IPv4 otherwise it is a chicken and egg problem where we need the keytab for the hostname when starting the cluster
     // but do not know the exact address that is first in the http ports file
     setting 'http.host', '127.0.0.1'
@@ -34,29 +34,17 @@ integTestCluster {
     setting 'xpack.security.authc.realms.kerberos.kerberos.krb.debug', 'true'
     setting 'xpack.security.authc.realms.kerberos.kerberos.remove_realm_name', 'false'
 
-    jvmArgs += " -Djava.security.krb5.conf=${project(':test:fixtures:krb5kdc-fixture').ext.krb5Conf("peppa")}"
-    jvmArgs += " -Dsun.security.krb5.debug=true"
 
-    extraConfigFile("es.keytab", project(':test:fixtures:krb5kdc-fixture').ext.krb5Keytabs("peppa", "HTTP_localhost.keytab"))
+    systemProperty "java.security.krb5.conf", { project(':test:fixtures:krb5kdc-fixture').ext.krb5Conf("peppa").toString() }
+    systemProperty "sun.security.krb5.debug", "true"
 
-    setupCommand 'setupTestAdmin',
-            'bin/elasticsearch-users', 'useradd', "test_admin", '-p', 'x-pack-test-password', '-r', "superuser"
+    extraConfigFile "es.keytab", project(':test:fixtures:krb5kdc-fixture').ext.krb5Keytabs("peppa", "HTTP_localhost.keytab")
 
-    waitCondition = { node, ant ->
-        File tmpFile = new File(node.cwd, 'wait.success')
-        ant.get(src: "http://${node.httpUri()}/_cluster/health?wait_for_nodes=>=${numNodes}&wait_for_status=yellow",
-        dest: tmpFile.toString(),
-        username: 'test_admin',
-        password: 'x-pack-test-password',
-        ignoreerrors: true,
-        retries: 10)
-        return tmpFile.exists()
-    }
-
+    user username: "test_admin", password: "x-pack-test-password"
 }
 
 String realm = "BUILD.ELASTIC.CO"
-integTestRunner {
+integTest.runner {
     Path peppaKeytab = Paths.get("${project.buildDir}", "generated-resources", "keytabs", "peppa.keytab")
     nonInputProperties.systemProperty 'test.userkt', "peppa@${realm}"
     nonInputProperties.systemProperty 'test.userkt.keytab', "${peppaKeytab}"

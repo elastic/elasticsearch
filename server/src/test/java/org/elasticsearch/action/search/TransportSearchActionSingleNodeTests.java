@@ -235,4 +235,61 @@ public class TransportSearchActionSingleNodeTests extends ESSingleNodeTestCase {
             assertTrue(response.isAcknowledged());
         }
     }
+
+    public void testAutoPreFilterShardSize() {
+        int numReadOnlyShards = 4;
+        int readOnlySkippedShards = numReadOnlyShards - 1;
+        {
+            CreateIndexResponse response = client().admin().indices().prepareCreate("readonly")
+                .setSettings(Settings.builder().put("index.number_of_shards", numReadOnlyShards)).get();
+            assertTrue(response.isAcknowledged());
+        }
+        {
+            CreateIndexResponse response = client().admin().indices().prepareCreate("write").get();
+            assertTrue(response.isAcknowledged());
+        }
+        RangeQueryBuilder rangeQueryBuilder = new RangeQueryBuilder("rank").gt(30);
+        {
+            SearchResponse searchResponse = client().prepareSearch("readonly", "write").setQuery(rangeQueryBuilder).get();
+            assertEquals(5, searchResponse.getTotalShards());
+            assertEquals(0, searchResponse.getSkippedShards());
+        }
+        {
+            Settings settings = Settings.builder().put("index.blocks.read_only", "true").build();
+            AcknowledgedResponse response = client().admin().indices().prepareUpdateSettings("readonly").setSettings(settings).get();
+            assertTrue(response.isAcknowledged());
+        }
+        try {
+            {
+                SearchResponse searchResponse = client().prepareSearch("write", "readonly").setQuery(rangeQueryBuilder).get();
+                assertEquals(5, searchResponse.getTotalShards());
+                assertEquals(readOnlySkippedShards, searchResponse.getSkippedShards());
+            }
+            {
+                SearchResponse searchResponse = client().prepareSearch("write").setQuery(rangeQueryBuilder).get();
+                assertEquals(1, searchResponse.getTotalShards());
+                assertEquals(0, searchResponse.getSkippedShards());
+            }
+            {
+                SearchResponse searchResponse = client().prepareSearch("readonly").setQuery(rangeQueryBuilder).get();
+                assertEquals(4, searchResponse.getTotalShards());
+                assertEquals(readOnlySkippedShards, searchResponse.getSkippedShards());
+            }
+            {
+                SearchResponse searchResponse = client().prepareSearch("write", "readonly").setSize(0).setQuery(rangeQueryBuilder).get();
+                assertEquals(5, searchResponse.getTotalShards());
+                assertEquals(0, searchResponse.getSkippedShards());
+            }
+            {
+                //size 0 makes us not split the search execution, yet we execute can_match when we search only read-only indices
+                SearchResponse searchResponse = client().prepareSearch("readonly").setSize(0).setQuery(rangeQueryBuilder).get();
+                assertEquals(4, searchResponse.getTotalShards());
+                assertEquals(readOnlySkippedShards, searchResponse.getSkippedShards());
+            }
+        } finally {
+            Settings settings = Settings.builder().put("index.blocks.read_only", "false").build();
+            AcknowledgedResponse response = client().admin().indices().prepareUpdateSettings("readonly").setSettings(settings).get();
+            assertTrue(response.isAcknowledged());
+        }
+    }
 }

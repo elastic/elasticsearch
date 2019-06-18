@@ -474,67 +474,69 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             searchRequest.indices());
         routingMap = routingMap == null ? Collections.emptyMap() : Collections.unmodifiableMap(routingMap);
         Map<String, Float> concreteIndexBoosts = resolveIndexBoosts(searchRequest, clusterState);
-
-        if (shouldSplitIndices(searchRequest)) {
-            //Execute two separate searches when we can, so that indices that are being written to are searched as quickly as possible.
-            //Otherwise their search context would need to stay open for too long between the query and the fetch phase, due to other
-            //indices (possibly slower) being searched at the same time.
-            List<String> writeIndicesList = new ArrayList<>();
-            List<String> readOnlyIndicesList = new ArrayList<>();
-            splitIndices(indices, clusterState, writeIndicesList, readOnlyIndicesList);
-            String[] writeIndices = writeIndicesList.toArray(new String[0]);
-            String[] readOnlyIndices = readOnlyIndicesList.toArray(new String[0]);
-
-            if (readOnlyIndices.length == 0) {
-                executeSearch(task, timeProvider, searchRequest, localIndices, writeIndices, routingMap,
-                    aliasFilter, concreteIndexBoosts, remoteShardIterators, remoteConnections, clusterState, listener, clusters);
-            } else if (writeIndices.length == 0 && remoteShardIterators.isEmpty()) {
-                executeSearch(task, timeProvider, searchRequest, localIndices, readOnlyIndices, routingMap,
-                    aliasFilter, concreteIndexBoosts, remoteShardIterators, remoteConnections, clusterState, listener, clusters);
-            } else {
-                //Split the search in two whenever throttled indices are searched together with ordinary indices (local or remote), so
-                //that we don't keep the search context open for too long between query and fetch for ordinary indices due to slow indices.
-                CountDown countDown = new CountDown(2);
-                AtomicReference<Exception> exceptions = new AtomicReference<>();
-                SearchResponseMerger searchResponseMerger = createSearchResponseMerger(searchRequest.source(), timeProvider,
-                    searchService::createReduceContext);
-                CountDownActionListener<SearchResponse, SearchResponse> countDownActionListener =
-                    new CountDownActionListener<>(countDown, exceptions, listener) {
-                        @Override
-                        void innerOnResponse(SearchResponse searchResponse) {
-                            searchResponseMerger.add(searchResponse);
-                        }
-
-                        @Override
-                        SearchResponse createFinalResponse() {
-                            return searchResponseMerger.getMergedResponse(clusters);
-                        }
-                    };
-
-                //Note that the indices set to the new SearchRequest won't be retrieved from it, as they have been already resolved and
-                //will be provided separately to executeSearch.
-                SearchRequest writeIndicesRequest = SearchRequest.subSearchRequest(searchRequest, writeIndices,
-                    RemoteClusterService.LOCAL_CLUSTER_GROUP_KEY, timeProvider.getAbsoluteStartMillis(), false);
-                executeSearch(task, timeProvider, writeIndicesRequest, localIndices, writeIndices, routingMap,
-                    aliasFilter, concreteIndexBoosts, remoteShardIterators, remoteConnections, clusterState, countDownActionListener,
-                    SearchResponse.Clusters.EMPTY);
-
-                //Note that the indices set to the new SearchRequest won't be retrieved from it, as they have been already resolved and
-                //will be provided separately to executeSearch.
-                SearchRequest readOnlyIndicesRequest = SearchRequest.subSearchRequest(searchRequest, readOnlyIndices,
-                    RemoteClusterService.LOCAL_CLUSTER_GROUP_KEY, timeProvider.getAbsoluteStartMillis(), false);
-                executeSearch(task, timeProvider, readOnlyIndicesRequest, localIndices, readOnlyIndices, routingMap,
-                    aliasFilter, concreteIndexBoosts, Collections.emptyList(), (alias, id) -> null, clusterState, countDownActionListener,
-                    SearchResponse.Clusters.EMPTY);
-            }
-        } else {
+        List<String> writeIndicesList = new ArrayList<>();
+        List<String> readOnlyIndicesList = new ArrayList<>();
+        splitIndices(indices, clusterState, writeIndicesList, readOnlyIndicesList);
+        String[] writeIndices = writeIndicesList.toArray(new String[0]);
+        String[] readOnlyIndices = readOnlyIndicesList.toArray(new String[0]);
+        //Execute two separate searches when we can, so that indices that are being written to are searched as quickly as possible.
+        //Otherwise their search context would need to stay open for too long between the query and the fetch phase, due to other
+        //(possibly slower) indices being searched at the same time.
+        //Note that remote shards are considered write indices, although we don't really know as we don't have their metadata.
+        if (readOnlyIndices.length == 0
+            || (writeIndices.length == 0 && remoteShardIterators.isEmpty())
+            || shouldSplitSearchExecution(searchRequest) == false) {
             String[] concreteIndices = Arrays.stream(indices).map(Index::getName).toArray(String[]::new);
+            searchRequest.setPreFilterShardSize(computePreFilterShardSize(searchRequest.getPreFilterShardSize(),
+                writeIndices.length > 0 || remoteShardIterators.isEmpty() == false));
             executeSearch(task, timeProvider, searchRequest, localIndices, concreteIndices, routingMap,
                 aliasFilter, concreteIndexBoosts, remoteShardIterators, remoteConnections, clusterState, listener, clusters);
+        } else {
+            CountDown countDown = new CountDown(2);
+            AtomicReference<Exception> exceptions = new AtomicReference<>();
+            SearchResponseMerger searchResponseMerger = createSearchResponseMerger(searchRequest.source(), timeProvider,
+                searchService::createReduceContext);
+            CountDownActionListener<SearchResponse, SearchResponse> countDownActionListener =
+                new CountDownActionListener<>(countDown, exceptions, listener) {
+                    @Override
+                    void innerOnResponse(SearchResponse searchResponse) {
+                        searchResponseMerger.add(searchResponse);
+                    }
+
+                    @Override
+                    SearchResponse createFinalResponse() {
+                        return searchResponseMerger.getMergedResponse(clusters);
+                    }
+                };
+
+            //Note that the indices set to the new SearchRequests won't be retrieved from them, as they have been already resolved and
+            //will be provided separately to executeSearch.
+            SearchRequest writeIndicesRequest = SearchRequest.subSearchRequest(searchRequest, writeIndices,
+                RemoteClusterService.LOCAL_CLUSTER_GROUP_KEY, timeProvider.getAbsoluteStartMillis(), false);
+            writeIndicesRequest.setPreFilterShardSize(computePreFilterShardSize(searchRequest.getPreFilterShardSize(), true));
+            executeSearch(task, timeProvider, writeIndicesRequest, localIndices, writeIndices, routingMap,
+                aliasFilter, concreteIndexBoosts, remoteShardIterators, remoteConnections, clusterState, countDownActionListener,
+                SearchResponse.Clusters.EMPTY);
+            SearchRequest readOnlyIndicesRequest = SearchRequest.subSearchRequest(searchRequest, readOnlyIndices,
+                RemoteClusterService.LOCAL_CLUSTER_GROUP_KEY, timeProvider.getAbsoluteStartMillis(), false);
+            readOnlyIndicesRequest.setPreFilterShardSize(computePreFilterShardSize(searchRequest.getPreFilterShardSize(), false));
+            executeSearch(task, timeProvider, readOnlyIndicesRequest, localIndices, readOnlyIndices, routingMap,
+                aliasFilter, concreteIndexBoosts, Collections.emptyList(), (alias, id) -> null, clusterState, countDownActionListener,
+                SearchResponse.Clusters.EMPTY);
         }
     }
 
-    static boolean shouldSplitIndices(SearchRequest searchRequest) {
+    static int computePreFilterShardSize(int providedPreFilterShardSize, boolean writeIndices) {
+        if (providedPreFilterShardSize != SearchRequest.DEFAULT_PRE_FILTER_SHARD_SIZE) {
+            return providedPreFilterShardSize;
+        }
+        if (writeIndices) {
+            return 128;
+        }
+        return 1;
+    }
+
+    static boolean shouldSplitSearchExecution(SearchRequest searchRequest) {
         return searchRequest.scroll() == null && searchRequest.searchType() != DFS_QUERY_THEN_FETCH
             && (searchRequest.source() == null || searchRequest.source().size() != 0);
     }

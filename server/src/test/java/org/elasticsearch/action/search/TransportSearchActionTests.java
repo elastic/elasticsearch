@@ -845,32 +845,32 @@ public class TransportSearchActionTests extends ESTestCase {
     public void testShouldSplitIndices() {
         {
             SearchRequest searchRequest = new SearchRequest();
-            assertTrue(TransportSearchAction.shouldSplitIndices(searchRequest));
+            assertTrue(TransportSearchAction.shouldSplitSearchExecution(searchRequest));
         }
         {
             SearchRequest searchRequest = new SearchRequest();
             searchRequest.source(new SearchSourceBuilder());
-            assertTrue(TransportSearchAction.shouldSplitIndices(searchRequest));
+            assertTrue(TransportSearchAction.shouldSplitSearchExecution(searchRequest));
         }
         {
             SearchRequest searchRequest = new SearchRequest();
             searchRequest.source(new SearchSourceBuilder().size(randomIntBetween(1, 100)));
-            assertTrue(TransportSearchAction.shouldSplitIndices(searchRequest));
+            assertTrue(TransportSearchAction.shouldSplitSearchExecution(searchRequest));
         }
         {
             SearchRequest searchRequest = new SearchRequest();
             searchRequest.scroll("5s");
-            assertFalse(TransportSearchAction.shouldSplitIndices(searchRequest));
+            assertFalse(TransportSearchAction.shouldSplitSearchExecution(searchRequest));
         }
         {
             SearchRequest searchRequest = new SearchRequest();
             searchRequest.source(new SearchSourceBuilder().size(0));
-            assertFalse(TransportSearchAction.shouldSplitIndices(searchRequest));
+            assertFalse(TransportSearchAction.shouldSplitSearchExecution(searchRequest));
         }
         {
             SearchRequest searchRequest = new SearchRequest();
             searchRequest.searchType(SearchType.DFS_QUERY_THEN_FETCH);
-            assertFalse(TransportSearchAction.shouldSplitIndices(searchRequest));
+            assertFalse(TransportSearchAction.shouldSplitSearchExecution(searchRequest));
         }
     }
 
@@ -911,5 +911,12 @@ public class TransportSearchActionTests extends ESTestCase {
             assertEquals(writeIndices, expectedWrite);
             assertEquals(readOnlyIndices, expectedReadOnly);
         }
+    }
+
+    public void testComputePreFilterShardSize() {
+        assertEquals(128, TransportSearchAction.computePreFilterShardSize(-1, true));
+        assertEquals(1, TransportSearchAction.computePreFilterShardSize(-1, false));
+        int provided = randomIntBetween(1, Integer.MAX_VALUE);
+        assertEquals(provided, TransportSearchAction.computePreFilterShardSize(provided, randomBoolean()));
     }
 }

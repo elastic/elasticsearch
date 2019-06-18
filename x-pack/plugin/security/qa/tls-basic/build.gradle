@@ -1,5 +1,4 @@
-import org.elasticsearch.gradle.http.WaitForHttpResource
-
+apply plugin: 'elasticsearch.testclusters'
 apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
 
@@ -17,16 +16,16 @@ forbiddenPatterns {
     exclude '**/*.p12'
 }
 
-File caFile = project.file('src/test/resources/ssl/ca.crt')
 
-integTestCluster {
-  numNodes=2
+testClusters.integTest {
+  distribution = "DEFAULT"
+  numberOfNodes = 2
 
-  extraConfigFile 'http.key', project.projectDir.toPath().resolve('src/test/resources/ssl/http.key')
-  extraConfigFile 'http.crt', project.projectDir.toPath().resolve('src/test/resources/ssl/http.crt')
-  extraConfigFile 'transport.key', project.projectDir.toPath().resolve('src/test/resources/ssl/transport.key')
-  extraConfigFile 'transport.crt', project.projectDir.toPath().resolve('src/test/resources/ssl/transport.crt')
-  extraConfigFile 'ca.crt', caFile
+  extraConfigFile 'http.key', file('src/test/resources/ssl/http.key')
+  extraConfigFile 'http.crt', file('src/test/resources/ssl/http.crt')
+  extraConfigFile 'transport.key', file('src/test/resources/ssl/transport.key')
+  extraConfigFile 'transport.crt', file('src/test/resources/ssl/transport.crt')
+  extraConfigFile 'ca.crt', file('src/test/resources/ssl/ca.crt')
 
   setting 'xpack.ilm.enabled', 'false'
   setting 'xpack.ml.enabled', 'false'
@@ -35,15 +34,10 @@ integTestCluster {
   setting 'xpack.security.http.ssl.certificate', 'http.crt'
   setting 'xpack.security.http.ssl.key', 'http.key'
   setting 'xpack.security.http.ssl.key_passphrase', 'http-password'
+  setting 'xpack.security.http.ssl.certificate_authorities', 'ca.crt'
   setting 'xpack.security.transport.ssl.enabled', 'true'
   setting 'xpack.security.transport.ssl.certificate', 'transport.crt'
   setting 'xpack.security.transport.ssl.key', 'transport.key'
   setting 'xpack.security.transport.ssl.key_passphrase', 'transport-password'
   setting 'xpack.security.transport.ssl.certificate_authorities', 'ca.crt'
-
-  waitCondition = { node, ant ->
-    WaitForHttpResource http = new WaitForHttpResource("https", node.httpUri(), numNodes)
-    http.setCertificateAuthorities(caFile)
-    return http.wait(5000)
-  }
 }

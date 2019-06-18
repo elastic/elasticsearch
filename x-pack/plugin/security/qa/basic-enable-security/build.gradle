@@ -30,7 +30,7 @@ task integTestSecurity(type: Test) {
     dependsOn integTest
     systemProperty 'tests.has_security', 'true'
     maxParallelForks = 1
-    outputs.doNotCacheIf "Caching of REST tests not implemented yet", { false }
+    outputs.cacheIf "Caching of REST tests not implemented yet", { false }
 
     doFirst {
         testClusters.integTest {

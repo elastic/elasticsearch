@@ -40,10 +40,12 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Executor;
 
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.not;
 
 public abstract class AbstractThirdPartyRepositoryTestCase extends ESSingleNodeTestCase {
 
@@ -77,7 +79,12 @@ public abstract class AbstractThirdPartyRepositoryTestCase extends ESSingleNodeT
             }
         });
         future.actionGet();
-        assertChildren(path, Collections.emptyList());
+        final BlobPath parent = path.parent();
+        if (parent == null) {
+            assertChildren(path, Collections.emptyList());
+        } else {
+            assertDeleted(parent, path.toArray()[path.toArray().length - 1]);
+        }
     }
 
     public void testCreateSnapshot() {
@@ -177,7 +184,21 @@ public abstract class AbstractThirdPartyRepositoryTestCase extends ESSingleNodeT
         }
     }
 
+    protected void assertDeleted(BlobPath path, String name) throws Exception {
+        assertThat(listChildren(path), not(contains(name)));
+    }
+
     protected void assertChildren(BlobPath path, Collection<String> children) throws Exception {
+        listChildren(path);
+        final Set<String> foundChildren = listChildren(path);
+        if (children.isEmpty()) {
+            assertThat(foundChildren, empty());
+        } else {
+            assertThat(foundChildren, containsInAnyOrder(children.toArray(Strings.EMPTY_ARRAY)));
+        }
+    }
+
+    private Set<String> listChildren(BlobPath path) {
         final PlainActionFuture<Set<String>> future = PlainActionFuture.newFuture();
         final BlobStoreRepository repository = getRepository();
         repository.threadPool().generic().execute(new ActionRunnable<>(future) {
@@ -187,12 +208,7 @@ public abstract class AbstractThirdPartyRepositoryTestCase extends ESSingleNodeT
                 future.onResponse(blobStore.blobContainer(path).children().keySet());
             }
         });
-        Set<String> foundChildren = future.actionGet();
-        if (children.isEmpty()) {
-            assertThat(foundChildren, empty());
-        } else {
-            assertThat(foundChildren, containsInAnyOrder(children.toArray(Strings.EMPTY_ARRAY)));
-        }
+        return future.actionGet();
     }
 
     private BlobStoreRepository getRepository() {

@@ -138,6 +138,14 @@ public class TermsSetQueryBuilderTests extends AbstractQueryTestCase<TermsSetQue
         rewriteQuery(queryBuilder, new QueryShardContext(context));
         assertNotNull(queryBuilder.doToQuery(context));
         assertTrue("query should be cacheable: " + queryBuilder.toString(), context.isCacheable());
+
+        // also test one case where query is not cacheable
+        queryBuilder = new TermsSetQueryBuilder(STRING_FIELD_NAME, Collections.singletonList("foo"));
+        queryBuilder.setMinimumShouldMatchScript(new Script(ScriptType.INLINE, MockScriptEngine.NAME, "_script", emptyMap()));
+        context = createShardContext();
+        rewriteQuery(queryBuilder, new QueryShardContext(context));
+        assertNotNull(queryBuilder.doToQuery(context));
+        assertFalse("query should be cacheable: " + queryBuilder.toString(), context.isCacheable());
     }
 
     @Override

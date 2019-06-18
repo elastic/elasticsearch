@@ -29,7 +29,7 @@ PUT my_index
   }
 }
 
-PUT my_index/1
+PUT my_index/_doc/1
 {
   "group" : "fans",
   "user" : [
@@ -170,7 +170,7 @@ PUT customers
     }
 }
 
-PUT customers/1
+PUT customers/_doc/1
 {
     "person": {
         "first_name": "Zach",
@@ -190,7 +190,7 @@ PUT customers/1
     "lastUpdated": 1433257051959
 }
 
-PUT customers/2
+PUT customers/_doc/2
 {
     "person": {
         "first_name": "Bob",

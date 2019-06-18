@@ -44,11 +44,13 @@ import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.health.ClusterIndexHealth;
 import org.elasticsearch.cluster.health.ClusterShardHealth;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -68,6 +70,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.seqno.RetentionLeaseActions;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.snapshots.SnapshotRestoreException;
 import org.elasticsearch.tasks.TaskInfo;
@@ -88,6 +91,7 @@ import org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction;
 import org.elasticsearch.xpack.core.ccr.action.UnfollowAction;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -102,6 +106,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -119,6 +124,11 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 public class IndexFollowingIT extends CcrIntegTestCase {
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return Stream.concat(super.nodePlugins().stream(), Stream.of(PrivateSettingPlugin.class)).collect(Collectors.toList());
+    }
 
     public void testFollowIndex() throws Exception {
         final int numberOfPrimaryShards = randomIntBetween(1, 3);
@@ -1012,6 +1022,46 @@ public class IndexFollowingIT extends CcrIntegTestCase {
         assertThat(hasFollowIndexBeenClosedChecker.getAsBoolean(), is(true));
     }
 
+    public void testDoNotReplicatePrivateSettings() throws Exception {
+        assertAcked(leaderClient().admin().indices().prepareCreate("leader").setSource(
+            getIndexSettings(1, 0, singletonMap(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true")), XContentType.JSON));
+        ensureLeaderGreen("leader");
+        final PutFollowAction.Request followRequest = putFollow("leader", "follower");
+        followerClient().execute(PutFollowAction.INSTANCE, followRequest).get();
+        ClusterService clusterService = getLeaderCluster().getInstance(ClusterService.class, getLeaderCluster().getMasterName());
+        clusterService.submitStateUpdateTask("test", new ClusterStateUpdateTask() {
+            @Override
+            public ClusterState execute(ClusterState currentState) {
+                final IndexMetaData indexMetaData = currentState.metaData().index("leader");
+                Settings.Builder settings = Settings.builder()
+                    .put(indexMetaData.getSettings())
+                    .put("index.max_ngram_diff", 2);
+                if (randomBoolean()) {
+                    settings.put(PrivateSettingPlugin.INDEX_INTERNAL_SETTING.getKey(), "private-value");
+                }
+                if (randomBoolean()) {
+                    settings.put(PrivateSettingPlugin.INDEX_PRIVATE_SETTING.getKey(), "interval-value");
+                }
+                final MetaData.Builder metadata = MetaData.builder(currentState.metaData())
+                    .put(IndexMetaData.builder(indexMetaData)
+                        .settingsVersion(indexMetaData.getSettingsVersion() + 1)
+                        .settings(settings).build(), true);
+                return ClusterState.builder(currentState).metaData(metadata).build();
+            }
+
+            @Override
+            public void onFailure(String source, Exception e) {
+                throw new AssertionError(e);
+            }
+        });
+        assertBusy(() -> {
+            GetSettingsResponse resp = followerClient().admin().indices().prepareGetSettings("follower").get();
+            assertThat(resp.getSetting("follower", "index.max_ngram_diff"), equalTo("2"));
+            assertThat(resp.getSetting("follower", PrivateSettingPlugin.INDEX_INTERNAL_SETTING.getKey()), nullValue());
+            assertThat(resp.getSetting("follower", PrivateSettingPlugin.INDEX_PRIVATE_SETTING.getKey()), nullValue());
+        });
+    }
+
     public void testMustCloseIndexAndPauseToRestartWithPutFollowing() throws Exception {
         final int numberOfPrimaryShards = randomIntBetween(1, 3);
         final String leaderIndexSettings = getIndexSettings(numberOfPrimaryShards, between(0, 1),
@@ -1379,4 +1429,15 @@ public class IndexFollowingIT extends CcrIntegTestCase {
         return settings;
     }
 
+    public static class PrivateSettingPlugin extends Plugin {
+        static final Setting<String> INDEX_INTERNAL_SETTING =
+            Setting.simpleString("index.internal", Setting.Property.IndexScope, Setting.Property.InternalIndex);
+        static final Setting<String> INDEX_PRIVATE_SETTING =
+            Setting.simpleString("index.private", Setting.Property.IndexScope, Setting.Property.PrivateIndex);
+
+        @Override
+        public List<Setting<?>> getSettings() {
+            return Arrays.asList(INDEX_INTERNAL_SETTING, INDEX_PRIVATE_SETTING);
+        }
+    }
 }

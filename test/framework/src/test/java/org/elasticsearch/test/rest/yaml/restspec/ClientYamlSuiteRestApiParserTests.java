@@ -95,6 +95,7 @@ public class ClientYamlSuiteRestApiParserTests extends AbstractClientYamlTestFra
         String spec = "{\n" +
             "  \"count\": {\n" +
             "    \"documentation\": \"whatever\",\n" +
+            "    \"stability\": \"stable\",\n" +
             "    \"methods\": [ \"GET\", \"POST\" ],\n" +
             "    \"url\": {\n" +
             "      \"path\": \"/whatever\",\n" +
@@ -119,6 +120,7 @@ public class ClientYamlSuiteRestApiParserTests extends AbstractClientYamlTestFra
     private static final String REST_SPEC_COUNT_API = "{\n" +
             "  \"count\": {\n" +
             "    \"documentation\": \"http://www.elasticsearch.org/guide/en/elasticsearch/reference/current/search-count.html\",\n" +
+            "    \"stability\": \"stable\",\n" +
             "    \"methods\": [\"POST\", \"GET\"],\n" +
             "    \"url\": {\n" +
             "      \"path\": \"/_count\",\n" +
@@ -149,6 +151,7 @@ public class ClientYamlSuiteRestApiParserTests extends AbstractClientYamlTestFra
     private static final String REST_SPEC_GET_TEMPLATE_API = "{\n" +
             "  \"indices.get_template\": {\n" +
             "    \"documentation\": \"http://www.elasticsearch.org/guide/reference/api/admin-indices-templates/\",\n" +
+            "    \"stability\": \"stable\",\n" +
             "    \"methods\": [\"GET\"],\n" +
             "    \"url\": {\n" +
             "      \"path\": \"/_template/{name}\",\n" +
@@ -170,6 +173,7 @@ public class ClientYamlSuiteRestApiParserTests extends AbstractClientYamlTestFra
     private static final String REST_SPEC_INDEX_API = "{\n" +
             "  \"index\": {\n" +
             "    \"documentation\": \"http://elasticsearch.org/guide/reference/api/index_/\",\n" +
+            "    \"stability\": \"stable\",\n" +
             "    \"methods\": [\"POST\", \"PUT\"],\n" +
             "    \"url\": {\n" +
             "      \"path\": \"/{index}/{type}\",\n" +

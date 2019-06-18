@@ -20,7 +20,7 @@
 dependencies {
     compile 'org.jruby.joni:joni:2.1.6'
     // joni dependencies:
-    compile 'org.jruby.jcodings:jcodings:1.0.12'
+    compile 'org.jruby.jcodings:jcodings:1.0.44'
 
     if (isEclipse == false || project.path == ":libs:elasticsearch-grok-tests") {
         testCompile(project(":test:framework")) {

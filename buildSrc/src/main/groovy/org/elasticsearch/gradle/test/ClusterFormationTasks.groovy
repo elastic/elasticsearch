@@ -722,7 +722,6 @@ class ClusterFormationTasks {
         }
 
         Task start = project.tasks.create(name: name, type: DefaultTask, dependsOn: setup)
-        start.doFirst { throw new Exception("Thee shall not " + getClass().getName()) }
         if (node.javaVersion != null) {
             BuildPlugin.requireJavaHome(start, node.javaVersion)
         }

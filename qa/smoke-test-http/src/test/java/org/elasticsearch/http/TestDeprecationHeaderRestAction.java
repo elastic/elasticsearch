@@ -18,8 +18,8 @@
  */
 package org.elasticsearch.http;
 
-import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Setting;
@@ -33,8 +33,6 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
-import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -58,17 +56,10 @@ public class TestDeprecationHeaderRestAction extends BaseRestHandler {
         Setting.boolSetting("test.setting.not_deprecated", false,
                             Setting.Property.NodeScope, Setting.Property.Dynamic);
 
-    private static final Map<String, Setting<?>> SETTINGS_MAP;
-
-    static {
-        Map<String, Setting<?>> settingsMap = new HashMap<>(3);
-
-        settingsMap.put(TEST_DEPRECATED_SETTING_TRUE1.getKey(), TEST_DEPRECATED_SETTING_TRUE1);
-        settingsMap.put(TEST_DEPRECATED_SETTING_TRUE2.getKey(), TEST_DEPRECATED_SETTING_TRUE2);
-        settingsMap.put(TEST_NOT_DEPRECATED_SETTING.getKey(), TEST_NOT_DEPRECATED_SETTING);
-
-        SETTINGS_MAP = Collections.unmodifiableMap(settingsMap);
-    }
+    private static final Map<String, Setting<?>> SETTINGS_MAP = Map.of(
+        TEST_DEPRECATED_SETTING_TRUE1.getKey(), TEST_DEPRECATED_SETTING_TRUE1,
+        TEST_DEPRECATED_SETTING_TRUE2.getKey(), TEST_DEPRECATED_SETTING_TRUE2,
+        TEST_NOT_DEPRECATED_SETTING.getKey(), TEST_NOT_DEPRECATED_SETTING);
 
     public static final String DEPRECATED_ENDPOINT = "[/_test_cluster/deprecated_settings] exists for deprecated tests";
     public static final String DEPRECATED_USAGE = "[deprecated_settings] usage is deprecated. use [settings] instead";

@@ -19,6 +19,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
@@ -28,6 +29,7 @@ import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSizeStats;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.Quantiles;
+import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.TimingStats;
 import org.elasticsearch.xpack.core.ml.job.results.AnomalyRecord;
 import org.elasticsearch.xpack.core.ml.job.results.CategoryDefinition;
 import org.elasticsearch.xpack.core.ml.job.results.ReservedFieldNames;
@@ -63,6 +65,12 @@ public class ElasticsearchMappingsTests extends ESTestCase {
             ElasticsearchMappings.WHITESPACE
     );
 
+    private static List<String> INTERNAL_FIELDS = Arrays.asList(
+            GetResult._ID,
+            GetResult._INDEX,
+            GetResult._TYPE
+    );
+
     public void testResultsMapppingReservedFields() throws Exception {
         Set<String> overridden = new HashSet<>(KEYWORDS);
 
@@ -73,9 +81,11 @@ public class ElasticsearchMappingsTests extends ESTestCase {
         overridden.add(ModelSizeStats.RESULT_TYPE_FIELD.getPreferredName());
         overridden.add(ModelSnapshot.TYPE.getPreferredName());
         overridden.add(Quantiles.TYPE.getPreferredName());
+        overridden.add(TimingStats.TYPE.getPreferredName());
 
         Set<String> expected = collectResultsDocFieldNames();
         expected.removeAll(overridden);
+        expected.addAll(INTERNAL_FIELDS);
 
         compareFields(expected, ReservedFieldNames.RESERVED_RESULT_FIELD_NAMES);
     }
@@ -91,6 +101,7 @@ public class ElasticsearchMappingsTests extends ESTestCase {
 
         Set<String> expected = collectConfigDocFieldNames();
         expected.removeAll(overridden);
+        expected.addAll(INTERNAL_FIELDS);
 
         compareFields(expected, ReservedFieldNames.RESERVED_CONFIG_FIELD_NAMES);
     }

@@ -13,7 +13,7 @@ The API accepts a +{request}+ object and returns a +{response}+.
 ==== Get Data Frame Request
 
 A +{request}+ requires either a data frame transform id, a comma separated list of ids or
-the special wildcard `_all` to get all {dataframe-transform}s
+the special wildcard `_all` to get all {dataframe-transforms}
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
@@ -29,8 +29,10 @@ The following arguments are optional.
 --------------------------------------------------
 include-tagged::{doc-tests-file}[{api}-request-options]
 --------------------------------------------------
-<1> Page {dataframe-transform}s starting from this value
-<2> Return at most `size` {dataframe-transform}s
+<1> The page parameters `from` and `size`. `from` specifies the number of
+{dataframe-transforms} to skip. `size` specifies the maximum number of
+{dataframe-transforms} to get. Defaults to `0` and `100` respectively.
+
 
 include::../execution.asciidoc[]
 

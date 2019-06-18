@@ -1,5 +1,3 @@
-import com.carrotsearch.gradle.junit4.RandomizedTestingTask
-
 evaluationDependsOn(xpackModule('core'))
 
 apply plugin: 'elasticsearch.esplugin'
@@ -14,10 +12,11 @@ ext {
     // SQL dependency versions
     jlineVersion="3.10.0"
     antlrVersion="4.5.3"
-    
+
     // SQL test dependency versions
     csvjdbcVersion="1.0.34"
     h2Version="1.4.197"
+    h2gisVersion="1.5.0"
 }
 
 configurations {
@@ -30,27 +29,28 @@ archivesBaseName = 'x-pack-sql'
 // All integration tests live in qa modules
 integTest.enabled = false
 
-task internalClusterTest(type: RandomizedTestingTask,
-        group: JavaBasePlugin.VERIFICATION_GROUP,
-        dependsOn: unitTest.dependsOn) {
+task internalClusterTest(type: Test) {
+    mustRunAfter test
     include '**/*IT.class'
     systemProperty 'es.set.netty.runtime.available.processors', 'false'
 }
+
 check.dependsOn internalClusterTest
-internalClusterTest.mustRunAfter test
 
 dependencies {
-    // "org.elasticsearch.plugin:x-pack-core:${version}" doesn't work with idea because the testArtifacts are also here
     compileOnly project(path: xpackModule('core'), configuration: 'default')
     compileOnly(project(':modules:lang-painless')) {
         // exclude ASM to not affect featureAware task on Java 10+
         exclude group: "org.ow2.asm"
     }
     compile project('sql-action')
-    compile "org.elasticsearch.plugin:aggs-matrix-stats-client:${version}"
+    compile project(':modules:aggs-matrix-stats')
     compile "org.antlr:antlr4-runtime:4.5.3"
-    testCompile "org.elasticsearch.test:framework:${version}"
+    testCompile project(':test:framework')
     testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
+    if (isEclipse) {
+      testCompile project(path: xpackModule('core-tests'), configuration: 'testArtifacts')
+    }
     testCompile project(path: xpackModule('security'), configuration: 'testArtifacts')
     testCompile project(path: ':modules:reindex', configuration: 'runtime')
     testCompile project(path: ':modules:parent-join', configuration: 'runtime')

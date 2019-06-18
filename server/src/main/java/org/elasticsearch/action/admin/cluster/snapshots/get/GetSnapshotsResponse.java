@@ -21,6 +21,7 @@ package org.elasticsearch.action.admin.cluster.snapshots.get;
 
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
@@ -116,5 +117,10 @@ public class GetSnapshotsResponse extends ActionResponse implements ToXContentOb
     @Override
     public int hashCode() {
         return Objects.hash(snapshots);
+    }
+
+    @Override
+    public String toString() {
+        return Strings.toString(this);
     }
 }

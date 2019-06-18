@@ -163,6 +163,14 @@ public class Rectangle implements Geometry {
         return maxLon < minLon;
     }
 
+    /** returns true if rectangle (defined by minLat, maxLat, minLon, maxLon) contains the lat lon point */
+    public boolean containsPoint(final double lat, final double lon) {
+        if (lat >= minLat && lat <= maxLat) {
+            return crossesDateline() ? lon >= minLon || lon <= maxLon : lon >= minLon && lon <= maxLon;
+        }
+        return false;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
@@ -199,7 +207,7 @@ public class Rectangle implements Geometry {
     }
 
     @Override
-    public <T> T visit(GeometryVisitor<T> visitor) {
+    public <T, E extends Exception> T visit(GeometryVisitor<T, E> visitor) throws E {
         return visitor.visit(this);
     }
 

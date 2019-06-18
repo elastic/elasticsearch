@@ -44,14 +44,18 @@ public enum DataType {
     OBJECT(        "object",         JDBCType.STRUCT,    -1,                0,                 0,  false, false, false),
     NESTED(        "nested",         JDBCType.STRUCT,    -1,                0,                 0,  false, false, false),
     BINARY(        "binary",         JDBCType.VARBINARY, -1,                Integer.MAX_VALUE, Integer.MAX_VALUE,  false, false, false),
-    DATE(                            JDBCType.DATE,      Long.BYTES,        24,                24, false, false, true),
     // since ODBC and JDBC interpret precision for Date as display size
-    // the precision is 23 (number of chars in ISO8601 with millis) + Z (the UTC timezone)
+    // the precision is 23 (number of chars in ISO8601 with millis) + 6 chars for the timezone (e.g.: +05:00)
     // see https://github.com/elastic/elasticsearch/issues/30386#issuecomment-386807288
-    DATETIME(      "date",           JDBCType.TIMESTAMP, Long.BYTES,        3,                 24, false, false, true),
+    DATE(                            JDBCType.DATE,      Long.BYTES,        3,                 29, false, false, true),
+    TIME(                            JDBCType.TIME,      Long.BYTES,        3,                 18, false, false, true),
+    DATETIME(      "date",           JDBCType.TIMESTAMP, Long.BYTES,        3,                 29, false, false, true),
     //
     // specialized types
     //
+    GEO_SHAPE(                       ExtTypes.GEOMETRY,  Integer.MAX_VALUE, Integer.MAX_VALUE, Integer.MAX_VALUE, false, false, false),
+    //                                                                                 display size = 2 doubles + len("POINT( )")
+    GEO_POINT(                       ExtTypes.GEOMETRY,  Double.BYTES*2,    Integer.MAX_VALUE, 25 * 2 + 8, false, false, false),
     // IP can be v4 or v6. The latter has 2^128 addresses or 340,282,366,920,938,463,463,374,607,431,768,211,456
     // aka 39 chars
     IP(            "ip",             JDBCType.VARCHAR,   39,               39,                 0,  false, false, true),
@@ -104,7 +108,7 @@ public enum DataType {
 
         // Date
         ODBC_TO_ES.put("SQL_DATE", DATE);
-        ODBC_TO_ES.put("SQL_TIME", DATETIME);
+        ODBC_TO_ES.put("SQL_TIME", TIME);
         ODBC_TO_ES.put("SQL_TIMESTAMP", DATETIME);
 
         // Intervals
@@ -250,8 +254,20 @@ public enum DataType {
         return this != OBJECT && this != NESTED && this != UNSUPPORTED;
     }
 
+    public boolean isGeo() {
+        return this == GEO_POINT || this == GEO_SHAPE;
+    }
+
     public boolean isDateBased() {
         return this == DATE || this == DATETIME;
+    }
+
+    public boolean isTimeBased() {
+        return this == TIME;
+    }
+
+    public boolean isDateOrTimeBased() {
+        return isDateBased() || isTimeBased();
     }
     
     public static DataType fromOdbcType(String odbcType) {
@@ -278,6 +294,6 @@ public enum DataType {
     }
 
     public String format() {
-        return isDateBased() ? DateUtils.DATE_PARSE_FORMAT : null;
+        return isDateOrTimeBased() ? DateUtils.DATE_PARSE_FORMAT : null;
     }
 }

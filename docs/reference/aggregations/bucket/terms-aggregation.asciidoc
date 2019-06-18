@@ -775,6 +775,7 @@ fields, then use `copy_to` in your mapping to create a new dedicated field at
 index time which contains the values from both fields.  You can aggregate on
 this single field, which will benefit from the global ordinals optimization.
 
+[[search-aggregations-bucket-terms-aggregation-collect]]
 ==== Collect mode
 
 Deferring calculation of child aggregations

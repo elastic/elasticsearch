@@ -40,7 +40,7 @@ public class PutDataFrameTransformRequestTests extends AbstractXContentTestCase<
     public void testValidate() {
         assertFalse(createTestInstance().validate().isPresent());
 
-        DataFrameTransformConfig config = new DataFrameTransformConfig(null, null, null, PivotConfigTests.randomPivotConfig());
+        DataFrameTransformConfig config = DataFrameTransformConfig.builder().setPivotConfig(PivotConfigTests.randomPivotConfig()).build();
 
         Optional<ValidationException> error = new PutDataFrameTransformRequest(config).validate();
         assertTrue(error.isPresent());
@@ -70,7 +70,7 @@ public class PutDataFrameTransformRequestTests extends AbstractXContentTestCase<
 
     @Override
     protected NamedXContentRegistry xContentRegistry() {
-        SearchModule searchModule = new SearchModule(Settings.EMPTY, false, Collections.emptyList());
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, Collections.emptyList());
         return new NamedXContentRegistry(searchModule.getNamedXContents());
     }
 }

@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.watcher;
 
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.protocol.xpack.watcher.PutWatchResponse;
+import org.elasticsearch.xpack.core.watcher.transport.actions.put.PutWatchRequestBuilder;
 import org.elasticsearch.xpack.core.watcher.watch.Watch;
 import org.elasticsearch.xpack.watcher.condition.InternalAlwaysCondition;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
@@ -23,11 +24,6 @@ import static org.hamcrest.Matchers.greaterThan;
 
 public class WatcherConcreteIndexTests extends AbstractWatcherIntegrationTestCase {
 
-    @Override
-    protected boolean timeWarped() {
-        return false;
-    }
-
     public void testCanUseAnyConcreteIndexName() throws Exception {
         String newWatcherIndexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         String watchResultsIndex = randomAlphaOfLength(11).toLowerCase(Locale.ROOT);
@@ -35,9 +31,10 @@ public class WatcherConcreteIndexTests extends AbstractWatcherIntegrationTestCas
 
         stopWatcher();
         replaceWatcherIndexWithRandomlyNamedIndex(Watch.INDEX, newWatcherIndexName);
+        ensureGreen(newWatcherIndexName);
         startWatcher();
 
-        PutWatchResponse putWatchResponse = watcherClient().preparePutWatch("mywatch").setSource(watchBuilder()
+        PutWatchResponse putWatchResponse = new PutWatchRequestBuilder(client(), "mywatch").setSource(watchBuilder()
             .trigger(schedule(interval("3s")))
             .input(noneInput())
             .condition(InternalAlwaysCondition.INSTANCE)
@@ -45,6 +42,9 @@ public class WatcherConcreteIndexTests extends AbstractWatcherIntegrationTestCas
             .get();
 
         assertTrue(putWatchResponse.isCreated());
+        refresh();
+
+        timeWarp().trigger("mywatch");
 
         assertBusy(() -> {
             SearchResponse searchResult = client().prepareSearch(watchResultsIndex).setTrackTotalHits(true).get();

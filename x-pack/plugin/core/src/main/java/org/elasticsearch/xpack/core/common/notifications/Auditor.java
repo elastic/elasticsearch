@@ -42,15 +42,15 @@ public class Auditor<T extends AbstractAuditMessage> {
         this.messageBuilder = Objects.requireNonNull(messageBuilder);
     }
 
-    public final void info(String resourceId, String message) {
+    public void info(String resourceId, String message) {
         indexDoc(messageBuilder.info(resourceId, message, nodeName));
     }
 
-    public final void warning(String resourceId, String message) {
+    public void warning(String resourceId, String message) {
         indexDoc(messageBuilder.warning(resourceId, message, nodeName));
     }
 
-    public final void error(String resourceId, String message) {
+    public void error(String resourceId, String message) {
         indexDoc(messageBuilder.error(resourceId, message, nodeName));
     }
 

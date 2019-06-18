@@ -26,7 +26,6 @@ import org.elasticsearch.common.xcontent.XContentParserUtils;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
@@ -44,7 +43,7 @@ public final class GetPrivilegesResponse {
     }
 
     public GetPrivilegesResponse(Collection<ApplicationPrivilege> privileges) {
-        this.privileges = Collections.unmodifiableSet(new HashSet<>(privileges));
+        this.privileges = Set.copyOf(privileges);
     }
 
     public static GetPrivilegesResponse fromXContent(XContentParser parser) throws IOException {

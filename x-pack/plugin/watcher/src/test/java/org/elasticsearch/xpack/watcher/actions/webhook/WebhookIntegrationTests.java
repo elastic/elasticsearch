@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.watcher.actions.webhook;
 
-import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -17,10 +16,12 @@ import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.transport.Netty4Plugin;
 import org.elasticsearch.xpack.core.watcher.history.WatchRecord;
 import org.elasticsearch.xpack.core.watcher.support.xcontent.XContentSource;
+import org.elasticsearch.xpack.core.watcher.transport.actions.execute.ExecuteWatchRequestBuilder;
+import org.elasticsearch.xpack.core.watcher.transport.actions.put.PutWatchRequestBuilder;
 import org.elasticsearch.xpack.watcher.actions.ActionBuilders;
+import org.elasticsearch.xpack.watcher.common.http.BasicAuth;
 import org.elasticsearch.xpack.watcher.common.http.HttpMethod;
 import org.elasticsearch.xpack.watcher.common.http.HttpRequestTemplate;
-import org.elasticsearch.xpack.watcher.common.http.BasicAuth;
 import org.elasticsearch.xpack.watcher.common.text.TextTemplate;
 import org.elasticsearch.xpack.watcher.condition.InternalAlwaysCondition;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
@@ -44,7 +45,6 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
-@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/35503")
 public class WebhookIntegrationTests extends AbstractWatcherIntegrationTestCase {
 
     private MockWebServer webServer = new MockWebServer();
@@ -81,7 +81,7 @@ public class WebhookIntegrationTests extends AbstractWatcherIntegrationTestCase 
                 .auth(new BasicAuth("user", "pass".toCharArray()))
                 .method(HttpMethod.POST);
 
-        watcherClient().preparePutWatch("_id")
+        new PutWatchRequestBuilder(client(), "_id")
                 .setSource(watchBuilder()
                         .trigger(schedule(interval("5s")))
                         .input(simpleInput("key", "value"))
@@ -121,7 +121,7 @@ public class WebhookIntegrationTests extends AbstractWatcherIntegrationTestCase 
                 .body(new TextTemplate("_body"))
                 .method(HttpMethod.POST);
 
-        watcherClient().preparePutWatch("_id")
+        new PutWatchRequestBuilder(client(), "_id")
                 .setSource(watchBuilder()
                         .trigger(schedule(interval("5s")))
                         .input(simpleInput("key", "value"))
@@ -154,7 +154,7 @@ public class WebhookIntegrationTests extends AbstractWatcherIntegrationTestCase 
                 .putHeader("Content-Type", new TextTemplate("application/json"))
                 .method(HttpMethod.PUT);
 
-        watcherClient().preparePutWatch("_id")
+        new PutWatchRequestBuilder(client(), "_id")
                 .setSource(watchBuilder()
                         .trigger(schedule(interval("5s")))
                         .input(simpleInput("key", "value"))
@@ -162,7 +162,7 @@ public class WebhookIntegrationTests extends AbstractWatcherIntegrationTestCase 
                         .addAction("_id", ActionBuilders.webhookAction(builder)))
                 .get();
 
-        watcherClient().prepareExecuteWatch("_id").get();
+        new ExecuteWatchRequestBuilder(client(), "_id").get();
 
         GetResponse response = client().prepareGet().setIndex("<logstash-{now/d}>").setId("1").get();
         assertExists(response);

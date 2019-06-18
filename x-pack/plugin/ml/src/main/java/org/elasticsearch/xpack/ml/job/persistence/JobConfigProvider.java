@@ -70,7 +70,6 @@ import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -95,12 +94,7 @@ public class JobConfigProvider {
 
     private static final Logger logger = LogManager.getLogger(JobConfigProvider.class);
 
-    public static final Map<String, String> TO_XCONTENT_PARAMS;
-    static {
-        Map<String, String> modifiable = new HashMap<>();
-        modifiable.put(ToXContentParams.FOR_INTERNAL_STORAGE, "true");
-        TO_XCONTENT_PARAMS = Collections.unmodifiableMap(modifiable);
-    }
+    public static final Map<String, String> TO_XCONTENT_PARAMS = Collections.singletonMap(ToXContentParams.FOR_INTERNAL_STORAGE, "true");
 
     private final Client client;
     private final NamedXContentRegistry xContentRegistry;

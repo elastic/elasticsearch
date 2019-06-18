@@ -235,6 +235,60 @@ public class SearchAsYouTypeFieldMapperTests extends ESSingleNodeTestCase {
         }
     }
 
+    public void testMultiFields() throws IOException {
+        for (int shingleSize = 2; shingleSize < 4; shingleSize++) {
+            final XContentBuilder mapping = XContentFactory.jsonBuilder()
+                .startObject()
+                    .startObject("properties")
+                        .startObject("a_field")
+                            .field("type", "text")
+                            .startObject("fields")
+                                .startObject("suggest")
+                                    .field("type", "search_as_you_type")
+                                    .field("max_shingle_size", shingleSize)
+                                .endObject()
+                            .endObject()
+                        .endObject()
+                    .endObject()
+                .endObject();
+
+            final String index = "foo_" + shingleSize;
+            final String path = "a_field.suggest";
+            List<String> fields = new ArrayList<>();
+            fields.add(path);
+            final MapperService mapperService =
+                createIndex(index, Settings.EMPTY, "_doc", mapping).mapperService();
+            FieldType fieldType = mapperService.fullName(path + "._index_prefix");
+            assertThat(fieldType, instanceOf(PrefixFieldType.class));
+            PrefixFieldType prefixFieldType = (PrefixFieldType) fieldType;
+            assertEquals(path, prefixFieldType.parentField);
+            for (int i = 2; i < shingleSize; i++) {
+                String name = path + "._" + i + "gram";
+                fields.add(name);
+                fieldType = mapperService.fullName(name);
+                assertThat(fieldType, instanceOf(ShingleFieldType.class));
+                ShingleFieldType ft = (ShingleFieldType) fieldType;
+                assertEquals(i, ft.shingleSize);
+                assertTrue(prefixFieldType == ft.prefixFieldType);
+            }
+
+            ParsedDocument doc = mapperService.documentMapper()
+                .parse(new SourceToParse("test", "_doc", "1",
+                    BytesReference.bytes(
+                        XContentFactory.jsonBuilder()
+                            .startObject()
+                                .field("a_field", "new york city")
+                            .endObject()
+                    ), XContentType.JSON)
+                );
+            for (String field : fields) {
+                IndexableField[] indexFields = doc.rootDoc().getFields(field);
+                assertEquals(1, indexFields.length);
+                assertEquals("new york city", indexFields[0].stringValue());
+            }
+        }
+    }
+
     public void testIndexOptions() throws IOException {
         final String mapping = Strings.toString(XContentFactory.jsonBuilder()
             .startObject()

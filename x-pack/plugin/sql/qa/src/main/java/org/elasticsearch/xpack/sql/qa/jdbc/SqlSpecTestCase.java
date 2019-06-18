@@ -66,6 +66,13 @@ public abstract class SqlSpecTestCase extends SpecBaseIntegrationTestCase {
     }
 
     @Override
+    protected int fetchSize() {
+        // using a smaller fetchSize for nested documents' tests to uncover bugs
+        // similar to https://github.com/elastic/elasticsearch/issues/42581
+        return randomIntBetween(1, 20);
+    }
+
+    @Override
     protected final void doTest() throws Throwable {
         // we skip the tests in case of these locales because ES-SQL is Locale-insensitive for now
         // while H2 does take the Locale into consideration

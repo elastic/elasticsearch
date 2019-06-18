@@ -73,12 +73,12 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.xpack.core.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.MlMetaIndex;
 import org.elasticsearch.xpack.core.ml.action.GetBucketsAction;
 import org.elasticsearch.xpack.core.ml.action.GetCategoriesAction;
 import org.elasticsearch.xpack.core.ml.action.GetInfluencersAction;
 import org.elasticsearch.xpack.core.ml.action.GetRecordsAction;
-import org.elasticsearch.xpack.core.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.calendars.Calendar;
 import org.elasticsearch.xpack.core.ml.calendars.ScheduledEvent;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
@@ -91,6 +91,7 @@ import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSizeSta
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshotField;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.Quantiles;
+import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.TimingStats;
 import org.elasticsearch.xpack.core.ml.job.results.AnomalyRecord;
 import org.elasticsearch.xpack.core.ml.job.results.Bucket;
 import org.elasticsearch.xpack.core.ml.job.results.CategoryDefinition;
@@ -130,7 +131,6 @@ import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.clientWithOrigin;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
-import static org.elasticsearch.xpack.core.ClientHelper.stashWithOrigin;
 
 public class JobResultsProvider {
     private static final Logger LOGGER = LogManager.getLogger(JobResultsProvider.class);
@@ -418,6 +418,30 @@ public class JobResultsProvider {
                 .addSort(SortBuilders.fieldSort(DataCounts.LATEST_RECORD_TIME.getPreferredName()).order(SortOrder.DESC));
     }
 
+    /**
+     * Get the job's timing stats
+     *
+     * @param jobId The job id
+     */
+    public void timingStats(String jobId, Consumer<TimingStats> handler, Consumer<Exception> errorHandler) {
+        String indexName = AnomalyDetectorsIndex.jobResultsAliasedName(jobId);
+        searchSingleResult(
+            jobId,
+            TimingStats.TYPE.getPreferredName(),
+            createTimingStatsSearch(indexName, jobId),
+            TimingStats.PARSER,
+            result -> handler.accept(result.result),
+            errorHandler,
+            () -> new TimingStats(jobId));
+    }
+
+    private SearchRequestBuilder createTimingStatsSearch(String indexName, String jobId) {
+        return client.prepareSearch(indexName)
+            .setSize(1)
+            .setIndicesOptions(IndicesOptions.lenientExpandOpen())
+            .setQuery(QueryBuilders.idsQuery().addIds(TimingStats.documentId(jobId)));
+    }
+
     public void getAutodetectParams(Job job, Consumer<AutodetectParams> consumer, Consumer<Exception> errorHandler) {
 
         String jobId = job.getId();
@@ -444,6 +468,7 @@ public class JobResultsProvider {
         MultiSearchRequestBuilder msearch = client.prepareMultiSearch()
                 .add(createLatestDataCountsSearch(resultsIndex, jobId))
                 .add(createLatestModelSizeStatsSearch(resultsIndex))
+                .add(createTimingStatsSearch(resultsIndex, jobId))
                 // These next two document IDs never need to be the legacy ones due to the rule
                 // that you cannot open a 5.4 job in a subsequent version of the product
                 .add(createDocIdSearch(resultsIndex, ModelSnapshot.documentId(jobId, job.getModelSnapshotId())))
@@ -505,6 +530,8 @@ public class JobResultsProvider {
         String hitId = hit.getId();
         if (DataCounts.documentId(jobId).equals(hitId)) {
             paramsBuilder.setDataCounts(parseSearchHit(hit, DataCounts.PARSER, errorHandler));
+        } else if (TimingStats.documentId(jobId).equals(hitId)) {
+            paramsBuilder.setTimingStats(parseSearchHit(hit, TimingStats.PARSER, errorHandler));
         } else if (hitId.startsWith(ModelSizeStats.documentIdPrefix(jobId))) {
             ModelSizeStats.Builder modelSizeStats = parseSearchHit(hit, ModelSizeStats.LENIENT_PARSER, errorHandler);
             paramsBuilder.setModelSizeStats(modelSizeStats == null ? null : modelSizeStats.build());
@@ -927,7 +954,7 @@ public class JobResultsProvider {
         String indexName = AnomalyDetectorsIndex.jobResultsAliasedName(jobId);
         LOGGER.trace("ES API CALL: search model plots from index {} from {} size {}", indexName, from, size);
 
-        try (ThreadContext.StoredContext ignore = stashWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN)) {
+        try (ThreadContext.StoredContext ignore = client.threadPool().getThreadContext().stashWithOrigin(ML_ORIGIN)) {
             searchResponse = client.prepareSearch(indexName)
                     .setIndicesOptions(MlIndicesUtils.addIgnoreUnavailable(SearchRequest.DEFAULT_INDICES_OPTIONS))
                     .setQuery(new TermsQueryBuilder(Result.RESULT_TYPE.getPreferredName(), ModelPlot.RESULT_TYPE_VALUE))

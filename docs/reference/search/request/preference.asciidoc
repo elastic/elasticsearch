@@ -6,8 +6,12 @@ default, Elasticsearch selects from the available shard copies in an
 unspecified order, taking the <<allocation-awareness,allocation awareness>> and
 <<search-adaptive-replica,adaptive replica selection>> configuration into
 account. However, it may sometimes be desirable to try and route certain
-searches to certain sets of shard copies, for instance to make better use of
-per-copy caches.
+searches to certain sets of shard copies.
+
+A possible use case would be to make use of per-copy caches like the
+<<shard-request-cache,request cache>>. Doing this, however, runs contrary to the
+idea of search parallelization and can create hotspots on certain nodes because
+the load might not be evenly distributed anymore.
 
 The `preference` is a query string parameter which can be set to:
 
@@ -63,6 +67,10 @@ GET /_search?preference=xyzabc123
 }
 ------------------------------------------------
 // CONSOLE
+
+This can be an effective strategy to increase usage of e.g. the request cache for
+unique users running similar searches repeatedly by always hitting the same cache, while
+requests of different users are still spread across all shard copies.
 
 NOTE: The `_only_local` preference guarantees only to use shard copies on the
 local node, which is sometimes useful for troubleshooting. All other options do

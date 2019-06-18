@@ -54,7 +54,6 @@ import org.apache.lucene.search.spans.SpanTermQuery;
 import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.Operations;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
 import org.elasticsearch.common.settings.Settings;
@@ -193,15 +192,11 @@ public class TextFieldMapper extends FieldMapper {
                 }
                 // Copy the index options of the main field to allow phrase queries on
                 // the prefix field.
-                if (context.indexCreatedVersion().onOrAfter(Version.V_6_4_0)) {
-                    if (fieldType.indexOptions() == IndexOptions.DOCS_AND_FREQS) {
-                        // frequencies are not needed because prefix queries always use a constant score
-                        prefixFieldType.setIndexOptions(IndexOptions.DOCS);
-                    } else {
-                        prefixFieldType.setIndexOptions(fieldType.indexOptions());
-                    }
-                } else if (fieldType.indexOptions() == IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS) {
-                    prefixFieldType.setIndexOptions(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS);
+                if (fieldType.indexOptions() == IndexOptions.DOCS_AND_FREQS) {
+                    // frequencies are not needed because prefix queries always use a constant score
+                    prefixFieldType.setIndexOptions(IndexOptions.DOCS);
+                } else {
+                    prefixFieldType.setIndexOptions(fieldType.indexOptions());
                 }
                 if (fieldType.storeTermVectorOffsets()) {
                     prefixFieldType.setStoreTermVectorOffsets(true);
@@ -814,17 +809,32 @@ public class TextFieldMapper extends FieldMapper {
     }
 
     @Override
+    public FieldMapper updateFieldType(Map<String, MappedFieldType> fullNameToFieldType) {
+        TextFieldMapper mapper = (TextFieldMapper) super.updateFieldType(fullNameToFieldType);
+        if (mapper.prefixFieldMapper != null) {
+            mapper.prefixFieldMapper = (PrefixFieldMapper) mapper.prefixFieldMapper.updateFieldType(fullNameToFieldType);
+        }
+        if (mapper.phraseFieldMapper != null) {
+            mapper.phraseFieldMapper = (PhraseFieldMapper) mapper.phraseFieldMapper.updateFieldType(fullNameToFieldType);
+        }
+        return mapper;
+    }
+
+    @Override
     protected void doMerge(Mapper mergeWith) {
         super.doMerge(mergeWith);
         TextFieldMapper mw = (TextFieldMapper) mergeWith;
+
         if (this.prefixFieldMapper != null && mw.prefixFieldMapper != null) {
             this.prefixFieldMapper = (PrefixFieldMapper) this.prefixFieldMapper.merge(mw.prefixFieldMapper);
-        }
-        else if (this.prefixFieldMapper != null || mw.prefixFieldMapper != null) {
+        } else if (this.prefixFieldMapper != null || mw.prefixFieldMapper != null) {
             throw new IllegalArgumentException("mapper [" + name() + "] has different index_prefix settings, current ["
                 + this.prefixFieldMapper + "], merged [" + mw.prefixFieldMapper + "]");
         }
-        else if (this.fieldType().indexPhrases != mw.fieldType().indexPhrases) {
+
+        if (this.phraseFieldMapper != null && mw.phraseFieldMapper != null) {
+            this.phraseFieldMapper = (PhraseFieldMapper) this.phraseFieldMapper.merge(mw.phraseFieldMapper);
+        } else if (this.fieldType().indexPhrases != mw.fieldType().indexPhrases) {
             throw new IllegalArgumentException("mapper [" + name() + "] has different index_phrases settings, current ["
                 + this.fieldType().indexPhrases + "], merged [" + mw.fieldType().indexPhrases + "]");
         }

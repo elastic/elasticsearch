@@ -60,10 +60,6 @@
 ---
 "Can set is_write_index":
 
-  - skip:
-      version: " - 6.3.99"
-      reason: "is_write_index is only available from 6.4.0 on"
-
   - do:
       indices.create:
         index: test_index

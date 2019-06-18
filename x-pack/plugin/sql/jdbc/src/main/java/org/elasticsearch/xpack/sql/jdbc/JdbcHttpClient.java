@@ -30,17 +30,23 @@ import static org.elasticsearch.xpack.sql.client.StringUtils.EMPTY;
 class JdbcHttpClient {
     private final HttpClient httpClient;
     private final JdbcConfiguration conCfg;
-    private final InfoResponse serverInfo;
+    private InfoResponse serverInfo;
 
     /**
      * The SQLException is the only type of Exception the JDBC API can throw (and that the user expects).
      * If we remove it, we need to make sure no other types of Exceptions (runtime or otherwise) are thrown
      */
     JdbcHttpClient(JdbcConfiguration conCfg) throws SQLException {
+        this(conCfg, true);
+    }
+
+    JdbcHttpClient(JdbcConfiguration conCfg, boolean checkServer) throws SQLException {
         httpClient = new HttpClient(conCfg);
         this.conCfg = conCfg;
-        this.serverInfo = fetchServerInfo();
-        checkServerVersion();
+        if (checkServer) {
+            this.serverInfo = fetchServerInfo();
+            checkServerVersion();
+        }
     }
 
     boolean ping(long timeoutInMs) throws SQLException {
@@ -57,7 +63,8 @@ class JdbcHttpClient {
                 Boolean.FALSE,
                 null,
                 new RequestInfo(Mode.JDBC),
-                conCfg.fieldMultiValueLeniency());
+                conCfg.fieldMultiValueLeniency(),
+                conCfg.indexIncludeFrozen());
         SqlQueryResponse response = httpClient.query(sqlRequest);
         return new DefaultCursor(this, response.cursor(), toJdbcColumnInfo(response.columns()), response.rows(), meta);
     }
@@ -78,6 +85,9 @@ class JdbcHttpClient {
     }
 
     InfoResponse serverInfo() throws SQLException {
+        if (serverInfo == null) {
+            serverInfo = fetchServerInfo();
+        }
         return serverInfo;
     }
 

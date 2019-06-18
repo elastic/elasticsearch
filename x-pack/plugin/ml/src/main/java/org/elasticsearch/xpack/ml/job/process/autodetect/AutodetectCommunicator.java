@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.core.ml.job.process.autodetect.output.FlushAcknow
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSizeStats;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
+import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.TimingStats;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.job.categorization.CategorizationAnalyzer;
@@ -90,9 +91,8 @@ public class AutodetectCommunicator implements Closeable {
                 && job.getAnalysisConfig().getCategorizationFieldName() != null;
     }
 
-    public void init(ModelSnapshot modelSnapshot) throws IOException {
+    public void restoreState(ModelSnapshot modelSnapshot) {
         autodetectProcess.restoreState(stateStreamer, modelSnapshot);
-        createProcessWriter(Optional.empty()).writeHeader();
     }
 
     private DataToProcessWriter createProcessWriter(Optional<DataDescription> dataDescription) {
@@ -101,6 +101,17 @@ public class AutodetectCommunicator implements Closeable {
                 dataCountsReporter, xContentRegistry);
     }
 
+    /**
+     * This must be called once before {@link #writeToJob(InputStream, AnalysisRegistry, XContentType, DataLoadParams, BiConsumer)}
+     * can be used
+     */
+    public void writeHeader() throws IOException {
+        createProcessWriter(Optional.empty()).writeHeader();
+    }
+
+    /**
+     * Call {@link #writeHeader()} exactly once before using this method
+     */
     public void writeToJob(InputStream inputStream, AnalysisRegistry analysisRegistry, XContentType xContentType,
                            DataLoadParams params, BiConsumer<DataCounts, Exception> handler) {
         submitOperation(() -> {
@@ -324,6 +335,10 @@ public class AutodetectCommunicator implements Closeable {
         return autoDetectResultProcessor.modelSizeStats();
     }
 
+    public TimingStats getTimingStats() {
+        return autoDetectResultProcessor.timingStats();
+    }
+
     public DataCounts getDataCounts() {
         return dataCountsReporter.runningTotalStats();
     }
@@ -374,6 +389,6 @@ public class AutodetectCommunicator implements Closeable {
             categorizationAnalyzerConfig =
                     CategorizationAnalyzerConfig.buildDefaultCategorizationAnalyzer(analysisConfig.getCategorizationFilters());
         }
-        categorizationAnalyzer = new CategorizationAnalyzer(analysisRegistry, environment, categorizationAnalyzerConfig);
+        categorizationAnalyzer = new CategorizationAnalyzer(analysisRegistry, categorizationAnalyzerConfig);
     }
 }

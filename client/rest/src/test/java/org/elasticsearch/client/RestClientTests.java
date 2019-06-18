@@ -25,7 +25,6 @@ import org.apache.http.client.AuthCache;
 import org.apache.http.impl.auth.BasicScheme;
 import org.apache.http.impl.client.BasicAuthCache;
 import org.apache.http.impl.nio.client.CloseableHttpAsyncClient;
-import org.elasticsearch.client.DeadHostStateTests.ConfigurableTimeSupplier;
 import org.elasticsearch.client.RestClient.NodeTuple;
 
 import java.io.IOException;
@@ -40,6 +39,8 @@ import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Supplier;
 
 import static java.util.Collections.singletonList;
 import static org.hamcrest.Matchers.instanceOf;
@@ -266,14 +267,15 @@ public class RestClientTests extends RestClientTestCase {
 
         // Mark all the nodes dead for a few test cases
         {
-            ConfigurableTimeSupplier timeSupplier = new ConfigurableTimeSupplier();
+            final AtomicLong time = new AtomicLong(0L);
+            Supplier<Long> timeSupplier = time::get;
             Map<HttpHost, DeadHostState> blacklist = new HashMap<>();
             blacklist.put(n1.getHost(), new DeadHostState(timeSupplier));
             blacklist.put(n2.getHost(), new DeadHostState(new DeadHostState(timeSupplier)));
             blacklist.put(n3.getHost(), new DeadHostState(new DeadHostState(new DeadHostState(timeSupplier))));
 
             /*
-             * case when fewer nodeTuple than blacklist, wont result in any IllegalCapacityException
+             * case when fewer nodeTuple than blacklist, won't result in any IllegalCapacityException
              */
             {
                 NodeTuple<List<Node>> fewerNodeTuple = new NodeTuple<>(Arrays.asList(n1, n2), null);
@@ -282,7 +284,7 @@ public class RestClientTests extends RestClientTestCase {
             }
 
             /*
-             * selectHosts will revive a single host if regardless of
+             * selectHosts will revive a single host regardless of
              * blacklist time. It'll revive the node that is closest
              * to being revived that the NodeSelector is ok with.
              */
@@ -304,7 +306,7 @@ public class RestClientTests extends RestClientTestCase {
              * Now lets wind the clock forward, past the timeout for one of
              * the dead nodes. We should return it.
              */
-            timeSupplier.nanoTime = new DeadHostState(timeSupplier).getDeadUntilNanos();
+            time.set(new DeadHostState(timeSupplier).getDeadUntilNanos());
             assertSelectLivingHosts(Arrays.asList(n1), nodeTuple, blacklist, NodeSelector.ANY);
 
             /*
@@ -318,7 +320,7 @@ public class RestClientTests extends RestClientTestCase {
              * blacklist timeouts then we function as though the nodes aren't
              * in the blacklist at all.
              */
-            timeSupplier.nanoTime += DeadHostState.MAX_CONNECTION_TIMEOUT_NANOS;
+            time.addAndGet(DeadHostState.MAX_CONNECTION_TIMEOUT_NANOS);
             assertSelectLivingHosts(Arrays.asList(n1, n2, n3), nodeTuple, blacklist, NodeSelector.ANY);
             assertSelectLivingHosts(Arrays.asList(n2, n3), nodeTuple, blacklist, not1);
         }

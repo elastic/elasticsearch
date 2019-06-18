@@ -54,7 +54,7 @@ public class LinearRing extends Line {
     }
 
     @Override
-    public <T> T visit(GeometryVisitor<T> visitor) {
+    public <T, E extends Exception> T visit(GeometryVisitor<T, E> visitor) throws E {
         return visitor.visit(this);
     }
 }

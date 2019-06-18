@@ -51,7 +51,7 @@ public class DataFramePivotRestIT extends DataFrameRestTestCase {
     }
 
     public void testSimplePivot() throws Exception {
-        String transformId = "simplePivot";
+        String transformId = "simple-pivot";
         String dataFrameIndex = "pivot_reviews";
         setupDataAccessRole(DATA_ACCESS_ROLE, REVIEWS_INDEX_NAME, dataFrameIndex);
 
@@ -72,7 +72,7 @@ public class DataFramePivotRestIT extends DataFrameRestTestCase {
     }
 
     public void testSimplePivotWithQuery() throws Exception {
-        String transformId = "simplePivotWithQuery";
+        String transformId = "simple_pivot_with_query";
         String dataFrameIndex = "pivot_reviews_user_id_above_20";
         setupDataAccessRole(DATA_ACCESS_ROLE, REVIEWS_INDEX_NAME, dataFrameIndex);
         String query = "\"match\": {\"user_id\": \"user_26\"}";
@@ -88,7 +88,7 @@ public class DataFramePivotRestIT extends DataFrameRestTestCase {
     }
 
     public void testHistogramPivot() throws Exception {
-        String transformId = "simpleHistogramPivot";
+        String transformId = "simple_histogram_pivot";
         String dataFrameIndex = "pivot_reviews_via_histogram";
         setupDataAccessRole(DATA_ACCESS_ROLE, REVIEWS_INDEX_NAME, dataFrameIndex);
 
@@ -115,9 +115,9 @@ public class DataFramePivotRestIT extends DataFrameRestTestCase {
         createDataframeTransformRequest.setJsonEntity(config);
         Map<String, Object> createDataframeTransformResponse = entityAsMap(client().performRequest(createDataframeTransformRequest));
         assertThat(createDataframeTransformResponse.get("acknowledged"), equalTo(Boolean.TRUE));
-        assertTrue(indexExists(dataFrameIndex));
 
         startAndWaitForTransform(transformId, dataFrameIndex);
+        assertTrue(indexExists(dataFrameIndex));
 
         // we expect 3 documents as there shall be 5 unique star values and we are bucketing every 2 starting at 0
         Map<String, Object> indexStats = getAsMap(dataFrameIndex + "/_stats");
@@ -126,7 +126,7 @@ public class DataFramePivotRestIT extends DataFrameRestTestCase {
     }
 
     public void testBiggerPivot() throws Exception {
-        String transformId = "biggerPivot";
+        String transformId = "bigger_pivot";
         String dataFrameIndex = "bigger_pivot_reviews";
         setupDataAccessRole(DATA_ACCESS_ROLE, REVIEWS_INDEX_NAME, dataFrameIndex);
 
@@ -174,9 +174,9 @@ public class DataFramePivotRestIT extends DataFrameRestTestCase {
         createDataframeTransformRequest.setJsonEntity(config);
         Map<String, Object> createDataframeTransformResponse = entityAsMap(client().performRequest(createDataframeTransformRequest));
         assertThat(createDataframeTransformResponse.get("acknowledged"), equalTo(Boolean.TRUE));
-        assertTrue(indexExists(dataFrameIndex));
 
         startAndWaitForTransform(transformId, dataFrameIndex, BASIC_AUTH_VALUE_DATA_FRAME_ADMIN_WITH_SOME_DATA_ACCESS);
+        assertTrue(indexExists(dataFrameIndex));
 
         // we expect 27 documents as there shall be 27 user_id's
         Map<String, Object> indexStats = getAsMap(dataFrameIndex + "/_stats");
@@ -201,7 +201,7 @@ public class DataFramePivotRestIT extends DataFrameRestTestCase {
     }
 
     public void testDateHistogramPivot() throws Exception {
-        String transformId = "simpleDateHistogramPivot";
+        String transformId = "simple_date_histogram_pivot";
         String dataFrameIndex = "pivot_reviews_via_date_histogram";
         setupDataAccessRole(DATA_ACCESS_ROLE, REVIEWS_INDEX_NAME, dataFrameIndex);
 
@@ -214,9 +214,9 @@ public class DataFramePivotRestIT extends DataFrameRestTestCase {
 
         config += " \"pivot\": {"
             + "   \"group_by\": {"
-            + "     \"by_day\": {"
+            + "     \"by_hr\": {"
             + "       \"date_histogram\": {"
-            + "         \"interval\": \"1d\",\"field\":\"timestamp\",\"format\":\"yyyy-MM-DD\""
+            + "         \"fixed_interval\": \"1h\",\"field\":\"timestamp\",\"format\":\"yyyy-MM-dd_HH\""
             + " } } },"
             + "   \"aggregations\": {"
             + "     \"avg_rating\": {"
@@ -226,16 +226,16 @@ public class DataFramePivotRestIT extends DataFrameRestTestCase {
             + "}";
 
         createDataframeTransformRequest.setJsonEntity(config);
+
         Map<String, Object> createDataframeTransformResponse = entityAsMap(client().performRequest(createDataframeTransformRequest));
         assertThat(createDataframeTransformResponse.get("acknowledged"), equalTo(Boolean.TRUE));
-        assertTrue(indexExists(dataFrameIndex));
 
         startAndWaitForTransform(transformId, dataFrameIndex, BASIC_AUTH_VALUE_DATA_FRAME_ADMIN_WITH_SOME_DATA_ACCESS);
+        assertTrue(indexExists(dataFrameIndex));
 
-        // we expect 21 documents as there shall be 21 days worth of docs
         Map<String, Object> indexStats = getAsMap(dataFrameIndex + "/_stats");
-        assertEquals(21, XContentMapValues.extractValue("_all.total.docs.count", indexStats));
-        assertOnePivotValue(dataFrameIndex + "/_search?q=by_day:2017-01-15", 3.82);
+        assertEquals(104, XContentMapValues.extractValue("_all.total.docs.count", indexStats));
+        assertOnePivotValue(dataFrameIndex + "/_search?q=by_hr:1484499600000", 4.0833333333);
     }
 
     @SuppressWarnings("unchecked")
@@ -249,28 +249,33 @@ public class DataFramePivotRestIT extends DataFrameRestTestCase {
 
         config += " \"pivot\": {"
             + "   \"group_by\": {"
-            + "     \"reviewer\": {\"terms\": { \"field\": \"user_id\" }},"
-            + "     \"by_day\": {\"date_histogram\": {\"interval\": \"1d\",\"field\":\"timestamp\",\"format\":\"yyyy-MM-DD\"}}},"
+            + "     \"user.id\": {\"terms\": { \"field\": \"user_id\" }},"
+            + "     \"by_day\": {\"date_histogram\": {\"fixed_interval\": \"1d\",\"field\":\"timestamp\",\"format\":\"yyyy-MM-dd\"}}},"
             + "   \"aggregations\": {"
-            + "     \"avg_rating\": {"
+            + "     \"user.avg_rating\": {"
             + "       \"avg\": {"
             + "         \"field\": \"stars\""
             + " } } } }"
             + "}";
         createPreviewRequest.setJsonEntity(config);
+
         Map<String, Object> previewDataframeResponse = entityAsMap(client().performRequest(createPreviewRequest));
         List<Map<String, Object>> preview = (List<Map<String, Object>>)previewDataframeResponse.get("preview");
-        assertThat(preview.size(), equalTo(393));
-        Set<String> expectedFields = new HashSet<>(Arrays.asList("reviewer", "by_day", "avg_rating"));
+        // preview is limited to 100
+        assertThat(preview.size(), equalTo(100));
+        Set<String> expectedTopLevelFields = new HashSet<>(Arrays.asList("user", "by_day"));
+        Set<String> expectedNestedFields = new HashSet<>(Arrays.asList("id", "avg_rating"));
         preview.forEach(p -> {
             Set<String> keys = p.keySet();
-            assertThat(keys, equalTo(expectedFields));
+            assertThat(keys, equalTo(expectedTopLevelFields));
+            Map<String, Object> nestedObj = (Map<String, Object>)p.get("user");
+            keys = nestedObj.keySet();
+            assertThat(keys, equalTo(expectedNestedFields));
         });
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/40537")
     public void testPivotWithMaxOnDateField() throws Exception {
-        String transformId = "simpleDateHistogramPivotWithMaxTime";
+        String transformId = "simple_date_histogram_pivot_with_max_time";
         String dataFrameIndex = "pivot_reviews_via_date_histogram_with_max_time";
         setupDataAccessRole(DATA_ACCESS_ROLE, REVIEWS_INDEX_NAME, dataFrameIndex);
 
@@ -284,7 +289,7 @@ public class DataFramePivotRestIT extends DataFrameRestTestCase {
         config +="    \"pivot\": { \n" +
             "        \"group_by\": {\n" +
             "            \"by_day\": {\"date_histogram\": {\n" +
-            "                \"interval\": \"1d\",\"field\":\"timestamp\",\"format\":\"yyyy-MM-DD\"\n" +
+            "                \"fixed_interval\": \"1d\",\"field\":\"timestamp\",\"format\":\"yyyy-MM-dd\"\n" +
             "            }}\n" +
             "        },\n" +
             "    \n" +
@@ -299,11 +304,12 @@ public class DataFramePivotRestIT extends DataFrameRestTestCase {
             + "}";
 
         createDataframeTransformRequest.setJsonEntity(config);
+
         Map<String, Object> createDataframeTransformResponse = entityAsMap(client().performRequest(createDataframeTransformRequest));
         assertThat(createDataframeTransformResponse.get("acknowledged"), equalTo(Boolean.TRUE));
-        assertTrue(indexExists(dataFrameIndex));
 
         startAndWaitForTransform(transformId, dataFrameIndex, BASIC_AUTH_VALUE_DATA_FRAME_ADMIN_WITH_SOME_DATA_ACCESS);
+        assertTrue(indexExists(dataFrameIndex));
 
         // we expect 21 documents as there shall be 21 days worth of docs
         Map<String, Object> indexStats = getAsMap(dataFrameIndex + "/_stats");
@@ -312,7 +318,200 @@ public class DataFramePivotRestIT extends DataFrameRestTestCase {
         Map<String, Object> searchResult = getAsMap(dataFrameIndex + "/_search?q=by_day:2017-01-15");
         String actual = (String) ((List<?>) XContentMapValues.extractValue("hits.hits._source.timestamp", searchResult)).get(0);
         // Do `containsString` as actual ending timestamp is indeterminate due to how data is generated
-        assertThat(actual, containsString("2017-01-15T20:"));
+        assertThat(actual, containsString("2017-01-15T"));
+    }
+
+    public void testPivotWithScriptedMetricAgg() throws Exception {
+        String transformId = "scripted_metric_pivot";
+        String dataFrameIndex = "scripted_metric_pivot_reviews";
+        setupDataAccessRole(DATA_ACCESS_ROLE, REVIEWS_INDEX_NAME, dataFrameIndex);
+
+        final Request createDataframeTransformRequest = createRequestWithAuth("PUT", DATAFRAME_ENDPOINT + transformId,
+            BASIC_AUTH_VALUE_DATA_FRAME_ADMIN_WITH_SOME_DATA_ACCESS);
+
+        String config = "{"
+            + " \"source\": {\"index\":\"" + REVIEWS_INDEX_NAME + "\"},"
+            + " \"dest\": {\"index\":\"" + dataFrameIndex + "\"},";
+
+        config += " \"pivot\": {"
+            + "   \"group_by\": {"
+            + "     \"reviewer\": {"
+            + "       \"terms\": {"
+            + "         \"field\": \"user_id\""
+            + " } } },"
+            + "   \"aggregations\": {"
+            + "     \"avg_rating\": {"
+            + "       \"avg\": {"
+            + "         \"field\": \"stars\""
+            + " } },"
+            + "     \"squared_sum\": {"
+            + "       \"scripted_metric\": {"
+            + "         \"init_script\": \"state.reviews_sqrd = []\","
+            + "         \"map_script\": \"state.reviews_sqrd.add(doc.stars.value * doc.stars.value)\","
+            + "         \"combine_script\": \"state.reviews_sqrd\","
+            + "         \"reduce_script\": \"def sum = 0.0; for(l in states){ for(a in l) { sum += a}} return sum\""
+            + " } }"
+            + " } }"
+            + "}";
+
+        createDataframeTransformRequest.setJsonEntity(config);
+        Map<String, Object> createDataframeTransformResponse = entityAsMap(client().performRequest(createDataframeTransformRequest));
+        assertThat(createDataframeTransformResponse.get("acknowledged"), equalTo(Boolean.TRUE));
+
+        startAndWaitForTransform(transformId, dataFrameIndex, BASIC_AUTH_VALUE_DATA_FRAME_ADMIN_WITH_SOME_DATA_ACCESS);
+        assertTrue(indexExists(dataFrameIndex));
+
+        // we expect 27 documents as there shall be 27 user_id's
+        Map<String, Object> indexStats = getAsMap(dataFrameIndex + "/_stats");
+        assertEquals(27, XContentMapValues.extractValue("_all.total.docs.count", indexStats));
+
+        // get and check some users
+        Map<String, Object> searchResult = getAsMap(dataFrameIndex + "/_search?q=reviewer:user_4");
+        assertEquals(1, XContentMapValues.extractValue("hits.total.value", searchResult));
+        Number actual = (Number) ((List<?>) XContentMapValues.extractValue("hits.hits._source.avg_rating", searchResult)).get(0);
+        assertEquals(3.878048780, actual.doubleValue(), 0.000001);
+        actual = (Number) ((List<?>) XContentMapValues.extractValue("hits.hits._source.squared_sum", searchResult)).get(0);
+        assertEquals(711.0, actual.doubleValue(), 0.000001);
+    }
+
+    public void testPivotWithBucketScriptAgg() throws Exception {
+        String transformId = "bucket_script_pivot";
+        String dataFrameIndex = "bucket_script_pivot_reviews";
+        setupDataAccessRole(DATA_ACCESS_ROLE, REVIEWS_INDEX_NAME, dataFrameIndex);
+
+        final Request createDataframeTransformRequest = createRequestWithAuth("PUT", DATAFRAME_ENDPOINT + transformId,
+            BASIC_AUTH_VALUE_DATA_FRAME_ADMIN_WITH_SOME_DATA_ACCESS);
+
+        String config = "{"
+            + " \"source\": {\"index\":\"" + REVIEWS_INDEX_NAME + "\"},"
+            + " \"dest\": {\"index\":\"" + dataFrameIndex + "\"},";
+
+        config += " \"pivot\": {"
+            + "   \"group_by\": {"
+            + "     \"reviewer\": {"
+            + "       \"terms\": {"
+            + "         \"field\": \"user_id\""
+            + " } } },"
+            + "   \"aggregations\": {"
+            + "     \"avg_rating\": {"
+            + "       \"avg\": {"
+            + "         \"field\": \"stars\""
+            + " } },"
+            + "     \"avg_rating_again\": {"
+            + "       \"bucket_script\": {"
+            + "         \"buckets_path\": {\"param_1\": \"avg_rating\"},"
+            + "         \"script\": \"return params.param_1\""
+            + " } }"
+            + " } }"
+            + "}";
+
+        createDataframeTransformRequest.setJsonEntity(config);
+        Map<String, Object> createDataframeTransformResponse = entityAsMap(client().performRequest(createDataframeTransformRequest));
+        assertThat(createDataframeTransformResponse.get("acknowledged"), equalTo(Boolean.TRUE));
+
+        startAndWaitForTransform(transformId, dataFrameIndex, BASIC_AUTH_VALUE_DATA_FRAME_ADMIN_WITH_SOME_DATA_ACCESS);
+        assertTrue(indexExists(dataFrameIndex));
+
+        // we expect 27 documents as there shall be 27 user_id's
+        Map<String, Object> indexStats = getAsMap(dataFrameIndex + "/_stats");
+        assertEquals(27, XContentMapValues.extractValue("_all.total.docs.count", indexStats));
+
+        // get and check some users
+        Map<String, Object> searchResult = getAsMap(dataFrameIndex + "/_search?q=reviewer:user_4");
+        assertEquals(1, XContentMapValues.extractValue("hits.total.value", searchResult));
+        Number actual = (Number) ((List<?>) XContentMapValues.extractValue("hits.hits._source.avg_rating", searchResult)).get(0);
+        assertEquals(3.878048780, actual.doubleValue(), 0.000001);
+        actual = (Number) ((List<?>) XContentMapValues.extractValue("hits.hits._source.avg_rating_again", searchResult)).get(0);
+        assertEquals(3.878048780, actual.doubleValue(), 0.000001);
+    }
+
+    public void testPivotWithGeoCentroidAgg() throws Exception {
+        String transformId = "geo_centroid_pivot";
+        String dataFrameIndex = "geo_centroid_pivot_reviews";
+        setupDataAccessRole(DATA_ACCESS_ROLE, REVIEWS_INDEX_NAME, dataFrameIndex);
+
+        final Request createDataframeTransformRequest = createRequestWithAuth("PUT", DATAFRAME_ENDPOINT + transformId,
+            BASIC_AUTH_VALUE_DATA_FRAME_ADMIN_WITH_SOME_DATA_ACCESS);
+
+        String config = "{"
+            + " \"source\": {\"index\":\"" + REVIEWS_INDEX_NAME + "\"},"
+            + " \"dest\": {\"index\":\"" + dataFrameIndex + "\"},";
+
+        config += " \"pivot\": {"
+            + "   \"group_by\": {"
+            + "     \"reviewer\": {"
+            + "       \"terms\": {"
+            + "         \"field\": \"user_id\""
+            + " } } },"
+            + "   \"aggregations\": {"
+            + "     \"avg_rating\": {"
+            + "       \"avg\": {"
+            + "         \"field\": \"stars\""
+            + " } },"
+            + "     \"location\": {"
+            + "       \"geo_centroid\": {\"field\": \"location\"}"
+            + " } } }"
+            + "}";
+
+        createDataframeTransformRequest.setJsonEntity(config);
+        Map<String, Object> createDataframeTransformResponse = entityAsMap(client().performRequest(createDataframeTransformRequest));
+        assertThat(createDataframeTransformResponse.get("acknowledged"), equalTo(Boolean.TRUE));
+
+        startAndWaitForTransform(transformId, dataFrameIndex, BASIC_AUTH_VALUE_DATA_FRAME_ADMIN_WITH_SOME_DATA_ACCESS);
+        assertTrue(indexExists(dataFrameIndex));
+
+        // we expect 27 documents as there shall be 27 user_id's
+        Map<String, Object> indexStats = getAsMap(dataFrameIndex + "/_stats");
+        assertEquals(27, XContentMapValues.extractValue("_all.total.docs.count", indexStats));
+
+        // get and check some users
+        Map<String, Object> searchResult = getAsMap(dataFrameIndex + "/_search?q=reviewer:user_4");
+        assertEquals(1, XContentMapValues.extractValue("hits.total.value", searchResult));
+        Number actual = (Number) ((List<?>) XContentMapValues.extractValue("hits.hits._source.avg_rating", searchResult)).get(0);
+        assertEquals(3.878048780, actual.doubleValue(), 0.000001);
+        String actualString = (String) ((List<?>) XContentMapValues.extractValue("hits.hits._source.location", searchResult)).get(0);
+        String[] latlon = actualString.split(",");
+        assertEquals((4 + 10), Double.valueOf(latlon[0]), 0.000001);
+        assertEquals((4 + 15), Double.valueOf(latlon[1]), 0.000001);
+    }
+
+    public void testPivotWithWeightedAvgAgg() throws Exception {
+        String transformId = "weighted_avg_agg_transform";
+        String dataFrameIndex = "weighted_avg_pivot_reviews";
+        setupDataAccessRole(DATA_ACCESS_ROLE, REVIEWS_INDEX_NAME, dataFrameIndex);
+
+        final Request createDataframeTransformRequest = createRequestWithAuth("PUT", DATAFRAME_ENDPOINT + transformId,
+            BASIC_AUTH_VALUE_DATA_FRAME_ADMIN_WITH_SOME_DATA_ACCESS);
+
+        String config = "{"
+            + " \"source\": {\"index\":\"" + REVIEWS_INDEX_NAME + "\"},"
+            + " \"dest\": {\"index\":\"" + dataFrameIndex + "\"},";
+
+        config += " \"pivot\": {"
+            + "   \"group_by\": {"
+            + "     \"reviewer\": {"
+            + "       \"terms\": {"
+            + "         \"field\": \"user_id\""
+            + " } } },"
+            + "   \"aggregations\": {"
+            + "     \"avg_rating\": {"
+            + "       \"weighted_avg\": {"
+            + "         \"value\": {\"field\": \"stars\"},"
+            + "         \"weight\": {\"field\": \"stars\"}"
+            + "} } } }"
+            + "}";
+
+        createDataframeTransformRequest.setJsonEntity(config);
+        Map<String, Object> createDataframeTransformResponse = entityAsMap(client().performRequest(createDataframeTransformRequest));
+        assertThat(createDataframeTransformResponse.get("acknowledged"), equalTo(Boolean.TRUE));
+
+        startAndWaitForTransform(transformId, dataFrameIndex, BASIC_AUTH_VALUE_DATA_FRAME_ADMIN_WITH_SOME_DATA_ACCESS);
+        assertTrue(indexExists(dataFrameIndex));
+
+        Map<String, Object> searchResult = getAsMap(dataFrameIndex + "/_search?q=reviewer:user_4");
+        assertEquals(1, XContentMapValues.extractValue("hits.total.value", searchResult));
+        Number actual = (Number) ((List<?>) XContentMapValues.extractValue("hits.hits._source.avg_rating", searchResult)).get(0);
+        assertEquals(4.47169811, actual.doubleValue(), 0.000001);
     }
 
     private void assertOnePivotValue(String query, double expected) throws IOException {

@@ -126,6 +126,10 @@ public class License implements ToXContentObject {
                     throw new IllegalArgumentException("unknown type [" + type + "]");
             }
         }
+
+        public String description() {
+            return name().toLowerCase(Locale.ROOT);
+        }
     }
 
     private License(int version, String uid, String issuer, String issuedTo, long issueDate, String type,
@@ -776,22 +780,4 @@ public class License implements ToXContentObject {
         }
     }
 
-    /**
-     * Returns <code>true</code> iff the license is a production licnese
-     */
-    public boolean isProductionLicense() {
-        switch (operationMode()) {
-            case MISSING:
-            case TRIAL:
-            case BASIC:
-                return false;
-            case STANDARD:
-            case GOLD:
-            case PLATINUM:
-                return true;
-            default:
-                throw new AssertionError("unknown operation mode: " + operationMode());
-
-        }
-    }
 }

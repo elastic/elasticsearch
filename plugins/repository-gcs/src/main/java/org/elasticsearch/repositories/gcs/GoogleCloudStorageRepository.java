@@ -31,6 +31,7 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.function.Function;
 
@@ -56,42 +57,39 @@ class GoogleCloudStorageRepository extends BlobStoreRepository {
     static final Setting<String> CLIENT_NAME = new Setting<>("client", "default", Function.identity());
 
     private final GoogleCloudStorageService storageService;
-    private final BlobPath basePath;
     private final ByteSizeValue chunkSize;
     private final String bucket;
     private final String clientName;
 
     GoogleCloudStorageRepository(RepositoryMetaData metadata, Environment environment,
                                         NamedXContentRegistry namedXContentRegistry,
-                                        GoogleCloudStorageService storageService) {
-        super(metadata, environment.settings(), namedXContentRegistry);
+                                        GoogleCloudStorageService storageService, ThreadPool threadPool) {
+        super(metadata, environment.settings(), namedXContentRegistry, threadPool, buildBasePath(metadata));
         this.storageService = storageService;
 
+        this.chunkSize = getSetting(CHUNK_SIZE, metadata);
+        this.bucket = getSetting(BUCKET, metadata);
+        this.clientName = CLIENT_NAME.get(metadata.settings());
+        logger.debug(
+            "using bucket [{}], base_path [{}], chunk_size [{}], compress [{}]", bucket, basePath(), chunkSize, isCompress());
+    }
+
+    private static BlobPath buildBasePath(RepositoryMetaData metadata) {
         String basePath = BASE_PATH.get(metadata.settings());
         if (Strings.hasLength(basePath)) {
             BlobPath path = new BlobPath();
             for (String elem : basePath.split("/")) {
                 path = path.add(elem);
             }
-            this.basePath = path;
+            return path;
         } else {
-            this.basePath = BlobPath.cleanPath();
+            return BlobPath.cleanPath();
         }
-
-        this.chunkSize = getSetting(CHUNK_SIZE, metadata);
-        this.bucket = getSetting(BUCKET, metadata);
-        this.clientName = CLIENT_NAME.get(metadata.settings());
-        logger.debug("using bucket [{}], base_path [{}], chunk_size [{}], compress [{}]", bucket, basePath, chunkSize, isCompress());
     }
 
     @Override
     protected GoogleCloudStorageBlobStore createBlobStore() {
         return new GoogleCloudStorageBlobStore(bucket, clientName, storageService);
-    }
-
-    @Override
-    protected BlobPath basePath() {
-        return basePath;
     }
 
     @Override

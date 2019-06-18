@@ -23,6 +23,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.AbstractScopedSettings;
@@ -42,7 +43,6 @@ import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -57,12 +57,10 @@ import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
-import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class RemoteClusterServiceTests extends ESTestCase {
@@ -128,8 +126,8 @@ public class RemoteClusterServiceTests extends ESTestCase {
                                 .put("cluster.remote.bar.seeds", "[::1]:9090")
                                 .put("cluster.remote.boom.seeds", "boom-node1.internal:1000")
                                 .put("cluster.remote.boom.proxy", "foo.bar.com:1234")
-                                .put("search.remote.quux.seeds", "quux:9300")
-                                .put("search.remote.quux.proxy", "quux-proxy:19300")
+                                .put("cluster.remote.quux.seeds", "quux:9300")
+                                .put("cluster.remote.quux.proxy", "quux-proxy:19300")
                                 .build());
         assertThat(map.keySet(), containsInAnyOrder(equalTo("foo"), equalTo("bar"), equalTo("boom"), equalTo("quux")));
         assertThat(map.get("foo").v2(), hasSize(1));
@@ -162,34 +160,6 @@ public class RemoteClusterServiceTests extends ESTestCase {
         assertEquals(quux.getId(), "quux#quux:9300");
         assertEquals("quux-proxy:19300", map.get("quux").v1());
         assertEquals(quux.getVersion(), Version.CURRENT.minimumCompatibilityVersion());
-
-        assertSettingDeprecationsAndWarnings(new String[]{"search.remote.quux.seeds", "search.remote.quux.proxy"});
-    }
-
-    public void testBuildRemoteClustersDynamicConfigWithDuplicate() {
-        final IllegalArgumentException e = expectThrows(
-                IllegalArgumentException.class,
-                () -> RemoteClusterService.buildRemoteClustersDynamicConfig(
-                        Settings.builder()
-                                .put("cluster.remote.foo.seeds", "192.168.0.1:8080")
-                                .put("search.remote.foo.seeds", "192.168.0.1:8080")
-                                .build()));
-        assertThat(e, hasToString(containsString("found duplicate remote cluster configurations for cluster alias [foo]")));
-        assertSettingDeprecationsAndWarnings(new String[]{"search.remote.foo.seeds"});
-    }
-
-    public void testBuildRemoteClustersDynamicConfigWithDuplicates() {
-        final IllegalArgumentException e = expectThrows(
-                IllegalArgumentException.class,
-                () -> RemoteClusterService.buildRemoteClustersDynamicConfig(
-                        Settings.builder()
-                                .put("cluster.remote.foo.seeds", "192.168.0.1:8080")
-                                .put("search.remote.foo.seeds", "192.168.0.1:8080")
-                                .put("cluster.remote.bar.seeds", "192.168.0.1:8080")
-                                .put("search.remote.bar.seeds", "192.168.0.1:8080")
-                                .build()));
-        assertThat(e, hasToString(containsString("found duplicate remote cluster configurations for cluster aliases [bar,foo]")));
-        assertSettingDeprecationsAndWarnings(new String[]{"search.remote.bar.seeds", "search.remote.foo.seeds"});
     }
 
     public void testGroupClusterIndices() throws IOException {
@@ -217,22 +187,21 @@ public class RemoteClusterServiceTests extends ESTestCase {
                     assertTrue(service.isRemoteClusterRegistered("cluster_2"));
                     assertFalse(service.isRemoteClusterRegistered("foo"));
                     Map<String, List<String>> perClusterIndices = service.groupClusterIndices(service.getRemoteClusterNames(),
-                        new String[]{"foo:bar", "cluster_1:bar", "cluster_2:foo:bar", "cluster_1:test", "cluster_2:foo*", "foo",
-                            "cluster*:baz", "*:boo", "no*match:boo"},
-                        i -> false);
+                        new String[]{"cluster_1:bar", "cluster_2:foo:bar", "cluster_1:test", "cluster_2:foo*", "foo", "cluster*:baz",
+                        "*:boo"});
                     List<String> localIndices = perClusterIndices.remove(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
                     assertNotNull(localIndices);
-                    assertEquals(Arrays.asList("foo:bar", "foo", "no*match:boo"), localIndices);
+                    assertEquals("foo", localIndices.get(0));
                     assertEquals(2, perClusterIndices.size());
                     assertEquals(Arrays.asList("bar", "test", "baz", "boo"), perClusterIndices.get("cluster_1"));
                     assertEquals(Arrays.asList("foo:bar", "foo*", "baz", "boo"), perClusterIndices.get("cluster_2"));
 
-                    IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () ->
-                        service.groupClusterIndices(service.getRemoteClusterNames(), new String[]{"foo:bar", "cluster_1:bar",
-                            "cluster_2:foo:bar", "cluster_1:test", "cluster_2:foo*", "foo"}, "cluster_1:bar"::equals));
+                    expectThrows(NoSuchRemoteClusterException.class, () -> service.groupClusterIndices(service.getRemoteClusterNames(),
+                        new String[]{"foo:bar", "cluster_1:bar", "cluster_2:foo:bar", "cluster_1:test", "cluster_2:foo*", "foo"}));
 
-                    assertEquals("Can not filter indices; index cluster_1:bar exists but there is also a remote cluster named:" +
-                            " cluster_1", iae.getMessage());
+                    expectThrows(NoSuchRemoteClusterException.class, () ->
+                        service.groupClusterIndices(service.getRemoteClusterNames(), new String[]{"cluster_1:bar",
+                            "cluster_2:foo:bar", "cluster_1:test", "cluster_2:foo*", "does_not_exist:*"}));
                 }
             }
         }
@@ -264,34 +233,28 @@ public class RemoteClusterServiceTests extends ESTestCase {
                     assertFalse(service.isRemoteClusterRegistered("foo"));
                     {
                         Map<String, OriginalIndices> perClusterIndices = service.groupIndices(IndicesOptions.LENIENT_EXPAND_OPEN,
-                            new String[]{"foo:bar", "cluster_1:bar", "cluster_2:foo:bar", "cluster_1:test", "cluster_2:foo*", "foo",
-                                "cluster*:baz", "*:boo", "no*match:boo"},
-                            i -> false);
+                            new String[]{"cluster_1:bar", "cluster_2:foo:bar", "cluster_1:test", "cluster_2:foo*", "foo", "cluster*:baz",
+                            "*:boo"});
                         assertEquals(3, perClusterIndices.size());
-                        assertArrayEquals(new String[]{"foo:bar", "foo", "no*match:boo"},
+                        assertArrayEquals(new String[]{"foo"},
                             perClusterIndices.get(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY).indices());
                         assertArrayEquals(new String[]{"bar", "test", "baz", "boo"}, perClusterIndices.get("cluster_1").indices());
                         assertArrayEquals(new String[]{"foo:bar", "foo*", "baz", "boo"}, perClusterIndices.get("cluster_2").indices());
                     }
                     {
-                        IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () ->
-                            service.groupClusterIndices(service.getRemoteClusterNames(), new String[]{"foo:bar", "cluster_1:bar",
-                                "cluster_2:foo:bar", "cluster_1:test", "cluster_2:foo*", "foo"}, "cluster_1:bar"::equals));
-                        assertEquals("Can not filter indices; index cluster_1:bar exists but there is also a remote cluster named:" +
-                            " cluster_1", iae.getMessage());
+                        expectThrows(NoSuchRemoteClusterException.class, () -> service.groupClusterIndices(service.getRemoteClusterNames(),
+                            new String[]{"foo:bar", "cluster_1:bar", "cluster_2:foo:bar", "cluster_1:test", "cluster_2:foo*", "foo"}));
                     }
                     {
                         Map<String, OriginalIndices> perClusterIndices = service.groupIndices(IndicesOptions.LENIENT_EXPAND_OPEN,
-                            new String[]{"cluster_1:bar", "cluster_2:foo*"},
-                            i -> false);
+                            new String[]{"cluster_1:bar", "cluster_2:foo*"});
                         assertEquals(2, perClusterIndices.size());
                         assertArrayEquals(new String[]{"bar"}, perClusterIndices.get("cluster_1").indices());
                         assertArrayEquals(new String[]{"foo*"}, perClusterIndices.get("cluster_2").indices());
                     }
                     {
                         Map<String, OriginalIndices> perClusterIndices = service.groupIndices(IndicesOptions.LENIENT_EXPAND_OPEN,
-                            Strings.EMPTY_ARRAY,
-                            i -> false);
+                            Strings.EMPTY_ARRAY);
                         assertEquals(1, perClusterIndices.size());
                         assertArrayEquals(Strings.EMPTY_ARRAY, perClusterIndices.get(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY).indices());
                     }
@@ -582,6 +545,7 @@ public class RemoteClusterServiceTests extends ESTestCase {
         return ActionListener.wrap(x -> latch.countDown(), x -> fail());
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/41067")
     public void testCollectNodes() throws InterruptedException, IOException {
         final Settings settings = Settings.EMPTY;
         final List<DiscoveryNode> knownNodes_c1 = new CopyOnWriteArrayList<>();
@@ -775,49 +739,49 @@ public class RemoteClusterServiceTests extends ESTestCase {
         Predicate<DiscoveryNode> nodePredicate = RemoteClusterService.getNodePredicate(Settings.EMPTY);
         {
             DiscoveryNode all = new DiscoveryNode("id", address, Collections.emptyMap(),
-                    new HashSet<>(EnumSet.allOf(DiscoveryNode.Role.class)), Version.CURRENT);
+                    DiscoveryNodeRole.BUILT_IN_ROLES, Version.CURRENT);
             assertTrue(nodePredicate.test(all));
         }
         {
             DiscoveryNode dataMaster = new DiscoveryNode("id", address, Collections.emptyMap(),
-                    new HashSet<>(EnumSet.of(DiscoveryNode.Role.DATA, DiscoveryNode.Role.MASTER)), Version.CURRENT);
+                    Set.of(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.MASTER_ROLE), Version.CURRENT);
             assertTrue(nodePredicate.test(dataMaster));
         }
         {
             DiscoveryNode dedicatedMaster = new DiscoveryNode("id", address, Collections.emptyMap(),
-                    new HashSet<>(EnumSet.of(DiscoveryNode.Role.MASTER)), Version.CURRENT);
+                    Set.of(DiscoveryNodeRole.MASTER_ROLE), Version.CURRENT);
             assertFalse(nodePredicate.test(dedicatedMaster));
         }
         {
             DiscoveryNode dedicatedIngest = new DiscoveryNode("id", address, Collections.emptyMap(),
-                    new HashSet<>(EnumSet.of(DiscoveryNode.Role.INGEST)), Version.CURRENT);
+                    Set.of(DiscoveryNodeRole.INGEST_ROLE), Version.CURRENT);
             assertTrue(nodePredicate.test(dedicatedIngest));
         }
         {
             DiscoveryNode masterIngest = new DiscoveryNode("id", address, Collections.emptyMap(),
-                    new HashSet<>(EnumSet.of(DiscoveryNode.Role.INGEST, DiscoveryNode.Role.MASTER)), Version.CURRENT);
+                    Set.of(DiscoveryNodeRole.INGEST_ROLE, DiscoveryNodeRole.MASTER_ROLE), Version.CURRENT);
             assertTrue(nodePredicate.test(masterIngest));
         }
         {
             DiscoveryNode dedicatedData = new DiscoveryNode("id", address, Collections.emptyMap(),
-                    new HashSet<>(EnumSet.of(DiscoveryNode.Role.DATA)), Version.CURRENT);
+                    Set.of(DiscoveryNodeRole.DATA_ROLE), Version.CURRENT);
             assertTrue(nodePredicate.test(dedicatedData));
         }
         {
             DiscoveryNode ingestData = new DiscoveryNode("id", address, Collections.emptyMap(),
-                    new HashSet<>(EnumSet.of(DiscoveryNode.Role.DATA, DiscoveryNode.Role.INGEST)), Version.CURRENT);
+                    Set.of(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.INGEST_ROLE), Version.CURRENT);
             assertTrue(nodePredicate.test(ingestData));
         }
         {
             DiscoveryNode coordOnly = new DiscoveryNode("id", address, Collections.emptyMap(),
-                    new HashSet<>(EnumSet.noneOf(DiscoveryNode.Role.class)), Version.CURRENT);
+                    Set.of(), Version.CURRENT);
             assertTrue(nodePredicate.test(coordOnly));
         }
     }
 
     public void testGetNodePredicateNodeVersion() {
         TransportAddress address = new TransportAddress(TransportAddress.META_ADDRESS, 0);
-        Set<DiscoveryNode.Role> roles = new HashSet<>(EnumSet.allOf(DiscoveryNode.Role.class));
+        Set<DiscoveryNodeRole> roles = DiscoveryNodeRole.BUILT_IN_ROLES;
         Predicate<DiscoveryNode> nodePredicate = RemoteClusterService.getNodePredicate(Settings.EMPTY);
         Version version = VersionUtils.randomVersion(random());
         DiscoveryNode node = new DiscoveryNode("id", address, Collections.emptyMap(), roles, version);
@@ -826,7 +790,7 @@ public class RemoteClusterServiceTests extends ESTestCase {
 
     public void testGetNodePredicateNodeAttrs() {
         TransportAddress address = new TransportAddress(TransportAddress.META_ADDRESS, 0);
-        Set<DiscoveryNode.Role> roles = new HashSet<>(EnumSet.allOf(DiscoveryNode.Role.class));
+        Set<DiscoveryNodeRole> roles = DiscoveryNodeRole.BUILT_IN_ROLES;
         Settings settings = Settings.builder().put("cluster.remote.node.attr", "gateway").build();
         Predicate<DiscoveryNode> nodePredicate = RemoteClusterService.getNodePredicate(settings);
         {
@@ -852,8 +816,8 @@ public class RemoteClusterServiceTests extends ESTestCase {
         TransportAddress address = new TransportAddress(TransportAddress.META_ADDRESS, 0);
         Settings settings = Settings.builder().put("cluster.remote.node.attr", "gateway").build();
         Predicate<DiscoveryNode> nodePredicate = RemoteClusterService.getNodePredicate(settings);
-        Set<DiscoveryNode.Role> allRoles = new HashSet<>(EnumSet.allOf(DiscoveryNode.Role.class));
-        Set<DiscoveryNode.Role> dedicatedMasterRoles = new HashSet<>(EnumSet.of(DiscoveryNode.Role.MASTER));
+        Set<DiscoveryNodeRole> allRoles = DiscoveryNodeRole.BUILT_IN_ROLES;
+        Set<DiscoveryNodeRole> dedicatedMasterRoles = Set.of(DiscoveryNodeRole.MASTER_ROLE);
         {
             DiscoveryNode node = new DiscoveryNode("id", address, Collections.singletonMap("gateway", "true"),
                     dedicatedMasterRoles, Version.CURRENT);

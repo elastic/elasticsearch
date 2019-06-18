@@ -34,7 +34,6 @@ import org.elasticsearch.http.HttpTransportSettings;
 import java.io.Closeable;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
@@ -131,7 +130,18 @@ public final class ThreadContext implements Closeable, Writeable {
     public StoredContext stashContext() {
         final ThreadContextStruct context = threadLocal.get();
         threadLocal.set(null);
-        return () -> threadLocal.set(context);
+        return () -> {
+            // If the node and thus the threadLocal get closed while this task
+            // is still executing, we don't want this runnable to fail with an
+            // uncaught exception
+            try {
+                threadLocal.set(context);
+            } catch (IllegalStateException e) {
+                if (isClosed() == false) {
+                    throw e;
+                }
+            }
+        };
     }
 
     /**
@@ -266,7 +276,7 @@ public final class ThreadContext implements Closeable, Writeable {
         HashMap<String, List<String>> map = new HashMap<>(responseHeaders.size());
 
         for (Map.Entry<String, Set<String>> entry : responseHeaders.entrySet()) {
-            map.put(entry.getKey(), Collections.unmodifiableList(new ArrayList<>(entry.getValue())));
+            map.put(entry.getKey(), List.copyOf(entry.getValue()));
         }
 
         return Collections.unmodifiableMap(map);

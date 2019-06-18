@@ -30,9 +30,6 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashSet;
 import java.util.Set;
 
 import static org.elasticsearch.rest.action.cat.RestTable.buildHelpWidths;
@@ -76,8 +73,7 @@ public abstract class AbstractCatAction extends BaseRestHandler {
         }
     }
 
-    static Set<String> RESPONSE_PARAMS =
-            Collections.unmodifiableSet(new HashSet<>(Arrays.asList("format", "h", "v", "ts", "pri", "bytes", "size", "time", "s")));
+    static Set<String> RESPONSE_PARAMS = Set.of("format", "h", "v", "ts", "pri", "bytes", "size", "time", "s");
 
     @Override
     protected Set<String> responseParams() {

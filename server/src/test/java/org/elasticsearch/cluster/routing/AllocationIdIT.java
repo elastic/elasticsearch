@@ -105,6 +105,8 @@ public class AllocationIdIT extends ESIntegTestCase {
         internalCluster().assertSameDocIdsOnShards();
         // initial set up is done
 
+        Settings node1DataPathSettings = internalCluster().dataPathSettings(node1);
+        Settings node2DataPathSettings = internalCluster().dataPathSettings(node2);
         internalCluster().stopRandomNode(InternalTestCluster.nameFilter(node1));
 
         // index more docs to node2 that marks node1 as stale
@@ -117,7 +119,7 @@ public class AllocationIdIT extends ESIntegTestCase {
         putFakeCorruptionMarker(indexSettings, shardId, indexPath);
 
         // thanks to master node1 is out of sync
-        node1 = internalCluster().startNode();
+        node1 = internalCluster().startNode(node1DataPathSettings);
 
         // there is only _stale_ primary
         checkNoValidShardCopy(indexName, shardId);
@@ -157,7 +159,7 @@ public class AllocationIdIT extends ESIntegTestCase {
         ensureYellow(indexName);
 
         // bring node2 back
-        node2 = internalCluster().startNode();
+        node2 = internalCluster().startNode(node2DataPathSettings);
         ensureGreen(indexName);
 
         assertThat(historyUUID(node1, indexName), not(equalTo(historyUUID)));

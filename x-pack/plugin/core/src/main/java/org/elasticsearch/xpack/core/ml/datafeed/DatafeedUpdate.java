@@ -134,11 +134,7 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
         }
         this.scrollSize = in.readOptionalVInt();
         this.chunkingConfig = in.readOptionalWriteable(ChunkingConfig::new);
-        if (in.getVersion().onOrAfter(Version.V_6_6_0)) {
-            delayedDataCheckConfig = in.readOptionalWriteable(DelayedDataCheckConfig::new);
-        } else {
-            delayedDataCheckConfig = null;
-        }
+        delayedDataCheckConfig = in.readOptionalWriteable(DelayedDataCheckConfig::new);
     }
 
     /**
@@ -181,9 +177,7 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
         }
         out.writeOptionalVInt(scrollSize);
         out.writeOptionalWriteable(chunkingConfig);
-        if (out.getVersion().onOrAfter(Version.V_6_6_0)) {
-            out.writeOptionalWriteable(delayedDataCheckConfig);
-        }
+        out.writeOptionalWriteable(delayedDataCheckConfig);
     }
 
     @Override
@@ -381,7 +375,7 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
                 && (queryDelay == null || Objects.equals(queryDelay, datafeed.getQueryDelay()))
                 && (indices == null || Objects.equals(indices, datafeed.getIndices()))
                 && (queryProvider == null || Objects.equals(queryProvider.getQuery(), datafeed.getQuery()))
-                && (scrollSize == null || Objects.equals(scrollSize, datafeed.getQueryDelay()))
+                && (scrollSize == null || Objects.equals(scrollSize, datafeed.getScrollSize()))
                 && (aggProvider == null || Objects.equals(aggProvider.getAggs(), datafeed.getAggregations()))
                 && (scriptFields == null || Objects.equals(scriptFields, datafeed.getScriptFields()))
                 && (delayedDataCheckConfig == null || Objects.equals(delayedDataCheckConfig, datafeed.getDelayedDataCheckConfig()))

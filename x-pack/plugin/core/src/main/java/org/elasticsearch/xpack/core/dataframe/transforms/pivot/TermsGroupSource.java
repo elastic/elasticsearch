@@ -15,7 +15,7 @@ import java.io.IOException;
 /*
  * A terms aggregation source for group_by
  */
-public class TermsGroupSource extends SingleGroupSource<TermsGroupSource> {
+public class TermsGroupSource extends SingleGroupSource {
     private static final String NAME = "data_frame_terms_group";
 
     private static final ConstructingObjectParser<TermsGroupSource, Void> STRICT_PARSER = createParser(false);
@@ -27,7 +27,7 @@ public class TermsGroupSource extends SingleGroupSource<TermsGroupSource> {
             return new TermsGroupSource(field);
         });
 
-        SingleGroupSource.declareValuesSourceFields(parser, null);
+        SingleGroupSource.declareValuesSourceFields(parser);
         return parser;
     }
 

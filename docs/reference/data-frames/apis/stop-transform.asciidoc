@@ -2,17 +2,29 @@
 [testenv="basic"]
 [[stop-data-frame-transform]]
 === Stop {dataframe-transforms} API
+
+[subs="attributes"]
 ++++
 <titleabbrev>Stop {dataframe-transforms}</titleabbrev>
 ++++
+
+beta[]
 
 Stops one or more {dataframe-transforms}.
 
 ==== Request
 
-`POST _data_frame/transforms/<data_frame_transform_id>/_stop`
+`POST _data_frame/transforms/<data_frame_transform_id>/_stop` +
 
-//==== Description
+`POST _data_frame/transforms/<data_frame_transform_id1>,<data_frame_transform_id2>/_stop` +
+
+`POST _data_frame/transforms/_all/_stop`
+
+
+==== Description
+You can stop multiple {dataframe-transforms} in a single API request by using a
+comma-separated list of {dataframe-transforms} or a wildcard expression.
+All {dataframe-transforms} can be stopped by using `_all` or `*` as the `<data_frame_transform_id>`.
 
 ==== Path Parameters
 
@@ -34,7 +46,13 @@ Stops one or more {dataframe-transforms}.
    eventually moves the job to `STOPPED`. The timeout simply means the API call itself timed out while waiting for the status change. Defaults to `30s`
     
 //==== Request Body
-//==== Authorization
+==== Authorization
+
+If the {es} {security-features} are enabled, you must have
+`manage_data_frame_transforms` cluster privileges to use this API. The built-in
+`data_frame_transforms_admin` role has these privileges. For more information,
+see {stack-ov}/security-privileges.html[Security privileges] and
+{stack-ov}/built-in-roles.html[Built-in roles].
 
 ==== Examples
 
@@ -51,7 +69,7 @@ When the {dataframe-transform} stops, you receive the following results:
 [source,js]
 ----
 {
-  "stopped" : true
+  "acknowledged" : true
 }
 ----
 // TESTRESPONSE

@@ -79,16 +79,16 @@ POST /_license
 NOTE: These values are invalid; you must substitute the appropriate content
 from your license file.
 
-You can alternatively use a `curl` command, for example:
+You can also install your license file using a `curl` command. Be sure to add
+`@` before the license file path to instruct curl to treat it as an input file.
 
-[source,js]
 [source,shell]
 ------------------------------------------------------------
 curl -XPUT -u <user> 'http://<host>:<port>/_license' -H "Content-Type: application/json" -d @license.json
 ------------------------------------------------------------
 // NOTCONSOLE
 
-On Windows machine, use the following command:
+On Windows, use the following command:
 
 [source,shell]
 ------------------------------------------------------------

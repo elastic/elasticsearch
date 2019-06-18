@@ -129,8 +129,12 @@ public class MainResponse extends ActionResponse implements ToXContentObject {
             final String buildType = (String) value.get("build_type");
             response.build =
                     new Build(
-                            buildFlavor == null ? Build.Flavor.UNKNOWN : Build.Flavor.fromDisplayName(buildFlavor),
-                            buildType == null ? Build.Type.UNKNOWN : Build.Type.fromDisplayName(buildType),
+                            /*
+                             * Be lenient when reading on the wire, the enumeration values from other versions might be different than what
+                             * we know.
+                             */
+                            buildFlavor == null ? Build.Flavor.UNKNOWN : Build.Flavor.fromDisplayName(buildFlavor, false),
+                            buildType == null ? Build.Type.UNKNOWN : Build.Type.fromDisplayName(buildType, false),
                             (String) value.get("build_hash"),
                             (String) value.get("build_date"),
                             (boolean) value.get("build_snapshot"),

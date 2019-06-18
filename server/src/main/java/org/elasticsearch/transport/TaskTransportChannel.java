@@ -20,6 +20,7 @@
 package org.elasticsearch.transport;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.LeakTracker;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskManager;
 
@@ -27,15 +28,20 @@ import java.io.IOException;
 
 public class TaskTransportChannel implements TransportChannel {
 
+    private static final LeakTracker leakTracker = new LeakTracker(TaskTransportChannel.class);
+
     private final Task task;
 
     private final TaskManager taskManager;
     private final TransportChannel channel;
 
+    private final LeakTracker.Leak<TaskTransportChannel> leak;
+
     TaskTransportChannel(TaskManager taskManager, Task task, TransportChannel channel) {
         this.channel = channel;
         this.task = task;
         this.taskManager = taskManager;
+        leak = leakTracker.track(this);
     }
 
     @Override
@@ -69,7 +75,8 @@ public class TaskTransportChannel implements TransportChannel {
         return channel;
     }
 
-    private void endTask() {
+    public void endTask() {
+        leak.close();
         taskManager.unregister(task);
     }
 }

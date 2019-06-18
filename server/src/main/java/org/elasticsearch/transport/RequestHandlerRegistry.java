@@ -59,12 +59,13 @@ public class RequestHandlerRegistry<Request extends TransportRequest> {
     public void processMessageReceived(Request request, TransportChannel channel) throws Exception {
         final Task task = taskManager.register(channel.getChannelType(), action, request);
         boolean success = false;
+        final TaskTransportChannel taskTransportChannel = new TaskTransportChannel(taskManager, task, channel);
         try {
-            handler.messageReceived(request, new TaskTransportChannel(taskManager, task, channel), task);
+            handler.messageReceived(request, taskTransportChannel, task);
             success = true;
         } finally {
             if (success == false) {
-                taskManager.unregister(task);
+                taskTransportChannel.endTask();
             }
         }
     }

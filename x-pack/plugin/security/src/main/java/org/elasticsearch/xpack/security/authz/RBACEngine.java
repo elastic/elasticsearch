@@ -375,7 +375,8 @@ public class RBACEngine implements AuthorizationEngine {
 
         Map<String, Boolean> cluster = new HashMap<>();
         for (String checkAction : request.clusterPrivileges()) {
-            Tuple<ClusterPrivilege, Set<ConditionalClusterPrivilege>> resolvedPrivileges = ClusterPrivilegeResolver.resolve(Collections.singleton(checkAction));
+            Tuple<ClusterPrivilege, Set<ConditionalClusterPrivilege>> resolvedPrivileges = ClusterPrivilegeResolver
+                    .resolve(Collections.singleton(checkAction));
             final ClusterPrivilege checkPrivilege = resolvedPrivileges.v1();
             final Set<ConditionalClusterPrivilege> conditionalClusterPrivileges = resolvedPrivileges.v2();
             boolean granted = userRole.grants(checkPrivilege);

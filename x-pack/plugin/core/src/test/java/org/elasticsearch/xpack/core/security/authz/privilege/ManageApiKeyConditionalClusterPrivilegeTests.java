@@ -40,7 +40,8 @@ public class ManageApiKeyConditionalClusterPrivilegeTests extends ESTestCase {
     }
 
     public void testManagePrivilegeOwnerOnly() {
-        final ManageApiKeyConditionalClusterPrivilege condPrivilege = ManageApiKeyConditionalClusterPrivilege.createOwnerManageApiKeyConditionalClusterPrivilege();
+        final ManageApiKeyConditionalClusterPrivilege condPrivilege = ManageApiKeyConditionalClusterPrivilege
+                .createOwnerManageApiKeyConditionalClusterPrivilege();
 
         boolean accessAllowed = checkAccess(condPrivilege, CREATE_ACTION, new CreateApiKeyRequest(), authentication);
         assertThat(accessAllowed, is(true));

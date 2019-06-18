@@ -730,9 +730,9 @@ public class RBACEngineTests extends ESTestCase {
             .build();
         RBACAuthorizationInfo authzInfo = new RBACAuthorizationInfo(role, null);
 
-        final HasPrivilegesResponse response = hasPrivileges(
-            new RoleDescriptor.IndicesPrivileges[0],
-            new RoleDescriptor.ApplicationResourcePrivileges[0], authentication, authzInfo, Collections.emptyList(), "monitor", "cluster:admin/xpack/security/api_key/invalidate");
+        final HasPrivilegesResponse response = hasPrivileges(new RoleDescriptor.IndicesPrivileges[0],
+                new RoleDescriptor.ApplicationResourcePrivileges[0], authentication, authzInfo, Collections.emptyList(), "monitor",
+                "cluster:admin/xpack/security/api_key/invalidate");
         assertThat(response.isCompleteMatch(), is(false));
         assertThat(response.getClusterPrivileges().get("monitor"), is(false));
         assertThat(response.getClusterPrivileges().get("cluster:admin/xpack/security/api_key/invalidate"), is(true));

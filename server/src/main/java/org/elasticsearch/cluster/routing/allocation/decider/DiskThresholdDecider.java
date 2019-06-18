@@ -131,12 +131,12 @@ public class DiskThresholdDecider extends AllocationDecider {
 
         // flag that determines whether the low threshold checks below can be skipped. We use this for a primary shard that is freshly
         // allocated and empty.
-        boolean skipLowTresholdChecks = shardRouting.primary() &&
+        boolean skipLowThresholdChecks = shardRouting.primary() &&
             shardRouting.active() == false && shardRouting.recoverySource().getType() == RecoverySource.Type.EMPTY_STORE;
 
         // checks for exact byte comparisons
         if (freeBytes < diskThresholdSettings.getFreeBytesThresholdLow().getBytes()) {
-            if (skipLowTresholdChecks == false) {
+            if (skipLowThresholdChecks == false) {
                 if (logger.isDebugEnabled()) {
                     logger.debug("less than the required {} free bytes threshold ({} free) on node {}, preventing allocation",
                             diskThresholdSettings.getFreeBytesThresholdLow(), freeBytesValue, node.nodeId());
@@ -178,7 +178,7 @@ public class DiskThresholdDecider extends AllocationDecider {
         // checks for percentage comparisons
         if (freeDiskPercentage < diskThresholdSettings.getFreeDiskThresholdLow()) {
             // If the shard is a replica or is a non-empty primary, check the low threshold
-            if (skipLowTresholdChecks == false) {
+            if (skipLowThresholdChecks == false) {
                 if (logger.isDebugEnabled()) {
                     logger.debug("more than the allowed {} used disk threshold ({} used) on node [{}], preventing allocation",
                             Strings.format1Decimals(usedDiskThresholdLow, "%"),

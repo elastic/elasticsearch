@@ -20,11 +20,9 @@
 package org.elasticsearch.repositories.azure;
 
 import com.microsoft.azure.storage.LocationMode;
-import com.microsoft.azure.storage.StorageException;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobPath;
@@ -34,14 +32,9 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
-import org.elasticsearch.snapshots.SnapshotCreationException;
-import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.threadpool.ThreadPool;
 
-import java.net.URISyntaxException;
-import java.util.List;
 import java.util.Locale;
 import java.util.function.Function;
 
@@ -131,20 +124,6 @@ public class AzureRepository extends BlobStoreRepository {
     @Override
     protected ByteSizeValue chunkSize() {
         return chunkSize;
-    }
-
-    @Override
-    public void initializeSnapshot(SnapshotId snapshotId, List<IndexId> indices, MetaData clusterMetadata) {
-        try {
-            final AzureBlobStore blobStore = (AzureBlobStore) blobStore();
-            if (blobStore.containerExist() == false) {
-                throw new IllegalArgumentException("The bucket [" + blobStore + "] does not exist. Please create it before "
-                        + " creating an azure snapshot repository backed by it.");
-            }
-        } catch (URISyntaxException | StorageException e) {
-            throw new SnapshotCreationException(metadata.name(), snapshotId, e);
-        }
-        super.initializeSnapshot(snapshotId, indices, clusterMetadata);
     }
 
     @Override

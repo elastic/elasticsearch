@@ -77,7 +77,6 @@ public class ElasticsearchMappingsTests extends ESTestCase {
         // These are not reserved because they're data types, not field names
         overridden.add(Result.TYPE.getPreferredName());
         overridden.add(DataCounts.TYPE.getPreferredName());
-        overridden.add(TimingStats.TYPE.getPreferredName());
         overridden.add(CategoryDefinition.TYPE.getPreferredName());
         overridden.add(ModelSizeStats.RESULT_TYPE_FIELD.getPreferredName());
         overridden.add(ModelSnapshot.TYPE.getPreferredName());

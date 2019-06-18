@@ -196,8 +196,10 @@ public class RecoverySourceHandler {
                 && shard.indexSettings().getIndexMetaData().getState() != IndexMetaData.State.CLOSE) {
                 runUnderPrimaryPermit(() -> {
                     try {
+                        // conservative estimate of the GCP for creating the lease. TODO use the actual GCP once it's appropriate to do so
+                        final long globalCheckpoint = startingSeqNo - 1;
                         // blindly create the lease. TODO integrate this with the recovery process
-                        shard.addPeerRecoveryRetentionLease(request.targetNode().getId(), startingSeqNo - 1, establishRetentionLeaseStep);
+                        shard.addPeerRecoveryRetentionLease(request.targetNode().getId(), globalCheckpoint, establishRetentionLeaseStep);
                     } catch (RetentionLeaseAlreadyExistsException e) {
                         logger.debug("peer-recovery retention lease already exists", e);
                         establishRetentionLeaseStep.onResponse(null);

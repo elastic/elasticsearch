@@ -26,7 +26,6 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
-import org.apache.lucene.util.RoaringDocIdSet;
 import org.apache.lucene.util.packed.PackedInts;
 import org.apache.lucene.util.packed.PackedLongValues;
 import org.elasticsearch.common.util.BigArrays;
@@ -51,12 +50,12 @@ import java.util.List;
 public class BestBucketsDeferringCollector extends DeferringBucketCollector {
     private static class Entry {
         final LeafReaderContext context;
-        final RoaringDocIdSet docIdSet;
+        final PackedLongValues docDeltas;
         final PackedLongValues buckets;
 
-        Entry(LeafReaderContext context, RoaringDocIdSet docIdSet, PackedLongValues buckets) {
+        Entry(LeafReaderContext context, PackedLongValues docDeltas, PackedLongValues buckets) {
             this.context = context;
-            this.docIdSet = docIdSet;
+            this.docDeltas = docDeltas;
             this.buckets = buckets;
         }
     }
@@ -66,7 +65,7 @@ public class BestBucketsDeferringCollector extends DeferringBucketCollector {
     final SearchContext searchContext;
     final boolean isGlobal;
     LeafReaderContext context;
-    RoaringDocIdSet.Builder docIdSetBuilder;
+    PackedLongValues.Builder docDeltasBuilder;
     PackedLongValues.Builder bucketsBuilder;
     long maxBucket = -1;
     boolean finished = false;
@@ -98,8 +97,8 @@ public class BestBucketsDeferringCollector extends DeferringBucketCollector {
 
     private void finishLeaf() {
         if (context != null) {
-            assert docIdSetBuilder != null && bucketsBuilder != null;
-            entries.add(new Entry(context, docIdSetBuilder.build(), bucketsBuilder.build()));
+            assert docDeltasBuilder != null && bucketsBuilder != null;
+            entries.add(new Entry(context, docDeltasBuilder.build(), bucketsBuilder.build()));
         }
     }
 
@@ -108,7 +107,7 @@ public class BestBucketsDeferringCollector extends DeferringBucketCollector {
         finishLeaf();
 
         context = null;
-        docIdSetBuilder = null;
+        docDeltasBuilder = null;
         bucketsBuilder = null;
 
         return new LeafBucketCollector() {
@@ -116,10 +115,10 @@ public class BestBucketsDeferringCollector extends DeferringBucketCollector {
             public void collect(int doc, long bucket) throws IOException {
                 if (context == null) {
                     context = ctx;
-                    docIdSetBuilder = new RoaringDocIdSet.Builder(context.reader().maxDoc());
+                    docDeltasBuilder = PackedLongValues.packedBuilder(PackedInts.DEFAULT);
                     bucketsBuilder = PackedLongValues.packedBuilder(PackedInts.DEFAULT);
                 }
-                docIdSetBuilder.add(doc);
+                docDeltasBuilder.add(doc);
                 bucketsBuilder.add(bucket);
                 maxBucket = Math.max(maxBucket, bucket);
             }
@@ -172,12 +171,13 @@ public class BestBucketsDeferringCollector extends DeferringBucketCollector {
                 scoreIt = scorer.iterator();
                 leafCollector.setScorer(scorer);
             }
-            final DocIdSetIterator docIt = entry.docIdSet.iterator();
+            final PackedLongValues.Iterator docDeltaIterator = entry.docDeltas.iterator();
             final PackedLongValues.Iterator buckets = entry.buckets.iterator();
-            while (docIt.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
-                int doc = docIt.docID();
-                long bucket = buckets.next();
-                long rebasedBucket = hash.find(bucket);
+            int doc = 0;
+            for (long i = 0, end = entry.docDeltas.size(); i < end; ++i) {
+                doc += docDeltaIterator.next();
+                final long bucket = buckets.next();
+                final long rebasedBucket = hash.find(bucket);
                 if (rebasedBucket != -1) {
                     if (needsScores) {
                         if (scoreIt.docID() < doc) {

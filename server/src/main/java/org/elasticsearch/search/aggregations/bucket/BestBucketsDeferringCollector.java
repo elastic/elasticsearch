@@ -112,6 +112,8 @@ public class BestBucketsDeferringCollector extends DeferringBucketCollector {
         bucketsBuilder = null;
 
         return new LeafBucketCollector() {
+            int lastDoc = 0;
+
             @Override
             public void collect(int doc, long bucket) throws IOException {
                 if (context == null) {
@@ -119,8 +121,9 @@ public class BestBucketsDeferringCollector extends DeferringBucketCollector {
                     docDeltasBuilder = PackedLongValues.packedBuilder(PackedInts.DEFAULT);
                     bucketsBuilder = PackedLongValues.packedBuilder(PackedInts.DEFAULT);
                 }
-                docDeltasBuilder.add(doc);
+                docDeltasBuilder.add(doc - lastDoc);
                 bucketsBuilder.add(bucket);
+                lastDoc = doc;
                 maxBucket = Math.max(maxBucket, bucket);
             }
         };

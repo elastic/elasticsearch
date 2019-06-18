@@ -8,6 +8,8 @@
 <titleabbrev>Delete {dataframe-transforms}</titleabbrev>
 ++++
 
+beta[]
+
 Deletes an existing {dataframe-transform}.
 
 
@@ -15,14 +17,22 @@ Deletes an existing {dataframe-transform}.
 
 `DELETE _data_frame/transforms/<data_frame_transform_id>`
 
-//==== Description
+==== Description
+
+NOTE: Before you can delete the {dataframe-transform}, you must stop it.
 
 ==== Path Parameters
 
 `data_frame_transform_id` (required)::
   (string) Identifier for the {dataframe-transform}.
 
-//===== Authorization
+==== Authorization
+
+If the {es} {security-features} are enabled, you must have
+`manage_data_frame_transforms` cluster privileges to use this API. The built-in
+`data_frame_transforms_admin` role has these privileges. For more information,
+see {stack-ov}/security-privileges.html[Security privileges] and
+{stack-ov}/built-in-roles.html[Built-in roles].
 
 ==== Examples
 

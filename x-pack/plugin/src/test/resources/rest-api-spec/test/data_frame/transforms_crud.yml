@@ -208,23 +208,6 @@ setup:
             }
           }
 ---
-"Test transform where dest is a simple index pattern":
-  - do:
-      catch: /Destination index .* should refer to a single index/
-      data_frame.put_data_frame_transform:
-        transform_id: "airline-transform"
-        body: >
-          {
-            "source": {
-              "index": ["airline-data*"]
-            },
-            "dest": { "index": "destination*" },
-            "pivot": {
-              "group_by": { "airline": {"terms": {"field": "airline"}}},
-              "aggs": {"avg_response": {"avg": {"field": "responsetime"}}}
-            }
-          }
----
 "Test alias scenarios":
   - do:
       indices.create:
@@ -362,5 +345,69 @@ setup:
             "pivot": {
               "group_by": { "airline": {"terms": {"field": "airline"}}},
               "aggs": {"airline.responsetime": {"avg": {"field": "responsetime"}}}
+            }
+          }
+---
+"Test invalid data frame id":
+  - do:
+      catch: /can contain lowercase alphanumeric \(a-z and 0-9\), hyphens or underscores; must start and end with alphanumeric/
+      data_frame.put_data_frame_transform:
+        transform_id: "!@#$%^&*(duplicate-field-transform"
+        body: >
+          {
+            "source": {
+              "index": "source-index"
+            },
+            "dest": { "index": "dest-index" },
+            "pivot": {
+              "group_by": { "airline.id": {"terms": {"field": "airline"}}},
+              "aggs": {"airline.response": {"avg": {"field": "responsetime"}}}
+            }
+          }
+  - do:
+      catch: /The id cannot contain more than 64 character/
+      data_frame.put_data_frame_transform:
+        transform_id: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        body: >
+          {
+            "source": {
+              "index": "source-index"
+            },
+            "dest": { "index": "dest-index" },
+            "pivot": {
+              "group_by": { "airline.id": {"terms": {"field": "airline"}}},
+              "aggs": {"airline.response": {"avg": {"field": "responsetime"}}}
+            }
+          }
+---
+"Test invalid destination index name":
+  - do:
+      catch: /dest\.index \[DeStInAtIoN\] must be lowercase/
+      data_frame.put_data_frame_transform:
+        transform_id: "airline-transform"
+        body: >
+          {
+            "source": {
+              "index": "airline-data"
+            },
+            "dest": { "index": "DeStInAtIoN" },
+            "pivot": {
+              "group_by": { "airline": {"terms": {"field": "airline"}}},
+              "aggs": {"avg_response": {"avg": {"field": "responsetime"}}}
+            }
+          }
+  - do:
+      catch: /Invalid index name \[destination#dest\], must not contain \'#\'/
+      data_frame.put_data_frame_transform:
+        transform_id: "airline-transform"
+        body: >
+          {
+            "source": {
+              "index": "airline-data"
+            },
+            "dest": { "index": "destination#dest" },
+            "pivot": {
+              "group_by": { "airline": {"terms": {"field": "airline"}}},
+              "aggs": {"avg_response": {"avg": {"field": "responsetime"}}}
             }
           }

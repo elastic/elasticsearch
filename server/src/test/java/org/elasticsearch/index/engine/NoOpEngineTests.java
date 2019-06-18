@@ -144,7 +144,7 @@ public class NoOpEngineTests extends EngineTestCase {
                 assertEquals(expectedDocStats.getTotalSizeInBytes(), noOpEngine.docStats().getTotalSizeInBytes());
                 assertEquals(expectedDocStats.getAverageSizeInBytes(), noOpEngine.docStats().getAverageSizeInBytes());
                 assertEquals(expectedSegmentStats.getCount(), noOpEngine.segmentsStats(includeFileSize, true).getCount());
-                assertEquals(expectedSegmentStats.getMemoryInBytes(), noOpEngine.segmentsStats(includeFileSize, true).getMemoryInBytes());
+                // don't compare memory in bytes since we load the index with term-dict off-heap
                 assertEquals(expectedSegmentStats.getFileSizes().size(),
                     noOpEngine.segmentsStats(includeFileSize, true).getFileSizes().size());
 

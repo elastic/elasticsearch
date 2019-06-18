@@ -32,7 +32,6 @@ public class MatchQuery extends LeafQuery {
         BUILDER_APPLIERS = Map.ofEntries(
                 entry("analyzer", MatchQueryBuilder::analyzer),
                 entry("auto_generate_synonyms_phrase_query", (qb, s) -> qb.autoGenerateSynonymsPhraseQuery(Booleans.parseBoolean(s))),
-                entry("cutoff_frequency", (qb, s) -> qb.cutoffFrequency(Float.valueOf(s))),
                 entry("fuzziness", (qb, s) -> qb.fuzziness(Fuzziness.fromString(s))),
                 entry("fuzzy_transpositions", (qb, s) -> qb.fuzzyTranspositions(Booleans.parseBoolean(s))),
                 entry("fuzzy_rewrite", MatchQueryBuilder::fuzzyRewrite),

@@ -8,6 +8,8 @@ package org.elasticsearch.xpack.watcher.history;
 import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsResponse;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.xpack.core.watcher.transport.actions.execute.ExecuteWatchRequestBuilder;
+import org.elasticsearch.xpack.core.watcher.transport.actions.put.PutWatchRequestBuilder;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
 
 import java.util.List;
@@ -48,7 +50,7 @@ public class HistoryTemplateTransformMappingsTests extends AbstractWatcherIntegr
                                 .startObject("foo").field("what", "ever").endObject().endObject()))
                 .get();
 
-        watcherClient().preparePutWatch("_first").setSource(watchBuilder()
+        new PutWatchRequestBuilder(client(), "_first").setSource(watchBuilder()
                 .trigger(schedule(interval("5s")))
                 .input(simpleInput())
                 .transform(searchTransform(templateRequest(searchSource().query(QueryBuilders.termQuery("name", "first")), "idx")))
@@ -59,7 +61,7 @@ public class HistoryTemplateTransformMappingsTests extends AbstractWatcherIntegr
 
         // execute another watch which with a transform that should conflict with the previous watch. Since the
         // mapping for the transform construct is disabled, there should be no problems.
-        watcherClient().preparePutWatch("_second").setSource(watchBuilder()
+        new PutWatchRequestBuilder(client(), "_second").setSource(watchBuilder()
                 .trigger(schedule(interval("5s")))
                 .input(simpleInput())
                 .transform(searchTransform(templateRequest(searchSource().query(QueryBuilders.termQuery("name", "second")), "idx")))
@@ -68,8 +70,8 @@ public class HistoryTemplateTransformMappingsTests extends AbstractWatcherIntegr
                         loggingAction("indexed")))
                 .get();
 
-        watcherClient().prepareExecuteWatch("_first").setRecordExecution(true).get();
-        watcherClient().prepareExecuteWatch("_second").setRecordExecution(true).get();
+        new ExecuteWatchRequestBuilder(client(), "_first").setRecordExecution(true).get();
+        new ExecuteWatchRequestBuilder(client(), "_second").setRecordExecution(true).get();
 
         assertBusy(() -> {
             GetFieldMappingsResponse response = client().admin().indices()

@@ -20,6 +20,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -175,7 +176,7 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                                   randomAlphaOfLength(5),
                                   new TransportAddress(TransportAddress.META_ADDRESS, 9301 + i),
                                   randomBoolean() ? singletonMap("attr", randomAlphaOfLength(3)) : emptyMap,
-                                  singleton(randomFrom(DiscoveryNode.Role.values())),
+                                  singleton(randomFrom(DiscoveryNodeRole.BUILT_IN_ROLES)),
                                   Version.CURRENT));
         }
 
@@ -201,7 +202,7 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                                                                 "_host_address",
                                                                 transportAddress,
                                                                 singletonMap("attr", "value"),
-                                                                singleton(DiscoveryNode.Role.MASTER),
+                                                                singleton(DiscoveryNodeRole.MASTER_ROLE),
                                                                 Version.CURRENT);
 
         final ClusterState clusterState = ClusterState.builder(clusterName)
@@ -441,10 +442,10 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                     + "\"nodes\":{"
                       + "\"count\":{"
                         + "\"total\":1,"
-                        + "\"data\":0,"
                         + "\"coordinating_only\":0,"
-                        + "\"master\":1,"
-                        + "\"ingest\":0"
+                        + "\"data\":0,"
+                        + "\"ingest\":0,"
+                        + "\"master\":1"
                       + "},"
                       + "\"versions\":["
                         + "\"" + mockNodeVersion + "\""
@@ -586,7 +587,7 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                                  "_host_address",
                                  new TransportAddress(TransportAddress.META_ADDRESS, 9300),
                                  singletonMap("attr", "value"),
-                                 singleton(DiscoveryNode.Role.MASTER),
+                                 singleton(DiscoveryNodeRole.MASTER_ROLE),
                                  Version.CURRENT);
     }
 

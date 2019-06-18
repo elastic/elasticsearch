@@ -122,11 +122,7 @@ public interface TestClusterConfiguration {
                 } catch (TestClustersException e) {
                     throw e;
                 } catch (Exception e) {
-                    if (lastException == null) {
-                        lastException = e;
-                    } else {
-                        lastException = e;
-                    }
+                    throw  e;
                 }
             }
             if (conditionMet == false) {
@@ -135,7 +131,7 @@ public interface TestClusterConfiguration {
                 if (lastException == null) {
                     throw new TestClustersException(message);
                 } else {
-                    throw new TestClustersException(message, lastException);
+                    throw new TestClustersException(message + message, lastException);
                 }
             }
             logger.info(

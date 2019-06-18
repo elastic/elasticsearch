@@ -6,7 +6,6 @@
 
 package org.elasticsearch.xpack.dataframe.integration;
 
-import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.junit.Before;
@@ -22,7 +21,6 @@ import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswo
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
-@LuceneTestCase.AwaitsFix( bugUrl = "https://github.com/elastic/elasticsearch/issues/42344")
 public class DataFramePivotRestIT extends DataFrameRestTestCase {
 
     private static final String TEST_USER_NAME = "df_admin_plus_data";
@@ -53,7 +51,7 @@ public class DataFramePivotRestIT extends DataFrameRestTestCase {
     }
 
     public void testSimplePivot() throws Exception {
-        String transformId = "simplePivot";
+        String transformId = "simple-pivot";
         String dataFrameIndex = "pivot_reviews";
         setupDataAccessRole(DATA_ACCESS_ROLE, REVIEWS_INDEX_NAME, dataFrameIndex);
 
@@ -74,7 +72,7 @@ public class DataFramePivotRestIT extends DataFrameRestTestCase {
     }
 
     public void testSimplePivotWithQuery() throws Exception {
-        String transformId = "simplePivotWithQuery";
+        String transformId = "simple_pivot_with_query";
         String dataFrameIndex = "pivot_reviews_user_id_above_20";
         setupDataAccessRole(DATA_ACCESS_ROLE, REVIEWS_INDEX_NAME, dataFrameIndex);
         String query = "\"match\": {\"user_id\": \"user_26\"}";
@@ -90,7 +88,7 @@ public class DataFramePivotRestIT extends DataFrameRestTestCase {
     }
 
     public void testHistogramPivot() throws Exception {
-        String transformId = "simpleHistogramPivot";
+        String transformId = "simple_histogram_pivot";
         String dataFrameIndex = "pivot_reviews_via_histogram";
         setupDataAccessRole(DATA_ACCESS_ROLE, REVIEWS_INDEX_NAME, dataFrameIndex);
 
@@ -128,7 +126,7 @@ public class DataFramePivotRestIT extends DataFrameRestTestCase {
     }
 
     public void testBiggerPivot() throws Exception {
-        String transformId = "biggerPivot";
+        String transformId = "bigger_pivot";
         String dataFrameIndex = "bigger_pivot_reviews";
         setupDataAccessRole(DATA_ACCESS_ROLE, REVIEWS_INDEX_NAME, dataFrameIndex);
 
@@ -203,7 +201,7 @@ public class DataFramePivotRestIT extends DataFrameRestTestCase {
     }
 
     public void testDateHistogramPivot() throws Exception {
-        String transformId = "simpleDateHistogramPivot";
+        String transformId = "simple_date_histogram_pivot";
         String dataFrameIndex = "pivot_reviews_via_date_histogram";
         setupDataAccessRole(DATA_ACCESS_ROLE, REVIEWS_INDEX_NAME, dataFrameIndex);
 
@@ -251,10 +249,10 @@ public class DataFramePivotRestIT extends DataFrameRestTestCase {
 
         config += " \"pivot\": {"
             + "   \"group_by\": {"
-            + "     \"reviewer\": {\"terms\": { \"field\": \"user_id\" }},"
+            + "     \"user.id\": {\"terms\": { \"field\": \"user_id\" }},"
             + "     \"by_day\": {\"date_histogram\": {\"fixed_interval\": \"1d\",\"field\":\"timestamp\",\"format\":\"yyyy-MM-dd\"}}},"
             + "   \"aggregations\": {"
-            + "     \"avg_rating\": {"
+            + "     \"user.avg_rating\": {"
             + "       \"avg\": {"
             + "         \"field\": \"stars\""
             + " } } } }"
@@ -265,15 +263,19 @@ public class DataFramePivotRestIT extends DataFrameRestTestCase {
         List<Map<String, Object>> preview = (List<Map<String, Object>>)previewDataframeResponse.get("preview");
         // preview is limited to 100
         assertThat(preview.size(), equalTo(100));
-        Set<String> expectedFields = new HashSet<>(Arrays.asList("reviewer", "by_day", "avg_rating"));
+        Set<String> expectedTopLevelFields = new HashSet<>(Arrays.asList("user", "by_day"));
+        Set<String> expectedNestedFields = new HashSet<>(Arrays.asList("id", "avg_rating"));
         preview.forEach(p -> {
             Set<String> keys = p.keySet();
-            assertThat(keys, equalTo(expectedFields));
+            assertThat(keys, equalTo(expectedTopLevelFields));
+            Map<String, Object> nestedObj = (Map<String, Object>)p.get("user");
+            keys = nestedObj.keySet();
+            assertThat(keys, equalTo(expectedNestedFields));
         });
     }
 
     public void testPivotWithMaxOnDateField() throws Exception {
-        String transformId = "simpleDateHistogramPivotWithMaxTime";
+        String transformId = "simple_date_histogram_pivot_with_max_time";
         String dataFrameIndex = "pivot_reviews_via_date_histogram_with_max_time";
         setupDataAccessRole(DATA_ACCESS_ROLE, REVIEWS_INDEX_NAME, dataFrameIndex);
 
@@ -320,7 +322,7 @@ public class DataFramePivotRestIT extends DataFrameRestTestCase {
     }
 
     public void testPivotWithScriptedMetricAgg() throws Exception {
-        String transformId = "scriptedMetricPivot";
+        String transformId = "scripted_metric_pivot";
         String dataFrameIndex = "scripted_metric_pivot_reviews";
         setupDataAccessRole(DATA_ACCESS_ROLE, REVIEWS_INDEX_NAME, dataFrameIndex);
 
@@ -373,7 +375,7 @@ public class DataFramePivotRestIT extends DataFrameRestTestCase {
     }
 
     public void testPivotWithBucketScriptAgg() throws Exception {
-        String transformId = "bucketScriptPivot";
+        String transformId = "bucket_script_pivot";
         String dataFrameIndex = "bucket_script_pivot_reviews";
         setupDataAccessRole(DATA_ACCESS_ROLE, REVIEWS_INDEX_NAME, dataFrameIndex);
 
@@ -424,7 +426,7 @@ public class DataFramePivotRestIT extends DataFrameRestTestCase {
     }
 
     public void testPivotWithGeoCentroidAgg() throws Exception {
-        String transformId = "geoCentroidPivot";
+        String transformId = "geo_centroid_pivot";
         String dataFrameIndex = "geo_centroid_pivot_reviews";
         setupDataAccessRole(DATA_ACCESS_ROLE, REVIEWS_INDEX_NAME, dataFrameIndex);
 
@@ -474,7 +476,7 @@ public class DataFramePivotRestIT extends DataFrameRestTestCase {
     }
 
     public void testPivotWithWeightedAvgAgg() throws Exception {
-        String transformId = "weightedAvgAggTransform";
+        String transformId = "weighted_avg_agg_transform";
         String dataFrameIndex = "weighted_avg_pivot_reviews";
         setupDataAccessRole(DATA_ACCESS_ROLE, REVIEWS_INDEX_NAME, dataFrameIndex);
 

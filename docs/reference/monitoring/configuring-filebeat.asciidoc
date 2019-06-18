@@ -45,6 +45,11 @@ The {filebeat} {es} module can handle
 {ref}/index-modules-slowlog.html[slow logs].
 For more information about the location of your {es} logs, see the
 {ref}/path-settings.html[path.logs] setting.
+
+IMPORTANT: If there are both structured (`*.json`) and unstructured (plain text)
+versions of the logs, you must use the structured logs. Otherwise, they might
+not appear in the appropriate context in {kib}.
+
 --
 
 . {filebeat-ref}/filebeat-installation.html[Install {filebeat}] on the {es}
@@ -151,6 +156,10 @@ For more information, see
 If the logs that you want to monitor aren't in the default location, set the
 appropriate path variables in the `modules.d/elasticsearch.yml` file. See
 {filebeat-ref}/filebeat-module-elasticsearch.html#configuring-elasticsearch-module[Configure the {es} module].
+
+IMPORTANT: If there are JSON logs, configure the `var.paths` settings to point
+to them instead of the plain text logs.
+
 // end::configure-es-module[]
 --
 

@@ -48,31 +48,7 @@ public final class ClusterPrivilegeResolver {
         return CACHE.computeIfAbsent(name, ClusterPrivilegeResolver::resolvePrivileges);
     }
 
-
-    /**
-     * For given set of privilege names returns a {@link ClusterPrivilege}
-     *
-     * @param name set of predefined names in {@link DefaultClusterPrivilege} or a valid
-     * cluster action
-     * @return a {@link ClusterPrivilege}
-     */
-    public static ClusterPrivilege resolveClusterPrivilege(final Set<String> name) {
-        if (name == null || name.isEmpty()) {
-            return DefaultClusterPrivilege.NONE.clusterPrivilege();
-        }
-        Tuple<ClusterPrivilege, Set<ConditionalClusterPrivilege>> privileges = CACHE.computeIfAbsent(name, ClusterPrivilegeResolver::resolvePrivileges);
-        if (privileges.v2().isEmpty() == false) {
-            throw new IllegalArgumentException("set of names must not contain conditional cluster privileges");
-        }
-        return privileges.v1();
-    }
-
     private static Tuple<ClusterPrivilege, Set<ConditionalClusterPrivilege>> resolvePrivileges(Set<String> name) {
-        final int size = name.size();
-        if (size == 0) {
-            throw new IllegalArgumentException("empty set should not be used");
-        }
-
         Set<String> actions = new HashSet<>();
         Set<Automaton> automata = new HashSet<>();
         Set<ConditionalClusterPrivilege> conditionalClusterPrivileges = new HashSet<>();
@@ -84,7 +60,7 @@ public final class ClusterPrivilegeResolver {
                 actions.add(actionToPattern(part));
             } else {
                 DefaultClusterPrivilege privilege = DefaultClusterPrivilege.fromString(part);
-                if (privilege != null && size == 1) {
+                if (privilege != null && name.size() == 1) {
                     return new Tuple<ClusterPrivilege, Set<ConditionalClusterPrivilege>>(privilege.clusterPrivilege(),
                             Collections.emptySet());
                 } else if (privilege != null) {
@@ -109,11 +85,14 @@ public final class ClusterPrivilegeResolver {
         if (actions.isEmpty() == false) {
             automata.add(patterns(actions));
         }
-        final ClusterPrivilege clusterPrivilege = new ClusterPrivilege(clusterPrivilegeNames, Automatons.unionAndMinimize(automata));
+        ClusterPrivilege clusterPrivilege = DefaultClusterPrivilege.NONE.clusterPrivilege();
+        if (automata.isEmpty() == false) {
+            clusterPrivilege = new ClusterPrivilege(clusterPrivilegeNames, Automatons.unionAndMinimize(automata));
+        }
         return new Tuple<ClusterPrivilege, Set<ConditionalClusterPrivilege>>(clusterPrivilege, conditionalClusterPrivileges);
     }
 
-    static String actionToPattern(String text) {
+    private static String actionToPattern(String text) {
         return text + "*";
     }
 }

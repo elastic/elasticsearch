@@ -417,7 +417,7 @@ public class WellKnownText {
 
     /**
      * Treats supplied arrays as coordinates of a linear ring. If the ring is not closed and coerce is set to true,
-     * the first set of coordinates (lat, lon and alt if available) are added to the end of the arrays.s
+     * the first set of coordinates (lat, lon and alt if available) are added to the end of the arrays.
      */
     private void closeLinearRingIfCoerced(ArrayList<Double> lats, ArrayList<Double> lons, ArrayList<Double> alts) {
         if (coerce && lats.isEmpty() == false && lons.isEmpty() == false) {

@@ -1097,6 +1097,16 @@ public class DateHistogramAggregatorTests extends AggregatorTestCase {
         assertWarnings("[interval] on [date_histogram] is deprecated, use [fixed_interval] or [calendar_interval] in the future.");
     }
 
+    public void testIllegalInterval() throws IOException {
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> testSearchCase(new MatchAllDocsQuery(),
+            Collections.emptyList(),
+            aggregation -> aggregation.dateHistogramInterval(new DateHistogramInterval("foobar")).field(DATE_FIELD),
+            histogram -> {}
+        ));
+        assertThat(e.getMessage(), equalTo("Unable to parse interval [foobar]"));
+        assertWarnings("[interval] on [date_histogram] is deprecated, use [fixed_interval] or [calendar_interval] in the future.");
+    }
+
     private void testSearchCase(Query query, List<String> dataset,
                                 Consumer<DateHistogramAggregationBuilder> configure,
                                 Consumer<InternalDateHistogram> verify) throws IOException {

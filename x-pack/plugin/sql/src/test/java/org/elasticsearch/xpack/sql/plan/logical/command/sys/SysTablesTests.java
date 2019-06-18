@@ -19,13 +19,17 @@ import org.elasticsearch.xpack.sql.analysis.index.IndexResolver.IndexType;
 import org.elasticsearch.xpack.sql.expression.function.FunctionRegistry;
 import org.elasticsearch.xpack.sql.parser.SqlParser;
 import org.elasticsearch.xpack.sql.plan.logical.command.Command;
+import org.elasticsearch.xpack.sql.proto.Mode;
+import org.elasticsearch.xpack.sql.proto.Protocol;
 import org.elasticsearch.xpack.sql.proto.SqlTypedParamValue;
+import org.elasticsearch.xpack.sql.session.Configuration;
 import org.elasticsearch.xpack.sql.session.SchemaRowSet;
 import org.elasticsearch.xpack.sql.session.SqlSession;
 import org.elasticsearch.xpack.sql.stats.Metrics;
 import org.elasticsearch.xpack.sql.type.DataTypes;
 import org.elasticsearch.xpack.sql.type.EsField;
 import org.elasticsearch.xpack.sql.type.TypesTests;
+import org.elasticsearch.xpack.sql.util.DateUtils;
 
 import java.util.Comparator;
 import java.util.Iterator;
@@ -48,8 +52,12 @@ public class SysTablesTests extends ESTestCase {
 
     private final SqlParser parser = new SqlParser();
     private final Map<String, EsField> mapping = TypesTests.loadMapping("mapping-multi-field-with-nested.json", true);
-    private final IndexInfo index = new IndexInfo("test", IndexType.INDEX);
+    private final IndexInfo index = new IndexInfo("test", IndexType.STANDARD_INDEX);
     private final IndexInfo alias = new IndexInfo("alias", IndexType.ALIAS);
+    private final IndexInfo frozen = new IndexInfo("frozen", IndexType.FROZEN_INDEX);
+
+    private final Configuration FROZEN_CFG = new Configuration(DateUtils.UTC, Protocol.FETCH_SIZE, Protocol.REQUEST_TIMEOUT,
+            Protocol.PAGE_TIMEOUT, null, Mode.PLAIN, null, null, null, false, true);
 
     //
     // catalog enumeration
@@ -107,7 +115,7 @@ public class SysTablesTests extends ESTestCase {
         executeCommand("SYS TABLES CATALOG LIKE '' LIKE '' TYPE '%'", r -> {
             assertEquals(2, r.size());
 
-            Iterator<IndexType> it = IndexType.VALID.stream().sorted(Comparator.comparing(IndexType::toSql)).iterator();
+            Iterator<IndexType> it = IndexType.VALID_REGULAR.stream().sorted(Comparator.comparing(IndexType::toSql)).iterator();
 
             for (int t = 0; t < r.size(); t++) {
                 assertEquals(it.next().toSql(), r.column(3));
@@ -149,6 +157,20 @@ public class SysTablesTests extends ESTestCase {
         }, index, alias);
     }
 
+    public void testSysTablesNoTypesAndFrozen() throws Exception {
+        executeCommand("SYS TABLES", r -> {
+            assertEquals(3, r.size());
+            assertEquals("frozen", r.column(2));
+            assertEquals("BASE TABLE", r.column(3));
+            assertTrue(r.advanceRow());
+            assertEquals("test", r.column(2));
+            assertEquals("BASE TABLE", r.column(3));
+            assertTrue(r.advanceRow());
+            assertEquals("alias", r.column(2));
+            assertEquals("VIEW", r.column(3));
+        }, FROZEN_CFG, index, alias, frozen);
+    }
+
     public void testSysTablesWithLegacyTypes() throws Exception {
         executeCommand("SYS TABLES TYPE 'TABLE', 'ALIAS'", r -> {
             assertEquals(2, r.size());
@@ -169,6 +191,20 @@ public class SysTablesTests extends ESTestCase {
             assertEquals("alias", r.column(2));
             assertEquals("VIEW", r.column(3));
         }, index, alias);
+    }
+
+    public void testSysTablesWithProperTypesAndFrozen() throws Exception {
+        executeCommand("SYS TABLES TYPE 'BASE TABLE', 'ALIAS'", r -> {
+            assertEquals(3, r.size());
+            assertEquals("frozen", r.column(2));
+            assertEquals("BASE TABLE", r.column(3));
+            assertTrue(r.advanceRow());
+            assertEquals("test", r.column(2));
+            assertEquals("BASE TABLE", r.column(3));
+            assertTrue(r.advanceRow());
+            assertEquals("alias", r.column(2));
+            assertEquals("VIEW", r.column(3));
+        }, index, frozen, alias);
     }
 
     public void testSysTablesPattern() throws Exception {
@@ -211,6 +247,15 @@ public class SysTablesTests extends ESTestCase {
             assertEquals(1, r.size());
             assertEquals("test", r.column(2));
         }, index);
+    }
+
+    public void testSysTablesOnlyIndicesWithFrozen() throws Exception {
+        executeCommand("SYS TABLES LIKE 'test' TYPE 'BASE TABLE'", r -> {
+            assertEquals(2, r.size());
+            assertEquals("frozen", r.column(2));
+            assertTrue(r.advanceRow());
+            assertEquals("test", r.column(2));
+        }, index, frozen);
     }
 
     public void testSysTablesOnlyIndicesInLegacyMode() throws Exception {
@@ -303,7 +348,7 @@ public class SysTablesTests extends ESTestCase {
         return new SqlTypedParamValue(DataTypes.fromJava(value).typeName, value);
     }
 
-    private Tuple<Command, SqlSession> sql(String sql, List<SqlTypedParamValue> params) {
+    private Tuple<Command, SqlSession> sql(String sql, List<SqlTypedParamValue> params, Configuration cfg) {
         EsIndex test = new EsIndex("test", mapping);
         Analyzer analyzer = new Analyzer(TestUtils.TEST_CFG, new FunctionRegistry(), IndexResolution.valid(test),
                                          new Verifier(new Metrics()));
@@ -312,7 +357,7 @@ public class SysTablesTests extends ESTestCase {
         IndexResolver resolver = mock(IndexResolver.class);
         when(resolver.clusterName()).thenReturn(CLUSTER_NAME);
 
-        SqlSession session = new SqlSession(TestUtils.TEST_CFG, null, null, resolver, null, null, null, null, null);
+        SqlSession session = new SqlSession(cfg, null, null, resolver, null, null, null, null, null);
         return new Tuple<>(cmd, session);
     }
 
@@ -320,10 +365,19 @@ public class SysTablesTests extends ESTestCase {
         executeCommand(sql, emptyList(), consumer, infos);
     }
 
-    @SuppressWarnings({ "unchecked", "rawtypes" })
+    private void executeCommand(String sql, Consumer<SchemaRowSet> consumer, Configuration cfg, IndexInfo... infos) throws Exception {
+        executeCommand(sql, emptyList(), consumer, cfg, infos);
+    }
+
     private void executeCommand(String sql, List<SqlTypedParamValue> params, Consumer<SchemaRowSet> consumer, IndexInfo... infos)
             throws Exception {
-        Tuple<Command, SqlSession> tuple = sql(sql, params);
+        executeCommand(sql, params, consumer, TestUtils.TEST_CFG, infos);
+    }
+
+    @SuppressWarnings({ "unchecked", "rawtypes" })
+    private void executeCommand(String sql, List<SqlTypedParamValue> params, Consumer<SchemaRowSet> consumer, Configuration cfg,
+            IndexInfo... infos) throws Exception {
+        Tuple<Command, SqlSession> tuple = sql(sql, params, cfg);
 
         IndexResolver resolver = tuple.v2().indexResolver();
 

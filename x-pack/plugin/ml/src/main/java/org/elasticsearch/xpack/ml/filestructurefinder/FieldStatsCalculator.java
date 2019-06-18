@@ -5,10 +5,15 @@
  */
 package org.elasticsearch.xpack.ml.filestructurefinder;
 
+import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.common.time.DateFormatters;
+import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.xpack.core.ml.filestructurefinder.FieldStats;
 
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -26,8 +31,52 @@ import java.util.stream.Collectors;
 public class FieldStatsCalculator {
 
     private long count;
-    private SortedMap<String, Integer> countsByStringValue = new TreeMap<>();
-    private SortedMap<Double, Integer> countsByNumericValue = new TreeMap<>();
+    private SortedMap<String, Integer> countsByStringValue;
+    private SortedMap<Double, Integer> countsByNumericValue;
+    private DateFormatter dateFormatter;
+    /**
+     * Parsed earliest and latest times.  Some date formats may cause these to be
+     * wrong due to lack of information.  For example, if the date format does not
+     * contain a year then these will be in 1970, and if there's no timezone in
+     * the format then these will be on the assumption the time was in UTC.  However,
+     * since all the timestamps will be inaccurate in the same way the determination
+     * of the earliest and latest will still be correct.  The trick then is to never
+     * print them out...
+     */
+    private Instant earliestTimestamp;
+    private Instant latestTimestamp;
+    /**
+     * Earliest and latest times in the exact form they were present in the input,
+     * making the output immune to issues like not knowing the correct timezone
+     * or year when parsing.
+     */
+    private String earliestTimeString;
+    private String latestTimeString;
+
+    public FieldStatsCalculator(Map<String, String> mapping) {
+
+        switch (mapping.get(FileStructureUtils.MAPPING_TYPE_SETTING)) {
+            case "byte":
+            case "short":
+            case "integer":
+            case "long":
+            case "half_float":
+            case "float":
+            case "double":
+                countsByNumericValue = new TreeMap<>();
+                break;
+            case "date":
+            case "date_nanos":
+                String format = mapping.get(FileStructureUtils.MAPPING_FORMAT_SETTING);
+                dateFormatter = (format == null) ? DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER : DateFormatter.forPattern(format);
+                // Dates are treated like strings for top hits
+                countsByStringValue = new TreeMap<>();
+                break;
+            default:
+                countsByStringValue = new TreeMap<>();
+                break;
+        }
+    }
 
     /**
      * Add a collection of values to the calculator.
@@ -41,14 +90,27 @@ public class FieldStatsCalculator {
 
         for (String fieldValue : fieldValues) {
 
-            countsByStringValue.compute(fieldValue, (k, v) -> (v == null) ? 1 : (1 + v));
-
             if (countsByNumericValue != null) {
-
                 try {
                     countsByNumericValue.compute(Double.valueOf(fieldValue), (k, v) -> (v == null) ? 1 : (1 + v));
                 } catch (NumberFormatException e) {
-                    countsByNumericValue = null;
+                    // This should not happen in the usual context this class is used in within the file structure finder,
+                    // as "double" should be big enough to hold any value that the file structure finder considers numeric
+                    throw new IllegalArgumentException("Field with numeric mapping [" + fieldValue + "] could not be parsed as type double",
+                        e);
+                }
+            } else {
+                countsByStringValue.compute(fieldValue, (k, v) -> (v == null) ? 1 : (1 + v));
+                if (dateFormatter != null) {
+                    Instant parsedTimestamp = DateFormatters.from(dateFormatter.parse(fieldValue)).toInstant();
+                    if (earliestTimestamp == null || earliestTimestamp.isAfter(parsedTimestamp)) {
+                        earliestTimestamp = parsedTimestamp;
+                        earliestTimeString = fieldValue;
+                    }
+                    if (latestTimestamp == null || latestTimestamp.isBefore(parsedTimestamp)) {
+                        latestTimestamp = parsedTimestamp;
+                        latestTimeString = fieldValue;
+                    }
                 }
             }
         }
@@ -61,11 +123,17 @@ public class FieldStatsCalculator {
      */
     public FieldStats calculate(int numTopHits) {
 
-        if (countsByNumericValue != null && countsByNumericValue.isEmpty() == false) {
-            return new FieldStats(count, countsByNumericValue.size(), countsByNumericValue.firstKey(), countsByNumericValue.lastKey(),
-                calculateMean(), calculateMedian(), findNumericTopHits(numTopHits));
+        if (countsByNumericValue != null) {
+            if (countsByNumericValue.isEmpty()) {
+                assert count == 0;
+                return new FieldStats(count, 0, Collections.emptyList());
+            } else {
+                assert count > 0;
+                return new FieldStats(count, countsByNumericValue.size(), countsByNumericValue.firstKey(), countsByNumericValue.lastKey(),
+                    calculateMean(), calculateMedian(), findNumericTopHits(numTopHits));
+            }
         } else {
-            return new FieldStats(count, countsByStringValue.size(), findStringTopHits(numTopHits));
+            return new FieldStats(count, countsByStringValue.size(), earliestTimeString, latestTimeString, findStringTopHits(numTopHits));
         }
     }
 

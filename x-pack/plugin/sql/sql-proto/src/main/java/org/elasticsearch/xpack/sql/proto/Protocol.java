@@ -23,6 +23,7 @@ public final class Protocol {
     public static final TimeValue REQUEST_TIMEOUT = TimeValue.timeValueSeconds(90);
     public static final TimeValue PAGE_TIMEOUT = TimeValue.timeValueSeconds(45);
     public static final boolean FIELD_MULTI_VALUE_LENIENCY = false;
+    public static final boolean INDEX_INCLUDE_FROZEN = false;
 
     /**
      * SQL-related endpoints

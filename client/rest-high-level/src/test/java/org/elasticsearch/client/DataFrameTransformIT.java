@@ -72,6 +72,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.oneOf;
 
 public class DataFrameTransformIT extends ESRestHighLevelClientTestCase {
 
@@ -139,9 +140,10 @@ public class DataFrameTransformIT extends ESRestHighLevelClientTestCase {
     }
 
     @After
-    public void cleanUpTransforms() throws IOException {
+    public void cleanUpTransforms() throws Exception {
         for (String transformId : transformsToClean) {
-            highLevelClient().dataFrame().stopDataFrameTransform(new StopDataFrameTransformRequest(transformId), RequestOptions.DEFAULT);
+            highLevelClient().dataFrame().stopDataFrameTransform(
+                    new StopDataFrameTransformRequest(transformId, Boolean.TRUE, null), RequestOptions.DEFAULT);
         }
 
         for (String transformId : transformsToClean) {
@@ -150,6 +152,7 @@ public class DataFrameTransformIT extends ESRestHighLevelClientTestCase {
         }
 
         transformsToClean = new ArrayList<>();
+        waitForPendingTasks(adminClient());
     }
 
     public void testCreateDelete() throws IOException {
@@ -256,19 +259,20 @@ public class DataFrameTransformIT extends ESRestHighLevelClientTestCase {
         StartDataFrameTransformRequest startRequest = new StartDataFrameTransformRequest(id);
         StartDataFrameTransformResponse startResponse =
                 execute(startRequest, client::startDataFrameTransform, client::startDataFrameTransformAsync);
-        assertTrue(startResponse.isStarted());
+        assertTrue(startResponse.isAcknowledged());
         assertThat(startResponse.getNodeFailures(), empty());
         assertThat(startResponse.getTaskFailures(), empty());
 
         GetDataFrameTransformStatsResponse statsResponse = execute(new GetDataFrameTransformStatsRequest(id),
                 client::getDataFrameTransformStats, client::getDataFrameTransformStatsAsync);
         assertThat(statsResponse.getTransformsStateAndStats(), hasSize(1));
-        assertEquals(IndexerState.STARTED, statsResponse.getTransformsStateAndStats().get(0).getTransformState().getIndexerState());
+        IndexerState indexerState = statsResponse.getTransformsStateAndStats().get(0).getTransformState().getIndexerState();
+        assertThat(indexerState, is(oneOf(IndexerState.STARTED, IndexerState.INDEXING)));
 
-        StopDataFrameTransformRequest stopRequest = new StopDataFrameTransformRequest(id);
+        StopDataFrameTransformRequest stopRequest = new StopDataFrameTransformRequest(id, Boolean.TRUE, null);
         StopDataFrameTransformResponse stopResponse =
                 execute(stopRequest, client::stopDataFrameTransform, client::stopDataFrameTransformAsync);
-        assertTrue(stopResponse.isStopped());
+        assertTrue(stopResponse.isAcknowledged());
         assertThat(stopResponse.getNodeFailures(), empty());
         assertThat(stopResponse.getTaskFailures(), empty());
     }
@@ -355,7 +359,7 @@ public class DataFrameTransformIT extends ESRestHighLevelClientTestCase {
         StartDataFrameTransformResponse startTransformResponse = execute(new StartDataFrameTransformRequest(id),
             client::startDataFrameTransform,
             client::startDataFrameTransformAsync);
-        assertThat(startTransformResponse.isStarted(), is(true));
+        assertThat(startTransformResponse.isAcknowledged(), is(true));
         assertBusy(() -> {
             GetDataFrameTransformStatsResponse response = execute(new GetDataFrameTransformStatsRequest(id),
                     client::getDataFrameTransformStats, client::getDataFrameTransformStatsAsync);

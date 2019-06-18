@@ -44,6 +44,7 @@ public class TimeoutChecker implements Closeable {
     private final TimeValue timeout;
     private final Thread checkedThread;
     private final ScheduledFuture<?> future;
+    private boolean isClosed; // only accessed within synchronized methods
     private volatile boolean timeoutExceeded;
 
     /**
@@ -66,9 +67,13 @@ public class TimeoutChecker implements Closeable {
      * Stops the timer if running.
      */
     @Override
-    public void close() {
+    public synchronized void close() {
+        if (isClosed) {
+            return;
+        }
         FutureUtils.cancel(future);
         timeoutCheckerWatchdog.remove(checkedThread);
+        isClosed = true;
     }
 
     /**
@@ -104,7 +109,12 @@ public class TimeoutChecker implements Closeable {
         }
     }
 
-    private void setTimeoutExceeded() {
+    private synchronized void setTimeoutExceeded() {
+        // Even though close() cancels the timer, it's possible that it can already be running when close()
+        // is called, so this check prevents the effects of this method occurring after close() returns
+        if (isClosed) {
+            return;
+        }
         timeoutExceeded = true;
         timeoutCheckerWatchdog.interruptLongRunningThreadIfRegistered(checkedThread);
     }

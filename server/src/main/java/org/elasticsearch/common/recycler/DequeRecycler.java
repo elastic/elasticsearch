@@ -37,16 +37,6 @@ public class DequeRecycler<T> extends AbstractRecycler<T> {
     }
 
     @Override
-    public void close() {
-        // call destroy() for every cached object
-        for (T t : deque) {
-            c.destroy(t);
-        }
-        // finally get rid of all references
-        deque.clear();
-    }
-
-    @Override
     public V<T> obtain() {
         final T v = deque.pollFirst();
         if (v == null) {

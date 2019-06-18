@@ -27,6 +27,7 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.replication.TransportReplicationAction;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -86,7 +87,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -562,7 +562,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
     }
 
     protected DiscoveryNode getFakeDiscoNode(String id) {
-        return new DiscoveryNode(id, id, buildNewFakeTransportAddress(), Collections.emptyMap(), EnumSet.allOf(DiscoveryNode.Role.class),
+        return new DiscoveryNode(id, id, buildNewFakeTransportAddress(), Collections.emptyMap(), DiscoveryNodeRole.BUILT_IN_ROLES,
             Version.CURRENT);
     }
 
@@ -797,7 +797,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
     /** Recover a shard from a snapshot using a given repository **/
     protected void recoverShardFromSnapshot(final IndexShard shard,
                                             final Snapshot snapshot,
-                                            final Repository repository) throws IOException {
+                                            final Repository repository) {
         final Version version = Version.CURRENT;
         final ShardId shardId = shard.shardId();
         final String index = shardId.getIndexName();
@@ -806,9 +806,12 @@ public abstract class IndexShardTestCase extends ESTestCase {
         final RecoverySource.SnapshotRecoverySource recoverySource =
             new RecoverySource.SnapshotRecoverySource(UUIDs.randomBase64UUID(), snapshot, version, index);
         final ShardRouting shardRouting = newShardRouting(shardId, node.getId(), true, ShardRoutingState.INITIALIZING, recoverySource);
-
         shard.markAsRecovering("from snapshot", new RecoveryState(shardRouting, node, null));
-        repository.restoreShard(shard, snapshot.getSnapshotId(), version, indexId, shard.shardId(), shard.recoveryState());
+        repository.restoreShard(shard.store(),
+            snapshot.getSnapshotId(), version,
+            indexId,
+            shard.shardId(),
+            shard.recoveryState());
     }
 
     /** Snapshot a shard using a given repository **/
@@ -820,8 +823,8 @@ public abstract class IndexShardTestCase extends ESTestCase {
             Index index = shard.shardId().getIndex();
             IndexId indexId = new IndexId(index.getName(), index.getUUID());
 
-            repository.snapshotShard(shard, shard.store(), snapshot.getSnapshotId(), indexId, indexCommitRef.getIndexCommit(),
-                snapshotStatus);
+            repository.snapshotShard(shard.store(), shard.mapperService(), snapshot.getSnapshotId(), indexId,
+                indexCommitRef.getIndexCommit(), snapshotStatus);
         }
 
         final IndexShardSnapshotStatus.Copy lastSnapshotStatus = snapshotStatus.asCopy();

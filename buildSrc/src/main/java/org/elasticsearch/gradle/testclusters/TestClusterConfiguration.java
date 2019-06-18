@@ -29,6 +29,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
@@ -65,11 +66,17 @@ public interface TestClusterConfiguration {
 
     void environment(String key, Supplier<CharSequence> valueSupplier);
 
+    void jvmArgs(String... values);
+
+    void jvmArgs(Supplier<String[]> valueSupplier);
+
     void freeze();
 
     void setJavaHome(File javaHome);
 
     void start();
+
+    void restart();
 
     void extraConfigFile(String destination, File from);
 
@@ -84,6 +91,8 @@ public interface TestClusterConfiguration {
     List<String> getAllTransportPortURI();
 
     void stop(boolean tailLogs);
+
+    void setNameCustomization(Function<String, String> nameSupplier);
 
     default void waitForConditions(
         LinkedHashMap<String, Predicate<TestClusterConfiguration>> waitConditions,
@@ -113,11 +122,7 @@ public interface TestClusterConfiguration {
                 } catch (TestClustersException e) {
                     throw e;
                 } catch (Exception e) {
-                    if (lastException == null) {
-                        lastException = e;
-                    } else {
-                        lastException = e;
-                    }
+                    throw  e;
                 }
             }
             if (conditionMet == false) {
@@ -126,7 +131,7 @@ public interface TestClusterConfiguration {
                 if (lastException == null) {
                     throw new TestClustersException(message);
                 } else {
-                    throw new TestClustersException(message, lastException);
+                    throw new TestClustersException(message + message, lastException);
                 }
             }
             logger.info(

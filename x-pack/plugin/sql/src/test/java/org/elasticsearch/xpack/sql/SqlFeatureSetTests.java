@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.sql;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterName;
@@ -17,6 +18,8 @@ import org.elasticsearch.common.xcontent.ObjectPath;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.action.XPackUsageFeatureResponse;
 import org.elasticsearch.xpack.core.sql.SqlFeatureSetUsage;
 import org.elasticsearch.xpack.core.watcher.common.stats.Counters;
 import org.elasticsearch.xpack.sql.plugin.SqlStatsAction;
@@ -98,9 +101,11 @@ public class SqlFeatureSetTests extends ESTestCase {
             return null;
         }).when(client).execute(eq(SqlStatsAction.INSTANCE), any(), any());
 
-        PlainActionFuture<SqlFeatureSet.Usage> future = new PlainActionFuture<>();
-        new SqlFeatureSet(Settings.EMPTY, licenseState, client).usage(future);
-        SqlFeatureSetUsage sqlUsage = (SqlFeatureSetUsage) future.get();
+        var usageAction = new SqlFeatureSet.UsageTransportAction(mock(TransportService.class), null, null,
+            mock(ActionFilters.class), null, Settings.EMPTY, licenseState, client);
+        PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();
+        usageAction.masterOperation(null, null, future);
+        SqlFeatureSetUsage sqlUsage = (SqlFeatureSetUsage) future.get().getUsage();
         
         long fooBarBaz = ObjectPath.eval("foo.bar.baz", sqlUsage.stats());
         long fooFoo = ObjectPath.eval("foo.foo", sqlUsage.stats());

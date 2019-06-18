@@ -45,8 +45,8 @@ public final class GetPrivilegesRequest implements Validatable {
     /**
      * Constructs a {@link GetPrivilegesRequest} to request all the privileges defined for all applications
      */
-    public static GetPrivilegesRequest getAllApplicationPrivileges() {
-        return new GetPrivilegesRequest("_application");
+    public static GetPrivilegesRequest getAllPrivileges() {
+        return new GetPrivilegesRequest(null);
     }
 
     /**

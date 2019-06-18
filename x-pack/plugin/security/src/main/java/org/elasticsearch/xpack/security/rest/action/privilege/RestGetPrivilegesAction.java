@@ -19,7 +19,6 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestBuilderListener;
-import org.elasticsearch.xpack.core.security.action.privilege.GetPrivilegesRequest;
 import org.elasticsearch.xpack.core.security.action.privilege.GetPrivilegesRequestBuilder;
 import org.elasticsearch.xpack.core.security.action.privilege.GetPrivilegesResponse;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
@@ -62,19 +61,12 @@ public class RestGetPrivilegesAction extends SecurityBaseRestHandler {
 
     @Override
     public RestChannelConsumer innerPrepareRequest(RestRequest request, NodeClient client) throws IOException {
-        final String scope = request.param("application");
+        final String application = request.param("application");
         final String[] privileges = request.paramAsStringArray("privilege", Strings.EMPTY_ARRAY);
 
         final GetPrivilegesRequestBuilder requestBuilder = new GetPrivilegesRequestBuilder(client);
-        // Application names cannot start with `_`, so we use this for built-in names
-        if ("_cluster".equals(scope)) {
-            requestBuilder.privilegeTypes(GetPrivilegesRequest.PrivilegeType.CLUSTER);
-        } else if ("_index".equals(scope)) {
-            requestBuilder.privilegeTypes(GetPrivilegesRequest.PrivilegeType.INDEX);
-        } else if ("_application".equals(scope)) {
-            requestBuilder.privilegeTypes(GetPrivilegesRequest.PrivilegeType.APPLICATION);
-        } else if (Strings.hasText(scope)) {
-            requestBuilder.privilegeTypes(GetPrivilegesRequest.PrivilegeType.APPLICATION).application(scope).privileges(privileges);
+        if (Strings.hasText(application)) {
+            requestBuilder.application(application).privileges(privileges);
         }
 
         return channel -> requestBuilder.execute(new RestBuilderListener<>(channel) {
@@ -82,10 +74,7 @@ public class RestGetPrivilegesAction extends SecurityBaseRestHandler {
             public RestResponse buildResponse(GetPrivilegesResponse response, XContentBuilder builder) throws Exception {
                 builder.startObject();
 
-                outputArrayIfExists(builder, "_cluster", response.getClusterPrivileges());
-                outputArrayIfExists(builder, "_index", response.getIndexPrivileges());
-
-                final Map<String, Set<ApplicationPrivilegeDescriptor>> appPrivs = groupByApplicationName(response.applicationPrivileges());
+                final Map<String, Set<ApplicationPrivilegeDescriptor>> appPrivs = groupByApplicationName(response.privileges());
                 for (String app : appPrivs.keySet()) {
                     builder.startObject(app);
                     for (ApplicationPrivilegeDescriptor privilege : appPrivs.get(app)) {
@@ -107,12 +96,6 @@ public class RestGetPrivilegesAction extends SecurityBaseRestHandler {
                 return new BytesRestResponse(RestStatus.OK, builder);
             }
         });
-    }
-
-    private static void outputArrayIfExists(XContentBuilder builder, String field, String[] array) throws IOException {
-        if (array != null && array.length > 0) {
-            builder.array(field, array);
-        }
     }
 
     static Map<String, Set<ApplicationPrivilegeDescriptor>> groupByApplicationName(ApplicationPrivilegeDescriptor[] privileges) {

@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.core.security.action.privilege;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.Nullable;
@@ -16,8 +15,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.EnumSet;
-import java.util.Set;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
@@ -30,29 +27,17 @@ public final class GetPrivilegesRequest extends ActionRequest implements Applica
     private String application;
     private String[] privileges;
 
-    private EnumSet<PrivilegeType> includedTypes;
-
     public GetPrivilegesRequest() {
         privileges = Strings.EMPTY_ARRAY;
-        includedTypes = EnumSet.allOf(PrivilegeType.class);
     }
 
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
-        if (includedTypes.contains(PrivilegeType.APPLICATION) && privileges == null) {
-            validationException = addValidationError(
-                "if application privileges are requested, privileges array cannot be null (but may be empty)", validationException);
+        if (privileges == null) {
+            validationException = addValidationError("privileges cannot be null", validationException);
         }
         return validationException;
-    }
-
-    public void privilegeTypes(PrivilegeType first, PrivilegeType... rest) {
-        this.includedTypes = EnumSet.of(first, rest);
-    }
-
-    public Set<PrivilegeType> privilegeTypes() {
-       return Collections.unmodifiableSet(this.includedTypes);
     }
 
     public void application(String application) {
@@ -81,11 +66,6 @@ public final class GetPrivilegesRequest extends ActionRequest implements Applica
         super.readFrom(in);
         application = in.readOptionalString();
         privileges = in.readStringArray();
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
-            this.includedTypes = in.readEnumSet(PrivilegeType.class);
-        } else {
-            this.includedTypes = EnumSet.of(PrivilegeType.APPLICATION);
-        }
     }
 
     @Override
@@ -93,12 +73,5 @@ public final class GetPrivilegesRequest extends ActionRequest implements Applica
         super.writeTo(out);
         out.writeOptionalString(application);
         out.writeStringArray(privileges);
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
-            out.writeEnumSet(includedTypes);
-        }
-    }
-
-    public enum PrivilegeType {
-        CLUSTER, INDEX, APPLICATION,
     }
 }

@@ -340,10 +340,10 @@ public class SecurityRequestConvertersTests extends ESTestCase {
     }
 
     public void testGetAllApplicationPrivileges() throws Exception {
-        GetPrivilegesRequest getPrivilegesRequest = GetPrivilegesRequest.getAllApplicationPrivileges();
+        GetPrivilegesRequest getPrivilegesRequest = GetPrivilegesRequest.getAllPrivileges();
         Request request = SecurityRequestConverters.getPrivileges(getPrivilegesRequest);
         assertEquals(HttpGet.METHOD_NAME, request.getMethod());
-        assertEquals("/_security/privilege/_application", request.getEndpoint());
+        assertEquals("/_security/privilege", request.getEndpoint());
         assertEquals(Collections.emptyMap(), request.getParameters());
         assertNull(request.getEntity());
     }

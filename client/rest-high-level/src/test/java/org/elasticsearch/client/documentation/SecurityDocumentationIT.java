@@ -1583,7 +1583,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
 
         {
             //tag::get-all-privileges-request
-            GetPrivilegesRequest request = GetPrivilegesRequest.getAllApplicationPrivileges();
+            GetPrivilegesRequest request = GetPrivilegesRequest.getAllPrivileges();
             //end::get-all-privileges-request
             GetPrivilegesResponse response = client.security().getPrivileges(request, RequestOptions.DEFAULT);
 

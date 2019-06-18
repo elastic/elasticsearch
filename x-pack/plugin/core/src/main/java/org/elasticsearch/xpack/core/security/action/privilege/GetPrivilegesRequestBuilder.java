@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.core.security.action.privilege;
 
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
-import org.elasticsearch.xpack.core.security.action.privilege.GetPrivilegesRequest.PrivilegeType;
 
 /**
  * Builder for {@link GetPrivilegesRequest}
@@ -27,11 +26,4 @@ public final class GetPrivilegesRequestBuilder extends ActionRequestBuilder<GetP
         request.application(applicationName);
         return this;
     }
-
-    public GetPrivilegesRequestBuilder privilegeTypes(PrivilegeType first, PrivilegeType... rest) {
-        request.privilegeTypes(first, rest);
-        return this;
-    }
-
-
 }

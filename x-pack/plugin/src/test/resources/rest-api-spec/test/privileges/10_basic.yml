@@ -189,7 +189,7 @@ teardown:
  # Get all (4) privileges back for all apps
   - do:
       security.get_privileges:
-        application: "_application"
+        application: ""
         name: ""
 
   - match: {

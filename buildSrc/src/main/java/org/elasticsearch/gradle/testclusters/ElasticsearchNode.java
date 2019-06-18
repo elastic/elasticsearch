@@ -893,6 +893,13 @@ public class ElasticsearchNode implements TestClusterConfiguration {
                     .toFile()
             );
         }
+        if (settings.containsKey("xpack.security.http.ssl.certificate")) {
+            wait.setCertificateAuthorities(
+                getConfigDir()
+                    .resolve(settings.get("xpack.security.http.ssl.certificate").get().toString())
+                    .toFile()
+            );
+        }
         if (settings.containsKey("xpack.security.http.ssl.keystore.path")) {
             wait.setTrustStoreFile(
                 getConfigDir()

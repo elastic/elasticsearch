@@ -36,48 +36,12 @@ import org.junit.Rule;
 import org.junit.rules.ExpectedException;
 
 import java.util.Collections;
+import java.util.Set;
 
 public class RangeHistogramAggregatorTests extends AggregatorTestCase {
 
     @Rule
     public final ExpectedException expectedException = ExpectedException.none();
-
-    public void testMessingAround() throws Exception {
-        RangeType rangeType = RangeType.DOUBLE;
-        try (Directory dir = newDirectory();
-             RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {
-            for (RangeFieldMapper.Range range : new RangeFieldMapper.Range[] {
-                new RangeFieldMapper.Range(rangeType, 4.2, 13.3, true, true), // bucket 4, 9
-            }) {
-                Document doc = new Document();
-                BytesRef encodedRange = rangeType.encodeRanges(Collections.singleton(range));
-                doc.add(new BinaryDocValuesField("field", encodedRange));
-                w.addDocument(doc);
-            }
-
-            HistogramAggregationBuilder aggBuilder = new HistogramAggregationBuilder("my_agg")
-                .field("field")
-                .interval(5)
-                .offset(4);
-            MappedFieldType fieldType = new RangeFieldMapper.Builder("field", rangeType).fieldType();
-            fieldType.setName("field");
-
-            try (IndexReader reader = w.getReader()) {
-                IndexSearcher searcher = new IndexSearcher(reader);
-                InternalHistogram histogram = search(searcher, new MatchAllDocsQuery(), aggBuilder, fieldType);
-                assertEquals(2, histogram.getBuckets().size());
-
-                assertEquals(4d,  histogram.getBuckets().get(0).getKey());
-                assertEquals(1, histogram.getBuckets().get(0).getDocCount());
-
-                assertEquals(9d, histogram.getBuckets().get(1).getKey());
-                assertEquals(1, histogram.getBuckets().get(1).getDocCount());
-
-                //assertEquals(4d, histogram.getBuckets().get(2).getKey());
-                //assertEquals(1, histogram.getBuckets().get(2).getDocCount());
-            }
-        }
-    }
 
     public void testDoubles() throws Exception {
         RangeType rangeType = RangeType.DOUBLE;
@@ -173,6 +137,53 @@ public class RangeHistogramAggregatorTests extends AggregatorTestCase {
                 assertEquals(1, histogram.getBuckets().get(5).getDocCount());
             }
         }
+    }
+
+    public void testMultipleRanges() throws Exception {
+        RangeType rangeType = RangeType.LONG;
+        try (Directory dir = newDirectory();
+             RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {
+            Document doc = new Document();
+            BytesRef encodedRange = rangeType.encodeRanges(Set.of(
+                new RangeFieldMapper.Range(rangeType, 1L, 5L, true, true), // bucket 0 5
+                new RangeFieldMapper.Range(rangeType, -3L, 4L, true, true), // bucket -5, 0
+                new RangeFieldMapper.Range(rangeType, 4L, 13L, true, true), // bucket 0, 5, 10
+                new RangeFieldMapper.Range(rangeType, 42L, 49L, true, true) // bucket 40, 45
+            ));
+            doc.add(new BinaryDocValuesField("field", encodedRange));
+            w.addDocument(doc);
+
+            HistogramAggregationBuilder aggBuilder = new HistogramAggregationBuilder("my_agg")
+                .field("field")
+                .interval(5);
+            MappedFieldType fieldType = new RangeFieldMapper.Builder("field", rangeType).fieldType();
+            fieldType.setName("field");
+
+            try (IndexReader reader = w.getReader()) {
+                IndexSearcher searcher = new IndexSearcher(reader);
+                InternalHistogram histogram = search(searcher, new MatchAllDocsQuery(), aggBuilder, fieldType);
+                assertEquals(6, histogram.getBuckets().size());
+
+                assertEquals(-5d, histogram.getBuckets().get(0).getKey());
+                assertEquals(1, histogram.getBuckets().get(0).getDocCount());
+
+                assertEquals(0d, histogram.getBuckets().get(1).getKey());
+                assertEquals(1, histogram.getBuckets().get(1).getDocCount());
+
+                assertEquals(5d, histogram.getBuckets().get(2).getKey());
+                assertEquals(1, histogram.getBuckets().get(2).getDocCount());
+
+                assertEquals(10d, histogram.getBuckets().get(3).getKey());
+                assertEquals(1, histogram.getBuckets().get(3).getDocCount());
+
+                assertEquals(40d, histogram.getBuckets().get(4).getKey());
+                assertEquals(1, histogram.getBuckets().get(4).getDocCount());
+
+                assertEquals(45d, histogram.getBuckets().get(5).getKey());
+                assertEquals(1, histogram.getBuckets().get(5).getDocCount());
+            }
+        }
+
     }
 
     public void testLongsIrrationalInterval() throws Exception {

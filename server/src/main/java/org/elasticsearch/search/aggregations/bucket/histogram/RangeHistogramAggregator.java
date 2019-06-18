@@ -96,6 +96,7 @@ public class RangeHistogramAggregator extends BucketsAggregator {
                     // Is it possible for valuesCount to be > 1 here? Multiple ranges are encoded into the same BytesRef in the binary doc
                     // values, so it isn't clear what we'd be iterating over.
                     final int valuesCount = values.docValueCount();
+                    double previousKey = Double.NEGATIVE_INFINITY;
 
                     for (int i = 0; i < valuesCount; i++) {
                         BytesRef encodedRanges = values.nextValue();
@@ -106,7 +107,10 @@ public class RangeHistogramAggregator extends BucketsAggregator {
                             final Double to = rangeType.doubleValue(range.getTo());
                             final double startKey = Math.floor((from - offset) / interval);
                             final double endKey = Math.floor((to - offset) / interval);
-                            for (double  key = startKey; key <= endKey; key++) {
+                            for (double  key = startKey > previousKey ? startKey : previousKey; key <= endKey; key++) {
+                                if (key == previousKey) {
+                                    continue;
+                                }
                                 // Bucket collection identical to NumericHistogramAggregator, could be refactored
                                 long bucketOrd = bucketOrds.add(Double.doubleToLongBits(key));
                                 if (bucketOrd < 0) { // already seen
@@ -115,6 +119,9 @@ public class RangeHistogramAggregator extends BucketsAggregator {
                                 } else {
                                     collectBucket(sub, doc, bucketOrd);
                                 }
+                            }
+                            if (endKey > previousKey) {
+                                previousKey = endKey;
                             }
                         }
 

@@ -274,21 +274,5 @@ public class RetentionLeases implements ToXContentFragment, Writeable {
                         LinkedHashMap::new));
     }
 
-    /**
-     * A utility method to convert a retention lease collection to a map from retention lease ID to retention lease and exclude
-     * the automatically-added peer-recovery retention leases
-     *
-     * @param retentionLeases the retention lease collection
-     * @return the map from retention lease ID to retention lease
-     */
-    public static Map<String, RetentionLease> toMapExcludingPeerRecoveryRetentionLeases(final RetentionLeases retentionLeases) {
-        return retentionLeases.leases.values().stream()
-            .filter(l -> ReplicationTracker.PEER_RECOVERY_RETENTION_LEASE_SOURCE.equals(l.source()) == false)
-            .collect(Collectors.toMap(RetentionLease::id, Function.identity(),
-                (o1, o2) -> {
-                    throw new AssertionError("unexpectedly merging " + o1 + " and " + o2);
-                },
-                LinkedHashMap::new));
-    }
-
 }
+

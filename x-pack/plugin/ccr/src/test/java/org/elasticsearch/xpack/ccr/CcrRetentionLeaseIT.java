@@ -36,7 +36,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.seqno.RetentionLease;
 import org.elasticsearch.index.seqno.RetentionLeaseActions;
 import org.elasticsearch.index.seqno.RetentionLeaseNotFoundException;
-import org.elasticsearch.index.seqno.RetentionLeases;
+import org.elasticsearch.index.seqno.RetentionLeaseUtils;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardClosedException;
 import org.elasticsearch.indices.IndicesService;
@@ -189,7 +189,7 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
             final List<ShardStats> shardsStats = getShardsStats(stats);
             for (int i = 0; i < numberOfShards * (1 + numberOfReplicas); i++) {
                 assertNotNull(shardsStats.get(i).getRetentionLeaseStats());
-                final Map<String, RetentionLease> currentRetentionLeases = RetentionLeases.toMapExcludingPeerRecoveryRetentionLeases(
+                final Map<String, RetentionLease> currentRetentionLeases = RetentionLeaseUtils.toMapExcludingPeerRecoveryRetentionLeases(
                     shardsStats.get(i).getRetentionLeaseStats().retentionLeases());
                 assertThat(Strings.toString(shardsStats.get(i)), currentRetentionLeases.values(), hasSize(1));
                 final RetentionLease retentionLease = currentRetentionLeases.values().iterator().next();
@@ -320,7 +320,7 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
                 final List<ShardStats> shardsStats = getShardsStats(stats);
                 for (int i = 0; i < numberOfShards * (1 + numberOfReplicas); i++) {
                     assertNotNull(shardsStats.get(i).getRetentionLeaseStats());
-                    final Map<String, RetentionLease> currentRetentionLeases = RetentionLeases.toMapExcludingPeerRecoveryRetentionLeases(
+                    final Map<String, RetentionLease> currentRetentionLeases = RetentionLeaseUtils.toMapExcludingPeerRecoveryRetentionLeases(
                         shardsStats.get(i).getRetentionLeaseStats().retentionLeases());
                     assertThat(Strings.toString(shardsStats.get(i)), currentRetentionLeases.values(), hasSize(1));
                     final ClusterStateResponse followerIndexClusterState =
@@ -354,7 +354,7 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
                     continue;
                 }
                 assertNotNull(shardsStats.get(i).getRetentionLeaseStats());
-                final Map<String, RetentionLease> currentRetentionLeases = RetentionLeases.toMapExcludingPeerRecoveryRetentionLeases(
+                final Map<String, RetentionLease> currentRetentionLeases = RetentionLeaseUtils.toMapExcludingPeerRecoveryRetentionLeases(
                     shardsStats.get(i).getRetentionLeaseStats().retentionLeases());
                 assertThat(Strings.toString(shardsStats.get(i)), currentRetentionLeases.values(), hasSize(1));
                 final ClusterStateResponse followerIndexClusterState =
@@ -394,7 +394,7 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
                 leaderClient().admin().indices().stats(new IndicesStatsRequest().clear().indices(leaderIndex)).actionGet();
         final List<ShardStats> shardsStats = getShardsStats(stats);
         for (final ShardStats shardStats : shardsStats) {
-            final Map<String, RetentionLease> retentionLeases = RetentionLeases.toMapExcludingPeerRecoveryRetentionLeases(
+            final Map<String, RetentionLease> retentionLeases = RetentionLeaseUtils.toMapExcludingPeerRecoveryRetentionLeases(
                 shardStats.getRetentionLeaseStats().retentionLeases());
             assertThat(Strings.toString(shardStats), retentionLeases.values(), hasSize(1));
             assertThat(retentionLeases.values().iterator().next().id(), equalTo(retentionLeaseId));
@@ -456,7 +456,7 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
                     leaderClient().admin().indices().stats(new IndicesStatsRequest().clear().indices(leaderIndex)).actionGet();
             final List<ShardStats> afterUnfollowShardsStats = getShardsStats(afterUnfollowStats);
             for (final ShardStats shardStats : afterUnfollowShardsStats) {
-                assertThat(Strings.toString(shardStats), RetentionLeases.toMapExcludingPeerRecoveryRetentionLeases(
+                assertThat(Strings.toString(shardStats), RetentionLeaseUtils.toMapExcludingPeerRecoveryRetentionLeases(
                     shardStats.getRetentionLeaseStats().retentionLeases()).values(), empty());
             }
         } finally {
@@ -608,7 +608,7 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
             final List<ShardStats> shardsStats = getShardsStats(stats);
             for (int i = 0; i < numberOfShards * (1 + numberOfReplicas); i++) {
                 assertNotNull(shardsStats.get(i).getRetentionLeaseStats());
-                final Map<String, RetentionLease> currentRetentionLeases = RetentionLeases.toMapExcludingPeerRecoveryRetentionLeases(
+                final Map<String, RetentionLease> currentRetentionLeases = RetentionLeaseUtils.toMapExcludingPeerRecoveryRetentionLeases(
                     shardsStats.get(i).getRetentionLeaseStats().retentionLeases());
                 assertThat(Strings.toString(shardsStats.get(i)), currentRetentionLeases.values(), hasSize(1));
                 final RetentionLease retentionLease =
@@ -679,7 +679,7 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
                 final List<ShardStats> shardsStats = getShardsStats(stats);
                 for (int i = 0; i < numberOfShards * (1 + numberOfReplicas); i++) {
                     assertNotNull(shardsStats.get(i).getRetentionLeaseStats());
-                    final Map<String, RetentionLease> currentRetentionLeases = RetentionLeases.toMapExcludingPeerRecoveryRetentionLeases(
+                    final Map<String, RetentionLease> currentRetentionLeases = RetentionLeaseUtils.toMapExcludingPeerRecoveryRetentionLeases(
                         shardsStats.get(i).getRetentionLeaseStats().retentionLeases());
                     assertThat(Strings.toString(shardsStats.get(i)), currentRetentionLeases.values(), hasSize(1));
                     final ClusterStateResponse followerIndexClusterState =
@@ -713,7 +713,7 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
                     continue;
                 }
                 assertNotNull(shardsStats.get(i).getRetentionLeaseStats());
-                final Map<String, RetentionLease> currentRetentionLeases = RetentionLeases.toMapExcludingPeerRecoveryRetentionLeases(
+                final Map<String, RetentionLease> currentRetentionLeases = RetentionLeaseUtils.toMapExcludingPeerRecoveryRetentionLeases(
                     shardsStats.get(i).getRetentionLeaseStats().retentionLeases());
                 assertThat(Strings.toString(shardsStats.get(i)), currentRetentionLeases.values(), hasSize(1));
                 final ClusterStateResponse followerIndexClusterState =
@@ -930,7 +930,7 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
             final List<ShardStats> afterUnfollowShardsStats = getShardsStats(afterUnfollowStats);
             for (final ShardStats shardStats : afterUnfollowShardsStats) {
                 assertNotNull(shardStats.getRetentionLeaseStats());
-                assertThat(Strings.toString(shardStats), RetentionLeases.toMapExcludingPeerRecoveryRetentionLeases(
+                assertThat(Strings.toString(shardStats), RetentionLeaseUtils.toMapExcludingPeerRecoveryRetentionLeases(
                     shardStats.getRetentionLeaseStats().retentionLeases()).values(), empty());
             }
         } finally {
@@ -982,7 +982,7 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
         final List<ShardStats> afterForgetFollowerShardsStats = getShardsStats(afterForgetFollowerStats);
         for (final ShardStats shardStats : afterForgetFollowerShardsStats) {
             assertNotNull(shardStats.getRetentionLeaseStats());
-            assertThat(Strings.toString(shardStats), RetentionLeases.toMapExcludingPeerRecoveryRetentionLeases(
+            assertThat(Strings.toString(shardStats), RetentionLeaseUtils.toMapExcludingPeerRecoveryRetentionLeases(
                 shardStats.getRetentionLeaseStats().retentionLeases()).values(), empty());
         }
     }
@@ -1003,7 +1003,7 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
             final List<ShardStats> shardsStats = getShardsStats(stats);
             for (int i = 0; i < numberOfShards * (1 + numberOfReplicas); i++) {
                 assertNotNull(shardsStats.get(i).getRetentionLeaseStats());
-                final Map<String, RetentionLease> currentRetentionLeases = RetentionLeases.toMapExcludingPeerRecoveryRetentionLeases(
+                final Map<String, RetentionLease> currentRetentionLeases = RetentionLeaseUtils.toMapExcludingPeerRecoveryRetentionLeases(
                         shardsStats.get(i).getRetentionLeaseStats().retentionLeases());
                 assertThat(Strings.toString(shardsStats.get(i)), currentRetentionLeases.values(), hasSize(1));
                 final RetentionLease retentionLease =
@@ -1022,7 +1022,7 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
             final List<ShardStats> shardsStats = getShardsStats(stats);
             for (int i = 0; i < numberOfShards * (1 + numberOfReplicas); i++) {
                 assertNotNull(shardsStats.get(i).getRetentionLeaseStats());
-                final Map<String, RetentionLease> currentRetentionLeases = RetentionLeases.toMapExcludingPeerRecoveryRetentionLeases(
+                final Map<String, RetentionLease> currentRetentionLeases = RetentionLeaseUtils.toMapExcludingPeerRecoveryRetentionLeases(
                     shardsStats.get(i).getRetentionLeaseStats().retentionLeases());
                 assertThat(Strings.toString(shardsStats.get(i)), currentRetentionLeases.values(), hasSize(1));
                 final RetentionLease retentionLease =

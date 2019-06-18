@@ -328,7 +328,8 @@ public class ElasticsearchCluster implements TestClusterConfiguration {
                     nodes.size()
                 );
                 if (httpSslEnabled) {
-                    wait.setCertificateAuthorities(getFirstNode().getHttpCertificateAuthoritiesFile());
+
+                    getFirstNode().configureHttpWait(wait);
                 }
                 List<Map<String, String>> credentials = getFirstNode().getCredentials();
                 if (getFirstNode().getCredentials().isEmpty() == false) {

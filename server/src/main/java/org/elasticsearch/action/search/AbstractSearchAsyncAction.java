@@ -301,11 +301,6 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     }
 
     @Override
-    public void onFailure(Exception e) {
-        listener.onFailure(e);
-    }
-
-    @Override
     public final void onPhaseFailure(SearchPhase phase, String msg, Throwable cause) {
         raisePhaseFailure(new SearchPhaseExecutionException(phase.getName(), msg, cause, buildShardFailures()));
     }
@@ -323,6 +318,11 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     @Override
     public final void execute(Runnable command) {
         executor.execute(command);
+    }
+
+    @Override
+    public final void onFailure(Exception e) {
+        listener.onFailure(e);
     }
 
     @Override

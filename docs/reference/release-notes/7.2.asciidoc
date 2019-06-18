@@ -220,6 +220,14 @@ Machine Learning::
 * Add task recovery on node change  {pull}39416[#39416]
 * Stop tasks on failure {pull}39203[#39203]
 * Add _preview endpoint {pull}38924[#38924]
+* Remove hard limit for maximum forecast interval and limit based on the time interval of data added
+to the model {ml-pull}214[#214]
+* Use hardened compiler options to build 3rd party libraries {ml-pull}453[#453]
+* Only select more complex trend models for forecasting if there is evidence that they are needed
+{ml-pull}463[#463]
+* Improve residual model selection {ml-pull}468[#468]
+* Stop linking to libcrypt on Linux {ml-pull}480[#480]
+* Improvements to hard_limit audit message {ml-pull}486[#486]
 
 Mapping::
 * Updates max dimensions for sparse_vector and dense_vector to 1024. {pull}40597[#40597] (issue: {issue}40492[#40492])
@@ -403,6 +411,7 @@ Mapping::
 * Fix an off-by-one error in the vector field dimension limit. {pull}40489[#40489]
 * Fix not Recognizing Disabled Object Mapper {pull}39862[#39862] (issue: {issue}39456[#39456])
 * Avoid copying the field alias lookup structure unnecessarily. {pull}39726[#39726]
+* Handle NaNs when detrending seasonal components {ml-pull}408[#408]
 
 Network::
 * Don't require TLS for single node clusters {pull}42826[#42826]

@@ -854,7 +854,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
             coordinationMetaData = new CoordinationMetaData(in);
             transientSettings = Settings.readSettingsFromStream(in);
             persistentSettings = Settings.readSettingsFromStream(in);
-            if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+            if (in.getVersion().onOrAfter(Version.V_7_3_0)) {
                 hashesOfConsistentSettings = DiffableStringMap.readDiffFrom(in);
             } else {
                 hashesOfConsistentSettings = DiffableStringMap.DiffableStringMapDiff.EMPTY;
@@ -874,7 +874,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
             coordinationMetaData.writeTo(out);
             Settings.writeSettingsToStream(transientSettings, out);
             Settings.writeSettingsToStream(persistentSettings, out);
-            if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+            if (out.getVersion().onOrAfter(Version.V_7_3_0)) {
                 hashesOfConsistentSettings.writeTo(out);
             }
             indices.writeTo(out);
@@ -907,7 +907,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
         builder.coordinationMetaData(new CoordinationMetaData(in));
         builder.transientSettings(readSettingsFromStream(in));
         builder.persistentSettings(readSettingsFromStream(in));
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (in.getVersion().onOrAfter(Version.V_7_3_0)) {
             builder.hashesOfConsistentSettings(new DiffableStringMap(in));
         }
         int size = in.readVInt();
@@ -934,7 +934,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
         coordinationMetaData.writeTo(out);
         writeSettingsToStream(transientSettings, out);
         writeSettingsToStream(persistentSettings, out);
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_7_3_0)) {
             hashesOfConsistentSettings.writeTo(out);
         }
         out.writeVInt(indices.size());

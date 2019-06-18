@@ -24,7 +24,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.security.authz.privilege.GlobalClusterPrivilege;
-import org.elasticsearch.xpack.core.security.authz.privilege.ConditionalClusterPrivileges;
+import org.elasticsearch.xpack.core.security.authz.privilege.GlobalClusterPrivileges;
 import org.elasticsearch.xpack.core.security.support.Validation;
 import org.elasticsearch.xpack.core.security.xcontent.XContentUtils;
 
@@ -100,7 +100,7 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
         this.name = name;
         this.clusterPrivileges = clusterPrivileges != null ? clusterPrivileges : Strings.EMPTY_ARRAY;
         this.conditionalClusterPrivileges = conditionalClusterPrivileges != null
-            ? conditionalClusterPrivileges : ConditionalClusterPrivileges.EMPTY_ARRAY;
+            ? conditionalClusterPrivileges : GlobalClusterPrivileges.EMPTY_ARRAY;
         this.indicesPrivileges = indicesPrivileges != null ? indicesPrivileges : IndicesPrivileges.NONE;
         this.applicationPrivileges = applicationPrivileges != null ? applicationPrivileges : ApplicationResourcePrivileges.NONE;
         this.runAs = runAs != null ? runAs : Strings.EMPTY_ARRAY;
@@ -122,7 +122,7 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
         this.transientMetadata = in.readMap();
 
         this.applicationPrivileges = in.readArray(ApplicationResourcePrivileges::new, ApplicationResourcePrivileges[]::new);
-        this.conditionalClusterPrivileges = ConditionalClusterPrivileges.readArray(in);
+        this.conditionalClusterPrivileges = GlobalClusterPrivileges.readArray(in);
     }
 
     public String getName() {
@@ -231,7 +231,7 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
         builder.array(Fields.CLUSTER.getPreferredName(), clusterPrivileges);
         if (conditionalClusterPrivileges.length != 0) {
             builder.field(Fields.GLOBAL.getPreferredName());
-            ConditionalClusterPrivileges.toXContent(builder, params, Arrays.asList(conditionalClusterPrivileges));
+            GlobalClusterPrivileges.toXContent(builder, params, Arrays.asList(conditionalClusterPrivileges));
         }
         builder.array(Fields.INDICES.getPreferredName(), (Object[]) indicesPrivileges);
         builder.array(Fields.APPLICATIONS.getPreferredName(), (Object[]) applicationPrivileges);
@@ -259,7 +259,7 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
         out.writeMap(metadata);
         out.writeMap(transientMetadata);
         out.writeArray(ApplicationResourcePrivileges::write, applicationPrivileges);
-        ConditionalClusterPrivileges.writeArray(out, getConditionalClusterPrivileges());
+        GlobalClusterPrivileges.writeArray(out, getConditionalClusterPrivileges());
     }
 
     public static RoleDescriptor parse(String name, BytesReference source, boolean allow2xFormat, XContentType xContentType)
@@ -308,7 +308,7 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
                     || Fields.APPLICATION.match(currentFieldName, parser.getDeprecationHandler())) {
                 applicationPrivileges = parseApplicationPrivileges(name, parser);
             } else if (Fields.GLOBAL.match(currentFieldName, parser.getDeprecationHandler())) {
-                conditionalClusterPrivileges = ConditionalClusterPrivileges.parse(parser);
+                conditionalClusterPrivileges = GlobalClusterPrivileges.parse(parser);
             } else if (Fields.METADATA.match(currentFieldName, parser.getDeprecationHandler())) {
                 if (token != XContentParser.Token.START_OBJECT) {
                     throw new ElasticsearchParseException(

@@ -15,9 +15,7 @@ import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.junit.Before;
 
-import java.util.HashSet;
 import java.util.Map;
-import java.util.Set;
 
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
@@ -41,30 +39,8 @@ public class ManageApiKeyConditionalClusterPrivilegeTests extends ESTestCase {
         when(authenticatedBy.getType()).thenReturn("kerberos");
     }
 
-    public void testManageAllPrivilege() {
-        final ManageApiKeyConditionalClusterPrivilege condPrivilege = ManageApiKeyConditionalPrivilegesBuilder.manageApiKeysUnrestricted();
-
-        boolean accessAllowed = checkAccess(condPrivilege, CREATE_ACTION, new CreateApiKeyRequest(), authentication);
-        assertThat(accessAllowed, is(true));
-
-        accessAllowed = checkAccess(condPrivilege, GET_ACTION,
-                GetApiKeyRequest.usingRealmAndUserName(randomAlphaOfLength(5), randomAlphaOfLength(5)), authentication);
-        assertThat(accessAllowed, is(true));
-
-        accessAllowed = checkAccess(condPrivilege, INVALIDATE_ACTION,
-                InvalidateApiKeyRequest.usingRealmAndUserName(randomAlphaOfLength(5), randomAlphaOfLength(5)), authentication);
-        assertThat(accessAllowed, is(true));
-
-        // When request does not have user or realm name and conditional api key privileges for manage is used then it should be denied.
-        accessAllowed = checkAccess(condPrivilege, GET_ACTION, GetApiKeyRequest.usingApiKeyName(randomAlphaOfLength(5)), authentication);
-        assertThat(accessAllowed, is(true));
-        accessAllowed = checkAccess(condPrivilege, INVALIDATE_ACTION, InvalidateApiKeyRequest.usingApiKeyId(randomAlphaOfLength(5)),
-                authentication);
-        assertThat(accessAllowed, is(true));
-    }
-
     public void testManagePrivilegeOwnerOnly() {
-        final ManageApiKeyConditionalClusterPrivilege condPrivilege = ManageApiKeyConditionalPrivilegesBuilder.manageApiKeysOnlyForOwner();
+        final ManageApiKeyConditionalClusterPrivilege condPrivilege = ManageApiKeyConditionalClusterPrivilege.createOwnerManageApiKeyConditionalClusterPrivilege();
 
         boolean accessAllowed = checkAccess(condPrivilege, CREATE_ACTION, new CreateApiKeyRequest(), authentication);
         assertThat(accessAllowed, is(true));
@@ -118,40 +94,4 @@ public class ManageApiKeyConditionalClusterPrivilegeTests extends ESTestCase {
         return privilege.getPrivilege().predicate().test(action) && privilege.getRequestPredicate().test(request, authentication);
     }
 
-    public static class ManageApiKeyConditionalPrivilegesBuilder {
-        private Set<String> actions = new HashSet<>();
-        private boolean restrictActionsToAuthenticatedUser;
-
-        public ManageApiKeyConditionalPrivilegesBuilder allowCreate() {
-            actions.add(CREATE_ACTION);
-            return this;
-        }
-
-        public ManageApiKeyConditionalPrivilegesBuilder allowGet() {
-            actions.add(GET_ACTION);
-            return this;
-        }
-
-        public ManageApiKeyConditionalPrivilegesBuilder restrictActionsToAuthenticatedUser() {
-            this.restrictActionsToAuthenticatedUser = true;
-            return this;
-        }
-
-        public static ManageApiKeyConditionalPrivilegesBuilder builder() {
-            return new ManageApiKeyConditionalPrivilegesBuilder();
-        }
-
-        public static ManageApiKeyConditionalClusterPrivilege manageApiKeysUnrestricted() {
-            return new ManageApiKeyConditionalClusterPrivilege(Set.of("cluster:admin/xpack/security/api_key/*"), false);
-        }
-
-        public static ManageApiKeyConditionalClusterPrivilege manageApiKeysOnlyForOwner() {
-            return (ManageApiKeyConditionalClusterPrivilege) DefaultConditionalClusterPrivilege.MANAGE_OWN_API_KEY
-                    .conditionalClusterPrivilege();
-        }
-
-        public ManageApiKeyConditionalClusterPrivilege build() {
-            return new ManageApiKeyConditionalClusterPrivilege(actions, restrictActionsToAuthenticatedUser);
-        }
-    }
 }

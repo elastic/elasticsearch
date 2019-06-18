@@ -16,7 +16,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsDefinition;
 import org.elasticsearch.xpack.core.security.authz.privilege.GlobalClusterPrivilege;
-import org.elasticsearch.xpack.core.security.authz.privilege.ConditionalClusterPrivileges;
+import org.elasticsearch.xpack.core.security.authz.privilege.GlobalClusterPrivileges;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -75,7 +75,7 @@ public final class GetUserPrivilegesResponse extends ActionResponse {
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         cluster = Collections.unmodifiableSet(in.readSet(StreamInput::readString));
-        conditionalCluster = Collections.unmodifiableSet(in.readSet(ConditionalClusterPrivileges.READER));
+        conditionalCluster = Collections.unmodifiableSet(in.readSet(GlobalClusterPrivileges.READER));
         index = Collections.unmodifiableSet(in.readSet(Indices::new));
         application = Collections.unmodifiableSet(in.readSet(RoleDescriptor.ApplicationResourcePrivileges::new));
         runAs = Collections.unmodifiableSet(in.readSet(StreamInput::readString));
@@ -85,7 +85,7 @@ public final class GetUserPrivilegesResponse extends ActionResponse {
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeCollection(cluster, StreamOutput::writeString);
-        out.writeCollection(conditionalCluster, ConditionalClusterPrivileges.WRITER);
+        out.writeCollection(conditionalCluster, GlobalClusterPrivileges.WRITER);
         out.writeCollection(index);
         out.writeCollection(application);
         out.writeCollection(runAs, StreamOutput::writeString);

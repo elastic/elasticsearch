@@ -33,7 +33,7 @@ public interface GlobalClusterPrivilege extends NamedWriteable, ToXContentFragme
 
     /**
      * Categories exist for to segment privileges for the purposes of rendering to XContent.
-     * {@link ConditionalClusterPrivileges#toXContent(XContentBuilder, Params, Collection)} builds one XContent
+     * {@link GlobalClusterPrivileges#toXContent(XContentBuilder, Params, Collection)} builds one XContent
      * object for a collection of {@link ConditionalClusterPrivilege} instances, with the top level fields built
      * from the categories.
      */

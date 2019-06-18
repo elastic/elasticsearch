@@ -40,7 +40,7 @@ public final class ManageApiKeyConditionalClusterPrivilege implements Conditiona
      * @param actions set of API key cluster actions
      * @param restrictActionsToAuthenticatedUser if {@code true} privileges will be restricted to current authenticated user.
      */
-    public ManageApiKeyConditionalClusterPrivilege(Set<String> actions, boolean restrictActionsToAuthenticatedUser) {
+    private ManageApiKeyConditionalClusterPrivilege(Set<String> actions, boolean restrictActionsToAuthenticatedUser) {
         // validate allowed actions
         for (String action : actions) {
             if (DefaultClusterPrivilege.MANAGE_API_KEY.clusterPrivilege().predicate().test(action) == false) {
@@ -73,6 +73,10 @@ public final class ManageApiKeyConditionalClusterPrivilege implements Conditiona
             }
             return false;
         };
+    }
+
+    public static ManageApiKeyConditionalClusterPrivilege createOwnerManageApiKeyConditionalClusterPrivilege() {
+        return new ManageApiKeyConditionalClusterPrivilege(Set.of("cluster:admin/xpack/security/api_key/*"), true);
     }
 
     private boolean checkIfUserIsOwnerOfApiKeys(Authentication authentication, String apiKeyId, String username, String realmName) {

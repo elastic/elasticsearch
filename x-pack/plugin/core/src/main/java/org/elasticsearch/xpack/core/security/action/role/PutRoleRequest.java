@@ -16,7 +16,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.GlobalClusterPrivilege;
-import org.elasticsearch.xpack.core.security.authz.privilege.ConditionalClusterPrivileges;
+import org.elasticsearch.xpack.core.security.authz.privilege.GlobalClusterPrivileges;
 import org.elasticsearch.xpack.core.security.support.MetadataUtils;
 
 import java.io.IOException;
@@ -35,7 +35,7 @@ public class PutRoleRequest extends ActionRequest implements WriteRequest<PutRol
 
     private String name;
     private String[] clusterPrivileges = Strings.EMPTY_ARRAY;
-    private GlobalClusterPrivilege[] conditionalClusterPrivileges = ConditionalClusterPrivileges.EMPTY_ARRAY;
+    private GlobalClusterPrivilege[] conditionalClusterPrivileges = GlobalClusterPrivileges.EMPTY_ARRAY;
     private List<RoleDescriptor.IndicesPrivileges> indicesPrivileges = new ArrayList<>();
     private List<RoleDescriptor.ApplicationResourcePrivileges> applicationPrivileges = new ArrayList<>();
     private String[] runAs = Strings.EMPTY_ARRAY;
@@ -168,7 +168,7 @@ public class PutRoleRequest extends ActionRequest implements WriteRequest<PutRol
             indicesPrivileges.add(new RoleDescriptor.IndicesPrivileges(in));
         }
         applicationPrivileges = in.readList(RoleDescriptor.ApplicationResourcePrivileges::new);
-        conditionalClusterPrivileges = ConditionalClusterPrivileges.readArray(in);
+        conditionalClusterPrivileges = GlobalClusterPrivileges.readArray(in);
         runAs = in.readStringArray();
         refreshPolicy = RefreshPolicy.readFrom(in);
         metadata = in.readMap();
@@ -184,7 +184,7 @@ public class PutRoleRequest extends ActionRequest implements WriteRequest<PutRol
             index.writeTo(out);
         }
         out.writeList(applicationPrivileges);
-        ConditionalClusterPrivileges.writeArray(out, this.conditionalClusterPrivileges);
+        GlobalClusterPrivileges.writeArray(out, this.conditionalClusterPrivileges);
         out.writeStringArray(runAs);
         refreshPolicy.writeTo(out);
         out.writeMap(metadata);

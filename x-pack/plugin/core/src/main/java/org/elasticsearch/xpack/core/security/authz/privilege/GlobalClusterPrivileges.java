@@ -26,7 +26,7 @@ import java.util.List;
 /**
  * Static utility class for working with {@link GlobalClusterPrivilege} instances
  */
-public final class ConditionalClusterPrivileges {
+public final class GlobalClusterPrivileges {
 
     public static final GlobalClusterPrivilege[] EMPTY_ARRAY = new GlobalClusterPrivilege[0];
 
@@ -35,7 +35,7 @@ public final class ConditionalClusterPrivileges {
     public static final Writeable.Writer<GlobalClusterPrivilege> WRITER =
         (out1, value) -> out1.writeNamedWriteable(value);
 
-    private ConditionalClusterPrivileges() {
+    private GlobalClusterPrivileges() {
     }
 
     /**

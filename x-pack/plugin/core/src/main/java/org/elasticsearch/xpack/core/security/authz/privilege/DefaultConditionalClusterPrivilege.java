@@ -13,9 +13,8 @@ import java.util.Set;
 /**
  * Enum that defines default conditional cluster privileges
  */
-public enum DefaultConditionalClusterPrivilege {
-    MANAGE_OWN_API_KEY("manage_own_api_key",
-            new ManageApiKeyConditionalClusterPrivilege(Set.of("cluster:admin/xpack/security/api_key/*"), true));
+enum DefaultConditionalClusterPrivilege {
+    MANAGE_OWN_API_KEY("manage_own_api_key", ManageApiKeyConditionalClusterPrivilege.createOwnerManageApiKeyConditionalClusterPrivilege());
 
     final ConditionalClusterPrivilege conditionalClusterPrivilege;
     private final String privilegeName;
@@ -32,25 +31,24 @@ public enum DefaultConditionalClusterPrivilege {
     DefaultConditionalClusterPrivilege(final String privilegeName, final ConditionalClusterPrivilege conditionalClusterPrivilege) {
         this.privilegeName = privilegeName;
         this.conditionalClusterPrivilege = conditionalClusterPrivilege;
-        
     }
 
-    public ConditionalClusterPrivilege conditionalClusterPrivilege() {
+    ConditionalClusterPrivilege conditionalClusterPrivilege() {
         return conditionalClusterPrivilege;
     }
 
-    public static DefaultConditionalClusterPrivilege fromString(String privilegeName) {
+    static DefaultConditionalClusterPrivilege fromString(String privilegeName) {
         return privilegeNameToEnumMap.get(privilegeName);
     }
 
-    public static String privilegeName(ConditionalClusterPrivilege ccp) {
+    static String privilegeName(ConditionalClusterPrivilege ccp) {
         if (ccpToEnumMap.containsKey(ccp)) {
             return ccpToEnumMap.get(ccp).privilegeName;
         }
         return null;
     }
 
-    public static Set<String> names() {
+    static Set<String> names() {
         return privilegeNameToEnumMap.keySet();
     }
 }

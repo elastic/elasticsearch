@@ -45,10 +45,29 @@ public final class ClusterPrivilegeResolver {
             return new Tuple<ClusterPrivilege, Set<ConditionalClusterPrivilege>>(DefaultClusterPrivilege.NONE.clusterPrivilege(),
                     Collections.emptySet());
         }
-        return CACHE.computeIfAbsent(name, ClusterPrivilegeResolver::resolveI);
+        return CACHE.computeIfAbsent(name, ClusterPrivilegeResolver::resolvePrivileges);
     }
 
-    private static Tuple<ClusterPrivilege, Set<ConditionalClusterPrivilege>> resolveI(Set<String> name) {
+
+    /**
+     * For given set of privilege names returns a {@link ClusterPrivilege}
+     *
+     * @param name set of predefined names in {@link DefaultClusterPrivilege} or a valid
+     * cluster action
+     * @return a {@link ClusterPrivilege}
+     */
+    public static ClusterPrivilege resolveClusterPrivilege(final Set<String> name) {
+        if (name == null || name.isEmpty()) {
+            return DefaultClusterPrivilege.NONE.clusterPrivilege();
+        }
+        Tuple<ClusterPrivilege, Set<ConditionalClusterPrivilege>> privileges = CACHE.computeIfAbsent(name, ClusterPrivilegeResolver::resolvePrivileges);
+        if (privileges.v2().isEmpty() == false) {
+            throw new IllegalArgumentException("set of names must not contain conditional cluster privileges");
+        }
+        return privileges.v1();
+    }
+
+    private static Tuple<ClusterPrivilege, Set<ConditionalClusterPrivilege>> resolvePrivileges(Set<String> name) {
         final int size = name.size();
         if (size == 0) {
             throw new IllegalArgumentException("empty set should not be used");
@@ -57,9 +76,11 @@ public final class ClusterPrivilegeResolver {
         Set<String> actions = new HashSet<>();
         Set<Automaton> automata = new HashSet<>();
         Set<ConditionalClusterPrivilege> conditionalClusterPrivileges = new HashSet<>();
+        Set<String> clusterPrivilegeNames = new HashSet<>();
         for (String part : name) {
             part = part.toLowerCase(Locale.ROOT);
             if (ACTION_MATCHER.test(part)) {
+                clusterPrivilegeNames.add(part);
                 actions.add(actionToPattern(part));
             } else {
                 DefaultClusterPrivilege privilege = DefaultClusterPrivilege.fromString(part);
@@ -67,6 +88,7 @@ public final class ClusterPrivilegeResolver {
                     return new Tuple<ClusterPrivilege, Set<ConditionalClusterPrivilege>>(privilege.clusterPrivilege(),
                             Collections.emptySet());
                 } else if (privilege != null) {
+                    clusterPrivilegeNames.add(part);
                     automata.add(privilege.automaton());
                 } else {
                     DefaultConditionalClusterPrivilege dccp = DefaultConditionalClusterPrivilege.fromString(part);
@@ -87,7 +109,7 @@ public final class ClusterPrivilegeResolver {
         if (actions.isEmpty() == false) {
             automata.add(patterns(actions));
         }
-        final ClusterPrivilege clusterPrivilege = new ClusterPrivilege(name, Automatons.unionAndMinimize(automata));
+        final ClusterPrivilege clusterPrivilege = new ClusterPrivilege(clusterPrivilegeNames, Automatons.unionAndMinimize(automata));
         return new Tuple<ClusterPrivilege, Set<ConditionalClusterPrivilege>>(clusterPrivilege, conditionalClusterPrivileges);
     }
 

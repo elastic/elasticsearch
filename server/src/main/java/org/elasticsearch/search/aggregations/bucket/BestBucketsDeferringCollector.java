@@ -26,6 +26,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
+import org.apache.lucene.util.RoaringDocIdSet;
 import org.apache.lucene.util.packed.PackedInts;
 import org.apache.lucene.util.packed.PackedLongValues;
 import org.elasticsearch.common.util.BigArrays;
@@ -50,12 +51,12 @@ import java.util.List;
 public class BestBucketsDeferringCollector extends DeferringBucketCollector {
     private static class Entry {
         final LeafReaderContext context;
-        final PackedLongValues docDeltas;
+        final RoaringDocIdSet docIdSet;
         final PackedLongValues buckets;
 
-        Entry(LeafReaderContext context, PackedLongValues docDeltas, PackedLongValues buckets) {
+        Entry(LeafReaderContext context, RoaringDocIdSet docIdSet, PackedLongValues buckets) {
             this.context = context;
-            this.docDeltas = docDeltas;
+            this.docIdSet = docIdSet;
             this.buckets = buckets;
         }
     }
@@ -65,8 +66,8 @@ public class BestBucketsDeferringCollector extends DeferringBucketCollector {
     final SearchContext searchContext;
     final boolean isGlobal;
     LeafReaderContext context;
-    PackedLongValues.Builder docDeltas;
-    PackedLongValues.Builder buckets;
+    RoaringDocIdSet.Builder docIdSetBuilder;
+    PackedLongValues.Builder bucketsBuilder;
     long maxBucket = -1;
     boolean finished = false;
     LongHash selectedBuckets;
@@ -97,29 +98,29 @@ public class BestBucketsDeferringCollector extends DeferringBucketCollector {
 
     private void finishLeaf() {
         if (context != null) {
-            entries.add(new Entry(context, docDeltas.build(), buckets.build()));
+            assert docIdSetBuilder != null && bucketsBuilder != null;
+            entries.add(new Entry(context, docIdSetBuilder.build(), bucketsBuilder.build()));
         }
-        context = null;
-        docDeltas = null;
-        buckets = null;
     }
 
     @Override
     public LeafBucketCollector getLeafCollector(LeafReaderContext ctx) throws IOException {
         finishLeaf();
 
-        context = ctx;
-        docDeltas = PackedLongValues.packedBuilder(PackedInts.DEFAULT);
-        buckets = PackedLongValues.packedBuilder(PackedInts.DEFAULT);
+        context = null;
+        docIdSetBuilder = null;
+        bucketsBuilder = null;
 
         return new LeafBucketCollector() {
-            int lastDoc = 0;
-
             @Override
             public void collect(int doc, long bucket) throws IOException {
-                docDeltas.add(doc - lastDoc);
-                buckets.add(bucket);
-                lastDoc = doc;
+                if (context == null) {
+                    context = ctx;
+                    docIdSetBuilder = new RoaringDocIdSet.Builder(context.reader().maxDoc());
+                    bucketsBuilder = PackedLongValues.packedBuilder(PackedInts.DEFAULT);
+                }
+                docIdSetBuilder.add(doc);
+                bucketsBuilder.add(bucket);
                 maxBucket = Math.max(maxBucket, bucket);
             }
         };
@@ -141,7 +142,7 @@ public class BestBucketsDeferringCollector extends DeferringBucketCollector {
      */
     @Override
     public void prepareSelectedBuckets(long... selectedBuckets) throws IOException {
-        if (!finished) {
+        if (finished == false) {
             throw new IllegalStateException("Cannot replay yet, collection is not finished: postCollect() has not been called");
         }
         if (this.selectedBuckets != null) {
@@ -160,36 +161,35 @@ public class BestBucketsDeferringCollector extends DeferringBucketCollector {
             Query query = isGlobal ? new MatchAllDocsQuery() : searchContext.query();
             weight = searchContext.searcher().createWeight(searchContext.searcher().rewrite(query), ScoreMode.COMPLETE, 1f);
         }
+
         for (Entry entry : entries) {
             final LeafBucketCollector leafCollector = collector.getLeafCollector(entry.context);
-            DocIdSetIterator docIt = null;
-            if (needsScores && entry.docDeltas.size() > 0) {
+            DocIdSetIterator scoreIt = null;
+            if (needsScores) {
                 Scorer scorer = weight.scorer(entry.context);
                 // We don't need to check if the scorer is null
                 // since we are sure that there are documents to replay (entry.docDeltas it not empty).
-                docIt = scorer.iterator();
+                scoreIt = scorer.iterator();
                 leafCollector.setScorer(scorer);
             }
-            final PackedLongValues.Iterator docDeltaIterator = entry.docDeltas.iterator();
+            final DocIdSetIterator docIt = entry.docIdSet.iterator();
             final PackedLongValues.Iterator buckets = entry.buckets.iterator();
-            int doc = 0;
-            for (long i = 0, end = entry.docDeltas.size(); i < end; ++i) {
-                doc += docDeltaIterator.next();
-                final long bucket = buckets.next();
-                final long rebasedBucket = hash.find(bucket);
+            while (docIt.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
+                int doc = docIt.docID();
+                long bucket = buckets.next();
+                long rebasedBucket = hash.find(bucket);
                 if (rebasedBucket != -1) {
                     if (needsScores) {
-                        if (docIt.docID() < doc) {
-                            docIt.advance(doc);
+                        if (scoreIt.docID() < doc) {
+                            scoreIt.advance(doc);
                         }
                         // aggregations should only be replayed on matching documents
-                        assert docIt.docID() == doc;
+                        assert scoreIt.docID() == doc;
                     }
                     leafCollector.collect(doc, rebasedBucket);
                 }
             }
         }
-
         collector.postCollection();
     }
 

@@ -41,11 +41,11 @@ import org.elasticsearch.common.settings.Settings;
  */
 public abstract class DynamicKeyFieldMapper extends FieldMapper {
 
-    DynamicKeyFieldMapper(String simpleName,
-                          MappedFieldType fieldType,
-                          MappedFieldType defaultFieldType,
-                          Settings indexSettings,
-                          CopyTo copyTo) {
+    public DynamicKeyFieldMapper(String simpleName,
+                                 MappedFieldType fieldType,
+                                 MappedFieldType defaultFieldType,
+                                 Settings indexSettings,
+                                 CopyTo copyTo) {
         super(simpleName, fieldType, defaultFieldType, indexSettings, MultiFields.empty(), copyTo);
     }
 

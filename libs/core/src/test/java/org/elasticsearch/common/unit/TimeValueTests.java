@@ -47,6 +47,26 @@ public class TimeValueTests extends ESTestCase {
         assertThat("1.5m", equalTo(new TimeValue(90, TimeUnit.SECONDS).toString()));
         assertThat("1.5h", equalTo(new TimeValue(90, TimeUnit.MINUTES).toString()));
         assertThat("1.5d", equalTo(new TimeValue(36, TimeUnit.HOURS).toString()));
+        assertThat("1d", equalTo(new TimeValue(36, TimeUnit.HOURS).toString(0)));
+        assertThat("1d", equalTo(new TimeValue(36, TimeUnit.HOURS).toString(-4)));
+        assertThat("1.5d", equalTo(new TimeValue(36, TimeUnit.HOURS).toString(2)));
+        assertThat("1.45d", equalTo(new TimeValue(35, TimeUnit.HOURS).toString(2)));
+        assertThat("1.4583333333d", equalTo(new TimeValue(35, TimeUnit.HOURS).toString(10)));
+        assertThat("1d", equalTo(new TimeValue(103723200, TimeUnit.MILLISECONDS).toString(0)));
+        assertThat("1.2d", equalTo(new TimeValue(103723200, TimeUnit.MILLISECONDS).toString(1)));
+        assertThat("1.2d", equalTo(new TimeValue(103723200, TimeUnit.MILLISECONDS).toString(2)));
+        assertThat("1.2d", equalTo(new TimeValue(103723200, TimeUnit.MILLISECONDS).toString(3)));
+        assertThat("1.2005d", equalTo(new TimeValue(103723200, TimeUnit.MILLISECONDS).toString(4)));
+        assertThat("1d", equalTo(new TimeValue(86400077, TimeUnit.MILLISECONDS).toString(0)));
+        assertThat("1d", equalTo(new TimeValue(86400077, TimeUnit.MILLISECONDS).toString(1)));
+        assertThat("1d", equalTo(new TimeValue(86400077, TimeUnit.MILLISECONDS).toString(2)));
+        assertThat("1d", equalTo(new TimeValue(86400077, TimeUnit.MILLISECONDS).toString(3)));
+        assertThat("1d", equalTo(new TimeValue(86400077, TimeUnit.MILLISECONDS).toString(4)));
+        assertThat("1d", equalTo(new TimeValue(86400077, TimeUnit.MILLISECONDS).toString(5)));
+        assertThat("1d", equalTo(new TimeValue(86400077, TimeUnit.MILLISECONDS).toString(6)));
+        assertThat("1.0000008d", equalTo(new TimeValue(86400077, TimeUnit.MILLISECONDS).toString(7)));
+        assertThat("1.00000089d", equalTo(new TimeValue(86400077, TimeUnit.MILLISECONDS).toString(8)));
+        assertThat("1.4583333333d", equalTo(new TimeValue(35, TimeUnit.HOURS).toString(Integer.MAX_VALUE)));
         assertThat("1000d", equalTo(new TimeValue(1000, TimeUnit.DAYS).toString()));
     }
 

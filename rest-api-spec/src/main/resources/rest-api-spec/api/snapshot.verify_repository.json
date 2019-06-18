@@ -1,6 +1,7 @@
 {
     "snapshot.verify_repository": {
         "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/modules-snapshots.html",
+        "stability": "stable",
         "methods": ["POST"],
         "url": {
             "paths": ["/_snapshot/{repository}/_verify"],

@@ -1,6 +1,7 @@
 {
   "ingest.delete_pipeline": {
     "documentation": "https://www.elastic.co/guide/en/elasticsearch/reference/master/delete-pipeline-api.html",
+    "stability": "stable",
     "methods": [ "DELETE" ],
     "url": {
       "paths": [ "/_ingest/pipeline/{id}" ],

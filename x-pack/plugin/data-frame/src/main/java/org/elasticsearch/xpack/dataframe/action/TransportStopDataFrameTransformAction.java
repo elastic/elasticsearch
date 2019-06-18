@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.dataframe.action;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
@@ -12,6 +14,7 @@ import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.tasks.TransportTasksAction;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -26,6 +29,7 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.action.util.PageParams;
 import org.elasticsearch.xpack.core.dataframe.action.StopDataFrameTransformAction;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformTaskState;
+import org.elasticsearch.xpack.dataframe.persistence.DataFrameInternalIndex;
 import org.elasticsearch.xpack.dataframe.persistence.DataFrameTransformsConfigManager;
 import org.elasticsearch.xpack.dataframe.transforms.DataFrameTransformTask;
 
@@ -38,20 +42,25 @@ public class TransportStopDataFrameTransformAction extends
         TransportTasksAction<DataFrameTransformTask, StopDataFrameTransformAction.Request,
         StopDataFrameTransformAction.Response, StopDataFrameTransformAction.Response> {
 
+    private static final Logger logger = LogManager.getLogger(TransportStopDataFrameTransformAction.class);
+
     private final ThreadPool threadPool;
     private final DataFrameTransformsConfigManager dataFrameTransformsConfigManager;
     private final PersistentTasksService persistentTasksService;
+    private final Client client;
 
     @Inject
     public TransportStopDataFrameTransformAction(TransportService transportService, ActionFilters actionFilters,
                                                  ClusterService clusterService, ThreadPool threadPool,
                                                  PersistentTasksService persistentTasksService,
-                                                 DataFrameTransformsConfigManager dataFrameTransformsConfigManager) {
+                                                 DataFrameTransformsConfigManager dataFrameTransformsConfigManager,
+                                                 Client client) {
         super(StopDataFrameTransformAction.NAME, clusterService, transportService, actionFilters, StopDataFrameTransformAction.Request::new,
                 StopDataFrameTransformAction.Response::new, StopDataFrameTransformAction.Response::new, ThreadPool.Names.SAME);
         this.threadPool = threadPool;
         this.dataFrameTransformsConfigManager = dataFrameTransformsConfigManager;
         this.persistentTasksService = persistentTasksService;
+        this.client = client;
     }
 
     @Override
@@ -132,12 +141,26 @@ public class TransportStopDataFrameTransformAction extends
     waitForStopListener(StopDataFrameTransformAction.Request request,
                         ActionListener<StopDataFrameTransformAction.Response> listener) {
 
+        ActionListener<StopDataFrameTransformAction.Response> onStopListener = ActionListener.wrap(
+            waitResponse ->
+                client.admin()
+                    .indices()
+                    .prepareRefresh(DataFrameInternalIndex.INDEX_NAME)
+                    .execute(ActionListener.wrap(
+                        r -> listener.onResponse(waitResponse),
+                        e -> {
+                            logger.info("Failed to refresh internal index after delete", e);
+                            listener.onResponse(waitResponse);
+                        })
+                    ),
+            listener::onFailure
+        );
         return ActionListener.wrap(
                 response -> {
                     // Wait until the persistent task is stopped
                     // Switch over to Generic threadpool so we don't block the network thread
                     threadPool.generic().execute(() ->
-                        waitForDataFrameStopped(request.getExpandedIds(), request.getTimeout(), listener));
+                        waitForDataFrameStopped(request.getExpandedIds(), request.getTimeout(), onStopListener));
                 },
                 listener::onFailure
         );

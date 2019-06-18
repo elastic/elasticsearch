@@ -1,6 +1,7 @@
 {
   "ilm.delete_lifecycle": {
     "documentation": "https://www.elastic.co/guide/en/elasticsearch/reference/current/ilm-delete-lifecycle.html",
+    "stability": "stable",
     "methods": [ "DELETE" ],
     "url": {
       "paths": ["/_ilm/policy/{policy}"],

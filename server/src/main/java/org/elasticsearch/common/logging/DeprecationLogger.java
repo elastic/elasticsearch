@@ -244,6 +244,9 @@ public class DeprecationLogger {
                 @SuppressLoggerChecks(reason = "safely delegates to logger")
                 @Override
                 public Void run() {
+                    /**
+                     * There should be only one threadContext, @see DeprecationLogger#setThreadContext
+                     */
                     String opaqueId = threadContexts.stream()
                                                      .filter(t -> t.isClosed() == false)
                                                      .findFirst()

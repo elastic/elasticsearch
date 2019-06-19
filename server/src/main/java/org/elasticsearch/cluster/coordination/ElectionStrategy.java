@@ -25,10 +25,8 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 public interface ElectionStrategy {
 
     /**
-     * Whether the given node is only here to ensure state transfer to another node
+     * Whether there is an election quorum from the point of view of the provided local node
      */
-    boolean isStateTransferOnly(DiscoveryNode discoveryNode);
-
     boolean isElectionQuorum(DiscoveryNode localNode, long localCurrentTerm, long localAcceptedTerm, long localAcceptedVersion,
                              VotingConfiguration lastCommittedConfiguration, VotingConfiguration lastAcceptedConfiguration,
                              VoteCollection joinVotes);
@@ -36,11 +34,6 @@ public interface ElectionStrategy {
     class DefaultElectionStrategy implements ElectionStrategy {
 
         public static final ElectionStrategy INSTANCE = new DefaultElectionStrategy();
-
-        @Override
-        public boolean isStateTransferOnly(DiscoveryNode discoveryNode) {
-            return false;
-        }
 
         @Override
         public boolean isElectionQuorum(DiscoveryNode localNode, long localCurrentTerm, long localAcceptedTerm, long localAcceptedVersion,

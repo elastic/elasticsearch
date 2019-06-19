@@ -820,7 +820,7 @@ public class CoordinationStateTests extends ESTestCase {
             this.localNode = localNode;
             persistedState = new InMemoryPersistedState(0L,
                 clusterState(0L, 0L, localNode, VotingConfiguration.EMPTY_CONFIG, VotingConfiguration.EMPTY_CONFIG, 0L));
-            electionStrategy = randomBoolean() ? ElectionStrategy.DefaultElectionStrategy.INSTANCE : discoveryNode -> rarely();
+            electionStrategy = ElectionStrategy.DefaultElectionStrategy.INSTANCE;
             state = new CoordinationState(localNode, persistedState, electionStrategy);
         }
 

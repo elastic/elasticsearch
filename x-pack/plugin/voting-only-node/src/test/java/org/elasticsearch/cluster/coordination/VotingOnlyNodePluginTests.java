@@ -14,7 +14,6 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 
-import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
 
@@ -25,7 +24,7 @@ import static org.hamcrest.Matchers.nullValue;
 
 @ESIntegTestCase.ClusterScope(scope = Scope.TEST, numDataNodes = 0, autoManageMasterNodes = false)
 @TestLogging("_root:DEBUG,org.elasticsearch.cluster:TRACE,org.elasticsearch.discovery:TRACE")
-public class VotingOnlyNodePluginIT extends ESIntegTestCase {
+public class VotingOnlyNodePluginTests extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {

@@ -210,14 +210,12 @@ public class ReconfiguratorTests extends ESTestCase {
     }
 
     private Reconfigurator makeReconfigurator(Settings settings) {
-        return new Reconfigurator(settings, new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-            ElectionStrategy.DefaultElectionStrategy.INSTANCE);
+        return new Reconfigurator(settings, new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
     }
 
     public void testDynamicSetting() {
         final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        final Reconfigurator reconfigurator = new Reconfigurator(Settings.EMPTY, clusterSettings,
-            ElectionStrategy.DefaultElectionStrategy.INSTANCE);
+        final Reconfigurator reconfigurator = new Reconfigurator(Settings.EMPTY, clusterSettings);
         final VotingConfiguration initialConfig = conf("a", "b", "c", "d", "e");
 
         Set<DiscoveryNode> twoNodes = nodes("a", "b");

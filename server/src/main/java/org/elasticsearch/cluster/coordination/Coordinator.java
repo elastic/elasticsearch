@@ -22,7 +22,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
@@ -55,7 +54,6 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -69,7 +67,6 @@ import org.elasticsearch.discovery.SeedHostsProvider;
 import org.elasticsearch.discovery.SeedHostsResolver;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool.Names;
-import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportResponse.Empty;
 import org.elasticsearch.transport.TransportService;
 
@@ -1403,34 +1400,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         @Override
         protected void sendPublishRequest(DiscoveryNode destination, PublishRequest publishRequest,
                                           ActionListener<PublishWithJoinResponse> responseActionListener) {
-            if (electionStrategy.isStateTransferOnly(getLocalNode())) {
-                if (destination.isMasterNode() && electionStrategy.isStateTransferOnly(destination) == false) {
-                    logger.debug("sendPublishRequest: state transfer to [{}]", destination);
-                    publicationContext.sendPublishRequest(destination, publishRequest, wrapWithMutex(
-                        ActionListener.map(responseActionListener, resp -> {
-                            throw new TransportException(
-                                new ElasticsearchException("ignoring successful publish response for state transfer only: " + resp));
-                        })));
-                } else {
-                    logger.debug("sendPublishRequest: suppressing state transfer to [{}]", destination);
-                    // fork response to different thread to allow sending of other publications
-                    transportService.getThreadPool().generic().execute(new AbstractRunnable() {
-                        @Override
-                        public void onFailure(Exception e) {
-                            wrapWithMutex(responseActionListener).onFailure(e);
-                        }
-
-                        @Override
-                        protected void doRun() {
-                            wrapWithMutex(responseActionListener).onFailure(
-                                new TransportException(
-                                    new ElasticsearchException("suppressing state transfer at source for " + destination)));
-                        }
-                    });
-                }
-            } else {
-                publicationContext.sendPublishRequest(destination, publishRequest, wrapWithMutex(responseActionListener));
-            }
+            publicationContext.sendPublishRequest(destination, publishRequest, wrapWithMutex(responseActionListener));
         }
 
         @Override

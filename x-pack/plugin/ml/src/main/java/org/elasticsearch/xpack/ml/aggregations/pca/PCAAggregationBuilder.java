@@ -82,16 +82,6 @@ public class PCAAggregationBuilder
     }
 
     @Override
-    protected int innerHashCode() {
-        return 0;
-    }
-
-    @Override
-    protected boolean innerEquals(Object obj) {
-        return true;
-    }
-
-    @Override
     public String getType() {
         return NAME;
     }

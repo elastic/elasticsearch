@@ -13,10 +13,10 @@ dependencies {
 }
 
 
-String jiraUrl      = System.getenv('jira_url')
-String   jiraUser     = System.getenv('jira_user')
+String jiraUrl = System.getenv('jira_url')
+String jiraUser = System.getenv('jira_user')
 String jiraPassword = System.getenv('jira_password')
-String jiraProject  = System.getenv('jira_project')
+String jiraProject = System.getenv('jira_project')
 
 testClusters.integTest {
   setting 'xpack.security.enabled', 'false'

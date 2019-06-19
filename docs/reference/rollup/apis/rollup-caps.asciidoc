@@ -6,16 +6,18 @@
 <titleabbrev>Get rollup caps</titleabbrev>
 ++++
 
+Returns the capabilities of any rollup jobs that have been configured for a
+specific index or index pattern.
+
 experimental[]
 
-This API returns the capabilities of any rollup jobs that have been configured
-for a specific index or index pattern.
-
+[discrete]
 [[get-rollup-caps-request]]
 ==== Request
 
 `GET _rollup/data/<index>`
 
+[discrete]
 [[get-rollup-caps-prereqs]]
 ==== Prerequisites
 
@@ -24,6 +26,7 @@ If the {es} {security-features} are enabled, you must have `monitor`,
 For more information, see
 {stack-ov}/security-privileges.html[Security privileges].
 
+[discrete]
 [[get-rollup-caps-desc]]
 ===== Description
 
@@ -38,7 +41,7 @@ This API enables you to inspect an index and determine:
 2. If yes to the first question, what fields were rolled up, what aggregations
 can be performed, and where does the data live?
 
-
+[discrete]
 [[get-rollup-caps-params]]
 ==== Path parameters
 
@@ -46,6 +49,7 @@ can be performed, and where does the data live?
   (string) Index, indices or index-pattern to return rollup capabilities for.
   To fetch rollup capabilities from all jobs, use `_all`.
   
+[discrete]
 [[get-rollup-caps-response-body]]
 ==== Response body
 
@@ -53,9 +57,9 @@ The API returns the following information:
 
 `rollup_jobs`::
   (array) An array of rollup job resources. For more information, see
-  <<rollup-job-resource>>.
+  <<rollup-capabilities>>.
 
-
+[discrete]
 [[get-rollup-caps-examples]]
 ==== Examples
 
@@ -158,7 +162,7 @@ Which will yield the following response:
 
 The response that is returned contains information that is similar to the
 original rollup configuration, but formatted differently.  First, there are some
-house-keeping details: the Rollup job's ID, the index that holds the rolled data,
+house-keeping details: the rollup job's ID, the index that holds the rolled data,
 the index pattern that the job was targeting.
 
 Next it shows a list of fields that contain data eligible for rollup searches. 
@@ -200,7 +204,7 @@ GET _rollup/data/sensor-1
 // TESTRESPONSE
 
 Why is this?  The original rollup job was configured against a specific index
-pattern (`sensor-*`) not a concrete index (`sensor-1`).  So while the index
+pattern (`sensor-*`) not a concrete index (`sensor-1`). So while the index
 belongs to the pattern, the rollup job is only valid across the entirety of the
 pattern not just one of its containing indices. So for that reason, the get
 rollup capabilities API returns only information that is based on the originally

@@ -7,7 +7,7 @@ security_test_role:
     - names: [ "index_allowed" ]
       privileges: [ "read", "write", "create_index" ]
     - names: [ "*" ]
-      privileges: [ "monitor" ]
+      privileges: [ "monitor", "indices:admin/get" ]
 
 anonymous:
   cluster:

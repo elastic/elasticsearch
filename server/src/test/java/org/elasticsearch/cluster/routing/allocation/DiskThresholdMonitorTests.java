@@ -200,7 +200,7 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
 
         // should reroute again after the reroute interval
         currentTime.addAndGet(randomLongBetween(
-            DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_REROUTE_INTERVAL_SETTING.get(Settings.EMPTY).millis(), 120000));
+            DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_REROUTE_INTERVAL_SETTING.get(Settings.EMPTY).millis() + 1, 120000));
         monitor.onNewInfo(new ClusterInfo(allDisksOk, null, null, null));
         assertNotNull(listenerReference.get());
         listenerReference.getAndSet(null).onResponse(null);

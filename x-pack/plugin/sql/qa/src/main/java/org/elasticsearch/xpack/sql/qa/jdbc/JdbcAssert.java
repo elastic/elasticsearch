@@ -51,7 +51,7 @@ public class JdbcAssert {
 
     private static final IntObjectHashMap<EsType> SQL_TO_TYPE = new IntObjectHashMap<>();
 
-    private static final WellKnownText WKT = new WellKnownText();
+    private static final WellKnownText WKT = new WellKnownText(true, true);
 
     static {
         for (EsType type : EsType.values()) {

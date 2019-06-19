@@ -1306,7 +1306,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                                             final List<DiscoveryNode> masterCandidates = completedNodes().stream()
                                                 .filter(DiscoveryNode::isMasterNode)
                                                 .filter(node -> nodeMayWinElection(state, node))
-                                                .filter(electionStrategy::isAbdicationTarget)
+                                                .filter(node -> electionStrategy.isStateTransferOnly(node) == false)
                                                 .collect(Collectors.toList());
                                             if (masterCandidates.isEmpty() == false) {
                                                 abdicateTo(masterCandidates.get(random.nextInt(masterCandidates.size())));
@@ -1388,12 +1388,18 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         @Override
         protected void sendPublishRequest(DiscoveryNode destination, PublishRequest publishRequest,
                                           ActionListener<PublishWithJoinResponse> responseActionListener) {
-            if (electionStrategy.shouldReceivePublication(destination)) {
-                publicationContext.sendPublishRequest(destination, publishRequest,
-                    electionStrategy.wrapPublishResponseHandler(wrapWithMutex(responseActionListener)));
+            if (electionStrategy.isStateTransferOnly(getLocalNode())) {
+                if (destination.isMasterNode() && electionStrategy.isStateTransferOnly(destination) == false) {
+                    publicationContext.sendPublishRequest(destination, publishRequest, wrapWithMutex(
+                        ActionListener.map(responseActionListener, resp -> {
+                            throw new ElasticsearchException("ignoring successful publish response for state transfer only: " + resp);
+                        })));
+                } else {
+                    logger.debug("sendPublishRequest: suppressing state transfer to [{}]", destination);
+                    responseActionListener.onFailure(new ElasticsearchException("suppressing state transfer at source"));
+                }
             } else {
-                logger.debug("sendPublishRequest: suppressing publication to [{}]", destination);
-                responseActionListener.onFailure(new ElasticsearchException("suppressing publication at source"));
+                publicationContext.sendPublishRequest(destination, publishRequest, wrapWithMutex(responseActionListener));
             }
         }
 

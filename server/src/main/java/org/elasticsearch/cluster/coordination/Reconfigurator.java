@@ -130,7 +130,7 @@ public class Reconfigurator {
                 .collect(Collectors.toSet()));
 
         // new configuration should have a quorum
-        if (newConfig.hasQuorum(liveNodeIds) && electionStrategy.isGoodQuorum(liveNodes)) {
+        if (newConfig.hasQuorum(liveNodeIds) && liveNodes.stream().allMatch(electionStrategy::isStateTransferOnly) == false) {
             return newConfig;
         } else {
             // If there are not enough live nodes to form a quorum in the newly-proposed configuration, it's better to do nothing.

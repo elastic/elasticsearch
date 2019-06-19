@@ -187,7 +187,11 @@ public class PreVoteCollector {
                 return;
             }
 
-            if (electionStrategy.acceptPrevote(response, sender, clusterState) == false) {
+            if (response.getLastAcceptedTerm() == clusterState.term() &&
+                response.getLastAcceptedVersion() == clusterState.version() &&
+                electionStrategy.isStateTransferOnly(clusterState.nodes().getLocalNode()) &&
+                electionStrategy.isStateTransferOnly(sender) == false) {
+                logger.debug("{} ignoring {} from {} as it has the same state and is not transfer-only", this, response, sender);
                 return;
             }
 

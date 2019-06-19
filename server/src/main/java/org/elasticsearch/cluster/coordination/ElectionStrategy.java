@@ -18,68 +18,22 @@
  */
 package org.elasticsearch.cluster.coordination;
 
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 
-import java.util.Collection;
-
 public interface ElectionStrategy {
-    /**
-     * Whether this node should abdicate to the given node when standing down as master
-     */
-    boolean isAbdicationTarget(DiscoveryNode discoveryNode);
 
     /**
-     * Returns an extra filter on whether a collection of votes is a good quorum for an election
+     * Whether the given node is only here to ensure state transfer to another node
      */
-    boolean isGoodQuorum(Collection<DiscoveryNode> votingNodes);
-
-    /**
-     * Whether to accept the given pre-vote
-     */
-    boolean acceptPrevote(PreVoteResponse response, DiscoveryNode sender, ClusterState clusterState);
-
-    /**
-     * Whether the destination node should receive publications of new cluster states
-     */
-    boolean shouldReceivePublication(DiscoveryNode destination);
-
-    /**
-     * Allows the strategy to modify the {@link PublishWithJoinResponse} received before it is handled by the {@link Coordinator}.
-     */
-    ActionListener<PublishWithJoinResponse> wrapPublishResponseHandler(ActionListener<PublishWithJoinResponse> listener);
+    boolean isStateTransferOnly(DiscoveryNode discoveryNode);
 
     class DefaultElectionStrategy implements ElectionStrategy {
 
         public static final ElectionStrategy INSTANCE = new DefaultElectionStrategy();
 
-        private DefaultElectionStrategy() {
-        }
-
         @Override
-        public boolean isAbdicationTarget(DiscoveryNode discoveryNode) {
-            return true;
-        }
-
-        @Override
-        public boolean isGoodQuorum(Collection<DiscoveryNode> votingNodes) {
-            return true;
-        }
-
-        @Override
-        public boolean acceptPrevote(PreVoteResponse response, DiscoveryNode sender, ClusterState clusterState) {
-            return true;
-        }
-
-        @Override
-        public boolean shouldReceivePublication(DiscoveryNode destination) {
-            return true;
-        }
-
-        @Override
-        public ActionListener<PublishWithJoinResponse> wrapPublishResponseHandler(ActionListener<PublishWithJoinResponse> listener) {
-            return listener;
+        public boolean isStateTransferOnly(DiscoveryNode discoveryNode) {
+            return false;
         }
     }
 }

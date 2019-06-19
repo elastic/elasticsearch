@@ -106,7 +106,7 @@ public class CoordinationState {
     }
 
     static boolean isElectionQuorum(VoteCollection votes, ClusterState lastAcceptedState, ElectionStrategy electionStrategy) {
-        return electionStrategy.isGoodQuorum(votes.nodes())
+        return votes.nodes().stream().allMatch(electionStrategy::isStateTransferOnly) == false
             && votes.isQuorum(lastAcceptedState.getLastCommittedConfiguration())
             && votes.isQuorum(lastAcceptedState.getLastAcceptedConfiguration());
     }

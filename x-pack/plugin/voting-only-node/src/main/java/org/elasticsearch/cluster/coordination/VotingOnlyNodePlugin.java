@@ -5,11 +5,6 @@
  */
 package org.elasticsearch.cluster.coordination;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.settings.Setting;
@@ -19,15 +14,12 @@ import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.DiscoveryPlugin;
 import org.elasticsearch.plugins.Plugin;
 
-import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
 public class VotingOnlyNodePlugin extends Plugin implements DiscoveryPlugin {
-
-    private static final Logger logger = LogManager.getLogger(VotingOnlyNodePlugin.class);
 
     public static final Setting<Boolean> VOTING_ONLY_NODE_SETTING
         = Setting.boolSetting("node.voting_only", false, Setting.Property.NodeScope);
@@ -65,88 +57,16 @@ public class VotingOnlyNodePlugin extends Plugin implements DiscoveryPlugin {
         }
     };
 
-    private static boolean isTrueMasterNode(DiscoveryNode discoveryNode) {
-        return discoveryNode.isMasterNode() && discoveryNode.getRoles().contains(VOTING_ONLY_NODE_ROLE) == false;
-    }
-
-    private class AvoidsVotingOnlyNodesElectionStrategy implements ElectionStrategy {
-        @Override
-        public boolean isAbdicationTarget(DiscoveryNode discoveryNode) {
-            return isTrueMasterNode(discoveryNode);
-        }
-
-        @Override
-        public boolean isGoodQuorum(Collection<DiscoveryNode> votingNodes) {
-            return true;
-        }
-
-        @Override
-        public boolean acceptPrevote(PreVoteResponse response, DiscoveryNode sender, ClusterState clusterState) {
-            return true;
-        }
-
-        @Override
-        public boolean shouldReceivePublication(DiscoveryNode destination) {
-            return true;
-        }
-
-        @Override
-        public ActionListener<PublishWithJoinResponse> wrapPublishResponseHandler(ActionListener<PublishWithJoinResponse> listener) {
-            return listener;
-        }
-    }
-
     private class VotingOnlyNodeElectionStrategy implements ElectionStrategy {
 
         @Override
-        public boolean isAbdicationTarget(DiscoveryNode discoveryNode) {
-            assert false : "voting-only node cannot abdicate";
-            return false;
-        }
-
-
-        @Override
-        public boolean isGoodQuorum(Collection<DiscoveryNode> votingNodes) {
-            return votingNodes.stream().anyMatch(VotingOnlyNodePlugin::isTrueMasterNode);
-        }
-
-        @Override
-        public boolean acceptPrevote(PreVoteResponse response, DiscoveryNode sender, ClusterState clusterState) {
-            if (sender.getRoles().contains(VOTING_ONLY_NODE_ROLE) == false
-                && response.getLastAcceptedTerm() == clusterState.term()
-                && response.getLastAcceptedVersion() == clusterState.version()) {
-                logger.debug("{} ignoring {} from {} as it has higher voting priority", this, response, sender);
-                return false;
-            }
-
-            return true;
-        }
-
-        @Override
-        public boolean shouldReceivePublication(DiscoveryNode destination) {
-            return isTrueMasterNode(destination);
-        }
-
-        @Override
-        public ActionListener<PublishWithJoinResponse> wrapPublishResponseHandler(ActionListener<PublishWithJoinResponse> listener) {
-            return new ActionListener<>() {
-                @Override
-                public void onResponse(PublishWithJoinResponse publishWithJoinResponse) {
-                    listener.onFailure(new ElasticsearchException(
-                        "ignoring successful publish response on voting-only node: " + publishWithJoinResponse));
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    listener.onFailure(e);
-                }
-            };
+        public boolean isStateTransferOnly(DiscoveryNode discoveryNode) {
+            return discoveryNode.isMasterNode() && discoveryNode.getRoles().contains(VOTING_ONLY_NODE_ROLE);
         }
     }
 
     @Override
     public Map<String, ElectionStrategy> getElectionStrategies() {
-        return Collections.singletonMap(VOTING_ONLY_ELECTION_TYPE,
-            isVotingOnlyNode ? new VotingOnlyNodeElectionStrategy() : new AvoidsVotingOnlyNodesElectionStrategy());
+        return Collections.singletonMap(VOTING_ONLY_ELECTION_TYPE, new VotingOnlyNodeElectionStrategy());
     }
 }

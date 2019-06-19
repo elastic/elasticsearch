@@ -452,6 +452,7 @@ public abstract class ValuesSource {
                 if (bytesValues.advanceExact(doc)) {
                     count = bytesValues.docValueCount();
                     grow();
+                    script.setDocument(doc);
                     for (int i = 0; i < count; ++i) {
                         final BytesRef value = bytesValues.nextValue();
                         script.setNextAggregationValue(value.utf8ToString());

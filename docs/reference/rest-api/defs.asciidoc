@@ -15,7 +15,7 @@ These resource definitions are used in APIs related to {ml-features} and
 * <<data-frame-transform-pivot,Pivots>>
 * <<ml-results-resource,Results>>
 * <<role-mapping-resources,Role mappings>>
-* <<rollup-capabilities,Rollup job capabilities>>
+* <<rollup-jobs-objects,Rollup jobs>>
 * <<ml-event-resource,Scheduled Events>>
 
 include::{es-repo-dir}/ml/apis/calendarresource.asciidoc[]
@@ -26,6 +26,6 @@ include::{es-repo-dir}/ml/apis/jobcounts.asciidoc[]
 include::{es-repo-dir}/ml/apis/snapshotresource.asciidoc[]
 include::{es-repo-dir}/data-frames/apis/pivotresource.asciidoc[]
 include::{xes-repo-dir}/rest-api/security/role-mapping-resources.asciidoc[]
-include::{es-repo-dir}/rollup/apis/jobresource.asciidoc[]
+include::{es-repo-dir}/rollup/apis/rollup-jobs-objects.asciidoc[]
 include::{es-repo-dir}/ml/apis/resultsresource.asciidoc[]
 include::{es-repo-dir}/ml/apis/eventresource.asciidoc[]

@@ -28,7 +28,7 @@ For more information, see
 
 [discrete]
 [[get-rollup-caps-desc]]
-===== Description
+==== Description
 
 This API is useful because a rollup job is often configured to rollup only a
 subset of fields from the source index. Furthermore, only certain aggregations
@@ -57,7 +57,7 @@ The API returns the following information:
 
 `rollup_jobs`::
   (array) An array of rollup job resources. For more information, see
-  <<rollup-capabilities>>.
+  <<rollup-jobs-objects>>.
 
 [discrete]
 [[get-rollup-caps-examples]]
@@ -185,8 +185,7 @@ GET _rollup/data/_all
 // CONSOLE
 // TEST[continued]
 
-But note that if we use the concrete index name (`sensor-1`), we'll retrieve no
-rollup capabilities:
+If we use the concrete index name (`sensor-1`):
 
 [source,js]
 --------------------------------------------------
@@ -194,6 +193,8 @@ GET _rollup/data/sensor-1
 --------------------------------------------------
 // CONSOLE
 // TEST[continued]
+
+...we retrieve no rollup capabilities:
 
 [source,js]
 ----

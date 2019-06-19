@@ -180,22 +180,18 @@ public abstract class GeoGridAggregationBuilder extends ValuesSourceAggregationB
     }
 
     @Override
-    protected boolean innerEquals(Object obj) {
+    public boolean equals(Object obj) {
+        if (this == obj) return true;
+        if (obj == null || getClass() != obj.getClass()) return false;
+        if (super.equals(obj) == false) return false;
         GeoGridAggregationBuilder other = (GeoGridAggregationBuilder) obj;
-        if (precision != other.precision) {
-            return false;
-        }
-        if (requiredSize != other.requiredSize) {
-            return false;
-        }
-        if (shardSize != other.shardSize) {
-            return false;
-        }
-        return true;
+        return precision == other.precision
+            && requiredSize == other.requiredSize
+            && shardSize == other.shardSize;
     }
 
     @Override
-    protected int innerHashCode() {
-        return Objects.hash(precision, requiredSize, shardSize);
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), precision, requiredSize, shardSize);
     }
 }

@@ -30,6 +30,7 @@ import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Spliterator;
 import java.util.Spliterators;
@@ -94,7 +95,7 @@ public class JsonLogsStream {
         public Map<String, String> next() {
             Map<String, String> map;
             try {
-                map = parser.mapStringsOrdered();
+                map = parser.map(LinkedHashMap::new, XContentParser::text);
                 parser.nextToken();
             } catch (IOException e) {
                 throw new UncheckedIOException(e);

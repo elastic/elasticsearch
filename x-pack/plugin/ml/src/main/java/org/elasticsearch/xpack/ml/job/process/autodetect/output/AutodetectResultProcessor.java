@@ -68,9 +68,9 @@ import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
  * interim results and the old interim results have to be cleared out
  * before the new ones are written.
  */
-public class AutoDetectResultProcessor {
+public class AutodetectResultProcessor {
 
-    private static final Logger LOGGER = LogManager.getLogger(AutoDetectResultProcessor.class);
+    private static final Logger LOGGER = LogManager.getLogger(AutodetectResultProcessor.class);
 
     private final Client client;
     private final Auditor auditor;
@@ -100,14 +100,14 @@ public class AutoDetectResultProcessor {
      */
     private TimingStats persistedTimingStats; // only used from the process() thread, so doesn't need to be volatile
 
-    public AutoDetectResultProcessor(Client client, Auditor auditor, String jobId, Renormalizer renormalizer,
+    public AutodetectResultProcessor(Client client, Auditor auditor, String jobId, Renormalizer renormalizer,
                                      JobResultsPersister persister,
                                      ModelSizeStats latestModelSizeStats,
                                      TimingStats timingStats) {
         this(client, auditor, jobId, renormalizer, persister, latestModelSizeStats, timingStats, new FlushListener());
     }
 
-    AutoDetectResultProcessor(Client client, Auditor auditor, String jobId, Renormalizer renormalizer,
+    AutodetectResultProcessor(Client client, Auditor auditor, String jobId, Renormalizer renormalizer,
                               JobResultsPersister persister, ModelSizeStats latestModelSizeStats, TimingStats timingStats,
                               FlushListener flushListener) {
         this.client = Objects.requireNonNull(client);

@@ -7,6 +7,7 @@ package org.elasticsearch.cluster.coordination;
 
 import org.elasticsearch.cluster.coordination.CoordinationMetaData.VotingConfiguration;
 import org.elasticsearch.cluster.coordination.CoordinationState.JoinVoteCollection;
+import org.elasticsearch.cluster.coordination.CoordinationState.VoteCollection;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.settings.Setting;
@@ -26,17 +27,20 @@ public class VotingOnlyNodePlugin extends Plugin implements DiscoveryPlugin {
     public static final Setting<Boolean> VOTING_ONLY_NODE_SETTING
         = Setting.boolSetting("node.voting_only", false, Setting.Property.NodeScope);
 
+    private final Settings settings;
+
     private final Boolean isVotingOnlyNode;
 
     public VotingOnlyNodePlugin(Settings settings) {
+        this.settings = settings;
         isVotingOnlyNode = VOTING_ONLY_NODE_SETTING.get(settings);
-        if (isVotingOnlyNode && Node.NODE_MASTER_SETTING.get(settings) == false) {
-            throw new IllegalStateException("voting-only node must be master-eligible");
-        }
     }
 
     @Override
     public Set<DiscoveryNodeRole> getRoles() {
+        if (isVotingOnlyNode && Node.NODE_MASTER_SETTING.get(settings) == false) {
+            throw new IllegalStateException("voting-only node must be master-eligible");
+        }
         return Collections.singleton(VOTING_ONLY_NODE_ROLE);
     }
 
@@ -59,11 +63,11 @@ public class VotingOnlyNodePlugin extends Plugin implements DiscoveryPlugin {
         }
     };
 
-    public boolean isVotingOnlyNode(DiscoveryNode discoveryNode) {
+    public static boolean isVotingOnlyNode(DiscoveryNode discoveryNode) {
         return discoveryNode.getRoles().contains(VOTING_ONLY_NODE_ROLE);
     }
 
-    public boolean isFullMasterNode(DiscoveryNode discoveryNode) {
+    public static boolean isFullMasterNode(DiscoveryNode discoveryNode) {
         return discoveryNode.isMasterNode() && discoveryNode.getRoles().contains(VOTING_ONLY_NODE_ROLE) == false;
     }
 
@@ -77,18 +81,19 @@ public class VotingOnlyNodePlugin extends Plugin implements DiscoveryPlugin {
         @Override
         public boolean isElectionQuorum(DiscoveryNode localNode, long localCurrentTerm, long localAcceptedTerm, long localAcceptedVersion,
                                         VotingConfiguration lastCommittedConfiguration, VotingConfiguration lastAcceptedConfiguration,
-                                        JoinVoteCollection joinVotes) {
+                                        VoteCollection joinVotes) {
             // if local node is voting only, have additional checks on election quorum definition
             if (isVotingOnlyNode(localNode)) {
                 // if all votes are from voting only nodes, do not elect as master (no need to transfer state)
-                if (joinVotes.getJoins().stream().allMatch(join -> isVotingOnlyNode(join.getSourceNode()))) {
+                if (joinVotes.nodes().stream().filter(DiscoveryNode::isMasterNode).allMatch(VotingOnlyNodePlugin::isVotingOnlyNode)) {
                     return false;
                 }
                 // if there's a vote from a full master node with same last accepted term and version, that node should become master
                 // instead, so we should stand down
-                if (joinVotes.getJoins().stream().anyMatch(join -> isFullMasterNode(join.getSourceNode()) &&
-                    join.getLastAcceptedTerm() == localAcceptedTerm &&
-                    join.getLastAcceptedVersion() == localAcceptedVersion)) {
+                if (joinVotes instanceof JoinVoteCollection &&
+                    ((JoinVoteCollection) joinVotes).getJoins().stream().anyMatch(join -> isFullMasterNode(join.getSourceNode()) &&
+                        join.getLastAcceptedTerm() == localAcceptedTerm &&
+                        join.getLastAcceptedVersion() == localAcceptedVersion)) {
                     return false;
                 }
             }

@@ -68,6 +68,7 @@ import org.elasticsearch.discovery.SeedHostsProvider;
 import org.elasticsearch.discovery.SeedHostsResolver;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool.Names;
+import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportResponse.Empty;
 import org.elasticsearch.transport.TransportService;
 
@@ -1105,14 +1106,11 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             synchronized (mutex) {
                 final Iterable<DiscoveryNode> foundPeers = getFoundPeers();
                 if (mode == Mode.CANDIDATE) {
-                    final JoinVoteCollection expectedVotes = new JoinVoteCollection();
-                    long term = getCurrentTerm();
-                    long lastAcceptedTerm = getLastAcceptedState().term();
-                    long lastAcceptedVersion = getLastAcceptedState().version();
-                    foundPeers.forEach(node -> expectedVotes.addJoinVote(new Join(node, getLocalNode(), term, lastAcceptedTerm,
-                        lastAcceptedVersion)));
-                    expectedVotes.addJoinVote(new Join(getLocalNode(), getLocalNode(), term, lastAcceptedTerm, lastAcceptedVersion));
+                    final CoordinationState.VoteCollection expectedVotes = new CoordinationState.VoteCollection();
+                    foundPeers.forEach(expectedVotes::addVote);
+                    expectedVotes.addVote(Coordinator.this.getLocalNode());
                     final boolean foundQuorum = coordinationState.get().isElectionQuorum(expectedVotes);
+
                     if (foundQuorum) {
                         if (electionScheduler == null) {
                             startElectionScheduler();
@@ -1409,11 +1407,13 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                 if (destination.isMasterNode() && electionStrategy.isStateTransferOnly(destination) == false) {
                     publicationContext.sendPublishRequest(destination, publishRequest, wrapWithMutex(
                         ActionListener.map(responseActionListener, resp -> {
-                            throw new ElasticsearchException("ignoring successful publish response for state transfer only: " + resp);
+                            throw new TransportException(
+                                new ElasticsearchException("ignoring successful publish response for state transfer only: " + resp));
                         })));
                 } else {
                     logger.debug("sendPublishRequest: suppressing state transfer to [{}]", destination);
-                    responseActionListener.onFailure(new ElasticsearchException("suppressing state transfer at source"));
+                    responseActionListener.onFailure(new TransportException(
+                        new ElasticsearchException("suppressing state transfer at source")));
                 }
             } else {
                 publicationContext.sendPublishRequest(destination, publishRequest, wrapWithMutex(responseActionListener));

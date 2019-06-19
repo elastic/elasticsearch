@@ -103,7 +103,7 @@ public class CoordinationState {
         return electionWon;
     }
 
-    public boolean isElectionQuorum(JoinVoteCollection joinVotes) {
+    public boolean isElectionQuorum(VoteCollection joinVotes) {
         return electionStrategy.isElectionQuorum(localNode, getCurrentTerm(), getLastAcceptedTerm(), getLastAcceptedVersion(),
             getLastCommittedConfiguration(), getLastAcceptedConfiguration(), joinVotes);
     }

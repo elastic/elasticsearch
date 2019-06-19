@@ -190,10 +190,9 @@ public class PreVoteCollector {
             preVotesReceived.put(sender, response);
 
             final JoinVoteCollection voteCollection = new JoinVoteCollection();
-            preVotesReceived.forEach((node, preVoteResponse) -> {
-                voteCollection.addJoinVote(new Join(node, clusterState.nodes().getLocalNode(), preVoteResponse.getCurrentTerm(),
-                    preVoteResponse.getLastAcceptedTerm(), preVoteResponse.getLastAcceptedVersion()));
-            });
+            preVotesReceived.forEach((node, preVoteResponse) -> voteCollection.addJoinVote(
+                new Join(node, clusterState.nodes().getLocalNode(), preVoteResponse.getCurrentTerm(),
+                preVoteResponse.getLastAcceptedTerm(), preVoteResponse.getLastAcceptedVersion())));
 
             final PreVoteResponse localPrevoteResponse = getPreVoteResponse();
             if (electionStrategy.isElectionQuorum(clusterState.nodes().getLocalNode(), localPrevoteResponse.getCurrentTerm(),

@@ -24,8 +24,6 @@ import org.elasticsearch.xpack.core.action.XPackUsageFeatureResponse;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureTransportAction;
 import org.elasticsearch.xpack.core.graph.GraphFeatureSetUsage;
 
-import java.util.Map;
-
 public class GraphFeatureSet implements XPackFeatureSet {
 
     private final boolean enabled;
@@ -50,11 +48,6 @@ public class GraphFeatureSet implements XPackFeatureSet {
     @Override
     public boolean enabled() {
         return enabled;
-    }
-
-    @Override
-    public Map<String, Object> nativeCodeInfo() {
-        return null;
     }
 
     public static class UsageTransportAction extends XPackUsageFeatureTransportAction {

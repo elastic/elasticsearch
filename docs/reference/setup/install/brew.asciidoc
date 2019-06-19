@@ -21,9 +21,17 @@ brew install elastic/tap/elasticsearch
 -------------------------
 
 This installs the most recently released default distribution of {es}.
-Append the version number to install a previous version, for example
-`elastic/tap/elasticsearch@7.2`. To install the OSS distribution,
-specify `elastic/tap/elasticsearch-oss`.
+To install the OSS distribution, specify `elastic/tap/elasticsearch-oss`.
+
+To install the default distribution of _all_ Elastic products at once,
+specify:
+
+[source,sh]
+-------------------------
+brew install elastic/tap/elasticsearch-full
+-------------------------
+
+This installs Elasticsearch, Logstash, Kibana, Auditbeat, Filebeat, Heartbeat, Metricbeat, Packetbeat, and APM server. 
 
 [[brew-layout]]
 ==== Directory layout for Homebrew installs

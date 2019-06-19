@@ -135,6 +135,37 @@ cluster.remote.connect: false <4>
 <4> Disable {ccs} (enabled by default).
 
 [float]
+[[voting-only-node]]
+==== Voting-only master-eligible node
+
+A voting-only master-eligible node is a node that can participate in master
+elections but will not act as a master in the cluster. In particular, a
+voting-only node can help elect another master-eligible node as master, and
+can serve as a tiebreaker in elections. To mark a master-eligible node as
+voting-only, set:
+
+[source,yaml]
+-------------------
+node.voting_only: true <1>
+-------------------
+<1> The `node.voting_only` role is disabled by default.
+
+IMPORTANT: If you use the {oss-dist}, do not set `node.voting_only`. Otherwise,
+the node fails to start. Also note that only master-eligible nodes can be
+marked as voting-only.
+
+High availability (HA) clusters require at least three master-eligible nodes,
+so that if one of the three nodes is down, then the remaining two can still
+elect a master amongst them-selves. This only requires one of the two remaining
+nodes to have the capability to act as master, but both need to have voting
+powers. This means that one of the three master-eligible nodes can be made as
+voting-only. If this voting-only node is a dedicated master, a less powerful
+machine or a smaller heap-size can be chosen for this node. Alternatively,
+a voting-only non-dedicated master node can play the role of the third
+master-eligible node, which allows running an HA cluster with only two
+dedicated master nodes.
+
+[float]
 [[data-node]]
 === Data Node
 

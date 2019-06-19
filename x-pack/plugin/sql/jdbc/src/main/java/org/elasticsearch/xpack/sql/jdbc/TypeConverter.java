@@ -54,7 +54,7 @@ import static org.elasticsearch.xpack.sql.jdbc.JdbcDateUtils.timeAsTime;
  */
 final class TypeConverter {
 
-    private static WellKnownText WKT = new WellKnownText();
+    private static WellKnownText WKT = new WellKnownText(true, true);
 
     private TypeConverter() {}
 

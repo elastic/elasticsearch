@@ -65,6 +65,11 @@ public class BlobContainerWrapper implements BlobContainer {
     }
 
     @Override
+    public void delete() throws IOException {
+        delegate.delete();
+    }
+
+    @Override
     public void deleteBlobIgnoringIfNotExists(final String blobName) throws IOException {
         delegate.deleteBlobIgnoringIfNotExists(blobName);
     }

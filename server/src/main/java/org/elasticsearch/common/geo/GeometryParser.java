@@ -37,7 +37,7 @@ public final class GeometryParser {
 
     public GeometryParser(boolean rightOrientation, boolean coerce, boolean ignoreZValue) {
         geoJsonParser = new GeoJson(rightOrientation, coerce, ignoreZValue);
-        wellKnownTextParser = new WellKnownText();
+        wellKnownTextParser = new WellKnownText(coerce, ignoreZValue);
     }
 
     /**

@@ -44,6 +44,14 @@ public class VotingOnlyNodePluginTests extends ESIntegTestCase {
         assertNotEquals(votingOnlyNode, internalCluster().getMasterName());
     }
 
+    public void testVotingOnlyNodeStats() {
+        internalCluster().setBootstrapMasterNodeIndex(0);
+        internalCluster().startNodes(2);
+        internalCluster().startNode(Settings.builder().put(VotingOnlyNodePlugin.VOTING_ONLY_NODE_SETTING.getKey(), true));
+        assertThat(client().admin().cluster().prepareClusterStats().get().getNodesStats().getCounts().getRoles().get(
+            VotingOnlyNodePlugin.VOTING_ONLY_NODE_ROLE.roleName()).intValue(), equalTo(1));
+    }
+
     public void testRequireVotingOnlyNodeToBeMasterEligible() {
         internalCluster().setBootstrapMasterNodeIndex(0);
         IllegalStateException ise = expectThrows(IllegalStateException.class, () -> internalCluster().startNode(Settings.builder()

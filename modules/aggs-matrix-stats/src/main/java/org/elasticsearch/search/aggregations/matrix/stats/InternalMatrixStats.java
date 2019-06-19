@@ -25,7 +25,6 @@ import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 
 /**
  * Adds correlation computation to Computes distribution statistics over multiple fields

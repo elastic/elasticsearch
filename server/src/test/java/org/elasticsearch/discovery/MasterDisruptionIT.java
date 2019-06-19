@@ -94,11 +94,6 @@ public class MasterDisruptionIT extends AbstractDisruptionTestCase {
      * This test isolates the master from rest of the cluster, waits for a new master to be elected, restores the partition
      * and verifies that all node agree on the new cluster state
      */
-    @TestLogging(
-            "_root:DEBUG,"
-                    + "org.elasticsearch.cluster.service:TRACE,"
-                    + "org.elasticsearch.gateway:TRACE,"
-                    + "org.elasticsearch.indices.store:TRACE")
     public void testIsolateMasterAndVerifyClusterStateConsensus() throws Exception {
         final List<String> nodes = startCluster(3);
 
@@ -244,16 +239,6 @@ public class MasterDisruptionIT extends AbstractDisruptionTestCase {
 
     }
 
-    @TestLogging(
-        "_root:DEBUG,"
-            + "org.elasticsearch.action.bulk:TRACE,"
-            + "org.elasticsearch.action.get:TRACE,"
-            + "org.elasticsearch.cluster.service:TRACE,"
-            + "org.elasticsearch.discovery:TRACE,"
-            + "org.elasticsearch.indices.cluster:TRACE,"
-            + "org.elasticsearch.indices.recovery:TRACE,"
-            + "org.elasticsearch.index.seqno:TRACE,"
-            + "org.elasticsearch.index.shard:TRACE")
     public void testMappingTimeout() throws Exception {
         startCluster(3);
         createIndex("test", Settings.builder()

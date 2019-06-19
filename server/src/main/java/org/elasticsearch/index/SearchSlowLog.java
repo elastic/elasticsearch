@@ -32,7 +32,6 @@ import org.elasticsearch.index.shard.SearchOperationListener;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.tasks.Task;
 
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
@@ -169,8 +168,9 @@ public final class SearchSlowLog implements SearchOperationListener {
             } else {
                 messageFields.put("total_hits", inQuotes("-1"));
             }
-            String[] types = context.getQueryShardContext().getTypes();
-            messageFields.put("types", asJsonArray(types != null ? Arrays.stream(types) : Stream.empty()));
+//TODO add that in 7.x?
+//            String[] types = context.getQueryShardContext().getTypes();
+//            messageFields.put("types", asJsonArray(types != null ? Arrays.stream(types) : Stream.empty()));
             messageFields.put("stats", asJsonArray(context.groupStats() != null ? context.groupStats().stream() : Stream.empty()));
             messageFields.put("search_type", inQuotes(context.searchType()));
             messageFields.put("total_shards", inQuotes(context.numberOfShards()));

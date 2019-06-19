@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.watcher;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterName;
@@ -14,16 +15,18 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.xcontent.ObjectPath;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackFeatureSet;
+import org.elasticsearch.xpack.core.action.XPackUsageFeatureResponse;
 import org.elasticsearch.xpack.core.watcher.WatcherFeatureSetUsage;
 import org.elasticsearch.xpack.core.watcher.WatcherMetaData;
 import org.elasticsearch.xpack.core.watcher.common.stats.Counters;
-import org.elasticsearch.common.xcontent.ObjectPath;
 import org.elasticsearch.xpack.core.watcher.support.xcontent.XContentSource;
 import org.elasticsearch.xpack.core.watcher.transport.actions.stats.WatcherStatsAction;
 import org.elasticsearch.xpack.core.watcher.transport.actions.stats.WatcherStatsResponse;
@@ -60,7 +63,7 @@ public class WatcherFeatureSetTests extends ESTestCase {
     }
 
     public void testAvailable() {
-        WatcherFeatureSet featureSet = new WatcherFeatureSet(Settings.EMPTY, licenseState, client);
+        WatcherFeatureSet featureSet = new WatcherFeatureSet(Settings.EMPTY, licenseState);
         boolean available = randomBoolean();
         when(licenseState.isWatcherAllowed()).thenReturn(available);
         assertThat(featureSet.available(), is(available));
@@ -76,7 +79,7 @@ public class WatcherFeatureSetTests extends ESTestCase {
         } else {
             settings.put("xpack.watcher.enabled", enabled);
         }
-        WatcherFeatureSet featureSet = new WatcherFeatureSet(settings.build(), licenseState, client);
+        WatcherFeatureSet featureSet = new WatcherFeatureSet(settings.build(), licenseState);
         assertThat(featureSet.enabled(), is(enabled));
     }
 
@@ -107,9 +110,11 @@ public class WatcherFeatureSetTests extends ESTestCase {
             return null;
         }).when(client).execute(eq(WatcherStatsAction.INSTANCE), any(), any());
 
-        PlainActionFuture<WatcherFeatureSet.Usage> future = new PlainActionFuture<>();
-        new WatcherFeatureSet(Settings.EMPTY, licenseState, client).usage(future);
-        WatcherFeatureSetUsage watcherUsage = (WatcherFeatureSetUsage) future.get();
+        var usageAction = new WatcherFeatureSet.UsageTransportAction(mock(TransportService.class), null, null,
+            mock(ActionFilters.class), null, Settings.EMPTY, licenseState, client);
+        PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();
+        usageAction.masterOperation(null, null, future);
+        WatcherFeatureSetUsage watcherUsage = (WatcherFeatureSetUsage) future.get().getUsage();
         assertThat(watcherUsage.stats().keySet(), containsInAnyOrder("foo", "spam"));
         long fooBarBaz = ObjectPath.eval("foo.bar.baz", watcherUsage.stats());
         assertThat(fooBarBaz, is(5L));

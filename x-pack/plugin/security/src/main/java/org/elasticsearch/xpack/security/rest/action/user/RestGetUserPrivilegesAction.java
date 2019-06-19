@@ -26,7 +26,6 @@ import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesRespon
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConditionalClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConditionalClusterPrivileges;
-import org.elasticsearch.xpack.core.security.client.SecurityClient;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;
 
@@ -66,7 +65,7 @@ public class RestGetUserPrivilegesAction extends SecurityBaseRestHandler {
             return restChannel -> { throw new ElasticsearchSecurityException("there is no authenticated user"); };
         }
         final String username = user.principal();
-        final GetUserPrivilegesRequestBuilder requestBuilder = new SecurityClient(client).prepareGetUserPrivileges(username);
+        final GetUserPrivilegesRequestBuilder requestBuilder = new GetUserPrivilegesRequestBuilder(client).username(username);
         return channel -> requestBuilder.execute(new RestListener(channel));
     }
 

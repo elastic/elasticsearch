@@ -74,7 +74,7 @@ public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTest
     private List<String> transformsToClean = new ArrayList<>();
 
     @After
-    public void cleanUpTransforms() throws IOException {
+    public void cleanUpTransforms() throws Exception {
         for (String transformId : transformsToClean) {
             highLevelClient().dataFrame().stopDataFrameTransform(
                     new StopDataFrameTransformRequest(transformId, Boolean.TRUE, TimeValue.timeValueSeconds(20)), RequestOptions.DEFAULT);
@@ -86,6 +86,7 @@ public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTest
         }
 
         transformsToClean = new ArrayList<>();
+        waitForPendingTasks(adminClient());
     }
 
     private void createIndex(String indexName) throws IOException {
@@ -244,7 +245,7 @@ public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTest
                             request, RequestOptions.DEFAULT);
             // end::start-data-frame-transform-execute
 
-            assertTrue(response.isStarted());
+            assertTrue(response.isAcknowledged());
         }
         {
             // tag::stop-data-frame-transform-request
@@ -263,7 +264,7 @@ public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTest
                             request, RequestOptions.DEFAULT);
             // end::stop-data-frame-transform-execute
 
-            assertTrue(response.isStopped());
+            assertTrue(response.isAcknowledged());
         }
         {
             // tag::start-data-frame-transform-execute-listener

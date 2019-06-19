@@ -191,7 +191,7 @@ public abstract class DataFrameRestTestCase extends ESRestTestCase {
             startTransformRequest.setOptions(expectWarnings(warnings));
         }
         Map<String, Object> startTransformResponse = entityAsMap(client().performRequest(startTransformRequest));
-        assertThat(startTransformResponse.get("started"), equalTo(Boolean.TRUE));
+        assertThat(startTransformResponse.get("acknowledged"), equalTo(Boolean.TRUE));
     }
 
     protected void stopDataFrameTransform(String transformId, boolean force) throws Exception {
@@ -200,7 +200,7 @@ public abstract class DataFrameRestTestCase extends ESRestTestCase {
         stopTransformRequest.addParameter(DataFrameField.FORCE.getPreferredName(), Boolean.toString(force));
         stopTransformRequest.addParameter(DataFrameField.WAIT_FOR_COMPLETION.getPreferredName(), Boolean.toString(true));
         Map<String, Object> stopTransformResponse = entityAsMap(client().performRequest(stopTransformRequest));
-        assertThat(stopTransformResponse.get("stopped"), equalTo(Boolean.TRUE));
+        assertThat(stopTransformResponse.get("acknowledged"), equalTo(Boolean.TRUE));
     }
 
     protected void startAndWaitForTransform(String transformId, String dataFrameIndex) throws Exception {
@@ -218,6 +218,9 @@ public abstract class DataFrameRestTestCase extends ESRestTestCase {
         assertTrue(indexExists(dataFrameIndex));
         // wait until the dataframe has been created and all data is available
         waitForDataFrameCheckpoint(transformId);
+
+        // TODO: assuming non-continuous data frames, so transform should auto-stop
+        waitForDataFrameStopped(transformId);
         refreshIndex(dataFrameIndex);
     }
 
@@ -231,6 +234,13 @@ public abstract class DataFrameRestTestCase extends ESRestTestCase {
         }
 
         return request;
+    }
+
+    void waitForDataFrameStopped(String transformId) throws Exception {
+        assertBusy(() -> {
+            assertEquals("stopped", getDataFrameTaskState(transformId));
+            assertEquals("stopped", getDataFrameIndexerState(transformId));
+        }, 15, TimeUnit.SECONDS);
     }
 
     void waitForDataFrameCheckpoint(String transformId) throws Exception {

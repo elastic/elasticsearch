@@ -265,9 +265,9 @@ public class PainlessExecuteAction extends Action<PainlessExecuteAction.Response
 
         }
 
-        private Script script;
-        private ScriptContext<?> context = PainlessTestScript.CONTEXT;
-        private ContextSetup contextSetup;
+        private final Script script;
+        private final ScriptContext<?> context;
+        private final ContextSetup contextSetup;
 
         static Request parse(XContentParser parser) throws IOException {
             return PARSER.parse(parser, null);
@@ -275,16 +275,27 @@ public class PainlessExecuteAction extends Action<PainlessExecuteAction.Response
 
         Request(Script script, String scriptContextName, ContextSetup setup) {
             this.script = Objects.requireNonNull(script);
-            if (scriptContextName != null) {
-                this.context = fromScriptContextName(scriptContextName);
-            }
+            this.context = scriptContextName != null ? fromScriptContextName(scriptContextName) : PainlessTestScript.CONTEXT;
             if (setup != null) {
                 this.contextSetup = setup;
                 index(contextSetup.index);
+            } else {
+                contextSetup = null;
             }
         }
 
-        Request() {
+        Request(StreamInput in) throws IOException {
+            super(in);
+            script = new Script(in);
+            if (in.getVersion().before(Version.V_6_4_0)) {
+                byte scriptContextId = in.readByte();
+                assert scriptContextId == 0;
+                context = null;
+                contextSetup = null;
+            } else {
+                context = fromScriptContextName(in.readString());
+                contextSetup = in.readOptionalWriteable(ContextSetup::new);
+            }
         }
 
         public Script getScript() {
@@ -314,19 +325,6 @@ public class PainlessExecuteAction extends Action<PainlessExecuteAction.Response
                 }
             }
             return validationException;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            script = new Script(in);
-            if (in.getVersion().before(Version.V_6_4_0)) {
-                byte scriptContextId = in.readByte();
-                assert scriptContextId == 0;
-            } else {
-                context = fromScriptContextName(in.readString());
-                contextSetup = in.readOptionalWriteable(ContextSetup::new);
-            }
         }
 
         @Override

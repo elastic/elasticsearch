@@ -183,6 +183,7 @@ public final class SearchSlowLog implements SearchOperationListener {
             return messageFields;
         }
 
+        // Message will be used in plaintext logs
         private static String message(SearchContext context, long tookInNanos) {
             StringBuilder sb = new StringBuilder();
             sb.append(context.indexShard().shardId())

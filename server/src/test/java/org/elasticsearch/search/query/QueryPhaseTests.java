@@ -654,7 +654,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
         TestSearchContext searchContext = spy(new TestSearchContext(null, indexShard));
         when(searchContext.mapperService()).thenReturn(mapperService);
 
-        final int numDocs = 10000;
+        final int numDocs = 1000;
         Directory dir = newDirectory();
         IndexWriter writer = new IndexWriter(dir, new IndexWriterConfig(null));
         for (int i = 0; i < numDocs; ++i) {

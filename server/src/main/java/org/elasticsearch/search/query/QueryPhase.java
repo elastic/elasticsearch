@@ -236,6 +236,9 @@ public class QueryPhase implements SearchPhase {
                     System.arraycopy(oldFormats, 0, newFormats, 1, oldFormats.length);
                     sortAndFormatsForRewrittenNumericSort = searchContext.sort(); // stash SortAndFormats to restore it later
                     searchContext.sort(new SortAndFormats(new Sort(newSortFields), newFormats));
+                    if (LOGGER.isTraceEnabled()) {
+                        LOGGER.trace("Sort optimization on the field [" + oldSortFields[0].getField() + "] was enabled!");
+                    }
                 }
             }
 
@@ -388,7 +391,7 @@ public class QueryPhase implements SearchPhase {
         if (missingValuesAccordingToSort == false) return null;
 
         int docCount = PointValues.getDocCount(reader, fieldName);
-         // is not worth to run optimization on small index, also estimation of duplicate data doesn't work well on small index
+         // is not worth to run optimization on small index
         if (docCount <= 512) return null;
 
         // check for multiple values
@@ -477,26 +480,26 @@ public class QueryPhase implements SearchPhase {
     /**
     * Returns true if more than 50% of data in the index have the same value
     * The evaluation is approximation based on finding the median value and estimating its count
-    * Returns true if most of the segments have duplicate data, false - otherwise
+    * Returns true if the total count of median values is greater or equal to half of the total count of documents
     */
     static boolean indexFieldHasDuplicateData(IndexReader reader, String field) throws IOException {
-        int duplicateSegments = 0;
-        int noDuplicateSegments = 0;
+        long globalDocCount = 0;
+        long globalMedianCount = 0;
         for (LeafReaderContext lrc : reader.leaves()) {
             PointValues pointValues = lrc.reader().getPointValues(field);
-            int thresholdDocCount = pointValues.getDocCount()/2;
+            int docCount = pointValues.getDocCount();
+            if (docCount <= 512) { // skipping small segments as estimateMedianCount doesn't work well on them
+                continue;
+            }
+            globalDocCount += docCount;
             byte[] minValueAsBytes = pointValues.getMinPackedValue();
             byte[] maxValueAsBytes = pointValues.getMaxPackedValue();
             long minValue = LongPoint.decodeDimension(minValueAsBytes, 0);
             long maxValue = LongPoint.decodeDimension(maxValueAsBytes, 0);
-            long medianCount = estimateMedianCount(pointValues, minValue, maxValue, thresholdDocCount);
-            if (medianCount > thresholdDocCount) {
-                duplicateSegments++;
-            } else {
-                noDuplicateSegments++;
-            }
+            long medianCount = estimateMedianCount(pointValues, minValue, maxValue, docCount/2);
+            globalMedianCount += medianCount;
         }
-        return (duplicateSegments >= noDuplicateSegments);
+        return (globalMedianCount >= globalDocCount/2);
     }
 
     private static long estimateMedianCount(PointValues pointValues, long minValue, long maxValue, long threshold) {
@@ -516,7 +519,6 @@ public class QueryPhase implements SearchPhase {
         long medianCount = estimatePointCount(pointValues, maxValue, maxValue);
         return medianCount;
     }
-
 
     private static long estimatePointCount(PointValues pointValues, long minValue, long maxValue) {
         final byte[] minValueAsBytes = new byte[Long.BYTES];

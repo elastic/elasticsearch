@@ -34,6 +34,7 @@ import org.elasticsearch.xpack.core.ml.job.results.ForecastRequestStats;
 import org.elasticsearch.xpack.core.ml.job.results.Influencer;
 import org.elasticsearch.xpack.core.ml.job.results.ModelPlot;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister;
+import org.elasticsearch.xpack.ml.job.persistence.TimingStatsReporter;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcess;
 import org.elasticsearch.xpack.ml.job.process.normalizer.Renormalizer;
 import org.elasticsearch.xpack.ml.job.results.AutodetectResult;
@@ -53,7 +54,7 @@ import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
 /**
  * A runnable class that reads the autodetect process output in the
- * {@link #process(AutodetectProcess)} method and persists parsed
+ * {@link #process()} method and persists parsed
  * results via the {@linkplain JobResultsPersister} passed in the constructor.
  * <p>
  * Has methods to register and remove alert observers.
@@ -77,6 +78,8 @@ public class AutodetectResultProcessor {
     private final String jobId;
     private final Renormalizer renormalizer;
     private final JobResultsPersister persister;
+    private final AutodetectProcess process;
+    private final TimingStatsReporter timingStatsReporter;
 
     final CountDownLatch completionLatch = new CountDownLatch(1);
     final Semaphore updateModelSnapshotSemaphore = new Semaphore(1);
@@ -84,57 +87,55 @@ public class AutodetectResultProcessor {
     private volatile boolean processKilled;
     private volatile boolean failed;
     private int bucketCount; // only used from the process() thread, so doesn't need to be volatile
+    private final JobResultsPersister.Builder bulkResultsPersister;
+    private boolean deleteInterimRequired;
 
     /**
      * New model size stats are read as the process is running
      */
     private volatile ModelSizeStats latestModelSizeStats;
 
-    /**
-     * Current timing stats
-     */
-    private volatile TimingStats timingStats;
-
-    /**
-     * Persisted timing stats. May be stale
-     */
-    private TimingStats persistedTimingStats; // only used from the process() thread, so doesn't need to be volatile
-
-    public AutodetectResultProcessor(Client client, Auditor auditor, String jobId, Renormalizer renormalizer,
+    public AutodetectResultProcessor(Client client,
+                                     Auditor auditor,
+                                     String jobId,
+                                     Renormalizer renormalizer,
                                      JobResultsPersister persister,
+                                     AutodetectProcess process,
                                      ModelSizeStats latestModelSizeStats,
                                      TimingStats timingStats) {
-        this(client, auditor, jobId, renormalizer, persister, latestModelSizeStats, timingStats, new FlushListener());
+        this(client, auditor, jobId, renormalizer, persister, process, latestModelSizeStats, timingStats, new FlushListener());
     }
 
+    // Visible for testing
     AutodetectResultProcessor(Client client, Auditor auditor, String jobId, Renormalizer renormalizer,
-                              JobResultsPersister persister, ModelSizeStats latestModelSizeStats, TimingStats timingStats,
+                              JobResultsPersister persister, AutodetectProcess autodetectProcess, ModelSizeStats latestModelSizeStats,
+                              TimingStats timingStats,
                               FlushListener flushListener) {
         this.client = Objects.requireNonNull(client);
         this.auditor = Objects.requireNonNull(auditor);
         this.jobId = Objects.requireNonNull(jobId);
         this.renormalizer = Objects.requireNonNull(renormalizer);
         this.persister = Objects.requireNonNull(persister);
+        this.process = Objects.requireNonNull(autodetectProcess);
         this.flushListener = Objects.requireNonNull(flushListener);
         this.latestModelSizeStats = Objects.requireNonNull(latestModelSizeStats);
-        this.persistedTimingStats = Objects.requireNonNull(timingStats);
-        this.timingStats = new TimingStats(persistedTimingStats);
+        this.bulkResultsPersister = persister.bulkPersisterBuilder(jobId);
+        this.timingStatsReporter = new TimingStatsReporter(timingStats, bulkResultsPersister);
+        this.deleteInterimRequired = true;
     }
 
-    public void process(AutodetectProcess process) {
-        Context context = new Context(jobId, persister.bulkPersisterBuilder(jobId));
+    public void process() {
 
         // If a function call in this throws for some reason we don't want it
         // to kill the results reader thread as autodetect will be blocked
         // trying to write its output.
         try {
-            readResults(process, context);
+            readResults();
 
             try {
                 if (processKilled == false) {
-                    context.bulkResultsPersister
-                        .persistTimingStats(timingStats)
-                        .executeRequest();
+                    timingStatsReporter.flush();
+                    bulkResultsPersister.executeRequest();
                 }
             } catch (Exception e) {
                 LOGGER.warn(new ParameterizedMessage("[{}] Error persisting autodetect results", jobId), e);
@@ -164,14 +165,14 @@ public class AutodetectResultProcessor {
         }
     }
 
-    private void readResults(AutodetectProcess process, Context context) {
+    private void readResults() {
         bucketCount = 0;
         try {
             Iterator<AutodetectResult> iterator = process.readAutodetectResults();
             while (iterator.hasNext()) {
                 try {
                     AutodetectResult result = iterator.next();
-                    processResult(context, result);
+                    processResult(result);
                     if (result.getBucket() != null) {
                         LOGGER.trace("[{}] Bucket number {} parsed from output", jobId, bucketCount);
                     }
@@ -195,35 +196,35 @@ public class AutodetectResultProcessor {
         renormalizer.shutdown();
     }
 
-    void processResult(Context context, AutodetectResult result) {
+    void processResult(AutodetectResult result) {
         if (processKilled) {
             return;
         }
 
         Bucket bucket = result.getBucket();
         if (bucket != null) {
-            if (context.deleteInterimRequired) {
+            if (deleteInterimRequired) {
                 // Delete any existing interim results generated by a Flush command
                 // which have not been replaced or superseded by new results.
-                LOGGER.trace("[{}] Deleting interim results", context.jobId);
-                persister.deleteInterimResults(context.jobId);
-                context.deleteInterimRequired = false;
+                LOGGER.trace("[{}] Deleting interim results", jobId);
+                persister.deleteInterimResults(jobId);
+                deleteInterimRequired = false;
             }
 
             // persist after deleting interim results in case the new
             // results are also interim
-            processTimingStats(context, bucket.getProcessingTimeMs());
-            context.bulkResultsPersister.persistBucket(bucket).executeRequest();
+            timingStatsReporter.reportBucketProcessingTime(bucket.getProcessingTimeMs());
+            bulkResultsPersister.persistBucket(bucket).executeRequest();
 
             ++bucketCount;
         }
         List<AnomalyRecord> records = result.getRecords();
         if (records != null && !records.isEmpty()) {
-            context.bulkResultsPersister.persistRecords(records);
+            bulkResultsPersister.persistRecords(records);
         }
         List<Influencer> influencers = result.getInfluencers();
         if (influencers != null && !influencers.isEmpty()) {
-            context.bulkResultsPersister.persistInfluencers(influencers);
+            bulkResultsPersister.persistInfluencers(influencers);
         }
         CategoryDefinition categoryDefinition = result.getCategoryDefinition();
         if (categoryDefinition != null) {
@@ -231,16 +232,16 @@ public class AutodetectResultProcessor {
         }
         ModelPlot modelPlot = result.getModelPlot();
         if (modelPlot != null) {
-            context.bulkResultsPersister.persistModelPlot(modelPlot);
+            bulkResultsPersister.persistModelPlot(modelPlot);
         }
         Forecast forecast = result.getForecast();
         if (forecast != null) {
-            context.bulkResultsPersister.persistForecast(forecast);
+            bulkResultsPersister.persistForecast(forecast);
         }
         ForecastRequestStats forecastRequestStats = result.getForecastRequestStats();
         if (forecastRequestStats != null) {
             LOGGER.trace("Received Forecast Stats [{}]", forecastRequestStats.getId());
-            context.bulkResultsPersister.persistForecastRequestStats(forecastRequestStats);
+            bulkResultsPersister.persistForecastRequestStats(forecastRequestStats);
 
             // execute the bulk request only in some cases or in doubt
             // otherwise rely on the count-based trigger
@@ -252,13 +253,13 @@ public class AutodetectResultProcessor {
                 case SCHEDULED:
                 case FINISHED:
                 default:
-                    context.bulkResultsPersister.executeRequest();
+                    bulkResultsPersister.executeRequest();
 
             }
         }
         ModelSizeStats modelSizeStats = result.getModelSizeStats();
         if (modelSizeStats != null) {
-            processModelSizeStats(context, modelSizeStats);
+            processModelSizeStats(modelSizeStats);
         }
         ModelSnapshot modelSnapshot = result.getModelSnapshot();
         if (modelSnapshot != null) {
@@ -270,64 +271,55 @@ public class AutodetectResultProcessor {
         }
         Quantiles quantiles = result.getQuantiles();
         if (quantiles != null) {
-            LOGGER.debug("[{}] Parsed Quantiles with timestamp {}", context.jobId, quantiles.getTimestamp());
+            LOGGER.debug("[{}] Parsed Quantiles with timestamp {}", jobId, quantiles.getTimestamp());
             persister.persistQuantiles(quantiles);
-            context.bulkResultsPersister.executeRequest();
+            bulkResultsPersister.executeRequest();
 
             if (processKilled == false && renormalizer.isEnabled()) {
                 // We need to make all results written up to these quantiles available for renormalization
-                persister.commitResultWrites(context.jobId);
-                LOGGER.debug("[{}] Quantiles queued for renormalization", context.jobId);
+                persister.commitResultWrites(jobId);
+                LOGGER.debug("[{}] Quantiles queued for renormalization", jobId);
                 renormalizer.renormalize(quantiles);
             }
         }
         FlushAcknowledgement flushAcknowledgement = result.getFlushAcknowledgement();
         if (flushAcknowledgement != null) {
-            LOGGER.debug("[{}] Flush acknowledgement parsed from output for ID {}", context.jobId, flushAcknowledgement.getId());
+            LOGGER.debug("[{}] Flush acknowledgement parsed from output for ID {}", jobId, flushAcknowledgement.getId());
             // Commit previous writes here, effectively continuing
             // the flush from the C++ autodetect process right
             // through to the data store
-            context.bulkResultsPersister.executeRequest();
-            persister.commitResultWrites(context.jobId);
+            bulkResultsPersister.executeRequest();
+            persister.commitResultWrites(jobId);
             flushListener.acknowledgeFlush(flushAcknowledgement);
             // Interim results may have been produced by the flush,
             // which need to be
             // deleted when the next finalized results come through
-            context.deleteInterimRequired = true;
+            deleteInterimRequired = true;
         }
     }
 
-    private void processTimingStats(Context context, long bucketProcessingTimeMs) {
-        timingStats.updateStats(bucketProcessingTimeMs);
-        if (TimingStats.differSignificantly(timingStats, persistedTimingStats)) {
-            context.bulkResultsPersister.persistTimingStats(timingStats);
-            persistedTimingStats = timingStats;
-            timingStats = new TimingStats(persistedTimingStats);
-        }
-    }
-
-    private void processModelSizeStats(Context context, ModelSizeStats modelSizeStats) {
+    private void processModelSizeStats(ModelSizeStats modelSizeStats) {
         LOGGER.trace("[{}] Parsed ModelSizeStats: {} / {} / {} / {} / {} / {}",
-                context.jobId, modelSizeStats.getModelBytes(), modelSizeStats.getTotalByFieldCount(),
+                jobId, modelSizeStats.getModelBytes(), modelSizeStats.getTotalByFieldCount(),
                 modelSizeStats.getTotalOverFieldCount(), modelSizeStats.getTotalPartitionFieldCount(),
                 modelSizeStats.getBucketAllocationFailuresCount(), modelSizeStats.getMemoryStatus());
 
         persister.persistModelSizeStats(modelSizeStats);
-        notifyModelMemoryStatusChange(context, modelSizeStats);
+        notifyModelMemoryStatusChange(modelSizeStats);
         latestModelSizeStats = modelSizeStats;
     }
 
-    private void notifyModelMemoryStatusChange(Context context, ModelSizeStats modelSizeStats) {
+    private void notifyModelMemoryStatusChange(ModelSizeStats modelSizeStats) {
         ModelSizeStats.MemoryStatus memoryStatus = modelSizeStats.getMemoryStatus();
         if (memoryStatus != latestModelSizeStats.getMemoryStatus()) {
             if (memoryStatus == ModelSizeStats.MemoryStatus.SOFT_LIMIT) {
-                auditor.warning(context.jobId, Messages.getMessage(Messages.JOB_AUDIT_MEMORY_STATUS_SOFT_LIMIT));
+                auditor.warning(jobId, Messages.getMessage(Messages.JOB_AUDIT_MEMORY_STATUS_SOFT_LIMIT));
             } else if (memoryStatus == ModelSizeStats.MemoryStatus.HARD_LIMIT) {
                 if (modelSizeStats.getModelBytesMemoryLimit() == null || modelSizeStats.getModelBytesExceeded() == null) {
-                    auditor.error(context.jobId, Messages.getMessage(Messages.JOB_AUDIT_MEMORY_STATUS_HARD_LIMIT_PRE_7_2,
+                    auditor.error(jobId, Messages.getMessage(Messages.JOB_AUDIT_MEMORY_STATUS_HARD_LIMIT_PRE_7_2,
                         new ByteSizeValue(modelSizeStats.getModelBytes(), ByteSizeUnit.BYTES).toString()));
                 } else {
-                    auditor.error(context.jobId, Messages.getMessage(Messages.JOB_AUDIT_MEMORY_STATUS_HARD_LIMIT,
+                    auditor.error(jobId, Messages.getMessage(Messages.JOB_AUDIT_MEMORY_STATUS_HARD_LIMIT,
                         new ByteSizeValue(modelSizeStats.getModelBytesMemoryLimit(), ByteSizeUnit.BYTES).toString(),
                         new ByteSizeValue(modelSizeStats.getModelBytesExceeded(), ByteSizeUnit.BYTES).toString()));
                 }
@@ -419,25 +411,19 @@ public class AutodetectResultProcessor {
         return failed;
     }
 
-    static class Context {
-
-        private final String jobId;
-        private JobResultsPersister.Builder bulkResultsPersister;
-
-        boolean deleteInterimRequired;
-
-        Context(String jobId, JobResultsPersister.Builder bulkResultsPersister) {
-            this.jobId = jobId;
-            this.deleteInterimRequired = true;
-            this.bulkResultsPersister = bulkResultsPersister;
-        }
-    }
-
     public ModelSizeStats modelSizeStats() {
         return latestModelSizeStats;
     }
 
     public TimingStats timingStats() {
-        return timingStats;
+        return timingStatsReporter.getCurrentTimingStats();
+    }
+
+    boolean isDeleteInterimRequired() {
+        return deleteInterimRequired;
+    }
+
+    void setDeleteInterimRequired(boolean deleteInterimRequired) {
+        this.deleteInterimRequired = deleteInterimRequired;
     }
 }

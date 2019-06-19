@@ -52,6 +52,7 @@ import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Matchers.any;
@@ -77,6 +78,8 @@ public class AutodetectResultProcessorTests extends ESTestCase {
     private Auditor auditor;
     private Renormalizer renormalizer;
     private JobResultsPersister persister;
+    private JobResultsPersister.Builder bulkBuilder;
+    private AutodetectProcess process;
     private FlushListener flushListener;
     private AutodetectResultProcessor processorUnderTest;
     private ScheduledThreadPoolExecutor executor;
@@ -91,8 +94,9 @@ public class AutodetectResultProcessorTests extends ESTestCase {
         auditor = mock(Auditor.class);
         renormalizer = mock(Renormalizer.class);
         persister = mock(JobResultsPersister.class);
-        when(persister.persistModelSnapshot(any(), any()))
-                .thenReturn(new IndexResponse(new ShardId("ml", "uid", 0), "doc", "1", 0L, 0L, 0L, true));
+        bulkBuilder = mock(JobResultsPersister.Builder.class);
+        when(persister.bulkPersisterBuilder(JOB_ID)).thenReturn(bulkBuilder);
+        process = mock(AutodetectProcess.class);
         flushListener = mock(FlushListener.class);
         processorUnderTest = new AutodetectResultProcessor(
             client,
@@ -100,6 +104,7 @@ public class AutodetectResultProcessorTests extends ESTestCase {
             JOB_ID,
             renormalizer,
             persister,
+            process,
             new ModelSizeStats.Builder(JOB_ID).setTimestamp(new Date(BUCKET_SPAN_MS)).build(),
             new TimingStats(JOB_ID),
             flushListener);
@@ -107,143 +112,120 @@ public class AutodetectResultProcessorTests extends ESTestCase {
 
     @After
     public void cleanup() {
+        verifyNoMoreInteractions(auditor, renormalizer, persister);
         executor.shutdown();
     }
 
     public void testProcess() throws TimeoutException {
-        JobResultsPersister.Builder bulkBuilder = mock(JobResultsPersister.Builder.class);
-        when(persister.bulkPersisterBuilder(JOB_ID)).thenReturn(bulkBuilder);
         AutodetectResult autodetectResult = mock(AutodetectResult.class);
-        @SuppressWarnings("unchecked")
-        Iterator<AutodetectResult> iterator = mock(Iterator.class);
-        when(iterator.hasNext()).thenReturn(true).thenReturn(false);
-        when(iterator.next()).thenReturn(autodetectResult);
-        AutodetectProcess process = mock(AutodetectProcess.class);
-        when(process.readAutodetectResults()).thenReturn(iterator);
-        processorUnderTest.process(process);
+        when(process.readAutodetectResults()).thenReturn(Arrays.asList(autodetectResult).iterator());
+
+        processorUnderTest.process();
         processorUnderTest.awaitCompletion();
-        verify(renormalizer, times(1)).waitUntilIdle();
-        assertEquals(0, processorUnderTest.completionLatch.getCount());
+        assertThat(processorUnderTest.completionLatch.getCount(), is(equalTo(0L)));
+
+        verify(renormalizer).waitUntilIdle();
+        verify(persister).bulkPersisterBuilder(JOB_ID);
+        verify(persister).commitResultWrites(JOB_ID);
+        verify(persister).commitStateWrites(JOB_ID);
     }
 
     public void testProcessResult_bucket() {
-        JobResultsPersister.Builder bulkBuilder = mock(JobResultsPersister.Builder.class);
-        when(persister.bulkPersisterBuilder(JOB_ID)).thenReturn(bulkBuilder);
         when(bulkBuilder.persistTimingStats(any(TimingStats.class))).thenReturn(bulkBuilder);
         when(bulkBuilder.persistBucket(any(Bucket.class))).thenReturn(bulkBuilder);
-
-        AutodetectResultProcessor.Context context = new AutodetectResultProcessor.Context(JOB_ID, bulkBuilder);
-        context.deleteInterimRequired = false;
         AutodetectResult result = mock(AutodetectResult.class);
         Bucket bucket = mock(Bucket.class);
         when(result.getBucket()).thenReturn(bucket);
-        processorUnderTest.processResult(context, result);
 
-        verify(bulkBuilder, times(1)).persistTimingStats(any(TimingStats.class));
-        verify(bulkBuilder, times(1)).persistBucket(bucket);
-        verify(bulkBuilder, times(1)).executeRequest();
+        processorUnderTest.setDeleteInterimRequired(false);
+        processorUnderTest.processResult(result);
+
+        verify(bulkBuilder).persistTimingStats(any(TimingStats.class));
+        verify(bulkBuilder).persistBucket(bucket);
+        verify(bulkBuilder).executeRequest();
+        verify(persister).bulkPersisterBuilder(JOB_ID);
         verify(persister, never()).deleteInterimResults(JOB_ID);
-        verifyNoMoreInteractions(persister);
     }
 
     public void testProcessResult_bucket_deleteInterimRequired() {
-        JobResultsPersister.Builder bulkBuilder = mock(JobResultsPersister.Builder.class);
-        when(persister.bulkPersisterBuilder(JOB_ID)).thenReturn(bulkBuilder);
         when(bulkBuilder.persistTimingStats(any(TimingStats.class))).thenReturn(bulkBuilder);
         when(bulkBuilder.persistBucket(any(Bucket.class))).thenReturn(bulkBuilder);
-
-        AutodetectResultProcessor.Context context = new AutodetectResultProcessor.Context(JOB_ID, bulkBuilder);
-        context.deleteInterimRequired = true;
         AutodetectResult result = mock(AutodetectResult.class);
         Bucket bucket = mock(Bucket.class);
         when(result.getBucket()).thenReturn(bucket);
-        processorUnderTest.processResult(context, result);
 
-        verify(bulkBuilder, times(1)).persistTimingStats(any(TimingStats.class));
-        verify(bulkBuilder, times(1)).persistBucket(bucket);
-        verify(bulkBuilder, times(1)).executeRequest();
-        verify(persister, times(1)).deleteInterimResults(JOB_ID);
-        verifyNoMoreInteractions(persister);
-        assertFalse(context.deleteInterimRequired);
+        processorUnderTest.processResult(result);
+        assertFalse(processorUnderTest.isDeleteInterimRequired());
+
+        verify(bulkBuilder).persistTimingStats(any(TimingStats.class));
+        verify(bulkBuilder).persistBucket(bucket);
+        verify(bulkBuilder).executeRequest();
+        verify(persister).bulkPersisterBuilder(JOB_ID);
+        verify(persister).deleteInterimResults(JOB_ID);
     }
 
     public void testProcessResult_records() {
-        JobResultsPersister.Builder bulkBuilder = mock(JobResultsPersister.Builder.class);
-        when(persister.bulkPersisterBuilder(JOB_ID)).thenReturn(bulkBuilder);
-
-        AutodetectResultProcessor.Context context = new AutodetectResultProcessor.Context("foo", bulkBuilder);
-        context.deleteInterimRequired = false;
         AutodetectResult result = mock(AutodetectResult.class);
-        AnomalyRecord record1 = new AnomalyRecord("foo", new Date(123), 123);
-        AnomalyRecord record2 = new AnomalyRecord("foo", new Date(123), 123);
-        List<AnomalyRecord> records = Arrays.asList(record1, record2);
+        List<AnomalyRecord> records =
+            Arrays.asList(
+                new AnomalyRecord(JOB_ID, new Date(123), 123),
+                new AnomalyRecord(JOB_ID, new Date(123), 123));
         when(result.getRecords()).thenReturn(records);
-        processorUnderTest.processResult(context, result);
 
-        verify(bulkBuilder, times(1)).persistRecords(records);
+        processorUnderTest.setDeleteInterimRequired(false);
+        processorUnderTest.processResult(result);
+
+        verify(bulkBuilder).persistRecords(records);
         verify(bulkBuilder, never()).executeRequest();
-        verifyNoMoreInteractions(persister);
+        verify(persister).bulkPersisterBuilder(JOB_ID);
     }
 
-
     public void testProcessResult_influencers() {
-        JobResultsPersister.Builder bulkBuilder = mock(JobResultsPersister.Builder.class);
-        when(persister.bulkPersisterBuilder(JOB_ID)).thenReturn(bulkBuilder);
-
-        AutodetectResultProcessor.Context context = new AutodetectResultProcessor.Context(JOB_ID, bulkBuilder);
-        context.deleteInterimRequired = false;
         AutodetectResult result = mock(AutodetectResult.class);
-        Influencer influencer1 = new Influencer(JOB_ID, "infField", "infValue", new Date(123), 123);
-        Influencer influencer2 = new Influencer(JOB_ID, "infField2", "infValue2", new Date(123), 123);
-        List<Influencer> influencers = Arrays.asList(influencer1, influencer2);
+        List<Influencer> influencers =
+            Arrays.asList(
+                new Influencer(JOB_ID, "infField", "infValue", new Date(123), 123),
+                new Influencer(JOB_ID, "infField2", "infValue2", new Date(123), 123));
         when(result.getInfluencers()).thenReturn(influencers);
-        processorUnderTest.processResult(context, result);
 
-        verify(bulkBuilder, times(1)).persistInfluencers(influencers);
+        processorUnderTest.setDeleteInterimRequired(false);
+        processorUnderTest.processResult(result);
+
+        verify(bulkBuilder).persistInfluencers(influencers);
         verify(bulkBuilder, never()).executeRequest();
-        verifyNoMoreInteractions(persister);
+        verify(persister).bulkPersisterBuilder(JOB_ID);
     }
 
     public void testProcessResult_categoryDefinition() {
-        JobResultsPersister.Builder bulkBuilder = mock(JobResultsPersister.Builder.class);
-        when(persister.bulkPersisterBuilder(JOB_ID)).thenReturn(bulkBuilder);
-
-        AutodetectResultProcessor.Context context = new AutodetectResultProcessor.Context(JOB_ID, bulkBuilder);
-        context.deleteInterimRequired = false;
         AutodetectResult result = mock(AutodetectResult.class);
         CategoryDefinition categoryDefinition = mock(CategoryDefinition.class);
         when(result.getCategoryDefinition()).thenReturn(categoryDefinition);
-        processorUnderTest.processResult(context, result);
+
+        processorUnderTest.setDeleteInterimRequired(false);
+        processorUnderTest.processResult(result);
 
         verify(bulkBuilder, never()).executeRequest();
-        verify(persister, times(1)).persistCategoryDefinition(categoryDefinition);
-        verifyNoMoreInteractions(persister);
+        verify(persister).persistCategoryDefinition(categoryDefinition);
+        verify(persister).bulkPersisterBuilder(JOB_ID);
     }
 
     public void testProcessResult_flushAcknowledgement() {
-        JobResultsPersister.Builder bulkBuilder = mock(JobResultsPersister.Builder.class);
-        when(persister.bulkPersisterBuilder(JOB_ID)).thenReturn(bulkBuilder);
-
-        AutodetectResultProcessor.Context context = new AutodetectResultProcessor.Context(JOB_ID, bulkBuilder);
-        context.deleteInterimRequired = false;
         AutodetectResult result = mock(AutodetectResult.class);
         FlushAcknowledgement flushAcknowledgement = mock(FlushAcknowledgement.class);
         when(flushAcknowledgement.getId()).thenReturn(JOB_ID);
         when(result.getFlushAcknowledgement()).thenReturn(flushAcknowledgement);
-        processorUnderTest.processResult(context, result);
 
-        verify(flushListener, times(1)).acknowledgeFlush(flushAcknowledgement);
-        verify(persister, times(1)).commitResultWrites(JOB_ID);
-        verify(bulkBuilder, times(1)).executeRequest();
-        verifyNoMoreInteractions(persister);
-        assertTrue(context.deleteInterimRequired);
+        processorUnderTest.setDeleteInterimRequired(false);
+        processorUnderTest.processResult(result);
+        assertTrue(processorUnderTest.isDeleteInterimRequired());
+
+        verify(persister).bulkPersisterBuilder(JOB_ID);
+        verify(flushListener).acknowledgeFlush(flushAcknowledgement);
+        verify(persister).commitResultWrites(JOB_ID);
+        verify(bulkBuilder).executeRequest();
     }
 
     public void testProcessResult_flushAcknowledgementMustBeProcessedLast() {
-        JobResultsPersister.Builder bulkBuilder = mock(JobResultsPersister.Builder.class);
-
-        AutodetectResultProcessor.Context context = new AutodetectResultProcessor.Context(JOB_ID, bulkBuilder);
-        context.deleteInterimRequired = false;
         AutodetectResult result = mock(AutodetectResult.class);
         FlushAcknowledgement flushAcknowledgement = mock(FlushAcknowledgement.class);
         when(flushAcknowledgement.getId()).thenReturn(JOB_ID);
@@ -251,64 +233,61 @@ public class AutodetectResultProcessorTests extends ESTestCase {
         CategoryDefinition categoryDefinition = mock(CategoryDefinition.class);
         when(result.getCategoryDefinition()).thenReturn(categoryDefinition);
 
-        InOrder inOrder = inOrder(persister, bulkBuilder, flushListener);
-        processorUnderTest.processResult(context, result);
+        processorUnderTest.setDeleteInterimRequired(false);
+        processorUnderTest.processResult(result);
+        assertTrue(processorUnderTest.isDeleteInterimRequired());
 
-        inOrder.verify(persister, times(1)).persistCategoryDefinition(categoryDefinition);
-        inOrder.verify(bulkBuilder, times(1)).executeRequest();
-        inOrder.verify(persister, times(1)).commitResultWrites(JOB_ID);
-        inOrder.verify(flushListener, times(1)).acknowledgeFlush(flushAcknowledgement);
-        verifyNoMoreInteractions(persister);
-        assertTrue(context.deleteInterimRequired);
+        InOrder inOrder = inOrder(persister, bulkBuilder, flushListener);
+        inOrder.verify(persister).bulkPersisterBuilder(JOB_ID);
+        inOrder.verify(persister).persistCategoryDefinition(categoryDefinition);
+        inOrder.verify(bulkBuilder).executeRequest();
+        inOrder.verify(persister).commitResultWrites(JOB_ID);
+        inOrder.verify(flushListener).acknowledgeFlush(flushAcknowledgement);
     }
 
     public void testProcessResult_modelPlot() {
-        JobResultsPersister.Builder bulkBuilder = mock(JobResultsPersister.Builder.class);
-
-        AutodetectResultProcessor.Context context = new AutodetectResultProcessor.Context(JOB_ID, bulkBuilder);
-        context.deleteInterimRequired = false;
         AutodetectResult result = mock(AutodetectResult.class);
         ModelPlot modelPlot = mock(ModelPlot.class);
         when(result.getModelPlot()).thenReturn(modelPlot);
-        processorUnderTest.processResult(context, result);
 
-        verify(bulkBuilder, times(1)).persistModelPlot(modelPlot);
-        verifyNoMoreInteractions(persister);
+        processorUnderTest.setDeleteInterimRequired(false);
+        processorUnderTest.processResult(result);
+
+        verify(persister).bulkPersisterBuilder(JOB_ID);
+        verify(bulkBuilder).persistModelPlot(modelPlot);
     }
 
     public void testProcessResult_modelSizeStats() {
-        JobResultsPersister.Builder bulkBuilder = mock(JobResultsPersister.Builder.class);
-
-        AutodetectResultProcessor.Context context = new AutodetectResultProcessor.Context(JOB_ID, bulkBuilder);
-        context.deleteInterimRequired = false;
         AutodetectResult result = mock(AutodetectResult.class);
         ModelSizeStats modelSizeStats = mock(ModelSizeStats.class);
         when(result.getModelSizeStats()).thenReturn(modelSizeStats);
-        processorUnderTest.processResult(context, result);
 
-        verify(persister, times(1)).persistModelSizeStats(modelSizeStats);
-        verifyNoMoreInteractions(persister);
-        assertEquals(modelSizeStats, processorUnderTest.modelSizeStats());
+        processorUnderTest.setDeleteInterimRequired(false);
+        processorUnderTest.processResult(result);
+        assertThat(processorUnderTest.modelSizeStats(), is(equalTo(modelSizeStats)));
+
+        verify(persister).bulkPersisterBuilder(JOB_ID);
+        verify(persister).persistModelSizeStats(modelSizeStats);
     }
 
     public void testProcessResult_modelSizeStatsWithMemoryStatusChanges() {
-        JobResultsPersister.Builder bulkBuilder = mock(JobResultsPersister.Builder.class);
+        TimeValue delay = TimeValue.timeValueSeconds(5);
+        // Set up schedule delay time
+        when(threadPool.schedule(any(Runnable.class), any(TimeValue.class), anyString()))
+            .thenAnswer(i -> executor.schedule((Runnable) i.getArguments()[0], delay.nanos(), TimeUnit.NANOSECONDS));
 
-        setupScheduleDelayTime(TimeValue.timeValueSeconds(5));
-
-        AutodetectResultProcessor.Context context = new AutodetectResultProcessor.Context(JOB_ID, bulkBuilder);
-        context.deleteInterimRequired = false;
         AutodetectResult result = mock(AutodetectResult.class);
+        processorUnderTest.setDeleteInterimRequired(false);
 
         // First one with soft_limit
         ModelSizeStats modelSizeStats = new ModelSizeStats.Builder(JOB_ID).setMemoryStatus(ModelSizeStats.MemoryStatus.SOFT_LIMIT).build();
         when(result.getModelSizeStats()).thenReturn(modelSizeStats);
-        processorUnderTest.processResult(context, result);
+        processorUnderTest.processResult(result);
 
         // Another with soft_limit
         modelSizeStats = new ModelSizeStats.Builder(JOB_ID).setMemoryStatus(ModelSizeStats.MemoryStatus.SOFT_LIMIT).build();
         when(result.getModelSizeStats()).thenReturn(modelSizeStats);
-        processorUnderTest.processResult(context, result);
+        processorUnderTest.processResult(result);
 
         // Now with hard_limit
         modelSizeStats = new ModelSizeStats.Builder(JOB_ID)
@@ -317,115 +296,104 @@ public class AutodetectResultProcessorTests extends ESTestCase {
                 .setModelBytesExceeded(new ByteSizeValue(1, ByteSizeUnit.KB).getBytes())
                 .build();
         when(result.getModelSizeStats()).thenReturn(modelSizeStats);
-        processorUnderTest.processResult(context, result);
+        processorUnderTest.processResult(result);
 
         // And another with hard_limit
         modelSizeStats = new ModelSizeStats.Builder(JOB_ID).setMemoryStatus(ModelSizeStats.MemoryStatus.HARD_LIMIT).build();
         when(result.getModelSizeStats()).thenReturn(modelSizeStats);
-        processorUnderTest.processResult(context, result);
+        processorUnderTest.processResult(result);
 
+        verify(persister).bulkPersisterBuilder(JOB_ID);
+        verify(persister, times(4)).persistModelSizeStats(any(ModelSizeStats.class));
         // We should have only fired two notifications: one for soft_limit and one for hard_limit
         verify(auditor).warning(JOB_ID, Messages.getMessage(Messages.JOB_AUDIT_MEMORY_STATUS_SOFT_LIMIT));
         verify(auditor).error(JOB_ID, Messages.getMessage(Messages.JOB_AUDIT_MEMORY_STATUS_HARD_LIMIT, "512mb", "1kb"));
-        verifyNoMoreInteractions(auditor);
     }
 
     public void testProcessResult_modelSnapshot() {
-        JobResultsPersister.Builder bulkBuilder = mock(JobResultsPersister.Builder.class);
-
-        AutodetectResultProcessor.Context context = new AutodetectResultProcessor.Context(JOB_ID, bulkBuilder);
-        context.deleteInterimRequired = false;
         AutodetectResult result = mock(AutodetectResult.class);
         ModelSnapshot modelSnapshot = new ModelSnapshot.Builder(JOB_ID)
-                .setSnapshotId("a_snapshot_id")
-                .setMinVersion(Version.CURRENT)
-                .build();
+            .setSnapshotId("a_snapshot_id")
+            .setMinVersion(Version.CURRENT)
+            .build();
         when(result.getModelSnapshot()).thenReturn(modelSnapshot);
-        processorUnderTest.processResult(context, result);
 
-        verify(persister, times(1)).persistModelSnapshot(modelSnapshot, WriteRequest.RefreshPolicy.IMMEDIATE);
+        when(persister.persistModelSnapshot(any(), any()))
+            .thenReturn(new IndexResponse(new ShardId("ml", "uid", 0), "doc", "1", 0L, 0L, 0L, true));
+
+        processorUnderTest.setDeleteInterimRequired(false);
+        processorUnderTest.processResult(result);
+
+        verify(persister).bulkPersisterBuilder(JOB_ID);
+        verify(persister).persistModelSnapshot(modelSnapshot, WriteRequest.RefreshPolicy.IMMEDIATE);
 
         UpdateJobAction.Request expectedJobUpdateRequest = UpdateJobAction.Request.internal(JOB_ID,
                 new JobUpdate.Builder(JOB_ID).setModelSnapshotId("a_snapshot_id").build());
 
         verify(client).execute(same(UpdateJobAction.INSTANCE), eq(expectedJobUpdateRequest), any());
-        verifyNoMoreInteractions(persister);
     }
 
     public void testProcessResult_quantiles_givenRenormalizationIsEnabled() {
-        JobResultsPersister.Builder bulkBuilder = mock(JobResultsPersister.Builder.class);
-
-        AutodetectResultProcessor.Context context = new AutodetectResultProcessor.Context(JOB_ID, bulkBuilder);
-        context.deleteInterimRequired = false;
         AutodetectResult result = mock(AutodetectResult.class);
         Quantiles quantiles = mock(Quantiles.class);
         when(result.getQuantiles()).thenReturn(quantiles);
         when(renormalizer.isEnabled()).thenReturn(true);
-        processorUnderTest.processResult(context, result);
 
-        verify(persister, times(1)).persistQuantiles(quantiles);
+        processorUnderTest.setDeleteInterimRequired(false);
+        processorUnderTest.processResult(result);
+
+        verify(persister).bulkPersisterBuilder(JOB_ID);
+        verify(persister).persistQuantiles(quantiles);
         verify(bulkBuilder).executeRequest();
         verify(persister).commitResultWrites(JOB_ID);
-        verify(renormalizer, times(1)).isEnabled();
-        verify(renormalizer, times(1)).renormalize(quantiles);
-        verifyNoMoreInteractions(persister);
-        verifyNoMoreInteractions(renormalizer);
+        verify(renormalizer).isEnabled();
+        verify(renormalizer).renormalize(quantiles);
     }
 
     public void testProcessResult_quantiles_givenRenormalizationIsDisabled() {
-        JobResultsPersister.Builder bulkBuilder = mock(JobResultsPersister.Builder.class);
-
-        AutodetectResultProcessor.Context context = new AutodetectResultProcessor.Context(JOB_ID, bulkBuilder);
-        context.deleteInterimRequired = false;
         AutodetectResult result = mock(AutodetectResult.class);
         Quantiles quantiles = mock(Quantiles.class);
         when(result.getQuantiles()).thenReturn(quantiles);
         when(renormalizer.isEnabled()).thenReturn(false);
-        processorUnderTest.processResult(context, result);
 
-        verify(persister, times(1)).persistQuantiles(quantiles);
+        processorUnderTest.setDeleteInterimRequired(false);
+        processorUnderTest.processResult(result);
+
+        verify(persister).bulkPersisterBuilder(JOB_ID);
+        verify(persister).persistQuantiles(quantiles);
         verify(bulkBuilder).executeRequest();
-        verify(renormalizer, times(1)).isEnabled();
-        verifyNoMoreInteractions(persister);
-        verifyNoMoreInteractions(renormalizer);
+        verify(renormalizer).isEnabled();
     }
 
     public void testAwaitCompletion() throws TimeoutException {
-        JobResultsPersister.Builder bulkBuilder = mock(JobResultsPersister.Builder.class);
-        when(persister.bulkPersisterBuilder(JOB_ID)).thenReturn(bulkBuilder);
         AutodetectResult autodetectResult = mock(AutodetectResult.class);
-        @SuppressWarnings("unchecked")
-        Iterator<AutodetectResult> iterator = mock(Iterator.class);
-        when(iterator.hasNext()).thenReturn(true).thenReturn(false);
-        when(iterator.next()).thenReturn(autodetectResult);
-        AutodetectProcess process = mock(AutodetectProcess.class);
-        when(process.readAutodetectResults()).thenReturn(iterator);
-        processorUnderTest.process(process);
+        when(process.readAutodetectResults()).thenReturn(Arrays.asList(autodetectResult).iterator());
 
+        processorUnderTest.process();
         processorUnderTest.awaitCompletion();
-        assertEquals(0, processorUnderTest.completionLatch.getCount());
-        assertEquals(1, processorUnderTest.updateModelSnapshotSemaphore.availablePermits());
+        assertThat(processorUnderTest.completionLatch.getCount(), is(equalTo(0L)));
+        assertThat(processorUnderTest.updateModelSnapshotSemaphore.availablePermits(), is(equalTo(1)));
+
+        verify(persister).bulkPersisterBuilder(JOB_ID);
+        verify(persister).commitResultWrites(JOB_ID);
+        verify(persister).commitStateWrites(JOB_ID);
+        verify(renormalizer).waitUntilIdle();
     }
 
     public void testPersisterThrowingDoesntBlockProcessing() {
-        JobResultsPersister.Builder bulkBuilder = mock(JobResultsPersister.Builder.class);
-        when(persister.bulkPersisterBuilder(JOB_ID)).thenReturn(bulkBuilder);
         AutodetectResult autodetectResult = mock(AutodetectResult.class);
         ModelSnapshot modelSnapshot = mock(ModelSnapshot.class);
         when(autodetectResult.getModelSnapshot()).thenReturn(modelSnapshot);
 
-        @SuppressWarnings("unchecked")
-        Iterator<AutodetectResult> iterator = mock(Iterator.class);
-        when(iterator.hasNext()).thenReturn(true).thenReturn(true).thenReturn(false);
-        when(iterator.next()).thenReturn(autodetectResult);
-        AutodetectProcess process = mock(AutodetectProcess.class);
         when(process.isProcessAlive()).thenReturn(true);
         when(process.isProcessAliveAfterWaiting()).thenReturn(true);
-        when(process.readAutodetectResults()).thenReturn(iterator);
+        when(process.readAutodetectResults()).thenReturn(Arrays.asList(autodetectResult, autodetectResult).iterator());
 
         doThrow(new ElasticsearchException("this test throws")).when(persister).persistModelSnapshot(any(), any());
 
-        processorUnderTest.process(process);
+        processorUnderTest.process();
+
+        verify(persister).bulkPersisterBuilder(JOB_ID);
         verify(persister, times(2)).persistModelSnapshot(any(), eq(WriteRequest.RefreshPolicy.IMMEDIATE));
     }
 
@@ -433,44 +401,36 @@ public class AutodetectResultProcessorTests extends ESTestCase {
         @SuppressWarnings("unchecked")
         Iterator<AutodetectResult> iterator = mock(Iterator.class);
         when(iterator.hasNext()).thenThrow(new ElasticsearchParseException("this test throws"));
-        AutodetectProcess process = mock(AutodetectProcess.class);
         when(process.readAutodetectResults()).thenReturn(iterator);
 
         assertFalse(processorUnderTest.isFailed());
-        processorUnderTest.process(process);
+        processorUnderTest.process();
         assertTrue(processorUnderTest.isFailed());
 
         // Wait for flush should return immediately
-        FlushAcknowledgement flushAcknowledgement = processorUnderTest.waitForFlushAcknowledgement(
-                "foo", Duration.of(300, ChronoUnit.SECONDS));
+        FlushAcknowledgement flushAcknowledgement =
+            processorUnderTest.waitForFlushAcknowledgement(JOB_ID, Duration.of(300, ChronoUnit.SECONDS));
         assertThat(flushAcknowledgement, is(nullValue()));
+
+        verify(persister).bulkPersisterBuilder(JOB_ID);
     }
 
     public void testKill() throws TimeoutException {
         AutodetectResult autodetectResult = mock(AutodetectResult.class);
-        @SuppressWarnings("unchecked")
-        Iterator<AutodetectResult> iterator = mock(Iterator.class);
-        when(iterator.hasNext()).thenReturn(true).thenReturn(false);
-        when(iterator.next()).thenReturn(autodetectResult);
-        AutodetectProcess process = mock(AutodetectProcess.class);
-        when(process.readAutodetectResults()).thenReturn(iterator);
+        when(process.readAutodetectResults()).thenReturn(Arrays.asList(autodetectResult).iterator());
+
         processorUnderTest.setProcessKilled();
-        processorUnderTest.process(process);
-
+        processorUnderTest.process();
         processorUnderTest.awaitCompletion();
-        assertEquals(0, processorUnderTest.completionLatch.getCount());
-        assertEquals(1, processorUnderTest.updateModelSnapshotSemaphore.availablePermits());
+        assertThat(processorUnderTest.completionLatch.getCount(), is(equalTo(0L)));
+        assertThat(processorUnderTest.updateModelSnapshotSemaphore.availablePermits(), is(equalTo(1)));
 
-        verify(persister, times(1)).commitResultWrites(JOB_ID);
-        verify(persister, times(1)).commitStateWrites(JOB_ID);
+        verify(persister).bulkPersisterBuilder(JOB_ID);
+        verify(persister).commitResultWrites(JOB_ID);
+        verify(persister).commitStateWrites(JOB_ID);
         verify(renormalizer, never()).renormalize(any());
         verify(renormalizer).shutdown();
-        verify(renormalizer, times(1)).waitUntilIdle();
-        verify(flushListener, times(1)).clear();
-    }
-
-    private void setupScheduleDelayTime(TimeValue delay) {
-        when(threadPool.schedule(any(Runnable.class), any(TimeValue.class), anyString()))
-            .thenAnswer(i -> executor.schedule((Runnable) i.getArguments()[0], delay.nanos(), TimeUnit.NANOSECONDS));
+        verify(renormalizer).waitUntilIdle();
+        verify(flushListener).clear();
     }
 }

@@ -864,7 +864,7 @@ public class ElasticsearchMappings {
             .startObject(TimingStats.AVG_BUCKET_PROCESSING_TIME_MS.getPreferredName())
                 .field(TYPE, DOUBLE)
             .endObject()
-            .startObject(TimingStats.EXPONENTIAL_AVERAGE_BUCKET_PROCESSING_TIME_MS.getPreferredName())
+            .startObject(TimingStats.EXPONENTIAL_AVG_BUCKET_PROCESSING_TIME_MS.getPreferredName())
                 .field(TYPE, DOUBLE)
             .endObject();
     }

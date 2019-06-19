@@ -13,7 +13,6 @@ import org.hamcrest.Matcher;
 
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
 public class TimingStatsTests extends AbstractSerializingTestCase<TimingStats> {
@@ -122,33 +121,6 @@ public class TimingStatsTests extends AbstractSerializingTestCase<TimingStats> {
 
     public void testDocumentId() {
         assertThat(TimingStats.documentId("my-job-id"), equalTo("my-job-id_timing_stats"));
-    }
-
-    public void testTimingStatsDifferSignificantly() {
-        assertThat(
-            TimingStats.differSignificantly(
-                new TimingStats(JOB_ID, 10, 10.0, 10.0, 1.0, 10.0), new TimingStats(JOB_ID, 10, 10.0, 10.0, 1.0, 10.0)),
-            is(false));
-        assertThat(
-            TimingStats.differSignificantly(
-                new TimingStats(JOB_ID, 10, 10.0, 10.0, 1.0, 10.0), new TimingStats(JOB_ID, 10, 10.0, 11.0, 1.0, 10.0)),
-            is(false));
-        assertThat(
-            TimingStats.differSignificantly(
-                new TimingStats(JOB_ID, 10, 10.0, 10.0, 1.0, 10.0), new TimingStats(JOB_ID, 10, 10.0, 12.0, 1.0, 10.0)),
-            is(true));
-    }
-
-    public void testValuesDifferSignificantly() {
-        assertThat(TimingStats.differSignificantly((Double) null, (Double) null), is(false));
-        assertThat(TimingStats.differSignificantly(1.0, null), is(true));
-        assertThat(TimingStats.differSignificantly(null, 1.0), is(true));
-        assertThat(TimingStats.differSignificantly(0.9, 1.0), is(false));
-        assertThat(TimingStats.differSignificantly(1.0, 0.9), is(false));
-        assertThat(TimingStats.differSignificantly(0.9, 1.000001), is(true));
-        assertThat(TimingStats.differSignificantly(1.0, 0.899999), is(true));
-        assertThat(TimingStats.differSignificantly(0.0, 1.0), is(true));
-        assertThat(TimingStats.differSignificantly(1.0, 0.0), is(true));
     }
 
     /**

@@ -483,13 +483,13 @@ public class Requests {
     }
 
     /**
-     * Gets snapshots from repository
+     * Gets snapshots from repositories
      *
-     * @param repository repository name
+     * @param repositories repository names
      * @return get snapshot  request
      */
-    public static GetSnapshotsRequest getSnapshotsRequest(String repository) {
-        return new GetSnapshotsRequest(repository);
+    public static GetSnapshotsRequest getSnapshotsRequest(String... repositories) {
+        return new GetSnapshotsRequest(repositories);
     }
 
     /**

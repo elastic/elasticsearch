@@ -19,7 +19,6 @@
 
 package org.elasticsearch.cluster.routing.allocation.decider;
 
-import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.ClusterState;
@@ -31,7 +30,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -53,7 +51,6 @@ public class MockDiskUsagesIT extends ESIntegTestCase {
         return Collections.singletonList(MockInternalClusterInfoService.TestPlugin.class);
     }
 
-    @TestLogging("org.elasticsearch.indices.recovery:TRACE,org.elasticsearch.cluster.service:TRACE")
     public void testRerouteOccursOnDiskPassingHighWatermark() throws Exception {
         List<String> nodes = internalCluster().startNodes(3);
 
@@ -105,12 +102,6 @@ public class MockDiskUsagesIT extends ESIntegTestCase {
 
         assertBusy(() -> {
             final ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
-            logger.info("--> {}", clusterState.routingTable());
-
-            final RecoveryResponse recoveryResponse = client().admin().indices()
-                .prepareRecoveries("test").setActiveOnly(true).setDetailed(true).get();
-            logger.info("--> recoveries: {}", recoveryResponse);
-
             final Map<String, Integer> nodesToShardCount = new HashMap<>();
             for (final RoutingNode node : clusterState.getRoutingNodes()) {
                 logger.info("--> node {} has {} shards",

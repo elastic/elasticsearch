@@ -28,7 +28,7 @@ public class VotingOnlyNodePluginTests extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Collections.singleton(VotingOnlyNodePlugin.class);
+        return Collections.singleton(LocalStateVotingOnlyNodePlugin.class);
     }
 
     public void testOneVotingOnlyNode() throws Exception {
@@ -44,10 +44,12 @@ public class VotingOnlyNodePluginTests extends ESIntegTestCase {
         assertNotEquals(votingOnlyNode, internalCluster().getMasterName());
     }
 
-    public void testVotingOnlyNodeStats() {
+    public void testVotingOnlyNodeStats() throws Exception {
         internalCluster().setBootstrapMasterNodeIndex(0);
         internalCluster().startNodes(2);
         internalCluster().startNode(Settings.builder().put(VotingOnlyNodePlugin.VOTING_ONLY_NODE_SETTING.getKey(), true));
+        assertBusy(() -> assertThat(client().admin().cluster().prepareState().get().getState().getLastCommittedConfiguration().getNodeIds(),
+            hasSize(3)));
         assertThat(client().admin().cluster().prepareClusterStats().get().getNodesStats().getCounts().getRoles().get(
             VotingOnlyNodePlugin.VOTING_ONLY_NODE_ROLE.roleName()).intValue(), equalTo(1));
     }

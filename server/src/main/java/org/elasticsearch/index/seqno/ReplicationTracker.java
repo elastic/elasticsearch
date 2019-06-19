@@ -704,7 +704,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
         if (primaryMode
             && indexSettings.isSoftDeleteEnabled()
             && indexSettings.getIndexMetaData().getState() == IndexMetaData.State.OPEN
-            && indexSettings.getIndexVersionCreated().onOrAfter(Version.V_8_0_0)) {
+            && indexSettings.getIndexVersionCreated().onOrAfter(Version.V_7_3_0)) {
             // all tracked shard copies have a corresponding peer-recovery retention lease
             for (final ShardRouting shardRouting : routingTable.assignedShards()) {
                 if (checkpoints.get(shardRouting.allocationId().getId()).tracked) {
@@ -884,7 +884,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
                  * We might have got here here via a rolling upgrade from an older version that doesn't create peer recovery retention
                  * leases for every shard copy, but in this case we do not expect any leases to exist.
                  */
-                if (indexSettings.getIndexVersionCreated().onOrAfter(Version.V_8_0_0)) {
+                if (indexSettings.getIndexVersionCreated().onOrAfter(Version.V_7_3_0)) {
                     // We are starting up the whole replication group from scratch: if we were not (i.e. this is a replica promotion) then
                     // this copy must already be in-sync and active and therefore holds a retention lease for itself.
                     assert routingTable.activeShards().equals(Collections.singletonList(primaryShard)) : routingTable.activeShards();

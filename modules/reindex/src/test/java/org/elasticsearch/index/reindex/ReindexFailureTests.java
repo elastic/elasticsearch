@@ -114,7 +114,7 @@ public class ReindexFailureTests extends ReindexTestCase {
                  * so we *try* and wait for the delete to be fully
                  * complete here.
                  */
-                assertBusy(() -> assertFalse(client().admin().indices().prepareExists("source").get().isExists()));
+                assertBusy(() -> assertFalse(indexExists("source")));
             } catch (ExecutionException e) {
                 logger.info("Triggered a reindex failure on the {} attempt: {}", attempt, e.getMessage());
                 assertThat(e.getMessage(),

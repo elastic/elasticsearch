@@ -13,6 +13,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.CcrSingleNodeTestCase;
 import org.elasticsearch.xpack.core.ccr.action.CcrStatsAction;
 import org.elasticsearch.xpack.core.ccr.action.FollowStatsAction;
@@ -89,7 +90,7 @@ public class LocalIndexFollowingIT extends CcrSingleNodeTestCase {
         IllegalArgumentException error = expectThrows(IllegalArgumentException.class,
             () -> client().execute(PutFollowAction.INSTANCE, putFollowRequest).actionGet());
         assertThat(error.getMessage(), equalTo("leader index [leader-index] does not have soft deletes enabled"));
-        assertThat(client().admin().indices().prepareExists("follower-index").get().isExists(), equalTo(false));
+        assertThat(ESIntegTestCase.indexExists("follower-index", client()), equalTo(false));
     }
 
     public void testRemoveRemoteConnection() throws Exception {

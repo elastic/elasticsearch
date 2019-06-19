@@ -1,5 +1,4 @@
-import org.elasticsearch.gradle.http.WaitForHttpResource
-
+apply plugin: 'elasticsearch.testclusters'
 apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
 
@@ -9,8 +8,9 @@ dependencies {
   testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
 }
 
-integTestCluster {
-  numNodes=2
+testClusters.integTest {
+  distribution = "DEFAULT"
+  numberOfNodes = 2
 
   setting 'xpack.ilm.enabled', 'false'
   setting 'xpack.ml.enabled', 'false'
@@ -21,14 +21,7 @@ integTestCluster {
   setting 'xpack.security.authc.token.enabled', 'true'
   setting 'xpack.security.authc.api_key.enabled', 'true'
 
-  extraConfigFile 'roles.yml', project.projectDir.toPath().resolve('src/test/resources/roles.yml')
-  setupCommand 'setupUser#admin_user', 'bin/elasticsearch-users', 'useradd', 'admin_user', '-p', 'admin-password', '-r', 'superuser'
-  setupCommand 'setupUser#security_test_user', 'bin/elasticsearch-users', 'useradd', 'security_test_user', '-p', 'security-test-password', '-r', 'security_test_role'
-
-  waitCondition = { node, ant ->
-    WaitForHttpResource http = new WaitForHttpResource("http", node.httpUri(), numNodes)
-    http.setUsername("admin_user")
-    http.setPassword("admin-password")
-    return http.wait(5000)
-  }
+  extraConfigFile 'roles.yml', file('src/test/resources/roles.yml')
+  user username: "admin_user", password: "admin-password"
+  user username: "security_test_user", password: "security-test-password", role: "security_test_role"
 }

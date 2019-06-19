@@ -65,8 +65,6 @@ import static org.hamcrest.core.Is.is;
 
 abstract class DataFrameIntegTestCase extends ESRestTestCase {
 
-    protected static final String REVIEWS_INDEX_NAME = "data_frame_reviews";
-
     private Map<String, DataFrameTransformConfig> transformConfigs = new HashMap<>();
 
     protected void cleanUp() throws IOException {
@@ -213,8 +211,7 @@ abstract class DataFrameIntegTestCase extends ESRestTestCase {
             .build();
     }
 
-    protected void createReviewsIndex() throws Exception {
-        final int numDocs = 1000;
+    protected void createReviewsIndex(String indexName, int numDocs) throws Exception {
         RestHighLevelClient restClient = new TestRestHighLevelClient();
 
         // create mapping
@@ -241,12 +238,12 @@ abstract class DataFrameIntegTestCase extends ESRestTestCase {
             }
             builder.endObject();
             CreateIndexResponse response =
-                restClient.indices().create(new CreateIndexRequest(REVIEWS_INDEX_NAME).mapping(builder), RequestOptions.DEFAULT);
+                restClient.indices().create(new CreateIndexRequest(indexName).mapping(builder), RequestOptions.DEFAULT);
             assertThat(response.isAcknowledged(), is(true));
         }
 
         // create index
-        BulkRequest bulk = new BulkRequest(REVIEWS_INDEX_NAME);
+        BulkRequest bulk = new BulkRequest(indexName);
         int day = 10;
         for (int i = 0; i < numDocs; i++) {
             long user = i % 28;
@@ -256,7 +253,7 @@ abstract class DataFrameIntegTestCase extends ESRestTestCase {
             int min = 10 + (i % 49);
             int sec = 10 + (i % 49);
 
-            String date_string = "2017-01-" + day + "T" + hour + ":" + min + ":" + sec + "Z";
+            String date_string = "2017-01-" + (day < 10 ? "0" + day : day) + "T" + hour + ":" + min + ":" + sec + "Z";
 
             StringBuilder sourceBuilder = new StringBuilder();
             sourceBuilder.append("{\"user_id\":\"")
@@ -277,13 +274,13 @@ abstract class DataFrameIntegTestCase extends ESRestTestCase {
             if (i % 50 == 0) {
                 BulkResponse response = restClient.bulk(bulk, RequestOptions.DEFAULT);
                 assertThat(response.buildFailureMessage(), response.hasFailures(), is(false));
-                bulk = new BulkRequest(REVIEWS_INDEX_NAME);
-                day += 1;
+                bulk = new BulkRequest(indexName);
+                day = (day + 1) % 28;
             }
         }
         BulkResponse response = restClient.bulk(bulk, RequestOptions.DEFAULT);
         assertThat(response.buildFailureMessage(), response.hasFailures(), is(false));
-        restClient.indices().refresh(new RefreshRequest(REVIEWS_INDEX_NAME), RequestOptions.DEFAULT);
+        restClient.indices().refresh(new RefreshRequest(indexName), RequestOptions.DEFAULT);
     }
 
     protected Map<String, Object> toLazy(ToXContent parsedObject) throws Exception {

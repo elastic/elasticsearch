@@ -74,7 +74,7 @@ setup:
         body: >
           {
             "source": { "index": "airline-data" },
-            "dest": { "index": "airline-data-by-airline-again" },
+            "dest": { "index": "airline-data-by-airline-again", "pipeline": "airline-pipeline" },
             "pivot": {
               "group_by": { "airline": {"terms": {"field": "airline"}}},
               "aggs": {"avg_response": {"avg": {"field": "responsetime"}}}

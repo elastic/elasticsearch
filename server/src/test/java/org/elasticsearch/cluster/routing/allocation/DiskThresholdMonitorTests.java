@@ -173,11 +173,28 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
         oneDiskAboveWatermarkBuilder.put("node2", new DiskUsage("node2", "node2", "/foo/bar", 100, 50));
         final ImmutableOpenMap<String, DiskUsage> oneDiskAboveWatermark = oneDiskAboveWatermarkBuilder.build();
 
+        // should not reroute when all disks are ok
         currentTime.addAndGet(randomLongBetween(0, 120000));
         monitor.onNewInfo(new ClusterInfo(allDisksOk, null, null, null));
         assertNull(listenerReference.get());
 
+        // should reroute when one disk goes over the watermark
         currentTime.addAndGet(randomLongBetween(0, 120000));
+        monitor.onNewInfo(new ClusterInfo(oneDiskAboveWatermark, null, null, null));
+        assertNotNull(listenerReference.get());
+        listenerReference.getAndSet(null).onResponse(null);
+
+        if (randomBoolean()) {
+            // should not re-route again within the reroute interval
+            currentTime.addAndGet(randomLongBetween(0,
+                DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_REROUTE_INTERVAL_SETTING.get(Settings.EMPTY).millis()));
+            monitor.onNewInfo(new ClusterInfo(allDisksOk, null, null, null));
+            assertNull(listenerReference.get());
+        }
+
+        // should reroute again when one disk is still over the watermark
+        currentTime.addAndGet(randomLongBetween(
+            DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_REROUTE_INTERVAL_SETTING.get(Settings.EMPTY).millis() + 1, 120000));
         monitor.onNewInfo(new ClusterInfo(oneDiskAboveWatermark, null, null, null));
         assertNotNull(listenerReference.get());
         final ActionListener<Void> rerouteListener1 = listenerReference.getAndSet(null);

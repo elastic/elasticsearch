@@ -5,23 +5,7 @@ setup:
           wait_for_status: yellow
 
 ---
-teardown:
-  - do:
-      watcher.delete_watch:
-        id: "test_watch"
-        ignore: 404
-
----
 "Test execute watch api with foreach action":
-  - do:
-      bulk:
-        refresh: true
-        body:
-          - '{"index": {"_index": "my_test_index", "_id": "first"}}'
-          - '{ "title" : "first" }'
-          - '{"index": {"_index": "my_test_index", "_id": "second"}}'
-          - '{ "title" : "second" }'
-
   - do:
       watcher.execute_watch:
         body:  >
@@ -31,14 +15,13 @@ teardown:
                 "schedule" : { "cron" : "0 0 0 1 * ? 2099" }
               },
               "input": {
-                "search" : {
-                  "request" : {
-                    "indices" : [ "my_test_index" ],
-                    "body" : {
-                      "query": {
-                        "match_all" : {}
-                      }
-                    }
+                "simple" : {
+                  "hits" : {
+                    "hits" : [
+                    { "key" : "first" },
+                    { "key" : "second" },
+                    { "key" : "third" }
+                    ]
                   }
                 }
               },
@@ -46,7 +29,7 @@ teardown:
                 "log_hits" : {
                   "foreach" : "ctx.payload.hits.hits",
                   "logging" : {
-                    "text" : "Found error in document {{_id}} with timestamp {{_source.timestamp}}"
+                    "text" : "Logging {{ctx.payload.key}}"
                   }
                 }
               }
@@ -56,15 +39,6 @@ teardown:
   - match: { watch_record.trigger_event.type: "manual" }
   - match: { watch_record.state: "executed" }
   - match: { watch_record.status.execution_state: "executed" }
-
-  - do:
-      mget:
-        body:
-          docs:
-            - { _index: my_test_index_2, _id: "first"}
-            - { _index: my_test_index_2, _id: "second"}
-
-  - is_true:  docs.0.found
-  - match:  { docs.0._source: { "title": "first" }}
-  - is_true:  docs.1.found
-  - match:  { docs.1._source: { "title": "second" }}
+  - match: { watch_record.result.actions.0.foreach.0.logging.logged_text: "Logging first" }
+  - match: { watch_record.result.actions.0.foreach.1.logging.logged_text: "Logging second" }
+  - match: { watch_record.result.actions.0.foreach.2.logging.logged_text: "Logging third" }

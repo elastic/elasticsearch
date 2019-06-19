@@ -115,7 +115,8 @@ public class FileRolesStoreTests extends ESTestCase {
         assertThat(role, notNullValue());
         assertThat(role.names(), equalTo(new String[] { "role2" }));
         assertThat(role.cluster(), notNullValue());
-        assertTrue(Operations.sameLanguage(role.cluster().privilege().getAutomaton(), DefaultClusterPrivilege.ALL.automaton()));
+        assertTrue(Operations.sameLanguage(role.cluster().privilege().getAutomaton(),
+                DefaultClusterPrivilege.ALL.clusterPrivilege().getAutomaton()));
         assertThat(role.indices(), notNullValue());
         assertThat(role.indices(), is(IndicesPermission.NONE));
         assertThat(role.runAs(), is(RunAsPermission.NONE));

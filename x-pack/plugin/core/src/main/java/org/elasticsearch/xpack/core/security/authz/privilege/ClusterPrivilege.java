@@ -10,7 +10,7 @@ import org.apache.lucene.util.automaton.Automaton;
 import java.util.Collections;
 import java.util.Set;
 
-public final class ClusterPrivilege extends Privilege {
+public class ClusterPrivilege extends Privilege {
 
     ClusterPrivilege(String name, String... patterns) {
         super(name, patterns);

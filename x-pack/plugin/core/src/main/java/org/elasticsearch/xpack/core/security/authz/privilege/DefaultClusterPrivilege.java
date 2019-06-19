@@ -22,7 +22,6 @@ import org.elasticsearch.xpack.core.security.support.Automatons;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Predicate;
 
 import static org.elasticsearch.xpack.core.security.support.Automatons.minusAndMinimize;
 import static org.elasticsearch.xpack.core.security.support.Automatons.patterns;
@@ -58,7 +57,9 @@ public enum DefaultClusterPrivilege {
     CREATE_SNAPSHOT("create_snapshot", ClusterAutomatons.CREATE_SNAPSHOT_AUTOMATON),
     MANAGE_ILM("manage_ilm", ClusterAutomatons.MANAGE_ILM_AUTOMATON),
     READ_ILM("read_ilm", ClusterAutomatons.READ_ILM_AUTOMATON),
-    ;
+
+    // Conditional
+    MANAGE_OWN_API_KEY("manage_own_api_key", ManageApiKeyConditionalClusterPrivilege.createOwnerManageApiKeyConditionalClusterPrivilege());
 
     private final ClusterPrivilege clusterPrivilege;
     private final String privilegeName;
@@ -70,12 +71,15 @@ public enum DefaultClusterPrivilege {
     }
 
     DefaultClusterPrivilege(String privilegeName, String clusterAction) {
-        this.clusterPrivilege = new ClusterPrivilege(privilegeName, clusterAction);
-        this.privilegeName = privilegeName;
+        this(privilegeName, new ClusterPrivilege(privilegeName, clusterAction));
     }
 
     DefaultClusterPrivilege(String privilegeName, Automaton automaton) {
-        this.clusterPrivilege = new ClusterPrivilege(privilegeName, automaton);
+        this(privilegeName, new ClusterPrivilege(privilegeName, automaton));
+    }
+
+    DefaultClusterPrivilege(String privilegeName, ClusterPrivilege clusterPrivilege) {
+        this.clusterPrivilege = clusterPrivilege;
         this.privilegeName = privilegeName;
     }
 
@@ -85,14 +89,6 @@ public enum DefaultClusterPrivilege {
 
     public ClusterPrivilege clusterPrivilege() {
         return clusterPrivilege;
-    }
-
-    public Predicate<String> predicate() {
-        return clusterPrivilege.predicate;
-    }
-
-    public Automaton automaton() {
-        return clusterPrivilege.automaton;
     }
 
     public static DefaultClusterPrivilege fromString(String privilegeName) {

@@ -544,7 +544,8 @@ public class CompositeRolesStoreTests extends ESTestCase {
         final TransportRequest request3 = mock(TransportRequest.class);
 
         GlobalClusterPrivilege ccp1 = mock(GlobalClusterPrivilege.class);
-        when(ccp1.getPrivilege()).thenReturn(DefaultClusterPrivilege.MANAGE_SECURITY.clusterPrivilege());
+        when(ccp1.predicate()).thenReturn(DefaultClusterPrivilege.MANAGE_SECURITY.clusterPrivilege().predicate());
+        when(ccp1.getAutomaton()).thenReturn(DefaultClusterPrivilege.MANAGE_SECURITY.clusterPrivilege().getAutomaton());
         when(ccp1.getRequestPredicate()).thenReturn((req, authn) -> req == request1);
         RoleDescriptor role1 = new RoleDescriptor("r1", new String[]{"monitor"}, new IndicesPrivileges[]{
             IndicesPrivileges.builder()
@@ -570,7 +571,8 @@ public class CompositeRolesStoreTests extends ESTestCase {
         new String[]{"app-user-1"}, null, null);
 
         GlobalClusterPrivilege ccp2 = mock(GlobalClusterPrivilege.class);
-        when(ccp2.getPrivilege()).thenReturn(DefaultClusterPrivilege.MANAGE_SECURITY.clusterPrivilege());
+        when(ccp2.predicate()).thenReturn(DefaultClusterPrivilege.MANAGE_SECURITY.clusterPrivilege().predicate());
+        when(ccp2.getAutomaton()).thenReturn(DefaultClusterPrivilege.MANAGE_SECURITY.clusterPrivilege().getAutomaton());
         when(ccp2.getRequestPredicate()).thenReturn((req, authn) -> req == request2);
         RoleDescriptor role2 = new RoleDescriptor("r2", new String[]{"manage_saml"}, new IndicesPrivileges[]{
             IndicesPrivileges.builder()

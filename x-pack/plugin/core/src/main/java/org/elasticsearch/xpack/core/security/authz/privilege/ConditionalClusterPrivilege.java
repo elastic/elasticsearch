@@ -6,28 +6,27 @@
 
 package org.elasticsearch.xpack.core.security.authz.privilege;
 
-import org.elasticsearch.transport.TransportRequest;
-import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.apache.lucene.util.automaton.Automaton;
 
-import java.util.function.BiPredicate;
+import java.util.Collections;
+import java.util.Set;
 
 /**
- * A ConditionalClusterPrivilege is a composition of a {@link ClusterPrivilege} (that determines which actions may be executed) with a
- * {@link BiPredicate} for a {@link TransportRequest} (that determines which requests may be executed) and a {@link Authentication} (for
- * current authenticated user). The a given execution of an action is considered to be permitted if both the action and the request are
- * permitted in the context of given authentication.
+ * A ConditionalClusterPrivilege is a {@link ClusterPrivilege} that determines which cluster actions
+ * may be executed based on the {@link ConditionalPrivilege#getRequestPredicate()}.
  */
-public interface ConditionalClusterPrivilege {
+public abstract class ConditionalClusterPrivilege extends ClusterPrivilege implements ConditionalPrivilege {
 
-    /**
-     * The action-level privilege that is required by this conditional privilege.
-     */
-    ClusterPrivilege getPrivilege();
+    ConditionalClusterPrivilege(String name, String... patterns) {
+        super(name, patterns);
+    }
 
-    /**
-     * The request-level privilege (as a {@link BiPredicate}) that is required by this conditional privilege.
-     * Conditions can also be evaluated based on the {@link Authentication} details.
-     */
-    BiPredicate<TransportRequest, Authentication> getRequestPredicate();
+    ConditionalClusterPrivilege(String name, Automaton automaton) {
+        super(Collections.singleton(name), automaton);
+    }
+
+    ConditionalClusterPrivilege(Set<String> name, Automaton automaton) {
+        super(name, automaton);
+    }
 
 }

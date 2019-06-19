@@ -6,12 +6,8 @@
 
 package org.elasticsearch.xpack.core.security.authz.privilege;
 
-import org.apache.lucene.util.automaton.Automaton;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.xpack.core.security.support.Automatons;
 
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.Locale;
 import java.util.Set;
@@ -21,38 +17,33 @@ import java.util.function.Predicate;
 import static org.elasticsearch.xpack.core.security.support.Automatons.patterns;
 
 /**
- * This class helps resolving set of cluster privilege names to a {@link Tuple} of {@link ClusterPrivilege} or
- * {@link ConditionalClusterPrivilege}
+ * This class helps resolving set of cluster privilege names to a {@link ClusterPrivilege}
  */
 public final class ClusterPrivilegeResolver {
 
-    public static final Predicate<String> ACTION_MATCHER = DefaultClusterPrivilege.ALL.predicate();
+    public static final Predicate<String> ACTION_MATCHER = DefaultClusterPrivilege.ALL.clusterPrivilege().predicate();
 
-    private static final ConcurrentHashMap<Set<String>, Tuple<ClusterPrivilege, Set<ConditionalClusterPrivilege>>> CACHE =
+    private static final ConcurrentHashMap<Set<String>, ClusterPrivilege> CACHE =
             new ConcurrentHashMap<>();
 
     /**
-     * For given set of privilege names returns a tuple of {@link ClusterPrivilege} and set of predefined fixed conditional cluster
-     * privileges {@link ConditionalClusterPrivilege}
+     * For given set of privilege names returns a {@link ClusterPrivilege}
      *
-     * @param name set of predefined names in {@link DefaultClusterPrivilege} or {@link DefaultConditionalClusterPrivilege} or a valid
+     * @param name set of predefined names in {@link DefaultClusterPrivilege} or a valid
      * cluster action
-     * @return a {@link Tuple} of {@link ClusterPrivilege} and set of predefined fixed conditional cluster privileges
-     * {@link ConditionalClusterPrivilege}
+     * @return a {@link ClusterPrivilege}
      */
-    public static Tuple<ClusterPrivilege, Set<ConditionalClusterPrivilege>> resolve(final Set<String> name) {
+    public static ClusterPrivilege resolve(final Set<String> name) {
         if (name == null || name.isEmpty()) {
-            return new Tuple<ClusterPrivilege, Set<ConditionalClusterPrivilege>>(DefaultClusterPrivilege.NONE.clusterPrivilege(),
-                    Collections.emptySet());
+            return DefaultClusterPrivilege.NONE.clusterPrivilege();
         }
         return CACHE.computeIfAbsent(name, ClusterPrivilegeResolver::resolvePrivileges);
     }
 
-    private static Tuple<ClusterPrivilege, Set<ConditionalClusterPrivilege>> resolvePrivileges(Set<String> name) {
+    private static ClusterPrivilege resolvePrivileges(Set<String> name) {
         Set<String> actions = new HashSet<>();
-        Set<Automaton> automata = new HashSet<>();
-        Set<ConditionalClusterPrivilege> conditionalClusterPrivileges = new HashSet<>();
         Set<String> clusterPrivilegeNames = new HashSet<>();
+        Set<ClusterPrivilege> clusterPrivileges = new HashSet<>();
         for (String part : name) {
             part = part.toLowerCase(Locale.ROOT);
             if (ACTION_MATCHER.test(part)) {
@@ -61,35 +52,22 @@ public final class ClusterPrivilegeResolver {
             } else {
                 DefaultClusterPrivilege privilege = DefaultClusterPrivilege.fromString(part);
                 if (privilege != null && name.size() == 1) {
-                    return new Tuple<ClusterPrivilege, Set<ConditionalClusterPrivilege>>(privilege.clusterPrivilege(),
-                            Collections.emptySet());
+                    return privilege.clusterPrivilege();
                 } else if (privilege != null) {
-                    clusterPrivilegeNames.add(part);
-                    automata.add(privilege.automaton());
+                    clusterPrivileges.add(privilege.clusterPrivilege());
                 } else {
-                    DefaultConditionalClusterPrivilege dccp = DefaultConditionalClusterPrivilege.fromString(part);
-                    if (dccp != null) {
-                        conditionalClusterPrivileges.add(dccp.conditionalClusterPrivilege);
-                    } else {
-                        throw new IllegalArgumentException("unknown cluster privilege [" + name + "]. a privilege must be either " +
-                                "one of the predefined fixed cluster privileges [" +
-                                Strings.collectionToCommaDelimitedString(DefaultClusterPrivilege.names()) + "], " +
-                                "predefined fixed conditional cluster privileges [" +
-                                Strings.collectionToCommaDelimitedString(DefaultConditionalClusterPrivilege.names()) + "] " +
-                                "or a pattern over one of the available cluster actions");
-                    }
+                    throw new IllegalArgumentException("unknown cluster privilege [" + name + "]. a privilege must be either "
+                            + "one of the predefined fixed cluster privileges ["
+                            + Strings.collectionToCommaDelimitedString(DefaultClusterPrivilege.names()) + "] "
+                            + "or a pattern over one of the available cluster actions");
                 }
             }
         }
 
         if (actions.isEmpty() == false) {
-            automata.add(patterns(actions));
+            clusterPrivileges.add(new ClusterPrivilege(clusterPrivilegeNames, patterns(actions)));
         }
-        ClusterPrivilege clusterPrivilege = DefaultClusterPrivilege.NONE.clusterPrivilege();
-        if (automata.isEmpty() == false) {
-            clusterPrivilege = new ClusterPrivilege(clusterPrivilegeNames, Automatons.unionAndMinimize(automata));
-        }
-        return new Tuple<ClusterPrivilege, Set<ConditionalClusterPrivilege>>(clusterPrivilege, conditionalClusterPrivileges);
+        return MergeableClusterPrivilege.merge(clusterPrivileges);
     }
 
     private static String actionToPattern(String text) {

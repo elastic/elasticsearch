@@ -92,7 +92,7 @@ public class ManageApiKeyConditionalClusterPrivilegeTests extends ESTestCase {
 
     private boolean checkAccess(ManageApiKeyConditionalClusterPrivilege privilege, String action, TransportRequest request,
             Authentication authentication) {
-        return privilege.getPrivilege().predicate().test(action) && privilege.getRequestPredicate().test(request, authentication);
+        return privilege.predicate().test(action) && privilege.getRequestPredicate().test(request, authentication);
     }
 
 }

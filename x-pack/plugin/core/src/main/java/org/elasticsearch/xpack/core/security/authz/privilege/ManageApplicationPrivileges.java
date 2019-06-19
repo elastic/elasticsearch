@@ -33,11 +33,8 @@ import java.util.function.Predicate;
  * ability to execute actions related to the management of application privileges (Get, Put, Delete) for a subset
  * of applications (identified by a wildcard-aware application-name).
  */
-public final class ManageApplicationPrivileges implements GlobalClusterPrivilege {
+public final class ManageApplicationPrivileges extends GlobalClusterPrivilege {
 
-    private static final ClusterPrivilege PRIVILEGE = ClusterPrivilegeResolver.resolve(
-        Collections.singleton("cluster:admin/xpack/security/privilege/*")
-    ).v1();
     public static final String WRITEABLE_NAME = "manage-application-privileges";
 
     private final Set<String> applicationNames;
@@ -45,6 +42,8 @@ public final class ManageApplicationPrivileges implements GlobalClusterPrivilege
     private final BiPredicate<TransportRequest, Authentication> requestPredicate;
 
     public ManageApplicationPrivileges(Set<String> applicationNames) {
+        super("cluster:admin/xpack/security/privilege/*",
+                Automatons.patterns(Collections.singleton("cluster:admin/xpack/security/privilege/*")));
         this.applicationNames = Collections.unmodifiableSet(applicationNames);
         this.applicationPredicate = Automatons.predicate(applicationNames);
         this.requestPredicate = (request, authentication) -> {
@@ -61,11 +60,6 @@ public final class ManageApplicationPrivileges implements GlobalClusterPrivilege
     @Override
     public Category getCategory() {
         return Category.APPLICATION;
-    }
-
-    @Override
-    public ClusterPrivilege getPrivilege() {
-        return PRIVILEGE;
     }
 
     @Override

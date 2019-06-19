@@ -15,14 +15,13 @@ import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.support.Automatons;
 
 import java.util.List;
-import java.util.Objects;
 import java.util.Set;
 import java.util.function.BiPredicate;
 
 /**
  * Conditional cluster privilege for managing API keys
  */
-public final class ManageApiKeyConditionalClusterPrivilege implements ConditionalClusterPrivilege {
+public final class ManageApiKeyConditionalClusterPrivilege extends ConditionalClusterPrivilege {
 
     private static final String MANAGE_API_KEY_PATTERN = "cluster:admin/xpack/security/api_key/*";
     private static final String CREATE_API_KEY_PATTERN = "cluster:admin/xpack/security/api_key/create";
@@ -32,7 +31,6 @@ public final class ManageApiKeyConditionalClusterPrivilege implements Conditiona
             INVALIDATE_API_KEY_PATTERN);
 
     private final boolean restrictActionsToAuthenticatedUser;
-    private final ClusterPrivilege privilege;
     private final BiPredicate<TransportRequest, Authentication> requestPredicate;
 
     /**
@@ -42,6 +40,7 @@ public final class ManageApiKeyConditionalClusterPrivilege implements Conditiona
      * @param restrictActionsToAuthenticatedUser if {@code true} privileges will be restricted to current authenticated user.
      */
     private ManageApiKeyConditionalClusterPrivilege(Set<String> actions, boolean restrictActionsToAuthenticatedUser) {
+        super(actions, Automatons.patterns(actions));
         // validate allowed actions
         for (String action : actions) {
             if (DefaultClusterPrivilege.MANAGE_API_KEY.clusterPrivilege().predicate().test(action) == false) {
@@ -49,7 +48,6 @@ public final class ManageApiKeyConditionalClusterPrivilege implements Conditiona
                         + API_KEY_ACTION_PATTERNS + " ]");
             }
         }
-        this.privilege = new ClusterPrivilege(actions, Automatons.patterns(actions));
         this.restrictActionsToAuthenticatedUser = restrictActionsToAuthenticatedUser;
 
         this.requestPredicate = (request, authentication) -> {
@@ -98,31 +96,30 @@ public final class ManageApiKeyConditionalClusterPrivilege implements Conditiona
     }
 
     @Override
-    public ClusterPrivilege getPrivilege() {
-        return privilege;
-    }
-
-    @Override
     public BiPredicate<TransportRequest, Authentication> getRequestPredicate() {
         return requestPredicate;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(privilege, restrictActionsToAuthenticatedUser);
+        final int prime = 31;
+        int result = super.hashCode();
+        result = prime * result + (restrictActionsToAuthenticatedUser ? 1231 : 1237);
+        return result;
     }
 
     @Override
-    public boolean equals(Object o) {
-        if (this == o) {
+    public boolean equals(Object obj) {
+        if (this == obj)
             return true;
-        }
-        if (o == null || getClass() != o.getClass()) {
+        if (!super.equals(obj))
             return false;
-        }
-        final ManageApiKeyConditionalClusterPrivilege that = (ManageApiKeyConditionalClusterPrivilege) o;
-        return Objects.equals(this.privilege, that.privilege)
-                && Objects.equals(this.restrictActionsToAuthenticatedUser, that.restrictActionsToAuthenticatedUser);
+        if (getClass() != obj.getClass())
+            return false;
+        ManageApiKeyConditionalClusterPrivilege other = (ManageApiKeyConditionalClusterPrivilege) obj;
+        if (restrictActionsToAuthenticatedUser != other.restrictActionsToAuthenticatedUser)
+            return false;
+        return true;
     }
 
 }

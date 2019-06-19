@@ -28,7 +28,6 @@ import org.elasticsearch.action.termvectors.MultiTermVectorsAction;
 import org.elasticsearch.cluster.metadata.AliasOrIndex;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.transport.TransportActionProxy;
@@ -60,8 +59,6 @@ import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivileg
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeResolver;
-import org.elasticsearch.xpack.core.security.authz.privilege.ConditionalClusterPrivilege;
-import org.elasticsearch.xpack.core.security.authz.privilege.DefaultConditionalClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.GlobalClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.Privilege;
 import org.elasticsearch.xpack.core.security.support.Automatons;
@@ -375,20 +372,11 @@ public class RBACEngine implements AuthorizationEngine {
 
         Map<String, Boolean> cluster = new HashMap<>();
         for (String checkAction : request.clusterPrivileges()) {
-            Tuple<ClusterPrivilege, Set<ConditionalClusterPrivilege>> resolvedPrivileges = ClusterPrivilegeResolver
+            ClusterPrivilege checkPrivilege = ClusterPrivilegeResolver
                     .resolve(Collections.singleton(checkAction));
-            final ClusterPrivilege checkPrivilege = resolvedPrivileges.v1();
-            final Set<ConditionalClusterPrivilege> conditionalClusterPrivileges = resolvedPrivileges.v2();
-            boolean granted = userRole.grants(checkPrivilege);
             // here we just check if the action would be allowed by the underlying cluster privilege without considering request as the
             // request is not available for evaluation of conditional cluster privilege.
-            for (ConditionalClusterPrivilege conditionalClusterPrivilege : conditionalClusterPrivileges) {
-                granted = (granted || userRole.grants(conditionalClusterPrivilege.getPrivilege()));
-                if (granted) {
-                    break;
-                }
-            }
-            cluster.put(checkAction, granted);
+            cluster.put(checkAction, userRole.grants(checkPrivilege));
         }
         boolean allMatch = cluster.values().stream().allMatch(Boolean::booleanValue);
         ResourcePrivilegesMap.Builder combineIndicesResourcePrivileges = ResourcePrivilegesMap.builder();
@@ -441,16 +429,11 @@ public class RBACEngine implements AuthorizationEngine {
         final Set<String> cluster = new TreeSet<>();
         // But we don't have a meaningful ordering for objects like ConditionalClusterPrivilege, so the tests work with "random" ordering
         final Set<GlobalClusterPrivilege> conditionalCluster = new HashSet<>();
-        for (Tuple<ClusterPrivilege, ConditionalClusterPrivilege> tup : userRole.cluster().privileges()) {
-            if (tup.v2() == null) {
-                if (ClusterPrivilege.NONE.equals(tup.v1()) == false) {
-                    cluster.addAll(tup.v1().name());
-                }
-            } else if (tup.v2() instanceof GlobalClusterPrivilege) {
-                conditionalCluster.add((GlobalClusterPrivilege) tup.v2());
+        for (ClusterPrivilege privilege : userRole.cluster().privileges()) {
+            if (privilege instanceof GlobalClusterPrivilege) {
+                conditionalCluster.add((GlobalClusterPrivilege) privilege);
             } else {
-                // non renderable predefined conditional cluster privilege names
-                cluster.add(DefaultConditionalClusterPrivilege.privilegeName(tup.v2()));
+                cluster.addAll(privilege.name());
             }
         }
 

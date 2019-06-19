@@ -19,7 +19,7 @@ import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivileg
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeResolver;
-import org.elasticsearch.xpack.core.security.authz.privilege.ConditionalClusterPrivilege;
+import org.elasticsearch.xpack.core.security.authz.privilege.GlobalClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.Privilege;
 
@@ -212,16 +212,13 @@ public class Role {
             }
         }
 
-        public Builder cluster(Set<String> privilegeNames, Iterable<ConditionalClusterPrivilege> conditionalClusterPrivileges) {
+        public Builder cluster(Set<String> privilegeNames, Iterable<GlobalClusterPrivilege> conditionalClusterPrivileges) {
             List<ClusterPermission> clusterPermissions = new ArrayList<>();
             if (privilegeNames.isEmpty() == false) {
-                Tuple<ClusterPrivilege, Set<ConditionalClusterPrivilege>> privileges = ClusterPrivilegeResolver.resolve(privilegeNames);
-                clusterPermissions.add(new ClusterPermission.SimpleClusterPermission(privileges.v1()));
-                for (ConditionalClusterPrivilege ccp : privileges.v2()) {
-                    clusterPermissions.add(new ClusterPermission.ConditionalClusterPermission(ccp));
-                }
+                ClusterPrivilege privilege = ClusterPrivilegeResolver.resolve(privilegeNames);
+                clusterPermissions.add(new ClusterPermission.SimpleClusterPermission(privilege));
             }
-            for (ConditionalClusterPrivilege ccp : conditionalClusterPrivileges) {
+            for (GlobalClusterPrivilege ccp : conditionalClusterPrivileges) {
                 clusterPermissions.add(new ClusterPermission.ConditionalClusterPermission(ccp));
             }
             if (clusterPermissions.isEmpty()) {

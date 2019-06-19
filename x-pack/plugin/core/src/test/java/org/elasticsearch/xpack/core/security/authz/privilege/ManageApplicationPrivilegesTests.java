@@ -46,12 +46,12 @@ import java.util.function.BiPredicate;
 
 import static org.elasticsearch.common.xcontent.DeprecationHandler.THROW_UNSUPPORTED_OPERATION;
 import static org.elasticsearch.test.TestMatchers.predicateMatches;
-import static org.mockito.Mockito.mock;
 import static org.hamcrest.CoreMatchers.not;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
+import static org.mockito.Mockito.mock;
 
 public class ManageApplicationPrivilegesTests extends ESTestCase {
 
@@ -103,13 +103,13 @@ public class ManageApplicationPrivilegesTests extends ESTestCase {
 
     public void testPrivilege() {
         final ManageApplicationPrivileges privileges = buildPrivileges();
-        assertThat(privileges.getPrivilege(), instanceOf(ClusterPrivilege.class));
+        assertThat(privileges, instanceOf(ClusterPrivilege.class));
         for (String actionName : Arrays.asList(GetPrivilegesAction.NAME, PutPrivilegesAction.NAME, DeletePrivilegesAction.NAME)) {
-            assertThat(privileges.getPrivilege().predicate(), predicateMatches(actionName));
+            assertThat(privileges.predicate(), predicateMatches(actionName));
         }
         for (String actionName : Arrays.asList(GetUsersAction.NAME, PutRoleAction.NAME, DeleteRoleMappingAction.NAME,
             HasPrivilegesAction.NAME)) {
-            assertThat(privileges.getPrivilege().predicate(), not(predicateMatches(actionName)));
+            assertThat(privileges.predicate(), not(predicateMatches(actionName)));
         }
     }
 

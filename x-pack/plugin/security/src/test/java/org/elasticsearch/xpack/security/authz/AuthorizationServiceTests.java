@@ -318,7 +318,8 @@ public class AuthorizationServiceTests extends ESTestCase {
         final GlobalClusterPrivilege conditionalClusterPrivilege = Mockito.mock(GlobalClusterPrivilege.class);
         final BiPredicate<TransportRequest, Authentication> requestPredicate = (r, a) -> r == request;
         Mockito.when(conditionalClusterPrivilege.getRequestPredicate()).thenReturn(requestPredicate);
-        Mockito.when(conditionalClusterPrivilege.getPrivilege()).thenReturn(DefaultClusterPrivilege.MANAGE_SECURITY.clusterPrivilege());
+        Mockito.when(conditionalClusterPrivilege.predicate())
+                .thenReturn(DefaultClusterPrivilege.MANAGE_SECURITY.clusterPrivilege().predicate());
         final GlobalClusterPrivilege[] conditionalClusterPrivileges = new GlobalClusterPrivilege[] {
             conditionalClusterPrivilege
         };
@@ -339,7 +340,8 @@ public class AuthorizationServiceTests extends ESTestCase {
         final GlobalClusterPrivilege conditionalClusterPrivilege = Mockito.mock(GlobalClusterPrivilege.class);
         final BiPredicate<TransportRequest, Authentication> requestPredicate = (r, a) -> false;
         Mockito.when(conditionalClusterPrivilege.getRequestPredicate()).thenReturn(requestPredicate);
-        Mockito.when(conditionalClusterPrivilege.getPrivilege()).thenReturn(DefaultClusterPrivilege.MANAGE_SECURITY.clusterPrivilege());
+        Mockito.when(conditionalClusterPrivilege.predicate())
+                .thenReturn(DefaultClusterPrivilege.MANAGE_SECURITY.clusterPrivilege().predicate());
         final GlobalClusterPrivilege[] conditionalClusterPrivileges = new GlobalClusterPrivilege[] {
             conditionalClusterPrivilege
         };

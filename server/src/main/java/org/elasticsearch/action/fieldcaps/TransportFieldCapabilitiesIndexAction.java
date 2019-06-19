@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.ShardsIterator;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ObjectMapper;
@@ -114,8 +115,8 @@ public class TransportFieldCapabilitiesIndexAction extends TransportSingleShardA
     }
 
     @Override
-    protected FieldCapabilitiesIndexResponse newResponse() {
-        return new FieldCapabilitiesIndexResponse();
+    protected Writeable.Reader<FieldCapabilitiesIndexResponse> getResponseReader() {
+        return FieldCapabilitiesIndexResponse::new;
     }
 
     @Override

@@ -17,7 +17,7 @@ import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xpack.core.dataframe.DataFrameField;
-import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.core.dataframe.utils.ExceptionsHelper;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -93,7 +93,7 @@ public class StartDataFrameTransformTaskAction extends Action<StartDataFrameTran
         }
     }
 
-    public static class Response extends BaseTasksResponse implements Writeable, ToXContentObject {
+    public static class Response extends BaseTasksResponse implements ToXContentObject {
         private final boolean started;
 
         public Response(StreamInput in) throws IOException {

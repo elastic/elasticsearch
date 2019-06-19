@@ -70,8 +70,7 @@ public class XPackInfoResponseTests extends
     private FeatureSetsInfo convertHlrcToInternal(org.elasticsearch.client.xpack.XPackInfoResponse.FeatureSetsInfo featureSetsInfo) {
         return featureSetsInfo != null
             ? new FeatureSetsInfo(featureSetsInfo.getFeatureSets().values().stream()
-            .map(fs -> new FeatureSet(fs.name(), fs.description(), fs.available(), fs.enabled(),
-                fs.nativeCodeInfo()))
+            .map(fs -> new FeatureSet(fs.name(), fs.available(), fs.enabled(), fs.nativeCodeInfo()))
             .collect(Collectors.toSet()))
             : null;
     }
@@ -169,7 +168,6 @@ public class XPackInfoResponseTests extends
     private FeatureSet randomFeatureSet() {
         return new FeatureSet(
             randomAlphaOfLength(5),
-            randomBoolean() ? null : randomAlphaOfLength(20),
             randomBoolean(),
             randomBoolean(),
             randomNativeCodeInfo());

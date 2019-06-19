@@ -5,9 +5,11 @@ apply plugin: 'elasticsearch.rest-test'
 apply plugin: 'elasticsearch.test.fixtures'
 
 dependencies {
-    // "org.elasticsearch.plugin:x-pack-core:${version}" doesn't work with idea because the testArtifacts are also here
     testCompile project(path: xpackModule('core'), configuration: 'default')
     testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
+    if (isEclipse) {
+      testCompile project(path: xpackModule('core-tests'), configuration: 'testArtifacts')
+    }
     testCompile project(path: xpackModule('security'), configuration: 'testArtifacts')
 }
 testFixtures.useFixture ":x-pack:test:idp-fixture"
@@ -32,7 +34,6 @@ integTestCluster {
     setting 'xpack.security.authc.realms.native.native.order', '1'
     // OpenID Connect Realm 1 configured for authorization grant flow
     setting 'xpack.security.authc.realms.oidc.c2id.order', '2'
-    setting 'xpack.security.authc.realms.oidc.c2id.op.name', 'c2id-op'
     setting 'xpack.security.authc.realms.oidc.c2id.op.issuer', 'http://localhost:8080'
     setting 'xpack.security.authc.realms.oidc.c2id.op.authorization_endpoint', "http://127.0.0.1:${-> ephemeralPort}/c2id-login"
     setting 'xpack.security.authc.realms.oidc.c2id.op.token_endpoint', "http://127.0.0.1:${-> ephemeralPort}/c2id/token"
@@ -48,7 +49,6 @@ integTestCluster {
     setting 'xpack.security.authc.realms.oidc.c2id.claims.groups', 'groups'
     // OpenID Connect Realm 2 configured for implicit flow
     setting 'xpack.security.authc.realms.oidc.c2id-implicit.order', '3'
-    setting 'xpack.security.authc.realms.oidc.c2id-implicit.op.name', 'c2id-implicit'
     setting 'xpack.security.authc.realms.oidc.c2id-implicit.op.issuer', 'http://localhost:8080'
     setting 'xpack.security.authc.realms.oidc.c2id-implicit.op.authorization_endpoint', "http://127.0.0.1:${-> ephemeralPort}/c2id-login"
     setting 'xpack.security.authc.realms.oidc.c2id-implicit.op.token_endpoint', "http://127.0.0.1:${-> ephemeralPort}/c2id/token"
@@ -63,7 +63,7 @@ integTestCluster {
     setting 'xpack.security.authc.realms.oidc.c2id-implicit.claims.mail', 'email'
     setting 'xpack.security.authc.realms.oidc.c2id-implicit.claims.groups', 'groups'
     setting 'xpack.ml.enabled', 'false'
-    
+
     extraConfigFile 'op-jwks.json', idpFixtureProject.file("oidc/op-jwks.json")
 
     setupCommand 'setupTestAdmin',

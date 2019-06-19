@@ -25,7 +25,7 @@ import org.elasticsearch.common.lease.Releasable;
  * A recycled object, note, implementations should support calling obtain and then recycle
  * on different threads.
  */
-public interface Recycler<T> extends Releasable {
+public interface Recycler<T> {
 
     interface Factory<T> {
         Recycler<T> build();
@@ -52,8 +52,6 @@ public interface Recycler<T> extends Releasable {
         boolean isRecycled();
 
     }
-
-    void close();
 
     V<T> obtain();
 

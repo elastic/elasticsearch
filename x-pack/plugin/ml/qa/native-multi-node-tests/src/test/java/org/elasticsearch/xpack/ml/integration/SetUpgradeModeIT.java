@@ -25,6 +25,7 @@ import org.junit.After;
 import java.util.Collections;
 import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.xpack.core.ml.MlTasks.AWAITING_UPGRADE;
 import static org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase.createDatafeed;
 import static org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase.createScheduledJob;
 import static org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase.getDataCounts;
@@ -33,7 +34,6 @@ import static org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase.indexDocs;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.isEmptyString;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -88,12 +88,12 @@ public class SetUpgradeModeIT extends MlNativeAutodetectIntegTestCase {
 
         GetJobsStatsAction.Response.JobStats jobStats = getJobStats(jobId).get(0);
         assertThat(jobStats.getState(), equalTo(JobState.OPENED));
-        assertThat(jobStats.getAssignmentExplanation(), equalTo(MlTasks.AWAITING_UPGRADE.getExplanation()));
+        assertThat(jobStats.getAssignmentExplanation(), equalTo(AWAITING_UPGRADE.getExplanation()));
         assertThat(jobStats.getNode(), is(nullValue()));
 
         GetDatafeedsStatsAction.Response.DatafeedStats datafeedStats = getDatafeedStats(datafeedId);
         assertThat(datafeedStats.getDatafeedState(), equalTo(DatafeedState.STARTED));
-        assertThat(datafeedStats.getAssignmentExplanation(), equalTo(MlTasks.AWAITING_UPGRADE.getExplanation()));
+        assertThat(datafeedStats.getAssignmentExplanation(), equalTo(AWAITING_UPGRADE.getExplanation()));
         assertThat(datafeedStats.getNode(), is(nullValue()));
 
         Job.Builder job = createScheduledJob("job-should-not-open");
@@ -126,13 +126,11 @@ public class SetUpgradeModeIT extends MlNativeAutodetectIntegTestCase {
 
         jobStats = getJobStats(jobId).get(0);
         assertThat(jobStats.getState(), equalTo(JobState.OPENED));
-        assertThat(jobStats.getAssignmentExplanation(), isEmptyString());
-        assertThat(jobStats.getNode(), is(not(nullValue())));
+        assertThat(jobStats.getAssignmentExplanation(), not(equalTo(AWAITING_UPGRADE.getExplanation())));
 
         datafeedStats = getDatafeedStats(datafeedId);
         assertThat(datafeedStats.getDatafeedState(), equalTo(DatafeedState.STARTED));
-        assertThat(datafeedStats.getAssignmentExplanation(), isEmptyString());
-        assertThat(datafeedStats.getNode(), is(not(nullValue())));
+        assertThat(datafeedStats.getAssignmentExplanation(), not(equalTo(AWAITING_UPGRADE.getExplanation())));
     }
 
     private void startRealtime(String jobId) throws Exception {

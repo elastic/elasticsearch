@@ -57,7 +57,7 @@ public class SignificantStringTerms extends InternalMappedSignificantTerms<Signi
             subsetDf = in.readVLong();
             supersetDf = in.readVLong();
             score = in.readDouble();
-            aggregations = InternalAggregations.readAggregations(in);
+            aggregations = new InternalAggregations(in);
         }
 
         @Override
@@ -103,6 +103,10 @@ public class SignificantStringTerms extends InternalMappedSignificantTerms<Signi
 
         @Override
         public boolean equals(Object obj) {
+            if (this == obj) return true;
+            if (obj == null || getClass() != obj.getClass()) return false;
+            if (super.equals(obj) == false) return false;
+
             return super.equals(obj) && Objects.equals(termBytes, ((SignificantStringTerms.Bucket) obj).termBytes);
         }
 

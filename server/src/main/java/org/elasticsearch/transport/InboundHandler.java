@@ -25,10 +25,10 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
@@ -73,7 +73,7 @@ public class InboundHandler {
         if (requestHandlers.containsKey(reg.getAction())) {
             throw new IllegalArgumentException("transport handlers for action " + reg.getAction() + " is already registered");
         }
-        requestHandlers = MapBuilder.newMapBuilder(requestHandlers).put(reg.getAction(), reg).immutableMap();
+        requestHandlers = Maps.copyMapWithAddedEntry(requestHandlers, reg.getAction(), reg);
     }
 
     final RequestHandlerRegistry<? extends TransportRequest> getRequestHandler(String action) {

@@ -1,8 +1,8 @@
 {
   "ml.put_filter": {
+    "stability": "stable",
     "methods": [ "PUT" ],
     "url": {
-      "path": "/_ml/filters/{filter_id}",
       "paths": [ "/_ml/filters/{filter_id}" ],
       "parts": {
         "filter_id": {

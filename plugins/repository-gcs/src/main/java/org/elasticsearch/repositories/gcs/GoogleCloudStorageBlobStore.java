@@ -19,6 +19,8 @@
 
 package org.elasticsearch.repositories.gcs;
 
+import com.google.api.gax.paging.Page;
+import com.google.cloud.BatchResult;
 import com.google.cloud.ReadChannel;
 import com.google.cloud.WriteChannel;
 import com.google.cloud.storage.Blob;
@@ -27,10 +29,8 @@ import com.google.cloud.storage.BlobInfo;
 import com.google.cloud.storage.Bucket;
 import com.google.cloud.storage.Storage;
 import com.google.cloud.storage.Storage.BlobListOption;
+import com.google.cloud.storage.StorageBatch;
 import com.google.cloud.storage.StorageException;
-
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobMetaData;
@@ -50,17 +50,18 @@ import java.nio.channels.ReadableByteChannel;
 import java.nio.channels.WritableByteChannel;
 import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.NoSuchFileException;
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 import static java.net.HttpURLConnection.HTTP_NOT_FOUND;
 import static java.net.HttpURLConnection.HTTP_PRECON_FAILED;
 
 class GoogleCloudStorageBlobStore implements BlobStore {
-    
-    private static final Logger logger = LogManager.getLogger(GoogleCloudStorageBlobStore.class);
 
     // The recommended maximum size of a blob that should be uploaded in a single
     // request. Larger files should be uploaded over multiple requests (this is
@@ -91,11 +92,6 @@ class GoogleCloudStorageBlobStore implements BlobStore {
     }
 
     @Override
-    public void delete(BlobPath path) throws IOException {
-        deleteBlobsByPrefix(path.buildAsString());
-    }
-
-    @Override
     public void close() {
     }
 
@@ -105,7 +101,7 @@ class GoogleCloudStorageBlobStore implements BlobStore {
      * @param bucketName name of the bucket
      * @return true iff the bucket exists
      */
-    boolean doesBucketExist(String bucketName) {
+    private boolean doesBucketExist(String bucketName) {
         try {
             final Bucket bucket = SocketAccess.doPrivilegedIOException(() -> client().get(bucketName));
             return bucket != null;
@@ -136,13 +132,34 @@ class GoogleCloudStorageBlobStore implements BlobStore {
     Map<String, BlobMetaData> listBlobsByPrefix(String path, String prefix) throws IOException {
         final String pathPrefix = buildKey(path, prefix);
         final MapBuilder<String, BlobMetaData> mapBuilder = MapBuilder.newMapBuilder();
-        SocketAccess.doPrivilegedVoidIOException(() -> {
-            client().get(bucketName).list(BlobListOption.prefix(pathPrefix)).iterateAll().forEach(blob -> {
-                assert blob.getName().startsWith(path);
-                final String suffixName = blob.getName().substring(path.length());
-                mapBuilder.put(suffixName, new PlainBlobMetaData(suffixName, blob.getSize()));
-            });
-        });
+        SocketAccess.doPrivilegedVoidIOException(
+            () -> client().get(bucketName).list(BlobListOption.currentDirectory(), BlobListOption.prefix(pathPrefix)).iterateAll().forEach(
+                blob -> {
+                    assert blob.getName().startsWith(path);
+                    if (blob.isDirectory() == false) {
+                        final String suffixName = blob.getName().substring(path.length());
+                        mapBuilder.put(suffixName, new PlainBlobMetaData(suffixName, blob.getSize()));
+                    }
+                }));
+        return mapBuilder.immutableMap();
+    }
+
+    Map<String, BlobContainer> listChildren(BlobPath path) throws IOException {
+        final String pathStr = path.buildAsString();
+        final MapBuilder<String, BlobContainer> mapBuilder = MapBuilder.newMapBuilder();
+        SocketAccess.doPrivilegedVoidIOException
+            (() -> client().get(bucketName).list(BlobListOption.currentDirectory(), BlobListOption.prefix(pathStr)).iterateAll().forEach(
+                blob -> {
+                    if (blob.isDirectory()) {
+                        assert blob.getName().startsWith(pathStr);
+                        assert blob.getName().endsWith("/");
+                        // Strip path prefix and trailing slash
+                        final String suffixName = blob.getName().substring(pathStr.length(), blob.getName().length() - 1);
+                        if (suffixName.isEmpty() == false) {
+                            mapBuilder.put(suffixName, new GoogleCloudStorageBlobContainer(path.add(suffixName), this));
+                        }
+                    }
+                }));
         return mapBuilder.immutableMap();
     }
 
@@ -291,12 +308,20 @@ class GoogleCloudStorageBlobStore implements BlobStore {
     }
 
     /**
-     * Deletes multiple blobs from the specific bucket all of which have prefixed names
+     * Deletes the given path and all its children.
      *
-     * @param prefix prefix of the blobs to delete
+     * @param pathStr Name of path to delete
      */
-    void deleteBlobsByPrefix(String prefix) throws IOException {
-        deleteBlobs(listBlobsByPrefix("", prefix).keySet());
+    void deleteDirectory(String pathStr) throws IOException {
+        SocketAccess.doPrivilegedVoidIOException(() -> {
+            Page<Blob> page = client().get(bucketName).list(BlobListOption.prefix(pathStr));
+            do {
+                final Collection<String> blobsToDelete = new ArrayList<>();
+                page.getValues().forEach(b -> blobsToDelete.add(b.getName()));
+                deleteBlobsIgnoringIfNotExists(blobsToDelete);
+                page = page.getNextPage();
+            } while (page != null);
+        });
     }
 
     /**
@@ -304,28 +329,40 @@ class GoogleCloudStorageBlobStore implements BlobStore {
      *
      * @param blobNames names of the blobs to delete
      */
-    void deleteBlobs(Collection<String> blobNames) throws IOException {
+    void deleteBlobsIgnoringIfNotExists(Collection<String> blobNames) throws IOException {
         if (blobNames.isEmpty()) {
             return;
         }
-        // for a single op submit a simple delete instead of a batch of size 1
-        if (blobNames.size() == 1) {
-            deleteBlob(blobNames.iterator().next());
-            return;
-        }
         final List<BlobId> blobIdsToDelete = blobNames.stream().map(blob -> BlobId.of(bucketName, blob)).collect(Collectors.toList());
-        final List<Boolean> deletedStatuses = SocketAccess.doPrivilegedIOException(() -> client().delete(blobIdsToDelete));
-        assert blobIdsToDelete.size() == deletedStatuses.size();
-        boolean failed = false;
-        for (int i = 0; i < blobIdsToDelete.size(); i++) {
-            if (deletedStatuses.get(i) == false) {
-                logger.error("Failed to delete blob [{}] in bucket [{}]", blobIdsToDelete.get(i).getName(), bucketName);
-                failed = true;
+        final List<BlobId> failedBlobs = Collections.synchronizedList(new ArrayList<>());
+        final StorageException e = SocketAccess.doPrivilegedIOException(() -> {
+            final AtomicReference<StorageException> ioe = new AtomicReference<>();
+            final StorageBatch batch = client().batch();
+            for (BlobId blob : blobIdsToDelete) {
+                batch.delete(blob).notify(
+                    new BatchResult.Callback<>() {
+                        @Override
+                        public void success(Boolean result) {
+                        }
+
+                        @Override
+                        public void error(StorageException exception) {
+                            if (exception.getCode() != HTTP_NOT_FOUND) {
+                                failedBlobs.add(blob);
+                                if (ioe.compareAndSet(null, exception) == false) {
+                                    ioe.get().addSuppressed(exception);
+                                }
+                            }
+                        }
+                    });
             }
+            batch.submit();
+            return ioe.get();
+        });
+        if (e != null) {
+            throw new IOException("Exception when deleting blobs [" + failedBlobs + "]", e);
         }
-        if (failed) {
-            throw new IOException("Failed to delete all [" + blobIdsToDelete.size() + "] blobs");
-        }
+        assert failedBlobs.isEmpty();
     }
 
     private static String buildKey(String keyPath, String s) {

@@ -513,8 +513,7 @@ and `full`. Defaults to `full`.
 See <<ssl-tls-settings,`ssl.verification_mode`>> for an explanation of these values.
 
 `ssl.supported_protocols`::
-Supported protocols for TLS/SSL (with versions). Defaults to `TLSv1.3,TLSv1.2,TLSv1.1` if
-the JVM supports TLSv1.3, otherwise `TLSv1.2,TLSv1.1`.
+Supported protocols for TLS/SSL (with versions). Defaults to `TLSv1.3,TLSv1.2,TLSv1.1`.
 
 `ssl.cipher_suites`:: Specifies the cipher suites that should be supported when 
 communicating with the LDAP server. 
@@ -765,8 +764,7 @@ and `full`. Defaults to `full`.
 See <<ssl-tls-settings,`ssl.verification_mode`>> for an explanation of these values.
 
 `ssl.supported_protocols`::
-Supported protocols for TLS/SSL (with versions). Defaults to `TLSv1.3,TLSv1.2,TLSv1.1` if
-the JVM supports TLSv1.3, otherwise `TLSv1.2,TLSv1.1`.
+Supported protocols for TLS/SSL (with versions). Defaults to `TLSv1.3,TLSv1.2,TLSv1.1`.
 
 `ssl.cipher_suites`:: Specifies the cipher suites that should be supported when 
 communicating with the Active Directory server. 
@@ -1173,8 +1171,7 @@ Defaults to `full`.
 See <<ssl-tls-settings,`ssl.verification_mode`>> for a more detailed explanation of these values.
 
 `ssl.supported_protocols`::
-Specifies the supported protocols for TLS/SSL. Defaults to `TLSv1.3,TLSv1.2,TLSv1.1` if
-the JVM supports TLSv1.3, otherwise `TLSv1.2,TLSv1.1`.
+Specifies the supported protocols for TLS/SSL. Defaults to `TLSv1.3,TLSv1.2,TLSv1.1`.
 
 `ssl.cipher_suites`::
 Specifies the
@@ -1484,20 +1481,24 @@ through the list of URLs will continue until a successful connection is made.
 [[ssl-tls-settings]]
 ==== Default values for TLS/SSL settings
 In general, the values below represent the default values for the various TLS
-settings. For more information, see
+settings.
+The prefixes for these settings are based on the context in which they are
+used (e.g. `xpack.security.authc.realms.ldap.corp_ldap.ssl.verification_mode`
+or `xpack.security.transport.ssl.supported_protocols`).
+
+For more information, see
 {stack-ov}/encrypting-communications.html[Encrypting communications].
 
-`ssl.supported_protocols`::
+`*.ssl.supported_protocols`::
 Supported protocols with versions. Valid protocols: `SSLv2Hello`,
-`SSLv3`, `TLSv1`, `TLSv1.1`, `TLSv1.2`, `TLSv1.3`. Defaults to `TLSv1.3,TLSv1.2,TLSv1.1` if
-the JVM supports TLSv1.3, otherwise `TLSv1.2,TLSv1.1`.
+`SSLv3`, `TLSv1`, `TLSv1.1`, `TLSv1.2`, `TLSv1.3`. Defaults to `TLSv1.3,TLSv1.2,TLSv1.1`.
 +
 --
 NOTE: If `xpack.security.fips_mode.enabled` is `true`, you cannot use `SSLv2Hello` 
 or `SSLv3`. See <<fips-140-compliance>>.
 --
 
-`ssl.client_authentication`::
+`*.ssl.client_authentication`::
 Controls the server's behavior in regard to requesting a certificate
 from client connections. Valid values are `required`, `optional`, and `none`.
 `required` forces a client to present a certificate, while `optional`
@@ -1505,7 +1506,7 @@ requests a client certificate but the client is not required to present one.
 Defaults to `required`, except for HTTP, which defaults to `none`. See
  <<http-tls-ssl-settings>>.
 
-`ssl.verification_mode`::
+`*.ssl.verification_mode`::
 Controls the verification of certificates. Valid values are:
 - `full`, which verifies that the provided certificate is signed by a trusted
        authority (CA) and also verifies that the server's hostname (or IP
@@ -1520,14 +1521,19 @@ Controls the verification of certificates. Valid values are:
 +
 The default value is `full`.
 
-`ssl.cipher_suites`::
-Supported cipher suites can be found in Oracle's http://docs.oracle.com/javase/8/docs/technotes/guides/security/SunProviders.html[
-Java Cryptography Architecture documentation]. Defaults to `TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256`,
-`TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256`, `TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA`, `TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA`,
-`TLS_RSA_WITH_AES_128_CBC_SHA256`, `TLS_RSA_WITH_AES_128_CBC_SHA`. If the _Java Cryptography Extension (JCE) Unlimited Strength
-Jurisdiction Policy Files_ has been installed, the default value also includes `TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA384`,
-`TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA384`, `TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA`, `TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA`,
-`TLS_RSA_WITH_AES_256_CBC_SHA256`, `TLS_RSA_WITH_AES_256_CBC_SHA`.
+`*.ssl.cipher_suites`::
+Supported cipher suites can be found in Oracle's
+https://docs.oracle.com/en/java/javase/11/security/oracle-providers.html#GUID-7093246A-31A3-4304-AC5F-5FB6400405E2[Java Cryptography Architecture documentation].
+Defaults to `TLS_AES_256_GCM_SHA384`, `TLS_AES_128_GCM_SHA256`,
+`TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384`, `TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256`,
+`TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384`, `TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256`,
+`TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA384`, `TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256`,
+`TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA384`, `TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256`,
+`TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA`, `TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA`,
+`TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA`, `TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA`,
+`TLS_RSA_WITH_AES_256_GCM_SHA384`, `TLS_RSA_WITH_AES_128_GCM_SHA256`,
+`TLS_RSA_WITH_AES_256_CBC_SHA256`, `TLS_RSA_WITH_AES_128_CBC_SHA256`,
+`TLS_RSA_WITH_AES_256_CBC_SHA`, `TLS_RSA_WITH_AES_128_CBC_SHA`.
 
 [float]
 [[tls-ssl-key-settings]]
@@ -1560,6 +1566,7 @@ a PKCS#12 container includes trusted certificate ("anchor") entries look for
 :client-auth-default:    none
 :verifies!:
 :server:
+:ssl-context:            security-http
 
 include::ssl-settings.asciidoc[]
 
@@ -1569,6 +1576,7 @@ include::ssl-settings.asciidoc[]
 :client-auth-default!:
 :verifies:
 :server:
+:ssl-context:            security-transport
 
 include::ssl-settings.asciidoc[]
 

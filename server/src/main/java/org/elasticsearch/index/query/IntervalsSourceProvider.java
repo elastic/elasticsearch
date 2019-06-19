@@ -120,7 +120,7 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
             this.ordered = in.readBoolean();
             this.analyzer = in.readOptionalString();
             this.filter = in.readOptionalWriteable(IntervalFilter::new);
-            if (in.getVersion().onOrAfter(Version.V_7_1_0)) {
+            if (in.getVersion().onOrAfter(Version.V_7_2_0)) {
                 this.useField = in.readOptionalString();
             }
             else {
@@ -186,7 +186,7 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
             out.writeBoolean(ordered);
             out.writeOptionalString(analyzer);
             out.writeOptionalWriteable(filter);
-            if (out.getVersion().onOrAfter(Version.V_7_1_0)) {
+            if (out.getVersion().onOrAfter(Version.V_7_2_0)) {
                 out.writeOptionalString(useField);
             }
         }

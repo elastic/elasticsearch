@@ -31,6 +31,8 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.settings.SettingsModule;
+import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -56,6 +58,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.MlMetaIndex;
 import org.elasticsearch.xpack.core.ml.action.CloseJobAction;
@@ -188,6 +191,7 @@ import org.elasticsearch.xpack.ml.notifications.Auditor;
 import org.elasticsearch.xpack.ml.process.MlMemoryTracker;
 import org.elasticsearch.xpack.ml.process.NativeController;
 import org.elasticsearch.xpack.ml.process.NativeControllerHolder;
+import org.elasticsearch.xpack.ml.process.NativeStorageProvider;
 import org.elasticsearch.xpack.ml.rest.RestDeleteExpiredDataAction;
 import org.elasticsearch.xpack.ml.rest.RestFindFileStructureAction;
 import org.elasticsearch.xpack.ml.rest.RestMlInfoAction;
@@ -249,6 +253,7 @@ import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 
 import static java.util.Collections.emptyList;
+import static java.util.Collections.singletonList;
 import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
 
 public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlugin, PersistentTaskPlugin {
@@ -293,12 +298,15 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
     public static final Setting<Integer> MAX_OPEN_JOBS_PER_NODE =
             Setting.intSetting("xpack.ml.max_open_jobs", 20, 1, MAX_MAX_OPEN_JOBS_PER_NODE, Property.Dynamic, Property.NodeScope);
 
-    private static final Logger logger = LogManager.getLogger(XPackPlugin.class);
+    // Undocumented setting for integration test purposes
+    public static final Setting<ByteSizeValue> MIN_DISK_SPACE_OFF_HEAP =
+        Setting.byteSizeSetting("xpack.ml.min_disk_space_off_heap", new ByteSizeValue(5, ByteSizeUnit.GB), Setting.Property.NodeScope);
+
+    private static final Logger logger = LogManager.getLogger(MachineLearning.class);
 
     private final Settings settings;
     private final Environment env;
     private final boolean enabled;
-    private final boolean transportClientMode;
 
     private final SetOnce<AutodetectProcessManager> autodetectProcessManager = new SetOnce<>();
     private final SetOnce<DatafeedManager> datafeedManager = new SetOnce<>();
@@ -307,8 +315,7 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
     public MachineLearning(Settings settings, Path configPath) {
         this.settings = settings;
         this.enabled = XPackSettings.MACHINE_LEARNING_ENABLED.get(settings);
-        this.transportClientMode = XPackPlugin.transportClientMode(settings);
-        this.env = transportClientMode ? null : new Environment(settings, configPath);
+        this.env = new Environment(settings, configPath);
     }
 
     protected XPackLicenseState getLicenseState() { return XPackPlugin.getSharedLicenseState(); }
@@ -323,18 +330,18 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
     }
 
     public List<Setting<?>> getSettings() {
-        return Collections.unmodifiableList(
-                Arrays.asList(MachineLearningField.AUTODETECT_PROCESS,
-                        ML_ENABLED,
-                        CONCURRENT_JOB_ALLOCATIONS,
-                        MachineLearningField.MAX_MODEL_MEMORY_LIMIT,
-                        MAX_LAZY_ML_NODES,
-                        MAX_MACHINE_MEMORY_PERCENT,
-                        AutodetectBuilder.DONT_PERSIST_MODEL_STATE_SETTING,
-                        AutodetectBuilder.MAX_ANOMALY_RECORDS_SETTING_DYNAMIC,
-                        MAX_OPEN_JOBS_PER_NODE,
-                        AutodetectProcessManager.MIN_DISK_SPACE_OFF_HEAP,
-                        MlConfigMigrationEligibilityCheck.ENABLE_CONFIG_MIGRATION));
+        return List.of(
+                MachineLearningField.AUTODETECT_PROCESS,
+                ML_ENABLED,
+                CONCURRENT_JOB_ALLOCATIONS,
+                MachineLearningField.MAX_MODEL_MEMORY_LIMIT,
+                MAX_LAZY_ML_NODES,
+                MAX_MACHINE_MEMORY_PERCENT,
+                AutodetectBuilder.DONT_PERSIST_MODEL_STATE_SETTING,
+                AutodetectBuilder.MAX_ANOMALY_RECORDS_SETTING_DYNAMIC,
+                MAX_OPEN_JOBS_PER_NODE,
+                MIN_DISK_SPACE_OFF_HEAP,
+                MlConfigMigrationEligibilityCheck.ENABLE_CONFIG_MIGRATION);
     }
 
     public Settings additionalSettings() {
@@ -342,7 +349,7 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
         String maxOpenJobsPerNodeNodeAttrName = "node.attr." + MAX_OPEN_JOBS_NODE_ATTR;
         String machineMemoryAttrName = "node.attr." + MACHINE_MEMORY_NODE_ATTR;
 
-        if (enabled == false || transportClientMode) {
+        if (enabled == false) {
             disallowMlNodeAttributes(mlEnabledNodeAttrName, maxOpenJobsPerNodeNodeAttrName, machineMemoryAttrName);
             return Settings.EMPTY;
         }
@@ -398,7 +405,7 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
                                                ResourceWatcherService resourceWatcherService, ScriptService scriptService,
                                                NamedXContentRegistry xContentRegistry, Environment environment,
                                                NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry) {
-        if (enabled == false || transportClientMode) {
+        if (enabled == false) {
             // special holder for @link(MachineLearningFeatureSetUsage) which needs access to job manager, empty if ML is disabled
             return Collections.singletonList(new JobManagerHolder());
         }
@@ -424,11 +431,13 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
         JobDataCountsPersister jobDataCountsPersister = new JobDataCountsPersister(client);
         JobResultsPersister jobResultsPersister = new JobResultsPersister(client);
 
+        NativeStorageProvider nativeStorageProvider = new NativeStorageProvider(environment, MIN_DISK_SPACE_OFF_HEAP.get(settings));
+
         AutodetectProcessFactory autodetectProcessFactory;
         NormalizerProcessFactory normalizerProcessFactory;
         if (MachineLearningField.AUTODETECT_PROCESS.get(settings) && MachineLearningFeatureSet.isRunningOnMlPlatform(true)) {
             try {
-                NativeController nativeController = NativeControllerHolder.getNativeController(environment);
+                NativeController nativeController = NativeControllerHolder.getNativeController(clusterService.getNodeName(), environment);
                 if (nativeController == null) {
                     // This will only only happen when path.home is not set, which is disallowed in production
                     throw new ElasticsearchException("Failed to create native process controller for Machine Learning");
@@ -454,8 +463,8 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
         NormalizerFactory normalizerFactory = new NormalizerFactory(normalizerProcessFactory,
                 threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME));
         AutodetectProcessManager autodetectProcessManager = new AutodetectProcessManager(env, settings, client, threadPool,
-                jobManager, jobResultsProvider, jobResultsPersister, jobDataCountsPersister, autodetectProcessFactory,
-                normalizerFactory, xContentRegistry, auditor, clusterService);
+                xContentRegistry, auditor, clusterService, jobManager, jobResultsProvider, jobResultsPersister, jobDataCountsPersister,
+                autodetectProcessFactory, normalizerFactory, nativeStorageProvider);
         this.autodetectProcessManager.set(autodetectProcessManager);
         DatafeedJobBuilder datafeedJobBuilder = new DatafeedJobBuilder(client, settings, xContentRegistry,
                 auditor, System::currentTimeMillis);
@@ -472,8 +481,8 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
                 new InvalidLicenseEnforcer(getLicenseState(), threadPool, datafeedManager, autodetectProcessManager);
         enforcer.listenForLicenseStateChanges();
 
-        // run node startup tasks
-        autodetectProcessManager.onNodeStartup();
+        // Perform node startup operations
+        nativeStorageProvider.cleanupLocalTmpStorageInCaseOfUncleanShutdown();
 
         return Arrays.asList(
                 mlLifeCycleService,
@@ -488,7 +497,8 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
                 datafeedManager,
                 auditor,
                 new MlAssignmentNotifier(settings, auditor, threadPool, client, clusterService),
-                memoryTracker
+                memoryTracker,
+                nativeStorageProvider
         );
     }
 
@@ -496,7 +506,7 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
                                                                        ThreadPool threadPool,
                                                                        Client client,
                                                                        SettingsModule settingsModule) {
-        if (enabled == false || transportClientMode) {
+        if (enabled == false) {
             return emptyList();
         }
 
@@ -509,15 +519,9 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
 
     public Collection<Module> createGuiceModules() {
         List<Module> modules = new ArrayList<>();
-
-        if (transportClientMode) {
-            return modules;
-        }
-
         modules.add(b -> {
             XPackPlugin.bindFeatureSet(b, MachineLearningFeatureSet.class);
         });
-
         return modules;
     }
 
@@ -581,8 +585,10 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
 
     @Override
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
+        var usageAction =
+            new ActionHandler<>(XPackUsageFeatureAction.MACHINE_LEARNING, MachineLearningFeatureSet.UsageTransportAction.class);
         if (false == enabled) {
-            return emptyList();
+            return singletonList(usageAction);
         }
         return Arrays.asList(
                 new ActionHandler<>(GetJobsAction.INSTANCE, TransportGetJobsAction.class),
@@ -634,13 +640,13 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
                 new ActionHandler<>(PostCalendarEventsAction.INSTANCE, TransportPostCalendarEventsAction.class),
                 new ActionHandler<>(PersistJobAction.INSTANCE, TransportPersistJobAction.class),
                 new ActionHandler<>(FindFileStructureAction.INSTANCE, TransportFindFileStructureAction.class),
-                new ActionHandler<>(SetUpgradeModeAction.INSTANCE, TransportSetUpgradeModeAction.class)
-        );
+                new ActionHandler<>(SetUpgradeModeAction.INSTANCE, TransportSetUpgradeModeAction.class),
+                usageAction);
     }
 
     @Override
     public List<ExecutorBuilder<?>> getExecutorBuilders(Settings settings) {
-        if (false == enabled || transportClientMode) {
+        if (false == enabled) {
             return emptyList();
         }
 

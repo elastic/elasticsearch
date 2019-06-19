@@ -37,8 +37,9 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.store.MockFSDirectoryService;
+import org.elasticsearch.test.store.MockFSDirectoryFactory;
 import org.elasticsearch.test.store.MockFSIndexStore;
+
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
@@ -107,16 +108,16 @@ public class SearchWithRandomIOExceptionsIT extends ESIntegTestCase {
             client().admin().indices().prepareFlush("test").execute().get();
             client().admin().indices().prepareClose("test").execute().get();
             client().admin().indices().prepareUpdateSettings("test").setSettings(Settings.builder()
-                .put(MockFSDirectoryService.RANDOM_IO_EXCEPTION_RATE_SETTING.getKey(), exceptionRate)
-                .put(MockFSDirectoryService.RANDOM_IO_EXCEPTION_RATE_ON_OPEN_SETTING.getKey(), exceptionOnOpenRate));
+                .put(MockFSDirectoryFactory.RANDOM_IO_EXCEPTION_RATE_SETTING.getKey(), exceptionRate)
+                .put(MockFSDirectoryFactory.RANDOM_IO_EXCEPTION_RATE_ON_OPEN_SETTING.getKey(), exceptionOnOpenRate));
             client().admin().indices().prepareOpen("test").execute().get();
         } else {
             Settings.Builder settings = Settings.builder()
                 .put("index.number_of_replicas", randomIntBetween(0, 1))
                 .put(MockFSIndexStore.INDEX_CHECK_INDEX_ON_CLOSE_SETTING.getKey(), false)
-                .put(MockFSDirectoryService.RANDOM_IO_EXCEPTION_RATE_SETTING.getKey(), exceptionRate)
+                .put(MockFSDirectoryFactory.RANDOM_IO_EXCEPTION_RATE_SETTING.getKey(), exceptionRate)
                 // we cannot expect that the index will be valid
-                .put(MockFSDirectoryService.RANDOM_IO_EXCEPTION_RATE_ON_OPEN_SETTING.getKey(), exceptionOnOpenRate);
+                .put(MockFSDirectoryFactory.RANDOM_IO_EXCEPTION_RATE_ON_OPEN_SETTING.getKey(), exceptionOnOpenRate);
             logger.info("creating index: [test] using settings: [{}]", settings.build());
             client().admin().indices().prepareCreate("test")
                 .setSettings(settings)
@@ -169,7 +170,7 @@ public class SearchWithRandomIOExceptionsIT extends ESIntegTestCase {
                 int docToQuery = between(0, numDocs - 1);
                 int expectedResults = added[docToQuery] ? 1 : 0;
                 logger.info("Searching for [test:{}]", English.intToEnglish(docToQuery));
-                SearchResponse searchResponse = client().prepareSearch().setTypes("type")
+                SearchResponse searchResponse = client().prepareSearch()
                     .setQuery(QueryBuilders.matchQuery("test", English.intToEnglish(docToQuery)))
                     .setSize(expectedResults).get();
                 logger.info("Successful shards: [{}]  numShards: [{}]", searchResponse.getSuccessfulShards(), numShards.numPrimaries);
@@ -177,7 +178,7 @@ public class SearchWithRandomIOExceptionsIT extends ESIntegTestCase {
                     assertResultsAndLogOnFailure(expectedResults, searchResponse);
                 }
                 // check match all
-                searchResponse = client().prepareSearch().setTypes("type").setQuery(QueryBuilders.matchAllQuery())
+                searchResponse = client().prepareSearch().setQuery(QueryBuilders.matchAllQuery())
                     .setSize(numCreated + numInitialDocs).addSort("_uid", SortOrder.ASC).get();
                 logger.info("Match all Successful shards: [{}]  numShards: [{}]", searchResponse.getSuccessfulShards(),
                         numShards.numPrimaries);
@@ -198,11 +199,11 @@ public class SearchWithRandomIOExceptionsIT extends ESIntegTestCase {
             // check the index still contains the records that we indexed without errors
             client().admin().indices().prepareClose("test").execute().get();
             client().admin().indices().prepareUpdateSettings("test").setSettings(Settings.builder()
-                .put(MockFSDirectoryService.RANDOM_IO_EXCEPTION_RATE_SETTING.getKey(), 0)
-                .put(MockFSDirectoryService.RANDOM_IO_EXCEPTION_RATE_ON_OPEN_SETTING.getKey(), 0));
+                .put(MockFSDirectoryFactory.RANDOM_IO_EXCEPTION_RATE_SETTING.getKey(), 0)
+                .put(MockFSDirectoryFactory.RANDOM_IO_EXCEPTION_RATE_ON_OPEN_SETTING.getKey(), 0));
             client().admin().indices().prepareOpen("test").execute().get();
             ensureGreen();
-            SearchResponse searchResponse = client().prepareSearch().setTypes("type")
+            SearchResponse searchResponse = client().prepareSearch()
                     .setQuery(QueryBuilders.matchQuery("test", "init")).get();
             assertNoFailures(searchResponse);
             assertHitCount(searchResponse, numInitialDocs);

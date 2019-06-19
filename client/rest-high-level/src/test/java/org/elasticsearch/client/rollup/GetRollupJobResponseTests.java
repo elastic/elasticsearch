@@ -44,7 +44,7 @@ public class GetRollupJobResponseTests extends ESTestCase {
                 this::createTestInstance,
                 this::toXContent,
                 GetRollupJobResponse::fromXContent)
-                .supportsUnknownFields(true)
+                .supportsUnknownFields(false)
                 .randomFieldsExcludeFilter(field ->
                         field.endsWith("status.current_position"))
                 .test();

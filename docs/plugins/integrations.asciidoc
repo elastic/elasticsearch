@@ -72,6 +72,9 @@ releases 2.0 and later do not support rivers.
 * https://github.com/dadoonet/fscrawler[FS Crawler]:
   The File System (FS) crawler allows to index documents (PDF, Open Office...) from your local file system and over SSH. (by David Pilato)
 
+* https://github.com/senacor/elasticsearch-evolution[Elasticsearch Evolution]:
+  A library to migrate elasticsearch mappings.
+
 [float]
 [[deployment]]
 === Deployment
@@ -132,6 +135,27 @@ releases 2.0 and later do not support rivers.
 * https://github.com/twitter/storehaus[Twitter Storehaus]:
   Thin asynchronous Scala client for Storehaus.
 
+* https://zeebe.io[Zeebe]:
+  An Elasticsearch exporter acts as a bridge between Zeebe and Elasticsearch
+
+* https://pulsar.apache.org/docs/en/io-elasticsearch[Apache Pulsar]:
+  The Elasticsearch Sink Connector is used to pull messages from Pulsar topics
+  and persist the messages to a index.
+
+* https://micronaut-projects.github.io/micronaut-elasticsearch/latest/guide/index.html[Micronaut Elasticsearch Integration]:
+  Integration of Micronaut with Elasticsearch
+
+* https://docs.streampipes.org/docs/user-guide-introduction[StreamPipes]:
+  StreamPipes is a framework that enables users to work with data streams allowing to store data in Elasticsearch.
+
+* https://metamodel.apache.org/[Apache MetaModel]:
+  Providing a common interface for discovery, exploration of metadata and querying of different types of data sources.
+
+* https://jooby.org/doc/elasticsearch/[Jooby Framework]:
+  Scalable, fast and modular micro web framework for Java.
+
+* https://micrometer.io[Micrometer]:
+  Vendor-neutral application metrics facade. Think SLF4j, but for metrics.
 
 [float]
 [[hadoop-integrations]]
@@ -143,6 +167,12 @@ releases 2.0 and later do not support rivers.
 * link:/guide/en/elasticsearch/hadoop/current/[es-hadoop]: Elasticsearch real-time
   search and analytics natively integrated with Hadoop. Supports Map/Reduce,
   Cascading, Apache Hive, Apache Pig, Apache Spark and Apache Storm.
+
+[float]
+==== Supported by the community:
+
+* https://github.com/criteo/garmadon[Garmadon]:
+  Garmadon is a solution for Hadoop Cluster realtime introspection.
 
 
 [float]

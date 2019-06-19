@@ -67,7 +67,7 @@ import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 
-@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, numClientNodes = 0, transportClientRatio = 0)
+@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, numClientNodes = 0)
 @TestLogging("_root:DEBUG")
 public class RareClusterStateIT extends ESIntegTestCase {
 
@@ -141,6 +141,10 @@ public class RareClusterStateIT extends ESIntegTestCase {
 
     private <Req extends ActionRequest, Res extends ActionResponse> ActionFuture<Res> executeAndCancelCommittedPublication(
             ActionRequestBuilder<Req, Res> req) throws Exception {
+        // Wait for no publication in progress to not accidentally cancel a publication different from the one triggered by the given
+        // request.
+        assertBusy(
+            () -> assertFalse(((Coordinator) internalCluster().getCurrentMasterNodeInstance(Discovery.class)).publicationInProgress()));
         ActionFuture<Res> future = req.execute();
         assertBusy(
             () -> assertTrue(((Coordinator)internalCluster().getCurrentMasterNodeInstance(Discovery.class)).cancelCommittedPublication()));
@@ -181,7 +185,6 @@ public class RareClusterStateIT extends ESIntegTestCase {
         assertHitCount(client().prepareSearch("test").get(), 0);
     }
 
-    @AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/41030")
     public void testDelayedMappingPropagationOnPrimary() throws Exception {
         // Here we want to test that things go well if there is a first request
         // that adds mappings but before mappings are propagated to all nodes
@@ -274,7 +277,6 @@ public class RareClusterStateIT extends ESIntegTestCase {
         });
     }
 
-    @AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/36813")
     public void testDelayedMappingPropagationOnReplica() throws Exception {
         // This is essentially the same thing as testDelayedMappingPropagationOnPrimary
         // but for replicas

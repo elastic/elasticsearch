@@ -20,8 +20,8 @@ A +{request}+ takes a single argument: a valid data frame transform config.
 --------------------------------------------------
 include-tagged::{doc-tests-file}[{api}-request]
 --------------------------------------------------
-<1> The transform Id may be null for the preview
-<2> The destination may be null for the preview
+<1> The source config from which the data should be gathered
+<2> The pivot config used to transform the data
 <3> The configuration of the {dataframe-job} to preview
 
 include::../execution.asciidoc[]

@@ -35,7 +35,6 @@ import org.elasticsearch.tasks.Task;
 import java.io.Closeable;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
@@ -284,7 +283,7 @@ public final class ThreadContext implements Closeable, Writeable {
         HashMap<String, List<String>> map = new HashMap<>(responseHeaders.size());
 
         for (Map.Entry<String, Set<String>> entry : responseHeaders.entrySet()) {
-            map.put(entry.getKey(), Collections.unmodifiableList(new ArrayList<>(entry.getValue())));
+            map.put(entry.getKey(), List.copyOf(entry.getValue()));
         }
 
         return Collections.unmodifiableMap(map);

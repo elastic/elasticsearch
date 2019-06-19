@@ -24,8 +24,6 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.CheckedBiConsumer;
@@ -56,9 +54,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.net.UnknownHostException;
-import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -111,8 +107,6 @@ public class TransportService extends AbstractLifecycleComponent implements Tran
 
     private final RemoteClusterService remoteClusterService;
 
-    private final boolean validateConnections;
-
     /** if set will call requests sent to this id to shortcut and executed locally */
     volatile DiscoveryNode localNode = null;
     private final Transport.Connection localNodeConnection = new Transport.Connection() {
@@ -157,9 +151,6 @@ public class TransportService extends AbstractLifecycleComponent implements Tran
     public TransportService(Settings settings, Transport transport, ThreadPool threadPool, TransportInterceptor transportInterceptor,
                             Function<BoundTransportAddress, DiscoveryNode> localNodeFactory, @Nullable ClusterSettings clusterSettings,
                             Set<String> taskHeaders, ConnectionManager connectionManager) {
-        // The only time we do not want to validate node connections is when this is a transport client using the simple node sampler
-        this.validateConnections = TransportClient.CLIENT_TYPE.equals(settings.get(Client.CLIENT_TYPE_SETTING_S.getKey())) == false ||
-            TransportClient.CLIENT_TRANSPORT_SNIFF.get(settings);
         this.transport = transport;
         this.threadPool = threadPool;
         this.localNodeFactory = localNodeFactory;
@@ -313,8 +304,8 @@ public class TransportService extends AbstractLifecycleComponent implements Tran
         return transport.boundAddress();
     }
 
-    public List<String> getLocalAddresses() {
-        return transport.getLocalAddresses();
+    public List<String> getDefaultSeedAddresses() {
+        return transport.getDefaultSeedAddresses();
     }
 
     /**
@@ -350,7 +341,7 @@ public class TransportService extends AbstractLifecycleComponent implements Tran
         return (newConnection, actualProfile) -> {
             // We don't validate cluster names to allow for CCS connections.
             final DiscoveryNode remote = handshake(newConnection, actualProfile.getHandshakeTimeout().millis(), cn -> true).discoveryNode;
-            if (validateConnections && node.equals(remote) == false) {
+            if (node.equals(remote) == false) {
                 throw new ConnectTransportException(node, "handshake failed. unexpected remote node " + remote);
             }
         };
@@ -750,24 +741,23 @@ public class TransportService extends AbstractLifecycleComponent implements Tran
         return true;
     }
 
-    public TransportAddress[] addressesFromString(String address, int perAddressLimit) throws UnknownHostException {
-        return transport.addressesFromString(address, perAddressLimit);
+    public TransportAddress[] addressesFromString(String address) throws UnknownHostException {
+        return transport.addressesFromString(address);
     }
 
     /**
      * A set of all valid action prefixes.
      */
-    public static final Set<String> VALID_ACTION_PREFIXES = Collections.unmodifiableSet(new HashSet<>(Arrays.asList(
-        "indices:admin",
-        "indices:monitor",
-        "indices:data/write",
-        "indices:data/read",
-        "indices:internal",
-        "cluster:admin",
-        "cluster:monitor",
-        "cluster:internal",
-        "internal:"
-        )));
+    public static final Set<String> VALID_ACTION_PREFIXES = Set.of(
+            "indices:admin",
+            "indices:monitor",
+            "indices:data/write",
+            "indices:data/read",
+            "indices:internal",
+            "cluster:admin",
+            "cluster:monitor",
+            "cluster:internal",
+            "internal:");
 
     private void validateActionName(String actionName) {
         // TODO we should makes this a hard validation and throw an exception but we need a good way to add backwards layer

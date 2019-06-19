@@ -28,7 +28,7 @@ esplugin {
 }
 
 versions << [
-  'aws': '1.11.505'
+  'aws': '1.11.562'
 ]
 
 dependencies {
@@ -39,6 +39,7 @@ dependencies {
   compile "org.apache.httpcomponents:httpclient:${versions.httpclient}"
   compile "org.apache.httpcomponents:httpcore:${versions.httpcore}"
   compile "commons-logging:commons-logging:${versions.commonslogging}"
+  compile "org.apache.logging.log4j:log4j-1.2-api:${versions.log4j}"
   compile "commons-codec:commons-codec:${versions.commonscodec}"
   compile "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
   compile 'com.fasterxml.jackson.core:jackson-databind:2.8.11.3'
@@ -75,6 +76,7 @@ test {
   // these are tested explicitly in separate test tasks
   exclude '**/*CredentialsTests.class'
   exclude '**/S3BlobStoreRepositoryTests.class'
+  exclude '**/S3RepositoryThirdPartyTests.class'
 }
 
 boolean useFixture = false
@@ -134,6 +136,14 @@ if (!s3EC2Bucket && !s3EC2BasePath && !s3ECSBucket && !s3ECSBasePath) {
   throw new IllegalArgumentException("not all options specified to run EC2/ECS tests are present")
 }
 
+task thirdPartyTest(type: Test) {
+  include '**/S3RepositoryThirdPartyTests.class'
+  systemProperty 'test.s3.account', s3PermanentAccessKey
+  systemProperty 'test.s3.key', s3PermanentSecretKey
+  systemProperty 'test.s3.bucket', s3PermanentBucket
+  systemProperty 'test.s3.base', s3PermanentBasePath
+}
+
 if (useFixture) {
   apply plugin: 'elasticsearch.test.fixtures'
   task writeDockerFile {
@@ -151,6 +161,24 @@ if (useFixture) {
     dependsOn(writeDockerFile)
   }
 
+  def minioAddress = {
+    int minioPort = postProcessFixture.ext."test.fixtures.minio-fixture.tcp.9000"
+    assert minioPort > 0
+    'http://127.0.0.1:' + minioPort
+  }
+
+  File minioAddressFile = new File(project.buildDir, 'generated-resources/s3Fixture.address')
+
+  thirdPartyTest {
+    dependsOn tasks.bundlePlugin, tasks.postProcessFixture
+    outputs.file(minioAddressFile)
+    doFirst {
+      file(minioAddressFile).text = "${ -> minioAddress.call() }"
+    }
+    // TODO: this could be a nonInputProperties.systemProperty so we don't need a file
+    systemProperty 'test.s3.endpoint', minioAddressFile.name
+  }
+
   task integTestMinio(type: RestIntegTestTask) {
     description = "Runs REST tests using the Minio repository."
     dependsOn tasks.bundlePlugin, tasks.postProcessFixture
@@ -164,16 +192,11 @@ if (useFixture) {
     }
   }
   check.dependsOn(integTestMinio)
-  BuildPlugin.requireDocker(tasks.integTestMinio)
 
   testClusters.integTestMinio {
     keystore 's3.client.integration_test_permanent.access_key', s3PermanentAccessKey
     keystore 's3.client.integration_test_permanent.secret_key', s3PermanentSecretKey
-    setting 's3.client.integration_test_permanent.endpoint', {
-      int minioPort = postProcessFixture.ext."test.fixtures.minio-fixture.tcp.9000"
-      assert minioPort > 0
-      return 'http://127.0.0.1:' + minioPort
-    }
+    setting 's3.client.integration_test_permanent.endpoint', minioAddress
     plugin file(tasks.bundlePlugin.archiveFile)
   }
 
@@ -190,6 +213,8 @@ if (useFixture) {
             ].join(",")
   }
 }
+
+check.dependsOn(thirdPartyTest)
 
 File parentFixtures = new File(project.buildDir, "fixtures")
 File s3FixtureFile = new File(parentFixtures, 's3Fixture.properties')

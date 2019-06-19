@@ -5,8 +5,10 @@
  */
 package org.elasticsearch.xpack.core.dataframe.action;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.support.tasks.BaseTasksRequest;
 import org.elasticsearch.action.support.tasks.BaseTasksResponse;
 import org.elasticsearch.common.Nullable;
@@ -18,12 +20,13 @@ import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xpack.core.dataframe.DataFrameField;
-import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.core.dataframe.utils.ExceptionsHelper;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
@@ -155,33 +158,40 @@ public class StopDataFrameTransformAction extends Action<StopDataFrameTransformA
 
     public static class Response extends BaseTasksResponse implements Writeable, ToXContentObject {
 
-        private final boolean stopped;
+        private final boolean acknowledged;
 
         public Response(StreamInput in) throws IOException {
             super(in);
-            stopped = in.readBoolean();
+            acknowledged = in.readBoolean();
         }
 
-        public Response(boolean stopped) {
+        public Response(boolean acknowledged) {
             super(Collections.emptyList(), Collections.emptyList());
-            this.stopped = stopped;
+            this.acknowledged = acknowledged;
         }
 
-        public boolean isStopped() {
-            return stopped;
+        public Response(List<TaskOperationFailure> taskFailures,
+                        List<? extends ElasticsearchException> nodeFailures,
+                        boolean acknowledged) {
+            super(taskFailures, nodeFailures);
+            this.acknowledged = acknowledged;
+        }
+
+        public boolean isAcknowledged() {
+            return acknowledged;
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            out.writeBoolean(stopped);
+            out.writeBoolean(acknowledged);
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             toXContentCommon(builder, params);
-            builder.field("stopped", stopped);
+            builder.field("acknowledged", acknowledged);
             builder.endObject();
             return builder;
         }
@@ -193,12 +203,12 @@ public class StopDataFrameTransformAction extends Action<StopDataFrameTransformA
             if (o == null || getClass() != o.getClass())
                 return false;
             Response response = (Response) o;
-            return stopped == response.stopped;
+            return acknowledged == response.acknowledged;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(stopped);
+            return Objects.hash(acknowledged);
         }
     }
 }

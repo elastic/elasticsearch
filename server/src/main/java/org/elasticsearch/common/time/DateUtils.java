@@ -34,6 +34,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 
+import static java.util.Map.entry;
 import static org.elasticsearch.common.time.DateUtilsRounding.getMonthOfYear;
 import static org.elasticsearch.common.time.DateUtilsRounding.getTotalMillisByYearMonth;
 import static org.elasticsearch.common.time.DateUtilsRounding.getYear;
@@ -67,125 +68,121 @@ public class DateUtils {
     }
 
     // Map of deprecated timezones and their recommended new counterpart
-    public static final Map<String, String> DEPRECATED_LONG_TIMEZONES;
-    static {
-        Map<String, String> tzs = new HashMap<>();
-        tzs.put("Africa/Asmera","Africa/Nairobi");
-        tzs.put("Africa/Timbuktu","Africa/Abidjan");
-        tzs.put("America/Argentina/ComodRivadavia","America/Argentina/Catamarca");
-        tzs.put("America/Atka","America/Adak");
-        tzs.put("America/Buenos_Aires","America/Argentina/Buenos_Aires");
-        tzs.put("America/Catamarca","America/Argentina/Catamarca");
-        tzs.put("America/Coral_Harbour","America/Atikokan");
-        tzs.put("America/Cordoba","America/Argentina/Cordoba");
-        tzs.put("America/Ensenada","America/Tijuana");
-        tzs.put("America/Fort_Wayne","America/Indiana/Indianapolis");
-        tzs.put("America/Indianapolis","America/Indiana/Indianapolis");
-        tzs.put("America/Jujuy","America/Argentina/Jujuy");
-        tzs.put("America/Knox_IN","America/Indiana/Knox");
-        tzs.put("America/Louisville","America/Kentucky/Louisville");
-        tzs.put("America/Mendoza","America/Argentina/Mendoza");
-        tzs.put("America/Montreal","America/Toronto");
-        tzs.put("America/Porto_Acre","America/Rio_Branco");
-        tzs.put("America/Rosario","America/Argentina/Cordoba");
-        tzs.put("America/Santa_Isabel","America/Tijuana");
-        tzs.put("America/Shiprock","America/Denver");
-        tzs.put("America/Virgin","America/Port_of_Spain");
-        tzs.put("Antarctica/South_Pole","Pacific/Auckland");
-        tzs.put("Asia/Ashkhabad","Asia/Ashgabat");
-        tzs.put("Asia/Calcutta","Asia/Kolkata");
-        tzs.put("Asia/Chongqing","Asia/Shanghai");
-        tzs.put("Asia/Chungking","Asia/Shanghai");
-        tzs.put("Asia/Dacca","Asia/Dhaka");
-        tzs.put("Asia/Harbin","Asia/Shanghai");
-        tzs.put("Asia/Kashgar","Asia/Urumqi");
-        tzs.put("Asia/Katmandu","Asia/Kathmandu");
-        tzs.put("Asia/Macao","Asia/Macau");
-        tzs.put("Asia/Rangoon","Asia/Yangon");
-        tzs.put("Asia/Saigon","Asia/Ho_Chi_Minh");
-        tzs.put("Asia/Tel_Aviv","Asia/Jerusalem");
-        tzs.put("Asia/Thimbu","Asia/Thimphu");
-        tzs.put("Asia/Ujung_Pandang","Asia/Makassar");
-        tzs.put("Asia/Ulan_Bator","Asia/Ulaanbaatar");
-        tzs.put("Atlantic/Faeroe","Atlantic/Faroe");
-        tzs.put("Atlantic/Jan_Mayen","Europe/Oslo");
-        tzs.put("Australia/ACT","Australia/Sydney");
-        tzs.put("Australia/Canberra","Australia/Sydney");
-        tzs.put("Australia/LHI","Australia/Lord_Howe");
-        tzs.put("Australia/NSW","Australia/Sydney");
-        tzs.put("Australia/North","Australia/Darwin");
-        tzs.put("Australia/Queensland","Australia/Brisbane");
-        tzs.put("Australia/South","Australia/Adelaide");
-        tzs.put("Australia/Tasmania","Australia/Hobart");
-        tzs.put("Australia/Victoria","Australia/Melbourne");
-        tzs.put("Australia/West","Australia/Perth");
-        tzs.put("Australia/Yancowinna","Australia/Broken_Hill");
-        tzs.put("Brazil/Acre","America/Rio_Branco");
-        tzs.put("Brazil/DeNoronha","America/Noronha");
-        tzs.put("Brazil/East","America/Sao_Paulo");
-        tzs.put("Brazil/West","America/Manaus");
-        tzs.put("Canada/Atlantic","America/Halifax");
-        tzs.put("Canada/Central","America/Winnipeg");
-        tzs.put("Canada/East-Saskatchewan","America/Regina");
-        tzs.put("Canada/Eastern","America/Toronto");
-        tzs.put("Canada/Mountain","America/Edmonton");
-        tzs.put("Canada/Newfoundland","America/St_Johns");
-        tzs.put("Canada/Pacific","America/Vancouver");
-        tzs.put("Canada/Yukon","America/Whitehorse");
-        tzs.put("Chile/Continental","America/Santiago");
-        tzs.put("Chile/EasterIsland","Pacific/Easter");
-        tzs.put("Cuba","America/Havana");
-        tzs.put("Egypt","Africa/Cairo");
-        tzs.put("Eire","Europe/Dublin");
-        tzs.put("Europe/Belfast","Europe/London");
-        tzs.put("Europe/Tiraspol","Europe/Chisinau");
-        tzs.put("GB","Europe/London");
-        tzs.put("GB-Eire","Europe/London");
-        tzs.put("Greenwich","Etc/GMT");
-        tzs.put("Hongkong","Asia/Hong_Kong");
-        tzs.put("Iceland","Atlantic/Reykjavik");
-        tzs.put("Iran","Asia/Tehran");
-        tzs.put("Israel","Asia/Jerusalem");
-        tzs.put("Jamaica","America/Jamaica");
-        tzs.put("Japan","Asia/Tokyo");
-        tzs.put("Kwajalein","Pacific/Kwajalein");
-        tzs.put("Libya","Africa/Tripoli");
-        tzs.put("Mexico/BajaNorte","America/Tijuana");
-        tzs.put("Mexico/BajaSur","America/Mazatlan");
-        tzs.put("Mexico/General","America/Mexico_City");
-        tzs.put("NZ","Pacific/Auckland");
-        tzs.put("NZ-CHAT","Pacific/Chatham");
-        tzs.put("Navajo","America/Denver");
-        tzs.put("PRC","Asia/Shanghai");
-        tzs.put("Pacific/Johnston","Pacific/Honolulu");
-        tzs.put("Pacific/Ponape","Pacific/Pohnpei");
-        tzs.put("Pacific/Samoa","Pacific/Pago_Pago");
-        tzs.put("Pacific/Truk","Pacific/Chuuk");
-        tzs.put("Pacific/Yap","Pacific/Chuuk");
-        tzs.put("Poland","Europe/Warsaw");
-        tzs.put("Portugal","Europe/Lisbon");
-        tzs.put("ROC","Asia/Taipei");
-        tzs.put("ROK","Asia/Seoul");
-        tzs.put("Singapore","Asia/Singapore");
-        tzs.put("Turkey","Europe/Istanbul");
-        tzs.put("UCT","Etc/UCT");
-        tzs.put("US/Alaska","America/Anchorage");
-        tzs.put("US/Aleutian","America/Adak");
-        tzs.put("US/Arizona","America/Phoenix");
-        tzs.put("US/Central","America/Chicago");
-        tzs.put("US/East-Indiana","America/Indiana/Indianapolis");
-        tzs.put("US/Eastern","America/New_York");
-        tzs.put("US/Hawaii","Pacific/Honolulu");
-        tzs.put("US/Indiana-Starke","America/Indiana/Knox");
-        tzs.put("US/Michigan","America/Detroit");
-        tzs.put("US/Mountain","America/Denver");
-        tzs.put("US/Pacific","America/Los_Angeles");
-        tzs.put("US/Samoa","Pacific/Pago_Pago");
-        tzs.put("Universal","Etc/UTC");
-        tzs.put("W-SU","Europe/Moscow");
-        tzs.put("Zulu","Etc/UTC");
-        DEPRECATED_LONG_TIMEZONES = Collections.unmodifiableMap(tzs);
-    }
+    public static final Map<String, String> DEPRECATED_LONG_TIMEZONES = Map.ofEntries(
+            entry("Africa/Asmera", "Africa/Nairobi"),
+            entry("Africa/Timbuktu", "Africa/Abidjan"),
+            entry("America/Argentina/ComodRivadavia", "America/Argentina/Catamarca"),
+            entry("America/Atka", "America/Adak"),
+            entry("America/Buenos_Aires", "America/Argentina/Buenos_Aires"),
+            entry("America/Catamarca", "America/Argentina/Catamarca"),
+            entry("America/Coral_Harbour", "America/Atikokan"),
+            entry("America/Cordoba", "America/Argentina/Cordoba"),
+            entry("America/Ensenada", "America/Tijuana"),
+            entry("America/Fort_Wayne", "America/Indiana/Indianapolis"),
+            entry("America/Indianapolis", "America/Indiana/Indianapolis"),
+            entry("America/Jujuy", "America/Argentina/Jujuy"),
+            entry("America/Knox_IN", "America/Indiana/Knox"),
+            entry("America/Louisville", "America/Kentucky/Louisville"),
+            entry("America/Mendoza", "America/Argentina/Mendoza"),
+            entry("America/Montreal", "America/Toronto"),
+            entry("America/Porto_Acre", "America/Rio_Branco"),
+            entry("America/Rosario", "America/Argentina/Cordoba"),
+            entry("America/Santa_Isabel", "America/Tijuana"),
+            entry("America/Shiprock", "America/Denver"),
+            entry("America/Virgin", "America/Port_of_Spain"),
+            entry("Antarctica/South_Pole", "Pacific/Auckland"),
+            entry("Asia/Ashkhabad", "Asia/Ashgabat"),
+            entry("Asia/Calcutta", "Asia/Kolkata"),
+            entry("Asia/Chongqing", "Asia/Shanghai"),
+            entry("Asia/Chungking", "Asia/Shanghai"),
+            entry("Asia/Dacca", "Asia/Dhaka"),
+            entry("Asia/Harbin", "Asia/Shanghai"),
+            entry("Asia/Kashgar", "Asia/Urumqi"),
+            entry("Asia/Katmandu", "Asia/Kathmandu"),
+            entry("Asia/Macao", "Asia/Macau"),
+            entry("Asia/Rangoon", "Asia/Yangon"),
+            entry("Asia/Saigon", "Asia/Ho_Chi_Minh"),
+            entry("Asia/Tel_Aviv", "Asia/Jerusalem"),
+            entry("Asia/Thimbu", "Asia/Thimphu"),
+            entry("Asia/Ujung_Pandang", "Asia/Makassar"),
+            entry("Asia/Ulan_Bator", "Asia/Ulaanbaatar"),
+            entry("Atlantic/Faeroe", "Atlantic/Faroe"),
+            entry("Atlantic/Jan_Mayen", "Europe/Oslo"),
+            entry("Australia/ACT", "Australia/Sydney"),
+            entry("Australia/Canberra", "Australia/Sydney"),
+            entry("Australia/LHI", "Australia/Lord_Howe"),
+            entry("Australia/NSW", "Australia/Sydney"),
+            entry("Australia/North", "Australia/Darwin"),
+            entry("Australia/Queensland", "Australia/Brisbane"),
+            entry("Australia/South", "Australia/Adelaide"),
+            entry("Australia/Tasmania", "Australia/Hobart"),
+            entry("Australia/Victoria", "Australia/Melbourne"),
+            entry("Australia/West", "Australia/Perth"),
+            entry("Australia/Yancowinna", "Australia/Broken_Hill"),
+            entry("Brazil/Acre", "America/Rio_Branco"),
+            entry("Brazil/DeNoronha", "America/Noronha"),
+            entry("Brazil/East", "America/Sao_Paulo"),
+            entry("Brazil/West", "America/Manaus"),
+            entry("Canada/Atlantic", "America/Halifax"),
+            entry("Canada/Central", "America/Winnipeg"),
+            entry("Canada/East-Saskatchewan", "America/Regina"),
+            entry("Canada/Eastern", "America/Toronto"),
+            entry("Canada/Mountain", "America/Edmonton"),
+            entry("Canada/Newfoundland", "America/St_Johns"),
+            entry("Canada/Pacific", "America/Vancouver"),
+            entry("Canada/Yukon", "America/Whitehorse"),
+            entry("Chile/Continental", "America/Santiago"),
+            entry("Chile/EasterIsland", "Pacific/Easter"),
+            entry("Cuba", "America/Havana"),
+            entry("Egypt", "Africa/Cairo"),
+            entry("Eire", "Europe/Dublin"),
+            entry("Europe/Belfast", "Europe/London"),
+            entry("Europe/Tiraspol", "Europe/Chisinau"),
+            entry("GB", "Europe/London"),
+            entry("GB-Eire", "Europe/London"),
+            entry("Greenwich", "Etc/GMT"),
+            entry("Hongkong", "Asia/Hong_Kong"),
+            entry("Iceland", "Atlantic/Reykjavik"),
+            entry("Iran", "Asia/Tehran"),
+            entry("Israel", "Asia/Jerusalem"),
+            entry("Jamaica", "America/Jamaica"),
+            entry("Japan", "Asia/Tokyo"),
+            entry("Kwajalein", "Pacific/Kwajalein"),
+            entry("Libya", "Africa/Tripoli"),
+            entry("Mexico/BajaNorte", "America/Tijuana"),
+            entry("Mexico/BajaSur", "America/Mazatlan"),
+            entry("Mexico/General", "America/Mexico_City"),
+            entry("NZ", "Pacific/Auckland"),
+            entry("NZ-CHAT", "Pacific/Chatham"),
+            entry("Navajo", "America/Denver"),
+            entry("PRC", "Asia/Shanghai"),
+            entry("Pacific/Johnston", "Pacific/Honolulu"),
+            entry("Pacific/Ponape", "Pacific/Pohnpei"),
+            entry("Pacific/Samoa", "Pacific/Pago_Pago"),
+            entry("Pacific/Truk", "Pacific/Chuuk"),
+            entry("Pacific/Yap", "Pacific/Chuuk"),
+            entry("Poland", "Europe/Warsaw"),
+            entry("Portugal", "Europe/Lisbon"),
+            entry("ROC", "Asia/Taipei"),
+            entry("ROK", "Asia/Seoul"),
+            entry("Singapore", "Asia/Singapore"),
+            entry("Turkey", "Europe/Istanbul"),
+            entry("UCT", "Etc/UCT"),
+            entry("US/Alaska", "America/Anchorage"),
+            entry("US/Aleutian", "America/Adak"),
+            entry("US/Arizona", "America/Phoenix"),
+            entry("US/Central", "America/Chicago"),
+            entry("US/East-Indiana", "America/Indiana/Indianapolis"),
+            entry("US/Eastern", "America/New_York"),
+            entry("US/Hawaii", "Pacific/Honolulu"),
+            entry("US/Indiana-Starke", "America/Indiana/Knox"),
+            entry("US/Michigan", "America/Detroit"),
+            entry("US/Mountain", "America/Denver"),
+            entry("US/Pacific", "America/Los_Angeles"),
+            entry("US/Samoa", "Pacific/Pago_Pago"),
+            entry("Universal", "Etc/UTC"),
+            entry("W-SU", "Europe/Moscow"),
+            entry("Zulu", "Etc/UTC"));
 
     public static ZoneId dateTimeZoneToZoneId(DateTimeZone timeZone) {
         if (timeZone == null) {

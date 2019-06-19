@@ -25,7 +25,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.NodeEnvironment;
-import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.MetaDataUpgrader;
 import org.elasticsearch.transport.TransportService;
 
@@ -46,10 +45,9 @@ public class MockGatewayMetaState extends GatewayMetaState {
 
     public MockGatewayMetaState(Settings settings, NodeEnvironment nodeEnvironment,
                                 NamedXContentRegistry xContentRegistry, DiscoveryNode localNode) throws IOException {
-        super(settings, nodeEnvironment, new MetaStateService(nodeEnvironment, xContentRegistry),
+        super(settings, new MetaStateService(nodeEnvironment, xContentRegistry),
                 mock(MetaDataIndexUpgradeService.class), mock(MetaDataUpgrader.class),
-                mock(TransportService.class), mock(ClusterService.class),
-                mock(IndicesService.class));
+                mock(TransportService.class), mock(ClusterService.class));
         this.localNode = localNode;
     }
 

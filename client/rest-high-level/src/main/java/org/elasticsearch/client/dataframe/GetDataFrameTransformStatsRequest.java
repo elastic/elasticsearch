@@ -21,12 +21,14 @@ package org.elasticsearch.client.dataframe;
 
 import org.elasticsearch.client.Validatable;
 import org.elasticsearch.client.ValidationException;
+import org.elasticsearch.client.core.PageParams;
 
 import java.util.Objects;
 import java.util.Optional;
 
 public class GetDataFrameTransformStatsRequest implements Validatable {
     private final String id;
+    private PageParams pageParams;
 
     public GetDataFrameTransformStatsRequest(String id) {
         this.id = id;
@@ -34,6 +36,14 @@ public class GetDataFrameTransformStatsRequest implements Validatable {
 
     public String getId() {
         return id;
+    }
+
+    public PageParams getPageParams() {
+        return pageParams;
+    }
+
+    public void setPageParams(PageParams pageParams) {
+        this.pageParams = pageParams;
     }
 
     @Override
@@ -49,7 +59,7 @@ public class GetDataFrameTransformStatsRequest implements Validatable {
 
     @Override
     public int hashCode() {
-        return Objects.hash(id);
+        return Objects.hash(id, pageParams);
     }
 
     @Override
@@ -62,6 +72,6 @@ public class GetDataFrameTransformStatsRequest implements Validatable {
             return false;
         }
         GetDataFrameTransformStatsRequest other = (GetDataFrameTransformStatsRequest) obj;
-        return Objects.equals(id, other.id);
+        return Objects.equals(id, other.id) && Objects.equals(pageParams, other.pageParams);
     }
 }

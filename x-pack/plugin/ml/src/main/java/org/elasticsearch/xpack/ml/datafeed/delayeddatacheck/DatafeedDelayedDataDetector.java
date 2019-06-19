@@ -12,6 +12,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.core.action.util.PageParams;
@@ -110,7 +111,8 @@ public class DatafeedDelayedDataDetector implements DelayedDataDetector {
     private Map<Long, Long> checkCurrentBucketEventCount(long start, long end) {
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder()
             .size(0)
-            .aggregation(new DateHistogramAggregationBuilder(DATE_BUCKETS).interval(bucketSpan).field(timeField))
+            .aggregation(new DateHistogramAggregationBuilder(DATE_BUCKETS)
+                .fixedInterval(new DateHistogramInterval(bucketSpan + "ms")).field(timeField))
             .query(ExtractorUtils.wrapInTimeRangeQuery(datafeedQuery, timeField, start, end));
 
         SearchRequest searchRequest = new SearchRequest(datafeedIndices).source(searchSourceBuilder);

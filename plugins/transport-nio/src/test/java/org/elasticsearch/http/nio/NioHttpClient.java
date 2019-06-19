@@ -116,6 +116,20 @@ class NioHttpClient implements Closeable {
         return responses.iterator().next();
     }
 
+    public final NioSocketChannel connect(InetSocketAddress remoteAddress) {
+        ChannelFactory<NioServerSocketChannel, NioSocketChannel> factory = new ClientChannelFactory(new CountDownLatch(0), new
+            ArrayList<>());
+        try {
+            NioSocketChannel nioSocketChannel = nioGroup.openChannel(remoteAddress, factory);
+            PlainActionFuture<Void> connectFuture = PlainActionFuture.newFuture();
+            nioSocketChannel.addConnectListener(ActionListener.toBiConsumer(connectFuture));
+            connectFuture.actionGet();
+            return nioSocketChannel;
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
     private void onException(Exception e) {
         logger.error("Exception from http client", e);
     }
@@ -211,6 +225,9 @@ class NioHttpClient implements Closeable {
             adaptor = new NettyAdaptor(handlers.toArray(new ChannelHandler[0]));
             adaptor.addCloseListener((v, e) -> channel.close());
         }
+
+        @Override
+        public void channelRegistered() {}
 
         @Override
         public WriteOperation createWriteOperation(SocketChannelContext context, Object message, BiConsumer<Void, Exception> listener) {

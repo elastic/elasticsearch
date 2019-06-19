@@ -105,9 +105,9 @@ API key information.
 <2> optional expiration in milliseconds for this API key
 <3> generated API key
 
-The API key returned by this API can then be used by sending a request with a
-`Authorization` header with a value having the prefix `ApiKey ` followed
-by the _credentials_, where _credentials_ is the base64 encoding of `id` and `api_key` joined by a colon.
+The API key returned by this API can then be used by sending a request with an
+`Authorization` header with a value having the prefix `ApiKey` followed
+by the _credentials_, where _credentials_ are the base64 encoding of `id` and `api_key` joined by a colon.
 
 [source,shell]
 --------------------------------------------------

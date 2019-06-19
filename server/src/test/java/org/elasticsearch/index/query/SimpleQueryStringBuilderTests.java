@@ -39,7 +39,6 @@ import org.apache.lucene.search.spans.SpanOrQuery;
 import org.apache.lucene.search.spans.SpanQuery;
 import org.apache.lucene.search.spans.SpanTermQuery;
 import org.apache.lucene.util.TestUtil;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.search.SimpleQueryStringQueryParser;
@@ -58,6 +57,7 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.hamcrest.CoreMatchers.containsString;
+import static org.hamcrest.CoreMatchers.hasItems;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
@@ -69,7 +69,9 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
 
     @Override
     protected SimpleQueryStringBuilder doCreateTestQueryBuilder() {
-        String queryText = randomAlphaOfLengthBetween(1, 10);
+        // we avoid strings with "now" since those can have different caching policies that are checked elsewhere
+        String queryText = randomValueOtherThanMany(s -> s.toLowerCase(Locale.ROOT).contains("now"),
+                () -> randomAlphaOfLengthBetween(1, 10));
         SimpleQueryStringBuilder result = new SimpleQueryStringBuilder(queryText);
         if (randomBoolean()) {
             result.analyzeWildcard(randomBoolean());
@@ -100,17 +102,12 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
         int fieldCount = randomIntBetween(0, 2);
         Map<String, Float> fields = new HashMap<>();
         for (int i = 0; i < fieldCount; i++) {
-            if (randomBoolean()) {
+            if (i == 0) {
                 String fieldName = randomFrom(STRING_FIELD_NAME, STRING_ALIAS_FIELD_NAME);
                 fields.put(fieldName, AbstractQueryBuilder.DEFAULT_BOOST);
             } else {
                 fields.put(STRING_FIELD_NAME_2, 2.0f / randomIntBetween(1, 20));
             }
-        }
-        // special handling if query start with "now" and no field specified. This hits the "mapped_date" field which leads to the query not
-        // being cacheable and trigger later test failures (see https://github.com/elastic/elasticsearch/issues/35183)
-        if (fieldCount == 0 && queryText.length() >= 3 && queryText.substring(0,3).equalsIgnoreCase("now")) {
-            fields.put(STRING_FIELD_NAME_2, 2.0f / randomIntBetween(1, 20));
         }
 
         result.fields(fields);
@@ -241,9 +238,6 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
     }
 
     public void testDefaultFieldParsing() throws IOException {
-        assumeTrue("5.x behaves differently, so skip on non-6.x indices",
-                indexSettings().getIndexVersionCreated().onOrAfter(Version.V_6_0_0_alpha1));
-
         String query = randomAlphaOfLengthBetween(1, 10).toLowerCase(Locale.ROOT);
         String contentString = "{\n" +
                 "    \"simple_query_string\" : {\n" +
@@ -582,24 +576,56 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
 
     public void testDefaultField() throws Exception {
         QueryShardContext context = createShardContext();
-        context.getIndexSettings().updateIndexMetaData(
-            newIndexMeta("index", context.getIndexSettings().getSettings(), Settings.builder().putList("index.query.default_field",
-                STRING_FIELD_NAME, STRING_FIELD_NAME_2 + "^5").build())
-        );
+        // default value `*` sets leniency to true
         Query query = new SimpleQueryStringBuilder("hello")
             .toQuery(context);
-        Query expected = new DisjunctionMaxQuery(
-            Arrays.asList(
-                new TermQuery(new Term(STRING_FIELD_NAME, "hello")),
-                new BoostQuery(new TermQuery(new Term(STRING_FIELD_NAME_2, "hello")), 5.0f)
-            ), 1.0f
-        );
-        assertEquals(expected, query);
-        // Reset the default value
-        context.getIndexSettings().updateIndexMetaData(
-            newIndexMeta("index",
-                context.getIndexSettings().getSettings(), Settings.builder().putList("index.query.default_field", "*").build())
-        );
+        assertQueryWithAllFieldsWildcard(query);
+
+        try {
+            // `*` is in the list of the default_field => leniency set to true
+            context.getIndexSettings().updateIndexMetaData(
+                newIndexMeta("index", context.getIndexSettings().getSettings(), Settings.builder().putList("index.query.default_field",
+                    STRING_FIELD_NAME, "*", STRING_FIELD_NAME_2).build())
+            );
+            query = new SimpleQueryStringBuilder("hello")
+                .toQuery(context);
+            assertQueryWithAllFieldsWildcard(query);
+
+            context.getIndexSettings().updateIndexMetaData(
+                newIndexMeta("index", context.getIndexSettings().getSettings(), Settings.builder().putList("index.query.default_field",
+                    STRING_FIELD_NAME, STRING_FIELD_NAME_2 + "^5").build())
+            );
+            query = new SimpleQueryStringBuilder("hello")
+                .toQuery(context);
+            Query expected = new DisjunctionMaxQuery(
+                Arrays.asList(
+                    new TermQuery(new Term(STRING_FIELD_NAME, "hello")),
+                    new BoostQuery(new TermQuery(new Term(STRING_FIELD_NAME_2, "hello")), 5.0f)
+                ), 1.0f
+            );
+            assertEquals(expected, query);
+        } finally {
+            // Reset to the default value
+            context.getIndexSettings().updateIndexMetaData(
+                newIndexMeta("index",
+                    context.getIndexSettings().getSettings(), Settings.builder().putList("index.query.default_field", "*").build())
+            );
+        }
+    }
+
+    public void testAllFieldsWildcard() throws Exception {
+        QueryShardContext context = createShardContext();
+        Query query = new SimpleQueryStringBuilder("hello")
+            .field("*")
+            .toQuery(context);
+        assertQueryWithAllFieldsWildcard(query);
+
+        query = new SimpleQueryStringBuilder("hello")
+            .field(STRING_FIELD_NAME)
+            .field("*")
+            .field(STRING_FIELD_NAME_2)
+            .toQuery(context);
+        assertQueryWithAllFieldsWildcard(query);
     }
 
     public void testToFuzzyQuery() throws Exception {
@@ -744,5 +770,54 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
             .put(indexSettings)
             .build();
         return IndexMetaData.builder(name).settings(build).build();
+    }
+
+    private void assertQueryWithAllFieldsWildcard(Query query) {
+        assertEquals(DisjunctionMaxQuery.class, query.getClass());
+        DisjunctionMaxQuery disjunctionMaxQuery = (DisjunctionMaxQuery) query;
+        int noMatchNoDocsQueries = 0;
+        for (Query q : disjunctionMaxQuery.getDisjuncts()) {
+            if (q.getClass() == MatchNoDocsQuery.class) {
+                noMatchNoDocsQueries++;
+            }
+        }
+        assertEquals(9, noMatchNoDocsQueries);
+        assertThat(disjunctionMaxQuery.getDisjuncts(), hasItems(new TermQuery(new Term(STRING_FIELD_NAME, "hello")),
+            new TermQuery(new Term(STRING_FIELD_NAME_2, "hello"))));
+    }
+
+    /**
+     * Query terms that contain "now" can trigger a query to not be cacheable.
+     * This test checks the search context cacheable flag is updated accordingly.
+     */
+    public void testCachingStrategiesWithNow() throws IOException {
+        // if we hit all fields, this should contain a date field and should diable cachability
+        String query = "now " + randomAlphaOfLengthBetween(4, 10);
+        SimpleQueryStringBuilder queryBuilder = new SimpleQueryStringBuilder(query);
+        assertQueryCachability(queryBuilder, false);
+
+        // if we hit a date field with "now", this should diable cachability
+        queryBuilder = new SimpleQueryStringBuilder("now");
+        queryBuilder.field(DATE_FIELD_NAME);
+        assertQueryCachability(queryBuilder, false);
+
+        // everything else is fine on all fields
+        query = randomFrom("NoW", "nOw", "NOW") + " " + randomAlphaOfLengthBetween(4, 10);
+        queryBuilder = new SimpleQueryStringBuilder(query);
+        assertQueryCachability(queryBuilder, true);
+    }
+
+    private void assertQueryCachability(SimpleQueryStringBuilder qb, boolean cachingExpected) throws IOException {
+        QueryShardContext context = createShardContext();
+        assert context.isCacheable();
+        /*
+         * We use a private rewrite context here since we want the most realistic way of asserting that we are cacheable or not. We do it
+         * this way in SearchService where we first rewrite the query with a private context, then reset the context and then build the
+         * actual lucene query
+         */
+        QueryBuilder rewritten = rewriteQuery(qb, new QueryShardContext(context));
+        assertNotNull(rewritten.toQuery(context));
+        assertEquals("query should " + (cachingExpected ? "" : "not") + " be cacheable: " + qb.toString(), cachingExpected,
+                context.isCacheable());
     }
 }

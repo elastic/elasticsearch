@@ -31,11 +31,13 @@ import org.elasticsearch.cluster.metadata.RepositoriesMetaData;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.repositories.RepositoryMissingException;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashSet;
@@ -62,7 +64,12 @@ public class TransportGetRepositoriesAction extends TransportMasterNodeReadActio
 
     @Override
     protected GetRepositoriesResponse newResponse() {
-        return new GetRepositoriesResponse();
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
+    }
+
+    @Override
+    protected GetRepositoriesResponse read(StreamInput in) throws IOException {
+        return new GetRepositoriesResponse(in);
     }
 
     @Override

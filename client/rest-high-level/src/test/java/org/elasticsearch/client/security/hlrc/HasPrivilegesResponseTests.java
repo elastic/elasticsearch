@@ -19,7 +19,6 @@
 
 package org.elasticsearch.client.security.hlrc;
 
-import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.security.HasPrivilegesResponse;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -32,9 +31,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.client.AbstractHlrcStreamableXContentTestCase;
-import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xpack.core.security.authz.permission.ResourcePrivileges;
-import org.hamcrest.Matchers;
 import org.junit.Assert;
 
 import java.io.IOException;
@@ -54,28 +51,6 @@ import static org.hamcrest.Matchers.equalTo;
 public class HasPrivilegesResponseTests extends AbstractHlrcStreamableXContentTestCase<
     org.elasticsearch.xpack.core.security.action.user.HasPrivilegesResponse,
     HasPrivilegesResponse> {
-
-    public void testSerializationV64OrV65() throws IOException {
-        final org.elasticsearch.xpack.core.security.action.user.HasPrivilegesResponse original = randomResponse();
-        final Version version = VersionUtils.randomVersionBetween(LuceneTestCase.random(), Version.V_6_4_0, Version.V_6_5_1);
-        final org.elasticsearch.xpack.core.security.action.user.HasPrivilegesResponse copy = serializeAndDeserialize(original, version);
-
-        Assert.assertThat(copy.isCompleteMatch(), equalTo(original.isCompleteMatch()));
-        Assert.assertThat(copy.getClusterPrivileges().entrySet(), Matchers.emptyIterable());
-        Assert.assertThat(copy.getIndexPrivileges(), equalTo(original.getIndexPrivileges()));
-        Assert.assertThat(copy.getApplicationPrivileges(), equalTo(original.getApplicationPrivileges()));
-    }
-
-    public void testSerializationV63() throws IOException {
-        final org.elasticsearch.xpack.core.security.action.user.HasPrivilegesResponse original = randomResponse();
-        final org.elasticsearch.xpack.core.security.action.user.HasPrivilegesResponse copy =
-            serializeAndDeserialize(original, Version.V_6_3_0);
-
-        Assert.assertThat(copy.isCompleteMatch(), equalTo(original.isCompleteMatch()));
-        Assert.assertThat(copy.getClusterPrivileges().entrySet(), Matchers.emptyIterable());
-        Assert.assertThat(copy.getIndexPrivileges(), equalTo(original.getIndexPrivileges()));
-        Assert.assertThat(copy.getApplicationPrivileges(), equalTo(Collections.emptyMap()));
-    }
 
     public void testToXContent() throws Exception {
         final org.elasticsearch.xpack.core.security.action.user.HasPrivilegesResponse response =

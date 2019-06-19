@@ -288,6 +288,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
 
         public void startPrimary() throws IOException {
             recoverPrimary(primary);
+            computeReplicationTargets();
             HashSet<String> activeIds = new HashSet<>();
             activeIds.addAll(activeIds());
             activeIds.add(primary.routingEntry().allocationId().getId());

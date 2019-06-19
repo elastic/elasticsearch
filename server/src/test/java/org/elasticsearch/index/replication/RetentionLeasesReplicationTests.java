@@ -28,6 +28,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.seqno.RetentionLease;
 import org.elasticsearch.index.seqno.RetentionLeaseSyncAction;
+import org.elasticsearch.index.seqno.RetentionLeaseUtils;
 import org.elasticsearch.index.seqno.RetentionLeases;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
@@ -61,9 +62,10 @@ public class RetentionLeasesReplicationTests extends ESIndexLevelReplicationTest
                 }
             }
             RetentionLeases leasesOnPrimary = group.getPrimary().getRetentionLeases();
-            assertThat(leasesOnPrimary.version(), equalTo((long) iterations));
+            assertThat(leasesOnPrimary.version(), equalTo(iterations + group.getReplicas().size() + 1L));
             assertThat(leasesOnPrimary.primaryTerm(), equalTo(group.getPrimary().getOperationPrimaryTerm()));
-            assertThat(leasesOnPrimary.leases(), containsInAnyOrder(leases.toArray(new RetentionLease[0])));
+            assertThat(RetentionLeaseUtils.toMapExcludingPeerRecoveryRetentionLeases(leasesOnPrimary).values(),
+                containsInAnyOrder(leases.toArray(new RetentionLease[0])));
             latch.await();
             for (IndexShard replica : group.getReplicas()) {
                 assertThat(replica.getRetentionLeases(), equalTo(leasesOnPrimary));
@@ -109,6 +111,9 @@ public class RetentionLeasesReplicationTests extends ESIndexLevelReplicationTest
             }
         }) {
             group.startAll();
+            for (IndexShard replica : group.getReplicas()) {
+                replica.updateRetentionLeasesOnReplica(group.getPrimary().getRetentionLeases());
+            }
             int numLeases = between(1, 100);
             IndexShard newPrimary = randomFrom(group.getReplicas());
             RetentionLeases latestRetentionLeasesOnNewPrimary = RetentionLeases.EMPTY;

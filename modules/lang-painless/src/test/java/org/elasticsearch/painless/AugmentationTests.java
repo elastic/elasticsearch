@@ -20,11 +20,8 @@
 package org.elasticsearch.painless;
 
 import java.util.Arrays;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.regex.Pattern;
 
@@ -239,130 +236,6 @@ public class AugmentationTests extends ScriptTestCase {
                 split.input.split(Pattern.quote(split.token), split.count),
                 (String[])exec("return \""+split.input+"\".splitOnToken(\""+split.token+"\", "+split.count+");")
             );
-        }
-    }
-
-    private static class GetByPathCase {
-        final String collection;
-        final String key;
-        final Object value;
-        final String defaultValue;
-        final boolean isDefaultValue;
-        final IllegalArgumentException illegalError;
-        final NumberFormatException numberError;
-
-        GetByPathCase(String collection, String key, Object value) {
-            this(collection, key, value, null, false, null);
-        }
-
-        GetByPathCase(String collection, String key, Exception error) {
-            this(collection, key, null, null, false, error);
-        }
-
-        GetByPathCase(String collection, String key, Object value, String defaultValue) {
-            this(collection, key, value, defaultValue, true, null);
-        }
-
-        GetByPathCase(String collection, String key, String defaultValue, Exception error) {
-            this(collection, key, null, defaultValue, true, error);
-        }
-
-        private GetByPathCase(String collection, String key, Object value, String defaultValue, boolean isDefaultValue, Exception error) {
-            this.collection = collection;
-            this.key = key;
-            this.value = value;
-            this.defaultValue = defaultValue;
-            this.isDefaultValue = isDefaultValue;
-            if (error == null) {
-                this.numberError = null;
-                this.illegalError = null;
-            } else {
-                if (error instanceof NumberFormatException) {
-                    this.numberError = (NumberFormatException)error;
-                    this.illegalError = null;
-                } else if (error instanceof IllegalArgumentException) {
-                    this.illegalError = (IllegalArgumentException)error;
-                    this.numberError = null;
-                } else {
-                    this.numberError = null;
-                    this.illegalError = null;
-                }
-            }
-        }
-
-        String Script() {
-            String format = "return %s.getByPath('%s'%s)";
-            String defaultValue = (this.isDefaultValue ? ", " + this.defaultValue : "");
-            return String.format(Locale.ROOT, format, this.collection, this.key, defaultValue);
-        }
-    }
-
-    private NumberFormatException numberFormat(String unparsable, String path, int index) {
-        String format = "Could not parse [%s] as a int index into list at path [%s] and index [%d]";
-        return new NumberFormatException(String.format(Locale.ROOT, format, unparsable, path, index));
-    }
-
-    private IllegalArgumentException illegalArg(String path) {
-        String format = "Could not find value at path [%s]";
-        return new IllegalArgumentException(String.format(Locale.ROOT, format, path));
-    }
-
-    public void testGetByPath() {
-        Map<String,String> k001 = new HashMap<>();
-        String k001Key = "k011";
-        k001.put(k001Key, "b");
-
-        List<String> ll2 = new ArrayList<>();
-        ll2.add("ll0");
-        String ll2Index1 = "ll1";
-        ll2.add(ll2Index1);
-
-        List<String> k1List = new ArrayList<>();
-        k1List.add("c");
-        k1List.add("d");
-
-        String mapMapList = "['k0': ['k01': [['k010': 'a'], ['k011': 'b']]], 'k1': ['q']]";
-        String listMapListList = "[['m0':'v0'],['m1':'v1'],['m2':['l0','l1', ['ll0', 'll1']]]]";
-
-        GetByPathCase[] cases = new GetByPathCase[] {
-          // basic
-          new GetByPathCase("['k0':'v0']", "k0", "v0"),
-          new GetByPathCase("['a','b','c','d']", "2", "c"),
-          new GetByPathCase("[['a','b'],['c','d']]", "1.k0", "'c'", numberFormat("k0", "1.k0", 1)),
-          new GetByPathCase("[['a','b'],['c','d']]", "1.k0", numberFormat("k0", "1.k0", 1)),
-          new GetByPathCase(mapMapList, "k0.k01.1.k012", illegalArg("k0.k01.1.k012")),
-
-          // nesting, map first
-          new GetByPathCase("['key0': ['a', 'b'], 'key1': ['c', 'd']]", "key1.0", "c"),
-          new GetByPathCase("['key0': ['a', 'b'], 'key1': ['c', 'd']]", "key1", k1List),
-          new GetByPathCase("['key0': ['a', 'b'], 'key1': ['c', 'd']]", "key2", "x", "'x'"),
-          new GetByPathCase("['k0': ['a','b','c','d'], 'k1': ['q']]", "k0.3", "d"),
-          new GetByPathCase(mapMapList, "k0.k01.1", k001),
-          new GetByPathCase(mapMapList, "k0.k01.1.k011", k001.get(k001Key)),
-          new GetByPathCase(mapMapList, "k0.k01.1.k012", "foo", "'foo'"),
-          new GetByPathCase(mapMapList, "k0.k01.1.k012", illegalArg("k0.k01.1.k012")),
-          new GetByPathCase(mapMapList, "k0.k01.k012", numberFormat("k012", "k0.k01.k012", 2)),
-          new GetByPathCase(mapMapList, "k0.k01.k012", "'q'", numberFormat("k012", "k0.k01.k012", 2)),
-
-          // nesting, list first
-          new GetByPathCase("[['key0': 'value0'], ['key1': 'value1']]", "1.key1", "value1"),
-          new GetByPathCase("[['a','b'],['c','d'],[['e','f'],['g','h']]]", "2.1.1", "h"),
-          new GetByPathCase(listMapListList, "2.m2.2.1", ll2Index1),
-          new GetByPathCase(listMapListList, "2.m2.2", ll2),
-          new GetByPathCase(listMapListList, "2.m2.12", illegalArg("2.m2.12")),
-          new GetByPathCase(listMapListList, "2.m2.a8", numberFormat("a8", "2.m2.a8", 2)),
-          new GetByPathCase(listMapListList, "2.m2.a8", "'r'", numberFormat("a8", "2.m2.a8", 2)),
-        };
-        for (GetByPathCase getCase: cases) {
-            if (getCase.illegalError != null) {
-                IllegalArgumentException illegal = expectScriptThrows(IllegalArgumentException.class, () -> exec(getCase.Script()));
-                assertEquals(getCase.illegalError.getMessage(), illegal.getMessage());
-            } else if (getCase.numberError != null) {
-                NumberFormatException number = expectScriptThrows(NumberFormatException.class, () -> exec(getCase.Script()));
-                assertEquals(getCase.numberError.getMessage(), number.getMessage());
-            } else {
-                assertEquals(getCase.value, exec(getCase.Script()));
-            }
         }
     }
 }

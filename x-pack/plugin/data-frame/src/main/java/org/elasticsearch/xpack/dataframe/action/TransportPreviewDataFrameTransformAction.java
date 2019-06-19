@@ -10,6 +10,7 @@ import org.apache.log4j.LogManager;
 import org.apache.log4j.Logger;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ingest.SimulateDocumentResult;
 import org.elasticsearch.action.ingest.SimulatePipelineAction;
 import org.elasticsearch.action.ingest.SimulatePipelineRequest;
 import org.elasticsearch.action.ingest.SimulatePipelineResponse;
@@ -126,7 +127,7 @@ public class TransportPreviewDataFrameTransformAction extends
         ActionListener<SimulatePipelineResponse> pipelineResponseActionListener = ActionListener.wrap(
             simulatePipelineResponse -> {
                 List<Map<String, Object>> response = new ArrayList<>(simulatePipelineResponse.getResults().size());
-                for(var simulateDocumentResult : simulatePipelineResponse.getResults()) {
+                for(SimulateDocumentResult simulateDocumentResult : simulatePipelineResponse.getResults()) {
                     try(XContentBuilder xContentBuilder = XContentFactory.jsonBuilder()) {
                         XContentBuilder content = simulateDocumentResult.toXContent(xContentBuilder, ToXContent.EMPTY_PARAMS);
                         Map<String, Object> tempMap = XContentHelper.convertToMap(BytesReference.bytes(content),
@@ -173,7 +174,8 @@ public class TransportPreviewDataFrameTransformAction extends
                                         builder.startObject();
                                         builder.field("docs", results);
                                         builder.endObject();
-                                        var pipelineRequest = new SimulatePipelineRequest(BytesReference.bytes(builder), XContentType.JSON);
+                                        SimulatePipelineRequest pipelineRequest =
+                                            new SimulatePipelineRequest(BytesReference.bytes(builder), XContentType.JSON);
                                         pipelineRequest.setId(pipeline);
                                         ClientHelper.executeAsyncWithOrigin(client,
                                             ClientHelper.DATA_FRAME_ORIGIN,

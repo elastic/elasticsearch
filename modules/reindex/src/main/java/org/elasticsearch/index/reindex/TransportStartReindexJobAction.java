@@ -38,8 +38,10 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.Map;
 import java.util.Objects;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 
 public class TransportStartReindexJobAction
     extends TransportMasterNodeAction<StartReindexJobAction.Request, StartReindexJobAction.Response> {
@@ -70,9 +72,13 @@ public class TransportStartReindexJobAction
                                    ActionListener<StartReindexJobAction.Response> listener) {
         String generatedId = UUIDs.randomBase64UUID();
 
+        Map<String, String> filteredHeaders = threadPool.getThreadContext().getHeaders().entrySet().stream()
+            .filter(e -> ReindexPlugin.HEADER_FILTERS.contains(e.getKey()))
+            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+        ReindexJob job = new ReindexJob(request.getReindexRequest(), filteredHeaders);
+
         // TODO: Task name
-        persistentTasksService.sendStartRequest(generatedId, ReindexTask.NAME, new ReindexJob(request.getReindexRequest()),
-            new ActionListener<>() {
+        persistentTasksService.sendStartRequest(generatedId, ReindexTask.NAME, job, new ActionListener<>() {
                 @Override
                 public void onResponse(PersistentTasksCustomMetaData.PersistentTask<ReindexJob> persistentTask) {
                     if (request.getWaitForCompletion()) {

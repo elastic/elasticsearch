@@ -23,7 +23,9 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
 import org.elasticsearch.persistent.PersistentTaskState;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
@@ -32,6 +34,7 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Map;
+import java.util.function.Supplier;
 
 public class ReindexTask extends AllocatedPersistentTask {
 
@@ -73,38 +76,53 @@ public class ReindexTask extends AllocatedPersistentTask {
     }
 
     private void doReindex(ReindexJob reindexJob) {
-        client.execute(ReindexAction.INSTANCE, reindexJob.getReindexRequest(), new ActionListener<>() {
-            @Override
-            public void onResponse(BulkByScrollResponse response) {
-                updatePersistentTaskState(new ReindexJobState(response, null), new ActionListener<>() {
+
+        ThreadContext threadContext = client.threadPool().getThreadContext();
+        // TODO: What is happening here? Putting headers back in place for possible different thread action listener?
+        final Supplier<ThreadContext.StoredContext> supplier = threadContext.newRestorableContext(false);
+        try (ThreadContext.StoredContext ignore = stashWithHeaders(threadContext, reindexJob.getHeaders())) {
+            // TODO: Need to use ParentTaskAssigningClient?
+            client.execute(ReindexAction.INSTANCE, reindexJob.getReindexRequest(), new ContextPreservingActionListener<>(supplier,
+                new ActionListener<>() {
                     @Override
-                    public void onResponse(PersistentTasksCustomMetaData.PersistentTask<?> persistentTask) {
-                        markAsCompleted();
+                    public void onResponse(BulkByScrollResponse response) {
+                        updatePersistentTaskState(new ReindexJobState(response, null), new ActionListener<>() {
+                            @Override
+                            public void onResponse(PersistentTasksCustomMetaData.PersistentTask<?> persistentTask) {
+                                markAsCompleted();
+                            }
+
+                            @Override
+                            public void onFailure(Exception e) {
+                                logger.error("Failed to update task state to success.", e);
+                                markAsCompleted();
+                            }
+                        });
                     }
 
                     @Override
-                    public void onFailure(Exception e) {
-                        logger.error("Failed to update task state to success.", e);
-                        markAsCompleted();
-                    }
-                });
-            }
+                    public void onFailure(Exception ex) {
+                        updatePersistentTaskState(new ReindexJobState(null, new ElasticsearchException(ex)), new ActionListener<>() {
+                            @Override
+                            public void onResponse(PersistentTasksCustomMetaData.PersistentTask<?> persistentTask) {
+                                markAsCompleted();
+                            }
 
-            @Override
-            public void onFailure(Exception ex) {
-                updatePersistentTaskState(new ReindexJobState(null,  new ElasticsearchException(ex)), new ActionListener<>() {
-                    @Override
-                    public void onResponse(PersistentTasksCustomMetaData.PersistentTask<?> persistentTask) {
-                        markAsCompleted();
+                            @Override
+                            public void onFailure(Exception e) {
+                                logger.error("Failed to update task state to failed.", e);
+                                markAsCompleted();
+                            }
+                        });
                     }
+                }));
+        }
+    }
 
-                    @Override
-                    public void onFailure(Exception e) {
-                        logger.error("Failed to update task state to failed.", e);
-                        markAsCompleted();
-                    }
-                });
-            }
-        });
+    // TODO: Copied from ClientHelper in x-pack
+    private static ThreadContext.StoredContext stashWithHeaders(ThreadContext threadContext, Map<String, String> headers) {
+        final ThreadContext.StoredContext storedContext = threadContext.stashContext();
+        threadContext.copyHeaders(headers.entrySet());
+        return storedContext;
     }
 }

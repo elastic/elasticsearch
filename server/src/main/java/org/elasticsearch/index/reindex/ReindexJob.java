@@ -29,30 +29,37 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.persistent.PersistentTaskParams;
 
 import java.io.IOException;
+import java.util.Map;
 
 public class ReindexJob implements PersistentTaskParams {
 
     // TODO: Name
     public static final String NAME = ReindexTask.NAME;
 
+    @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<ReindexJob, Void> PARSER
-        = new ConstructingObjectParser<>(NAME, a -> new ReindexJob((ReindexRequest) a[0]));
+        = new ConstructingObjectParser<>(NAME, a -> new ReindexJob((ReindexRequest) a[0], (Map<String, String>) a[1]));
 
     private static String REINDEX_REQUEST = "reindex_request";
+    private static String HEADERS = "headers";
 
     static {
         PARSER.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> ReindexRequest.fromXContent(p),
             new ParseField(REINDEX_REQUEST));
+        PARSER.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> p.mapStrings(), new ParseField(HEADERS));
     }
 
     private final ReindexRequest reindexRequest;
+    private final Map<String, String> headers;
 
-    public ReindexJob(ReindexRequest reindexRequest) {
+    public ReindexJob(ReindexRequest reindexRequest, Map<String, String> headers) {
         this.reindexRequest = reindexRequest;
+        this.headers = headers;
     }
 
     public ReindexJob(StreamInput in) throws IOException {
         reindexRequest = new ReindexRequest(in);
+        headers = in.readMap(StreamInput::readString, StreamInput::readString);
     }
 
     @Override
@@ -69,18 +76,23 @@ public class ReindexJob implements PersistentTaskParams {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         reindexRequest.writeTo(out);
+        out.writeMap(headers, StreamOutput::writeString, StreamOutput::writeString);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(REINDEX_REQUEST);
-        reindexRequest.toXContent(builder, params);
+        builder.field(REINDEX_REQUEST, reindexRequest);
+        builder.field(HEADERS, headers);
         return builder.endObject();
     }
 
     public ReindexRequest getReindexRequest() {
         return reindexRequest;
+    }
+
+    public Map<String, String> getHeaders() {
+        return headers;
     }
 
     public static ReindexJob fromXContent(XContentParser parser) {

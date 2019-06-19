@@ -41,7 +41,7 @@ public class MultiPointTests extends BaseGeometryTestCase<MultiPoint> {
     }
 
     public void testBasicSerialization() throws IOException, ParseException {
-        WellKnownText wkt = new WellKnownText();
+        WellKnownText wkt = new WellKnownText(true, true);
         assertEquals("multipoint (2.0 1.0)", wkt.toWKT(
             new MultiPoint(Collections.singletonList(new Point(1, 2)))));
         assertEquals(new MultiPoint(Collections.singletonList(new Point(1 ,2))),

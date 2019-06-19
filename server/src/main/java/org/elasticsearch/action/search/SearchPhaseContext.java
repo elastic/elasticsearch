@@ -19,7 +19,6 @@
 package org.elasticsearch.action.search;
 
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.search.SearchShardTarget;
@@ -32,7 +31,7 @@ import java.util.concurrent.Executor;
 /**
  * This class provide contextual state and access to resources across multiple search phases.
  */
-interface SearchPhaseContext extends ActionListener<SearchResponse>, Executor {
+interface SearchPhaseContext extends Executor {
     // TODO maybe we can make this concrete later - for now we just implement this in the base class for all initial phases
 
     /**
@@ -56,11 +55,16 @@ interface SearchPhaseContext extends ActionListener<SearchResponse>, Executor {
     SearchRequest getRequest();
 
     /**
-     * Builds the final search response that should be send back to the user.
+     * Builds and sends the final search response back to the user.
      * @param internalSearchResponse the internal search response
      * @param scrollId an optional scroll ID if this search is a scroll search
      */
-    SearchResponse buildSearchResponse(InternalSearchResponse internalSearchResponse, String scrollId);
+    void sendSearchResponse(InternalSearchResponse internalSearchResponse, String scrollId);
+
+    /**
+     * Notifies the top-level listener of the provided exception
+     */
+    void onFailure(Exception e);
 
     /**
      * This method will communicate a fatal phase failure back to the user. In contrast to a shard failure
@@ -113,5 +117,4 @@ interface SearchPhaseContext extends ActionListener<SearchResponse>, Executor {
      * a response is returned to the user indicating that all shards have failed.
      */
     void executeNextPhase(SearchPhase currentPhase, SearchPhase nextPhase);
-
 }

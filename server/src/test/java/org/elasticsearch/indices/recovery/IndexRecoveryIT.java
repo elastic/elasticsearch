@@ -521,7 +521,7 @@ public class IndexRecoveryIT extends ESIntegTestCase {
             equalTo(createSnapshotResponse.getSnapshotInfo().totalShards()));
 
         assertThat(client().admin().cluster().prepareGetSnapshots(REPO_NAME).setSnapshots(SNAP_NAME).get()
-                .getSnapshots().get(0).state(), equalTo(SnapshotState.SUCCESS));
+                .getSnapshots(REPO_NAME).get(0).state(), equalTo(SnapshotState.SUCCESS));
 
         client().admin().indices().prepareClose(INDEX_NAME).execute().actionGet();
 

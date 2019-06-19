@@ -245,7 +245,7 @@ public class DeprecationLogger {
                 @Override
                 public Void run() {
                     /**
-                     * There should be only one threadContext, @see DeprecationLogger#setThreadContext
+                     * There should be only one threadContext (in prod env), @see DeprecationLogger#setThreadContext
                      */
                     String opaqueId = threadContexts.stream()
                                                      .filter(t -> t.isClosed() == false)

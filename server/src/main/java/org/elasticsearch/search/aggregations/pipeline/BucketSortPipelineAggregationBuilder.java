@@ -174,12 +174,15 @@ public class BucketSortPipelineAggregationBuilder extends AbstractPipelineAggreg
     }
 
     @Override
-    protected int doHashCode() {
-        return Objects.hash(sorts, from, size, gapPolicy);
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), sorts, from, size, gapPolicy);
     }
 
     @Override
-    protected boolean doEquals(Object obj) {
+    public boolean equals(Object obj) {
+        if (this == obj) return true;
+        if (obj == null || getClass() != obj.getClass()) return false;
+        if (super.equals(obj) == false) return false;
         BucketSortPipelineAggregationBuilder other = (BucketSortPipelineAggregationBuilder) obj;
         return Objects.equals(sorts, other.sorts)
                 && Objects.equals(from, other.from)

@@ -137,12 +137,15 @@ public final class CardinalityAggregationBuilder
     }
 
     @Override
-    protected int innerHashCode() {
-        return Objects.hash(precisionThreshold);
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), precisionThreshold);
     }
 
     @Override
-    protected boolean innerEquals(Object obj) {
+    public boolean equals(Object obj) {
+        if (this == obj) return true;
+        if (obj == null || getClass() != obj.getClass()) return false;
+        if (super.equals(obj) == false) return false;
         CardinalityAggregationBuilder other = (CardinalityAggregationBuilder) obj;
         return Objects.equals(precisionThreshold, other.precisionThreshold);
     }

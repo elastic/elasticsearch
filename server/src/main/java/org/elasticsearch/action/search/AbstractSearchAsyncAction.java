@@ -284,8 +284,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         return request;
     }
 
-    @Override
-    public final SearchResponse buildSearchResponse(InternalSearchResponse internalSearchResponse, String scrollId) {
+    protected final SearchResponse buildSearchResponse(InternalSearchResponse internalSearchResponse, String scrollId) {
         ShardSearchFailure[] failures = buildShardFailures();
         Boolean allowPartialResults = request.allowPartialSearchResults();
         assert allowPartialResults != null : "SearchRequest missing setting for allowPartialSearchResults";
@@ -294,6 +293,11 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         }
         return new SearchResponse(internalSearchResponse, scrollId, getNumShards(), successfulOps.get(),
             skippedOps.get(), buildTookInMillis(), failures, clusters);
+    }
+
+    @Override
+    public void sendSearchResponse(InternalSearchResponse internalSearchResponse, String scrollId) {
+        listener.onResponse(buildSearchResponse(internalSearchResponse, scrollId));
     }
 
     @Override
@@ -314,11 +318,6 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     @Override
     public final void execute(Runnable command) {
         executor.execute(command);
-    }
-
-    @Override
-    public final void onResponse(SearchResponse response) {
-        listener.onResponse(response);
     }
 
     @Override

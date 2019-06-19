@@ -97,11 +97,6 @@ public class DataFrameFeatureSet implements XPackFeatureSet {
         return enabled;
     }
 
-    @Override
-    public Map<String, Object> nativeCodeInfo() {
-        return null;
-    }
-
     public static class UsageTransportAction extends XPackUsageFeatureTransportAction {
 
         private final boolean enabled;

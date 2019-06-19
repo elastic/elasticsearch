@@ -22,6 +22,7 @@ package org.elasticsearch.cluster.routing.allocation;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 
@@ -59,7 +60,7 @@ public class DiskThresholdMonitor {
     private final Set<String> nodeHasPassedWatermark = Sets.newConcurrentHashSet();
     private final Supplier<ClusterState> clusterStateSupplier;
     private final LongSupplier currentTimeMillisSupplier;
-    private long lastRunTimeMillis = Long.MIN_VALUE;
+    private final AtomicLong lastRunTimeMillis = new AtomicLong(Long.MIN_VALUE);
     private final AtomicBoolean checkInProgress = new AtomicBoolean();
 
     public DiskThresholdMonitor(Settings settings, Supplier<ClusterState> clusterStateSupplier, ClusterSettings clusterSettings,
@@ -146,7 +147,7 @@ public class DiskThresholdMonitor {
                 }
             } else if (usage.getFreeBytes() < diskThresholdSettings.getFreeBytesThresholdHigh().getBytes() ||
                 usage.getFreeDiskAsPercentage() < diskThresholdSettings.getFreeDiskThresholdHigh()) {
-                if (lastRunTimeMillis < currentTimeMillis - diskThresholdSettings.getRerouteInterval().millis()) {
+                if (lastRunTimeMillis.get() < currentTimeMillis - diskThresholdSettings.getRerouteInterval().millis()) {
                     reroute = true;
                     explanation = "high disk watermark exceeded on one or more nodes";
                 } else {
@@ -164,7 +165,7 @@ public class DiskThresholdMonitor {
                     // low watermark, but is no longer, so we should
                     // reroute so any unassigned shards can be allocated
                     // if they are able to be
-                    if (lastRunTimeMillis < currentTimeMillis - diskThresholdSettings.getRerouteInterval().millis()) {
+                    if (lastRunTimeMillis.get() < currentTimeMillis - diskThresholdSettings.getRerouteInterval().millis()) {
                         reroute = true;
                         explanation = "one or more nodes has gone under the high or low watermark";
                         nodeHasPassedWatermark.remove(node);
@@ -182,7 +183,7 @@ public class DiskThresholdMonitor {
         if (reroute) {
             logger.info("rerouting shards: [{}]", explanation);
             reroute(ActionListener.wrap(r -> {
-                lastRunTimeMillis = currentTimeMillisSupplier.getAsLong();
+                lastRunTimeMillis.getAndUpdate(l -> Math.max(l, currentTimeMillisSupplier.getAsLong()));
                 listener.onResponse(r);
             }, listener::onFailure));
         } else {
@@ -190,7 +191,10 @@ public class DiskThresholdMonitor {
         }
         indicesToMarkReadOnly.removeIf(index -> state.getBlocks().indexBlocked(ClusterBlockLevel.WRITE, index));
         if (indicesToMarkReadOnly.isEmpty() == false) {
-            markIndicesReadOnly(indicesToMarkReadOnly, listener);
+            markIndicesReadOnly(indicesToMarkReadOnly, ActionListener.wrap(r -> {
+                lastRunTimeMillis.getAndUpdate(l -> Math.max(l, currentTimeMillisSupplier.getAsLong()));
+                listener.onResponse(r);
+            }, listener::onFailure));
         } else {
             listener.onResponse(null);
         }

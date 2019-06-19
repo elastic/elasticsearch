@@ -318,6 +318,7 @@ public class DataFrameTransformIT extends ESRestHighLevelClientTestCase {
             .build();
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/43324")
     public void testGetStats() throws Exception {
         String sourceIndex = "transform-source";
         createIndex(sourceIndex);

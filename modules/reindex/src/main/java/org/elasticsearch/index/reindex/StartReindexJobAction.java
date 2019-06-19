@@ -21,6 +21,7 @@ package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.ParseField;
@@ -50,7 +51,7 @@ public class StartReindexJobAction extends Action<StartReindexJobAction.Response
         return new StartReindexJobAction.Response();
     }
 
-    public static class Request extends AcknowledgedRequest<Request> implements ToXContentObject {
+    public static class Request extends AcknowledgedRequest<Request> implements ToXContentObject, CompositeIndicesRequest {
 
         private ReindexRequest reindexRequest;
         private boolean waitForCompletion = false;

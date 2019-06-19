@@ -75,7 +75,7 @@ public class VotingOnlyNodePlugin extends Plugin implements DiscoveryPlugin {
 
         @Override
         public boolean isStateTransferOnly(DiscoveryNode discoveryNode) {
-            return discoveryNode.isMasterNode() && discoveryNode.getRoles().contains(VOTING_ONLY_NODE_ROLE);
+            return isVotingOnlyNode(discoveryNode);
         }
 
         @Override

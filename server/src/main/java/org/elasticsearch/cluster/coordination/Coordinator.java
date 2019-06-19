@@ -55,6 +55,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -1310,17 +1311,16 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                                                 .filter(DiscoveryNode::isMasterNode)
                                                 .filter(node -> nodeMayWinElection(state, node))
                                                 .filter(node -> {
-                                                    // check if candidate would be able to get an election quorum
-                                                    final JoinVoteCollection fakeJoinVoteCollection = new JoinVoteCollection();
-                                                    completedNodes().forEach(completedNode -> {
-                                                        fakeJoinVoteCollection.addJoinVote(new Join(completedNode, node, state.term(),
-                                                            state.term(), state.version()));
-                                                    });
-                                                    return electionStrategy.isElectionQuorum(node,
-                                                        state.term(), state.term(), state.version(),
-                                                        state.getLastCommittedConfiguration(), state.getLastAcceptedConfiguration(),
-                                                        fakeJoinVoteCollection
-                                                        );
+                                                    // check if master candidate would be able to get an election quorum if we were to
+                                                    // abdicate to it. Assume that every node that completed the publication can provide
+                                                    // a vote in that next election and has the latest state.
+                                                    final long futureElectionTerm = state.term() + 1;
+                                                    final JoinVoteCollection futureJoinVoteCollection = new JoinVoteCollection();
+                                                    completedNodes().forEach(completedNode -> futureJoinVoteCollection.addJoinVote(
+                                                        new Join(completedNode, node, futureElectionTerm, state.term(), state.version())));
+                                                    return electionStrategy.isElectionQuorum(node, futureElectionTerm,
+                                                        state.term(), state.version(), state.getLastCommittedConfiguration(),
+                                                        state.getLastAcceptedConfiguration(), futureJoinVoteCollection);
                                                 })
                                                 .collect(Collectors.toList());
                                             if (masterCandidates.isEmpty() == false) {
@@ -1405,6 +1405,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                                           ActionListener<PublishWithJoinResponse> responseActionListener) {
             if (electionStrategy.isStateTransferOnly(getLocalNode())) {
                 if (destination.isMasterNode() && electionStrategy.isStateTransferOnly(destination) == false) {
+                    logger.debug("sendPublishRequest: state transfer to [{}]", destination);
                     publicationContext.sendPublishRequest(destination, publishRequest, wrapWithMutex(
                         ActionListener.map(responseActionListener, resp -> {
                             throw new TransportException(
@@ -1412,8 +1413,20 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                         })));
                 } else {
                     logger.debug("sendPublishRequest: suppressing state transfer to [{}]", destination);
-                    responseActionListener.onFailure(new TransportException(
-                        new ElasticsearchException("suppressing state transfer at source")));
+                    // fork response to different thread to allow sending of other publications
+                    transportService.getThreadPool().generic().execute(new AbstractRunnable() {
+                        @Override
+                        public void onFailure(Exception e) {
+                            wrapWithMutex(responseActionListener).onFailure(e);
+                        }
+
+                        @Override
+                        protected void doRun() {
+                            wrapWithMutex(responseActionListener).onFailure(
+                                new TransportException(
+                                    new ElasticsearchException("suppressing state transfer at source for " + destination)));
+                        }
+                    });
                 }
             } else {
                 publicationContext.sendPublishRequest(destination, publishRequest, wrapWithMutex(responseActionListener));

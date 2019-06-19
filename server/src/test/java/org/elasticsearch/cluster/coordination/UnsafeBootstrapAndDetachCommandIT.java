@@ -404,7 +404,7 @@ public class UnsafeBootstrapAndDetachCommandIT extends ESIntegTestCase {
 
         logger.info("--> verify that the dangling index exists and has green status");
         assertBusy(() -> {
-            assertThat(client().admin().indices().prepareExists("test").execute().actionGet().isExists(), equalTo(true));
+            assertThat(indexExists("test"), equalTo(true));
         });
         ensureGreen("test");
 

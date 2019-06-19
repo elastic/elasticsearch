@@ -541,7 +541,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         assertAcked(prepareCreate("test-idx-none", 1, Settings.builder().put("number_of_shards", 6)
                 .put("index.routing.allocation.include.tag", "nowhere")
                 .put("number_of_replicas", 0)).setWaitForActiveShards(ActiveShardCount.NONE).get());
-        assertTrue(client().admin().indices().prepareExists("test-idx-none").get().isExists());
+        assertTrue(indexExists("test-idx-none"));
 
         logger.info("--> creating repository");
         AcknowledgedResponse putRepositoryResponse = client().admin().cluster().preparePutRepository("test-repo")

@@ -873,4 +873,19 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         }
         return Files.exists(httpPortsFile) && Files.exists(transportPortFile);
     }
+
+    public boolean isHttpSslEnabled() {
+        return Boolean.valueOf(
+            settings.getOrDefault("xpack.security.http.ssl.enabled", () -> "false").get().toString()
+        );
+    }
+
+    public File getHttpCertificateAuthoritiesFile() {
+        if (settings.containsKey("xpack.security.http.ssl.certificate_authorities") == false) {
+            throw new TestClustersException("Can't get certificates authority file, not configured for " + this);
+        }
+        return getConfigDir()
+            .resolve(settings.get("xpack.security.http.ssl.certificate_authorities").get().toString())
+            .toFile();
+    }
 }

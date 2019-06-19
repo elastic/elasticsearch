@@ -609,6 +609,15 @@ public class XPackLicenseState {
     }
 
     /**
+     * Voting only nodes are always available as long as there is a valid license
+     *
+     * @return true if the license is active
+     */
+    public synchronized boolean isVotingOnlyNodeAllowed() {
+        return status.active;
+    }
+
+    /**
      * Logstash is allowed as long as there is an active license of type TRIAL, STANDARD, GOLD or PLATINUM
      * @return {@code true} as long as there is a valid license
      */

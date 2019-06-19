@@ -114,6 +114,10 @@ public class XPackSettings {
     /** Setting for enabling or disabling sql. Defaults to true. */
     public static final Setting<Boolean> SQL_ENABLED = Setting.boolSetting("xpack.sql.enabled", true, Setting.Property.NodeScope);
 
+    /** Setting for enabling or disabling voting-only-node. Defaults to true. */
+    public static final Setting<Boolean> VOTING_ONLY_NODE_ENABLED = Setting.boolSetting("xpack.voting_only_node.enabled", true,
+        Setting.Property.NodeScope);
+
     /*
      * SSL settings. These are the settings that are specifically registered for SSL. Many are private as we do not explicitly use them
      * but instead parse based on a prefix (eg *.ssl.*)

@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.coordination.CoordinationState.VoteCollection;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Setting;
@@ -37,8 +38,11 @@ import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.watcher.ResourceWatcherService;
+import org.elasticsearch.xpack.core.XPackPlugin;
+import org.elasticsearch.xpack.core.XPackSettings;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -51,9 +55,9 @@ public class VotingOnlyNodePlugin extends Plugin implements DiscoveryPlugin, Net
     public static final Setting<Boolean> VOTING_ONLY_NODE_SETTING
         = Setting.boolSetting("node.voting_only", false, Setting.Property.NodeScope);
 
-    private static final String VOTING_ONLY_ELECTION_TYPE = "supports-voting-only";
+    private static final String VOTING_ONLY_ELECTION_TYPE = "supports_voting_only";
 
-    static DiscoveryNodeRole VOTING_ONLY_NODE_ROLE = new DiscoveryNodeRole("voting-only", "v") {
+    static DiscoveryNodeRole VOTING_ONLY_NODE_ROLE = new DiscoveryNodeRole("voting_only", "v") {
         @Override
         protected Setting<Boolean> roleSetting() {
             return VOTING_ONLY_NODE_SETTING;
@@ -86,6 +90,10 @@ public class VotingOnlyNodePlugin extends Plugin implements DiscoveryPlugin, Net
 
     @Override
     public Set<DiscoveryNodeRole> getRoles() {
+        if (VOTING_ONLY_NODE_SETTING.exists(settings) && XPackSettings.VOTING_ONLY_NODE_ENABLED.get(settings) == false) {
+            throw new IllegalStateException(XPackSettings.VOTING_ONLY_NODE_ENABLED.getKey() + " must be set to true to use the " +
+                VOTING_ONLY_NODE_SETTING.getKey() + " setting");
+        }
         if (isVotingOnlyNode && Node.NODE_MASTER_SETTING.get(settings) == false) {
             throw new IllegalStateException("voting-only node must be master-eligible");
         }
@@ -102,7 +110,17 @@ public class VotingOnlyNodePlugin extends Plugin implements DiscoveryPlugin, Net
     }
 
     @Override
+    public Collection<Module> createGuiceModules() {
+        List<Module> modules = new ArrayList<>();
+        modules.add(b -> XPackPlugin.bindFeatureSet(b, VotingOnlyNodeFeatureSet.class));
+        return modules;
+    }
+
+    @Override
     public Map<String, ElectionStrategy> getElectionStrategies() {
+        if (XPackSettings.VOTING_ONLY_NODE_ENABLED.get(settings) == false) {
+            return Collections.emptyMap();
+        }
         return Collections.singletonMap(VOTING_ONLY_ELECTION_TYPE, new VotingOnlyNodeElectionStrategy());
     }
 
@@ -122,6 +140,9 @@ public class VotingOnlyNodePlugin extends Plugin implements DiscoveryPlugin, Net
 
     @Override
     public Settings additionalSettings() {
+        if (XPackSettings.VOTING_ONLY_NODE_ENABLED.get(settings) == false) {
+            return Settings.EMPTY;
+        }
         return Settings.builder().put(DiscoveryModule.ELECTION_TYPE_SETTING.getKey(), VOTING_ONLY_ELECTION_TYPE).build();
     }
 
@@ -189,14 +210,13 @@ public class VotingOnlyNodePlugin extends Plugin implements DiscoveryPlugin, Net
                             return handler.read(in);
                         }
                     });
-                    return;
                 } else {
                     threadPoolSupplier.get().generic().execute(() -> handler.handleException(new TransportException(
                         new ElasticsearchException("voting-only node skipping publication to [" + destinationNode + "]"))));
-                    return;
                 }
+            } else {
+                sender.sendRequest(connection, action, request, options, handler);
             }
-            sender.sendRequest(connection, action, request, options, handler);
         }
     }
 }

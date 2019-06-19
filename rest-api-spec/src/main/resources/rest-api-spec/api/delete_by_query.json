@@ -86,10 +86,6 @@
           "type" : "time",
           "description" : "Explicit timeout for each search request. Defaults to no timeout."
         },
-        "size": {
-          "type" : "number",
-          "description" : "Deprecated, please use `max_docs` instead"
-        },
         "max_docs": {
           "type" : "number",
           "description" : "Maximum number of documents to process (default: all documents)"

@@ -107,11 +107,7 @@ public class RoundTripTests extends ESTestCase {
         request.getSearchRequest().indices("test");
         request.getSearchRequest().source().size(between(1, 1000));
         if (randomBoolean()) {
-            if (randomBoolean()) {
-                request.setMaxDocs(between(1, Integer.MAX_VALUE));
-            } else {
-                request.setSize(between(1, Integer.MAX_VALUE));
-            }
+            request.setMaxDocs(between(1, Integer.MAX_VALUE));
         }
         request.setAbortOnVersionConflict(random().nextBoolean());
         request.setRefresh(rarely());

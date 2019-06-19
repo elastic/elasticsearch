@@ -124,6 +124,10 @@ public final class NoOpEngine extends ReadOnlyEngine {
         }
     }
 
+    /**
+     * This implementation will trim existing translog files using a {@link TranslogDeletionPolicy}
+     * that retains nothing but the last translog generation from safe commit.
+     */
     @Override
     public void trimUnreferencedTranslogFiles() {
         try (ReleasableLock lock = readLock.acquire()) {

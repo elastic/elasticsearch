@@ -101,10 +101,9 @@ public class RestReindexAction extends AbstractBaseReindexRestHandler<ReindexReq
                     // TODO: This is a different task that we returned in the past. In the past we had the
                     //  public API task ID (node id + long). This is the generated UUID for the persistent task.
                     builder.field("task", response.getTaskId());
-                    builder.endObject();
 
                     // TODO: Are there error conditions for the non-wait case?
-                    return new BytesRestResponse(RestStatus.OK, builder);
+                    return new BytesRestResponse(RestStatus.OK, builder.endObject());
                 }
             });
         }

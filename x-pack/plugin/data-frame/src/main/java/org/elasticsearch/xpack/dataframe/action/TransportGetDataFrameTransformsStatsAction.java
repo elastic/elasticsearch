@@ -73,7 +73,7 @@ public class TransportGetDataFrameTransformsStatsAction extends
             .collect(Collectors.toList());
         List<ElasticsearchException> allFailedNodeExceptions = new ArrayList<>(failedNodeExceptions);
         allFailedNodeExceptions.addAll(tasks.stream().flatMap(r -> r.getNodeFailures().stream()).collect(Collectors.toList()));
-        return new Response(responses, taskOperationFailures, allFailedNodeExceptions);
+        return new Response(responses, responses.size(), taskOperationFailures, allFailedNodeExceptions);
     }
 
     @Override
@@ -83,18 +83,23 @@ public class TransportGetDataFrameTransformsStatsAction extends
         String nodeId = state.nodes().getLocalNode().getId();
         if (task.isCancelled() == false) {
             transformsCheckpointService.getCheckpointStats(task.getTransformId(), task.getCheckpoint(), task.getInProgressCheckpoint(),
-                    ActionListener.wrap(checkpointStats -> {
-                        listener.onResponse(new Response(Collections.singletonList(
-                        new DataFrameTransformStateAndStats(task.getTransformId(), task.getState(), task.getStats(), checkpointStats))));
-            }, e -> {
-                    listener.onResponse(new Response(
-                        Collections.singletonList(new DataFrameTransformStateAndStats(task.getTransformId(), task.getState(),
-                                task.getStats(), DataFrameTransformCheckpointingInfo.EMPTY)),
+                ActionListener.wrap(checkpointStats -> listener.onResponse(new Response(
+                        Collections.singletonList(new DataFrameTransformStateAndStats(task.getTransformId(),
+                            task.getState(),
+                            task.getStats(),
+                            checkpointStats)),
+                        1L)),
+                    e -> listener.onResponse(new Response(
+                        Collections.singletonList(new DataFrameTransformStateAndStats(task.getTransformId(),
+                            task.getState(),
+                            task.getStats(),
+                            DataFrameTransformCheckpointingInfo.EMPTY)),
+                        1L,
                         Collections.emptyList(),
-                        Collections.singletonList(new FailedNodeException(nodeId, "Failed to retrieve checkpointing info", e))));
-            }));
+                        Collections.singletonList(new FailedNodeException(nodeId, "Failed to retrieve checkpointing info", e))))
+                ));
         } else {
-            listener.onResponse(new Response(Collections.emptyList()));
+            listener.onResponse(new Response(Collections.emptyList(), 0L));
         }
     }
 
@@ -106,7 +111,10 @@ public class TransportGetDataFrameTransformsStatsAction extends
                 request.setNodes(DataFrameNodes.dataFrameTaskNodes(hitsAndIds.v2(), clusterService.state()));
                 super.doExecute(task, request, ActionListener.wrap(
                     response -> collectStatsForTransformsWithoutTasks(request, response, ActionListener.wrap(
-                        finalResponse -> finalListener.onResponse(finalResponse.setTotalCount(hitsAndIds.v1())),
+                        finalResponse -> finalListener.onResponse(new Response(finalResponse.getTransformsStateAndStats(),
+                            hitsAndIds.v1(),
+                            finalResponse.getTaskFailures(),
+                            finalResponse.getNodeFailures())),
                         finalListener::onFailure
                     )),
                     finalListener::onFailure
@@ -115,7 +123,7 @@ public class TransportGetDataFrameTransformsStatsAction extends
             e -> {
                 // If the index to search, or the individual config is not there, just return empty
                 if (e instanceof ResourceNotFoundException) {
-                    finalListener.onResponse(new Response(Collections.emptyList()));
+                    finalListener.onResponse(new Response(Collections.emptyList(), 0L));
                 } else {
                     finalListener.onFailure(e);
                 }
@@ -168,7 +176,10 @@ public class TransportGetDataFrameTransformsStatsAction extends
                 // it can easily become arbitrarily ordered based on which transforms don't have a task or stats docs
                 allStateAndStats.sort(Comparator.comparing(DataFrameTransformStateAndStats::getId));
 
-                listener.onResponse(new Response(allStateAndStats, response.getTaskFailures(), response.getNodeFailures()));
+                listener.onResponse(new Response(allStateAndStats,
+                    allStateAndStats.size(),
+                    response.getTaskFailures(),
+                    response.getNodeFailures()));
             },
             e -> {
                 if (e instanceof IndexNotFoundException) {

@@ -224,7 +224,7 @@ PUT _watcher/watch/log_event_watch
     "log_hits" : {
       "foreach" : "ctx.payload.hits.hits", <1>
       "logging" : {
-        "text" : "Found id {{_id}} with field {{_source.my_field}}"
+        "text" : "Found id {{ctx.payload._id}} with field {{ctx.payload._source.my_field}}"
       }
     }
   }

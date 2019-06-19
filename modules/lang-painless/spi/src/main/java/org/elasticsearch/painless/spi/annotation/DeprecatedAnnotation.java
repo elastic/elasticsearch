@@ -19,37 +19,19 @@
 
 package org.elasticsearch.painless.spi.annotation;
 
-import java.util.Map;
-
-public class DeprecatedAnnotation {
-
-    private static class DeprecatedAnnotationParser implements WhitelistAnnotationParser {
-
-        private DeprecatedAnnotationParser() {
-
-        }
-
-        @Override
-        public Object parse(Map<String, String> arguments) {
-            String message = arguments.getOrDefault(MESSAGE, "");
-
-            if ((arguments.isEmpty() || arguments.size() == 1 && arguments.containsKey(MESSAGE)) == false) {
-                throw new IllegalArgumentException("unexpected parameters for [@deprecation] annotation, found " + arguments);
-            }
-
-            return new DeprecatedAnnotation(message);
-        }
-    }
-
-    public static final DeprecatedAnnotationParser PARSER = new DeprecatedAnnotationParser();
+public class DeprecatedAnnotation implements PainlessAnnotation {
 
     public static final String NAME = "deprecated";
-    public static final String MESSAGE = "message";
 
     private final String message;
 
     public DeprecatedAnnotation(String message) {
         this.message = message;
+    }
+
+    @Override
+    public String getName() {
+        return NAME;
     }
 
     public String getMessage() {

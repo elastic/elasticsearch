@@ -19,6 +19,8 @@
 
 package org.elasticsearch.painless.spi;
 
+import org.elasticsearch.painless.spi.annotation.PainlessAnnotation;
+
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -62,8 +64,8 @@ public class WhitelistMethod {
      */
     public final List<String> canonicalTypeNameParameters;
 
-    /** The {@link Map} of annotations for this field. */
-    public final Map<String, String> annotations;
+    /** The {@link Map} of annotations for this method. */
+    public final Map<Class<?>, PainlessAnnotation> painlessAnnotations;
 
     /**
      * Standard constructor. All values must be not {@code null} with the exception of
@@ -72,7 +74,7 @@ public class WhitelistMethod {
      */
     public WhitelistMethod(String origin, String augmentedCanonicalClassName, String methodName,
             String returnCanonicalTypeName, List<String> canonicalTypeNameParameters,
-            Map<String, String> annotations) {
+            Map<Class<?>, PainlessAnnotation> painlessAnnotations) {
 
         this.origin = Objects.requireNonNull(origin);
         this.augmentedCanonicalClassName = augmentedCanonicalClassName;
@@ -80,6 +82,6 @@ public class WhitelistMethod {
         this.returnCanonicalTypeName = Objects.requireNonNull(returnCanonicalTypeName);
         this.canonicalTypeNameParameters = Collections.unmodifiableList(Objects.requireNonNull(canonicalTypeNameParameters));
 
-        this.annotations = Collections.unmodifiableMap(Objects.requireNonNull(annotations));
+        this.painlessAnnotations = Collections.unmodifiableMap(Objects.requireNonNull(painlessAnnotations));
     }
 }

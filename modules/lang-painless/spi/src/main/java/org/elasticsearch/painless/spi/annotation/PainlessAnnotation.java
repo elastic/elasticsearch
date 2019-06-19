@@ -19,12 +19,7 @@
 
 package org.elasticsearch.painless.spi.annotation;
 
-public class NoImportAnnotation implements PainlessAnnotation {
+public interface PainlessAnnotation {
 
-    public static final String NAME = "no_import";
-
-    @Override
-    public String getName() {
-        return NAME;
-    }
+    String getName();
 }

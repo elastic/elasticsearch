@@ -19,6 +19,8 @@
 
 package org.elasticsearch.painless.spi;
 
+import org.elasticsearch.painless.spi.annotation.PainlessAnnotation;
+
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -56,14 +58,13 @@ public final class WhitelistClass {
     /** The {@link List} of whitelisted ({@link WhitelistField}s) available to this class. */
     public final List<WhitelistField> whitelistFields;
 
-    /** The {@link Map} of annotations for this field. */
-    public final Map<String, String> annotations;
+    /** The {@link Map} of annotations for this class. */
+    public final Map<Class<?>, PainlessAnnotation> painlessAnnotations;
 
     /** Standard constructor. All values must be not {@code null}. */
     public WhitelistClass(String origin, String javaClassName,
             List<WhitelistConstructor> whitelistConstructors, List<WhitelistMethod> whitelistMethods, List<WhitelistField> whitelistFields,
-            Map<String, String> annotations)
-    {
+            Map<Class<?>, PainlessAnnotation> painlessAnnotations) {
 
         this.origin = Objects.requireNonNull(origin);
         this.javaClassName = Objects.requireNonNull(javaClassName);
@@ -72,6 +73,6 @@ public final class WhitelistClass {
         this.whitelistMethods = Collections.unmodifiableList(Objects.requireNonNull(whitelistMethods));
         this.whitelistFields = Collections.unmodifiableList(Objects.requireNonNull(whitelistFields));
 
-        this.annotations = Collections.unmodifiableMap(Objects.requireNonNull(annotations));
+        this.painlessAnnotations = Collections.unmodifiableMap(Objects.requireNonNull(painlessAnnotations));
     }
 }

@@ -19,6 +19,8 @@
 
 package org.elasticsearch.painless.spi;
 
+import org.elasticsearch.painless.spi.annotation.PainlessAnnotation;
+
 import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
@@ -40,15 +42,16 @@ public class WhitelistField {
     public final String canonicalTypeNameParameter;
 
     /** The {@link Map} of annotations for this field. */
-    public final Map<String, String> annotations;
+    public final Map<Class<?>, PainlessAnnotation> painlessAnnotations;
 
     /** Standard constructor.  All values must be not {@code null}. */
-    public WhitelistField(String origin, String fieldName, String canonicalTypeNameParameter, Map<String, String> annotations) {
+    public WhitelistField(String origin, String fieldName, String canonicalTypeNameParameter,
+            Map<Class<?>, PainlessAnnotation> painlessAnnotations) {
 
         this.origin = Objects.requireNonNull(origin);
         this.fieldName = Objects.requireNonNull(fieldName);
         this.canonicalTypeNameParameter = Objects.requireNonNull(canonicalTypeNameParameter);
 
-        this.annotations = Collections.unmodifiableMap(Objects.requireNonNull(annotations));
+        this.painlessAnnotations = Collections.unmodifiableMap(Objects.requireNonNull(painlessAnnotations));
     }
 }

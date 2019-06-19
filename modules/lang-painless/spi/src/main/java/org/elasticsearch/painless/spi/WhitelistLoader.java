@@ -19,6 +19,7 @@
 
 package org.elasticsearch.painless.spi;
 
+import org.elasticsearch.painless.spi.annotation.PainlessAnnotation;
 import org.elasticsearch.painless.spi.annotation.WhitelistAnnotationParser;
 
 import java.io.InputStreamReader;
@@ -38,6 +39,15 @@ import java.util.Map;
 
 /** Loads and creates a {@link Whitelist} from one to many text files. */
 public final class WhitelistLoader {
+
+    /**
+     * Loads and creates a {@link Whitelist} from one to many text files using only the base annotation parsers.
+     * See {@link #loadFromResourceFiles(Class, Map, String...)} for information on how to structure a whitelist
+     * text file.
+     */
+    public static Whitelist loadFromResourceFiles(Class<?> resource, String... filepaths) {
+        return loadFromResourceFiles(resource, WhitelistAnnotationParser.BASE_ANNOTATION_PARSERS, filepaths);
+    }
 
     /**
      * Loads and creates a {@link Whitelist} from one to many text files. The file paths are passed in as an array of
@@ -94,10 +104,10 @@ public final class WhitelistLoader {
      *     of the field, followed by the Java name of the field (which all be the Painless name
      *     for the field), and a newline. </li>
      *   </ul>
-     *   <li> Attributes may be added starting with an at '@' symbol, followed by a name, optionally
-     *   an opening brace '[' symbol, optionally a piece of text, and optionally closed by a closing brace
-     *   ']' symbol. Multiple attributes may be added after a class (before the opening bracket '{' symbol),
-     *   after a method, or after field. </li>
+     *   <li> Annotations may be added starting with an at, followed by a name, optionally an opening brace,
+     *   a parameter name, an equals, an opening quote, an argument value, a closing quote, (possibly repeated
+     *   for multiple arguments,) and a closing brace. Multiple annotations may be added after a class (before
+     *   the opening bracket), after a method, or after field. </li>
      * </ul>
      *
      * Note there must be a one-to-one correspondence of Painless type names to Java type/class names.
@@ -161,7 +171,7 @@ public final class WhitelistLoader {
                 List<WhitelistConstructor> whitelistConstructors = null;
                 List<WhitelistMethod> whitelistMethods = null;
                 List<WhitelistField> whitelistFields = null;
-                Map<Class<?>, Object> classAnnotations = null;
+                Map<Class<?>, PainlessAnnotation> classAnnotations = null;
 
                 while ((line = reader.readLine()) != null) {
                     number = reader.getLineNumber();
@@ -284,14 +294,14 @@ public final class WhitelistLoader {
                         }
 
                         // Parse the annotations if they exist.
-                        Map<String, String> annotations;
+                        Map<Class<?>, PainlessAnnotation> annotations;
                         int annotationIndex = line.indexOf('@');
 
                         if (annotationIndex == -1) {
                             annotationIndex = line.length();
                             annotations = Collections.emptyMap();
                         } else {
-                            annotations = parseWhitelistAnnotations(line.substring(annotationIndex));
+                            annotations = parseWhitelistAnnotations(parsers, line.substring(annotationIndex));
                         }
 
                         // Parse the static import type and class.
@@ -346,10 +356,10 @@ public final class WhitelistLoader {
                             }
 
                             // Parse the annotations if they exist.
-                            Map<String, String> annotations;
+                            Map<Class<?>, PainlessAnnotation> annotations;
                             int annotationIndex = line.indexOf('@');
                             annotations = annotationIndex == -1 ?
-                                    Collections.emptyMap() : parseWhitelistAnnotations(line.substring(annotationIndex));
+                                    Collections.emptyMap() : parseWhitelistAnnotations(parsers, line.substring(annotationIndex));
 
                             whitelistConstructors.add(new WhitelistConstructor(
                                     origin, Arrays.asList(canonicalTypeNameParameters), annotations));
@@ -394,10 +404,10 @@ public final class WhitelistLoader {
                             }
 
                             // Parse the annotations if they exist.
-                            Map<String, String> annotations;
+                            Map<Class<?>, PainlessAnnotation> annotations;
                             int annotationIndex = line.indexOf('@');
                             annotations = annotationIndex == -1 ?
-                                    Collections.emptyMap() : parseWhitelistAnnotations(line.substring(annotationIndex));
+                                    Collections.emptyMap() : parseWhitelistAnnotations(parsers, line.substring(annotationIndex));
 
                             whitelistMethods.add(new WhitelistMethod(origin, javaAugmentedClassName, methodName,
                                     returnCanonicalTypeName, Arrays.asList(canonicalTypeNameParameters),
@@ -407,14 +417,14 @@ public final class WhitelistLoader {
                         // Expects the following format: ID ID annotations? '\n'
                         } else {
                             // Parse the annotations if they exist.
-                            Map<String, String> annotations;
+                            Map<Class<?>, PainlessAnnotation> annotations;
                             int annotationIndex = line.indexOf('@');
 
                             if (annotationIndex == -1) {
                                 annotationIndex = line.length();
                                 annotations = Collections.emptyMap();
                             } else {
-                                annotations = parseWhitelistAnnotations(line.substring(annotationIndex));
+                                annotations = parseWhitelistAnnotations(parsers, line.substring(annotationIndex));
                             }
 
                             // Parse the field tokens.
@@ -446,57 +456,81 @@ public final class WhitelistLoader {
         return new Whitelist(loader, whitelistClasses, whitelistStatics, whitelistClassBindings, Collections.emptyList());
     }
 
-    private static Map<Class<?>, Object> parseWhitelistAnnotations(Map<String, WhitelistAnnotationParser> parsers, String line) {
-        Map<Class<?>, Object> annotations = new HashMap<>();
+    private static Map<Class<?>, PainlessAnnotation> parseWhitelistAnnotations(
+            Map<String, WhitelistAnnotationParser> parsers, String line) {
 
-        char[] data = line.trim().toCharArray();
-        int index = 0;
-        int mark;
+        Map<Class<?>, PainlessAnnotation> annotations;
 
-        while (index < data.length) {
-            if (data[index] == '@') {
-                mark = ++index;
+        if (line.isBlank()) {
+            annotations = Collections.emptyMap();
+        } else {
+            line = line.trim();
 
-                while (index < data.length) {
-                    String name;
-                    Map<String, String> arguments;
+            if (line.charAt(0) != '@') {
+                throw new IllegalArgumentException("invalid annotation: expected at symbol [" + line + "]");
+            }
 
-                    if (index == ' ' || index == '[') {
-                        if (mark == index) {
-                            throw new IllegalArgumentException("invalid annotation: expected name [" + line + "]");
-                        }
+            if (line.length() < 2) {
+                throw new IllegalArgumentException("invalid annotation: expected name [" + line + "]");
+            }
 
-                        name = line.substring(mark, index);
+            String[] annotationStrings = line.substring(1).split("@");
+            annotations = new HashMap<>(annotationStrings.length);
 
-                        if (index == '[') {
-                            mark = ++index;
-                            arguments = new HashMap<>();
+            for (String annotationString : annotationStrings) {
+                String name;
+                Map<String, String> arguments;
 
-                            while (index < data.length) {
-                                if (index == '=') {
-                                    String parameter = line.substring(mark, index);
-                                }
+                annotationString = annotationString.trim();
+                int index = annotationString.indexOf('[');
 
-                                
-                            }
-                        } else {
-                            arguments = Collections.emptyMap();
-                        }
-
-                        WhitelistAnnotationParser parser = parsers.get(name);
-
-                        if (parser == null) {
-                            throw new IllegalArgumentException(
-                                    "invalid annotation: parser not found for name [" + name + "] [" + line + "]");
-                        }
-
-                        Object annotation = parser.parse(arguments)
+                if (index == -1) {
+                    name = annotationString;
+                    arguments = Collections.emptyMap();
+                } else {
+                    if (annotationString.charAt(annotationString.length() - 1) != ']') {
+                        throw new IllegalArgumentException("invalid annotation: expected closing brace [" + line + "]");
                     }
 
-                    ++index;
+                    name = annotationString.substring(0, index);
+                    arguments = new HashMap<>();
+
+                    String[] argumentsStrings = annotationString.substring(index + 1, annotationString.length() - 1).split(",");
+
+                    for (String argumentString : argumentsStrings) {
+                        String[] argumentKeyValue = argumentString.split("=");
+
+                        if (argumentKeyValue.length != 2) {
+                            throw new IllegalArgumentException("invalid annotation: expected key=\"value\" [" + line + "]");
+                        }
+                        
+                        String argumentKey = argumentKeyValue[0].trim();
+                        
+                        if (argumentKey.isEmpty()) {
+                            throw new IllegalArgumentException("invalid annotation: expected key=\"value\" [" + line + "]");
+                        }
+                        
+                        String argumentValue = argumentKeyValue[1];
+                        
+                        if (argumentValue.length() < 3 || argumentValue.charAt(0) != '"' || 
+                                argumentValue.charAt(argumentValue.length() - 1) != '"') {
+                            throw new IllegalArgumentException("invalid annotation: expected key=\"value\" [" + line + "]");
+                        }
+                        
+                        argumentValue = argumentValue.substring(1, argumentValue.length() - 2);
+
+                        arguments.put(argumentKey, argumentValue);
+                    }
                 }
-            } else if (data[index++] != ' ') {
-                throw new IllegalArgumentException("invalid annotation: expected at symbol [" + line + "]");
+
+                WhitelistAnnotationParser parser = parsers.get(name);
+
+                if (parser == null) {
+                    throw new IllegalArgumentException("invalid annotation: parser not found for [" + name + "] [" + line + "]");
+                }
+
+                PainlessAnnotation painlessAnnotation = parser.parse(arguments);
+                annotations.put(painlessAnnotation.getClass(), painlessAnnotation);
             }
         }
 

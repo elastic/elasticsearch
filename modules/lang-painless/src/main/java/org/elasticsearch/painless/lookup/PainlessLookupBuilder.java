@@ -30,6 +30,7 @@ import org.elasticsearch.painless.spi.WhitelistConstructor;
 import org.elasticsearch.painless.spi.WhitelistField;
 import org.elasticsearch.painless.spi.WhitelistInstanceBinding;
 import org.elasticsearch.painless.spi.WhitelistMethod;
+import org.elasticsearch.painless.spi.annotation.NoImportAnnotation;
 import org.objectweb.asm.ClassWriter;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.commons.GeneratorAdapter;
@@ -120,7 +121,7 @@ public final class PainlessLookupBuilder {
                     origin = whitelistClass.origin;
                     painlessLookupBuilder.addPainlessClass(
                             whitelist.classLoader, whitelistClass.javaClassName,
-                            whitelistClass.annotations.containsKey("no_import") == false);
+                            whitelistClass.painlessAnnotations.containsKey(NoImportAnnotation.class) == false);
                 }
             }
 

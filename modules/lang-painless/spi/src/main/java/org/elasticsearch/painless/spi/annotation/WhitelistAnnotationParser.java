@@ -19,7 +19,11 @@
 
 package org.elasticsearch.painless.spi.annotation;
 
+import java.util.AbstractMap;
+import java.util.Collections;
 import java.util.Map;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * WhitelistAnnotationParser is an interface used to define how to
@@ -27,5 +31,12 @@ import java.util.Map;
  */
 public interface WhitelistAnnotationParser {
 
-    Object parse(Map<String, String> arguments);
+    Map<String, WhitelistAnnotationParser> BASE_ANNOTATION_PARSERS = Collections.unmodifiableMap(
+            Stream.of(
+                    new AbstractMap.SimpleEntry<>(NoImportAnnotation.NAME, NoImportAnnotationParser.INSTANCE),
+                    new AbstractMap.SimpleEntry<>(DeprecatedAnnotation.NAME, DeprecatedAnnotationParser.INSTANCE)
+            ).collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue))
+    );
+
+    PainlessAnnotation parse(Map<String, String> arguments);
 }

@@ -19,12 +19,22 @@
 
 package org.elasticsearch.painless.spi.annotation;
 
-public class NoImportAnnotation implements PainlessAnnotation {
+import java.util.Map;
 
-    public static final String NAME = "no_import";
+public class NoImportAnnotationParser implements WhitelistAnnotationParser {
+
+    public static final NoImportAnnotationParser INSTANCE = new NoImportAnnotationParser();
+
+    private NoImportAnnotationParser() {
+
+    }
 
     @Override
-    public String getName() {
-        return NAME;
+    public PainlessAnnotation parse(Map<String, String> arguments) {
+        if (arguments.isEmpty() == false) {
+            throw new IllegalArgumentException("unexpected parameters for [@no_import] annotation, found " + arguments);
+        }
+
+        return new NoImportAnnotation();
     }
 }

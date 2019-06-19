@@ -127,7 +127,7 @@ setup:
         transform_id: "airline-transform*"
         from: 0
         size: 1
-  - match: { count: 1 }
+  - match: { count: 2 }
   - match: { transforms.0.id: "airline-transform" }
 
   - do:
@@ -135,7 +135,7 @@ setup:
         transform_id: "airline-transform*"
         from: 1
         size: 1
-  - match: { count: 1 }
+  - match: { count: 2 }
   - match: { transforms.0.id: "airline-transform-dos" }
 
 ---

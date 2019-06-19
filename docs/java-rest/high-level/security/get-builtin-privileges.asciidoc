@@ -1,0 +1,27 @@
+--
+:api: get-builtin-privileges
+:request: GetBuiltinPrivilegesRequest
+:response: GetBuiltinPrivilegesResponse
+--
+
+[id="{upid}-{api}"]
+=== Get Builtin Privileges API
+
+include::../execution-no-req.asciidoc[]
+
+[id="{upid}-{api}-response"]
+==== Get Builtin Privileges Response
+
+The returned +{response}+ contains the following properties
+
+`clusterPrivileges`::
+A `Set` of all _cluster_ privileges that are understood by this node.
+
+`indexPrivileges`::
+A `Set` of all _index_ privileges that are understood by this node.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-response]
+--------------------------------------------------
+

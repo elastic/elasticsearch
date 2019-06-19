@@ -109,7 +109,8 @@ Will return, for example:
          "data": 1,
          "coordinating_only": 0,
          "master": 1,
-         "ingest": 1
+         "ingest": 1,
+         "voting_only": 0
       },
       "versions": [
          "{version}"

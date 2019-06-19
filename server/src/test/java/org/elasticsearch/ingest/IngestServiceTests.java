@@ -64,6 +64,7 @@ import java.util.Objects;
 import java.util.concurrent.ExecutorService;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
+import java.util.function.IntConsumer;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
@@ -75,6 +76,7 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyInt;
 import static org.mockito.Matchers.anyString;
 import static org.mockito.Matchers.argThat;
 import static org.mockito.Matchers.eq;
@@ -121,9 +123,9 @@ public class IngestServiceTests extends ESTestCase {
         final IndexRequest indexRequest = new IndexRequest("_index", "_type", "_id").source(emptyMap()).setPipeline("_id");
 
         final SetOnce<Boolean> failure = new SetOnce<>();
-        final BiConsumer<IndexRequest, Exception> failureHandler = (request, e) -> {
+        final BiConsumer<Integer, Exception> failureHandler = (slot, e) -> {
             failure.set(true);
-            assertThat(request, sameInstance(indexRequest));
+            assertThat(slot, equalTo(0));
             assertThat(e, instanceOf(IllegalArgumentException.class));
             assertThat(e.getMessage(), equalTo("pipeline with id [_id] does not exist"));
         };
@@ -521,7 +523,7 @@ public class IngestServiceTests extends ESTestCase {
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
         final SetOnce<Boolean> failure = new SetOnce<>();
         final IndexRequest indexRequest = new IndexRequest("_index", "_type", "_id").source(emptyMap()).setPipeline(id);
-        final BiConsumer<IndexRequest, Exception> failureHandler = (request, e) -> {
+        final BiConsumer<Integer, Exception> failureHandler = (slot, e) -> {
             assertThat(e.getCause(), instanceOf(IllegalArgumentException.class));
             assertThat(e.getCause().getCause(), instanceOf(IllegalStateException.class));
             assertThat(e.getCause().getCause().getMessage(), equalTo("error"));
@@ -556,16 +558,16 @@ public class IngestServiceTests extends ESTestCase {
             new IndexRequest("_index", "_type", "_id").source(Collections.emptyMap()).setPipeline("does_not_exist");
         bulkRequest.add(indexRequest2);
         @SuppressWarnings("unchecked")
-        BiConsumer<IndexRequest, Exception> failureHandler = mock(BiConsumer.class);
+        BiConsumer<Integer, Exception> failureHandler = mock(BiConsumer.class);
         @SuppressWarnings("unchecked")
         Consumer<Exception> completionHandler = mock(Consumer.class);
         ingestService.executeBulkRequest(bulkRequest.numberOfActions(), bulkRequest.requests(), failureHandler,
             completionHandler, indexReq -> {});
         verify(failureHandler, times(1)).accept(
-            argThat(new CustomTypeSafeMatcher<IndexRequest>("failure handler was not called with the expected arguments") {
+            argThat(new CustomTypeSafeMatcher<>("failure handler was not called with the expected arguments") {
                 @Override
-                protected boolean matchesSafely(IndexRequest item) {
-                    return item == indexRequest2;
+                protected boolean matchesSafely(Integer item) {
+                    return item == 1;
                 }
 
             }),
@@ -590,7 +592,7 @@ public class IngestServiceTests extends ESTestCase {
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
         final IndexRequest indexRequest = new IndexRequest("_index", "_type", "_id").source(emptyMap()).setPipeline("_id");
         @SuppressWarnings("unchecked")
-        final BiConsumer<IndexRequest, Exception> failureHandler = mock(BiConsumer.class);
+        final BiConsumer<Integer, Exception> failureHandler = mock(BiConsumer.class);
         @SuppressWarnings("unchecked")
         final Consumer<Exception> completionHandler = mock(Consumer.class);
         ingestService.executeBulkRequest(1, Collections.singletonList(indexRequest), failureHandler, completionHandler, indexReq -> {});
@@ -608,7 +610,7 @@ public class IngestServiceTests extends ESTestCase {
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
         final IndexRequest indexRequest = new IndexRequest("_index", "_type", "_id").source(emptyMap()).setPipeline("_id");
         @SuppressWarnings("unchecked")
-        final BiConsumer<IndexRequest, Exception> failureHandler = mock(BiConsumer.class);
+        final BiConsumer<Integer, Exception> failureHandler = mock(BiConsumer.class);
         @SuppressWarnings("unchecked")
         final Consumer<Exception> completionHandler = mock(Consumer.class);
         ingestService.executeBulkRequest(1, Collections.singletonList(indexRequest), failureHandler, completionHandler, indexReq -> {});
@@ -647,7 +649,7 @@ public class IngestServiceTests extends ESTestCase {
         }).when(processor).execute(any(), any());
         final IndexRequest indexRequest = new IndexRequest("_index", "_type", "_id").source(emptyMap()).setPipeline("_id");
         @SuppressWarnings("unchecked")
-        final BiConsumer<IndexRequest, Exception> failureHandler = mock(BiConsumer.class);
+        final BiConsumer<Integer, Exception> failureHandler = mock(BiConsumer.class);
         @SuppressWarnings("unchecked")
         final Consumer<Exception> completionHandler = mock(Consumer.class);
         ingestService.executeBulkRequest(1, Collections.singletonList(indexRequest), failureHandler, completionHandler, indexReq -> {});
@@ -677,12 +679,12 @@ public class IngestServiceTests extends ESTestCase {
             .when(processor)
             .execute(eqIndexTypeId(indexRequest.version(), indexRequest.versionType(), emptyMap()), any());
         @SuppressWarnings("unchecked")
-        final BiConsumer<IndexRequest, Exception> failureHandler = mock(BiConsumer.class);
+        final BiConsumer<Integer, Exception> failureHandler = mock(BiConsumer.class);
         @SuppressWarnings("unchecked")
         final Consumer<Exception> completionHandler = mock(Consumer.class);
         ingestService.executeBulkRequest(1, Collections.singletonList(indexRequest), failureHandler, completionHandler, indexReq -> {});
         verify(processor).execute(eqIndexTypeId(indexRequest.version(), indexRequest.versionType(), emptyMap()), any());
-        verify(failureHandler, times(1)).accept(eq(indexRequest), any(RuntimeException.class));
+        verify(failureHandler, times(1)).accept(eq(0), any(RuntimeException.class));
         verify(completionHandler, times(1)).accept(null);
     }
 
@@ -718,11 +720,11 @@ public class IngestServiceTests extends ESTestCase {
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
         final IndexRequest indexRequest = new IndexRequest("_index", "_type", "_id").source(emptyMap()).setPipeline("_id");
         @SuppressWarnings("unchecked")
-        final BiConsumer<IndexRequest, Exception> failureHandler = mock(BiConsumer.class);
+        final BiConsumer<Integer, Exception> failureHandler = mock(BiConsumer.class);
         @SuppressWarnings("unchecked")
         final Consumer<Exception> completionHandler = mock(Consumer.class);
         ingestService.executeBulkRequest(1, Collections.singletonList(indexRequest), failureHandler, completionHandler, indexReq -> {});
-        verify(failureHandler, never()).accept(eq(indexRequest), any(ElasticsearchException.class));
+        verify(failureHandler, never()).accept(eq(0), any(ElasticsearchException.class));
         verify(completionHandler, times(1)).accept(null);
     }
 
@@ -755,12 +757,12 @@ public class IngestServiceTests extends ESTestCase {
             .when(processor)
             .execute(eqIndexTypeId(indexRequest.version(), indexRequest.versionType(), emptyMap()), any());
         @SuppressWarnings("unchecked")
-        final BiConsumer<IndexRequest, Exception> failureHandler = mock(BiConsumer.class);
+        final BiConsumer<Integer, Exception> failureHandler = mock(BiConsumer.class);
         @SuppressWarnings("unchecked")
         final Consumer<Exception> completionHandler = mock(Consumer.class);
         ingestService.executeBulkRequest(1, Collections.singletonList(indexRequest), failureHandler, completionHandler, indexReq -> {});
         verify(processor).execute(eqIndexTypeId(indexRequest.version(), indexRequest.versionType(), emptyMap()), any());
-        verify(failureHandler, times(1)).accept(eq(indexRequest), any(RuntimeException.class));
+        verify(failureHandler, times(1)).accept(eq(0), any(RuntimeException.class));
         verify(completionHandler, times(1)).accept(null);
     }
 
@@ -806,12 +808,12 @@ public class IngestServiceTests extends ESTestCase {
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
 
         @SuppressWarnings("unchecked")
-        BiConsumer<IndexRequest, Exception> requestItemErrorHandler = mock(BiConsumer.class);
+        BiConsumer<Integer, Exception> requestItemErrorHandler = mock(BiConsumer.class);
         @SuppressWarnings("unchecked")
         Consumer<Exception> completionHandler = mock(Consumer.class);
-        ingestService.executeBulkRequest(1, bulkRequest.requests(), requestItemErrorHandler, completionHandler, indexReq -> {});
+        ingestService.executeBulkRequest(numRequest, bulkRequest.requests(), requestItemErrorHandler, completionHandler, indexReq -> {});
 
-        verify(requestItemErrorHandler, times(numIndexRequests)).accept(any(IndexRequest.class), argThat(new ArgumentMatcher<Exception>() {
+        verify(requestItemErrorHandler, times(numIndexRequests)).accept(anyInt(), argThat(new ArgumentMatcher<Exception>() {
             @Override
             public boolean matches(final Object o) {
                 return ((Exception)o).getCause().getCause().equals(error);
@@ -840,10 +842,10 @@ public class IngestServiceTests extends ESTestCase {
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
 
         @SuppressWarnings("unchecked")
-        BiConsumer<IndexRequest, Exception> requestItemErrorHandler = mock(BiConsumer.class);
+        BiConsumer<Integer, Exception> requestItemErrorHandler = mock(BiConsumer.class);
         @SuppressWarnings("unchecked")
         Consumer<Exception> completionHandler = mock(Consumer.class);
-        ingestService.executeBulkRequest(1, bulkRequest.requests(), requestItemErrorHandler, completionHandler, indexReq -> {});
+        ingestService.executeBulkRequest(numRequest, bulkRequest.requests(), requestItemErrorHandler, completionHandler, indexReq -> {});
 
         verify(requestItemErrorHandler, never()).accept(any(), any());
         verify(completionHandler, times(1)).accept(null);
@@ -889,7 +891,7 @@ public class IngestServiceTests extends ESTestCase {
         clusterState = IngestService.innerPut(putRequest, clusterState);
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
 
-        @SuppressWarnings("unchecked") final BiConsumer<IndexRequest, Exception> failureHandler = mock(BiConsumer.class);
+        @SuppressWarnings("unchecked") final BiConsumer<Integer, Exception> failureHandler = mock(BiConsumer.class);
         @SuppressWarnings("unchecked") final Consumer<Exception> completionHandler = mock(Consumer.class);
 
         final IndexRequest indexRequest = new IndexRequest("_index");
@@ -1022,15 +1024,15 @@ public class IngestServiceTests extends ESTestCase {
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
         final IndexRequest indexRequest = new IndexRequest("_index", "_type", "_id").source(emptyMap()).setPipeline("_id");
         @SuppressWarnings("unchecked")
-        final BiConsumer<IndexRequest, Exception> failureHandler = mock(BiConsumer.class);
+        final BiConsumer<Integer, Exception> failureHandler = mock(BiConsumer.class);
         @SuppressWarnings("unchecked")
         final Consumer<Exception> completionHandler = mock(Consumer.class);
         @SuppressWarnings("unchecked")
-        final Consumer<IndexRequest> dropHandler = mock(Consumer.class);
+        final IntConsumer dropHandler = mock(IntConsumer.class);
         ingestService.executeBulkRequest(1, Collections.singletonList(indexRequest), failureHandler, completionHandler, dropHandler);
         verify(failureHandler, never()).accept(any(), any());
         verify(completionHandler, times(1)).accept(null);
-        verify(dropHandler, times(1)).accept(indexRequest);
+        verify(dropHandler, times(1)).accept(0);
     }
 
     private IngestDocument eqIndexTypeId(final Map<String, Object> source) {

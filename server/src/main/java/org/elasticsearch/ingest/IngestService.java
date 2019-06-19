@@ -72,6 +72,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
+import java.util.function.IntConsumer;
 
 /**
  * Holder class for several ingest related services.
@@ -365,9 +366,9 @@ public class IngestService implements ClusterStateApplier {
 
     public void executeBulkRequest(int numberOfActionRequests,
                                    Iterable<DocWriteRequest<?>> actionRequests,
-                                   BiConsumer<IndexRequest, Exception> itemFailureHandler,
+                                   BiConsumer<Integer, Exception> itemFailureHandler,
                                    Consumer<Exception> completionHandler,
-                                   Consumer<IndexRequest> itemDroppedHandler) {
+                                   IntConsumer itemDroppedHandler) {
 
         threadPool.executor(ThreadPool.Names.WRITE).execute(new AbstractRunnable() {
 
@@ -378,15 +379,15 @@ public class IngestService implements ClusterStateApplier {
 
             @Override
             protected void doRun() {
-                // Multiple threads may use this iterator, but not concurrently:
-                final Iterator<DocWriteRequest<?>> actionRequestsIterator = actionRequests.iterator();
                 AtomicInteger counter = new AtomicInteger(numberOfActionRequests);
-                while (actionRequestsIterator.hasNext()) {
-                    IndexRequest indexRequest = TransportBulkAction.getIndexWriteRequest(actionRequestsIterator.next());
+                int i = 0;
+                for (DocWriteRequest<?> actionRequest : actionRequests) {
+                    IndexRequest indexRequest = TransportBulkAction.getIndexWriteRequest(actionRequest);
                     if (indexRequest == null) {
                         if (counter.decrementAndGet() == 0){
                             completionHandler.accept(null);
                         }
+                        assert counter.get() >= 0;
                         continue;
                     }
                     String pipelineId = indexRequest.getPipeline();
@@ -394,34 +395,39 @@ public class IngestService implements ClusterStateApplier {
                         if (counter.decrementAndGet() == 0){
                             completionHandler.accept(null);
                         }
+                        assert counter.get() >= 0;
                         continue;
                     }
 
+                    final int slot = i;
                     try {
                         PipelineHolder holder = pipelines.get(pipelineId);
                         if (holder == null) {
                             throw new IllegalArgumentException("pipeline with id [" + pipelineId + "] does not exist");
                         }
                         Pipeline pipeline = holder.pipeline;
-                        innerExecute(indexRequest, pipeline, itemDroppedHandler, e -> {
+                        innerExecute(slot, indexRequest, pipeline, itemDroppedHandler, e -> {
                             if (e == null) {
                                 // this shouldn't be needed here but we do it for consistency with index api
                                 // which requires it to prevent double execution
                                 indexRequest.setPipeline(NOOP_PIPELINE_NAME);
                             } else {
-                                itemFailureHandler.accept(indexRequest, e);
+                                itemFailureHandler.accept(slot, e);
                             }
 
                             if (counter.decrementAndGet() == 0){
                                 completionHandler.accept(null);
                             }
+                            assert counter.get() >= 0;
                         });
                     } catch (Exception e) {
-                        itemFailureHandler.accept(indexRequest, e);
+                        itemFailureHandler.accept(slot, e);
                         if (counter.decrementAndGet() == 0){
                             completionHandler.accept(null);
                         }
+                        assert counter.get() >= 0;
                     }
+                    i++;
                 }
             }
         });
@@ -478,7 +484,7 @@ public class IngestService implements ClusterStateApplier {
         return sb.toString();
     }
 
-    private void innerExecute(IndexRequest indexRequest, Pipeline pipeline, Consumer<IndexRequest> itemDroppedHandler,
+    private void innerExecute(int slot, IndexRequest indexRequest, Pipeline pipeline, IntConsumer itemDroppedHandler,
                               Consumer<Exception> handler) {
         if (pipeline.getProcessors().isEmpty()) {
             handler.accept(null);
@@ -504,7 +510,7 @@ public class IngestService implements ClusterStateApplier {
                 totalMetrics.ingestFailed();
                 handler.accept(e);
             } else if (result == null) {
-                itemDroppedHandler.accept(indexRequest);
+                itemDroppedHandler.accept(slot);
                 handler.accept(null);
             } else {
                 Map<IngestDocument.MetaData, Object> metadataMap = ingestDocument.extractMetadata();

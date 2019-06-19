@@ -102,7 +102,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
 
     /** Arguments to callbacks we want to capture, but which require generics, so we must use @Captor */
     @Captor
-    ArgumentCaptor<BiConsumer<IndexRequest, Exception>> failureHandler;
+    ArgumentCaptor<BiConsumer<Integer, Exception>> failureHandler;
     @Captor
     ArgumentCaptor<Consumer<Exception>> completionHandler;
     @Captor
@@ -273,7 +273,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
 
         // now check success
         Iterator<DocWriteRequest<?>> req = bulkDocsItr.getValue().iterator();
-        failureHandler.getValue().accept((IndexRequest)req.next(), exception); // have an exception for our one index request
+        failureHandler.getValue().accept(0, exception); // have an exception for our one index request
         indexRequest2.setPipeline(IngestService.NOOP_PIPELINE_NAME); // this is done by the real pipeline execution service when processing
         completionHandler.getValue().accept(null);
         assertTrue(action.isExecuted);

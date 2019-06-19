@@ -55,7 +55,7 @@ public class BulkRequestModifierTests extends ESTestCase {
         while (bulkRequestModifier.hasNext()) {
             bulkRequestModifier.next();
             if (randomBoolean()) {
-                bulkRequestModifier.markCurrentItemAsFailed(new RuntimeException());
+                bulkRequestModifier.markItemAsFailed(i, new RuntimeException());
                 failedSlots.add(i);
             }
             i++;
@@ -93,7 +93,7 @@ public class BulkRequestModifierTests extends ESTestCase {
         for (int i = 0; modifier.hasNext(); i++) {
             modifier.next();
             if (i % 2 == 0) {
-                modifier.markCurrentItemAsFailed(new RuntimeException());
+                modifier.markItemAsFailed(i, new RuntimeException());
             }
         }
 
@@ -102,7 +102,7 @@ public class BulkRequestModifierTests extends ESTestCase {
         assertThat(bulkRequest.requests().size(), Matchers.equalTo(16));
 
         List<BulkItemResponse> responses = new ArrayList<>();
-        ActionListener<BulkResponse> bulkResponseListener = modifier.wrapActionListenerIfNeeded(1L, new ActionListener<BulkResponse>() {
+        ActionListener<BulkResponse> bulkResponseListener = modifier.wrapActionListenerIfNeeded(1L, new ActionListener<>() {
             @Override
             public void onResponse(BulkResponse bulkItemResponses) {
                 responses.addAll(Arrays.asList(bulkItemResponses.getItems()));

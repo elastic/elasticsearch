@@ -149,6 +149,7 @@ public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
         newInitializing.add(extraId);
         tracker.updateFromMaster(initialClusterStateVersion + 1, ids(active), routingTable(newInitializing, primaryId));
 
+        addPeerRecoveryRetentionLease(tracker, extraId);
         tracker.initiateTracking(extraId.getId());
 
         // now notify for the new id
@@ -190,6 +191,7 @@ public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
         tracker.updateFromMaster(initialClusterStateVersion, ids(active), routingTable(initializing, primaryId));
         final long localCheckpoint = randomLongBetween(0, Long.MAX_VALUE - 1);
         tracker.activatePrimaryMode(localCheckpoint);
+        addPeerRecoveryRetentionLease(tracker, replicaId);
         tracker.initiateTracking(replicaId.getId());
         final CyclicBarrier barrier = new CyclicBarrier(2);
         final Thread thread = new Thread(() -> {
@@ -357,6 +359,7 @@ public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
         tracker.updateFromMaster(clusterStateVersion, Collections.singleton(inSyncAllocationId.getId()),
             routingTable(Collections.singleton(trackingAllocationId), inSyncAllocationId));
         tracker.activatePrimaryMode(globalCheckpoint);
+        addPeerRecoveryRetentionLease(tracker, trackingAllocationId);
         final Thread thread = new Thread(() -> {
             try {
                 // synchronize starting with the test thread
@@ -421,6 +424,7 @@ public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
         tracker.updateFromMaster(randomNonNegativeLong(), Collections.singleton(inSyncAllocationId.getId()),
             routingTable(Collections.singleton(trackingAllocationId), inSyncAllocationId));
         tracker.activatePrimaryMode(globalCheckpoint);
+        addPeerRecoveryRetentionLease(tracker, trackingAllocationId);
         final Thread thread = new Thread(() -> {
             try {
                 // synchronize starting with the test thread
@@ -563,6 +567,7 @@ public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
                 initialClusterStateVersion + 3,
                 ids(newActiveAllocationIds),
                 routingTable(newInitializingAllocationIds, primaryId));
+        addPeerRecoveryRetentionLease(tracker, newSyncingAllocationId);
         final CyclicBarrier barrier = new CyclicBarrier(2);
         final Thread thread = new Thread(() -> {
             try {
@@ -610,7 +615,7 @@ public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
      * allocation ID to the in-sync set and removing it from pending, the local checkpoint update that freed the thread waiting for the
      * local checkpoint to advance could miss updating the global checkpoint in a race if the waiting thread did not add the allocation
      * ID to the in-sync set and remove it from the pending set before the local checkpoint updating thread executed the global checkpoint
-     * update. This test fails without an additional call to {@link ReplicationTracker#updateGlobalCheckpointOnPrimary()} after
+     * update. This test fails without an additional call to {@code ReplicationTracker#updateGlobalCheckpointOnPrimary()} after
      * removing the allocation ID from the pending set in {@link ReplicationTracker#markAllocationIdAsInSync(String, long)} (even if a
      * call is added after notifying all waiters in {@link ReplicationTracker#updateLocalCheckpoint(String, long)}).
      *
@@ -630,6 +635,7 @@ public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
                 Collections.singleton(active.getId()),
                 routingTable(Collections.singleton(initializing), active));
         tracker.activatePrimaryMode(activeLocalCheckpoint);
+        addPeerRecoveryRetentionLease(tracker, initializing);
         final int nextActiveLocalCheckpoint = randomIntBetween(activeLocalCheckpoint + 1, Integer.MAX_VALUE);
         final Thread activeThread = new Thread(() -> {
             try {
@@ -693,7 +699,9 @@ public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
         clusterState.apply(oldPrimary);
         clusterState.apply(newPrimary);
 
-        activatePrimary(oldPrimary);
+        oldPrimary.activatePrimaryMode(randomIntBetween(Math.toIntExact(NO_OPS_PERFORMED), 10));
+        addPeerRecoveryRetentionLease(oldPrimary, newPrimary.shardAllocationId);
+        newPrimary.updateRetentionLeasesOnReplica(oldPrimary.getRetentionLeases());
 
         final int numUpdates = randomInt(10);
         for (int i = 0; i < numUpdates; i++) {
@@ -706,7 +714,7 @@ public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
                 randomLocalCheckpointUpdate(oldPrimary);
             }
             if (randomBoolean()) {
-                randomMarkInSync(oldPrimary);
+                randomMarkInSync(oldPrimary, newPrimary);
             }
         }
 
@@ -738,7 +746,7 @@ public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
                 randomLocalCheckpointUpdate(oldPrimary);
             }
             if (randomBoolean()) {
-                randomMarkInSync(oldPrimary);
+                randomMarkInSync(oldPrimary, newPrimary);
             }
 
             // do another handoff
@@ -876,16 +884,15 @@ public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
         final ShardId shardId = new ShardId("test", "_na_", 0);
         final ShardRouting primaryShard =
                 TestShardRouting.newShardRouting(
-                        shardId, randomAlphaOfLength(10), randomAlphaOfLength(10), true, ShardRoutingState.RELOCATING, relocatingId);
+                    shardId,
+                    nodeIdFromAllocationId(relocatingId),
+                    nodeIdFromAllocationId(AllocationId.newInitializing(relocatingId.getRelocationId())),
+                    true, ShardRoutingState.RELOCATING, relocatingId);
 
         return new FakeClusterState(
                 initialClusterStateVersion,
                 activeAllocationIds,
                 routingTable(initializingAllocationIds, primaryShard));
-    }
-
-    private static void activatePrimary(ReplicationTracker gcp) {
-        gcp.activatePrimaryMode(randomIntBetween(Math.toIntExact(NO_OPS_PERFORMED), 10));
     }
 
     private static void randomLocalCheckpointUpdate(ReplicationTracker gcp) {
@@ -894,10 +901,11 @@ public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
         gcp.updateLocalCheckpoint(allocationId, Math.max(SequenceNumbers.NO_OPS_PERFORMED, currentLocalCheckpoint + randomInt(5)));
     }
 
-    private static void randomMarkInSync(ReplicationTracker gcp) {
-        String allocationId = randomFrom(gcp.checkpoints.keySet());
-        long newLocalCheckpoint = Math.max(NO_OPS_PERFORMED, gcp.getGlobalCheckpoint() + randomInt(5));
-        markAsTrackingAndInSyncQuietly(gcp, allocationId, newLocalCheckpoint);
+    private static void randomMarkInSync(ReplicationTracker oldPrimary, ReplicationTracker newPrimary) {
+        final String allocationId = randomFrom(oldPrimary.checkpoints.keySet());
+        final long newLocalCheckpoint = Math.max(NO_OPS_PERFORMED, oldPrimary.getGlobalCheckpoint() + randomInt(5));
+        markAsTrackingAndInSyncQuietly(oldPrimary, allocationId, newLocalCheckpoint);
+        newPrimary.updateRetentionLeasesOnReplica(oldPrimary.getRetentionLeases());
     }
 
     private static FakeClusterState randomUpdateClusterState(Set<String> allocationIds, FakeClusterState clusterState) {
@@ -908,11 +916,14 @@ public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
         final Set<AllocationId> inSyncIdsToRemove = new HashSet<>(
             exclude(randomSubsetOf(randomInt(clusterState.inSyncIds.size()), clusterState.inSyncIds), allocationIds));
         final Set<AllocationId> remainingInSyncIds = Sets.difference(clusterState.inSyncIds, inSyncIdsToRemove);
+        final Set<AllocationId> initializingIdsExceptRelocationTargets = exclude(clusterState.initializingIds(),
+            clusterState.routingTable.activeShards().stream().filter(ShardRouting::relocating)
+                .map(s -> s.allocationId().getRelocationId()).collect(Collectors.toSet()));
         return new FakeClusterState(
                 clusterState.version + randomIntBetween(1, 5),
                 remainingInSyncIds.isEmpty() ? clusterState.inSyncIds : remainingInSyncIds,
                 routingTable(
-                        Sets.difference(Sets.union(clusterState.initializingIds(), initializingIdsToAdd), initializingIdsToRemove),
+                        Sets.difference(Sets.union(initializingIdsExceptRelocationTargets, initializingIdsToAdd), initializingIdsToRemove),
                         clusterState.routingTable.primaryShard()));
     }
 
@@ -945,11 +956,23 @@ public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
     private static void markAsTrackingAndInSyncQuietly(
         final ReplicationTracker tracker, final String allocationId, final long localCheckpoint) {
         try {
+            addPeerRecoveryRetentionLease(tracker, allocationId);
             tracker.initiateTracking(allocationId);
             tracker.markAllocationIdAsInSync(allocationId, localCheckpoint);
         } catch (final InterruptedException e) {
             throw new RuntimeException(e);
         }
+    }
+
+    private static void addPeerRecoveryRetentionLease(final ReplicationTracker tracker, final AllocationId allocationId) {
+        final String nodeId = nodeIdFromAllocationId(allocationId);
+        if (tracker.getRetentionLeases().contains(ReplicationTracker.getPeerRecoveryRetentionLeaseId(nodeId)) == false) {
+            tracker.addPeerRecoveryRetentionLease(nodeId, NO_OPS_PERFORMED, ActionListener.wrap(() -> { }));
+        }
+    }
+
+    private static void addPeerRecoveryRetentionLease(final ReplicationTracker tracker, final String allocationId) {
+        addPeerRecoveryRetentionLease(tracker, AllocationId.newInitializing(allocationId));
     }
 
 }

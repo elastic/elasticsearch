@@ -46,6 +46,10 @@ public class StartRecoveryRequestTests extends ESTestCase {
         Store.MetadataSnapshot metadataSnapshot = randomBoolean() ? Store.MetadataSnapshot.EMPTY :
             new Store.MetadataSnapshot(Collections.emptyMap(),
                 Collections.singletonMap(Engine.HISTORY_UUID_KEY, UUIDs.randomBase64UUID()), randomIntBetween(0, 100));
+        final long startingSeqNo = randomBoolean() || metadataSnapshot.getHistoryUUID() == null ?
+            SequenceNumbers.UNASSIGNED_SEQ_NO : randomNonNegativeLong();
+        final long globalCheckpoint = startingSeqNo == SequenceNumbers.UNASSIGNED_SEQ_NO ? SequenceNumbers.UNASSIGNED_SEQ_NO
+            : randomLongBetween(startingSeqNo - 1, Long.MAX_VALUE);
         final StartRecoveryRequest outRequest = new StartRecoveryRequest(
                 new ShardId("test", "_na_", 0),
                 UUIDs.randomBase64UUID(),
@@ -54,8 +58,8 @@ public class StartRecoveryRequestTests extends ESTestCase {
                 metadataSnapshot,
                 randomBoolean(),
                 randomNonNegativeLong(),
-                randomBoolean() || metadataSnapshot.getHistoryUUID() == null ?
-                    SequenceNumbers.UNASSIGNED_SEQ_NO : randomNonNegativeLong());
+                startingSeqNo,
+                globalCheckpoint);
 
         final ByteArrayOutputStream outBuffer = new ByteArrayOutputStream();
         final OutputStreamStreamOutput out = new OutputStreamStreamOutput(outBuffer);
@@ -65,17 +69,21 @@ public class StartRecoveryRequestTests extends ESTestCase {
         final ByteArrayInputStream inBuffer = new ByteArrayInputStream(outBuffer.toByteArray());
         InputStreamStreamInput in = new InputStreamStreamInput(inBuffer);
         in.setVersion(targetNodeVersion);
-        final StartRecoveryRequest inRequest = new StartRecoveryRequest();
-        inRequest.readFrom(in);
+        final StartRecoveryRequest inRequest = new StartRecoveryRequest(in);
 
-        assertThat(outRequest.shardId(), equalTo(inRequest.shardId()));
-        assertThat(outRequest.targetAllocationId(), equalTo(inRequest.targetAllocationId()));
-        assertThat(outRequest.sourceNode(), equalTo(inRequest.sourceNode()));
-        assertThat(outRequest.targetNode(), equalTo(inRequest.targetNode()));
-        assertThat(outRequest.metadataSnapshot().asMap(), equalTo(inRequest.metadataSnapshot().asMap()));
-        assertThat(outRequest.isPrimaryRelocation(), equalTo(inRequest.isPrimaryRelocation()));
-        assertThat(outRequest.recoveryId(), equalTo(inRequest.recoveryId()));
-        assertThat(outRequest.startingSeqNo(), equalTo(inRequest.startingSeqNo()));
+        assertThat(inRequest.shardId(), equalTo(outRequest.shardId()));
+        assertThat(inRequest.targetAllocationId(), equalTo(outRequest.targetAllocationId()));
+        assertThat(inRequest.sourceNode(), equalTo(outRequest.sourceNode()));
+        assertThat(inRequest.targetNode(), equalTo(outRequest.targetNode()));
+        assertThat(inRequest.metadataSnapshot().asMap(), equalTo(outRequest.metadataSnapshot().asMap()));
+        assertThat(inRequest.isPrimaryRelocation(), equalTo(outRequest.isPrimaryRelocation()));
+        assertThat(inRequest.recoveryId(), equalTo(outRequest.recoveryId()));
+        assertThat(inRequest.startingSeqNo(), equalTo(startingSeqNo));
+        if (targetNodeVersion.onOrAfter(Version.V_8_0_0)) {
+            assertThat(inRequest.globalCheckpoint(), equalTo(globalCheckpoint));
+        } else {
+            assertThat(inRequest.globalCheckpoint(), equalTo(SequenceNumbers.UNASSIGNED_SEQ_NO));
+        }
     }
 
 }

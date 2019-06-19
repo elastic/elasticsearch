@@ -54,7 +54,6 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.index.store.Store;
-import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogCorruptedException;
 import org.elasticsearch.indices.recovery.RecoveriesCollection.RecoveryRef;
 import org.elasticsearch.tasks.Task;
@@ -119,7 +118,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
         transportService.registerRequestHandler(Actions.CLEAN_FILES, ThreadPool.Names.GENERIC,
             RecoveryCleanFilesRequest::new, new CleanFilesRequestHandler());
         transportService.registerRequestHandler(Actions.PREPARE_TRANSLOG, ThreadPool.Names.GENERIC,
-                RecoveryPrepareForTranslogOperationsRequest::new, new PrepareForTranslogOperationsRequestHandler());
+                RecoveryPrepareForTranslogRequest::new, new PrepareForTranslogOperationsRequestHandler());
         transportService.registerRequestHandler(Actions.TRANSLOG_OPS, ThreadPool.Names.GENERIC, RecoveryTranslogOperationsRequest::new,
             new TranslogOperationsRequestHandler());
         transportService.registerRequestHandler(Actions.FINALIZE, RecoveryFinalizeRecoveryRequest::new, ThreadPool.Names.GENERIC, new
@@ -345,9 +344,10 @@ public class PeerRecoveryTargetService implements IndexEventListener {
         final Store.MetadataSnapshot metadataSnapshot = getStoreMetadataSnapshot(recoveryTarget);
         logger.trace("{} local file count [{}]", recoveryTarget.shardId(), metadataSnapshot.size());
 
+        final long globalCheckpoint = recoveryTarget.readGlobalCheckpointFromTranslog();
         final long startingSeqNo;
         if (metadataSnapshot.size() > 0) {
-            startingSeqNo = getStartingSeqNo(logger, recoveryTarget);
+            startingSeqNo = getStartingSeqNo(logger, recoveryTarget, globalCheckpoint);
         } else {
             startingSeqNo = SequenceNumbers.UNASSIGNED_SEQ_NO;
         }
@@ -370,7 +370,8 @@ public class PeerRecoveryTargetService implements IndexEventListener {
             metadataSnapshot,
             recoveryTarget.state().getPrimary(),
             recoveryTarget.recoveryId(),
-            startingSeqNo);
+            startingSeqNo,
+            globalCheckpoint);
         return request;
     }
 
@@ -381,11 +382,9 @@ public class PeerRecoveryTargetService implements IndexEventListener {
      * @return the starting sequence number or {@link SequenceNumbers#UNASSIGNED_SEQ_NO} if obtaining the starting sequence number
      * failed
      */
-    public static long getStartingSeqNo(final Logger logger, final RecoveryTarget recoveryTarget) {
+    public static long getStartingSeqNo(final Logger logger, final RecoveryTarget recoveryTarget, final long globalCheckpoint) {
         try {
             final Store store = recoveryTarget.store();
-            final String translogUUID = store.readLastCommittedSegmentsInfo().getUserData().get(Translog.TRANSLOG_UUID_KEY);
-            final long globalCheckpoint = Translog.readGlobalCheckpoint(recoveryTarget.translogLocation(), translogUUID);
             final List<IndexCommit> existingCommits = DirectoryReader.listCommits(store.directory());
             final IndexCommit safeCommit = CombinedDeletionPolicy.findSafeCommitPoint(existingCommits, globalCheckpoint);
             final SequenceNumbers.CommitInfo seqNoStats = Store.loadSeqNoInfo(safeCommit);
@@ -424,14 +423,15 @@ public class PeerRecoveryTargetService implements IndexEventListener {
         void onRecoveryFailure(RecoveryState state, RecoveryFailedException e, boolean sendShardFailure);
     }
 
-    class PrepareForTranslogOperationsRequestHandler implements TransportRequestHandler<RecoveryPrepareForTranslogOperationsRequest> {
+    class PrepareForTranslogOperationsRequestHandler implements TransportRequestHandler<RecoveryPrepareForTranslogRequest> {
 
         @Override
-        public void messageReceived(RecoveryPrepareForTranslogOperationsRequest request, TransportChannel channel, Task task) {
+        public void messageReceived(RecoveryPrepareForTranslogRequest request, TransportChannel channel, Task task) {
             try (RecoveryRef recoveryRef = onGoingRecoveries.getRecoverySafe(request.recoveryId(), request.shardId())) {
-                final ActionListener<TransportResponse> listener = new ChannelActionListener<>(channel, Actions.PREPARE_TRANSLOG, request);
+                final ActionListener<RecoveryPrepareForTranslogOperationsResponse> listener = new ChannelActionListener<>(
+                    channel, Actions.PREPARE_TRANSLOG, request);
                 recoveryRef.target().prepareForTranslogOperations(request.isFileBasedRecovery(), request.totalTranslogOps(),
-                    ActionListener.map(listener, nullVal -> TransportResponse.Empty.INSTANCE));
+                    request.recoverUpToSeqNo(), ActionListener.map(listener, RecoveryPrepareForTranslogOperationsResponse::new));
             }
         }
     }

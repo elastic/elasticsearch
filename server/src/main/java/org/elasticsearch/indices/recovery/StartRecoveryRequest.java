@@ -19,6 +19,7 @@
 
 package org.elasticsearch.indices.recovery;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -34,17 +35,15 @@ import java.io.IOException;
  */
 public class StartRecoveryRequest extends TransportRequest {
 
-    private long recoveryId;
-    private ShardId shardId;
-    private String targetAllocationId;
-    private DiscoveryNode sourceNode;
-    private DiscoveryNode targetNode;
-    private Store.MetadataSnapshot metadataSnapshot;
-    private boolean primaryRelocation;
-    private long startingSeqNo;
-
-    public StartRecoveryRequest() {
-    }
+    private final long recoveryId;
+    private final ShardId shardId;
+    private final String targetAllocationId;
+    private final DiscoveryNode sourceNode;
+    private final DiscoveryNode targetNode;
+    private final Store.MetadataSnapshot metadataSnapshot;
+    private final boolean primaryRelocation;
+    private final long startingSeqNo;
+    private final long globalCheckpoint;
 
     /**
      * Construct a request for starting a peer recovery.
@@ -56,7 +55,8 @@ public class StartRecoveryRequest extends TransportRequest {
      * @param metadataSnapshot   the Lucene metadata
      * @param primaryRelocation  whether or not the recovery is a primary relocation
      * @param recoveryId         the recovery ID
-     * @param startingSeqNo      the starting sequence number
+     * @param startingSeqNo      the starting sequence number that the recovery target requires for a operation-based recovery
+     * @param globalCheckpoint   the persisted global checkpoint on target
      */
     public StartRecoveryRequest(final ShardId shardId,
                                 final String targetAllocationId,
@@ -65,7 +65,9 @@ public class StartRecoveryRequest extends TransportRequest {
                                 final Store.MetadataSnapshot metadataSnapshot,
                                 final boolean primaryRelocation,
                                 final long recoveryId,
-                                final long startingSeqNo) {
+                                final long startingSeqNo,
+                                final long globalCheckpoint) {
+        assert startingSeqNo <= (globalCheckpoint + 1) : startingSeqNo + " > " + (globalCheckpoint + 1);
         this.recoveryId = recoveryId;
         this.shardId = shardId;
         this.targetAllocationId = targetAllocationId;
@@ -74,6 +76,7 @@ public class StartRecoveryRequest extends TransportRequest {
         this.metadataSnapshot = metadataSnapshot;
         this.primaryRelocation = primaryRelocation;
         this.startingSeqNo = startingSeqNo;
+        this.globalCheckpoint = globalCheckpoint;
         assert startingSeqNo == SequenceNumbers.UNASSIGNED_SEQ_NO || metadataSnapshot.getHistoryUUID() != null :
                         "starting seq no is set but not history uuid";
     }
@@ -110,9 +113,12 @@ public class StartRecoveryRequest extends TransportRequest {
         return startingSeqNo;
     }
 
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
+    public long globalCheckpoint() {
+        return globalCheckpoint;
+    }
+
+    StartRecoveryRequest(StreamInput in) throws IOException {
+        super(in);
         recoveryId = in.readLong();
         shardId = new ShardId(in);
         targetAllocationId = in.readString();
@@ -121,6 +127,12 @@ public class StartRecoveryRequest extends TransportRequest {
         metadataSnapshot = new Store.MetadataSnapshot(in);
         primaryRelocation = in.readBoolean();
         startingSeqNo = in.readLong();
+        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+            globalCheckpoint = in.readZLong();
+            assert startingSeqNo <= (globalCheckpoint + 1) : startingSeqNo + " > " + (globalCheckpoint + 1);
+        } else {
+            globalCheckpoint = SequenceNumbers.UNASSIGNED_SEQ_NO;
+        }
     }
 
     @Override
@@ -134,5 +146,8 @@ public class StartRecoveryRequest extends TransportRequest {
         metadataSnapshot.writeTo(out);
         out.writeBoolean(primaryRelocation);
         out.writeLong(startingSeqNo);
+        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+            out.writeZLong(globalCheckpoint);
+        }
     }
 }

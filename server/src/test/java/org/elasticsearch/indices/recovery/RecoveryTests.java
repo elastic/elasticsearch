@@ -51,6 +51,7 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Future;
 
@@ -330,8 +331,9 @@ public class RecoveryTests extends ESIndexLevelReplicationTestCase {
         updateMappings(replicaShard, primaryShard.indexSettings().getIndexMetaData());
         recoverReplica(replicaShard, primaryShard, (r, sourceNode) -> new RecoveryTarget(r, sourceNode, recoveryListener) {
             @Override
-            public void prepareForTranslogOperations(boolean fileBasedRecovery, int totalTranslogOps, ActionListener<Void> listener) {
-                super.prepareForTranslogOperations(fileBasedRecovery, totalTranslogOps, listener);
+            public void prepareForTranslogOperations(boolean fileBasedRecovery, int totalTranslogOps, long recoverUpToSeqNo,
+                                                     ActionListener<Optional<Store.MetadataSnapshot>> listener) {
+                super.prepareForTranslogOperations(fileBasedRecovery, totalTranslogOps, recoverUpToSeqNo, listener);
                 assertThat(replicaShard.getLastKnownGlobalCheckpoint(), equalTo(primaryShard.getLastKnownGlobalCheckpoint()));
             }
             @Override

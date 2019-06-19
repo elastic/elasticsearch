@@ -41,7 +41,9 @@ import java.util.function.Function;
 /**
  * NoOpEngine is an engine implementation that does nothing but the bare minimum
  * required in order to have an engine. All attempts to do something (search,
- * index, get), throw {@link UnsupportedOperationException}.
+ * index, get), throw {@link UnsupportedOperationException}. However, NoOpEngine
+ * allows to trim any existing translog files through the usage of the
+ * {{@link #trimUnreferencedTranslogFiles()}} method.
  */
 public final class NoOpEngine extends ReadOnlyEngine {
 

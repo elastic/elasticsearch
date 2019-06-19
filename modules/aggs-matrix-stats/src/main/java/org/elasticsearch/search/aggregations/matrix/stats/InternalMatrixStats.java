@@ -112,4 +112,16 @@ public class InternalMatrixStats extends BaseInternalMatrixStats {
         }
         return builder;
     }
+
+//    @Override
+//    protected int doHashCode() {
+//        return Objects.hash(stats, results);
+//    }
+//
+//    @Override
+//    protected boolean doEquals(Object obj) {
+//        InternalMatrixStats other = (InternalMatrixStats) obj;
+//        return Objects.equals(this.stats, other.stats) &&
+//            Objects.equals(this.results, other.results);
+//    }
 }

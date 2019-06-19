@@ -346,10 +346,16 @@ public class RunningStats implements Writeable, Cloneable {
             // representation of the upper triangle matrix but the values are equal
             for (String row : means.keySet()) {
                 for (String col : means.keySet()) {
-                    if (row.equals(col) == false &&
-                        MatrixStatsResults.getValFromUpperTriangularMatrix(covariances, row, col) !=
-                            MatrixStatsResults.getValFromUpperTriangularMatrix(that.covariances, row, col)) {
-                        return false;
+                    if (row.equals(col) == false) {
+                        double thisCov = MatrixStatsResults.getValFromUpperTriangularMatrix(covariances, row, col);
+                        double thatCov = MatrixStatsResults.getValFromUpperTriangularMatrix(that.covariances, row, col);
+                        if (Double.isNaN(thisCov) || Double.isNaN(thatCov)) {
+                            if (Double.isNaN(thisCov) != Double.isNaN(thatCov)) {
+                                return false;
+                            }
+                        } else if (thisCov != thatCov){
+                            return false;
+                        }
                     }
                 }
             }

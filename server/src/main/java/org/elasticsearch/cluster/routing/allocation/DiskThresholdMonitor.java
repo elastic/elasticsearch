@@ -179,22 +179,20 @@ public class DiskThresholdMonitor {
         }
 
         final ActionListener<Void> listener = new GroupedActionListener<>(ActionListener.wrap(this::checkFinished), 2);
+        final ActionListener<Void> timeUpdatingListener = ActionListener.wrap(r -> {
+            lastRunTimeMillis.getAndUpdate(l -> Math.max(l, currentTimeMillisSupplier.getAsLong()));
+            listener.onResponse(r);
+        }, listener::onFailure);
 
         if (reroute) {
             logger.info("rerouting shards: [{}]", explanation);
-            reroute(ActionListener.wrap(r -> {
-                lastRunTimeMillis.getAndUpdate(l -> Math.max(l, currentTimeMillisSupplier.getAsLong()));
-                listener.onResponse(r);
-            }, listener::onFailure));
+            reroute(timeUpdatingListener);
         } else {
             listener.onResponse(null);
         }
         indicesToMarkReadOnly.removeIf(index -> state.getBlocks().indexBlocked(ClusterBlockLevel.WRITE, index));
         if (indicesToMarkReadOnly.isEmpty() == false) {
-            markIndicesReadOnly(indicesToMarkReadOnly, ActionListener.wrap(r -> {
-                lastRunTimeMillis.getAndUpdate(l -> Math.max(l, currentTimeMillisSupplier.getAsLong()));
-                listener.onResponse(r);
-            }, listener::onFailure));
+            markIndicesReadOnly(indicesToMarkReadOnly, timeUpdatingListener);
         } else {
             listener.onResponse(null);
         }

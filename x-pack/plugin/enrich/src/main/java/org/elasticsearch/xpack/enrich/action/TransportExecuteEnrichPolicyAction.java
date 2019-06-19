@@ -45,7 +45,9 @@ public class TransportExecuteEnrichPolicyAction
 
     @Override
     protected AcknowledgedResponse newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
+        return new AcknowledgedResponse();
+        // TODO: Cut AcknowledgedResponse and subclasses over from streameble to writable
+//        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override

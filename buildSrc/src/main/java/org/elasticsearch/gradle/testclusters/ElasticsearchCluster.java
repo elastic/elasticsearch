@@ -215,12 +215,20 @@ public class ElasticsearchCluster implements TestClusterConfiguration {
 
     @Override
     public void start() {
-        String nodeNames = nodes.stream().map(ElasticsearchNode::getName).collect(Collectors.joining(","));
+        final String nodeNames;
+        if (nodes.stream().map(ElasticsearchNode::getName).anyMatch( name -> name == null)) {
+            nodeNames = null;
+        } else {
+            nodeNames = nodes.stream().map(ElasticsearchNode::getName).collect(Collectors.joining(","));
+        };
         for (ElasticsearchNode node : nodes) {
             node.defaultConfig.put("cluster.name", safeName(clusterName));
-            if (Version.fromString(node.getVersion()).getMajor() >= 7) {
-                node.defaultConfig.put("cluster.initial_master_nodes", "[" + nodeNames + "]");
-                node.defaultConfig.put("discovery.seed_providers", "file");
+            if (nodeNames != null) {
+                // Can only configure master nodes if we have node names defined
+                if (Version.fromString(node.getVersion()).getMajor() >= 7) {
+                    node.defaultConfig.put("cluster.initial_master_nodes", "[" + nodeNames + "]");
+                    node.defaultConfig.put("discovery.seed_providers", "file");
+                }
             }
             node.start();
         }

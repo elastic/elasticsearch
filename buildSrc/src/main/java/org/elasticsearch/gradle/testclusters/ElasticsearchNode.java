@@ -581,7 +581,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     }
 
     public File getServerLog() {
-        return confPathLogs.resolve(safeName(getName()).replaceAll("-[0-9]+$", "") + "_server.json").toFile();
+        return confPathLogs.resolve(defaultConfig.get("cluster.name") + "_server.json").toFile();
     }
 
     @Override
@@ -727,7 +727,10 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     }
 
     private void createConfiguration()  {
-        defaultConfig.put("node.name", nameCustomization.apply(safeName(name)));
+        String nodeName = nameCustomization.apply(safeName(name));
+        if (nodeName != null) {
+            defaultConfig.put("node.name", nodeName);
+        }
         defaultConfig.put("path.repo", confPathRepo.toAbsolutePath().toString());
         defaultConfig.put("path.data", confPathData.toAbsolutePath().toString());
         defaultConfig.put("path.logs", confPathLogs.toAbsolutePath().toString());

@@ -19,8 +19,14 @@
 
 package org.elasticsearch.painless.spi;
 
+import org.elasticsearch.painless.spi.annotation.DeprecatedAnnotation;
+import org.elasticsearch.painless.spi.annotation.NoImportAnnotation;
+import org.elasticsearch.painless.spi.annotation.WhitelistAnnotationParser;
+
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 /**
@@ -53,6 +59,15 @@ public final class Whitelist {
 
     public static final List<Whitelist> BASE_WHITELISTS =
         Collections.singletonList(WhitelistLoader.loadFromResourceFiles(Whitelist.class, BASE_WHITELIST_FILES));
+
+    public static final Map<String, WhitelistAnnotationParser> BASE_ANNOTATION_PARSERS;
+
+    static {
+        Map<String, WhitelistAnnotationParser> baseAnnotationParsers = new HashMap<>();
+        baseAnnotationParsers.put(NoImportAnnotation.NAME, NoImportAnnotation.PARSER);
+        baseAnnotationParsers.put(DeprecatedAnnotation.NAME, DeprecatedAnnotation.PARSER);
+        BASE_ANNOTATION_PARSERS = Collections.unmodifiableMap(baseAnnotationParsers);
+    }
 
     /** The {@link ClassLoader} used to look up the whitelisted Java classes, constructors, methods, and fields. */
     public final ClassLoader classLoader;

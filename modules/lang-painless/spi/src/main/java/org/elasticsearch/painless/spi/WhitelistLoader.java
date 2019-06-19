@@ -19,6 +19,8 @@
 
 package org.elasticsearch.painless.spi;
 
+import org.elasticsearch.painless.spi.annotation.WhitelistAnnotationParser;
+
 import java.io.InputStreamReader;
 import java.io.LineNumberReader;
 import java.lang.reflect.Constructor;
@@ -139,7 +141,7 @@ public final class WhitelistLoader {
      * }
      * }
      */
-    public static Whitelist loadFromResourceFiles(Class<?> resource, String... filepaths) {
+    public static Whitelist loadFromResourceFiles(Class<?> resource, Map<String, WhitelistAnnotationParser> parsers, String... filepaths) {
         List<WhitelistClass> whitelistClasses = new ArrayList<>();
         List<WhitelistMethod> whitelistStatics = new ArrayList<>();
         List<WhitelistClassBinding> whitelistClassBindings = new ArrayList<>();
@@ -159,7 +161,7 @@ public final class WhitelistLoader {
                 List<WhitelistConstructor> whitelistConstructors = null;
                 List<WhitelistMethod> whitelistMethods = null;
                 List<WhitelistField> whitelistFields = null;
-                Map<String, String> classAnnotations = null;
+                Map<Class<?>, Object> classAnnotations = null;
 
                 while ((line = reader.readLine()) != null) {
                     number = reader.getLineNumber();
@@ -190,7 +192,7 @@ public final class WhitelistLoader {
                             annotationIndex = line.length() - 1;
                             classAnnotations = Collections.emptyMap();
                         } else {
-                            classAnnotations = parseWhitelistAnnotations(line.substring(annotationIndex, line.length() - 1));
+                            classAnnotations = parseWhitelistAnnotations(parsers, line.substring(annotationIndex, line.length() - 1));
                         }
 
                         parseType = "class";
@@ -444,30 +446,61 @@ public final class WhitelistLoader {
         return new Whitelist(loader, whitelistClasses, whitelistStatics, whitelistClassBindings, Collections.emptyList());
     }
 
-    private static Map<String, String> parseWhitelistAnnotations(String line) {
-        // Expects the following format: ('@' ID '[' .* '])*
-        String[] annotations = line.trim().substring(1).split("@");
-        Map<String, String> rtn = new HashMap<>(annotations.length);
+    private static Map<Class<?>, Object> parseWhitelistAnnotations(Map<String, WhitelistAnnotationParser> parsers, String line) {
+        Map<Class<?>, Object> annotations = new HashMap<>();
 
-        for (String annotation : annotations) {
-            annotation = annotation.trim();
-            int informationIndex = annotation.indexOf('[');
+        char[] data = line.trim().toCharArray();
+        int index = 0;
+        int mark;
 
-            if (informationIndex == -1) {
-                rtn.put(annotation, null);
-            } else {
-                if (annotation.charAt(annotation.length() - 1) != ']') {
-                    throw new IllegalArgumentException("invalid annotation: expected closing brace");
+        while (index < data.length) {
+            if (data[index] == '@') {
+                mark = ++index;
+
+                while (index < data.length) {
+                    String name;
+                    Map<String, String> arguments;
+
+                    if (index == ' ' || index == '[') {
+                        if (mark == index) {
+                            throw new IllegalArgumentException("invalid annotation: expected name [" + line + "]");
+                        }
+
+                        name = line.substring(mark, index);
+
+                        if (index == '[') {
+                            mark = ++index;
+                            arguments = new HashMap<>();
+
+                            while (index < data.length) {
+                                if (index == '=') {
+                                    String parameter = line.substring(mark, index);
+                                }
+
+                                
+                            }
+                        } else {
+                            arguments = Collections.emptyMap();
+                        }
+
+                        WhitelistAnnotationParser parser = parsers.get(name);
+
+                        if (parser == null) {
+                            throw new IllegalArgumentException(
+                                    "invalid annotation: parser not found for name [" + name + "] [" + line + "]");
+                        }
+
+                        Object annotation = parser.parse(arguments)
+                    }
+
+                    ++index;
                 }
-
-                String name = annotation.substring(0, informationIndex);
-                String information = annotation.substring(informationIndex + 1, annotation.length() - 1).trim();
-
-                rtn.put(name, information);
+            } else if (data[index++] != ' ') {
+                throw new IllegalArgumentException("invalid annotation: expected at symbol [" + line + "]");
             }
         }
 
-        return rtn;
+        return annotations;
     }
 
     private WhitelistLoader() {}

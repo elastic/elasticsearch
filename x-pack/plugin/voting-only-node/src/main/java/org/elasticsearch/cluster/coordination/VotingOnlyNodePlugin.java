@@ -53,7 +53,7 @@ public class VotingOnlyNodePlugin extends Plugin implements DiscoveryPlugin, Net
 
     private static final String VOTING_ONLY_ELECTION_TYPE = "supports-voting-only";
 
-    private static DiscoveryNodeRole VOTING_ONLY_NODE_ROLE = new DiscoveryNodeRole("voting-only", "v") {
+    static DiscoveryNodeRole VOTING_ONLY_NODE_ROLE = new DiscoveryNodeRole("voting-only", "v") {
         @Override
         protected Setting<Boolean> roleSetting() {
             return VOTING_ONLY_NODE_SETTING;

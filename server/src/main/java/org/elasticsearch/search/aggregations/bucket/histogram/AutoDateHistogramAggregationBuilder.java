@@ -222,12 +222,15 @@ public class AutoDateHistogramAggregationBuilder
     }
 
     @Override
-    protected int innerHashCode() {
-        return Objects.hash(numBuckets, minimumIntervalExpression);
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), numBuckets, minimumIntervalExpression);
     }
 
     @Override
-    protected boolean innerEquals(Object obj) {
+    public boolean equals(Object obj) {
+        if (this == obj) return true;
+        if (obj == null || getClass() != obj.getClass()) return false;
+        if (super.equals(obj) == false) return false;
         AutoDateHistogramAggregationBuilder other = (AutoDateHistogramAggregationBuilder) obj;
         return Objects.equals(numBuckets, other.numBuckets) && Objects.equals(minimumIntervalExpression, other.minimumIntervalExpression);
     }

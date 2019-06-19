@@ -218,39 +218,21 @@ public abstract class InternalAggregation implements Aggregation, NamedWriteable
 
     @Override
     public int hashCode() {
-        return Objects.hash(name, metaData, pipelineAggregators, doHashCode());
+        return Objects.hash(name, metaData, pipelineAggregators);
     }
-
-    /**
-     * Opportunity for subclasses to the {@link #hashCode()} for this
-     * class.
-     **/
-    protected abstract int doHashCode();
 
     @Override
     public boolean equals(Object obj) {
-        if (obj == null) {
+        if (obj == null || getClass() != obj.getClass()) {
             return false;
         }
-        if (obj.getClass() != getClass()) {
-            return false;
-        }
+        if (obj == this) { return true; }
+
         InternalAggregation other = (InternalAggregation) obj;
         return Objects.equals(name, other.name) &&
                 Objects.equals(pipelineAggregators, other.pipelineAggregators) &&
-                Objects.equals(metaData, other.metaData) &&
-                doEquals(obj);
+                Objects.equals(metaData, other.metaData);
     }
-
-    /**
-     * Opportunity for subclasses to add criteria to the {@link #equals(Object)}
-     * method for this class.
-     *
-     * This method can safely cast <code>obj</code> to the subclass since the
-     * {@link #equals(Object)} method checks that <code>obj</code> is the same
-     * class as <code>this</code>
-     */
-    protected abstract boolean doEquals(Object obj);
 
     @Override
     public String toString() {

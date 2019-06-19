@@ -2737,8 +2737,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
     }
 
     private boolean waitForIndex(final String index, TimeValue timeout) throws InterruptedException {
-        return awaitBusy(() -> client().admin().indices().prepareExists(index).execute().actionGet().isExists(),
-            timeout.millis(), TimeUnit.MILLISECONDS);
+        return awaitBusy(() -> indexExists(index), timeout.millis(), TimeUnit.MILLISECONDS);
     }
 
     private boolean waitForRelocationsToStart(final String index, TimeValue timeout) throws InterruptedException {

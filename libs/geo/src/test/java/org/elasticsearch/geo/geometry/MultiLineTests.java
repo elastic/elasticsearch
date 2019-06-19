@@ -40,7 +40,7 @@ public class MultiLineTests extends BaseGeometryTestCase<MultiLine> {
     }
 
     public void testBasicSerialization() throws IOException, ParseException {
-        WellKnownText wkt = new WellKnownText();
+        WellKnownText wkt = new WellKnownText(true, true);
         assertEquals("multilinestring ((3.0 1.0, 4.0 2.0))", wkt.toWKT(
             new MultiLine(Collections.singletonList(new Line(new double[]{1, 2}, new double[]{3, 4})))));
         assertEquals(new MultiLine(Collections.singletonList(new Line(new double[]{1, 2}, new double[]{3, 4}))),

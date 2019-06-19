@@ -75,16 +75,6 @@ public class MockDeprecatedAggregationBuilder extends ValuesSourceAggregationBui
         return null;
     }
 
-    @Override
-    protected int innerHashCode() {
-        return 0;
-    }
-
-    @Override
-    protected boolean innerEquals(Object obj) {
-        return false;
-    }
-
     public static MockDeprecatedAggregationBuilder fromXContent(XContentParser p) {
         deprecationLogger.deprecatedAndMaybeLog("deprecated_mock", DEPRECATION_MESSAGE);
         return new MockDeprecatedAggregationBuilder();

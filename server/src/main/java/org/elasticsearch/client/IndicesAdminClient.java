@@ -41,9 +41,6 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequestBuilder;
-import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsRequest;
-import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsRequestBuilder;
-import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsResponse;
 import org.elasticsearch.action.admin.indices.exists.types.TypesExistsRequest;
 import org.elasticsearch.action.admin.indices.exists.types.TypesExistsRequestBuilder;
 import org.elasticsearch.action.admin.indices.exists.types.TypesExistsResponse;
@@ -121,30 +118,6 @@ import org.elasticsearch.common.Nullable;
  * @see AdminClient#indices()
  */
 public interface IndicesAdminClient extends ElasticsearchClient {
-
-    /**
-     * Indices Exists.
-     *
-     * @param request The indices exists request
-     * @return The result future
-     * @see Requests#indicesExistsRequest(String...)
-     */
-    ActionFuture<IndicesExistsResponse> exists(IndicesExistsRequest request);
-
-    /**
-     * The status of one or more indices.
-     *
-     * @param request  The indices status request
-     * @param listener A listener to be notified with a result
-     * @see Requests#indicesExistsRequest(String...)
-     */
-    void exists(IndicesExistsRequest request, ActionListener<IndicesExistsResponse> listener);
-
-    /**
-     * Indices exists.
-     */
-    IndicesExistsRequestBuilder prepareExists(String... indices);
-
 
     /**
      * Types exists.

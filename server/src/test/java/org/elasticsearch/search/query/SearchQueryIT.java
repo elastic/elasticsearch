@@ -793,23 +793,15 @@ public class SearchQueryIT extends ESIntegTestCase {
         assertFirstHit(searchResponse, hasId("1"));
     }
 
-    public void testQuotedQueryStringWithBoost() throws InterruptedException, ExecutionException {
+    public void testQuotedQueryStringWithBoost() {
         float boost = 10.0f;
         assertAcked(prepareCreate("test").setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1)));
-        indexRandom(true,
-                client().prepareIndex("test", "type1", "1").setSource("important", "phrase match", "less_important", "nothing important"),
-                client().prepareIndex("test", "type1", "2").setSource("important", "nothing important", "less_important", "phrase match")
-        );
 
+        client().prepareIndex("test", "_doc", "1").setSource("important", "phrase match", "less_important", "nothing important").get();
+        client().prepareIndex("test", "_doc", "2").setSource("important", "nothing important", "less_important", "phrase match").get();
+        refresh();
 
         SearchResponse searchResponse = client().prepareSearch()
-                .setQuery(queryStringQuery("\"phrase match\"").field("important", boost).field("less_important")).get();
-        assertHitCount(searchResponse, 2L);
-        assertFirstHit(searchResponse, hasId("1"));
-        assertSecondHit(searchResponse, hasId("2"));
-        assertThat((double)searchResponse.getHits().getAt(0).getScore(), closeTo(boost * searchResponse.getHits().getAt(1).getScore(), .1));
-
-        searchResponse = client().prepareSearch()
                 .setQuery(queryStringQuery("\"phrase match\"").field("important", boost).field("less_important")).get();
         assertHitCount(searchResponse, 2L);
         assertFirstHit(searchResponse, hasId("1"));

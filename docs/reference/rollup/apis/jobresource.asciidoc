@@ -1,0 +1,31 @@
+[role="xpack"]
+[testenv="basic"]
+[[rollup-job-resource]]
+=== Rollup job resources
+
+A rollup job resource has the following properties:
+
+`cron`::
+  TBD
+  
+`fields`::
+  (object) TBD
+  
+`groups`::
+  TBD
+
+`index_pattern`::
+  TBD
+
+`job_id`::
+  (string) The unique identifier for the job.
+
+`metrics`::
+  TBD
+  
+`page_size`::
+  TBD
+
+`rollup_index`::
+  TBD
+

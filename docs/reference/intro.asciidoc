@@ -119,7 +119,7 @@ match they are for your search terms.
 In addition to searching for individual terms, you can perform phrase searches,
 similarity searches, and prefix searches, and get autocomplete suggestions.
 
-Have geospatial or other numerical data {es} you want to search? {es} indexes
+Have geospatial or other numerical data that you want to search? {es} indexes
 non-textual data in optimized data structures that support
 high-performance geo and numerical queries.
 
@@ -157,8 +157,8 @@ What’s more, aggregations operate alongside search requests. You can search
 documents, filter results, and perform analytics at the same time, on the same
 data, in a single request. And because aggregations are calculated in the
 context of a particular search, you’re not just displaying a count of all
-size 7 needles, you’re displaying a count of the size 7 needles
-that match your users' search criteria--for example, all size 7 _non-stick
+size 70 needles, you’re displaying a count of the size 70 needles
+that match your users' search criteria--for example, all size 70 _non-stick
 embroidery_ needles.
 
 [float]

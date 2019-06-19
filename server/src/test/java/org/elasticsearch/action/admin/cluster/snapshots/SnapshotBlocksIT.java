@@ -132,7 +132,8 @@ public class SnapshotBlocksIT extends ESIntegTestCase {
 
     public void testRestoreSnapshotWithBlocks() {
         assertAcked(client().admin().indices().prepareDelete(INDEX_NAME, OTHER_INDEX_NAME));
-        assertFalse(client().admin().indices().prepareExists(INDEX_NAME, OTHER_INDEX_NAME).get().isExists());
+        assertFalse(indexExists(INDEX_NAME));
+        assertFalse(indexExists(OTHER_INDEX_NAME));
 
         logger.info("-->  restoring a snapshot is blocked when the cluster is read only");
         try {
@@ -148,8 +149,8 @@ public class SnapshotBlocksIT extends ESIntegTestCase {
                 .setWaitForCompletion(true)
                 .execute().actionGet();
         assertThat(response.status(), equalTo(RestStatus.OK));
-        assertTrue(client().admin().indices().prepareExists(INDEX_NAME).get().isExists());
-        assertTrue(client().admin().indices().prepareExists(OTHER_INDEX_NAME).get().isExists());
+        assertTrue(indexExists(INDEX_NAME));
+        assertTrue(indexExists(OTHER_INDEX_NAME));
     }
 
     public void testGetSnapshotWithBlocks() {

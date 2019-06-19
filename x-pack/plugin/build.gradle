@@ -129,7 +129,6 @@ integTestCluster {
   dependsOn copyKeyCerts
   setting 'xpack.ml.enabled', 'true'
   setting 'xpack.security.enabled', 'true'
-  setting 'logger.org.elasticsearch.xpack.ml.datafeed', 'TRACE'
   // Integration tests are supposed to enable/disable exporters before/after each test
   setting 'xpack.monitoring.exporters._local.type', 'local'
   setting 'xpack.monitoring.exporters._local.enabled', 'false'

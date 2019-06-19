@@ -787,25 +787,27 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
 
     public void testToQueryFuzzyQueryAutoFuziness() throws Exception {
         for (int i = 0; i < 3; i++) {
+            final int len;
             final int expectedEdits;
-            String queryString;
             switch (i) {
                 case 0:
-                    queryString = randomAlphaOfLengthBetween(1, 2);
+                    len = randomIntBetween(1, 2);
                     expectedEdits = 0;
                     break;
 
                 case 1:
-                    queryString = randomAlphaOfLengthBetween(3, 5);
+                    len = randomIntBetween(3, 5);
                     expectedEdits = 1;
                     break;
 
                 default:
-                    queryString = randomAlphaOfLengthBetween(6, 20);
+                    len = randomIntBetween(6, 20);
                     expectedEdits = 2;
                     break;
             }
-
+            char[] bytes = new char[len];
+            Arrays.fill(bytes, 'a');
+            String queryString = new String(bytes);
             for (int j = 0; j < 2; j++) {
                 Query query = queryStringQuery(queryString + (j == 0 ? "~" : "~auto"))
                     .defaultField(STRING_FIELD_NAME)
@@ -817,7 +819,6 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
             }
         }
     }
-
     public void testFuzzyNumeric() throws Exception {
         QueryStringQueryBuilder query = queryStringQuery("12~1.0").defaultField(INT_FIELD_NAME);
         QueryShardContext context = createShardContext();

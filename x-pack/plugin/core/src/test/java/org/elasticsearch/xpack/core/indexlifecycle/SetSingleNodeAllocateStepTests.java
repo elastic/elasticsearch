@@ -50,6 +50,8 @@ import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSingleNodeAllocateStep> {
 
@@ -101,13 +103,13 @@ public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSing
     }
 
     public void testPerformActionNoAttrs() throws IOException {
+        final int numNodes = randomIntBetween(1, 20);
         IndexMetaData indexMetaData = IndexMetaData.builder(randomAlphaOfLength(10)).settings(settings(Version.CURRENT))
-                .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
+                .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, numNodes - 1)).build();
         Index index = indexMetaData.getIndex();
         Set<String> validNodeIds = new HashSet<>();
         Settings validNodeSettings = Settings.EMPTY;
         DiscoveryNodes.Builder nodes = DiscoveryNodes.builder();
-        int numNodes = randomIntBetween(1, 20);
         for (int i = 0; i < numNodes; i++) {
             String nodeId = "node_id_" + i;
             String nodeName = "node_" + i;
@@ -123,6 +125,7 @@ public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSing
 
     public void testPerformActionAttrsAllNodesValid() throws IOException {
         int numAttrs = randomIntBetween(1, 10);
+        final int numNodes = randomIntBetween(1, 20);
         String[][] validAttrs = new String[numAttrs][2];
         for (int i = 0; i < numAttrs; i++) {
             validAttrs[i] = new String[] { randomAlphaOfLengthBetween(1, 20), randomAlphaOfLengthBetween(1, 20) };
@@ -132,12 +135,11 @@ public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSing
             indexSettings.put(IndexMetaData.INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + attr[0], attr[1]);
         }
         IndexMetaData indexMetaData = IndexMetaData.builder(randomAlphaOfLength(10)).settings(indexSettings)
-                .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
+                .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, numNodes - 1)).build();
         Index index = indexMetaData.getIndex();
         Set<String> validNodeIds = new HashSet<>();
         Settings validNodeSettings = Settings.EMPTY;
         DiscoveryNodes.Builder nodes = DiscoveryNodes.builder();
-        int numNodes = randomIntBetween(1, 20);
         for (int i = 0; i < numNodes; i++) {
             String nodeId = "node_id_" + i;
             String nodeName = "node_" + i;
@@ -153,18 +155,18 @@ public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSing
     }
 
     public void testPerformActionAttrsSomeNodesValid() throws IOException {
+        final int numNodes = randomIntBetween(1, 20);
         String[] validAttr = new String[] { "box_type", "valid" };
         String[] invalidAttr = new String[] { "box_type", "not_valid" };
         Settings.Builder indexSettings = settings(Version.CURRENT);
         indexSettings.put(IndexMetaData.INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + validAttr[0], validAttr[1]);
         IndexMetaData indexMetaData = IndexMetaData.builder(randomAlphaOfLength(10)).settings(indexSettings)
-                .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
+                .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, numNodes - 1)).build();
         Index index = indexMetaData.getIndex();
         Set<String> validNodeIds = new HashSet<>();
         Settings validNodeSettings = Settings.builder().put(Node.NODE_ATTRIBUTES.getKey() + validAttr[0], validAttr[1]).build();
         Settings invalidNodeSettings = Settings.builder().put(Node.NODE_ATTRIBUTES.getKey() + invalidAttr[0], invalidAttr[1]).build();
         DiscoveryNodes.Builder nodes = DiscoveryNodes.builder();
-        int numNodes = randomIntBetween(1, 20);
         for (int i = 0; i < numNodes; i++) {
             String nodeId = "node_id_" + i;
             String nodeName = "node_" + i;
@@ -185,16 +187,16 @@ public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSing
     }
 
     public void testPerformActionAttrsNoNodesValid() {
+        final int numNodes = randomIntBetween(1, 20);
         String[] validAttr = new String[] { "box_type", "valid" };
         String[] invalidAttr = new String[] { "box_type", "not_valid" };
         Settings.Builder indexSettings = settings(Version.CURRENT);
         indexSettings.put(IndexMetaData.INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + validAttr[0], validAttr[1]);
         IndexMetaData indexMetaData = IndexMetaData.builder(randomAlphaOfLength(10)).settings(indexSettings)
-                .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
+                .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, numNodes - 1)).build();
         Index index = indexMetaData.getIndex();
         Settings invalidNodeSettings = Settings.builder().put(Node.NODE_ATTRIBUTES.getKey() + invalidAttr[0], invalidAttr[1]).build();
         DiscoveryNodes.Builder nodes = DiscoveryNodes.builder();
-        int numNodes = randomIntBetween(1, 20);
         for (int i = 0; i < numNodes; i++) {
             String nodeId = "node_id_" + i;
             String nodeName = "node_" + i;
@@ -209,6 +211,7 @@ public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSing
 
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/42932")
     public void testPerformActionAttrsRequestFails() {
+        final int numNodes = randomIntBetween(1, 20);
         int numAttrs = randomIntBetween(1, 10);
         String[][] validAttrs = new String[numAttrs][2];
         for (int i = 0; i < numAttrs; i++) {
@@ -219,12 +222,11 @@ public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSing
             indexSettings.put(IndexMetaData.INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + attr[0], attr[1]);
         }
         IndexMetaData indexMetaData = IndexMetaData.builder(randomAlphaOfLength(10)).settings(indexSettings)
-            .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
+            .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, numNodes - 1)).build();
         Index index = indexMetaData.getIndex();
         Set<String> validNodeIds = new HashSet<>();
         Settings validNodeSettings = Settings.EMPTY;
         DiscoveryNodes.Builder nodes = DiscoveryNodes.builder();
-        int numNodes = randomIntBetween(1, 20);
         for (int i = 0; i < numNodes; i++) {
             String nodeId = "node_id_" + i;
             String nodeName = "node_" + i;
@@ -291,6 +293,7 @@ public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSing
 
     public void testPerformActionAttrsNoShard() {
         int numAttrs = randomIntBetween(1, 10);
+        final int numNodes = randomIntBetween(1, 20);
         String[][] validAttrs = new String[numAttrs][2];
         for (int i = 0; i < numAttrs; i++) {
             validAttrs[i] = new String[] { randomAlphaOfLengthBetween(1, 20), randomAlphaOfLengthBetween(1, 20) };
@@ -300,12 +303,10 @@ public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSing
             indexSettings.put(IndexMetaData.INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + attr[0], attr[1]);
         }
         IndexMetaData indexMetaData = IndexMetaData.builder(randomAlphaOfLength(10)).settings(indexSettings)
-                .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
+                .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, numNodes - 1)).build();
         Index index = indexMetaData.getIndex();
-        Set<String> validNodeIds = new HashSet<>();
         Settings validNodeSettings = Settings.EMPTY;
         DiscoveryNodes.Builder nodes = DiscoveryNodes.builder();
-        int numNodes = randomIntBetween(1, 20);
         for (int i = 0; i < numNodes; i++) {
             String nodeId = "node_id_" + i;
             String nodeName = "node_" + i;
@@ -314,7 +315,6 @@ public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSing
             Settings nodeSettings = Settings.builder().put(validNodeSettings).put(Node.NODE_NAME_SETTING.getKey(), nodeName)
                     .put(Node.NODE_ATTRIBUTES.getKey() + nodeAttr[0], nodeAttr[1]).build();
             nodes.add(DiscoveryNode.createLocal(nodeSettings, new TransportAddress(TransportAddress.META_ADDRESS, nodePort), nodeId));
-            validNodeIds.add(nodeId);
         }
 
         ImmutableOpenMap.Builder<String, IndexMetaData> indices = ImmutableOpenMap.<String, IndexMetaData> builder().fPut(index.getName(),
@@ -348,13 +348,13 @@ public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSing
 
     public void testPerformActionHighestVersionNodeIsPicked() throws IOException {
         final Version indexCreationVersion = VersionUtils.randomPreviousCompatibleVersion(random(), Version.CURRENT);
+        final int numNodes = randomIntBetween(1, 20);
         IndexMetaData indexMetaData = IndexMetaData.builder(randomAlphaOfLength(10)).settings(settings(indexCreationVersion))
-            .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
+            .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, numNodes - 1)).build();
         Index index = indexMetaData.getIndex();
         Map<Version, Set<String>> nodesByVersion = new HashMap<>();
         Settings validNodeSettings = Settings.EMPTY;
         DiscoveryNodes.Builder nodes = DiscoveryNodes.builder();
-        int numNodes = randomIntBetween(1, 20);
         Version highestAvailableVersion = indexCreationVersion;
         for (int i = 0; i < numNodes; i++) {
             String nodeId = "node_id_" + i;
@@ -377,57 +377,14 @@ public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSing
         assertNodeSelected(indexMetaData, index, validNodeIds, nodes);
     }
 
-    public void testPerformActionAttrsOnlyAvailableOnOldNodes() throws IOException {
-        final String[] validAttr = new String[] { "box_type", "valid" };
-        final String[] invalidAttr = new String[] { "box_type", "not_valid" };
-        final Version indexCreationVersion = VersionUtils.randomPreviousCompatibleVersion(random(), Version.CURRENT);
-        final Builder indexSettings = settings(indexCreationVersion);
-        indexSettings.put(IndexMetaData.INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + validAttr[0], validAttr[1]);
-        IndexMetaData indexMetaData = IndexMetaData.builder(randomAlphaOfLength(10)).settings(indexSettings)
-            .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
-        Index index = indexMetaData.getIndex();
-        Map<Version, Set<String>> nodesByVersion = new HashMap<>();
-        Settings validNodeSettings = Settings.builder().put(Node.NODE_ATTRIBUTES.getKey() + validAttr[0], validAttr[1]).build();
-        Settings invalidNodeSettings = Settings.builder().put(Node.NODE_ATTRIBUTES.getKey() + invalidAttr[0], invalidAttr[1]).build();
-        DiscoveryNodes.Builder nodes = DiscoveryNodes.builder();
-        int numNodes = randomIntBetween(1, 20);
-        for (int i = 0; i < numNodes; i++) {
-            String nodeId = "node_id_" + i;
-            String nodeName = "node_" + i;
-            int nodePort = 9300 + i;
-            Version nodeVersion;
-            Settings nodeSettings;
-            // Randomize whether the node has (an old version and valid attributes) OR (the current version and invalid attributes) and
-            // make sure at least one node has the latter
-            if (randomBoolean() || (i == numNodes - 1 && (nodesByVersion.containsKey(Version.CURRENT) == false))) {
-                nodeSettings = Settings.builder().put(invalidNodeSettings).put(Node.NODE_NAME_SETTING.getKey(), nodeName).build();
-                nodeVersion = Version.CURRENT;
-            } else {
-                nodeSettings = Settings.builder().put(validNodeSettings).put(Node.NODE_NAME_SETTING.getKey(), nodeName).build();
-                nodeVersion = VersionUtils.randomVersionBetween(random(), indexCreationVersion,
-                    VersionUtils.getPreviousVersion(Version.CURRENT));
-            }
-            nodesByVersion.computeIfAbsent(nodeVersion, (version) -> new HashSet<>()).add(nodeId);
-            nodes.add(new DiscoveryNode(
-                Node.NODE_NAME_SETTING.get(nodeSettings),
-                nodeId,
-                new TransportAddress(TransportAddress.META_ADDRESS, nodePort),
-                Node.NODE_ATTRIBUTES.getAsMap(nodeSettings),
-                DiscoveryNode.getRolesFromSettings(nodeSettings),
-                nodeVersion));
-        }
-
-        assertNoValidNode(indexMetaData, index, nodes);
-    }
-
     private void assertNodeSelected(IndexMetaData indexMetaData, Index index,
                                     Set<String> validNodeIds, DiscoveryNodes.Builder nodes) throws IOException {
         ImmutableOpenMap.Builder<String, IndexMetaData> indices = ImmutableOpenMap.<String, IndexMetaData> builder().fPut(index.getName(),
                 indexMetaData);
-        IndexRoutingTable.Builder indexRoutingTable = IndexRoutingTable.builder(index)
-                .addShard(TestShardRouting.newShardRouting(new ShardId(index, 0), randomFrom(validNodeIds), true, ShardRoutingState.STARTED));
+        DiscoveryNodes discoveryNodes = nodes.build();
+        IndexRoutingTable.Builder indexRoutingTable = buildRoutingTable(indexMetaData, index, discoveryNodes);
         ClusterState clusterState = ClusterState.builder(ClusterState.EMPTY_STATE).metaData(MetaData.builder().indices(indices.build()))
-                .nodes(nodes).routingTable(RoutingTable.builder().add(indexRoutingTable).build()).build();
+                .nodes(discoveryNodes).routingTable(RoutingTable.builder().add(indexRoutingTable).build()).build();
 
         SetSingleNodeAllocateStep step = createRandomInstance();
 
@@ -477,15 +434,9 @@ public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSing
 
     private void assertNoValidNode(IndexMetaData indexMetaData, Index index, DiscoveryNodes.Builder nodes) {
         DiscoveryNodes discoveryNodes = nodes.build();
-        List<String> nodeIds = new ArrayList<>();
-        for (DiscoveryNode node : discoveryNodes) {
-            nodeIds.add(node.getId());
-        }
-        String currentNode = randomFrom(nodeIds);
         ImmutableOpenMap.Builder<String, IndexMetaData> indices = ImmutableOpenMap.<String, IndexMetaData> builder().fPut(index.getName(),
-                indexMetaData);
-        IndexRoutingTable.Builder indexRoutingTable = IndexRoutingTable.builder(index)
-                .addShard(TestShardRouting.newShardRouting(new ShardId(index, 0), currentNode, true, ShardRoutingState.STARTED));
+            indexMetaData);
+        IndexRoutingTable.Builder indexRoutingTable = buildRoutingTable(indexMetaData, index, discoveryNodes);
         ClusterState clusterState = ClusterState.builder(ClusterState.EMPTY_STATE).metaData(MetaData.builder().indices(indices.build()))
                 .nodes(discoveryNodes).routingTable(RoutingTable.builder().add(indexRoutingTable).build()).build();
 
@@ -509,6 +460,29 @@ public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSing
         assertEquals(false, actionCompleted.get());
 
         Mockito.verifyZeroInteractions(client);
+    }
+
+    private IndexRoutingTable.Builder buildRoutingTable(IndexMetaData indexMetaData, Index index, DiscoveryNodes discoveryNodes) {
+        assertThat(indexMetaData.getNumberOfReplicas(), lessThanOrEqualTo(discoveryNodes.getSize() - 1));
+        List<String> nodeIds = new ArrayList<>();
+        for (DiscoveryNode node : discoveryNodes) {
+            nodeIds.add(node.getId());
+        }
+
+        IndexRoutingTable.Builder indexRoutingTable = IndexRoutingTable.builder(index);
+        for (int primary = 0; primary < indexMetaData.getNumberOfShards(); primary++) {
+            Set<String> nodesThisShardCanBePutOn = new HashSet<>(nodeIds);
+            String currentNode = randomFrom(nodesThisShardCanBePutOn);
+            nodesThisShardCanBePutOn.remove(currentNode);
+            indexRoutingTable.addShard(TestShardRouting.newShardRouting(new ShardId(index, primary), currentNode, true, ShardRoutingState.STARTED));
+            for (int replica = 0; replica < indexMetaData.getNumberOfReplicas(); replica++) {
+                assertThat("not enough nodes to allocate all initial shards, on replica [" + replica + "], replica count: [" + indexMetaData.getNumberOfReplicas() + "]", nodesThisShardCanBePutOn.size(), greaterThan(0));
+                String replicaNode = randomFrom(nodesThisShardCanBePutOn);
+                nodesThisShardCanBePutOn.remove(replicaNode);
+                indexRoutingTable.addShard(TestShardRouting.newShardRouting(new ShardId(index, primary), replicaNode, false, ShardRoutingState.STARTED));
+            }
+        }
+        return indexRoutingTable;
     }
 
 }

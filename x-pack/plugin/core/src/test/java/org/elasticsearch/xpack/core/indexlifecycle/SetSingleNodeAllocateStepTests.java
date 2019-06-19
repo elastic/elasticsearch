@@ -475,12 +475,14 @@ public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSing
             Set<String> nodesThisShardCanBePutOn = new HashSet<>(nodeIds);
             String currentNode = randomFrom(nodesThisShardCanBePutOn);
             nodesThisShardCanBePutOn.remove(currentNode);
-            indexRoutingTable.addShard(TestShardRouting.newShardRouting(new ShardId(index, primary), currentNode, true, ShardRoutingState.STARTED));
+            indexRoutingTable.addShard(TestShardRouting.newShardRouting(new ShardId(index, primary), currentNode,
+                true, ShardRoutingState.STARTED));
             for (int replica = 0; replica < indexMetaData.getNumberOfReplicas(); replica++) {
-                assertThat("not enough nodes to allocate all initial shards, on replica [" + replica + "], replica count: [" + indexMetaData.getNumberOfReplicas() + "]", nodesThisShardCanBePutOn.size(), greaterThan(0));
+                assertThat("not enough nodes to allocate all initial shards", nodesThisShardCanBePutOn.size(), greaterThan(0));
                 String replicaNode = randomFrom(nodesThisShardCanBePutOn);
                 nodesThisShardCanBePutOn.remove(replicaNode);
-                indexRoutingTable.addShard(TestShardRouting.newShardRouting(new ShardId(index, primary), replicaNode, false, ShardRoutingState.STARTED));
+                indexRoutingTable.addShard(TestShardRouting.newShardRouting(new ShardId(index, primary), replicaNode,
+                    false, ShardRoutingState.STARTED));
             }
         }
         return indexRoutingTable;

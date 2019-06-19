@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.dataframe.persistence;
 
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.xpack.core.action.util.PageParams;
 import org.elasticsearch.xpack.core.dataframe.DataFrameMessages;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformCheckpoint;
@@ -159,7 +160,7 @@ public class DataFrameTransformsConfigManagerTests extends DataFrameSingleNodeTe
                 transformsConfigManager.expandTransformIds(transformConfig1.getId(),
                     PageParams.defaultParams(),
                     listener),
-            Collections.singletonList("transform1_expand"),
+            new Tuple<>(1L, Collections.singletonList("transform1_expand")),
             null,
             null);
 
@@ -168,7 +169,7 @@ public class DataFrameTransformsConfigManagerTests extends DataFrameSingleNodeTe
                 transformsConfigManager.expandTransformIds("transform1_expand,transform2_expand",
                     PageParams.defaultParams(),
                     listener),
-            Arrays.asList("transform1_expand", "transform2_expand"),
+            new Tuple<>(2L, Arrays.asList("transform1_expand", "transform2_expand")),
             null,
             null);
 
@@ -177,7 +178,7 @@ public class DataFrameTransformsConfigManagerTests extends DataFrameSingleNodeTe
                 transformsConfigManager.expandTransformIds("transform1*,transform2_expand,transform3_expand",
                     PageParams.defaultParams(),
                     listener),
-            Arrays.asList("transform1_expand", "transform2_expand", "transform3_expand"),
+            new Tuple<>(3L, Arrays.asList("transform1_expand", "transform2_expand", "transform3_expand")),
             null,
             null);
 
@@ -186,7 +187,7 @@ public class DataFrameTransformsConfigManagerTests extends DataFrameSingleNodeTe
                 transformsConfigManager.expandTransformIds("_all",
                     PageParams.defaultParams(),
                     listener),
-            Arrays.asList("transform1_expand", "transform2_expand", "transform3_expand"),
+            new Tuple<>(3L, Arrays.asList("transform1_expand", "transform2_expand", "transform3_expand")),
             null,
             null);
 
@@ -195,7 +196,7 @@ public class DataFrameTransformsConfigManagerTests extends DataFrameSingleNodeTe
                 transformsConfigManager.expandTransformIds("_all",
                     new PageParams(0, 1),
                     listener),
-            Collections.singletonList("transform1_expand"),
+            new Tuple<>(3L, Collections.singletonList("transform1_expand")),
             null,
             null);
 
@@ -204,7 +205,7 @@ public class DataFrameTransformsConfigManagerTests extends DataFrameSingleNodeTe
                 transformsConfigManager.expandTransformIds("_all",
                     new PageParams(1, 2),
                     listener),
-            Arrays.asList("transform2_expand", "transform3_expand"),
+            new Tuple<>(3L, Arrays.asList("transform2_expand", "transform3_expand")),
             null,
             null);
 
@@ -213,7 +214,7 @@ public class DataFrameTransformsConfigManagerTests extends DataFrameSingleNodeTe
                 transformsConfigManager.expandTransformIds("unknown,unknown2",
                     new PageParams(1, 2),
                     listener),
-            (List<String>)null,
+            (Tuple<Long, List<String>>)null,
             null,
             e -> {
                 assertThat(e, instanceOf(ResourceNotFoundException.class));

@@ -5,14 +5,12 @@
  */
 package org.elasticsearch.xpack.core.indexlifecycle;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -20,15 +18,18 @@ import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.routing.allocation.decider.FilterAllocationDecider;
+import org.elasticsearch.cluster.routing.allocation.decider.NodeVersionAllocationDecider;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.shard.ShardId;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 /**
  * Allocates all shards in a single index to one node.
@@ -37,8 +38,10 @@ import java.util.Optional;
 public class SetSingleNodeAllocateStep extends AsyncActionStep {
     public static final String NAME = "set-single-node-allocation";
 
-    private static final AllocationDeciders ALLOCATION_DECIDERS = new AllocationDeciders(Collections.singletonList(
-            new FilterAllocationDecider(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS))));
+    private static final AllocationDeciders ALLOCATION_DECIDERS = new AllocationDeciders(List.of(
+        new FilterAllocationDecider(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)),
+        new NodeVersionAllocationDecider()
+    ));
 
     public SetSingleNodeAllocateStep(StepKey key, StepKey nextStepKey, Client client) {
         super(key, nextStepKey, client);
@@ -50,22 +53,20 @@ public class SetSingleNodeAllocateStep extends AsyncActionStep {
         RoutingAllocation allocation = new RoutingAllocation(ALLOCATION_DECIDERS, routingNodes, clusterState, null,
                 System.nanoTime());
         List<String> validNodeIds = new ArrayList<>();
-        Optional<ShardRouting> anyShard = clusterState.getRoutingTable().allShards(indexMetaData.getIndex().getName()).stream().findAny();
-        if (anyShard.isPresent()) {
-            // Find the highest node version in the cluster - shards can't be allocated to a node running an older version than they're
-            // currently on, so we should only pick one of the newest version nodes to reallocate to
-            Version highestNodeVersion = indexMetaData.getCreationVersion();
+        final Map<ShardId, List<ShardRouting>> routingsByShardId = clusterState.getRoutingTable()
+            .allShards(indexMetaData.getIndex().getName())
+            .stream()
+            .collect(Collectors.groupingBy(ShardRouting::shardId));
+
+
+        if (routingsByShardId.isEmpty() == false) {
             for (RoutingNode node : routingNodes) {
-                highestNodeVersion = Version.max(highestNodeVersion, node.node().getVersion());
-            }
-            // Iterate through the nodes finding ones that are acceptable for the current allocation rules of the shard
-            for (RoutingNode node : routingNodes) {
-                boolean canRemainOnCurrentNode =
-                    ALLOCATION_DECIDERS.canRemain(anyShard.get(), node, allocation).type() == Decision.Type.YES
-                    && highestNodeVersion.onOrBefore(node.node().getVersion());
-                if (canRemainOnCurrentNode) {
-                    DiscoveryNode discoveryNode = node.node();
-                    validNodeIds.add(discoveryNode.getId());
+                boolean canAllocateOneCopyOfEachShard = routingsByShardId.values().stream() // For each shard
+                    .allMatch(shardRoutings -> shardRoutings.stream() // Can we allocate at least one shard copy to this node?
+                        .map(shardRouting -> ALLOCATION_DECIDERS.canAllocate(shardRouting, node, allocation).type())
+                        .anyMatch(Decision.Type.YES::equals));
+                if (canAllocateOneCopyOfEachShard) {
+                    validNodeIds.add(node.node().getId());
                 }
             }
             // Shuffle the list of nodes so the one we pick is random

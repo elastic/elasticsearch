@@ -76,29 +76,32 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
 
     @Override
     public void sendResponse(RestResponse restResponse) {
-        HttpResponse httpResponse;
-        if (RestRequest.Method.HEAD == request.method()) {
-            httpResponse = httpRequest.createResponse(restResponse.status(), BytesArray.EMPTY);
-        } else {
-            httpResponse = httpRequest.createResponse(restResponse.status(), restResponse.content());
+        final ArrayList<Releasable> toClose = new ArrayList<>(3);
+        if (isCloseConnection()) {
+            toClose.add(() -> CloseableChannel.closeChannel(httpChannel));
         }
-
-        // TODO: Ideally we should move the setting of Cors headers into :server
-        // NioCorsHandler.setCorsResponseHeaders(nettyRequest, resp, corsConfig);
-
-        String opaque = request.header(X_OPAQUE_ID);
-        if (opaque != null) {
-            setHeaderField(httpResponse, X_OPAQUE_ID, opaque);
-        }
-
-        // Add all custom headers
-        addCustomHeaders(httpResponse, restResponse.getHeaders());
-        addCustomHeaders(httpResponse, threadContext.getResponseHeaders());
-
-        ArrayList<Releasable> toClose = new ArrayList<>(3);
 
         boolean success = false;
         try {
+            final BytesReference content = restResponse.content();
+            if (content instanceof Releasable) {
+                toClose.add((Releasable) content);
+            }
+
+            final HttpResponse httpResponse = httpRequest.createResponse(restResponse.status(), isHead() ? BytesArray.EMPTY : content);
+
+            // TODO: Ideally we should move the setting of Cors headers into :server
+            // NioCorsHandler.setCorsResponseHeaders(nettyRequest, resp, corsConfig);
+
+            String opaque = request.header(X_OPAQUE_ID);
+            if (opaque != null) {
+                setHeaderField(httpResponse, X_OPAQUE_ID, opaque);
+            }
+
+            // Add all custom headers
+            addCustomHeaders(httpResponse, restResponse.getHeaders());
+            addCustomHeaders(httpResponse, threadContext.getResponseHeaders());
+
             // If our response doesn't specify a content-type header, set one
             setHeaderField(httpResponse, CONTENT_TYPE, restResponse.contentType(), false);
             // If our response has no content-length, calculate and set one
@@ -106,17 +109,9 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
 
             addCookies(httpResponse);
 
-            BytesReference content = restResponse.content();
-            if (content instanceof Releasable) {
-                toClose.add((Releasable) content);
-            }
             BytesStreamOutput bytesStreamOutput = bytesOutputOrNull();
             if (bytesStreamOutput instanceof ReleasableBytesStreamOutput) {
                 toClose.add((Releasable) bytesStreamOutput);
-            }
-
-            if (isCloseConnection()) {
-                toClose.add(() -> CloseableChannel.closeChannel(httpChannel));
             }
 
             ActionListener<Void> listener = ActionListener.wrap(() -> Releasables.close(toClose));
@@ -127,7 +122,6 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
                 Releasables.close(toClose);
             }
         }
-
     }
 
     private void setHeaderField(HttpResponse response, String headerField, String value) {
@@ -170,5 +164,14 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
     // Determine if the request protocol version is HTTP 1.0
     private boolean isHttp10() {
         return request.getHttpRequest().protocolVersion() == HttpRequest.HttpVersion.HTTP_1_0;
+    }
+
+    // Determine if the request method is HEAD, swallowing any exception if the request method is invalid
+    private boolean isHead() {
+        try {
+            return RestRequest.Method.HEAD == request.method();
+        } catch (Exception ignored) {
+            return false;
+        }
     }
 }

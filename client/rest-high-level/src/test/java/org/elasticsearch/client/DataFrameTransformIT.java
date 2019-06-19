@@ -195,7 +195,7 @@ public class DataFrameTransformIT extends ESRestHighLevelClientTestCase {
                 client::getDataFrameTransformAsync);
         assertNull(getResponse.getInvalidTransforms());
         assertThat(getResponse.getTransformConfigurations(), hasSize(1));
-        assertEquals(transform, getResponse.getTransformConfigurations().get(0));
+        assertEquals(transform.getId(), getResponse.getTransformConfigurations().get(0).getId());
     }
 
     public void testGetAllAndPageTransforms() throws IOException {
@@ -219,7 +219,7 @@ public class DataFrameTransformIT extends ESRestHighLevelClientTestCase {
                 client::getDataFrameTransformAsync);
         assertNull(getResponse.getInvalidTransforms());
         assertThat(getResponse.getTransformConfigurations(), hasSize(2));
-        assertEquals(transform, getResponse.getTransformConfigurations().get(1));
+        assertEquals(transform.getId(), getResponse.getTransformConfigurations().get(1).getId());
 
         getRequest.setPageParams(new PageParams(0,1));
         getResponse = execute(getRequest, client::getDataFrameTransform,

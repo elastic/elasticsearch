@@ -6,6 +6,7 @@
 
 package org.elasticsearch.xpack.dataframe.integration;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.core.IndexerState;
 import org.elasticsearch.client.dataframe.transforms.DataFrameTransformConfig;
@@ -17,6 +18,7 @@ import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInter
 import org.junit.After;
 
 import java.io.IOException;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -58,6 +60,12 @@ public class DataFrameTransformIT extends DataFrameIntegTestCase {
             assertThat(getDataFrameTransformStats(config.getId()).getTransformsStateAndStats().get(0).getTransformState().getIndexerState(),
                 equalTo(IndexerState.STOPPED)));
         stopDataFrameTransform(config.getId());
+
+        DataFrameTransformConfig storedConfig = getDataFrameTransform(config.getId()).getTransformConfigurations().get(0);
+        assertThat(storedConfig.getTransformVersion(), equalTo(Version.CURRENT));
+        Date now = new Date();
+        assertTrue(storedConfig.getCreateTime().before(now));
+
         deleteDataFrameTransform(config.getId());
     }
 

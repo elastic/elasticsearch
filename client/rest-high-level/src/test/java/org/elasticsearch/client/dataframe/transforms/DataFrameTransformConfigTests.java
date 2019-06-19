@@ -19,6 +19,7 @@
 
 package org.elasticsearch.client.dataframe.transforms;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.client.dataframe.transforms.pivot.PivotConfigTests;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -28,6 +29,7 @@ import org.elasticsearch.test.AbstractXContentTestCase;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.Date;
 import java.util.function.Predicate;
 
 import static org.elasticsearch.client.dataframe.transforms.DestConfigTests.randomDestConfig;
@@ -36,8 +38,13 @@ import static org.elasticsearch.client.dataframe.transforms.SourceConfigTests.ra
 public class DataFrameTransformConfigTests extends AbstractXContentTestCase<DataFrameTransformConfig> {
 
     public static DataFrameTransformConfig randomDataFrameTransformConfig() {
-        return new DataFrameTransformConfig(randomAlphaOfLengthBetween(1, 10), randomSourceConfig(),
-                randomDestConfig(), PivotConfigTests.randomPivotConfig(), randomBoolean() ? null : randomAlphaOfLengthBetween(1, 100));
+        return new DataFrameTransformConfig(randomAlphaOfLengthBetween(1, 10),
+            randomSourceConfig(),
+            randomDestConfig(),
+            PivotConfigTests.randomPivotConfig(),
+            randomBoolean() ? null : randomAlphaOfLengthBetween(1, 100),
+            randomBoolean() ? null : new Date(),
+            randomBoolean() ? null : Version.CURRENT.toString());
     }
 
     @Override

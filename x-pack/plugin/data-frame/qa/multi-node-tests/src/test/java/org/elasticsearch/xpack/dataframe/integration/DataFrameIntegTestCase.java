@@ -15,6 +15,8 @@ import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.client.core.AcknowledgedResponse;
 import org.elasticsearch.client.dataframe.DeleteDataFrameTransformRequest;
+import org.elasticsearch.client.dataframe.GetDataFrameTransformRequest;
+import org.elasticsearch.client.dataframe.GetDataFrameTransformResponse;
 import org.elasticsearch.client.dataframe.GetDataFrameTransformStatsRequest;
 import org.elasticsearch.client.dataframe.GetDataFrameTransformStatsResponse;
 import org.elasticsearch.client.dataframe.PutDataFrameTransformRequest;
@@ -57,6 +59,7 @@ import java.time.ZoneId;
 import java.util.Base64;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
@@ -116,6 +119,11 @@ abstract class DataFrameIntegTestCase extends ESRestTestCase {
     protected GetDataFrameTransformStatsResponse getDataFrameTransformStats(String id) throws IOException {
         RestHighLevelClient restClient = new TestRestHighLevelClient();
         return restClient.dataFrame().getDataFrameTransformStats(new GetDataFrameTransformStatsRequest(id), RequestOptions.DEFAULT);
+    }
+
+    protected GetDataFrameTransformResponse getDataFrameTransform(String id) throws IOException {
+        RestHighLevelClient restClient = new TestRestHighLevelClient();
+        return restClient.dataFrame().getDataFrameTransform(new GetDataFrameTransformRequest(id), RequestOptions.DEFAULT);
     }
 
     protected void waitUntilCheckpoint(String id, long checkpoint) throws Exception {
@@ -321,9 +329,11 @@ abstract class DataFrameIntegTestCase extends ESRestTestCase {
             .build();
     }
 
-    private class TestRestHighLevelClient extends RestHighLevelClient {
+    private static class TestRestHighLevelClient extends RestHighLevelClient {
+        private static final List<NamedXContentRegistry.Entry> X_CONTENT_ENTRIES =
+            new SearchModule(Settings.EMPTY, Collections.emptyList()).getNamedXContents();
         TestRestHighLevelClient() {
-            super(client(), restClient -> {}, Collections.emptyList());
+            super(client(), restClient -> {}, X_CONTENT_ENTRIES);
         }
     }
 }

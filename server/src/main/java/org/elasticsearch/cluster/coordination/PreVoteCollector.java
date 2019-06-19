@@ -23,7 +23,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.coordination.CoordinationState.VoteCollection;
+import org.elasticsearch.cluster.coordination.CoordinationState.JoinVoteCollection;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.Tuple;
@@ -35,11 +35,11 @@ import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
-import java.util.Set;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.LongConsumer;
 
-import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.newConcurrentSet;
+import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.newConcurrentMap;
 
 public class PreVoteCollector {
 
@@ -130,7 +130,7 @@ public class PreVoteCollector {
     }
 
     private class PreVotingRound implements Releasable {
-        private final Set<DiscoveryNode> preVotesReceived = newConcurrentSet();
+        private final Map<DiscoveryNode, PreVoteResponse> preVotesReceived = newConcurrentMap();
         private final AtomicBoolean electionStarted = new AtomicBoolean();
         private final PreVoteRequest preVoteRequest;
         private final ClusterState clusterState;
@@ -187,20 +187,18 @@ public class PreVoteCollector {
                 return;
             }
 
-            if (response.getLastAcceptedTerm() == clusterState.term() &&
-                response.getLastAcceptedVersion() == clusterState.version() &&
-                electionStrategy.isStateTransferOnly(clusterState.nodes().getLocalNode()) &&
-                electionStrategy.isStateTransferOnly(sender) == false) {
-                logger.debug("{} ignoring {} from {} as it has the same state and is not transfer-only", this, response, sender);
-                return;
-            }
+            preVotesReceived.put(sender, response);
 
-            preVotesReceived.add(sender);
+            final JoinVoteCollection voteCollection = new JoinVoteCollection();
+            preVotesReceived.forEach((node, preVoteResponse) -> {
+                voteCollection.addJoinVote(new Join(node, clusterState.nodes().getLocalNode(), preVoteResponse.getCurrentTerm(),
+                    preVoteResponse.getLastAcceptedTerm(), preVoteResponse.getLastAcceptedVersion()));
+            });
 
-            final VoteCollection voteCollection = new VoteCollection();
-            preVotesReceived.forEach(voteCollection::addVote);
-
-            if (CoordinationState.isElectionQuorum(voteCollection, clusterState, electionStrategy) == false) {
+            final PreVoteResponse localPrevoteResponse = getPreVoteResponse();
+            if (electionStrategy.isElectionQuorum(clusterState.nodes().getLocalNode(), localPrevoteResponse.getCurrentTerm(),
+                localPrevoteResponse.getLastAcceptedTerm(), localPrevoteResponse.getLastAcceptedVersion(),
+                clusterState.getLastCommittedConfiguration(), clusterState.getLastAcceptedConfiguration(), voteCollection) == false) {
                 logger.debug("{} added {} from {}, no quorum yet", this, response, sender);
                 return;
             }

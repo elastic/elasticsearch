@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.cluster.coordination;
 
+import org.elasticsearch.cluster.coordination.CoordinationMetaData.VotingConfiguration;
+import org.elasticsearch.cluster.coordination.CoordinationState.JoinVoteCollection;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.settings.Setting;
@@ -57,11 +59,42 @@ public class VotingOnlyNodePlugin extends Plugin implements DiscoveryPlugin {
         }
     };
 
-    private class VotingOnlyNodeElectionStrategy implements ElectionStrategy {
+    public boolean isVotingOnlyNode(DiscoveryNode discoveryNode) {
+        return discoveryNode.getRoles().contains(VOTING_ONLY_NODE_ROLE);
+    }
+
+    public boolean isFullMasterNode(DiscoveryNode discoveryNode) {
+        return discoveryNode.isMasterNode() && discoveryNode.getRoles().contains(VOTING_ONLY_NODE_ROLE) == false;
+    }
+
+    private class VotingOnlyNodeElectionStrategy extends ElectionStrategy.DefaultElectionStrategy {
 
         @Override
         public boolean isStateTransferOnly(DiscoveryNode discoveryNode) {
             return discoveryNode.isMasterNode() && discoveryNode.getRoles().contains(VOTING_ONLY_NODE_ROLE);
+        }
+
+        @Override
+        public boolean isElectionQuorum(DiscoveryNode localNode, long localCurrentTerm, long localAcceptedTerm, long localAcceptedVersion,
+                                        VotingConfiguration lastCommittedConfiguration, VotingConfiguration lastAcceptedConfiguration,
+                                        JoinVoteCollection joinVotes) {
+            // if local node is voting only, have additional checks on election quorum definition
+            if (isVotingOnlyNode(localNode)) {
+                // if all votes are from voting only nodes, do not elect as master (no need to transfer state)
+                if (joinVotes.getJoins().stream().allMatch(join -> isVotingOnlyNode(join.getSourceNode()))) {
+                    return false;
+                }
+                // if there's a vote from a full master node with same last accepted term and version, that node should become master
+                // instead, so we should stand down
+                if (joinVotes.getJoins().stream().anyMatch(join -> isFullMasterNode(join.getSourceNode()) &&
+                    join.getLastAcceptedTerm() == localAcceptedTerm &&
+                    join.getLastAcceptedVersion() == localAcceptedVersion)) {
+                    return false;
+                }
+            }
+            // fall back to default election quorum definition
+            return super.isElectionQuorum(localNode, localCurrentTerm, localAcceptedTerm, localAcceptedVersion,
+                lastCommittedConfiguration, lastAcceptedConfiguration, joinVotes);
         }
     }
 

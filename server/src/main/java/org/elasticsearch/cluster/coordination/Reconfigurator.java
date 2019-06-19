@@ -59,11 +59,8 @@ public class Reconfigurator {
 
     private volatile boolean autoShrinkVotingConfiguration;
 
-    private final ElectionStrategy electionStrategy;
-
-    public Reconfigurator(Settings settings, ClusterSettings clusterSettings, ElectionStrategy electionStrategy) {
+    public Reconfigurator(Settings settings, ClusterSettings clusterSettings) {
         autoShrinkVotingConfiguration = CLUSTER_AUTO_SHRINK_VOTING_CONFIGURATION.get(settings);
-        this.electionStrategy = electionStrategy;
         clusterSettings.addSettingsUpdateConsumer(CLUSTER_AUTO_SHRINK_VOTING_CONFIGURATION, this::setAutoShrinkVotingConfiguration);
     }
 
@@ -130,7 +127,7 @@ public class Reconfigurator {
                 .collect(Collectors.toSet()));
 
         // new configuration should have a quorum
-        if (newConfig.hasQuorum(liveNodeIds) && liveNodes.stream().allMatch(electionStrategy::isStateTransferOnly) == false) {
+        if (newConfig.hasQuorum(liveNodeIds)) {
             return newConfig;
         } else {
             // If there are not enough live nodes to form a quorum in the newly-proposed configuration, it's better to do nothing.

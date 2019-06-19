@@ -34,6 +34,7 @@ import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.coordination.ClusterFormationFailureHelper.ClusterFormationState;
 import org.elasticsearch.cluster.coordination.CoordinationMetaData.VotingConfigExclusion;
 import org.elasticsearch.cluster.coordination.CoordinationMetaData.VotingConfiguration;
+import org.elasticsearch.cluster.coordination.CoordinationState.JoinVoteCollection;
 import org.elasticsearch.cluster.coordination.FollowersChecker.FollowerCheckRequest;
 import org.elasticsearch.cluster.coordination.JoinHelper.InitialJoinAccumulator;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -182,7 +183,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         this.nodeRemovalExecutor = new NodeRemovalClusterStateTaskExecutor(allocationService, logger);
         this.clusterApplier = clusterApplier;
         masterService.setClusterStateSupplier(this::getStateForMasterService);
-        this.reconfigurator = new Reconfigurator(settings, clusterSettings, electionStrategy);
+        this.reconfigurator = new Reconfigurator(settings, clusterSettings);
         this.clusterBootstrapService = new ClusterBootstrapService(settings, transportService, this::getFoundPeers,
             this::isInitialConfigurationSet, this::setInitialConfiguration);
         this.lagDetector = new LagDetector(settings, transportService.getThreadPool(), n -> removeNode(n, "lagging"),
@@ -1104,9 +1105,13 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             synchronized (mutex) {
                 final Iterable<DiscoveryNode> foundPeers = getFoundPeers();
                 if (mode == Mode.CANDIDATE) {
-                    final CoordinationState.VoteCollection expectedVotes = new CoordinationState.VoteCollection();
-                    foundPeers.forEach(expectedVotes::addVote);
-                    expectedVotes.addVote(Coordinator.this.getLocalNode());
+                    final JoinVoteCollection expectedVotes = new JoinVoteCollection();
+                    long term = getCurrentTerm();
+                    long lastAcceptedTerm = getLastAcceptedState().term();
+                    long lastAcceptedVersion = getLastAcceptedState().version();
+                    foundPeers.forEach(node -> expectedVotes.addJoinVote(new Join(node, getLocalNode(), term, lastAcceptedTerm,
+                        lastAcceptedVersion)));
+                    expectedVotes.addJoinVote(new Join(getLocalNode(), getLocalNode(), term, lastAcceptedTerm, lastAcceptedVersion));
                     final boolean foundQuorum = coordinationState.get().isElectionQuorum(expectedVotes);
                     if (foundQuorum) {
                         if (electionScheduler == null) {
@@ -1306,7 +1311,19 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                                             final List<DiscoveryNode> masterCandidates = completedNodes().stream()
                                                 .filter(DiscoveryNode::isMasterNode)
                                                 .filter(node -> nodeMayWinElection(state, node))
-                                                .filter(node -> electionStrategy.isStateTransferOnly(node) == false)
+                                                .filter(node -> {
+                                                    // check if candidate would be able to get an election quorum
+                                                    final JoinVoteCollection fakeJoinVoteCollection = new JoinVoteCollection();
+                                                    completedNodes().forEach(completedNode -> {
+                                                        fakeJoinVoteCollection.addJoinVote(new Join(completedNode, node, state.term(),
+                                                            state.term(), state.version()));
+                                                    });
+                                                    return electionStrategy.isElectionQuorum(node,
+                                                        state.term(), state.term(), state.version(),
+                                                        state.getLastCommittedConfiguration(), state.getLastAcceptedConfiguration(),
+                                                        fakeJoinVoteCollection
+                                                        );
+                                                })
                                                 .collect(Collectors.toList());
                                             if (masterCandidates.isEmpty() == false) {
                                                 abdicateTo(masterCandidates.get(random.nextInt(masterCandidates.size())));

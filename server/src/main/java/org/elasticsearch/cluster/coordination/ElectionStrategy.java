@@ -18,6 +18,8 @@
  */
 package org.elasticsearch.cluster.coordination;
 
+import org.elasticsearch.cluster.coordination.CoordinationMetaData.VotingConfiguration;
+import org.elasticsearch.cluster.coordination.CoordinationState.JoinVoteCollection;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 
 public interface ElectionStrategy {
@@ -27,6 +29,10 @@ public interface ElectionStrategy {
      */
     boolean isStateTransferOnly(DiscoveryNode discoveryNode);
 
+    boolean isElectionQuorum(DiscoveryNode localNode, long localCurrentTerm, long localAcceptedTerm, long localAcceptedVersion,
+                             VotingConfiguration lastCommittedConfiguration, VotingConfiguration lastAcceptedConfiguration,
+                             JoinVoteCollection joinVotes);
+
     class DefaultElectionStrategy implements ElectionStrategy {
 
         public static final ElectionStrategy INSTANCE = new DefaultElectionStrategy();
@@ -34,6 +40,13 @@ public interface ElectionStrategy {
         @Override
         public boolean isStateTransferOnly(DiscoveryNode discoveryNode) {
             return false;
+        }
+
+        @Override
+        public boolean isElectionQuorum(DiscoveryNode localNode, long localCurrentTerm, long localAcceptedTerm, long localAcceptedVersion,
+                                        VotingConfiguration lastCommittedConfiguration, VotingConfiguration lastAcceptedConfiguration,
+                                        JoinVoteCollection joinVotes) {
+            return joinVotes.isQuorum(lastCommittedConfiguration) && joinVotes.isQuorum(lastAcceptedConfiguration);
         }
     }
 }

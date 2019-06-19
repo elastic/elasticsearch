@@ -28,8 +28,10 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 /**
  * The core class of the cluster state coordination algorithm, directly implementing the
@@ -46,7 +48,7 @@ public class CoordinationState {
     private final ElectionStrategy electionStrategy;
 
     // transient state
-    private VoteCollection joinVotes;
+    private JoinVoteCollection joinVotes;
     private boolean startedJoinSinceLastReboot;
     private boolean electionWon;
     private long lastPublishedVersion;
@@ -61,7 +63,7 @@ public class CoordinationState {
         this.electionStrategy = electionStrategy;
 
         // transient state
-        this.joinVotes = new VoteCollection();
+        this.joinVotes = new JoinVoteCollection();
         this.startedJoinSinceLastReboot = false;
         this.electionWon = false;
         this.lastPublishedVersion = 0L;
@@ -101,14 +103,9 @@ public class CoordinationState {
         return electionWon;
     }
 
-    public boolean isElectionQuorum(VoteCollection votes) {
-        return isElectionQuorum(votes, getLastAcceptedState(), electionStrategy);
-    }
-
-    static boolean isElectionQuorum(VoteCollection votes, ClusterState lastAcceptedState, ElectionStrategy electionStrategy) {
-        return votes.nodes().stream().allMatch(electionStrategy::isStateTransferOnly) == false
-            && votes.isQuorum(lastAcceptedState.getLastCommittedConfiguration())
-            && votes.isQuorum(lastAcceptedState.getLastAcceptedConfiguration());
+    public boolean isElectionQuorum(JoinVoteCollection joinVotes) {
+        return electionStrategy.isElectionQuorum(localNode, getCurrentTerm(), getLastAcceptedTerm(), getLastAcceptedVersion(),
+            getLastCommittedConfiguration(), getLastAcceptedConfiguration(), joinVotes);
     }
 
     public boolean isPublishQuorum(VoteCollection votes) {
@@ -190,7 +187,7 @@ public class CoordinationState {
         lastPublishedConfiguration = getLastAcceptedConfiguration();
         startedJoinSinceLastReboot = true;
         electionWon = false;
-        joinVotes = new VoteCollection();
+        joinVotes = new JoinVoteCollection();
         publishVotes = new VoteCollection();
 
         return new Join(localNode, startJoinRequest.getSourceNode(), getCurrentTerm(), getLastAcceptedTerm(),
@@ -245,7 +242,7 @@ public class CoordinationState {
             throw new CoordinationStateRejectedException("rejecting join since this node has not received its initial configuration yet");
         }
 
-        boolean added = joinVotes.addVote(join.getSourceNode());
+        boolean added = joinVotes.addJoinVote(join);
         boolean prevElectionWon = electionWon;
         electionWon = isElectionQuorum(joinVotes);
         assert !prevElectionWon || electionWon; // we cannot go from won to not won
@@ -539,6 +536,23 @@ public class CoordinationState {
         @Override
         public int hashCode() {
             return nodes.hashCode();
+        }
+    }
+
+    public static class JoinVoteCollection extends VoteCollection {
+
+        private final Set<Join> joins = new HashSet<>();
+
+        public boolean addJoinVote(Join join) {
+            final boolean added = addVote(join.getSourceNode());
+            if (added) {
+                joins.add(join);
+            }
+            return added;
+        }
+
+        public Set<Join> getJoins() {
+            return Collections.unmodifiableSet(joins);
         }
     }
 }

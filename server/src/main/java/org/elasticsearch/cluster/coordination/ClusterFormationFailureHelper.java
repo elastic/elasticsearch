@@ -22,7 +22,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.coordination.CoordinationMetaData.VotingConfiguration;
-import org.elasticsearch.cluster.coordination.CoordinationState.VoteCollection;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Setting;
@@ -184,10 +183,19 @@ public class ClusterFormationFailureHelper {
                     + describeQuorum(clusterState.getLastCommittedConfiguration());
             }
 
-            final VoteCollection voteCollection = new VoteCollection();
-            foundPeers.forEach(voteCollection::addVote);
+            final CoordinationState.JoinVoteCollection expectedVotes = new CoordinationState.JoinVoteCollection();
+            long term = clusterState.term();
+            long lastAcceptedTerm = clusterState.term();
+            long lastAcceptedVersion = clusterState.version();
+            foundPeers.forEach(node -> expectedVotes.addJoinVote(new Join(node, clusterState.nodes().getLocalNode(), term, lastAcceptedTerm,
+                lastAcceptedVersion)));
+            expectedVotes.addJoinVote(new Join(clusterState.nodes().getLocalNode(), clusterState.nodes().getLocalNode(), term,
+                lastAcceptedTerm, lastAcceptedVersion));
+
             final String isQuorumOrNot
-                = CoordinationState.isElectionQuorum(voteCollection, clusterState, electionStrategy) ? "is a quorum" : "is not a quorum";
+                = electionStrategy.isElectionQuorum(clusterState.nodes().getLocalNode(), term, lastAcceptedTerm, lastAcceptedVersion,
+                    clusterState.getLastCommittedConfiguration(), clusterState.getLastAcceptedConfiguration(), expectedVotes) ?
+                "is a quorum" : "is not a quorum";
 
             return String.format(Locale.ROOT,
                 "master not discovered or elected yet, an election requires %s, have discovered %s which %s; %s",

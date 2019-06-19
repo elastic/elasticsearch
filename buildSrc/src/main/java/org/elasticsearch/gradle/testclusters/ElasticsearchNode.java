@@ -582,21 +582,11 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     }
 
     public File getServerLog() {
-        if (defaultConfig.containsKey("cluster.name")) {
-            throw new TestClustersException("Can't get server log, is the node (" + this + ") started?");
-        }
-        File file = confPathLogs.resolve(defaultConfig.get("cluster.name") + "_server.json").toFile();
-        assert file.exists() : "Server log does not exist " + file;
-        return file;
+        return confPathLogs.resolve(defaultConfig.get("cluster.name") + "_server.json").toFile();
     }
 
     public File getAuditLog() {
-        if (defaultConfig.containsKey("cluster.name")) {
-            throw new TestClustersException("Can't get server log, is the node (" + this + ") started?");
-        }
-        File file = confPathLogs.resolve(defaultConfig.get("cluster.name") + "_audit.json").toFile();
-        assert file.exists() : "Audit log does not exist " + file;
-        return file;
+        return confPathLogs.resolve(defaultConfig.get("cluster.name") + "_audit.json").toFile();
     }
 
     @Override

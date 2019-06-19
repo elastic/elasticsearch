@@ -126,12 +126,15 @@ public class SamplerAggregationBuilder extends AbstractAggregationBuilder<Sample
     }
 
     @Override
-    protected int doHashCode() {
-        return Objects.hash(shardSize);
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), shardSize);
     }
 
     @Override
-    protected boolean doEquals(Object obj) {
+    public boolean equals(Object obj) {
+        if (this == obj) return true;
+        if (obj == null || getClass() != obj.getClass()) return false;
+        if (super.equals(obj) == false) return false;
         SamplerAggregationBuilder other = (SamplerAggregationBuilder) obj;
         return Objects.equals(shardSize, other.shardSize);
     }

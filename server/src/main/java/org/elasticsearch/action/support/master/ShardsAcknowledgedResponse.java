@@ -42,10 +42,15 @@ public abstract class ShardsAcknowledgedResponse extends AcknowledgedResponse {
                 ObjectParser.ValueType.BOOLEAN);
     }
 
-    private boolean shardsAcknowledged;
+    private final boolean shardsAcknowledged;
 
-
-    protected ShardsAcknowledgedResponse() {
+    protected ShardsAcknowledgedResponse(StreamInput in, boolean readShardsAcknowledged) throws IOException {
+        super(in);
+        if (readShardsAcknowledged) {
+            this.shardsAcknowledged = in.readBoolean();
+        } else {
+            this.shardsAcknowledged = false;
+        }
     }
 
     protected ShardsAcknowledgedResponse(boolean acknowledged, boolean shardsAcknowledged) {
@@ -61,10 +66,6 @@ public abstract class ShardsAcknowledgedResponse extends AcknowledgedResponse {
      */
     public boolean isShardsAcknowledged() {
         return shardsAcknowledged;
-    }
-
-    protected void readShardsAcknowledged(StreamInput in) throws IOException {
-        shardsAcknowledged = in.readBoolean();
     }
 
     protected void writeShardsAcknowledged(StreamOutput out) throws IOException {

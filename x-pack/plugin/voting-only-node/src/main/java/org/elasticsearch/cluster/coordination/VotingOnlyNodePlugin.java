@@ -203,8 +203,8 @@ public class VotingOnlyNodePlugin extends Plugin implements DiscoveryPlugin, Net
                     sender.sendRequest(connection, action, request, options, new TransportResponseHandler<>() {
                         @Override
                         public void handleResponse(TransportResponse response) {
-                            handler.handleException(new TransportException(
-                                new ElasticsearchException("ignoring successful publish response for state transfer only: " + response)));
+                            handler.handleException(new TransportException(new ElasticsearchException(
+                                "ignoring successful publish response used purely for state transfer: " + response)));
                         }
 
                         @Override
@@ -224,7 +224,7 @@ public class VotingOnlyNodePlugin extends Plugin implements DiscoveryPlugin, Net
                     });
                 } else {
                     threadPoolSupplier.get().generic().execute(() -> handler.handleException(new TransportException(
-                        new ElasticsearchException("voting-only node skipping publication to [" + destinationNode + "]"))));
+                        new ElasticsearchException("voting-only node skipping publication to " + destinationNode))));
                 }
             } else {
                 sender.sendRequest(connection, action, request, options, handler);

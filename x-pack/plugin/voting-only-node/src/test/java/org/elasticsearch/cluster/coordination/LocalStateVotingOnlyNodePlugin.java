@@ -6,7 +6,6 @@
 package org.elasticsearch.cluster.coordination;
 
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 
 import java.nio.file.Path;
@@ -15,13 +14,7 @@ public class LocalStateVotingOnlyNodePlugin extends LocalStateCompositeXPackPlug
 
     public LocalStateVotingOnlyNodePlugin(final Settings settings, final Path configPath) throws Exception {
         super(settings, configPath);
-        @SuppressWarnings("resource")
-        LocalStateVotingOnlyNodePlugin thisVar = this;
 
-        plugins.add(new VotingOnlyNodePlugin(settings) {
-            protected XPackLicenseState getLicenseState() {
-                return LocalStateVotingOnlyNodePlugin.this.getLicenseState();
-            }
-        });
+        plugins.add(new VotingOnlyNodePlugin(settings));
     }
 }

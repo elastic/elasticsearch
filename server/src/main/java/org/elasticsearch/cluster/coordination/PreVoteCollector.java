@@ -189,14 +189,17 @@ public class PreVoteCollector {
 
             preVotesReceived.put(sender, response);
 
+            // create a fake JoinVoteCollection based on the pre-votes and check if there is an election quorum
             final JoinVoteCollection voteCollection = new JoinVoteCollection();
+            final DiscoveryNode localNode = clusterState.nodes().getLocalNode();
+            final PreVoteResponse localPreVoteResponse = getPreVoteResponse();
+
             preVotesReceived.forEach((node, preVoteResponse) -> voteCollection.addJoinVote(
-                new Join(node, clusterState.nodes().getLocalNode(), preVoteResponse.getCurrentTerm(),
+                new Join(node, localNode, preVoteResponse.getCurrentTerm(),
                 preVoteResponse.getLastAcceptedTerm(), preVoteResponse.getLastAcceptedVersion())));
 
-            final PreVoteResponse localPrevoteResponse = getPreVoteResponse();
-            if (electionStrategy.isElectionQuorum(clusterState.nodes().getLocalNode(), localPrevoteResponse.getCurrentTerm(),
-                localPrevoteResponse.getLastAcceptedTerm(), localPrevoteResponse.getLastAcceptedVersion(),
+            if (electionStrategy.isElectionQuorum(clusterState.nodes().getLocalNode(), localPreVoteResponse.getCurrentTerm(),
+                localPreVoteResponse.getLastAcceptedTerm(), localPreVoteResponse.getLastAcceptedVersion(),
                 clusterState.getLastCommittedConfiguration(), clusterState.getLastAcceptedConfiguration(), voteCollection) == false) {
                 logger.debug("{} added {} from {}, no quorum yet", this, response, sender);
                 return;

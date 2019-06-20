@@ -43,9 +43,10 @@ public class CoordinationState {
 
     private final DiscoveryNode localNode;
 
+    private final ElectionStrategy electionStrategy;
+
     // persisted state
     private final PersistedState persistedState;
-    private final ElectionStrategy electionStrategy;
 
     // transient state
     private JoinVoteCollection joinVotes;
@@ -114,6 +115,11 @@ public class CoordinationState {
 
     public boolean containsJoinVoteFor(DiscoveryNode node) {
         return joinVotes.containsVoteFor(node);
+    }
+
+    // used for tests
+    boolean containsJoin(Join join) {
+        return joinVotes.getJoins().contains(join);
     }
 
     public boolean joinVotesHaveQuorumFor(VotingConfiguration votingConfiguration) {
@@ -539,6 +545,9 @@ public class CoordinationState {
         }
     }
 
+    /**
+     * A collection of votes, extending {@link VoteCollection}, which additionally records the Joins
+     */
     public static class JoinVoteCollection extends VoteCollection {
 
         private final Set<Join> joins = new HashSet<>();

@@ -609,11 +609,11 @@ public class XPackLicenseState {
     }
 
     /**
-     * Voting only nodes are always available as long as there is a valid license
+     * Voting only node functionality is always available as long as there is a valid license
      *
      * @return true if the license is active
      */
-    public synchronized boolean isVotingOnlyNodeAllowed() {
+    public synchronized boolean isVotingOnlyAllowed() {
         return status.active;
     }
 

@@ -22,10 +22,14 @@ import org.elasticsearch.cluster.coordination.CoordinationMetaData.VotingConfigu
 import org.elasticsearch.cluster.coordination.CoordinationState.VoteCollection;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 
+/**
+ * Allows plugging in a custom election strategy. Note that, in order to guarantee safety of the system, custom election strategies should
+ * only be more restrictive than the behavior that's provided by {@link DefaultElectionStrategy}.
+ */
 public interface ElectionStrategy {
 
     /**
-     * Whether there is an election quorum from the point of view of the provided local node
+     * Whether there is an election quorum from the point of view of the given local node under the provided voting configurations
      */
     boolean isElectionQuorum(DiscoveryNode localNode, long localCurrentTerm, long localAcceptedTerm, long localAcceptedVersion,
                              VotingConfiguration lastCommittedConfiguration, VotingConfiguration lastAcceptedConfiguration,

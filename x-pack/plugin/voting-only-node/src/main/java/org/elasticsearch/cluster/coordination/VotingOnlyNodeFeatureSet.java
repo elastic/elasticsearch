@@ -25,8 +25,6 @@ import org.elasticsearch.xpack.core.action.XPackUsageFeatureResponse;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureTransportAction;
 import org.elasticsearch.xpack.core.votingonly.VotingOnlyNodeFeatureSetUsage;
 
-import java.util.Map;
-
 public class VotingOnlyNodeFeatureSet implements XPackFeatureSet {
 
     private final boolean enabled;
@@ -45,7 +43,7 @@ public class VotingOnlyNodeFeatureSet implements XPackFeatureSet {
 
     @Override
     public boolean available() {
-        return licenseState != null && licenseState.isVotingOnlyNodeAllowed();
+        return licenseState != null && licenseState.isVotingOnlyAllowed();
     }
 
     @Override
@@ -70,7 +68,7 @@ public class VotingOnlyNodeFeatureSet implements XPackFeatureSet {
 
         @Override
         protected void masterOperation(XPackUsageRequest request, ClusterState state, ActionListener<XPackUsageFeatureResponse> listener) {
-            final boolean available = licenseState.isVotingOnlyNodeAllowed();
+            final boolean available = licenseState.isVotingOnlyAllowed();
             final VotingOnlyNodeFeatureSetUsage usage =
                 new VotingOnlyNodeFeatureSetUsage(available, XPackSettings.VOTING_ONLY_ENABLED.get(settings));
             listener.onResponse(new XPackUsageFeatureResponse(usage));

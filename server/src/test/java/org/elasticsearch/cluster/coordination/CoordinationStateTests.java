@@ -234,6 +234,7 @@ public class CoordinationStateTests extends ESTestCase {
         assertTrue(cs1.handleJoin(join));
         assertTrue(cs1.electionWon());
         assertTrue(cs1.containsJoinVoteFor(node1));
+        assertTrue(cs1.containsJoin(join));
         assertFalse(cs1.containsJoinVoteFor(node2));
         assertEquals(cs1.getLastPublishedVersion(), cs1.getLastAcceptedVersion());
         assertFalse(cs1.handleJoin(join));
@@ -316,7 +317,10 @@ public class CoordinationStateTests extends ESTestCase {
         Join v2 = cs2.handleStartJoin(startJoinRequest1);
         assertTrue(cs1.handleJoin(v1));
         assertTrue(cs1.electionWon());
+        assertTrue(cs1.containsJoin(v1));
+        assertFalse(cs1.containsJoin(v2));
         assertTrue(cs1.handleJoin(v2));
+        assertTrue(cs1.containsJoin(v2));
 
         VotingConfiguration newConfig = new VotingConfiguration(Collections.singleton(node2.getId()));
 

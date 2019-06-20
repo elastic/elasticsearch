@@ -115,7 +115,7 @@ public class TransportPutDataFrameTransformAction
         DataFrameTransformConfig config = request.getConfig()
             .setHeaders(filteredHeaders)
             .setCreateTime(Instant.now())
-            .setTransformVersion(Version.CURRENT);
+            .setVersion(Version.CURRENT);
 
         String transformId = config.getId();
         // quick check whether a transform has already been created under that name

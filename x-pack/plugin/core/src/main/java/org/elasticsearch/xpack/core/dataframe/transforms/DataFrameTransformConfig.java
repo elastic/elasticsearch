@@ -200,11 +200,11 @@ public class DataFrameTransformConfig extends AbstractDiffable<DataFrameTransfor
         return this;
     }
 
-    public Version getTransformVersion() {
+    public Version getVersion() {
         return transformVersion;
     }
 
-    public DataFrameTransformConfig setTransformVersion(Version transformVersion) {
+    public DataFrameTransformConfig setVersion(Version transformVersion) {
         this.transformVersion = transformVersion;
         return this;
     }

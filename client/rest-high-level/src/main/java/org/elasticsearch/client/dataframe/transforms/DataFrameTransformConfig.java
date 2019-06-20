@@ -132,7 +132,7 @@ public class DataFrameTransformConfig implements ToXContentObject {
         return pivotConfig;
     }
 
-    public Version getTransformVersion() {
+    public Version getVersion() {
         return transformVersion;
     }
 

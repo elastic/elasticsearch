@@ -25,8 +25,6 @@ import org.elasticsearch.xpack.core.action.XPackUsageFeatureResponse;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureTransportAction;
 import org.elasticsearch.xpack.core.rollup.RollupFeatureSetUsage;
 
-import java.util.Map;
-
 public class RollupFeatureSet implements XPackFeatureSet {
 
     private final boolean enabled;
@@ -51,11 +49,6 @@ public class RollupFeatureSet implements XPackFeatureSet {
     @Override
     public boolean enabled() {
         return enabled;
-    }
-
-    @Override
-    public Map<String, Object> nativeCodeInfo() {
-        return null;
     }
 
     public static class UsageTransportAction extends XPackUsageFeatureTransportAction {

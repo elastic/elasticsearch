@@ -76,6 +76,8 @@ to be the most efficient by using the internal mechanisms.
 --------------------------------------------------
 // NOTCONSOLE
 
+[role="xpack"]
+[testenv="basic"]
 [[vector-functions]]
 ===== Functions for vector fields
 

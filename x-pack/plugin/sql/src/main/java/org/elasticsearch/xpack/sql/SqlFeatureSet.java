@@ -33,7 +33,6 @@ import org.elasticsearch.xpack.sql.plugin.SqlStatsResponse;
 
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
@@ -63,11 +62,6 @@ public class SqlFeatureSet implements XPackFeatureSet {
     @Override
     public boolean enabled() {
         return enabled;
-    }
-
-    @Override
-    public Map<String, Object> nativeCodeInfo() {
-        return null;
     }
 
     public static class UsageTransportAction extends XPackUsageFeatureTransportAction {

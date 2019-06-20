@@ -33,6 +33,7 @@ import org.elasticsearch.rest.AbstractRestChannel;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
+import org.elasticsearch.rest.RestStatus;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -88,7 +89,17 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
                 toClose.add((Releasable) content);
             }
 
-            final HttpResponse httpResponse = httpRequest.createResponse(restResponse.status(), isHead() ? BytesArray.EMPTY : content);
+            BytesReference finalContent = content;
+            try {
+                if (request.method() == RestRequest.Method.HEAD) {
+                    finalContent = BytesArray.EMPTY;
+                }
+            } catch (IllegalArgumentException ignored) {
+                assert restResponse.status() == RestStatus.METHOD_NOT_ALLOWED :
+                    "request HTTP method is unsupported but HTTP status is not METHOD_NOT_ALLOWED(405)";
+            }
+
+            final HttpResponse httpResponse = httpRequest.createResponse(restResponse.status(), finalContent);
 
             // TODO: Ideally we should move the setting of Cors headers into :server
             // NioCorsHandler.setCorsResponseHeaders(nettyRequest, resp, corsConfig);
@@ -164,14 +175,5 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
     // Determine if the request protocol version is HTTP 1.0
     private boolean isHttp10() {
         return request.getHttpRequest().protocolVersion() == HttpRequest.HttpVersion.HTTP_1_0;
-    }
-
-    // Determine if the request method is HEAD, swallowing any exception if the request method is invalid
-    private boolean isHead() {
-        try {
-            return RestRequest.Method.HEAD == request.method();
-        } catch (Exception ignored) {
-            return false;
-        }
     }
 }

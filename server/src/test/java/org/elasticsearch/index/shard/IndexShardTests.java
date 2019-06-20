@@ -1116,10 +1116,13 @@ public class IndexShardTests extends IndexShardTestCase {
         final String replicaAllocationId = replicaShard.routingEntry().allocationId().getId();
         primaryShard.updateLocalCheckpointForShard(replicaAllocationId, replicaLocalCheckpoint);
 
-        // initialize the local knowledge on the primary of the global checkpoint on the replica shard
+        // initialize the local knowledge on the primary of the persisted global checkpoint on the replica shard
         final int replicaGlobalCheckpoint = randomIntBetween(Math.toIntExact(SequenceNumbers.NO_OPS_PERFORMED),
             Math.toIntExact(primaryShard.getLastKnownGlobalCheckpoint()));
         primaryShard.updateGlobalCheckpointForShard(replicaAllocationId, replicaGlobalCheckpoint);
+
+        // initialize the local knowledge on the primary of the persisted global checkpoint on the primary
+        primaryShard.updateGlobalCheckpointForShard(shardRouting.allocationId().getId(), primaryShard.getLastKnownGlobalCheckpoint());
 
         // simulate a background maybe sync; it should only run if the knowledge on the replica of the global checkpoint lags the primary
         primaryShard.maybeSyncGlobalCheckpoint("test");

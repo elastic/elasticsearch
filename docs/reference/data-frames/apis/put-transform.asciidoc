@@ -100,7 +100,7 @@ PUT _data_frame/transforms/ecommerce_transform
 }
 --------------------------------------------------
 // CONSOLE
-// TEST[setup:kibana_sample_data_ecommerce]
+// TEST[skip: https://github.com/elastic/elasticsearch/issues/43271]
 
 When the transform is created, you receive the following results:
 [source,js]

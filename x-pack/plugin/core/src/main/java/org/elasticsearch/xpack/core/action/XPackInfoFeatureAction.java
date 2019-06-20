@@ -12,11 +12,11 @@ import java.util.Arrays;
 import java.util.List;
 
 /**
- * A base action for for usage of a feature plugin.
+ * A base action for info about a feature plugin.
  *
  * This action is implemented by each feature plugin, bound to the public constants here. The
- * {@link XPackUsageAction} implementationn iterates over the {@link #ALL} list of actions to form
- * the complete usage result.
+ * {@link XPackInfoAction} implementation iterates over the {@link #ALL} list of actions to form
+ * the complete info result.
  */
 public class XPackInfoFeatureAction extends Action<XPackInfoFeatureResponse> {
 

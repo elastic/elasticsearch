@@ -8,6 +8,7 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.AbstractXContentTestCase;
 
@@ -33,19 +34,47 @@ public class ReindexRequestSerializationTests extends AbstractXContentTestCase<R
 
     @Override
     protected ReindexRequest createTestInstance() {
-        ReindexRequest reindex = new ReindexRequest();
-        reindex.setSourceIndices("source");
-        reindex.setDestIndex("dest");
-//        reindex.setSourceQuery(matchAllQuery());
-        try (XContentBuilder builder = JsonXContent.contentBuilder().prettyPrint()) {
-            BytesReference bytes = BytesReference.bytes(matchAllQuery().toXContent(builder, ToXContent.EMPTY_PARAMS));
-            reindex.setRemoteInfo(new RemoteInfo(randomAlphaOfLength(5), randomAlphaOfLength(5), between(1, Integer.MAX_VALUE), null,
-                bytes,
-                "user", "pass", emptyMap(), RemoteInfo.DEFAULT_SOCKET_TIMEOUT, RemoteInfo.DEFAULT_CONNECT_TIMEOUT));
-        } catch (IOException e) {
-            throw new AssertionError(e);
+        ReindexRequest reindexRequest = new ReindexRequest();
+        reindexRequest.setSourceIndices("source");
+        reindexRequest.setDestIndex("destination");
+
+        if (randomBoolean()) {
+            try (XContentBuilder builder = JsonXContent.contentBuilder().prettyPrint()) {
+                BytesReference query = BytesReference.bytes(matchAllQuery().toXContent(builder, ToXContent.EMPTY_PARAMS));
+                reindexRequest.setRemoteInfo(new RemoteInfo(randomAlphaOfLength(5), randomAlphaOfLength(5), between(1, Integer.MAX_VALUE),
+                    null, query, "user", "pass", emptyMap(), RemoteInfo.DEFAULT_SOCKET_TIMEOUT, RemoteInfo.DEFAULT_CONNECT_TIMEOUT));
+            } catch (IOException e) {
+                throw new AssertionError(e);
+            }
         }
-        return reindex;
+
+        if (randomBoolean()) {
+            reindexRequest.setSourceBatchSize(randomInt(100));
+        }
+        if (randomBoolean()) {
+            reindexRequest.setDestDocType("type");
+        }
+        if (randomBoolean()) {
+            reindexRequest.setDestOpType("create");
+        }
+        if (randomBoolean()) {
+            reindexRequest.setDestPipeline("my_pipeline");
+        }
+        if (randomBoolean()) {
+            reindexRequest.setDestRouting("=cat");
+        }
+        if (randomBoolean()) {
+            reindexRequest.setMaxDocs(randomIntBetween(100, 1000));
+        }
+        if (randomBoolean()) {
+            reindexRequest.setAbortOnVersionConflict(false);
+        }
+
+        if (reindexRequest.getRemoteInfo() == null && randomBoolean()) {
+            reindexRequest.setSourceQuery(new TermQueryBuilder("foo", "fooval"));
+        }
+
+        return reindexRequest;
     }
 
     @Override
@@ -63,5 +92,15 @@ public class ReindexRequestSerializationTests extends AbstractXContentTestCase<R
         assertNotSame(newInstance, expectedInstance);
         assertArrayEquals(expectedInstance.getSearchRequest().indices(), newInstance.getSearchRequest().indices());
         assertEquals(expectedInstance.getSearchRequest(), newInstance.getSearchRequest());
+        assertEquals(expectedInstance.getMaxDocs(), newInstance.getMaxDocs());
+        assertEquals(expectedInstance.getSlices(), newInstance.getSlices());
+        assertEquals(expectedInstance.isAbortOnVersionConflict(), newInstance.isAbortOnVersionConflict());
+        assertEquals(expectedInstance.getRemoteInfo(), newInstance.getRemoteInfo());
+    }
+
+    @Override
+    protected boolean enableWarningsCheck() {
+        // There sometimes will be a warning about specifying types in reindex requests being deprecated.
+        return false;
     }
 }

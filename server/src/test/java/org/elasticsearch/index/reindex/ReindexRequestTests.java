@@ -41,11 +41,13 @@ import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
  */
 public class ReindexRequestTests extends AbstractBulkByScrollRequestTestCase<ReindexRequest> {
 
+    private final String matchAll = "{\"match_all\":{}}";
+
     public void testReindexFromRemoteDoesNotSupportSearchQuery() {
         ReindexRequest reindex = newRequest();
         reindex.setRemoteInfo(
                 new RemoteInfo(randomAlphaOfLength(5), randomAlphaOfLength(5), between(1, Integer.MAX_VALUE), null,
-                    new BytesArray("real_query"), null, null, emptyMap(),
+                    new BytesArray(matchAll), null, null, emptyMap(),
                     RemoteInfo.DEFAULT_SOCKET_TIMEOUT, RemoteInfo.DEFAULT_CONNECT_TIMEOUT));
         reindex.getSearchRequest().source().query(matchAllQuery()); // Unsupported place to put query
         ActionRequestValidationException e = reindex.validate();
@@ -57,7 +59,7 @@ public class ReindexRequestTests extends AbstractBulkByScrollRequestTestCase<Rei
         ReindexRequest reindex = newRequest();
         reindex.setRemoteInfo(
                 new RemoteInfo(randomAlphaOfLength(5), randomAlphaOfLength(5), between(1, Integer.MAX_VALUE), null,
-                    new BytesArray("real_query"), null, null, emptyMap(),
+                    new BytesArray(matchAll), null, null, emptyMap(),
                     RemoteInfo.DEFAULT_SOCKET_TIMEOUT, RemoteInfo.DEFAULT_CONNECT_TIMEOUT));
         reindex.setSlices(between(2, Integer.MAX_VALUE));
         ActionRequestValidationException e = reindex.validate();
@@ -81,7 +83,7 @@ public class ReindexRequestTests extends AbstractBulkByScrollRequestTestCase<Rei
         }
         if (randomBoolean()) {
             original.setRemoteInfo(new RemoteInfo(randomAlphaOfLength(5), randomAlphaOfLength(5), between(1, 10000),
-                    null, new BytesArray(randomAlphaOfLength(5)), null, null, emptyMap(),
+                    null, new BytesArray(matchAll), null, null, emptyMap(),
                     parseTimeValue(randomPositiveTimeValue(), "socket_timeout"),
                     parseTimeValue(randomPositiveTimeValue(), "connect_timeout")));
         }

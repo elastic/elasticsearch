@@ -392,7 +392,7 @@ public class RequestConvertersTests extends ESTestCase {
         reindexRequest.setSourceIndices("source_idx");
         reindexRequest.setDestIndex("dest_idx");
         Map<String, String> expectedParams = new HashMap<>();
-        if (true) {
+        if (randomBoolean()) {
             XContentBuilder builder = JsonXContent.contentBuilder().prettyPrint();
             RemoteInfo remoteInfo = new RemoteInfo("http", "remote-host", 9200, null,
                 BytesReference.bytes(matchAllQuery().toXContent(builder, ToXContent.EMPTY_PARAMS)),

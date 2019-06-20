@@ -12,7 +12,7 @@ import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
-import org.elasticsearch.test.junit.annotations.TestLogging;
+import org.elasticsearch.xpack.core.XPackSettings;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -23,7 +23,6 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.nullValue;
 
 @ESIntegTestCase.ClusterScope(scope = Scope.TEST, numDataNodes = 0, autoManageMasterNodes = false)
-@TestLogging("_root:DEBUG,org.elasticsearch.cluster:TRACE,org.elasticsearch.discovery:TRACE")
 public class VotingOnlyNodePluginTests extends ESIntegTestCase {
 
     @Override
@@ -31,17 +30,23 @@ public class VotingOnlyNodePluginTests extends ESIntegTestCase {
         return Collections.singleton(LocalStateVotingOnlyNodePlugin.class);
     }
 
-    public void testOneVotingOnlyNode() throws Exception {
+    public void testRequireVotingOnlyNodeToBeMasterEligible() {
         internalCluster().setBootstrapMasterNodeIndex(0);
-        internalCluster().startNodes(2);
-        final String votingOnlyNode
-            = internalCluster().startNode(Settings.builder().put(VotingOnlyNodePlugin.VOTING_ONLY_NODE_SETTING.getKey(), true));
-        assertBusy(() -> assertThat(client().admin().cluster().prepareState().get().getState().getLastCommittedConfiguration().getNodeIds(),
-            hasSize(3)));
+        IllegalStateException ise = expectThrows(IllegalStateException.class, () -> internalCluster().startNode(Settings.builder()
+            .put(Node.NODE_MASTER_SETTING.getKey(), false)
+            .put(VotingOnlyNodePlugin.VOTING_ONLY_NODE_SETTING.getKey(), true)
+            .build()));
+        assertThat(ise.getMessage(), containsString("voting-only node must be master-eligible"));
+    }
 
-        internalCluster().stopCurrentMasterNode();
-
-        assertNotEquals(votingOnlyNode, internalCluster().getMasterName());
+    public void testRequireVotingOnlyNodeToHaveXPackSettingEnabled() {
+        internalCluster().setBootstrapMasterNodeIndex(0);
+        IllegalStateException ise = expectThrows(IllegalStateException.class, () -> internalCluster().startNode(Settings.builder()
+            .put(VotingOnlyNodePlugin.VOTING_ONLY_NODE_SETTING.getKey(), true)
+            .put(XPackSettings.VOTING_ONLY_NODE_ENABLED.getKey(), false)
+            .build()));
+        assertThat(ise.getMessage(), containsString(XPackSettings.VOTING_ONLY_NODE_ENABLED.getKey() + " must be set to true to use the " +
+            VotingOnlyNodePlugin.VOTING_ONLY_NODE_SETTING.getKey() + " setting"));
     }
 
     public void testVotingOnlyNodeStats() throws Exception {
@@ -52,15 +57,6 @@ public class VotingOnlyNodePluginTests extends ESIntegTestCase {
             hasSize(3)));
         assertThat(client().admin().cluster().prepareClusterStats().get().getNodesStats().getCounts().getRoles().get(
             VotingOnlyNodePlugin.VOTING_ONLY_NODE_ROLE.roleName()).intValue(), equalTo(1));
-    }
-
-    public void testRequireVotingOnlyNodeToBeMasterEligible() {
-        internalCluster().setBootstrapMasterNodeIndex(0);
-        IllegalStateException ise = expectThrows(IllegalStateException.class, () -> internalCluster().startNode(Settings.builder()
-            .put(Node.NODE_MASTER_SETTING.getKey(), false)
-            .put(VotingOnlyNodePlugin.VOTING_ONLY_NODE_SETTING.getKey(), true)
-            .build()));
-        assertThat(ise.getMessage(), containsString("voting-only node must be master-eligible"));
     }
 
     public void testPreferFullMasterOverVotingOnlyNodes() throws Exception {

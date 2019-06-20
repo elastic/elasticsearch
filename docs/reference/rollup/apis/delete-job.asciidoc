@@ -11,13 +11,13 @@ Deletes an existing rollup job.
 experimental[]
 
 [float]
-[[sample-api-request]]
+[[rollup-delete-job-request]]
 ==== {api-request-title}
 
 `DELETE _rollup/job/<job_id>`
 
 [float]
-[[sample-api-prereqs]]
+[[rollup-delete-job-prereqs]]
 ==== {api-prereq-title}
 
 If the {es} {security-features} are enabled, you must have `manage` or
@@ -25,7 +25,7 @@ If the {es} {security-features} are enabled, you must have `manage` or
 {stack-ov}/security-privileges.html[Security privileges].
 
 [float]
-[[sample-api-desc]]
+[[rollup-delete-job-desc]]
 ==== {api-description-title}
 
 A job must be *stopped* first before it can be deleted. If you attempt to delete
@@ -61,14 +61,14 @@ POST my_rollup_index/_delete_by_query
 ===============================
 
 [float]
-[[sample-api-path-params]]
+[[rollup-delete-job-path-params]]
 ==== {api-path-parms-title}
 
 `<job_id>` (Required)::
   (string) Identifier for the job.
 
 [float]
-[[sample-api-example]]
+[[rollup-delete-job-example]]
 ==== {api-example-title}
 
 If you have a rollup job named `sensor`, you can delete it as follows:

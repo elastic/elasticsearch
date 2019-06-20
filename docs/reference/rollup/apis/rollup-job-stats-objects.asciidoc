@@ -1,0 +1,62 @@
+[role="xpack"]
+[testenv="basic"]
+[[rollup-job-stats-objects]]
+=== Rollup job stats and status API objects
+++++
+<titleabbrev>Rollup job stats and status</titleabbrev>
+++++
+
+The <<rollup-get-job,get rollup jobs API>> retrieves the following objects,
+which provide information about the status and statistics for each job.
+
+[float]
+[[rollup-job-stats-properties]]
+==== {api-definitions-title}
+
+`status`:: (object) The current status of the rollup job's indexer.
+  `job_state`::: (string) Valid values are:
++
+--
+* `stopped`: The indexer is paused and will not process data, even if its cron
+interval triggers.
+* `started`: The indexer is running, but not actively indexing data. When the
+cron interval triggers, the job's indexer will begin to process data.
+* `indexing`: The indexer is actively processing data and creating new rollup
+documents. When in this state, any subsequent cron interval triggers will be
+ignored because the job is already active with the prior trigger.
+* `abort`: A transient state, which is usually not witnessed by the user. The
+`abort` state is used if the task needs to be shut down for some reason. For
+example, the job has been deleted or an unrecoverable error has been encountered.  Shortly after the `abort` state is set, the job will remove itself from the
+cluster.
+--
+
+`stats`::
+  (object) Transient statistics about the rollup job.
++
+--
+NOTE: These stats are not persisted. If a node is restarted, these stats are
+reset.
+
+--
+
+  `pages_processed`::: TBD. `0`.
+  
+  `documents_processed`:: The number of documents that have been processed. For
+  example, `0`.
+  
+  `rollups_indexed`:: The number of rollup summary docs that have been indexed.
+  For example, `0`.
+  
+  `trigger_count`:: TBD. `0`.
+  
+  `index_failures`:: TBD. `0`.
+  
+  `index_time_in_ms`:: TBD. `0`.
+  
+  `index_total`:: TBD. `0`.
+  
+  `search_failures`:: TBD. `0`.
+  
+  `search_time_in_ms`:: TBD. `0`.
+  
+  `search_total`:: TBD

@@ -104,7 +104,7 @@ The API returns the following information:
 
 `rollup_jobs`::
   (array) An array of rollup job resources. For more information, see
-  <<rollup-jobs-objects>>.
+  <<rollup-job-objects>>.
 
 [discrete]
 [[get-rollup-caps-examples]]

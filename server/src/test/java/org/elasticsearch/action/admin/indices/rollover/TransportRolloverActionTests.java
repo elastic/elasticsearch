@@ -51,6 +51,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.shard.DocsStats;
+import org.elasticsearch.rest.action.cat.RestIndicesActionTests;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -163,6 +164,35 @@ public class TransportRolloverActionTests extends ESTestCase {
                 fail("unknown condition result found " + entry.getKey());
             }
         }
+    }
+
+    public void testEvaluateWithoutMetaData() {
+        MaxDocsCondition maxDocsCondition = new MaxDocsCondition(100L);
+        MaxAgeCondition maxAgeCondition = new MaxAgeCondition(TimeValue.timeValueHours(2));
+        MaxSizeCondition maxSizeCondition = new MaxSizeCondition(new ByteSizeValue(randomIntBetween(10, 100), ByteSizeUnit.MB));
+
+        long matchMaxDocs = randomIntBetween(100, 1000);
+        final Set<Condition<?>> conditions = Sets.newHashSet(maxDocsCondition, maxAgeCondition, maxSizeCondition);
+        Map<String, Boolean> results = evaluateConditions(conditions,
+            new DocsStats(matchMaxDocs, 0L, ByteSizeUnit.MB.toBytes(120)), null);
+        assertThat(results.size(), equalTo(3));
+        results.forEach((k, v) -> assertFalse(v));
+
+        final Settings settings = Settings.builder()
+            .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetaData.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
+            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 1000))
+            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, randomInt(10))
+            .build();
+
+        final IndexMetaData metaData = IndexMetaData.builder(randomAlphaOfLength(10))
+            .creationDate(System.currentTimeMillis() - TimeValue.timeValueHours(randomIntBetween(5, 10)).getMillis())
+            .settings(settings)
+            .build();
+        IndicesStatsResponse indicesStats = RestIndicesActionTests.randomIndicesStatsResponse(new IndexMetaData[]{metaData});
+        Map<String, Boolean> results2 = evaluateConditions(conditions, null, indicesStats);
+        assertThat(results2.size(), equalTo(3));
+        results2.forEach((k, v) -> assertFalse(v));
     }
 
     public void testCreateUpdateAliasRequest() {

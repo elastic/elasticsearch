@@ -19,14 +19,16 @@
 
 package org.elasticsearch.http;
 
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.bytes.ReleasablePagedBytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.ByteArray;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -55,7 +57,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
@@ -321,8 +322,11 @@ public class DefaultRestChannelTests extends ESTestCase {
         DefaultRestChannel channel = new DefaultRestChannel(httpChannel, request.getHttpRequest(), request, bigArrays,
             HttpHandlingSettings.fromSettings(Settings.EMPTY), threadPool.getThreadContext());
 
-        final TestBytesReference content = new TestBytesReference();
-        channel.sendResponse(new TestRestResponse(content));
+        // ESTestCase#after will invoke ensureAllArraysAreReleased which will fail if the response content was not released
+        final BigArrays bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
+        final ByteArray byteArray = bigArrays.newByteArray(0, false);
+        final BytesReference content = new ReleasablePagedBytesReference(byteArray, 0 , byteArray);
+        channel.sendResponse(new TestRestResponse(RestStatus.METHOD_NOT_ALLOWED, content));
 
         Class<ActionListener<Void>> listenerClass = (Class<ActionListener<Void>>) (Class) ActionListener.class;
         ArgumentCaptor<ActionListener<Void>> listenerCaptor = ArgumentCaptor.forClass(listenerClass);
@@ -333,7 +337,6 @@ public class DefaultRestChannelTests extends ESTestCase {
         } else {
             listener.onFailure(new ClosedChannelException());
         }
-        assertThat(content.released.get(), equalTo(true));
         if (close) {
             verify(httpChannel, times(1)).close();
         } else {
@@ -356,10 +359,13 @@ public class DefaultRestChannelTests extends ESTestCase {
         DefaultRestChannel channel = new DefaultRestChannel(httpChannel, request.getHttpRequest(), request, bigArrays,
             HttpHandlingSettings.fromSettings(Settings.EMPTY), threadPool.getThreadContext());
 
-        final TestBytesReference content = new TestBytesReference();
-        expectThrows(IllegalArgumentException.class, () -> channel.sendResponse(new TestRestResponse(content)));
+        // ESTestCase#after will invoke ensureAllArraysAreReleased which will fail if the response content was not released
+        final BigArrays bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
+        final ByteArray byteArray = bigArrays.newByteArray(0, false);
+        final BytesReference content = new ReleasablePagedBytesReference(byteArray, 0 , byteArray);
 
-        assertThat(content.released.get(), equalTo(true));
+        expectThrows(IllegalArgumentException.class, () -> channel.sendResponse(new TestRestResponse(RestStatus.OK, content)));
+
         if (close) {
             verify(httpChannel, times(1)).close();
         } else {
@@ -488,14 +494,16 @@ public class DefaultRestChannelTests extends ESTestCase {
 
     private static class TestRestResponse extends RestResponse {
 
+        private final RestStatus status;
         private final BytesReference content;
 
-        TestRestResponse(BytesReference content) {
+        TestRestResponse(final RestStatus status, final BytesReference content) {
+            this.status = Objects.requireNonNull(status);
             this.content = Objects.requireNonNull(content);
         }
 
         TestRestResponse() {
-            this(new BytesArray("content".getBytes(StandardCharsets.UTF_8)));
+            this(RestStatus.OK, new BytesArray("content".getBytes(StandardCharsets.UTF_8)));
         }
 
         public String contentType() {
@@ -507,44 +515,7 @@ public class DefaultRestChannelTests extends ESTestCase {
         }
 
         public RestStatus status() {
-            return RestStatus.OK;
-        }
-    }
-
-    private class TestBytesReference extends BytesReference implements Releasable {
-
-        final AtomicBoolean released = new AtomicBoolean(false);
-
-        @Override
-        public void close() {
-            if (released.compareAndSet(false, true) == false) {
-                throw new IllegalStateException("Already closed");
-            }
-        }
-
-        @Override
-        public byte get(int index) {
-            return 0;
-        }
-
-        @Override
-        public int length() {
-            return 0;
-        }
-
-        @Override
-        public BytesReference slice(int from, int length) {
-            return null;
-        }
-
-        @Override
-        public long ramBytesUsed() {
-            return 0;
-        }
-
-        @Override
-        public BytesRef toBytesRef() {
-            return null;
+            return status;
         }
     }
 }

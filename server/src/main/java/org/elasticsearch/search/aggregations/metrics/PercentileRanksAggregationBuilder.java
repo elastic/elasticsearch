@@ -269,37 +269,40 @@ public class PercentileRanksAggregationBuilder extends LeafOnly<ValuesSource.Num
     }
 
     @Override
-    protected boolean innerEquals(Object obj) {
+    public boolean equals(Object obj) {
+        if (this == obj) return true;
+        if (obj == null || getClass() != obj.getClass()) return false;
+        if (super.equals(obj) == false) return false;
         PercentileRanksAggregationBuilder other = (PercentileRanksAggregationBuilder) obj;
-        if (!Objects.equals(method, other.method)) {
+        if (Objects.equals(method, other.method) == false) {
             return false;
         }
         boolean equalSettings = false;
         switch (method) {
-        case HDR:
-            equalSettings = Objects.equals(numberOfSignificantValueDigits, other.numberOfSignificantValueDigits);
-            break;
-        case TDIGEST:
-            equalSettings = Objects.equals(compression, other.compression);
-            break;
-        default:
-            throw new IllegalStateException("Illegal method [" + method + "]");
+            case HDR:
+                equalSettings = Objects.equals(numberOfSignificantValueDigits, other.numberOfSignificantValueDigits);
+                break;
+            case TDIGEST:
+                equalSettings = Objects.equals(compression, other.compression);
+                break;
+            default:
+                throw new IllegalStateException("Illegal method [" + method + "]");
         }
         return equalSettings
-                && Objects.deepEquals(values, other.values)
-                && Objects.equals(keyed, other.keyed)
-                && Objects.equals(method, other.method);
+            && Objects.deepEquals(values, other.values)
+            && Objects.equals(keyed, other.keyed)
+            && Objects.equals(method, other.method);
     }
 
     @Override
-    protected int innerHashCode() {
+    public int hashCode() {
         switch (method) {
-        case HDR:
-            return Objects.hash(Arrays.hashCode(values), keyed, numberOfSignificantValueDigits, method);
-        case TDIGEST:
-            return Objects.hash(Arrays.hashCode(values), keyed, compression, method);
-        default:
-            throw new IllegalStateException("Illegal method [" + method + "]");
+            case HDR:
+                return Objects.hash(super.hashCode(), Arrays.hashCode(values), keyed, numberOfSignificantValueDigits, method);
+            case TDIGEST:
+                return Objects.hash(super.hashCode(), Arrays.hashCode(values), keyed, compression, method);
+            default:
+                throw new IllegalStateException("Illegal method [" + method + "]");
         }
     }
 

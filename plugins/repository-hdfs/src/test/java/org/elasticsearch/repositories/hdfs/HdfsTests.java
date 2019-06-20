@@ -95,7 +95,7 @@ public class HdfsTests extends ESSingleNodeTestCase {
             .prepareGetSnapshots("test-repo")
             .setSnapshots("test-snap")
             .get()
-            .getSnapshots()
+            .getSnapshots("test-repo")
             .get(0)
             .state(),
             equalTo(SnapshotState.SUCCESS));

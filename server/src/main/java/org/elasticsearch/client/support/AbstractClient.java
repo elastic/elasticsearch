@@ -945,8 +945,8 @@ public abstract class AbstractClient implements Client {
         }
 
         @Override
-        public GetSnapshotsRequestBuilder prepareGetSnapshots(String repository) {
-            return new GetSnapshotsRequestBuilder(this, GetSnapshotsAction.INSTANCE, repository);
+        public GetSnapshotsRequestBuilder prepareGetSnapshots(String... repositories) {
+            return new GetSnapshotsRequestBuilder(this, GetSnapshotsAction.INSTANCE, repositories);
         }
 
 

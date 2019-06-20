@@ -181,7 +181,7 @@ public class TruncateTranslogAction {
                 new TranslogDeletionPolicy(indexSettings.getTranslogRetentionSize().getBytes(),
                     indexSettings.getTranslogRetentionAge().getMillis());
             try (Translog translog = new Translog(translogConfig, translogUUID,
-                translogDeletionPolicy, () -> translogGlobalCheckpoint, () -> primaryTerm);
+                translogDeletionPolicy, () -> translogGlobalCheckpoint, () -> primaryTerm, seqNo -> {});
                  Translog.Snapshot snapshot = translog.newSnapshot()) {
                 //noinspection StatementWithEmptyBody we are just checking that we can iterate through the whole snapshot
                 while (snapshot.next() != null) {

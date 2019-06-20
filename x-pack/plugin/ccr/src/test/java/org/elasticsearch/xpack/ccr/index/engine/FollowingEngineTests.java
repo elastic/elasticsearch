@@ -337,7 +337,7 @@ public class FollowingEngineTests extends ESTestCase {
             for (int i = 0; i < numDocs; i++) {
                 leader.index(indexForPrimary(Integer.toString(i)));
             }
-            EngineTestCase.waitForOpsToComplete(follower, leader.getLocalCheckpoint());
+            EngineTestCase.waitForOpsToComplete(follower, leader.getProcessedLocalCheckpoint());
             assertThat(follower.getMaxSeqNoOfUpdatesOrDeletes(), equalTo(-1L));
             assertThat(follower.getNumberOfOptimizedIndexing(), equalTo(numDocs));
             assertThat(getDocIds(follower, true), equalTo(getDocIds(leader, true)));
@@ -350,7 +350,7 @@ public class FollowingEngineTests extends ESTestCase {
                     leader.delete(deleteForPrimary(Integer.toString(i)));
                 }
             }
-            EngineTestCase.waitForOpsToComplete(follower, leader.getLocalCheckpoint());
+            EngineTestCase.waitForOpsToComplete(follower, leader.getProcessedLocalCheckpoint());
             assertThat(follower.getMaxSeqNoOfUpdatesOrDeletes(), equalTo(leader.getMaxSeqNoOfUpdatesOrDeletes()));
             assertThat(follower.getNumberOfOptimizedIndexing(), equalTo(numDocs));
             assertThat(getDocIds(follower, true), equalTo(getDocIds(leader, true)));
@@ -362,7 +362,7 @@ public class FollowingEngineTests extends ESTestCase {
                 docIds.add(docId);
                 leader.index(indexForPrimary(docId));
             }
-            EngineTestCase.waitForOpsToComplete(follower, leader.getLocalCheckpoint());
+            EngineTestCase.waitForOpsToComplete(follower, leader.getProcessedLocalCheckpoint());
             assertThat(follower.getMaxSeqNoOfUpdatesOrDeletes(), equalTo(leader.getMaxSeqNoOfUpdatesOrDeletes()));
             assertThat(follower.getNumberOfOptimizedIndexing(), equalTo(numDocs + moreDocs));
             assertThat(getDocIds(follower, true), equalTo(getDocIds(leader, true)));
@@ -378,7 +378,7 @@ public class FollowingEngineTests extends ESTestCase {
         runFollowTest((leader, follower) -> {
             EngineTestCase.concurrentlyApplyOps(ops, leader);
             assertThat(follower.getMaxSeqNoOfUpdatesOrDeletes(), equalTo(-1L));
-            EngineTestCase.waitForOpsToComplete(follower, leader.getLocalCheckpoint());
+            EngineTestCase.waitForOpsToComplete(follower, leader.getProcessedLocalCheckpoint());
             assertThat(follower.getNumberOfOptimizedIndexing(), equalTo((long) numOps));
         });
     }
@@ -396,13 +396,13 @@ public class FollowingEngineTests extends ESTestCase {
         Randomness.shuffle(ops);
         runFollowTest((leader, follower) -> {
             EngineTestCase.concurrentlyApplyOps(ops, leader);
-            EngineTestCase.waitForOpsToComplete(follower, leader.getLocalCheckpoint());
+            EngineTestCase.waitForOpsToComplete(follower, leader.getProcessedLocalCheckpoint());
             final List<Engine.Operation> appendOps = new ArrayList<>();
             for (int numAppends = scaledRandomIntBetween(0, 100), i = 0; i < numAppends; i++) {
                 appendOps.add(indexForPrimary("append-" + i));
             }
             EngineTestCase.concurrentlyApplyOps(appendOps, leader);
-            EngineTestCase.waitForOpsToComplete(follower, leader.getLocalCheckpoint());
+            EngineTestCase.waitForOpsToComplete(follower, leader.getProcessedLocalCheckpoint());
             assertThat(follower.getNumberOfOptimizedIndexing(), greaterThanOrEqualTo((long) appendOps.size()));
         });
     }
@@ -410,19 +410,19 @@ public class FollowingEngineTests extends ESTestCase {
     public void testOptimizeSingleDocSequentially() throws Exception {
         runFollowTest((leader, follower) -> {
             leader.index(indexForPrimary("id"));
-            EngineTestCase.waitForOpsToComplete(follower, leader.getLocalCheckpoint());
+            EngineTestCase.waitForOpsToComplete(follower, leader.getProcessedLocalCheckpoint());
             assertThat(follower.getNumberOfOptimizedIndexing(), equalTo(1L));
 
             leader.delete(deleteForPrimary("id"));
-            EngineTestCase.waitForOpsToComplete(follower, leader.getLocalCheckpoint());
+            EngineTestCase.waitForOpsToComplete(follower, leader.getProcessedLocalCheckpoint());
             assertThat(follower.getNumberOfOptimizedIndexing(), equalTo(1L));
 
             leader.index(indexForPrimary("id"));
-            EngineTestCase.waitForOpsToComplete(follower, leader.getLocalCheckpoint());
+            EngineTestCase.waitForOpsToComplete(follower, leader.getProcessedLocalCheckpoint());
             assertThat(follower.getNumberOfOptimizedIndexing(), equalTo(2L));
 
             leader.index(indexForPrimary("id"));
-            EngineTestCase.waitForOpsToComplete(follower, leader.getLocalCheckpoint());
+            EngineTestCase.waitForOpsToComplete(follower, leader.getProcessedLocalCheckpoint());
             assertThat(follower.getNumberOfOptimizedIndexing(), equalTo(2L));
         });
     }
@@ -432,20 +432,20 @@ public class FollowingEngineTests extends ESTestCase {
         Randomness.shuffle(ops);
         runFollowTest((leader, follower) -> {
             EngineTestCase.concurrentlyApplyOps(ops, leader);
-            EngineTestCase.waitForOpsToComplete(follower, leader.getLocalCheckpoint());
+            EngineTestCase.waitForOpsToComplete(follower, leader.getProcessedLocalCheckpoint());
             assertThat(getDocIds(follower, true), equalTo(getDocIds(leader, true)));
             long numOptimized = follower.getNumberOfOptimizedIndexing();
 
             leader.delete(deleteForPrimary("id"));
-            EngineTestCase.waitForOpsToComplete(follower, leader.getLocalCheckpoint());
+            EngineTestCase.waitForOpsToComplete(follower, leader.getProcessedLocalCheckpoint());
             assertThat(follower.getNumberOfOptimizedIndexing(), equalTo(numOptimized));
 
             leader.index(indexForPrimary("id"));
-            EngineTestCase.waitForOpsToComplete(follower, leader.getLocalCheckpoint());
+            EngineTestCase.waitForOpsToComplete(follower, leader.getProcessedLocalCheckpoint());
             assertThat(follower.getNumberOfOptimizedIndexing(), equalTo(numOptimized + 1L));
 
             leader.index(indexForPrimary("id"));
-            EngineTestCase.waitForOpsToComplete(follower, leader.getLocalCheckpoint());
+            EngineTestCase.waitForOpsToComplete(follower, leader.getProcessedLocalCheckpoint());
             assertThat(follower.getNumberOfOptimizedIndexing(), equalTo(numOptimized + 1L));
         });
     }
@@ -454,7 +454,7 @@ public class FollowingEngineTests extends ESTestCase {
         final CheckedBiConsumer<InternalEngine, FollowingEngine, Exception> wrappedTask = (leader, follower) -> {
             Thread[] threads = new Thread[between(1, 8)];
             AtomicBoolean taskIsCompleted = new AtomicBoolean();
-            AtomicLong lastFetchedSeqNo = new AtomicLong(follower.getLocalCheckpoint());
+            AtomicLong lastFetchedSeqNo = new AtomicLong(follower.getProcessedLocalCheckpoint());
             CountDownLatch latch = new CountDownLatch(threads.length + 1);
             for (int i = 0; i < threads.length; i++) {
                 threads[i] = new Thread(() -> {
@@ -472,7 +472,7 @@ public class FollowingEngineTests extends ESTestCase {
                 latch.countDown();
                 latch.await();
                 task.accept(leader, follower);
-                EngineTestCase.waitForOpsToComplete(follower, leader.getLocalCheckpoint());
+                EngineTestCase.waitForOpsToComplete(follower, leader.getProcessedLocalCheckpoint());
             } finally {
                 taskIsCompleted.set(true);
                 for (Thread thread : threads) {
@@ -516,7 +516,7 @@ public class FollowingEngineTests extends ESTestCase {
         final MapperService mapperService = EngineTestCase.createMapperService("test");
         final TranslogHandler translogHandler = new TranslogHandler(xContentRegistry(), follower.config().getIndexSettings());
         while (stopped.get() == false) {
-            final long checkpoint = leader.getLocalCheckpoint();
+            final long checkpoint = leader.getProcessedLocalCheckpoint();
             final long lastSeqNo = lastFetchedSeqNo.get();
             if (lastSeqNo < checkpoint) {
                 final long nextSeqNo = randomLongBetween(lastSeqNo + 1, checkpoint);
@@ -607,7 +607,7 @@ public class FollowingEngineTests extends ESTestCase {
                     }
                 }
                 // Primary should reject duplicates
-                globalCheckpoint.set(randomLongBetween(globalCheckpoint.get(), followingEngine.getLocalCheckpoint()));
+                globalCheckpoint.set(randomLongBetween(globalCheckpoint.get(), followingEngine.getProcessedLocalCheckpoint()));
                 final long newTerm = randomLongBetween(oldTerm + 1, Long.MAX_VALUE);
                 for (Engine.Operation op : operations) {
                     Engine.Result result = applyOperation(followingEngine, op, newTerm, Engine.Operation.Origin.PRIMARY);

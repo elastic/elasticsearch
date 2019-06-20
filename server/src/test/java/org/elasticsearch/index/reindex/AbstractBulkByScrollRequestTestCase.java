@@ -21,7 +21,9 @@ package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.test.AbstractXContentTestCase;
 import org.elasticsearch.test.ESTestCase;
 
 import static org.elasticsearch.common.unit.TimeValue.parseTimeValue;
@@ -29,9 +31,12 @@ import static org.elasticsearch.common.unit.TimeValue.parseTimeValue;
 /**
  * Shared superclass for testing reindex and friends. In particular it makes sure to test the slice features.
  */
-public abstract class AbstractBulkByScrollRequestTestCase<R extends AbstractBulkByScrollRequest<R>> extends ESTestCase {
+public abstract class AbstractBulkByScrollRequestTestCase<R extends AbstractBulkByScrollRequest<R> & ToXContent>
+    extends AbstractXContentTestCase<R> {
+
     public void testForSlice() {
         R original = newRequest();
+        extraRandomizationForSlice(original);
         original.setAbortOnVersionConflict(randomBoolean());
         original.setRefresh(randomBoolean());
         original.setTimeout(parseTimeValue(randomPositiveTimeValue(), "timeout"));

@@ -39,7 +39,7 @@ import org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 import org.elasticsearch.xpack.ml.job.persistence.RecordsQueryBuilder;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcess;
-import org.elasticsearch.xpack.ml.job.process.autodetect.output.AutoDetectResultProcessor;
+import org.elasticsearch.xpack.ml.job.process.autodetect.output.AutodetectResultProcessor;
 import org.elasticsearch.xpack.ml.job.process.normalizer.Renormalizer;
 import org.elasticsearch.xpack.ml.job.results.AutodetectResult;
 import org.elasticsearch.xpack.ml.job.results.BucketTests;
@@ -75,7 +75,7 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
 
     private JobResultsProvider jobResultsProvider;
     private List<ModelSnapshot> capturedUpdateModelSnapshotOnJobRequests;
-    private AutoDetectResultProcessor resultProcessor;
+    private AutodetectResultProcessor resultProcessor;
     private Renormalizer renormalizer;
 
     @Override
@@ -91,7 +91,7 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
         jobResultsProvider = new JobResultsProvider(client(), builder.build());
         renormalizer = mock(Renormalizer.class);
         capturedUpdateModelSnapshotOnJobRequests = new ArrayList<>();
-        resultProcessor = new AutoDetectResultProcessor(client(), auditor, JOB_ID, renormalizer,
+        resultProcessor = new AutodetectResultProcessor(client(), auditor, JOB_ID, renormalizer,
                 new JobResultsPersister(client()), new ModelSizeStats.Builder(JOB_ID).build(), new TimingStats(JOB_ID)) {
             @Override
             protected void updateModelSnapshotOnJob(ModelSnapshot modelSnapshot) {

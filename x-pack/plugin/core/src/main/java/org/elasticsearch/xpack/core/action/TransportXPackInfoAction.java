@@ -58,8 +58,7 @@ public class TransportXPackInfoAction extends HandledTransportAction<XPackInfoRe
         XPackInfoResponse.FeatureSetsInfo featureSetsInfo = null;
         if (request.getCategories().contains(XPackInfoRequest.Category.FEATURES)) {
             Set<FeatureSet> featureSets = this.featureSets.stream().map(fs ->
-                    new FeatureSet(fs.name(), fs.available(), fs.enabled(),
-                            request.isVerbose() ? fs.nativeCodeInfo() : null))
+                    new FeatureSet(fs.name(), fs.available(), fs.enabled()))
                     .collect(Collectors.toSet());
             featureSetsInfo = new XPackInfoResponse.FeatureSetsInfo(featureSets);
         }

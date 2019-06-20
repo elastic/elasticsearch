@@ -38,7 +38,8 @@ IMPORTANT:  You must use {kib} or this API to create a {dataframe-transform}.
 `source` (required):: (object) The source configuration, consisting of `index` and optionally
 a `query`.
 
-`dest` (required):: (object) The destination configuration, consisting of `index`.
+`dest` (required):: (object) The destination configuration, consisting of `index` and optionally a
+`pipeline` id.
 
 `pivot`:: (object) Defines the pivot function `group by` fields and the aggregation to
 reduce the data. See <<data-frame-transform-pivot, data frame transform pivot objects>>.
@@ -76,7 +77,8 @@ PUT _data_frame/transforms/ecommerce_transform
     }
   },
   "dest": {
-    "index": "kibana_sample_data_ecommerce_transform"
+    "index": "kibana_sample_data_ecommerce_transform",
+    "pipeline": "add_timestamp_pipeline"
   },
   "pivot": {
     "group_by": {

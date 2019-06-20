@@ -2198,7 +2198,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             "only primary relocation target can update allocation IDs from primary context: " + shardRouting;
         assert primaryContext.getCheckpointStates().containsKey(routingEntry().allocationId().getId()) &&
             getLocalCheckpoint() == primaryContext.getCheckpointStates().get(routingEntry().allocationId().getId())
-                .getLocalCheckpoint();
+                .getLocalCheckpoint() || indexSettings().getTranslogDurability() == Translog.Durability.ASYNC;
         synchronized (mutex) {
             replicationTracker.activateWithPrimaryContext(primaryContext); // make changes to primaryMode flag only under mutex
         }

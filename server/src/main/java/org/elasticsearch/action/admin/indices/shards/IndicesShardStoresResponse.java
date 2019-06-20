@@ -258,11 +258,9 @@ public class IndicesShardStoresResponse extends ActionResponse implements ToXCon
         }
 
         @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
-            builder.field("node", nodeId());
+        public XContentBuilder innerToXContent(XContentBuilder builder, Params params) throws IOException {
             super.innerToXContent(builder, params);
-            builder.endObject();
+            builder.field("node", nodeId());
             return builder;
         }
     }

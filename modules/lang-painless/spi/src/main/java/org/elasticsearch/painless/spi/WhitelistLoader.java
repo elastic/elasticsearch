@@ -517,7 +517,7 @@ public final class WhitelistLoader {
                             throw new IllegalArgumentException("invalid annotation: expected key=\"value\" [" + line + "]");
                         }
                         
-                        argumentValue = argumentValue.substring(1, argumentValue.length() - 2);
+                        argumentValue = argumentValue.substring(1, argumentValue.length() - 1);
 
                         arguments.put(argumentKey, argumentValue);
                     }

@@ -3688,6 +3688,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         for (int i = 10; i < 15; i++) {
             index(indexName, "_doc", Integer.toString(i), "foo", "bar" + i);
         }
+        client().admin().indices().prepareFlush(indexName).setForce(true).setWaitIfOngoing(true).get();
 
         stats = client().admin().indices().prepareStats(indexName).clear().get();
         shardStats = stats.getShards()[0];

@@ -596,10 +596,10 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
                 final long expectedDocs = docs + 2L;
                 assertThat(shards.getPrimary().getLocalCheckpoint(), equalTo(expectedDocs - 1));
                 // recovery has not completed, therefore the global checkpoint can have advanced on the primary
-                assertThat(shards.getPrimary().getGlobalCheckpoint(), equalTo(expectedDocs - 1));
+                assertThat(shards.getPrimary().getLastKnownGlobalCheckpoint(), equalTo(expectedDocs - 1));
                 // the pending document is not done, the checkpoints can not have advanced on the replica
                 assertThat(replica.getLocalCheckpoint(), lessThan(expectedDocs - 1));
-                assertThat(replica.getGlobalCheckpoint(), lessThan(expectedDocs - 1));
+                assertThat(replica.getLastKnownGlobalCheckpoint(), lessThan(expectedDocs - 1));
             }
 
             // wait for recovery to enter the translog phase
@@ -612,9 +612,9 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
                 final long expectedDocs = docs + 3L;
                 assertThat(shards.getPrimary().getLocalCheckpoint(), equalTo(expectedDocs - 1));
                 // recovery is now in the process of being completed, therefore the global checkpoint can not have advanced on the primary
-                assertThat(shards.getPrimary().getGlobalCheckpoint(), equalTo(expectedDocs - 2));
+                assertThat(shards.getPrimary().getLastKnownGlobalCheckpoint(), equalTo(expectedDocs - 2));
                 assertThat(replica.getLocalCheckpoint(), lessThan(expectedDocs - 2));
-                assertThat(replica.getGlobalCheckpoint(), lessThan(expectedDocs - 2));
+                assertThat(replica.getLastKnownGlobalCheckpoint(), lessThan(expectedDocs - 2));
             }
 
             replicaEngineFactory.releaseLatchedIndexers();
@@ -624,10 +624,10 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
                 final long expectedDocs = docs + 3L;
                 assertBusy(() -> {
                     assertThat(shards.getPrimary().getLocalCheckpoint(), equalTo(expectedDocs - 1));
-                    assertThat(shards.getPrimary().getGlobalCheckpoint(), equalTo(expectedDocs - 1));
+                    assertThat(shards.getPrimary().getLastKnownGlobalCheckpoint(), equalTo(expectedDocs - 1));
                     assertThat(replica.getLocalCheckpoint(), equalTo(expectedDocs - 1));
                     // the global checkpoint advances can only advance here if a background global checkpoint sync fires
-                    assertThat(replica.getGlobalCheckpoint(), anyOf(equalTo(expectedDocs - 1), equalTo(expectedDocs - 2)));
+                    assertThat(replica.getLastKnownGlobalCheckpoint(), anyOf(equalTo(expectedDocs - 1), equalTo(expectedDocs - 2)));
                 });
             }
         }
@@ -762,7 +762,7 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
             }
             shards.refresh("test");
             List<DocIdSeqNoAndSource> docsBelowGlobalCheckpoint = EngineTestCase.getDocIds(getEngine(newPrimary), randomBoolean())
-                .stream().filter(doc -> doc.getSeqNo() <= newPrimary.getGlobalCheckpoint()).collect(Collectors.toList());
+                .stream().filter(doc -> doc.getSeqNo() <= newPrimary.getLastKnownGlobalCheckpoint()).collect(Collectors.toList());
             CountDownLatch latch = new CountDownLatch(1);
             final AtomicBoolean done = new AtomicBoolean();
             Thread thread = new Thread(() -> {

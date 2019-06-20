@@ -39,6 +39,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.engine.InternalEngine;
 import org.elasticsearch.index.engine.InternalEngineTests;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.Uid;
@@ -274,9 +275,10 @@ public class FlushIT extends ESIntegTestCase {
     private void indexDoc(Engine engine, String id) throws IOException {
         final ParsedDocument doc = InternalEngineTests.createParsedDoc(id, null);
         final Engine.IndexResult indexResult = engine.index(new Engine.Index(new Term("_id", Uid.encodeId(doc.id())), doc,
-            engine.getLocalCheckpoint() + 1, 1L, 1L, null, Engine.Operation.Origin.REPLICA, System.nanoTime(), -1L, false,
-            SequenceNumbers.UNASSIGNED_SEQ_NO, 0));
+            ((InternalEngine) engine).getProcessedLocalCheckpoint() + 1, 1L, 1L, null, Engine.Operation.Origin.REPLICA, System.nanoTime(),
+            -1L, false, SequenceNumbers.UNASSIGNED_SEQ_NO, 0));
         assertThat(indexResult.getFailure(), nullValue());
+        engine.syncTranslog();
     }
 
     public void testSyncedFlushSkipOutOfSyncReplicas() throws Exception {

@@ -31,6 +31,8 @@ public class TimingStats implements ToXContentObject, Writeable {
     public static final ParseField MIN_BUCKET_PROCESSING_TIME_MS = new ParseField("minimum_bucket_processing_time_ms");
     public static final ParseField MAX_BUCKET_PROCESSING_TIME_MS = new ParseField("maximum_bucket_processing_time_ms");
     public static final ParseField AVG_BUCKET_PROCESSING_TIME_MS = new ParseField("average_bucket_processing_time_ms");
+    public static final ParseField EXPONENTIAL_AVERAGE_BUCKET_PROCESSING_TIME_MS =
+        new ParseField("exponential_average_bucket_processing_time_ms");
 
     public static final ParseField TYPE = new ParseField("timing_stats");
 
@@ -38,7 +40,8 @@ public class TimingStats implements ToXContentObject, Writeable {
         new ConstructingObjectParser<>(
             TYPE.getPreferredName(),
             true,
-            args -> new TimingStats((String) args[0], (long) args[1], (Double) args[2], (Double) args[3], (Double) args[4]));
+            args ->
+                new TimingStats((String) args[0], (long) args[1], (Double) args[2], (Double) args[3], (Double) args[4], (Double) args[5]));
 
     static {
         PARSER.declareString(constructorArg(), Job.ID);
@@ -46,6 +49,7 @@ public class TimingStats implements ToXContentObject, Writeable {
         PARSER.declareDouble(optionalConstructorArg(), MIN_BUCKET_PROCESSING_TIME_MS);
         PARSER.declareDouble(optionalConstructorArg(), MAX_BUCKET_PROCESSING_TIME_MS);
         PARSER.declareDouble(optionalConstructorArg(), AVG_BUCKET_PROCESSING_TIME_MS);
+        PARSER.declareDouble(optionalConstructorArg(), EXPONENTIAL_AVERAGE_BUCKET_PROCESSING_TIME_MS);
     }
 
     public static String documentId(String jobId) {
@@ -57,26 +61,35 @@ public class TimingStats implements ToXContentObject, Writeable {
     private Double minBucketProcessingTimeMs;
     private Double maxBucketProcessingTimeMs;
     private Double avgBucketProcessingTimeMs;
+    private Double exponentialAvgBucketProcessingTimeMs;
 
     public TimingStats(
             String jobId,
             long bucketCount,
             @Nullable Double minBucketProcessingTimeMs,
             @Nullable Double maxBucketProcessingTimeMs,
-            @Nullable Double avgBucketProcessingTimeMs) {
+            @Nullable Double avgBucketProcessingTimeMs,
+            @Nullable Double exponentialAvgBucketProcessingTimeMs) {
         this.jobId = jobId;
         this.bucketCount = bucketCount;
         this.minBucketProcessingTimeMs = minBucketProcessingTimeMs;
         this.maxBucketProcessingTimeMs = maxBucketProcessingTimeMs;
         this.avgBucketProcessingTimeMs = avgBucketProcessingTimeMs;
+        this.exponentialAvgBucketProcessingTimeMs = exponentialAvgBucketProcessingTimeMs;
     }
 
     public TimingStats(String jobId) {
-        this(jobId, 0, null, null, null);
+        this(jobId, 0, null, null, null, null);
     }
 
     public TimingStats(TimingStats lhs) {
-        this(lhs.jobId, lhs.bucketCount, lhs.minBucketProcessingTimeMs, lhs.maxBucketProcessingTimeMs, lhs.avgBucketProcessingTimeMs);
+        this(
+            lhs.jobId,
+            lhs.bucketCount,
+            lhs.minBucketProcessingTimeMs,
+            lhs.maxBucketProcessingTimeMs,
+            lhs.avgBucketProcessingTimeMs,
+            lhs.exponentialAvgBucketProcessingTimeMs);
     }
 
     public TimingStats(StreamInput in) throws IOException {
@@ -85,6 +98,7 @@ public class TimingStats implements ToXContentObject, Writeable {
         this.minBucketProcessingTimeMs = in.readOptionalDouble();
         this.maxBucketProcessingTimeMs = in.readOptionalDouble();
         this.avgBucketProcessingTimeMs = in.readOptionalDouble();
+        this.exponentialAvgBucketProcessingTimeMs = in.readOptionalDouble();
     }
 
     public String getJobId() {
@@ -107,12 +121,16 @@ public class TimingStats implements ToXContentObject, Writeable {
         return avgBucketProcessingTimeMs;
     }
 
+    public Double getExponentialAvgBucketProcessingTimeMs() {
+        return exponentialAvgBucketProcessingTimeMs;
+    }
+
     /**
      * Updates the statistics (min, max, avg) for the given data point (bucket processing time).
      */
     public void updateStats(double bucketProcessingTimeMs) {
         if (bucketProcessingTimeMs < 0.0) {
-            throw new IllegalArgumentException("bucketProcessingTimeMs must be positive, was: " + bucketProcessingTimeMs);
+            throw new IllegalArgumentException("bucketProcessingTimeMs must be non-negative, was: " + bucketProcessingTimeMs);
         }
         if (minBucketProcessingTimeMs == null || bucketProcessingTimeMs < minBucketProcessingTimeMs) {
             minBucketProcessingTimeMs = bucketProcessingTimeMs;
@@ -127,8 +145,20 @@ public class TimingStats implements ToXContentObject, Writeable {
             // bucket processing times.
             avgBucketProcessingTimeMs = (bucketCount * avgBucketProcessingTimeMs + bucketProcessingTimeMs) / (bucketCount + 1);
         }
+        if (exponentialAvgBucketProcessingTimeMs == null) {
+            exponentialAvgBucketProcessingTimeMs = bucketProcessingTimeMs;
+        } else {
+            // Calculate the exponential moving average (see https://en.wikipedia.org/wiki/Moving_average#Exponential_moving_average) of
+            // bucket processing times.
+            exponentialAvgBucketProcessingTimeMs = (1 - ALPHA) * exponentialAvgBucketProcessingTimeMs + ALPHA * bucketProcessingTimeMs;
+        }
         bucketCount++;
     }
+
+    /**
+     * Constant smoothing factor used for calculating exponential moving average. Represents the degree of weighting decrease.
+     */
+    private static double ALPHA = 0.01;
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
@@ -137,6 +167,7 @@ public class TimingStats implements ToXContentObject, Writeable {
         out.writeOptionalDouble(minBucketProcessingTimeMs);
         out.writeOptionalDouble(maxBucketProcessingTimeMs);
         out.writeOptionalDouble(avgBucketProcessingTimeMs);
+        out.writeOptionalDouble(exponentialAvgBucketProcessingTimeMs);
     }
 
     @Override
@@ -153,6 +184,9 @@ public class TimingStats implements ToXContentObject, Writeable {
         if (avgBucketProcessingTimeMs != null) {
             builder.field(AVG_BUCKET_PROCESSING_TIME_MS.getPreferredName(), avgBucketProcessingTimeMs);
         }
+        if (exponentialAvgBucketProcessingTimeMs != null) {
+            builder.field(EXPONENTIAL_AVERAGE_BUCKET_PROCESSING_TIME_MS.getPreferredName(), exponentialAvgBucketProcessingTimeMs);
+        }
         builder.endObject();
         return builder;
     }
@@ -166,12 +200,19 @@ public class TimingStats implements ToXContentObject, Writeable {
             && this.bucketCount == that.bucketCount
             && Objects.equals(this.minBucketProcessingTimeMs, that.minBucketProcessingTimeMs)
             && Objects.equals(this.maxBucketProcessingTimeMs, that.maxBucketProcessingTimeMs)
-            && Objects.equals(this.avgBucketProcessingTimeMs, that.avgBucketProcessingTimeMs);
+            && Objects.equals(this.avgBucketProcessingTimeMs, that.avgBucketProcessingTimeMs)
+            && Objects.equals(this.exponentialAvgBucketProcessingTimeMs, that.exponentialAvgBucketProcessingTimeMs);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(jobId, bucketCount, minBucketProcessingTimeMs, maxBucketProcessingTimeMs, avgBucketProcessingTimeMs);
+        return Objects.hash(
+            jobId,
+            bucketCount,
+            minBucketProcessingTimeMs,
+            maxBucketProcessingTimeMs,
+            avgBucketProcessingTimeMs,
+            exponentialAvgBucketProcessingTimeMs);
     }
 
     @Override
@@ -185,7 +226,8 @@ public class TimingStats implements ToXContentObject, Writeable {
     public static boolean differSignificantly(TimingStats stats1, TimingStats stats2) {
         return differSignificantly(stats1.minBucketProcessingTimeMs, stats2.minBucketProcessingTimeMs)
             || differSignificantly(stats1.maxBucketProcessingTimeMs, stats2.maxBucketProcessingTimeMs)
-            || differSignificantly(stats1.avgBucketProcessingTimeMs, stats2.avgBucketProcessingTimeMs);
+            || differSignificantly(stats1.avgBucketProcessingTimeMs, stats2.avgBucketProcessingTimeMs)
+            || differSignificantly(stats1.exponentialAvgBucketProcessingTimeMs, stats2.exponentialAvgBucketProcessingTimeMs);
     }
 
     /**

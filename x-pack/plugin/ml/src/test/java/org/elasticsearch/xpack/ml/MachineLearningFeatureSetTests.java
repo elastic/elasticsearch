@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -98,7 +99,7 @@ public class MachineLearningFeatureSetTests extends ESTestCase {
     }
 
     private MachineLearningFeatureSet.UsageTransportAction newUsageAction(Settings settings) {
-        return new MachineLearningFeatureSet.UsageTransportAction(mock(TransportService.class), null,
+        return new MachineLearningFeatureSet.UsageTransportAction(mock(TransportService.class), clusterService,
             null, mock(ActionFilters.class), mock(IndexNameExpressionResolver.class),
             TestEnvironment.newEnvironment(settings), client, licenseState, jobManagerHolder);
     }
@@ -119,8 +120,7 @@ public class MachineLearningFeatureSetTests extends ESTestCase {
     }
 
     public void testAvailable() throws Exception {
-        MachineLearningFeatureSet featureSet = new MachineLearningFeatureSet(TestEnvironment.newEnvironment(commonSettings),
-            clusterService, licenseState);
+        MachineLearningFeatureSet featureSet = new MachineLearningFeatureSet(commonSettings, licenseState);
         boolean available = randomBoolean();
         when(licenseState.isMachineLearningAllowed()).thenReturn(available);
         assertThat(featureSet.available(), is(available));
@@ -145,8 +145,7 @@ public class MachineLearningFeatureSetTests extends ESTestCase {
             settings.put("xpack.ml.enabled", enabled);
         }
         boolean expected = enabled || useDefault;
-        MachineLearningFeatureSet featureSet = new MachineLearningFeatureSet(TestEnvironment.newEnvironment(settings.build()),
-                clusterService, licenseState);
+        MachineLearningFeatureSet featureSet = new MachineLearningFeatureSet(settings.build(), licenseState);
         assertThat(featureSet.enabled(), is(expected));
         var usageAction = newUsageAction(settings.build());
         PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();
@@ -370,10 +369,10 @@ public class MachineLearningFeatureSetTests extends ESTestCase {
         for (int i = 0; i < nodeCount; i++) {
             Map<String, String> attrs = new HashMap<>();
             attrs.put(MachineLearning.MAX_OPEN_JOBS_NODE_ATTR, Integer.toString(20));
-            Set<DiscoveryNode.Role> roles = new HashSet<>();
-            roles.add(DiscoveryNode.Role.DATA);
-            roles.add(DiscoveryNode.Role.MASTER);
-            roles.add(DiscoveryNode.Role.INGEST);
+            Set<DiscoveryNodeRole> roles = new HashSet<>();
+            roles.add(DiscoveryNodeRole.DATA_ROLE);
+            roles.add(DiscoveryNodeRole.MASTER_ROLE);
+            roles.add(DiscoveryNodeRole.INGEST_ROLE);
             nodesBuilder.add(new DiscoveryNode("ml-feature-set-given-ml-node-" + i,
                 new TransportAddress(TransportAddress.META_ADDRESS, 9100 + i),
                 attrs,
@@ -382,10 +381,10 @@ public class MachineLearningFeatureSetTests extends ESTestCase {
         }
         for (int i = 0; i < randomIntBetween(1, 3); i++) {
             Map<String, String> attrs = new HashMap<>();
-            Set<DiscoveryNode.Role> roles = new HashSet<>();
-            roles.add(DiscoveryNode.Role.DATA);
-            roles.add(DiscoveryNode.Role.MASTER);
-            roles.add(DiscoveryNode.Role.INGEST);
+            Set<DiscoveryNodeRole> roles = new HashSet<>();
+            roles.add(DiscoveryNodeRole.DATA_ROLE);
+            roles.add(DiscoveryNodeRole.MASTER_ROLE);
+            roles.add(DiscoveryNodeRole.INGEST_ROLE);
             nodesBuilder.add(new DiscoveryNode("ml-feature-set-given-non-ml-node-" + i,
                 new TransportAddress(TransportAddress.META_ADDRESS, 9300 + i),
                 attrs,

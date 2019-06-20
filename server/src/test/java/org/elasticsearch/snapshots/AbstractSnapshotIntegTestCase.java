@@ -120,7 +120,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         long start = System.currentTimeMillis();
         while (System.currentTimeMillis() - start < timeout.millis()) {
             List<SnapshotInfo> snapshotInfos = client().admin().cluster().prepareGetSnapshots(repository).setSnapshots(snapshotName)
-                .get().getSnapshots();
+                .get().getSnapshots(repository);
             assertThat(snapshotInfos.size(), equalTo(1));
             if (snapshotInfos.get(0).state().completed()) {
                 // Make sure that snapshot clean up operations are finished

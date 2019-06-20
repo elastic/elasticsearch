@@ -617,7 +617,6 @@ public class Augmentation {
         return handleMissing(map, elements, i, defaultSupplier);
     }
 
-
     // lookup existing index in list, call back to dispatch.  Throws IllegalArgumentException with NumberFormatException
     // if index can't be parsed as an int.
     private static <E> Object getByPathList(List<E> list, String[] elements, int i, Supplier<Object> defaultSupplier) {
@@ -645,7 +644,6 @@ public class Augmentation {
         }
         return path.split("\\.");
     }
-
 
     // A supplier that throws IllegalArgumentException
     private static Supplier<Object> throwCantFindValue(String path) {

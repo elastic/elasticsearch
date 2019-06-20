@@ -6,6 +6,55 @@
 <titleabbrev>Start job</titleabbrev>
 ++++
 
+////
+[float]
+[[sample-api-request]]
+==== {api-request-title}
+// This section show the basic endpoint, without the body or optional parameters.
+// Variables should use <...> syntax
+// If an API supports both PUT and POST, include both here
+
+`PUT /<follower_index>/_ccr/follow`
+
+[float]
+[[sample-api-prereqs]]
+==== {api-prereq-title}
+// Optional list of prerequisites.
+
+[float]
+[[sample-api-desc]]
+==== {api-description-title}
+// Add a more detailed description the context.
+// Link to related APIs if appropriate.
+
+[float]
+[[sample-api-path-params]]
+==== {api-path-parms-title}
+// A list of all path parameters in the endpoint request
+
+[float]
+[[sample-api-query-params]]
+==== {api-query-parms-title}
+// A list of optional query parameters 
+
+[float]
+[[sample-api-request-body]]
+==== {api-request-body-title}
+// A list of the properties you can specify in the body of the request
+
+[float]
+[[sample-api-response-body]]
+==== {api-response-body-title}
+// Response body is only required for detailed responses.
+
+[float]
+[[sample-api-example]]
+==== {api-example-title}
+// Optional brief example.
+
+////
+
+
 experimental[]
 
 This API starts an existing, stopped rollup job.  If the job does not exist an exception will be thrown.

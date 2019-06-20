@@ -111,7 +111,7 @@ public abstract class ExtractedField {
     }
 
     private static class GeoShapeField extends FromSource {
-        private static final WellKnownText wkt = new WellKnownText();
+        private static final WellKnownText wkt = new WellKnownText(true, true);
 
         GeoShapeField(String alias, String name) {
             super(alias, name);

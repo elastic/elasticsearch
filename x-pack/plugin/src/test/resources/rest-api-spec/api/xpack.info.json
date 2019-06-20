@@ -1,6 +1,7 @@
 {
   "xpack.info": {
     "documentation": "https://www.elastic.co/guide/en/elasticsearch/reference/current/info-api.html",
+    "stability": "stable",
     "methods": [ "GET" ],
     "url": {
       "paths": [ "/_xpack" ],

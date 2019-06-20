@@ -110,6 +110,26 @@ setup:
   - is_true: ''
 
 ---
+"Test get old cluster job's timing stats":
+  - do:
+      ml.get_job_stats:
+        job_id: old-cluster-job-with-ts
+  - match: { jobs.0.job_id: old-cluster-job-with-ts }
+  - match: { jobs.0.state: "closed" }
+  - match: { jobs.0.timing_stats.job_id: old-cluster-job-with-ts }
+  - gte:   { jobs.0.timing_stats.bucket_count: 0 }
+
+  - do:
+      ml.delete_job:
+        job_id: old-cluster-job-with-ts
+  - match: { acknowledged: true }
+
+  - do:
+      catch: missing
+      ml.get_jobs:
+        job_id: old-cluster-job-with-ts
+
+---
 "Test job with pre 6.4 rules":
 
   - do:

@@ -187,6 +187,16 @@ public class ElasticsearchCluster implements TestClusterConfiguration {
     }
 
     @Override
+    public void jvmArgs(String... values) {
+        nodes.all(each -> each.jvmArgs(values));
+    }
+
+    @Override
+    public void jvmArgs(Supplier<String[]> valueSupplier) {
+        nodes.all(each -> each.jvmArgs(valueSupplier));
+    }
+
+    @Override
     public void freeze() {
         nodes.forEach(ElasticsearchNode::freeze);
         configurationFrozen.set(true);
@@ -214,6 +224,11 @@ public class ElasticsearchCluster implements TestClusterConfiguration {
             }
             node.start();
         }
+    }
+
+    @Override
+    public void restart() {
+        nodes.forEach(ElasticsearchNode::restart);
     }
 
     @Override
@@ -304,10 +319,17 @@ public class ElasticsearchCluster implements TestClusterConfiguration {
 
     private void addWaitForClusterHealth() {
         waitConditions.put("cluster health yellow", (node) -> {
+
             try {
+                boolean httpSslEnabled = getFirstNode().isHttpSslEnabled();
                 WaitForHttpResource wait = new WaitForHttpResource(
-                    "http", getFirstNode().getHttpSocketURI(), nodes.size()
+                    httpSslEnabled ? "https" : "http",
+                    getFirstNode().getHttpSocketURI(),
+                    nodes.size()
                 );
+                if (httpSslEnabled) {
+                    wait.setCertificateAuthorities(getFirstNode().getHttpCertificateAuthoritiesFile());
+                }
                 List<Map<String, String>> credentials = getFirstNode().getCredentials();
                 if (getFirstNode().getCredentials().isEmpty() == false) {
                     wait.setUsername(credentials.get(0).get("useradd"));

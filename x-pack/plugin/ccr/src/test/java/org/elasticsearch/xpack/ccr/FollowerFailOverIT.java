@@ -27,7 +27,6 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.test.InternalTestCluster;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.CcrIntegTestCase;
 import org.elasticsearch.xpack.core.ccr.action.FollowStatsAction;
 import org.elasticsearch.xpack.core.ccr.action.PutFollowAction;
@@ -45,8 +44,6 @@ import static java.util.Collections.singletonMap;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 
-@TestLogging("org.elasticsearch.xpack.ccr:TRACE,org.elasticsearch.xpack.ccr.action.ShardChangesAction:DEBUG,"
-    + "org.elasticsearch.index.shard:TRACE")
 public class FollowerFailOverIT extends CcrIntegTestCase {
 
     @Override
@@ -214,6 +211,9 @@ public class FollowerFailOverIT extends CcrIntegTestCase {
                 try {
                     if (rarely()) {
                         followerClient().admin().indices().prepareFlush("follower-index").get();
+                    }
+                    if (rarely()) {
+                        followerClient().admin().indices().prepareForceMerge("follower-index").setMaxNumSegments(1).get();
                     }
                     if (rarely()) {
                         followerClient().admin().indices().prepareRefresh("follower-index").get();

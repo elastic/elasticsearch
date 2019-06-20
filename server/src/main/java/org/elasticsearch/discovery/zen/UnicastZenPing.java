@@ -99,6 +99,8 @@ public class UnicastZenPing implements ZenPing {
 
     private final AtomicInteger pingingRoundIdGenerator = new AtomicInteger();
 
+    private final CancellableThreads cancellableThreads = new CancellableThreads();
+
     private final Map<Integer, PingingRound> activePingingRounds = newConcurrentMap();
 
     // a list of temporal responses a node will return for a request (holds responses from other nodes)
@@ -145,12 +147,13 @@ public class UnicastZenPing implements ZenPing {
     }
 
     private SeedHostsProvider.HostsResolver createHostsResolver() {
-        return hosts -> SeedHostsResolver.resolveHostsLists(new CancellableThreads(), unicastZenPingExecutorService, logger, hosts,
+        return hosts -> SeedHostsResolver.resolveHostsLists(cancellableThreads, unicastZenPingExecutorService, logger, hosts,
             transportService, resolveTimeout);
     }
 
     @Override
     public void close() {
+        cancellableThreads.cancel("stopping UnicastZenPing");
         ThreadPool.terminate(unicastZenPingExecutorService, 10, TimeUnit.SECONDS);
         Releasables.close(activePingingRounds.values());
         closed = true;

@@ -1,6 +1,7 @@
 {
   "ssl.certificates": {
     "documentation": "https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-ssl.html",
+    "stability": "stable",
     "methods": [ "GET" ],
     "url": {
       "paths": [

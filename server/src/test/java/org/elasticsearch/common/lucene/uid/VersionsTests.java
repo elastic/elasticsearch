@@ -30,6 +30,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.index.mapper.IdFieldMapper;
+import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.VersionFieldMapper;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
@@ -69,6 +70,8 @@ public class VersionsTests extends ESTestCase {
         Document doc = new Document();
         doc.add(new Field(IdFieldMapper.NAME, "1", IdFieldMapper.Defaults.FIELD_TYPE));
         doc.add(new NumericDocValuesField(VersionFieldMapper.NAME, 1));
+        doc.add(new NumericDocValuesField(SeqNoFieldMapper.NAME, randomNonNegativeLong()));
+        doc.add(new NumericDocValuesField(SeqNoFieldMapper.PRIMARY_TERM_NAME, randomLongBetween(1, Long.MAX_VALUE)));
         writer.updateDocument(new Term(IdFieldMapper.NAME, "1"), doc);
         directoryReader = reopen(directoryReader);
         assertThat(loadDocIdAndVersion(directoryReader, new Term(IdFieldMapper.NAME, "1"), randomBoolean()).version, equalTo(1L));
@@ -78,6 +81,8 @@ public class VersionsTests extends ESTestCase {
         Field version = new NumericDocValuesField(VersionFieldMapper.NAME, 2);
         doc.add(uid);
         doc.add(version);
+        doc.add(new NumericDocValuesField(SeqNoFieldMapper.NAME, randomNonNegativeLong()));
+        doc.add(new NumericDocValuesField(SeqNoFieldMapper.PRIMARY_TERM_NAME, randomLongBetween(1, Long.MAX_VALUE)));
         writer.updateDocument(new Term(IdFieldMapper.NAME, "1"), doc);
         directoryReader = reopen(directoryReader);
         assertThat(loadDocIdAndVersion(directoryReader, new Term(IdFieldMapper.NAME, "1"), randomBoolean()).version, equalTo(2L));
@@ -87,6 +92,8 @@ public class VersionsTests extends ESTestCase {
         version.setLongValue(3);
         doc.add(uid);
         doc.add(version);
+        doc.add(new NumericDocValuesField(SeqNoFieldMapper.NAME, randomNonNegativeLong()));
+        doc.add(new NumericDocValuesField(SeqNoFieldMapper.PRIMARY_TERM_NAME, randomLongBetween(1, Long.MAX_VALUE)));
         writer.updateDocument(new Term(IdFieldMapper.NAME, "1"), doc);
 
         directoryReader = reopen(directoryReader);
@@ -116,6 +123,8 @@ public class VersionsTests extends ESTestCase {
         doc.add(new Field(IdFieldMapper.NAME, "1", IdFieldMapper.Defaults.FIELD_TYPE));
         NumericDocValuesField version = new NumericDocValuesField(VersionFieldMapper.NAME, 5L);
         doc.add(version);
+        doc.add(new NumericDocValuesField(SeqNoFieldMapper.NAME, randomNonNegativeLong()));
+        doc.add(new NumericDocValuesField(SeqNoFieldMapper.PRIMARY_TERM_NAME, randomLongBetween(1, Long.MAX_VALUE)));
         docs.add(doc);
 
         writer.updateDocuments(new Term(IdFieldMapper.NAME, "1"), docs);
@@ -146,6 +155,8 @@ public class VersionsTests extends ESTestCase {
         Document doc = new Document();
         doc.add(new Field(IdFieldMapper.NAME, "6", IdFieldMapper.Defaults.FIELD_TYPE));
         doc.add(new NumericDocValuesField(VersionFieldMapper.NAME, 87));
+        doc.add(new NumericDocValuesField(SeqNoFieldMapper.NAME, randomNonNegativeLong()));
+        doc.add(new NumericDocValuesField(SeqNoFieldMapper.PRIMARY_TERM_NAME, randomLongBetween(1, Long.MAX_VALUE)));
         writer.addDocument(doc);
         DirectoryReader reader = DirectoryReader.open(writer);
         // should increase cache size by 1
@@ -171,6 +182,8 @@ public class VersionsTests extends ESTestCase {
         Document doc = new Document();
         doc.add(new Field(IdFieldMapper.NAME, "6", IdFieldMapper.Defaults.FIELD_TYPE));
         doc.add(new NumericDocValuesField(VersionFieldMapper.NAME, 87));
+        doc.add(new NumericDocValuesField(SeqNoFieldMapper.NAME, randomNonNegativeLong()));
+        doc.add(new NumericDocValuesField(SeqNoFieldMapper.PRIMARY_TERM_NAME, randomLongBetween(1, Long.MAX_VALUE)));
         writer.addDocument(doc);
         DirectoryReader reader = DirectoryReader.open(writer);
         assertEquals(87, loadDocIdAndVersion(reader, new Term(IdFieldMapper.NAME, "6"), randomBoolean()).version);

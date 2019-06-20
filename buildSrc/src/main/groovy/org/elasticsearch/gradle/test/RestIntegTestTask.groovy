@@ -26,6 +26,7 @@ import org.gradle.api.Task
 import org.gradle.api.execution.TaskExecutionAdapter
 import org.gradle.api.logging.Logger
 import org.gradle.api.logging.Logging
+import org.gradle.api.specs.Specs
 import org.gradle.api.tasks.Copy
 import org.gradle.api.tasks.Input
 import org.gradle.api.tasks.TaskState
@@ -79,7 +80,7 @@ class RestIntegTestTask extends DefaultTask {
 
         // disable the build cache for rest test tasks
         // there are a number of inputs we aren't properly tracking here so we'll just not cache these for now
-        runner.outputs.doNotCacheIf('Caching is disabled for REST integration tests') { true }
+        runner.getOutputs().doNotCacheIf("Caching is disabled for REST integration tests", Specs.SATISFIES_ALL)
 
         // override/add more for rest tests
         runner.maxParallelForks = 1
@@ -282,4 +283,5 @@ class RestIntegTestTask extends DefaultTask {
         }
         return copyRestSpec
     }
+
 }

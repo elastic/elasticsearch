@@ -64,8 +64,7 @@ public class ExplainRequestTests extends ESTestCase {
             request.routing("some_routing");
             request.writeTo(output);
             try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), namedWriteableRegistry)) {
-                ExplainRequest readRequest = new ExplainRequest();
-                readRequest.readFrom(in);
+                ExplainRequest readRequest = new ExplainRequest(in);
                 assertEquals(request.filteringAlias(), readRequest.filteringAlias());
                 assertArrayEquals(request.storedFields(), readRequest.storedFields());
                 assertEquals(request.preference(), readRequest.preference());

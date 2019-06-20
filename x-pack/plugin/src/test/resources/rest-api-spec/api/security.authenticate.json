@@ -1,6 +1,7 @@
 {
   "security.authenticate": {
     "documentation": "https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-authenticate.html",
+    "stability": "stable",
     "methods": [ "GET" ],
     "url": {
       "paths": [

@@ -47,8 +47,8 @@ public class ClusterUpdateSettingsResponse extends AcknowledgedResponse {
             });
     static {
         declareAcknowledgedField(PARSER);
-        PARSER.declareObject(constructorArg(), (p, c) -> Settings.fromXContent(p), PERSISTENT);
         PARSER.declareObject(constructorArg(), (p, c) -> Settings.fromXContent(p), TRANSIENT);
+        PARSER.declareObject(constructorArg(), (p, c) -> Settings.fromXContent(p), PERSISTENT);
     }
 
     final Settings transientSettings;

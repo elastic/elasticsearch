@@ -180,14 +180,13 @@ public final class RolloverResponse extends ShardsAcknowledgedResponse implement
                     rolledOver == that.rolledOver &&
                     Objects.equals(oldIndex, that.oldIndex) &&
                     Objects.equals(newIndex, that.newIndex) &&
-                    Objects.equals(conditionStatus, that.conditionStatus) &&
-                    Objects.equals(shardsAcknowledged, that.shardsAcknowledged);
+                    Objects.equals(conditionStatus, that.conditionStatus);
         }
         return false;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), oldIndex, newIndex, conditionStatus, dryRun, rolledOver, shardsAcknowledged);
+        return Objects.hash(super.hashCode(), oldIndex, newIndex, conditionStatus, dryRun, rolledOver);
     }
 }

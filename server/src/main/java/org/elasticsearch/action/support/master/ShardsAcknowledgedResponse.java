@@ -81,14 +81,14 @@ public abstract class ShardsAcknowledgedResponse extends AcknowledgedResponse {
     public boolean equals(Object o) {
         if (super.equals(o)) {
             ShardsAcknowledgedResponse that = (ShardsAcknowledgedResponse) o;
-            return shardsAcknowledged == that.shardsAcknowledged;
+            return isShardsAcknowledged() == that.isShardsAcknowledged();
         }
         return false;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), shardsAcknowledged);
+        return Objects.hash(super.hashCode(), isShardsAcknowledged());
     }
 
 }

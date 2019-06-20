@@ -83,7 +83,7 @@ aliases>>.
 +
 --
 (boolean) Indicates whether the index was successfully created in the cluster
-before timing out. Possible values are `true` and `false`.
+before timing out.
 
 If `false`, it is possible that {es} still successfully created the index. A
 `false` value only indicates the operation timed out before the response.
@@ -93,7 +93,7 @@ If `false`, it is possible that {es} still successfully created the index. A
 +
 --
 (boolean) Indicates whether the required number of active shard copies started
-before timing out. Possible values are `true` and `false`.
+before timing out.
 
 If `false`, it is possible that {es} still successfully created the index. A
 `false` value only indicates the operation timed out before the response.

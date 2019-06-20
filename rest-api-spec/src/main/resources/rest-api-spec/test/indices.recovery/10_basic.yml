@@ -132,6 +132,9 @@
   - match: { $body: {} }
 ---
 "Indices recovery test with detailed parameter":
+  - skip:
+      version: " - 7.9.99"
+      reason: bug with detailed parameter fixed in 8.0
 
   - do:
       indices.create:

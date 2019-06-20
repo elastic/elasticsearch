@@ -19,7 +19,6 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.rest.yaml.ObjectPath;
 import org.elasticsearch.xpack.core.watcher.condition.AlwaysCondition;
 import org.junit.Before;
@@ -46,7 +45,6 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 
-@TestLogging("org.elasticsearch.client:TRACE")
 public class WatchBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
 
     private final StringEntity entity = new StringEntity(watchBuilder()

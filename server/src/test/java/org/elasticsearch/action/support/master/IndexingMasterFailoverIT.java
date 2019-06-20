@@ -31,7 +31,6 @@ import org.elasticsearch.test.discovery.TestZenDiscovery;
 import org.elasticsearch.test.disruption.NetworkDisruption;
 import org.elasticsearch.test.disruption.NetworkDisruption.NetworkDisconnect;
 import org.elasticsearch.test.disruption.NetworkDisruption.TwoPartitions;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 
 import java.util.Arrays;
@@ -65,7 +64,6 @@ public class IndexingMasterFailoverIT extends ESIntegTestCase {
      * If the master node is being disrupted or if it cannot commit cluster state changes, it needs to retry within timeout limits.
      * This retry logic is implemented in TransportMasterNodeAction and tested by the following master failover scenario.
      */
-    @TestLogging("_root:DEBUG")
     public void testMasterFailoverDuringIndexingWithMappingChanges() throws Throwable {
         logger.info("--> start 4 nodes, 3 master, 1 data");
 

@@ -10,7 +10,6 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.yaml.ObjectPath;
 import org.elasticsearch.xpack.monitoring.exporter.ClusterAlertsUtil;
@@ -27,8 +26,7 @@ import static org.elasticsearch.xpack.watcher.input.InputBuilders.simpleInput;
 import static org.elasticsearch.xpack.watcher.trigger.schedule.IntervalSchedule.Interval.Unit.MINUTES;
 import static org.hamcrest.Matchers.is;
 
-@TestLogging("org.elasticsearch.client:TRACE,tracer:TRACE")
-@AwaitsFix(bugUrl = "https://github.com/elastic/x-pack-elasticsearch/issues/2920")
+@AwaitsFix(bugUrl = "flaky tests")
 public class MonitoringWithWatcherRestIT extends ESRestTestCase {
 
     @After

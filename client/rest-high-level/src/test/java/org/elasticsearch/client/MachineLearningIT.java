@@ -1216,6 +1216,8 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
             .setAnalysis(OutlierDetection.createDefault())
             .build();
 
+        createIndex("put-test-source-index", defaultMappingForTest());
+
         PutDataFrameAnalyticsResponse putDataFrameAnalyticsResponse = execute(
             new PutDataFrameAnalyticsRequest(config),
             machineLearningClient::putDataFrameAnalytics, machineLearningClient::putDataFrameAnalyticsAsync);
@@ -1243,6 +1245,8 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
             .setAnalysis(OutlierDetection.createDefault())
             .build();
 
+        createIndex("get-test-source-index", defaultMappingForTest());
+
         PutDataFrameAnalyticsResponse putDataFrameAnalyticsResponse = execute(
             new PutDataFrameAnalyticsRequest(config),
             machineLearningClient::putDataFrameAnalytics, machineLearningClient::putDataFrameAnalyticsAsync);
@@ -1256,6 +1260,8 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
     }
 
     public void testGetDataFrameAnalyticsConfig_MultipleConfigs() throws Exception {
+        createIndex("get-test-source-index", defaultMappingForTest());
+
         MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
         String configIdPrefix = "get-test-config-";
         int numberOfConfigs = 10;
@@ -1460,6 +1466,8 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
                 .build())
             .setAnalysis(OutlierDetection.createDefault())
             .build();
+
+        createIndex("delete-test-source-index", defaultMappingForTest());
 
         GetDataFrameAnalyticsResponse getDataFrameAnalyticsResponse = execute(
             new GetDataFrameAnalyticsRequest(configId + "*"),

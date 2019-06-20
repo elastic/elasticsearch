@@ -2802,6 +2802,8 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
     }
 
     public void testGetDataFrameAnalytics() throws Exception {
+        createIndex(DF_ANALYTICS_CONFIG.getSource().getIndex());
+
         RestHighLevelClient client = highLevelClient();
         client.machineLearning().putDataFrameAnalytics(new PutDataFrameAnalyticsRequest(DF_ANALYTICS_CONFIG), RequestOptions.DEFAULT);
         {
@@ -2849,6 +2851,8 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
     }
 
     public void testGetDataFrameAnalyticsStats() throws Exception {
+        createIndex(DF_ANALYTICS_CONFIG.getSource().getIndex());
+
         RestHighLevelClient client = highLevelClient();
         client.machineLearning().putDataFrameAnalytics(new PutDataFrameAnalyticsRequest(DF_ANALYTICS_CONFIG), RequestOptions.DEFAULT);
         {
@@ -2897,6 +2901,8 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
     }
 
     public void testPutDataFrameAnalytics() throws Exception {
+        createIndex(DF_ANALYTICS_CONFIG.getSource().getIndex());
+
         RestHighLevelClient client = highLevelClient();
         {
             // tag::put-data-frame-analytics-query-config
@@ -2988,6 +2994,8 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
     }
 
     public void testDeleteDataFrameAnalytics() throws Exception {
+        createIndex(DF_ANALYTICS_CONFIG.getSource().getIndex());
+
         RestHighLevelClient client = highLevelClient();
         client.machineLearning().putDataFrameAnalytics(new PutDataFrameAnalyticsRequest(DF_ANALYTICS_CONFIG), RequestOptions.DEFAULT);
         {

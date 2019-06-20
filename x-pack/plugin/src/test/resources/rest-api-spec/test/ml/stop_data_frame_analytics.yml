@@ -1,5 +1,9 @@
 setup:
   - do:
+      indices.create:
+        index: index-source
+
+  - do:
       ml.put_data_frame_analytics:
         id: "stop_data_frame_analytics_test_job"
         body: >

@@ -20,6 +20,7 @@ import java.util.Map;
 
 import static org.elasticsearch.xpack.vectors.mapper.VectorEncoderDecoderTests.mockEncodeDenseVector;
 import static org.elasticsearch.xpack.vectors.query.ScoreScriptUtils.dotProduct;
+import static org.hamcrest.Matchers.containsString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -40,6 +41,17 @@ public class ScoreScriptUtilsTests extends ESTestCase {
         CosineSimilarity cosineSimilarity = new CosineSimilarity(queryVector);
         double result2 = cosineSimilarity.cosineSimilarity(dvs);
         assertEquals("cosineSimilarity result is not equal to the expected value!", 0.78, result2, 0.1);
+
+        // test dotProduct fails when queryVector has wrong number of dims
+        List<Number> invalidQueryVector = Arrays.asList(0.5, 111.3);
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> dotProduct(invalidQueryVector, dvs));
+        assertThat(e.getMessage(), containsString("dimensions of the query vector [2] is different from the documents' vectors [5]"));
+
+        // test cosineSimilarity fails when queryVector has wrong number of dims
+        CosineSimilarity cosineSimilarity2 = new CosineSimilarity(invalidQueryVector);
+        e = expectThrows(IllegalArgumentException.class, () -> cosineSimilarity2.cosineSimilarity(dvs));
+        assertThat(e.getMessage(), containsString("dimensions of the query vector [2] is different from the documents' vectors [5]"));
+
     }
 
     public void testSparseVectorFunctions() {

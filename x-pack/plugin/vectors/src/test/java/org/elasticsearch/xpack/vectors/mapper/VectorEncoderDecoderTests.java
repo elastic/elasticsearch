@@ -16,14 +16,14 @@ import java.util.Arrays;
 public class VectorEncoderDecoderTests extends ESTestCase {
 
     public void testDenseVectorEncodingDecoding() {
-        int dimCount = randomIntBetween(0, 300);
+        int dimCount = randomIntBetween(0, DenseVectorFieldMapper.MAX_DIMS_COUNT);
         float[] expectedValues = new float[dimCount];
         for (int i = 0; i < dimCount; i++) {
             expectedValues[i] = randomFloat();
         }
 
         // test that values that went through encoding and decoding are equal to their original
-        BytesRef encodedDenseVector =  mockEncodeDenseVector(expectedValues);
+        BytesRef encodedDenseVector = mockEncodeDenseVector(expectedValues);
         float[] decodedValues = VectorEncoderDecoder.decodeDenseVector(encodedDenseVector);
         assertArrayEquals(
             "Decoded dense vector values are not equal to their original.",
@@ -31,7 +31,6 @@ public class VectorEncoderDecoderTests extends ESTestCase {
             decodedValues,
             0.001f
         );
-
     }
 
     public void testSparseVectorEncodingDecoding() {
@@ -70,18 +69,17 @@ public class VectorEncoderDecoderTests extends ESTestCase {
     }
 
     // imitates the code in DenseVectorFieldMapper::parse
-    public static BytesRef mockEncodeDenseVector(float[] dims) {
+    public static BytesRef mockEncodeDenseVector(float[] values) {
         final short INT_BYTES = VectorEncoderDecoder.INT_BYTES;
-        byte[] buf = new byte[INT_BYTES * dims.length];
+        byte[] buf = new byte[INT_BYTES * values.length];
         int offset = 0;
         int intValue;
-        for (float value: dims) {
+        for (float value: values) {
             intValue = Float.floatToIntBits(value);
-            buf[offset] =  (byte) (intValue >> 24);
-            buf[offset+1] = (byte) (intValue >> 16);
-            buf[offset+2] = (byte) (intValue >>  8);
-            buf[offset+3] = (byte) intValue;
-            offset += INT_BYTES;
+            buf[offset++] =  (byte) (intValue >> 24);
+            buf[offset++] = (byte) (intValue >> 16);
+            buf[offset++] = (byte) (intValue >>  8);
+            buf[offset++] = (byte) intValue;
         }
         return new BytesRef(buf, 0, offset);
     }

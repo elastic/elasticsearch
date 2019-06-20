@@ -540,7 +540,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                                  */
                                 engine.rollTranslogGeneration();
                                 engine.fillSeqNoGaps(newPrimaryTerm);
-                                replicationTracker.updateLocalCheckpoint(currentRouting.allocationId().getId(), getLocalCheckpoint());
+                                replicationTracker.updateLocalCheckpoint(currentRouting.allocationId().getId(),
+                                    getLocalCheckpoint());
                                 primaryReplicaSyncer.accept(this, new ActionListener<ResyncTask>() {
                                     @Override
                                     public void onResponse(ResyncTask resyncTask) {
@@ -1865,7 +1866,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     /**
-     * Update the local knowledge of the global checkpoint for the specified allocation ID.
+     * Update the local knowledge of the persisted global checkpoint for the specified allocation ID.
      *
      * @param allocationId     the allocation ID to update the global checkpoint for
      * @param globalCheckpoint the global checkpoint
@@ -2079,12 +2080,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     /**
-     * Returns the local checkpoint for the shard.
+     * Returns the persisted local checkpoint for the shard.
      *
      * @return the local checkpoint
      */
     public long getLocalCheckpoint() {
-        return getEngine().getLocalCheckpoint();
+        return getEngine().getPersistedLocalCheckpoint();
     }
 
     /**
@@ -2092,7 +2093,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      *
      * @return the global checkpoint
      */
-    public long getGlobalCheckpoint() {
+    public long getLastKnownGlobalCheckpoint() {
         return replicationTracker.getGlobalCheckpoint();
     }
 
@@ -2125,15 +2126,19 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             return;
         }
         assert assertPrimaryMode();
-        // only sync if there are not operations in flight
+        // only sync if there are no operations in flight, or when using async durability
         final SeqNoStats stats = getEngine().getSeqNoStats(replicationTracker.getGlobalCheckpoint());
-        if (stats.getMaxSeqNo() == stats.getGlobalCheckpoint()) {
+        final boolean asyncDurability = indexSettings().getTranslogDurability() == Translog.Durability.ASYNC;
+        if (stats.getMaxSeqNo() == stats.getGlobalCheckpoint() || asyncDurability) {
             final ObjectLongMap<String> globalCheckpoints = getInSyncGlobalCheckpoints();
-            final String allocationId = routingEntry().allocationId().getId();
-            assert globalCheckpoints.containsKey(allocationId);
-            final long globalCheckpoint = globalCheckpoints.get(allocationId);
+            final long globalCheckpoint = replicationTracker.getGlobalCheckpoint();
+            // async durability means that the local checkpoint might lag (as it is only advanced on fsync)
+            // periodically ask for the newest local checkpoint by syncing the global checkpoint, so that ultimately the global
+            // checkpoint can be synced
             final boolean syncNeeded =
-                    StreamSupport
+                (asyncDurability && stats.getGlobalCheckpoint() < stats.getMaxSeqNo())
+                    // check if the persisted global checkpoint
+                    || StreamSupport
                             .stream(globalCheckpoints.values().spliterator(), false)
                             .anyMatch(v -> v.value < globalCheckpoint);
             // only sync if index is not closed and there is a shard lagging the primary
@@ -2192,7 +2197,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         assert shardRouting.primary() && shardRouting.isRelocationTarget() :
             "only primary relocation target can update allocation IDs from primary context: " + shardRouting;
         assert primaryContext.getCheckpointStates().containsKey(routingEntry().allocationId().getId()) &&
-            getLocalCheckpoint() == primaryContext.getCheckpointStates().get(routingEntry().allocationId().getId()).getLocalCheckpoint();
+            getLocalCheckpoint() == primaryContext.getCheckpointStates().get(routingEntry().allocationId().getId())
+                .getLocalCheckpoint();
         synchronized (mutex) {
             replicationTracker.activateWithPrimaryContext(primaryContext); // make changes to primaryMode flag only under mutex
         }
@@ -2733,7 +2739,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
                     bumpPrimaryTerm(opPrimaryTerm, () -> {
                         updateGlobalCheckpointOnReplica(globalCheckpoint, "primary term transition");
-                        final long currentGlobalCheckpoint = getGlobalCheckpoint();
+                        final long currentGlobalCheckpoint = getLastKnownGlobalCheckpoint();
                         final long maxSeqNo = seqNoStats().getMaxSeqNo();
                         logger.info("detected new primary with primary term [{}], global checkpoint [{}], max_seq_no [{}]",
                             opPrimaryTerm, currentGlobalCheckpoint, maxSeqNo);
@@ -3103,7 +3109,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         flush(new FlushRequest().waitIfOngoing(true));
 
         SetOnce<Engine> newEngineReference = new SetOnce<>();
-        final long globalCheckpoint = getGlobalCheckpoint();
+        final long globalCheckpoint = getLastKnownGlobalCheckpoint();
+        assert globalCheckpoint == getLastSyncedGlobalCheckpoint();
         synchronized (mutex) {
             verifyNotClosed();
             // we must create both new read-only engine and new read-write engine under mutex to ensure snapshotStoreMetadata,

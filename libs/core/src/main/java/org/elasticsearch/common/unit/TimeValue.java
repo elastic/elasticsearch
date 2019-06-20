@@ -201,7 +201,7 @@ public class TimeValue implements Comparable<TimeValue> {
      */
     @Override
     public String toString() {
-        return this.toString(1);
+        return this.toHumanReadableString(1);
     }
 
     /**
@@ -218,7 +218,7 @@ public class TimeValue implements Comparable<TimeValue> {
      *
      * @param fractionPieces the number of decimal places to include
      */
-    public String toString(int fractionPieces) {
+    public String toHumanReadableString(int fractionPieces) {
         if (duration < 0) {
             return Long.toString(duration);
         }

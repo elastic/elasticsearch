@@ -393,14 +393,13 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             }
             // Delete snapshot from the index file, since it is the maintainer of truth of active snapshots
             final RepositoryData updatedRepositoryData;
-            final BlobContainer indicesBlobContainer = blobStore().blobContainer(basePath().add("indices"));
             final Map<String, BlobContainer> foundIndices;
             try {
                 final RepositoryData repositoryData = getRepositoryData();
                 updatedRepositoryData = repositoryData.removeSnapshot(snapshotId);
                 // Cache the indices that were found before writing out the new index-N blob so that a stuck master will never
                 // delete an index that was created by another master node after writing this index-N blob.
-                foundIndices = indicesBlobContainer.children();
+                foundIndices = blobStore().blobContainer(basePath().add("indices")).children();
                 writeIndexGen(updatedRepositoryData, repositoryStateId);
             } catch (Exception ex) {
                 listener.onFailure(new RepositoryException(metadata.name(), "failed to delete snapshot [" + snapshotId + "]", ex));

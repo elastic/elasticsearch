@@ -7,10 +7,13 @@ package org.elasticsearch.cluster.coordination;
 
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.coordination.CoordinationMetaData.VotingConfiguration;
 import org.elasticsearch.cluster.coordination.CoordinationState.JoinVoteCollection;
 import org.elasticsearch.cluster.coordination.CoordinationState.VoteCollection;
+import org.elasticsearch.cluster.coordination.VotingOnlyNodeFeatureSet.UsageTransportAction;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -25,6 +28,7 @@ import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.node.Node;
+import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.DiscoveryPlugin;
 import org.elasticsearch.plugins.NetworkPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -40,6 +44,7 @@ import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -50,7 +55,9 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Supplier;
 
-public class VotingOnlyNodePlugin extends Plugin implements DiscoveryPlugin, NetworkPlugin {
+import static java.util.Collections.singletonList;
+
+public class VotingOnlyNodePlugin extends Plugin implements DiscoveryPlugin, NetworkPlugin, ActionPlugin {
 
     public static final Setting<Boolean> VOTING_ONLY_NODE_SETTING
         = Setting.boolSetting("node.voting_only", false, Setting.Property.NodeScope);
@@ -107,6 +114,11 @@ public class VotingOnlyNodePlugin extends Plugin implements DiscoveryPlugin, Net
                                                NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry) {
         this.threadPool.set(threadPool);
         return Collections.emptyList();
+    }
+
+    @Override
+    public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
+        return singletonList(new ActionHandler<>(XPackUsageFeatureAction.VOTING_ONLY_NODE, UsageTransportAction.class));
     }
 
     @Override

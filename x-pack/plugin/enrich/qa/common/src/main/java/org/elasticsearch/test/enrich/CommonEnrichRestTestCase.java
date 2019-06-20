@@ -19,7 +19,7 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class CommonEnrichRestTestCase extends ESRestTestCase {
+public abstract class CommonEnrichRestTestCase extends ESRestTestCase {
 
     @After
     private void deletePolicies() throws Exception {

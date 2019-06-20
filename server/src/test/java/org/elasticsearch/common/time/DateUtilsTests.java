@@ -38,13 +38,15 @@ import java.util.Set;
 import static org.elasticsearch.common.time.DateUtils.toInstant;
 import static org.elasticsearch.common.time.DateUtils.toLong;
 import static org.elasticsearch.common.time.DateUtils.toMilliSeconds;
+import static org.elasticsearch.common.time.DateUtils.toNanoSeconds;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
 public class DateUtilsTests extends ESTestCase {
     private static final Set<String> IGNORE = new HashSet<>(Arrays.asList(
-        "Eire", "Europe/Dublin" // dublin timezone in joda does not account for DST
+        "Eire", "Europe/Dublin", // dublin timezone in joda does not account for DST
+        "Asia/Qostanay" // this has been added in joda 2.10.2 but is not part of the JDK 12.0.1 tzdata yet
     ));
 
     public void testTimezoneIds() {
@@ -97,11 +99,11 @@ public class DateUtilsTests extends ESTestCase {
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> toInstant(-1));
         assertThat(e.getMessage(),
-            is("nanoseconds are [-1] are before the epoch in 1970 and cannot be processed in nanosecond resolution"));
+            is("nanoseconds [-1] are before the epoch in 1970 and cannot be processed in nanosecond resolution"));
 
         e = expectThrows(IllegalArgumentException.class, () -> toInstant(Long.MIN_VALUE));
         assertThat(e.getMessage(),
-            is("nanoseconds are [" + Long.MIN_VALUE + "] are before the epoch in 1970 and cannot be processed in nanosecond resolution"));
+            is("nanoseconds [" + Long.MIN_VALUE + "] are before the epoch in 1970 and cannot be processed in nanosecond resolution"));
 
         assertThat(toInstant(Long.MAX_VALUE),
             is(ZonedDateTime.parse("2262-04-11T23:47:16.854775807Z").toInstant()));
@@ -113,6 +115,22 @@ public class DateUtilsTests extends ESTestCase {
         Instant instant = createRandomInstant();
         long nowInNs = toLong(instant);
         assertThat(toMilliSeconds(nowInNs), is(instant.toEpochMilli()));
+    }
+
+    public void testMillisToNanos() {
+        assertThat(toNanoSeconds(0), equalTo(0L));
+
+        Instant instant = Instant.ofEpochSecond(randomLongBetween(0, Long.MAX_VALUE) / 1_000_000_000L);
+        long nowInMs = instant.toEpochMilli();
+        assertThat(toNanoSeconds(nowInMs), equalTo(toLong(instant)));
+
+        IllegalArgumentException exc =
+            expectThrows(IllegalArgumentException.class, () -> toNanoSeconds(-1));
+        assertThat(exc.getMessage(), containsString("before the epoch"));
+
+        long millis = DateUtils.MAX_NANOSECOND_IN_MILLIS + randomLongBetween(0, 1000000);
+        exc = expectThrows(IllegalArgumentException.class, () -> toNanoSeconds(millis));
+        assertThat(exc.getMessage(), containsString("after 2262"));
     }
 
     private Instant createRandomInstant() {

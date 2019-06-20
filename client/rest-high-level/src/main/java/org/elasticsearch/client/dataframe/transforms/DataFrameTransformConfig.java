@@ -20,6 +20,7 @@
 package org.elasticsearch.client.dataframe.transforms;
 
 import org.elasticsearch.client.dataframe.transforms.pivot.PivotConfig;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
@@ -38,61 +39,75 @@ public class DataFrameTransformConfig implements ToXContentObject {
     public static final ParseField ID = new ParseField("id");
     public static final ParseField SOURCE = new ParseField("source");
     public static final ParseField DEST = new ParseField("dest");
-    public static final ParseField QUERY = new ParseField("query");
+    public static final ParseField DESCRIPTION = new ParseField("description");
     // types of transforms
     public static final ParseField PIVOT_TRANSFORM = new ParseField("pivot");
 
     private final String id;
-    private final String source;
-    private final String dest;
-    private final QueryConfig queryConfig;
+    private final SourceConfig source;
+    private final DestConfig dest;
     private final PivotConfig pivotConfig;
+    private final String description;
 
-    public static final ConstructingObjectParser<DataFrameTransformConfig, String> PARSER =
+    public static final ConstructingObjectParser<DataFrameTransformConfig, Void> PARSER =
             new ConstructingObjectParser<>("data_frame_transform", true,
                 (args) -> {
                     String id = (String) args[0];
-                    String source = (String) args[1];
-                    String dest = (String) args[2];
-                    QueryConfig queryConfig = (QueryConfig) args[3];
-                    PivotConfig pivotConfig = (PivotConfig) args[4];
-                    return new DataFrameTransformConfig(id, source, dest, queryConfig, pivotConfig);
+                    SourceConfig source = (SourceConfig) args[1];
+                    DestConfig dest = (DestConfig) args[2];
+                    PivotConfig pivotConfig = (PivotConfig) args[3];
+                    String description = (String)args[4];
+                    return new DataFrameTransformConfig(id, source, dest, pivotConfig, description);
                 });
 
     static {
         PARSER.declareString(constructorArg(), ID);
-        PARSER.declareString(constructorArg(), SOURCE);
-        PARSER.declareString(constructorArg(), DEST);
-        PARSER.declareObject(optionalConstructorArg(), (p, c) -> QueryConfig.fromXContent(p), QUERY);
+        PARSER.declareObject(constructorArg(), (p, c) -> SourceConfig.PARSER.apply(p, null), SOURCE);
+        PARSER.declareObject(constructorArg(), (p, c) -> DestConfig.PARSER.apply(p, null), DEST);
         PARSER.declareObject(optionalConstructorArg(), (p, c) -> PivotConfig.fromXContent(p), PIVOT_TRANSFORM);
+        PARSER.declareString(optionalConstructorArg(), DESCRIPTION);
     }
 
     public static DataFrameTransformConfig fromXContent(final XContentParser parser) {
         return PARSER.apply(parser, null);
     }
 
+    /**
+     * Helper method for previewing a data frame transform configuration
+     *
+     * The DataFrameTransformConfig returned from this method should only be used for previewing the resulting data.
+     *
+     * A new, valid, DataFrameTransformConfig with an appropriate destination and ID will have to be constructed to create
+     * the transform.
+     * @param source Source configuration for gathering the data
+     * @param pivotConfig Pivot config to preview
+     * @return A DataFrameTransformConfig to preview, NOTE it will have a {@code null} id, destination and index.
+     */
+    public static DataFrameTransformConfig forPreview(final SourceConfig source, final PivotConfig pivotConfig) {
+        return new DataFrameTransformConfig(null, source, null, pivotConfig, null);
+    }
 
-    public DataFrameTransformConfig(final String id,
-                                    final String source,
-                                    final String dest,
-                                    final QueryConfig queryConfig,
-                                    final PivotConfig pivotConfig) {
-        this.id = Objects.requireNonNull(id);
-        this.source = Objects.requireNonNull(source);
-        this.dest = Objects.requireNonNull(dest);
-        this.queryConfig = queryConfig;
+    DataFrameTransformConfig(final String id,
+                             final SourceConfig source,
+                             final DestConfig dest,
+                             final PivotConfig pivotConfig,
+                             final String description) {
+        this.id = id;
+        this.source = source;
+        this.dest = dest;
         this.pivotConfig = pivotConfig;
+        this.description = description;
     }
 
     public String getId() {
         return id;
     }
 
-    public String getSource() {
+    public SourceConfig getSource() {
         return source;
     }
 
-    public String getDestination() {
+    public DestConfig getDestination() {
         return dest;
     }
 
@@ -100,33 +115,28 @@ public class DataFrameTransformConfig implements ToXContentObject {
         return pivotConfig;
     }
 
-    public QueryConfig getQueryConfig() {
-        return queryConfig;
-    }
-
-    public boolean isValid() {
-        if (queryConfig != null && queryConfig.isValid() == false) {
-            return false;
-        }
-
-        if (pivotConfig == null || pivotConfig.isValid() == false) {
-            return false;
-        }
-
-        return true;
+    @Nullable
+    public String getDescription() {
+        return description;
     }
 
     @Override
     public XContentBuilder toXContent(final XContentBuilder builder, final Params params) throws IOException {
         builder.startObject();
-        builder.field(ID.getPreferredName(), id);
-        builder.field(SOURCE.getPreferredName(), source);
-        builder.field(DEST.getPreferredName(), dest);
-        if (queryConfig != null) {
-            builder.field(QUERY.getPreferredName(), queryConfig);
+        if (id != null) {
+            builder.field(ID.getPreferredName(), id);
+        }
+        if (source != null) {
+            builder.field(SOURCE.getPreferredName(), source);
+        }
+        if (dest != null) {
+            builder.field(DEST.getPreferredName(), dest);
         }
         if (pivotConfig != null) {
             builder.field(PIVOT_TRANSFORM.getPreferredName(), pivotConfig);
+        }
+        if (description != null) {
+            builder.field(DESCRIPTION.getPreferredName(), description);
         }
         builder.endObject();
         return builder;
@@ -147,17 +157,59 @@ public class DataFrameTransformConfig implements ToXContentObject {
         return Objects.equals(this.id, that.id)
                 && Objects.equals(this.source, that.source)
                 && Objects.equals(this.dest, that.dest)
-                && Objects.equals(this.queryConfig, that.queryConfig)
+                && Objects.equals(this.description, that.description)
                 && Objects.equals(this.pivotConfig, that.pivotConfig);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(id, source, dest, queryConfig, pivotConfig);
+        return Objects.hash(id, source, dest, pivotConfig, description);
     }
 
     @Override
     public String toString() {
         return Strings.toString(this, true, true);
+    }
+
+    public static Builder builder() {
+        return new Builder();
+    }
+
+    public static class Builder {
+
+        private String id;
+        private SourceConfig source;
+        private DestConfig dest;
+        private PivotConfig pivotConfig;
+        private String description;
+
+        public Builder setId(String id) {
+            this.id = id;
+            return this;
+        }
+
+        public Builder setSource(SourceConfig source) {
+            this.source = source;
+            return this;
+        }
+
+        public Builder setDest(DestConfig dest) {
+            this.dest = dest;
+            return this;
+        }
+
+        public Builder setPivotConfig(PivotConfig pivotConfig) {
+            this.pivotConfig = pivotConfig;
+            return this;
+        }
+
+        public Builder setDescription(String description) {
+            this.description = description;
+            return this;
+        }
+
+        public DataFrameTransformConfig build() {
+            return new DataFrameTransformConfig(id, source, dest, pivotConfig, description);
+        }
     }
 }

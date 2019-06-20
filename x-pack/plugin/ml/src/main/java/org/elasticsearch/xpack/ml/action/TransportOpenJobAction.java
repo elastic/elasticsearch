@@ -45,7 +45,6 @@ import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.FinalizeJobExecutionAction;
 import org.elasticsearch.xpack.core.ml.action.OpenJobAction;
-import org.elasticsearch.xpack.core.ml.job.config.DetectionRule;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.config.JobTaskState;
@@ -139,7 +138,7 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
                                                                             boolean isMemoryTrackerRecentlyRefreshed,
                                                                             Logger logger) {
         // TODO: remove in 8.0.0
-        boolean allNodesHaveDynamicMaxWorkers = clusterState.getNodes().getMinNodeVersion().onOrAfter(Version.V_7_1_0);
+        boolean allNodesHaveDynamicMaxWorkers = clusterState.getNodes().getMinNodeVersion().onOrAfter(Version.V_7_2_0);
 
         // Try to allocate jobs according to memory usage, but if that's not possible (maybe due to a mixed version cluster or maybe
         // because of some weird OS problem) then fall back to the old mechanism of only considering numbers of assigned jobs
@@ -177,14 +176,6 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
             if (compatibleJobTypes.contains(job.getJobType()) == false) {
                 String reason = "Not opening job [" + jobId + "] on node [" + nodeNameAndVersion(node) +
                         "], because this node does not support jobs of type [" + job.getJobType() + "]";
-                logger.trace(reason);
-                reasons.add(reason);
-                continue;
-            }
-
-            if (jobHasRules(job) && node.getVersion().before(DetectionRule.VERSION_INTRODUCED)) {
-                String reason = "Not opening job [" + jobId + "] on node [" + nodeNameAndVersion(node) + "], because jobs using " +
-                        "custom_rules require a node of version [" + DetectionRule.VERSION_INTRODUCED + "] or higher";
                 logger.trace(reason);
                 reasons.add(reason);
                 continue;

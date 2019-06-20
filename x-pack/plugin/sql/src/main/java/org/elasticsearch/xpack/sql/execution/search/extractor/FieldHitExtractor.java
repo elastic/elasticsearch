@@ -5,17 +5,22 @@
  */
 package org.elasticsearch.xpack.sql.execution.search.extractor;
 
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.document.DocumentField;
+import org.elasticsearch.common.geo.GeoPoint;
+import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
+import org.elasticsearch.xpack.sql.expression.function.scalar.geo.GeoShape;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.util.DateUtils;
 
 import java.io.IOException;
+import java.time.ZoneId;
 import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.List;
@@ -28,8 +33,6 @@ import java.util.StringJoiner;
  * The latter is used as metadata in assembling the results in the tabular response.
  */
 public class FieldHitExtractor implements HitExtractor {
-
-    private static final boolean ARRAYS_LENIENCY = false;
 
     /**
      * Stands for {@code field}. We try to use short names for {@link HitExtractor}s
@@ -47,17 +50,25 @@ public class FieldHitExtractor implements HitExtractor {
 
     private final String fieldName, hitName;
     private final DataType dataType;
+    private final ZoneId zoneId;
     private final boolean useDocValue;
+    private final boolean arrayLeniency;
     private final String[] path;
 
-    public FieldHitExtractor(String name, DataType dataType, boolean useDocValue) {
-        this(name, dataType, useDocValue, null);
+    public FieldHitExtractor(String name, DataType dataType, ZoneId zoneId, boolean useDocValue) {
+        this(name, dataType, zoneId, useDocValue, null, false);
     }
 
-    public FieldHitExtractor(String name, DataType dataType, boolean useDocValue, String hitName) {
+    public FieldHitExtractor(String name, DataType dataType, ZoneId zoneId, boolean useDocValue, boolean arrayLeniency) {
+        this(name, dataType, zoneId, useDocValue, null, arrayLeniency);
+    }
+
+    public FieldHitExtractor(String name, DataType dataType, ZoneId zoneId, boolean useDocValue, String hitName, boolean arrayLeniency) {
         this.fieldName = name;
         this.dataType = dataType;
+        this.zoneId = zoneId;
         this.useDocValue = useDocValue;
+        this.arrayLeniency = arrayLeniency;
         this.hitName = hitName;
 
         if (hitName != null) {
@@ -73,8 +84,10 @@ public class FieldHitExtractor implements HitExtractor {
         fieldName = in.readString();
         String esType = in.readOptionalString();
         dataType = esType != null ? DataType.fromTypeName(esType) : null;
+        zoneId = ZoneId.of(in.readString());
         useDocValue = in.readBoolean();
         hitName = in.readOptionalString();
+        arrayLeniency = in.readBoolean();
         path = sourcePath(fieldName, useDocValue, hitName);
     }
 
@@ -87,8 +100,10 @@ public class FieldHitExtractor implements HitExtractor {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(fieldName);
         out.writeOptionalString(dataType == null ? null : dataType.typeName);
+        out.writeString(zoneId.getId());
         out.writeBoolean(useDocValue);
         out.writeOptionalString(hitName);
+        out.writeBoolean(arrayLeniency);
     }
 
     @Override
@@ -117,11 +132,29 @@ public class FieldHitExtractor implements HitExtractor {
             if (list.isEmpty()) {
                 return null;
             } else {
-                if (ARRAYS_LENIENCY || list.size() == 1) {
-                    return unwrapMultiValue(list.get(0));
-                } else {
-                    throw new SqlIllegalArgumentException("Arrays (returned by [{}]) are not supported", fieldName);
+                // let's make sure first that we are not dealing with an geo_point represented as an array
+                if (isGeoPointArray(list) == false) {
+                    if (list.size() == 1 || arrayLeniency) {
+                        return unwrapMultiValue(list.get(0));
+                    } else {
+                        throw new SqlIllegalArgumentException("Arrays (returned by [{}]) are not supported", fieldName);
+                    }
                 }
+            }
+        }
+        if (dataType == DataType.GEO_POINT) {
+            try {
+                GeoPoint geoPoint = GeoUtils.parseGeoPoint(values, true);
+                return new GeoShape(geoPoint.lon(), geoPoint.lat());
+            } catch (ElasticsearchParseException ex) {
+                throw new SqlIllegalArgumentException("Cannot parse geo_point value [{}] (returned by [{}])", values, fieldName);
+            }
+        }
+        if (dataType == DataType.GEO_SHAPE) {
+            try {
+                return new GeoShape(values);
+            } catch (IOException ex) {
+                throw new SqlIllegalArgumentException("Cannot read geo_shape value [{}] (returned by [{}])", values, fieldName);
             }
         }
         if (values instanceof Map) {
@@ -129,13 +162,28 @@ public class FieldHitExtractor implements HitExtractor {
         }
         if (dataType == DataType.DATETIME) {
             if (values instanceof String) {
-                return DateUtils.asDateTime(Long.parseLong(values.toString()));
+                return DateUtils.asDateTime(Long.parseLong(values.toString()), zoneId);
             }
         }
-        if (values instanceof Long || values instanceof Double || values instanceof String || values instanceof Boolean) {
+        // The Jackson json parser can generate for numerics - Integers, Longs, BigIntegers (if Long is not enough)
+        // and BigDecimal (if Double is not enough)
+        if (values instanceof Number
+                || values instanceof String
+                || values instanceof Boolean) {
             return values;
         }
         throw new SqlIllegalArgumentException("Type {} (returned by [{}]) is not supported", values.getClass().getSimpleName(), fieldName);
+    }
+
+    private boolean isGeoPointArray(List<?> list) {
+        if (dataType != DataType.GEO_POINT) {
+            return false;
+        }
+        // we expect the point in [lon lat] or [lon lat alt] formats
+        if (list.size() > 3 || list.size() < 1) {
+            return false;
+        }
+        return list.get(0) instanceof Number;
     }
 
     @SuppressWarnings({ "unchecked", "rawtypes" })
@@ -162,9 +210,12 @@ public class FieldHitExtractor implements HitExtractor {
                 
                 if (node instanceof List) {
                     List listOfValues = (List) node;
-                    if (listOfValues.size() == 1) {
+                    // we can only do this optimization until the last element of our pass since geo points are using arrays
+                    // and we don't want to blindly ignore the second element of array if arrayLeniency is enabled
+                    if ((i < path.length - 1) && (listOfValues.size() == 1 || arrayLeniency)) {
                         // this is a List with a size of 1 e.g.: {"a" : [{"b" : "value"}]} meaning the JSON is a list with one element
                         // or a list of values with one element e.g.: {"a": {"b" : ["value"]}}
+                        // in case of being lenient about arrays, just extract the first value in the array
                         node = listOfValues.get(0);
                     } else {
                         // a List of elements with more than one value. Break early and let unwrapMultiValue deal with the list
@@ -209,9 +260,17 @@ public class FieldHitExtractor implements HitExtractor {
         return fieldName;
     }
 
+    public ZoneId zoneId() {
+        return zoneId;
+    }
+
+    DataType dataType() {
+        return dataType;
+    }
+
     @Override
     public String toString() {
-        return fieldName + "@" + hitName;
+        return fieldName + "@" + hitName + "@" + zoneId;
     }
 
     @Override
@@ -222,11 +281,12 @@ public class FieldHitExtractor implements HitExtractor {
         FieldHitExtractor other = (FieldHitExtractor) obj;
         return fieldName.equals(other.fieldName)
                 && hitName.equals(other.hitName)
-                && useDocValue == other.useDocValue;
+                && useDocValue == other.useDocValue
+                && arrayLeniency == other.arrayLeniency;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(fieldName, useDocValue, hitName);
+        return Objects.hash(fieldName, useDocValue, hitName, arrayLeniency);
     }
 }

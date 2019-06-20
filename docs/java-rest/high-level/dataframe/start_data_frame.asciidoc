@@ -1,0 +1,37 @@
+--
+:api: start-data-frame-transform
+:request: StartDataFrameTransformRequest
+:response: StartDataFrameTransformResponse
+--
+[id="{upid}-{api}"]
+=== Start Data Frame Transform API
+
+Start a {dataframe-job}.
+It accepts a +{request}+ object and responds with a +{response}+ object.
+
+[id="{upid}-{api}-request"]
+==== Start Data Frame Request
+
+A +{request}+ object requires a non-null `id`.
+
+["source","java",subs="attributes,callouts,macros"]
+---------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request]
+---------------------------------------------------
+<1> Constructing a new start request referencing an existing {dataframe-job}
+
+==== Optional Arguments
+
+The following arguments are optional.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-options]
+--------------------------------------------------
+<1> Controls the amount of time to wait until the {dataframe-job} starts.
+
+include::../execution.asciidoc[]
+
+==== Response
+
+The returned +{response}+ object acknowledges the {dataframe-job} has started.

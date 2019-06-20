@@ -7,19 +7,16 @@
 package org.elasticsearch.xpack.core.dataframe.action;
 
 import org.elasticsearch.action.Action;
-import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.tasks.BaseTasksResponse;
-import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.dataframe.DataFrameField;
-import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.core.dataframe.utils.ExceptionsHelper;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -36,44 +33,48 @@ public class StartDataFrameTransformAction extends Action<StartDataFrameTransfor
 
     @Override
     public Response newResponse() {
-        return new Response();
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
-    public static class Request extends AcknowledgedRequest<Request> implements ToXContent {
+    @Override
+    public Writeable.Reader<Response> getResponseReader() {
+        return Response::new;
+    }
 
-        private String id;
+    public static class Request extends AcknowledgedRequest<Request> {
 
-        public Request(String id) {
+        private final String id;
+        private final boolean force;
+
+        public Request(String id, boolean force) {
             this.id = ExceptionsHelper.requireNonNull(id, DataFrameField.ID.getPreferredName());
-        }
-
-        public Request() {
+            this.force = force;
         }
 
         public Request(StreamInput in) throws IOException {
             super(in);
             id = in.readString();
+            force = in.readBoolean();
         }
 
         public String getId() {
             return id;
         }
 
+        public boolean isForce() {
+            return force;
+        }
+
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeString(id);
+            out.writeBoolean(force);
         }
 
         @Override
         public ActionRequestValidationException validate() {
             return null;
-        }
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.field(DataFrameField.ID.getPreferredName(), id);
-            return builder;
         }
 
         @Override
@@ -94,51 +95,34 @@ public class StartDataFrameTransformAction extends Action<StartDataFrameTransfor
         }
     }
 
-    public static class RequestBuilder extends ActionRequestBuilder<Request, Response> {
-
-        protected RequestBuilder(ElasticsearchClient client, StartDataFrameTransformAction action) {
-            super(client, action, new Request());
-        }
-    }
-
-    public static class Response extends BaseTasksResponse implements Writeable, ToXContentObject {
-        private boolean started;
-
-        public Response() {
-            super(Collections.emptyList(), Collections.emptyList());
-        }
+    public static class Response extends BaseTasksResponse implements ToXContentObject {
+        private final boolean acknowledged;
 
         public Response(StreamInput in) throws IOException {
             super(in);
-            readFrom(in);
+            acknowledged = in.readBoolean();
         }
 
-        public Response(boolean started) {
+        public Response(boolean acknowledged) {
             super(Collections.emptyList(), Collections.emptyList());
-            this.started = started;
+            this.acknowledged = acknowledged;
         }
 
-        public boolean isStarted() {
-            return started;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            started = in.readBoolean();
+        public boolean isAcknowledged() {
+            return acknowledged;
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            out.writeBoolean(started);
+            out.writeBoolean(acknowledged);
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             toXContentCommon(builder, params);
-            builder.field("started", started);
+            builder.field("acknowledged", acknowledged);
             builder.endObject();
             return builder;
         }
@@ -153,12 +137,12 @@ public class StartDataFrameTransformAction extends Action<StartDataFrameTransfor
                 return false;
             }
             Response response = (Response) obj;
-            return started == response.started;
+            return acknowledged == response.acknowledged;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(started);
+            return Objects.hash(acknowledged);
         }
     }
 }

@@ -35,7 +35,6 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.geo.GeoHashUtils;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.geo.builders.CoordinatesBuilder;
@@ -67,6 +66,7 @@ import java.util.Random;
 import java.util.zip.GZIPInputStream;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.geo.utils.Geohash.addNeighbors;
 import static org.elasticsearch.index.query.QueryBuilders.geoBoundingBoxQuery;
 import static org.elasticsearch.index.query.QueryBuilders.geoDistanceQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
@@ -367,8 +367,7 @@ public class GeoFilterIT extends ESIntegTestCase {
 
     public void testBulk() throws Exception {
         byte[] bulkAction = unZipData("/org/elasticsearch/search/geo/gzippedmap.gz");
-        Version version = VersionUtils.randomVersionBetween(random(), Version.V_6_0_0,
-                Version.CURRENT);
+        Version version = VersionUtils.randomIndexCompatibleVersion(random());
         Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
         XContentBuilder xContentBuilder = XContentFactory.jsonBuilder()
                 .startObject()
@@ -434,26 +433,26 @@ public class GeoFilterIT extends ESIntegTestCase {
 
     public void testNeighbors() {
         // Simple root case
-        assertThat(GeoHashUtils.addNeighbors("7", new ArrayList<String>()), containsInAnyOrder("4", "5", "6", "d", "e", "h", "k", "s"));
+        assertThat(addNeighbors("7", new ArrayList<>()), containsInAnyOrder("4", "5", "6", "d", "e", "h", "k", "s"));
 
         // Root cases (Outer cells)
-        assertThat(GeoHashUtils.addNeighbors("0", new ArrayList<String>()), containsInAnyOrder("1", "2", "3", "p", "r"));
-        assertThat(GeoHashUtils.addNeighbors("b", new ArrayList<String>()), containsInAnyOrder("8", "9", "c", "x", "z"));
-        assertThat(GeoHashUtils.addNeighbors("p", new ArrayList<String>()), containsInAnyOrder("n", "q", "r", "0", "2"));
-        assertThat(GeoHashUtils.addNeighbors("z", new ArrayList<String>()), containsInAnyOrder("8", "b", "w", "x", "y"));
+        assertThat(addNeighbors("0", new ArrayList<>()), containsInAnyOrder("1", "2", "3", "p", "r"));
+        assertThat(addNeighbors("b", new ArrayList<>()), containsInAnyOrder("8", "9", "c", "x", "z"));
+        assertThat(addNeighbors("p", new ArrayList<>()), containsInAnyOrder("n", "q", "r", "0", "2"));
+        assertThat(addNeighbors("z", new ArrayList<>()), containsInAnyOrder("8", "b", "w", "x", "y"));
 
         // Root crossing dateline
-        assertThat(GeoHashUtils.addNeighbors("2", new ArrayList<String>()), containsInAnyOrder("0", "1", "3", "8", "9", "p", "r", "x"));
-        assertThat(GeoHashUtils.addNeighbors("r", new ArrayList<String>()), containsInAnyOrder("0", "2", "8", "n", "p", "q", "w", "x"));
+        assertThat(addNeighbors("2", new ArrayList<>()), containsInAnyOrder("0", "1", "3", "8", "9", "p", "r", "x"));
+        assertThat(addNeighbors("r", new ArrayList<>()), containsInAnyOrder("0", "2", "8", "n", "p", "q", "w", "x"));
 
         // level1: simple case
-        assertThat(GeoHashUtils.addNeighbors("dk", new ArrayList<String>()),
+        assertThat(addNeighbors("dk", new ArrayList<>()),
                 containsInAnyOrder("d5", "d7", "de", "dh", "dj", "dm", "ds", "dt"));
 
         // Level1: crossing cells
-        assertThat(GeoHashUtils.addNeighbors("d5", new ArrayList<String>()),
+        assertThat(addNeighbors("d5", new ArrayList<>()),
                 containsInAnyOrder("d4", "d6", "d7", "dh", "dk", "9f", "9g", "9u"));
-        assertThat(GeoHashUtils.addNeighbors("d0", new ArrayList<String>()),
+        assertThat(addNeighbors("d0", new ArrayList<>()),
                 containsInAnyOrder("d1", "d2", "d3", "9b", "9c", "6p", "6r", "3z"));
     }
 

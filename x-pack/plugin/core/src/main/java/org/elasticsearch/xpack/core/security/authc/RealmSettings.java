@@ -6,6 +6,8 @@
 package org.elasticsearch.xpack.core.security.authc;
 
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.settings.SecureSetting;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 
@@ -53,6 +55,17 @@ public class RealmSettings {
      */
     public static Setting.AffixSetting<String> simpleString(String realmType, String suffix, Setting.Property... properties) {
         return Setting.affixKeySetting(realmSettingPrefix(realmType), suffix, key -> Setting.simpleString(key, properties));
+    }
+
+    /**
+     * Create a {@link SecureSetting#secureString secure string} {@link Setting} object of a realm of
+     * with the provided type and setting suffix.
+     *
+     * @param realmType The type of the realm, used within the setting prefix
+     * @param suffix    The suffix of the setting (everything following the realm name in the affix setting)
+     */
+    public static Setting.AffixSetting<SecureString> secureString(String realmType, String suffix) {
+        return Setting.affixKeySetting(realmSettingPrefix(realmType), suffix, key -> SecureSetting.secureString(key, null));
     }
 
     /**

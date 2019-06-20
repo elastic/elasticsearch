@@ -75,7 +75,7 @@ public class NoOpEngineTests extends EngineTestCase {
         ShardRouting routing = TestShardRouting.newShardRouting("test", shardId.id(), "node",
             null, true, ShardRoutingState.STARTED, allocationId);
         IndexShardRoutingTable table = new IndexShardRoutingTable.Builder(shardId).addShard(routing).build();
-        tracker.updateFromMaster(1L, Collections.singleton(allocationId.getId()), table, Collections.emptySet());
+        tracker.updateFromMaster(1L, Collections.singleton(allocationId.getId()), table);
         tracker.activatePrimaryMode(SequenceNumbers.NO_OPS_PERFORMED);
         for (int i = 0; i < docs; i++) {
             ParsedDocument doc = testParsedDocument("" + i, null, testDocumentWithTextField(), B_1, null);
@@ -85,12 +85,12 @@ public class NoOpEngineTests extends EngineTestCase {
 
         flushAndTrimTranslog(engine);
 
-        long localCheckpoint = engine.getLocalCheckpoint();
+        long localCheckpoint = engine.getPersistedLocalCheckpoint();
         long maxSeqNo = engine.getSeqNoStats(100L).getMaxSeqNo();
         engine.close();
 
         final NoOpEngine noOpEngine = new NoOpEngine(noOpConfig(INDEX_SETTINGS, store, primaryTranslogDir, tracker));
-        assertThat(noOpEngine.getLocalCheckpoint(), equalTo(localCheckpoint));
+        assertThat(noOpEngine.getPersistedLocalCheckpoint(), equalTo(localCheckpoint));
         assertThat(noOpEngine.getSeqNoStats(100L).getMaxSeqNo(), equalTo(maxSeqNo));
         try (Engine.IndexCommitRef ref = noOpEngine.acquireLastIndexCommit(false)) {
             try (IndexReader reader = DirectoryReader.open(ref.getIndexCommit())) {
@@ -100,7 +100,7 @@ public class NoOpEngineTests extends EngineTestCase {
         noOpEngine.close();
     }
 
-    public void testNoOpEngineDocStats() throws Exception {
+    public void testNoOpEngineStats() throws Exception {
         IOUtils.close(engine, store);
         final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
         try (Store store = createStore()) {
@@ -114,7 +114,8 @@ public class NoOpEngineTests extends EngineTestCase {
                     if (rarely()) {
                         engine.flush();
                     }
-                    globalCheckpoint.set(engine.getLocalCheckpoint());
+                    engine.syncTranslog(); // advance persisted local checkpoint
+                    globalCheckpoint.set(engine.getPersistedLocalCheckpoint());
                 }
 
                 for (int i = 0; i < numDocs; i++) {
@@ -122,17 +123,21 @@ public class NoOpEngineTests extends EngineTestCase {
                         String delId = Integer.toString(i);
                         Engine.DeleteResult result = engine.delete(new Engine.Delete("test", delId, newUid(delId), primaryTerm.get()));
                         assertTrue(result.isFound());
-                        globalCheckpoint.set(engine.getLocalCheckpoint());
+                        engine.syncTranslog(); // advance persisted local checkpoint
+                        globalCheckpoint.set(engine.getPersistedLocalCheckpoint());
                         deletions += 1;
                     }
                 }
-                engine.getLocalCheckpointTracker().waitForOpsToComplete(numDocs + deletions - 1);
+                engine.getLocalCheckpointTracker().waitForProcessedOpsToComplete(numDocs + deletions - 1);
                 flushAndTrimTranslog(engine);
             }
 
             final DocsStats expectedDocStats;
+            boolean includeFileSize = randomBoolean();
+            final SegmentsStats expectedSegmentStats;
             try (InternalEngine engine = createEngine(config)) {
                 expectedDocStats = engine.docStats();
+                expectedSegmentStats = engine.segmentsStats(includeFileSize, true);
             }
 
             try (NoOpEngine noOpEngine = new NoOpEngine(config)) {
@@ -140,6 +145,13 @@ public class NoOpEngineTests extends EngineTestCase {
                 assertEquals(expectedDocStats.getDeleted(), noOpEngine.docStats().getDeleted());
                 assertEquals(expectedDocStats.getTotalSizeInBytes(), noOpEngine.docStats().getTotalSizeInBytes());
                 assertEquals(expectedDocStats.getAverageSizeInBytes(), noOpEngine.docStats().getAverageSizeInBytes());
+                assertEquals(expectedSegmentStats.getCount(), noOpEngine.segmentsStats(includeFileSize, true).getCount());
+                // don't compare memory in bytes since we load the index with term-dict off-heap
+                assertEquals(expectedSegmentStats.getFileSizes().size(),
+                    noOpEngine.segmentsStats(includeFileSize, true).getFileSizes().size());
+
+                assertEquals(0, noOpEngine.segmentsStats(includeFileSize, false).getFileSizes().size());
+                assertEquals(0, noOpEngine.segmentsStats(includeFileSize, false).getMemoryInBytes());
             } catch (AssertionError e) {
                 logger.error(config.getMergePolicy());
                 throw e;

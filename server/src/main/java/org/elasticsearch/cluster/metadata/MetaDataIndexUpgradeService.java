@@ -88,7 +88,11 @@ public class MetaDataIndexUpgradeService {
     public IndexMetaData upgradeIndexMetaData(IndexMetaData indexMetaData, Version minimumIndexCompatibilityVersion) {
         // Throws an exception if there are too-old segments:
         if (isUpgraded(indexMetaData)) {
-            return indexMetaData;
+            /*
+             * We still need to check for broken index settings since it might be that a user removed a plugin that registers a setting
+             * needed by this index.
+             */
+            return archiveBrokenIndexSettings(indexMetaData);
         }
         checkSupportedVersion(indexMetaData, minimumIndexCompatibilityVersion);
         IndexMetaData newMetaData = indexMetaData;
@@ -191,7 +195,7 @@ public class MetaDataIndexUpgradeService {
                 }
             };
             try (IndexAnalyzers fakeIndexAnalzyers =
-                     new IndexAnalyzers(indexSettings, fakeDefault, fakeDefault, fakeDefault, analyzerMap, analyzerMap, analyzerMap)) {
+                     new IndexAnalyzers(analyzerMap, analyzerMap, analyzerMap)) {
                 MapperService mapperService = new MapperService(indexSettings, fakeIndexAnalzyers, xContentRegistry, similarityService,
                         mapperRegistry, () -> null);
                 mapperService.merge(indexMetaData, MapperService.MergeReason.MAPPING_RECOVERY);

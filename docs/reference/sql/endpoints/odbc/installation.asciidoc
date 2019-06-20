@@ -21,6 +21,11 @@ If you fail to meet any of the prerequisites the installer will show an error me
 
 NOTE: It is not possible to inline upgrade using the MSI. In order to upgrade, you will first have to uninstall the old driver and then install the new driver.
 
+NOTE: When installing the MSI, the Windows Defender SmartScreen might warn
+about running an unrecognized app. If the MSI has been downloaded from
+Elastic's web site, it is safe to acknowledge the message by allowing the
+installation to continue (`Run anyway`).
+
 [[download]]
 ==== Download the `.msi` package(s)
 

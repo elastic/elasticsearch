@@ -27,7 +27,6 @@ import org.elasticsearch.search.lookup.LeafSearchLookup;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -62,27 +61,14 @@ public class ScriptedMetricAggContexts {
     }
 
     public abstract static class MapScript {
-        private static final Map<String, String> DEPRECATIONS;
-
-        static {
-            Map<String, String> deprecations = new HashMap<>();
-            deprecations.put(
+        private static final Map<String, String> DEPRECATIONS = Map.of(
                 "doc",
-                "Accessing variable [doc] via [params.doc] from within a scripted metric agg map script " +
-                    "is deprecated in favor of directly accessing [doc]."
-            );
-            deprecations.put(
-                "_doc",
-                "Accessing variable [doc] via [params._doc] from within a scripted metric agg map script " +
-                    "is deprecated in favor of directly accessing [doc]."
-            );
-            deprecations.put(
-                "_agg",
-                "Accessing variable [_agg] via [params._agg] from within a scripted metric agg map script " +
-                    "is deprecated in favor of using [state]."
-            );
-            DEPRECATIONS = Collections.unmodifiableMap(deprecations);
-        }
+                "Accessing variable [doc] via [params.doc] from within a scripted metric agg map script "
+                        + "is deprecated in favor of directly accessing [doc].",
+                "_doc", "Accessing variable [doc] via [params._doc] from within a scripted metric agg map script "
+                        + "is deprecated in favor of directly accessing [doc].",
+                "_agg", "Accessing variable [_agg] via [params._agg] from within a scripted metric agg map script "
+                        + "is deprecated in favor of using [state].");
 
         private final Map<String, Object> params;
         private final Map<String, Object> state;

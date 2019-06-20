@@ -32,7 +32,7 @@ public class GetDataFrameTransformsActionResponseTests extends AbstractWireSeria
         transforms.add(DataFrameTransformConfigTests.randomDataFrameTransformConfig());
         transforms.add(DataFrameTransformConfigTests.randomInvalidDataFrameTransformConfig());
 
-        Response r = new Response(transforms);
+        Response r = new Response(transforms, transforms.size());
         XContentBuilder builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
         r.toXContent(builder, XContent.EMPTY_PARAMS);
         Map<String, Object> responseAsMap = createParser(builder).map();
@@ -44,6 +44,7 @@ public class GetDataFrameTransformsActionResponseTests extends AbstractWireSeria
         assertWarnings(LoggerMessageFormat.format(Response.INVALID_TRANSFORMS_DEPRECATION_WARNING, 2));
     }
 
+    @SuppressWarnings("unchecked")
     public void testNoHeaderInResponse() throws IOException {
         List<DataFrameTransformConfig> transforms = new ArrayList<>();
 
@@ -51,7 +52,7 @@ public class GetDataFrameTransformsActionResponseTests extends AbstractWireSeria
             transforms.add(DataFrameTransformConfigTests.randomDataFrameTransformConfig());
         }
 
-        Response r = new Response(transforms);
+        Response r = new Response(transforms, transforms.size());
         XContentBuilder builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
         r.toXContent(builder, XContent.EMPTY_PARAMS);
         Map<String, Object> responseAsMap = createParser(builder).map();
@@ -62,7 +63,8 @@ public class GetDataFrameTransformsActionResponseTests extends AbstractWireSeria
 
         assertEquals(transforms.size(), transformsResponse.size());
         for (int i = 0; i < transforms.size(); ++i) {
-            assertEquals(transforms.get(i).getSource(), XContentMapValues.extractValue("source", transformsResponse.get(i)));
+            assertArrayEquals(transforms.get(i).getSource().getIndex(),
+                ((ArrayList<String>)XContentMapValues.extractValue("source.index", transformsResponse.get(i))).toArray(new String[0]));
             assertEquals(null, XContentMapValues.extractValue("headers", transformsResponse.get(i)));
         }
     }
@@ -74,7 +76,7 @@ public class GetDataFrameTransformsActionResponseTests extends AbstractWireSeria
             configs.add(DataFrameTransformConfigTests.randomDataFrameTransformConfig());
         }
 
-        return new Response(configs);
+        return new Response(configs, randomNonNegativeLong());
     }
 
     @Override

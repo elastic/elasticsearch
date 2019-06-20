@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.cluster.coordination;
 
-import joptsimple.OptionSet;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
@@ -72,9 +71,7 @@ public class UnsafeBootstrapMasterCommand extends ElasticsearchNodeCommand {
     }
 
     @Override
-    protected void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {
-        super.execute(terminal, options, env);
-
+    protected boolean validateBeforeLock(Terminal terminal, Environment env) {
         Settings settings = env.settings();
         terminal.println(Terminal.Verbosity.VERBOSE, "Checking node.master setting");
         Boolean master = Node.NODE_MASTER_SETTING.get(settings);
@@ -82,12 +79,10 @@ public class UnsafeBootstrapMasterCommand extends ElasticsearchNodeCommand {
             throw new ElasticsearchException(NOT_MASTER_NODE_MSG);
         }
 
-        processNodePathsWithLock(terminal, options, env);
-
-        terminal.println(MASTER_NODE_BOOTSTRAPPED_MSG);
+        return true;
     }
 
-    protected void processNodePaths(Terminal terminal, Path[] dataPaths) throws IOException {
+    protected void processNodePaths(Terminal terminal, Path[] dataPaths, Environment env) throws IOException {
         terminal.println(Terminal.Verbosity.VERBOSE, "Loading node metadata");
         final NodeMetaData nodeMetaData = NodeMetaData.FORMAT.loadLatestState(logger, namedXContentRegistry, dataPaths);
         if (nodeMetaData == null) {
@@ -130,5 +125,7 @@ public class UnsafeBootstrapMasterCommand extends ElasticsearchNodeCommand {
                 .build();
 
         writeNewMetaData(terminal, manifest, manifest.getCurrentTerm(), metaData, newMetaData, dataPaths);
+
+        terminal.println(MASTER_NODE_BOOTSTRAPPED_MSG);
     }
 }

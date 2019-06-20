@@ -20,7 +20,6 @@ package org.elasticsearch.cluster.coordination;
 
 import joptsimple.OptionParser;
 import joptsimple.OptionSet;
-import joptsimple.OptionSpec;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.LockObtainFailedException;
@@ -44,46 +43,38 @@ import java.util.Objects;
 public abstract class ElasticsearchNodeCommand extends EnvironmentAwareCommand {
     private static final Logger logger = LogManager.getLogger(ElasticsearchNodeCommand.class);
     protected final NamedXContentRegistry namedXContentRegistry;
-    static final String DELIMITER = "------------------------------------------------------------------------\n";
+    protected static final String DELIMITER = "------------------------------------------------------------------------\n";
 
     static final String STOP_WARNING_MSG =
             DELIMITER +
                     "\n" +
                     "    WARNING: Elasticsearch MUST be stopped before running this tool." +
                     "\n";
-    static final String FAILED_TO_OBTAIN_NODE_LOCK_MSG = "failed to lock node's directory, is Elasticsearch still running?";
+    protected static final String FAILED_TO_OBTAIN_NODE_LOCK_MSG = "failed to lock node's directory, is Elasticsearch still running?";
     static final String NO_NODE_FOLDER_FOUND_MSG = "no node folder is found in data folder(s), node has not been started yet?";
     static final String NO_MANIFEST_FILE_FOUND_MSG = "no manifest file is found, do you run pre 7.0 Elasticsearch?";
-    static final String GLOBAL_GENERATION_MISSING_MSG = "no metadata is referenced from the manifest file, cluster has never been " +
-            "bootstrapped?";
+    protected static final String GLOBAL_GENERATION_MISSING_MSG =
+        "no metadata is referenced from the manifest file, cluster has never been bootstrapped?";
     static final String NO_GLOBAL_METADATA_MSG = "failed to find global metadata, metadata corrupted?";
     static final String WRITE_METADATA_EXCEPTION_MSG = "exception occurred when writing new metadata to disk";
-    static final String ABORTED_BY_USER_MSG = "aborted by user";
-    final OptionSpec<Integer> nodeOrdinalOption;
+    protected static final String ABORTED_BY_USER_MSG = "aborted by user";
 
     public ElasticsearchNodeCommand(String description) {
         super(description);
-        nodeOrdinalOption = parser.accepts("ordinal", "Optional node ordinal, 0 if not specified")
-                .withRequiredArg().ofType(Integer.class);
         namedXContentRegistry = new NamedXContentRegistry(ClusterModule.getNamedXWriteables());
     }
 
-    protected void processNodePathsWithLock(Terminal terminal, OptionSet options, Environment env) throws IOException {
+    protected void processNodePaths(Terminal terminal, OptionSet options, Environment env) throws IOException {
         terminal.println(Terminal.Verbosity.VERBOSE, "Obtaining lock for node");
-        Integer nodeOrdinal = nodeOrdinalOption.value(options);
-        if (nodeOrdinal == null) {
-            nodeOrdinal = 0;
-        }
-        try (NodeEnvironment.NodeLock lock = new NodeEnvironment.NodeLock(nodeOrdinal, logger, env, Files::exists)) {
+        try (NodeEnvironment.NodeLock lock = new NodeEnvironment.NodeLock(logger, env, Files::exists)) {
             final Path[] dataPaths =
                     Arrays.stream(lock.getNodePaths()).filter(Objects::nonNull).map(p -> p.path).toArray(Path[]::new);
             if (dataPaths.length == 0) {
                 throw new ElasticsearchException(NO_NODE_FOLDER_FOUND_MSG);
             }
-            processNodePaths(terminal, dataPaths);
-        } catch (LockObtainFailedException ex) {
-            throw new ElasticsearchException(
-                    FAILED_TO_OBTAIN_NODE_LOCK_MSG + " [" + ex.getMessage() + "]");
+            processNodePaths(terminal, dataPaths, env);
+        } catch (LockObtainFailedException e) {
+            throw new ElasticsearchException(FAILED_TO_OBTAIN_NODE_LOCK_MSG, e);
         }
     }
 
@@ -116,11 +107,31 @@ public abstract class ElasticsearchNodeCommand extends EnvironmentAwareCommand {
     }
 
     @Override
-    protected void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {
+    protected final void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {
         terminal.println(STOP_WARNING_MSG);
+        if (validateBeforeLock(terminal, env)) {
+            processNodePaths(terminal, options, env);
+        }
     }
 
-    protected abstract void processNodePaths(Terminal terminal, Path[] dataPaths) throws IOException;
+    /**
+     * Validate that the command can run before taking any locks.
+     * @param terminal the terminal to print to
+     * @param env the env to validate.
+     * @return true to continue, false to stop (must print message in validate).
+     */
+    protected boolean validateBeforeLock(Terminal terminal, Environment env) {
+        return true;
+    }
+
+
+    /**
+     * Process the paths. Locks for the paths is held during this method invocation.
+     * @param terminal the terminal to use for messages
+     * @param dataPaths the paths of the node to process
+     * @param env the env of the node to process
+     */
+    protected abstract void processNodePaths(Terminal terminal, Path[] dataPaths, Environment env) throws IOException;
 
 
     protected void writeNewMetaData(Terminal terminal, Manifest oldManifest, long newCurrentTerm,
@@ -157,6 +168,17 @@ public abstract class ElasticsearchNodeCommand extends EnvironmentAwareCommand {
         MetaData.FORMAT.cleanupOldFiles(newGeneration, dataPaths);
     }
 
+    protected NodeEnvironment.NodePath[] toNodePaths(Path[] dataPaths) {
+        return Arrays.stream(dataPaths).map(ElasticsearchNodeCommand::createNodePath).toArray(NodeEnvironment.NodePath[]::new);
+    }
+
+    private static NodeEnvironment.NodePath createNodePath(Path path) {
+        try {
+            return new NodeEnvironment.NodePath(path);
+        } catch (IOException e) {
+            throw new ElasticsearchException("Unable to investigate path [" + path + "]", e);
+        }
+    }
 
     //package-private for testing
     OptionParser getParser() {

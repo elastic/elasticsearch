@@ -6,7 +6,7 @@ See: https://github.com/elastic/docs
 Snippets marked with `// CONSOLE` are automatically annotated with "VIEW IN
 CONSOLE" and "COPY AS CURL" in the documentation and are automatically tested
 by the command `gradle :docs:check`. To test just the docs from a single page,
-use e.g. `gradle :docs:check -Dtests.method="\*rollover*"`.
+use e.g. `./gradlew :docs:integTestRunner --tests "*rollover*"`.
 
 NOTE: If you have an elasticsearch-extra folder alongside your elasticsearch
 folder, you must temporarily rename it when you are testing 6.3 or later branches.
@@ -60,9 +60,11 @@ for its modifiers:
     "figures out" the path. This is especially useful for making sweeping
     assertions like "I made up all the numbers in this example, don't compare
     them" which looks like `// TESTRESPONSE[s/\d+/$body.$_path/]`.
-  * `// TESTRESPONSE[_cat]`: Add substitutions for testing `_cat` responses. Use
-  this after all other substitutions so it doesn't make other substitutions
-  difficult.
+  * You can't use `// TESTRESPONSE` immediately after `// TESTSETUP`. Instead,
+  consider using `// TEST[continued]` or rearrange your snippets.
+  * `// TESTRESPONSE[non_json]`: Add substitutions for testing responses in a
+  format other than JSON. Use this after all other substitutions so it doesn't
+  make other substitutions difficult.
   * `// TESTRESPONSE[skip:reason]`: Skip the assertions specified by this
   response.
 * `// TESTSETUP`: Marks this snippet as the "setup" for all other snippets in

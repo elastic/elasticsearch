@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
@@ -30,6 +29,7 @@ import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSizeStats;
+import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.TimingStats;
 import org.elasticsearch.xpack.core.ml.stats.ForecastStats;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
@@ -38,6 +38,8 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+
+import static org.elasticsearch.Version.V_7_3_0;
 
 public class GetJobsStatsAction extends Action<GetJobsStatsAction.Response> {
 
@@ -49,6 +51,7 @@ public class GetJobsStatsAction extends Action<GetJobsStatsAction.Response> {
     private static final String FORECASTS_STATS = "forecasts_stats";
     private static final String STATE = "state";
     private static final String NODE = "node";
+    private static final String TIMING_STATS = "timing_stats";
 
     private GetJobsStatsAction() {
         super(NAME);
@@ -85,9 +88,7 @@ public class GetJobsStatsAction extends Action<GetJobsStatsAction.Response> {
             super(in);
             jobId = in.readString();
             expandedJobsIds = in.readStringList();
-            if (in.getVersion().onOrAfter(Version.V_6_1_0)) {
-                allowNoJobs = in.readBoolean();
-            }
+            allowNoJobs = in.readBoolean();
         }
 
         @Override
@@ -95,9 +96,7 @@ public class GetJobsStatsAction extends Action<GetJobsStatsAction.Response> {
             super.writeTo(out);
             out.writeString(jobId);
             out.writeStringCollection(expandedJobsIds);
-            if (out.getVersion().onOrAfter(Version.V_6_1_0)) {
-                out.writeBoolean(allowNoJobs);
-            }
+            out.writeBoolean(allowNoJobs);
         }
 
         public List<String> getExpandedJobsIds() { return expandedJobsIds; }
@@ -155,22 +154,24 @@ public class GetJobsStatsAction extends Action<GetJobsStatsAction.Response> {
 
         public static class JobStats implements ToXContentObject, Writeable {
             private final String jobId;
-            private DataCounts dataCounts;
+            private final DataCounts dataCounts;
             @Nullable
-            private ModelSizeStats modelSizeStats;
+            private final ModelSizeStats modelSizeStats;
             @Nullable
-            private ForecastStats forecastStats;
+            private final ForecastStats forecastStats;
             @Nullable
-            private TimeValue openTime;
-            private JobState state;
+            private final TimeValue openTime;
+            private final JobState state;
             @Nullable
-            private DiscoveryNode node;
+            private final DiscoveryNode node;
             @Nullable
-            private String assignmentExplanation;
+            private final String assignmentExplanation;
+            @Nullable
+            private final TimingStats timingStats;
 
             public JobStats(String jobId, DataCounts dataCounts, @Nullable ModelSizeStats modelSizeStats,
-                    @Nullable ForecastStats forecastStats, JobState state, @Nullable DiscoveryNode node,
-                    @Nullable String assignmentExplanation, @Nullable TimeValue opentime) {
+                            @Nullable ForecastStats forecastStats, JobState state, @Nullable DiscoveryNode node,
+                            @Nullable String assignmentExplanation, @Nullable TimeValue openTime, @Nullable TimingStats timingStats) {
                 this.jobId = Objects.requireNonNull(jobId);
                 this.dataCounts = Objects.requireNonNull(dataCounts);
                 this.modelSizeStats = modelSizeStats;
@@ -178,7 +179,8 @@ public class GetJobsStatsAction extends Action<GetJobsStatsAction.Response> {
                 this.state = Objects.requireNonNull(state);
                 this.node = node;
                 this.assignmentExplanation = assignmentExplanation;
-                this.openTime = opentime;
+                this.openTime = openTime;
+                this.timingStats = timingStats;
             }
 
             public JobStats(StreamInput in) throws IOException {
@@ -189,8 +191,11 @@ public class GetJobsStatsAction extends Action<GetJobsStatsAction.Response> {
                 node = in.readOptionalWriteable(DiscoveryNode::new);
                 assignmentExplanation = in.readOptionalString();
                 openTime = in.readOptionalTimeValue();
-                if (in.getVersion().onOrAfter(Version.V_6_4_0)) {
-                    forecastStats = in.readOptionalWriteable(ForecastStats::new);
+                forecastStats = in.readOptionalWriteable(ForecastStats::new);
+                if (in.getVersion().onOrAfter(V_7_3_0)) {
+                    timingStats = in.readOptionalWriteable(TimingStats::new);
+                } else {
+                    timingStats = null;
                 }
             }
 
@@ -224,6 +229,10 @@ public class GetJobsStatsAction extends Action<GetJobsStatsAction.Response> {
 
             public TimeValue getOpenTime() {
                 return openTime;
+            }
+
+            public TimingStats getTimingStats() {
+                return timingStats;
             }
 
             @Override
@@ -267,6 +276,9 @@ public class GetJobsStatsAction extends Action<GetJobsStatsAction.Response> {
                 if (openTime != null) {
                     builder.field("open_time", openTime.getStringRep());
                 }
+                if (timingStats != null) {
+                    builder.field(TIMING_STATS, timingStats);
+                }
                 return builder;
             }
 
@@ -279,14 +291,16 @@ public class GetJobsStatsAction extends Action<GetJobsStatsAction.Response> {
                 out.writeOptionalWriteable(node);
                 out.writeOptionalString(assignmentExplanation);
                 out.writeOptionalTimeValue(openTime);
-                if (out.getVersion().onOrAfter(Version.V_6_4_0)) {
-                    out.writeOptionalWriteable(forecastStats);
+                out.writeOptionalWriteable(forecastStats);
+                if (out.getVersion().onOrAfter(V_7_3_0)) {
+                    out.writeOptionalWriteable(timingStats);
                 }
             }
 
             @Override
             public int hashCode() {
-                return Objects.hash(jobId, dataCounts, modelSizeStats, forecastStats, state, node, assignmentExplanation, openTime);
+                return Objects.hash(
+                    jobId, dataCounts, modelSizeStats, forecastStats, state, node, assignmentExplanation, openTime, timingStats);
             }
 
             @Override
@@ -298,14 +312,15 @@ public class GetJobsStatsAction extends Action<GetJobsStatsAction.Response> {
                     return false;
                 }
                 JobStats other = (JobStats) obj;
-                return Objects.equals(jobId, other.jobId)
-                        && Objects.equals(this.dataCounts, other.dataCounts)
-                        && Objects.equals(this.modelSizeStats, other.modelSizeStats)
-                        && Objects.equals(this.forecastStats, other.forecastStats)
-                        && Objects.equals(this.state, other.state)
-                        && Objects.equals(this.node, other.node)
-                        && Objects.equals(this.assignmentExplanation, other.assignmentExplanation)
-                        && Objects.equals(this.openTime, other.openTime);
+                return Objects.equals(this.jobId, other.jobId)
+                    && Objects.equals(this.dataCounts, other.dataCounts)
+                    && Objects.equals(this.modelSizeStats, other.modelSizeStats)
+                    && Objects.equals(this.forecastStats, other.forecastStats)
+                    && Objects.equals(this.state, other.state)
+                    && Objects.equals(this.node, other.node)
+                    && Objects.equals(this.assignmentExplanation, other.assignmentExplanation)
+                    && Objects.equals(this.openTime, other.openTime)
+                    && Objects.equals(this.timingStats, other.timingStats);
             }
         }
 

@@ -4,7 +4,8 @@
 The _{ccs}_ feature allows any node to act as a federated client across
 multiple clusters. A {ccs} node won't join the remote cluster, instead
 it connects to a remote cluster in a light fashion in order to execute
-federated search requests.
+federated search requests. For details on communication and compatibility
+between different clusters, see <<modules-remote-clusters>>.
 
 [float]
 === Using {ccs}
@@ -43,7 +44,8 @@ PUT _cluster/settings
 // TEST[s/127.0.0.1:9300/\${transport_host}/]
 
 To search the `twitter` index on remote cluster `cluster_one` the index name
-must be prefixed with the cluster alias separated by a `:` character:
+must be prefixed with the alias of the remote cluster followed by the `:`
+character:
 
 [source,js]
 --------------------------------------------------
@@ -104,7 +106,7 @@ GET /cluster_one:twitter/_search
 // TESTRESPONSE[s/"_score": 1/"_score": "$body.hits.hits.0._score"/]
 
 
-Indices can also be searched with the same name on different clusters:
+Indices with the same name on different clusters can also be searched:
 
 [source,js]
 --------------------------------------------------
@@ -120,10 +122,10 @@ GET /cluster_one:twitter,twitter/_search
 // CONSOLE
 // TEST[continued]
 
-Search results are disambiguated the same way as the indices are disambiguated in the request. Even if index names are
-identical these indices will be treated as different indices when results are merged. All results retrieved from a
-remote index
-will be prefixed with their remote cluster name:
+Search results are disambiguated the same way as the indices are disambiguated in the request.
+Indices with same names are treated as different indices when results are merged. All results
+retrieved from an index located in a remote cluster are prefixed with their corresponding
+cluster alias:
 
 [source,js]
 --------------------------------------------------
@@ -185,10 +187,11 @@ will be prefixed with their remote cluster name:
 [float]
 === Skipping disconnected clusters
 
-By default all remote clusters that are searched via {ccs} need to be available when
-the search request is executed, otherwise the whole request fails and no search results are returned
-despite some of the clusters are available. Remote clusters can be made optional through the
-boolean `skip_unavailable` setting, set to `false` by default.
+By default, all remote clusters that are searched via {ccs} need to be
+available when the search request is executed. Otherwise, the whole request
+fails; even if some of the clusters are available, no search results are
+returned. You can use the boolean `skip_unavailable` setting to make remote
+clusters optional. By default, it is set to `false`.
 
 [source,js]
 --------------------------------
@@ -312,6 +315,3 @@ The <<search-request-body, search API>> supports the `ccs_minimize_roundtrips`
 parameter, which defaults to `true` and can be set to `false` in case
 minimizing network round-trips is not desirable.
 
-Note that all the communication between the nodes, regardless of which cluster
-they belong to and the selected reduce mode, happens through the
-<<modules-transport,transport layer>>.

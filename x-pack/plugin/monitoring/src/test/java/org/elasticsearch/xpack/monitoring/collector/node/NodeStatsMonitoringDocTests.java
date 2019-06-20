@@ -329,7 +329,7 @@ public class NodeStatsMonitoringDocTests extends BaseFilteredMonitoringDocTestCa
         final OsStats.Cgroup osCgroup = new OsStats.Cgroup("_cpu_acct_ctrl_group", ++iota, "_cpu_ctrl_group", ++iota, ++iota, osCpuStat,
                 "_memory_ctrl_group", "2000000000", "1000000000");
 
-        final OsStats.Mem osMem = new OsStats.Mem(no, no);
+        final OsStats.Mem osMem = new OsStats.Mem(0, 0);
         final OsStats.Swap osSwap = new OsStats.Swap(no, no);
         final OsStats os = new OsStats(no, osCpu, osMem, osSwap, osCgroup);
 
@@ -364,7 +364,7 @@ public class NodeStatsMonitoringDocTests extends BaseFilteredMonitoringDocTestCa
                                                                 new TransportAddress(TransportAddress.META_ADDRESS, 1234),
                                                                 emptyMap(),
                                                                 emptySet(),
-                                                                Version.V_6_0_0_beta1);
+                                                                Version.CURRENT);
 
         return new NodeStats(discoveryNode, no, indices, os, process, jvm, threadPool, fs, null, null, null, null, null, null, null);
     }

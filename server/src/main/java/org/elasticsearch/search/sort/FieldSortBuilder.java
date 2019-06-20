@@ -128,7 +128,7 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
         sortMode = in.readOptionalWriteable(SortMode::readFromStream);
         unmappedType = in.readOptionalString();
         nestedSort = in.readOptionalWriteable(NestedSortBuilder::new);
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (in.getVersion().onOrAfter(Version.V_7_2_0)) {
             numericType = in.readOptionalString();
         }
     }
@@ -143,7 +143,7 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
         out.writeOptionalWriteable(sortMode);
         out.writeOptionalString(unmappedType);
         out.writeOptionalWriteable(nestedSort);
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_7_2_0)) {
             out.writeOptionalString(numericType);
         }
     }
@@ -300,16 +300,19 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
      * Allowed values are <code>long</code> and <code>double</code>.
      */
     public FieldSortBuilder setNumericType(String numericType) {
-        String upperCase = numericType.toUpperCase(Locale.ENGLISH);
-        switch (upperCase) {
-            case "LONG":
-            case "DOUBLE":
+        String lowerCase = numericType.toLowerCase(Locale.ENGLISH);
+        switch (lowerCase) {
+            case "long":
+            case "double":
+            case "date":
+            case "date_nanos":
                 break;
 
             default:
-                throw new IllegalArgumentException("invalid value for [numeric_type], must be [LONG, DOUBLE], got " + numericType);
+                throw new IllegalArgumentException("invalid value for [numeric_type], " +
+                    "must be [long, double, date, date_nanos], got " + lowerCase);
         }
-        this.numericType = upperCase;
+        this.numericType = lowerCase;
         return this;
     }
 
@@ -344,6 +347,23 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
         return builder;
     }
 
+    private static NumericType resolveNumericType(String value) {
+        switch (value) {
+            case "long":
+                return NumericType.LONG;
+            case "double":
+                return NumericType.DOUBLE;
+            case "date":
+                return NumericType.DATE;
+            case "date_nanos":
+                return NumericType.DATE_NANOSECONDS;
+
+            default:
+                throw new IllegalArgumentException("invalid value for [numeric_type], " +
+                    "must be [long, double, date, date_nanos], got " + value);
+        }
+    }
+
     @Override
     public SortFieldAndFormat build(QueryShardContext context) throws IOException {
         if (DOC_FIELD_NAME.equals(fieldName)) {
@@ -353,8 +373,10 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
                 return SORT_DOC;
             }
         } else {
+            boolean isUnmapped = false;
             MappedFieldType fieldType = context.fieldMapper(fieldName);
             if (fieldType == null) {
+                isUnmapped = true;
                 if (unmappedType != null) {
                     fieldType = context.getMapperService().unmappedFieldType(unmappedType);
                 } else {
@@ -372,20 +394,18 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
                 localSortMode = reverse ? MultiValueMode.MAX : MultiValueMode.MIN;
             }
 
-            final Nested nested;
-            if (nestedSort != null) {
-                if (context.indexVersionCreated().before(Version.V_6_5_0) && nestedSort.getMaxChildren() != Integer.MAX_VALUE) {
-                    throw new QueryShardException(context,
-                        "max_children is only supported on v6.5.0 or higher");
+            Nested nested = null;
+            if (isUnmapped == false) {
+                if (nestedSort != null) {
+                    if (nestedSort.getNestedSort() != null && nestedSort.getMaxChildren() != Integer.MAX_VALUE) {
+                        throw new QueryShardException(context,
+                            "max_children is only supported on last level of nested sort");
+                    }
+                    // new nested sorts takes priority
+                    nested = resolveNested(context, nestedSort);
+                } else {
+                    nested = resolveNested(context, nestedPath, nestedFilter);
                 }
-                if (nestedSort.getNestedSort() != null && nestedSort.getMaxChildren() != Integer.MAX_VALUE)  {
-                    throw new QueryShardException(context,
-                        "max_children is only supported on last level of nested sort");
-                }
-                // new nested sorts takes priority
-                nested = resolveNested(context, nestedSort);
-            } else {
-                nested = resolveNested(context, nestedPath, nestedFilter);
             }
 
             IndexFieldData<?> fieldData = context.getForField(fieldType);
@@ -400,7 +420,7 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
                         "[numeric_type] option cannot be set on a non-numeric field, got " + fieldType.typeName());
                 }
                 SortedNumericDVIndexFieldData numericFieldData = (SortedNumericDVIndexFieldData) fieldData;
-                NumericType resolvedType = NumericType.valueOf(numericType);
+                NumericType resolvedType = resolveNumericType(numericType);
                 field = numericFieldData.sortField(resolvedType, missing, localSortMode, nested, reverse);
             } else {
                 field = fieldData.sortField(missing, localSortMode, nested, reverse);

@@ -29,6 +29,7 @@ import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Table;
@@ -201,6 +202,9 @@ public class RestNodesAction extends AbstractCatAction {
 
         table.addCell("refresh.total", "alias:rto,refreshTotal;default:false;text-align:right;desc:total refreshes");
         table.addCell("refresh.time", "alias:rti,refreshTime;default:false;text-align:right;desc:time spent in refreshes");
+        table.addCell("refresh.external_total", "alias:rto,refreshTotal;default:false;text-align:right;desc:total external refreshes");
+        table.addCell("refresh.external_time",
+            "alias:rti,refreshTime;default:false;text-align:right;desc:time spent in external refreshes");
         table.addCell("refresh.listeners", "alias:rli,refreshListeners;default:false;text-align:right;"
                 + "desc:number of pending refresh listeners");
 
@@ -321,7 +325,7 @@ public class RestNodesAction extends AbstractCatAction {
             if (node.getRoles().isEmpty()) {
                 roles = "-";
             } else {
-                roles = node.getRoles().stream().map(DiscoveryNode.Role::getAbbreviation).collect(Collectors.joining());
+                roles = node.getRoles().stream().map(DiscoveryNodeRole::roleNameAbbreviation).sorted().collect(Collectors.joining());
             }
             table.addCell(roles);
             table.addCell(masterId == null ? "x" : masterId.equals(node.getId()) ? "*" : "-");
@@ -378,6 +382,8 @@ public class RestNodesAction extends AbstractCatAction {
             RefreshStats refreshStats = indicesStats == null ? null : indicesStats.getRefresh();
             table.addCell(refreshStats == null ? null : refreshStats.getTotal());
             table.addCell(refreshStats == null ? null : refreshStats.getTotalTime());
+            table.addCell(refreshStats == null ? null : refreshStats.getExternalTotal());
+            table.addCell(refreshStats == null ? null : refreshStats.getExternalTotalTime());
             table.addCell(refreshStats == null ? null : refreshStats.getListeners());
 
             ScriptStats scriptStats = stats == null ? null : stats.getScriptStats();

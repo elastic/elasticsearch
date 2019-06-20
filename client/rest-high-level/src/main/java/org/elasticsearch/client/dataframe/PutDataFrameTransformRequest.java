@@ -20,12 +20,14 @@
 package org.elasticsearch.client.dataframe;
 
 import org.elasticsearch.client.Validatable;
+import org.elasticsearch.client.ValidationException;
 import org.elasticsearch.client.dataframe.transforms.DataFrameTransformConfig;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Objects;
+import java.util.Optional;
 
 public class PutDataFrameTransformRequest implements ToXContentObject, Validatable {
 
@@ -37,6 +39,31 @@ public class PutDataFrameTransformRequest implements ToXContentObject, Validatab
 
     public DataFrameTransformConfig getConfig() {
         return config;
+    }
+
+    @Override
+    public Optional<ValidationException> validate() {
+        ValidationException validationException = new ValidationException();
+        if (config == null) {
+            validationException.addValidationError("put requires a non-null data frame config");
+            return Optional.of(validationException);
+        } else {
+            if (config.getId() == null) {
+                validationException.addValidationError("data frame transform id cannot be null");
+            }
+            if (config.getSource() == null) {
+                validationException.addValidationError("data frame transform source cannot be null");
+            }
+            if (config.getDestination() == null) {
+                validationException.addValidationError("data frame transform destination cannot be null");
+            }
+        }
+
+        if (validationException.validationErrors().isEmpty()) {
+            return Optional.empty();
+        } else {
+            return Optional.of(validationException);
+        }
     }
 
     @Override

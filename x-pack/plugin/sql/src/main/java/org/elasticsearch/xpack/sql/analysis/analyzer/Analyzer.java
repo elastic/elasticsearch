@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.sql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.sql.expression.function.scalar.Cast;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.ArithmeticOperation;
+import org.elasticsearch.xpack.sql.expression.predicate.regex.RegexMatch;
 import org.elasticsearch.xpack.sql.plan.TableIdentifier;
 import org.elasticsearch.xpack.sql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.sql.plan.logical.EsRelation;
@@ -287,11 +288,11 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
         protected LogicalPlan rule(UnresolvedRelation plan) {
             TableIdentifier table = plan.table();
             if (indexResolution.isValid() == false) {
-                return plan.unresolvedMessage().equals(indexResolution.toString()) ? plan : new UnresolvedRelation(plan.source(),
-                        plan.table(), plan.alias(), indexResolution.toString());
+                return plan.unresolvedMessage().equals(indexResolution.toString()) ? plan :
+                    new UnresolvedRelation(plan.source(), plan.table(), plan.alias(), plan.frozen(), indexResolution.toString());
             }
             assert indexResolution.matches(table.index());
-            LogicalPlan logicalPlan = new EsRelation(plan.source(), indexResolution.get());
+            LogicalPlan logicalPlan = new EsRelation(plan.source(), indexResolution.get(), plan.frozen());
             SubQueryAlias sa = new SubQueryAlias(plan.source(), logicalPlan, table.index());
 
             if (plan.alias() != null) {
@@ -848,9 +849,11 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                 List<Function> list = getList(seen, fName);
                 for (Function seenFunction : list) {
                     if (seenFunction != f && f.arguments().equals(seenFunction.arguments())) {
+                        // TODO: we should move to always compare the functions directly
                         // Special check for COUNT: an already seen COUNT function will be returned only if its DISTINCT property
                         // matches the one from the unresolved function to be checked.
-                        if (seenFunction instanceof Count) {
+                        // Same for LIKE/RLIKE: the equals function also compares the pattern of LIKE/RLIKE
+                        if (seenFunction instanceof Count || seenFunction instanceof RegexMatch) {
                             if (seenFunction.equals(f)){
                                 return seenFunction;
                             }

@@ -76,7 +76,7 @@ public final class Cursors {
             }
             return os.toString(StandardCharsets.UTF_8.name());
         } catch (Exception ex) {
-            throw new SqlIllegalArgumentException("Unexpected failure retriving next page", ex);
+            throw new SqlIllegalArgumentException("Unexpected failure retrieving next page", ex);
         }
     }
 

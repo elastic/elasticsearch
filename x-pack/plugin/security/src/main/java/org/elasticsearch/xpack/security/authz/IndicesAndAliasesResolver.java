@@ -9,7 +9,6 @@ import org.elasticsearch.action.AliasesRequest;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
-import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.search.SearchRequest;
@@ -125,12 +124,6 @@ class IndicesAndAliasesResolver {
             final boolean replaceWildcards = indicesRequest.indicesOptions().expandWildcardsOpen()
                     || indicesRequest.indicesOptions().expandWildcardsClosed();
             IndicesOptions indicesOptions = indicesRequest.indicesOptions();
-            if (indicesRequest instanceof IndicesExistsRequest) {
-                //indices exists api should never throw exception, make sure that ignore_unavailable and allow_no_indices are true
-                //we have to mimic what TransportIndicesExistsAction#checkBlock does in es core
-                indicesOptions = IndicesOptions.fromOptions(true, true,
-                        indicesOptions.expandWildcardsOpen(), indicesOptions.expandWildcardsClosed());
-            }
 
             // check for all and return list of authorized indices
             if (IndexNameExpressionResolver.isAllIndices(indicesList(indicesRequest.indices()))) {
@@ -249,7 +242,17 @@ class IndicesAndAliasesResolver {
                 Optional<String> foundAlias = aliasMetaData.stream()
                     .map(AliasMetaData::alias)
                     .filter(authorizedIndicesList::contains)
-                    .filter(aliasName -> metaData.getAliasAndIndexLookup().get(aliasName).getIndices().size() == 1)
+                    .filter(aliasName -> {
+                        AliasOrIndex alias = metaData.getAliasAndIndexLookup().get(aliasName);
+                        List<IndexMetaData> indexMetadata = alias.getIndices();
+                        if (indexMetadata.size() == 1) {
+                            return true;
+                        } else {
+                            assert alias instanceof AliasOrIndex.Alias;
+                            IndexMetaData idxMeta = ((AliasOrIndex.Alias) alias).getWriteIndex();
+                            return idxMeta != null && idxMeta.getIndex().getName().equals(concreteIndexName);
+                        }
+                    })
                     .findFirst();
                 resolvedAliasOrIndex = foundAlias.orElse(concreteIndexName);
             } else {
@@ -449,7 +452,7 @@ class IndicesAndAliasesResolver {
         }
 
         ResolvedIndices splitLocalAndRemoteIndexNames(String... indices) {
-            final Map<String, List<String>> map = super.groupClusterIndices(clusters, indices, exists -> false);
+            final Map<String, List<String>> map = super.groupClusterIndices(clusters, indices);
             final List<String> local = map.remove(LOCAL_CLUSTER_GROUP_KEY);
             final List<String> remote = map.entrySet().stream()
                     .flatMap(e -> e.getValue().stream().map(v -> e.getKey() + REMOTE_CLUSTER_INDEX_SEPARATOR + v))

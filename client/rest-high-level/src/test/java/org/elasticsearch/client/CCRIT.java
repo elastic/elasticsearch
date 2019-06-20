@@ -228,7 +228,7 @@ public class CCRIT extends ESRestHighLevelClientTestCase {
         assertTrue(putFollowResponse.isFollowIndexShardsAcked());
         assertTrue(putFollowResponse.isIndexFollowingStarted());
 
-        final String clusterName = highLevelClient().info(RequestOptions.DEFAULT).getClusterName().value();
+        final String clusterName = highLevelClient().info(RequestOptions.DEFAULT).getClusterName();
 
         final Request statsRequest = new Request("GET", "/follower/_stats");
         final Response statsResponse = client().performRequest(statsRequest);

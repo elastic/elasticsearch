@@ -22,6 +22,7 @@ package org.elasticsearch.common.xcontent;
 import com.fasterxml.jackson.core.JsonGenerationException;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.core.JsonParseException;
+
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -752,7 +753,7 @@ public abstract class BaseXContentTestCase extends ESTestCase {
                     .field("xcontent", xcontent0)
                 .endObject());
 
-        ToXContent xcontent1 = (builder, params) -> {
+        ToXContentObject xcontent1 = (builder, params) -> {
             builder.startObject();
             builder.field("field", "value");
             builder.startObject("foo");
@@ -762,7 +763,7 @@ public abstract class BaseXContentTestCase extends ESTestCase {
             return builder;
         };
 
-        ToXContent xcontent2 = (builder, params) -> {
+        ToXContentObject xcontent2 = (builder, params) -> {
             builder.startObject();
             builder.field("root", xcontent0);
             builder.array("childs", xcontent0, xcontent1);

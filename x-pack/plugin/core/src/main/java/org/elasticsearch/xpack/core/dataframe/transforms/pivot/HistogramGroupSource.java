@@ -17,7 +17,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
-public class HistogramGroupSource extends SingleGroupSource<HistogramGroupSource> {
+public class HistogramGroupSource extends SingleGroupSource {
 
     static final ParseField INTERVAL = new ParseField("interval");
     private static final String NAME = "data_frame_histogram_group";
@@ -44,7 +44,7 @@ public class HistogramGroupSource extends SingleGroupSource<HistogramGroupSource
             double interval = (double) args[1];
             return new HistogramGroupSource(field, interval);
         });
-        declareValuesSourceFields(parser, null);
+        declareValuesSourceFields(parser);
         parser.declareDouble(optionalConstructorArg(), INTERVAL);
         return parser;
     }

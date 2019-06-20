@@ -20,12 +20,13 @@ package org.elasticsearch.repositories;
 
 import org.apache.lucene.index.IndexCommit;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.component.LifecycleComponent;
-import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 import org.elasticsearch.index.store.Store;
@@ -36,6 +37,7 @@ import org.elasticsearch.snapshots.SnapshotShardFailure;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Function;
 
 /**
@@ -48,7 +50,7 @@ import java.util.function.Function;
  * <ul>
  * <li>Master calls {@link #initializeSnapshot(SnapshotId, List, org.elasticsearch.cluster.metadata.MetaData)}
  * with list of indices that will be included into the snapshot</li>
- * <li>Data nodes call {@link Repository#snapshotShard(IndexShard, Store, SnapshotId, IndexId, IndexCommit, IndexShardSnapshotStatus)}
+ * <li>Data nodes call {@link Repository#snapshotShard(Store, MapperService, SnapshotId, IndexId, IndexCommit, IndexShardSnapshotStatus)}
  * for each shard</li>
  * <li>When all shard calls return master calls {@link #finalizeSnapshot} with possible list of failures</li>
  * </ul>
@@ -133,15 +135,17 @@ public interface Repository extends LifecycleComponent {
      * @return snapshot description
      */
     SnapshotInfo finalizeSnapshot(SnapshotId snapshotId, List<IndexId> indices, long startTime, String failure, int totalShards,
-                                  List<SnapshotShardFailure> shardFailures, long repositoryStateId, boolean includeGlobalState);
+                                  List<SnapshotShardFailure> shardFailures, long repositoryStateId, boolean includeGlobalState,
+                                  Map<String, Object> userMetadata);
 
     /**
      * Deletes snapshot
      *
      * @param snapshotId snapshot id
      * @param repositoryStateId the unique id identifying the state of the repository when the snapshot deletion began
+     * @param listener completion listener
      */
-    void deleteSnapshot(SnapshotId snapshotId, long repositoryStateId);
+    void deleteSnapshot(SnapshotId snapshotId, long repositoryStateId, ActionListener<Void> listener);
 
     /**
      * Returns snapshot throttle time in nanoseconds
@@ -194,30 +198,29 @@ public interface Repository extends LifecycleComponent {
      * <p>
      * As snapshot process progresses, implementation of this method should update {@link IndexShardSnapshotStatus} object and check
      * {@link IndexShardSnapshotStatus#isAborted()} to see if the snapshot process should be aborted.
-     * @param shard               shard to be snapshotted
      * @param store               store to be snapshotted
+     * @param mapperService       the shards mapper service
      * @param snapshotId          snapshot id
      * @param indexId             id for the index being snapshotted
      * @param snapshotIndexCommit commit point
      * @param snapshotStatus      snapshot status
      */
-    void snapshotShard(IndexShard shard, Store store, SnapshotId snapshotId, IndexId indexId, IndexCommit snapshotIndexCommit,
+    void snapshotShard(Store store, MapperService mapperService, SnapshotId snapshotId, IndexId indexId, IndexCommit snapshotIndexCommit,
                        IndexShardSnapshotStatus snapshotStatus);
 
     /**
      * Restores snapshot of the shard.
      * <p>
      * The index can be renamed on restore, hence different {@code shardId} and {@code snapshotShardId} are supplied.
-     *
-     * @param shard           the shard to restore the index into
+     * @param store           the store to restore the index into
      * @param snapshotId      snapshot id
      * @param version         version of elasticsearch that created this snapshot
      * @param indexId         id of the index in the repository from which the restore is occurring
      * @param snapshotShardId shard id (in the snapshot)
      * @param recoveryState   recovery state
      */
-    void restoreShard(IndexShard shard, SnapshotId snapshotId, Version version, IndexId indexId,
-                      ShardId snapshotShardId, RecoveryState recoveryState);
+    void restoreShard(Store store, SnapshotId snapshotId, Version version, IndexId indexId, ShardId snapshotShardId,
+                      RecoveryState recoveryState);
 
     /**
      * Retrieve shard snapshot status for the stored snapshot

@@ -49,19 +49,24 @@ public class ValidateJobConfigAction extends Action<AcknowledgedResponse> {
         private Job job;
 
         public static Request parseRequest(XContentParser parser) {
-            Job.Builder job = Job.STRICT_PARSER.apply(parser, null);
+            Job.Builder jobBuilder = Job.STRICT_PARSER.apply(parser, null);
             // When jobs are PUT their ID must be supplied in the URL - assume this will
             // be valid unless an invalid job ID is specified in the JSON to be validated
-            job.setId(job.getId() != null ? job.getId() : "ok");
+            jobBuilder.setId(jobBuilder.getId() != null ? jobBuilder.getId() : "ok");
+
+            // Validate that detector configs are unique.
+            // This validation logically belongs to validateInputFields call but we perform it only for PUT action to avoid BWC issues which
+            // would occur when parsing an old job config that already had duplicate detectors.
+            jobBuilder.validateDetectorsAreUnique();
 
             // Some fields cannot be set at create time
-            List<String> invalidJobCreationSettings = job.invalidCreateTimeSettings();
+            List<String> invalidJobCreationSettings = jobBuilder.invalidCreateTimeSettings();
             if (invalidJobCreationSettings.isEmpty() == false) {
                 throw new IllegalArgumentException(Messages.getMessage(Messages.JOB_CONFIG_INVALID_CREATE_SETTINGS,
                         String.join(",", invalidJobCreationSettings)));
             }
 
-            return new Request(job.build(new Date()));
+            return new Request(jobBuilder.build(new Date()));
         }
 
         public Request() {

@@ -436,6 +436,7 @@ Available parameters in the script are
 `_subset_size`:: Number of documents in the subset.
 `_superset_size`:: Number of documents in the superset.
 
+[[sig-terms-shard-size]]
 ===== Size & Shard Size
 
 The `size` parameter can be set to define how many term buckets should be returned out of the overall terms list. By
@@ -541,6 +542,12 @@ WARNING: Use of background filters will slow the query as each term's postings m
 It is possible (although rarely required) to filter the values for which buckets will be created. This can be done using the `include` and
 `exclude` parameters which are based on a regular expression string or arrays of exact terms. This functionality mirrors the features
 described in the <<search-aggregations-bucket-terms-aggregation,terms aggregation>> documentation.
+
+==== Collect mode
+
+To avoid memory issues, the `significant_terms` aggregation always computes child aggregations in `breadth_first` mode.
+A description of the different collection modes can be found in the
+<<search-aggregations-bucket-terms-aggregation-collect, terms aggregation>> documentation.
 
 ==== Execution hint
 

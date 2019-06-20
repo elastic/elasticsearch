@@ -15,8 +15,8 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.xpack.core.dataframe.DataFrameField;
-import org.elasticsearch.xpack.dataframe.persistence.DataFrameInternalIndex;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformConfig;
+import org.elasticsearch.xpack.dataframe.persistence.DataFrameInternalIndex;
 
 import java.io.IOException;
 
@@ -46,6 +46,9 @@ public class DataFrameConfigurationIndexIT extends DataFrameRestTestCase {
             req.setEntity(entity);
             client().performRequest(req);
         }
+
+        // refresh the index
+        assertOK(client().performRequest(new Request("POST", DataFrameInternalIndex.INDEX_NAME + "/_refresh")));
 
         Request deleteRequest = new Request("DELETE", DATAFRAME_ENDPOINT + fakeTransformName);
         Response deleteResponse = client().performRequest(deleteRequest);

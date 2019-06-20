@@ -248,4 +248,21 @@ public class VersionUtils {
         assert compatible.size() > 0;
         return compatible.get(compatible.size() - 1);
     }
+
+    /**
+     * Returns a random version index compatible with the current version.
+     */
+    public static Version randomIndexCompatibleVersion(Random random) {
+        return randomVersionBetween(random, Version.CURRENT.minimumIndexCompatibilityVersion(), Version.CURRENT);
+    }
+
+    /**
+     * Returns a random version index compatible with the given version, but not the given version.
+     */
+    public static Version randomPreviousCompatibleVersion(Random random, Version version) {
+        // TODO: change this to minimumCompatibilityVersion(), but first need to remove released/unreleased
+        // versions so getPreviousVerison returns the *actual* previous version. Otherwise eg 8.0.0 returns say 7.0.2 for previous,
+        // but 7.2.0 for minimum compat
+        return randomVersionBetween(random, version.minimumIndexCompatibilityVersion(), getPreviousVersion(version));
+    }
 }

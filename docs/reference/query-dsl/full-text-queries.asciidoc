@@ -18,15 +18,16 @@ The queries in this group are:
     
 <<query-dsl-match-query-phrase-prefix,`match_phrase_prefix` query>>::
 
-    The poor man's _search-as-you-type_.  Like the `match_phrase` query, but does a wildcard search on the final word.
+    Like the `match_phrase` query, but does a wildcard search on the final word.
+
+<<query-dsl-match-bool-prefix-query,`match_bool_prefix` query>>::
+
+    Creates a `bool` query that matches each term as a `term` query, except for
+    the last term, which is matched as a `prefix` query
     
 <<query-dsl-multi-match-query,`multi_match` query>>::
 
     The multi-field version of the `match` query.
-
-<<query-dsl-common-terms-query,`common` terms query>>::
-
-    A more specialized query which gives more preference to uncommon words.
 
 <<query-dsl-query-string-query,`query_string` query>>::
 
@@ -50,9 +51,9 @@ include::match-phrase-query.asciidoc[]
 
 include::match-phrase-prefix-query.asciidoc[]
 
-include::multi-match-query.asciidoc[]
+include::match-bool-prefix-query.asciidoc[]
 
-include::common-terms-query.asciidoc[]
+include::multi-match-query.asciidoc[]
 
 include::query-string-query.asciidoc[]
 

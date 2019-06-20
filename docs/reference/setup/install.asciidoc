@@ -16,12 +16,17 @@ Elasticsearch Service for free].
 Elasticsearch is provided in the following package formats:
 
 [horizontal]
-`zip`/`tar.gz`::
+Linux and MacOS `tar.gz` archives::
 
-The `zip` and `tar.gz` packages are suitable for installation on any system
-and are the easiest choice for getting started with Elasticsearch on most systems.
+The `tar.gz` archives are available for installation on any Linux distribution and MacOS.
 +
-<<zip-targz>> or <<zip-windows>>
+<<targz>>
+
+Windows `.zip` archive::
+
+The `zip` archive is suitable for installation on Windows.
++
+<<zip-windows>>
 
 `deb`::
 
@@ -41,9 +46,7 @@ Elasticsearch website or from our RPM repository.
 
 `msi`::
 
-beta[]
-+
-The `msi` package is suitable for installation on Windows 64-bit systems with at least
+beta[] The `msi` package is suitable for installation on Windows 64-bit systems with at least
 .NET 4.5 framework installed, and is the easiest choice for getting started with
 Elasticsearch on Windows. MSIs may be downloaded from the Elasticsearch website.
 +
@@ -69,7 +72,7 @@ Chef::   https://github.com/elastic/cookbook-elasticsearch[cookbook-elasticsearc
 Ansible:: https://github.com/elastic/ansible-elasticsearch[ansible-elasticsearch]
 
 
-include::install/zip-targz.asciidoc[]
+include::install/targz.asciidoc[]
 
 include::install/zip-windows.asciidoc[]
 

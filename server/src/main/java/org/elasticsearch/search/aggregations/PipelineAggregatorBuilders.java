@@ -29,7 +29,6 @@ import org.elasticsearch.search.aggregations.pipeline.DerivativePipelineAggregat
 import org.elasticsearch.search.aggregations.pipeline.ExtendedStatsBucketPipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.MaxBucketPipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.MinBucketPipelineAggregationBuilder;
-import org.elasticsearch.search.aggregations.pipeline.MovAvgPipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.MovFnPipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.PercentilesBucketPipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.SerialDiffPipelineAggregationBuilder;
@@ -75,14 +74,6 @@ public final class PipelineAggregatorBuilders {
 
     public static PercentilesBucketPipelineAggregationBuilder percentilesBucket(String name, String bucketsPath) {
         return new PercentilesBucketPipelineAggregationBuilder(name, bucketsPath);
-    }
-
-    /**
-     * @deprecated use {@link #movingFunction(String, Script, String, int)} instead
-     */
-    @Deprecated
-    public static MovAvgPipelineAggregationBuilder movingAvg(String name, String bucketsPath) {
-        return new MovAvgPipelineAggregationBuilder(name, bucketsPath);
     }
 
     public static BucketScriptPipelineAggregationBuilder bucketScript(String name, Map<String, String> bucketsPathsMap, Script script) {

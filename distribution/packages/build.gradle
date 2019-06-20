@@ -53,6 +53,7 @@ import java.util.regex.Pattern
 buildscript {
   repositories {
     maven {
+      name "gradle-plugins"
       url "https://plugins.gradle.org/m2/"
     }
   }
@@ -61,27 +62,26 @@ buildscript {
   }
 }
 
-void addProcessFilesTask(String type, boolean oss) {
-  String packagingFiles = "build/packaging/${ oss ? 'oss-' : ''}${type}"
+void addProcessFilesTask(String type, boolean oss, boolean jdk) {
+  String packagingFiles = "build/packaging/${oss ? 'oss-' : ''}${jdk ? '' : 'no-jdk-'}${type}"
 
-  String taskName = "process${oss ? 'Oss' : ''}${type.capitalize()}Files"
+  String taskName = "process${oss ? 'Oss' : ''}${jdk ? '' : 'NoJdk'}${type.capitalize()}Files"
   task(taskName, type: Copy) {
     into packagingFiles
 
     with copySpec {
       from 'src/common'
       from "src/${type}"
-      MavenFilteringHack.filter(it, expansionsForDistribution(type, oss))
+      MavenFilteringHack.filter(it, expansionsForDistribution(type, oss, jdk))
     }
 
     into('etc/elasticsearch') {
-      with configFiles(type, oss)
+      with configFiles(type, oss, jdk)
     }
-    MavenFilteringHack.filter(it, expansionsForDistribution(type, oss))
+    MavenFilteringHack.filter(it, expansionsForDistribution(type, oss, jdk))
 
     doLast {
       // create empty dirs, we set the permissions when configuring the packages
-      mkdir "${packagingFiles}/var/run/elasticsearch"
       mkdir "${packagingFiles}/var/log/elasticsearch"
       mkdir "${packagingFiles}/var/lib/elasticsearch"
       mkdir "${packagingFiles}/usr/share/elasticsearch/plugins"
@@ -91,17 +91,21 @@ void addProcessFilesTask(String type, boolean oss) {
     }
   }
 }
-addProcessFilesTask('deb', true)
-addProcessFilesTask('deb', false)
-addProcessFilesTask('rpm', true)
-addProcessFilesTask('rpm', false)
+addProcessFilesTask('deb', true, true)
+addProcessFilesTask('deb', true, false)
+addProcessFilesTask('deb', false, true)
+addProcessFilesTask('deb', false, false)
+addProcessFilesTask('rpm', true, true)
+addProcessFilesTask('rpm', true, false)
+addProcessFilesTask('rpm', false, true)
+addProcessFilesTask('rpm', false, false)
 
 // Common configuration that is package dependent. This can't go in ospackage
 // since we have different templated files that need to be consumed, but the structure
 // is the same
 Closure commonPackageConfig(String type, boolean oss, boolean jdk) {
   return {
-    dependsOn "process${oss ? 'Oss' : ''}${type.capitalize()}Files"
+    dependsOn "process${oss ? 'Oss' : ''}${jdk ? '' : 'NoJdk'}${type.capitalize()}Files"
     packageName "elasticsearch${oss ? '-oss' : ''}"
     arch (type == 'deb' ? 'amd64' : 'X86_64')
     // Follow elasticsearch's file naming convention
@@ -110,7 +114,7 @@ Closure commonPackageConfig(String type, boolean oss, boolean jdk) {
 
     String prefix = "${oss ? 'oss-' : ''}${jdk ? '' : 'no-jdk-'}${type}"
     destinationDir = file("${prefix}/build/distributions")
-    String packagingFiles = "build/packaging/${oss ? 'oss-' : ''}${type}"
+    String packagingFiles = "build/packaging/${oss ? 'oss-' : ''}${jdk ? '' : 'no-jdk-'}${type}"
 
     String scripts = "${packagingFiles}/scripts"
     preInstall file("${scripts}/preinst")
@@ -125,7 +129,7 @@ Closure commonPackageConfig(String type, boolean oss, boolean jdk) {
     // specify it again explicitly for copying common files
     into('/usr/share/elasticsearch') {
       into('bin') {
-        with binFiles(type, oss)
+        with binFiles(type, oss, jdk)
       }
       from(rootProject.projectDir) {
         include 'README.textile'
@@ -135,11 +139,11 @@ Closure commonPackageConfig(String type, boolean oss, boolean jdk) {
         with libFiles(oss)
       }
       into('modules') {
-        with modulesFiles(oss)
+        with modulesFiles(oss, 'linux')
       }
       if (jdk) {
         into('jdk') {
-          with jdkFiles('linux')
+          with jdkFiles(project, 'linux')
         }
       }
       // we need to specify every intermediate directory in these paths so the package managers know they are explicitly
@@ -202,7 +206,7 @@ Closure commonPackageConfig(String type, boolean oss, boolean jdk) {
       createDirectoryEntry true
       fileType CONFIG | NOREPLACE
     }
-    String envFile = expansionsForDistribution(type, false)['path.env']
+    String envFile = expansionsForDistribution(type, oss, jdk)['path.env']
     configurationFile envFile
     into(new File(envFile).getParent()) {
       fileType CONFIG | NOREPLACE
@@ -249,13 +253,15 @@ Closure commonPackageConfig(String type, boolean oss, boolean jdk) {
         dirMode mode
       }
     }
-    copyEmptyDir('/var/run/elasticsearch', 'elasticsearch', 'elasticsearch', 0755)
     copyEmptyDir('/var/log/elasticsearch', 'elasticsearch', 'elasticsearch', 02750)
     copyEmptyDir('/var/lib/elasticsearch', 'elasticsearch', 'elasticsearch', 02750)
     copyEmptyDir('/usr/share/elasticsearch/plugins', 'root', 'root', 0755)
 
     // the oss package conflicts with the default distribution and vice versa
     conflicts('elasticsearch' + (oss ? '' : '-oss'))
+
+    into '/usr/share/elasticsearch'
+    with noticeFile(oss, jdk)
   }
 }
 
@@ -264,13 +270,13 @@ apply plugin: 'nebula.ospackage-base'
 // this is package indepdendent configuration
 ospackage {
   maintainer 'Elasticsearch Team <info@elastic.co>'
-  summary '''
-    Elasticsearch is a distributed RESTful search engine built for the cloud.
+  summary 'Distributed RESTful search engine built for the cloud'
+  packageDescription '''
     Reference documentation can be found at
     https://www.elastic.co/guide/en/elasticsearch/reference/current/index.html
     and the 'Elasticsearch: The Definitive Guide' book can be found at
     https://www.elastic.co/guide/en/elasticsearch/guide/current/index.html
-    '''.stripIndent().replace('\n', ' ').trim()
+  '''.stripIndent().trim()
   url 'https://www.elastic.co/'
 
   // signing setup
@@ -282,7 +288,8 @@ ospackage {
             new File(new File(System.getProperty('user.home'), '.gnupg'), 'secring.gpg')
   }
 
-  requires('coreutils')
+  // version found on oldest supported distro, centos-6
+  requires('coreutils', '8.4', GREATER | EQUAL)
 
   fileMode 0644
   dirMode 0755
@@ -290,7 +297,6 @@ ospackage {
   permissionGroup 'root'
 
   into '/usr/share/elasticsearch'
-  with noticeFile
 }
 
 Closure commonDebConfig(boolean oss, boolean jdk) {
@@ -307,12 +313,18 @@ Closure commonDebConfig(boolean oss, boolean jdk) {
 
     version = project.version.replace('-', '~')
     packageGroup 'web'
-    requires 'bash'
+
+    // versions found on oldest supported distro, centos-6
+    requires('bash', '4.1', GREATER | EQUAL)
+    requires('lsb-base', '4', GREATER | EQUAL)
     requires 'libc6'
     requires 'adduser'
 
     into('/usr/share/lintian/overrides') {
       from('src/deb/lintian/elasticsearch')
+      if (oss) {
+        rename('elasticsearch', 'elasticsearch-oss')
+      }
     }
   }
 }

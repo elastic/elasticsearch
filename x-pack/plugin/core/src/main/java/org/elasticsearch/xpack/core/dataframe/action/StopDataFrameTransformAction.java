@@ -5,27 +5,30 @@
  */
 package org.elasticsearch.xpack.core.dataframe.action;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.Action;
-import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.support.tasks.BaseTasksRequest;
 import org.elasticsearch.action.support.tasks.BaseTasksResponse;
-import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xpack.core.dataframe.DataFrameField;
-import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.core.dataframe.utils.ExceptionsHelper;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 public class StopDataFrameTransformAction extends Action<StopDataFrameTransformAction.Response> {
@@ -41,41 +44,57 @@ public class StopDataFrameTransformAction extends Action<StopDataFrameTransformA
 
     @Override
     public Response newResponse() {
-        return new Response();
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
-    public static class Request extends BaseTasksRequest<Request> implements ToXContent {
-        private String id;
-        private final boolean waitForCompletion;
+    @Override
+    public Writeable.Reader<Response> getResponseReader() {
+        return Response::new;
+    }
 
-        public Request(String id, boolean waitForCompletion, @Nullable TimeValue timeout) {
+    public static class Request extends BaseTasksRequest<Request> {
+        private final String id;
+        private final boolean waitForCompletion;
+        private final boolean force;
+        private Set<String> expandedIds;
+
+        public Request(String id, boolean waitForCompletion, boolean force, @Nullable TimeValue timeout) {
             this.id = ExceptionsHelper.requireNonNull(id, DataFrameField.ID.getPreferredName());
             this.waitForCompletion = waitForCompletion;
+            this.force = force;
 
             // use the timeout value already present in BaseTasksRequest
             this.setTimeout(timeout == null ? DEFAULT_TIMEOUT : timeout);
-        }
-
-        private Request() {
-            this(null, false, null);
         }
 
         public Request(StreamInput in) throws IOException {
             super(in);
             id = in.readString();
             waitForCompletion = in.readBoolean();
+            force = in.readBoolean();
+            if (in.readBoolean()) {
+                expandedIds = new HashSet<>(Arrays.asList(in.readStringArray()));
+            }
         }
 
         public String getId() {
             return id;
         }
 
-        public void setId(String id) {
-            this.id = id;
-        }
-
         public boolean waitForCompletion() {
             return waitForCompletion;
+        }
+
+        public boolean isForce() {
+            return force;
+        }
+
+        public Set<String> getExpandedIds() {
+            return expandedIds;
+        }
+
+        public void setExpandedIds(Set<String> expandedIds ) {
+            this.expandedIds = expandedIds;
         }
 
         @Override
@@ -83,6 +102,12 @@ public class StopDataFrameTransformAction extends Action<StopDataFrameTransformA
             super.writeTo(out);
             out.writeString(id);
             out.writeBoolean(waitForCompletion);
+            out.writeBoolean(force);
+            boolean hasExpandedIds = expandedIds != null;
+            out.writeBoolean(hasExpandedIds);
+            if (hasExpandedIds) {
+                out.writeStringArray(expandedIds.toArray(new String[0]));
+            }
         }
 
         @Override
@@ -91,19 +116,9 @@ public class StopDataFrameTransformAction extends Action<StopDataFrameTransformA
         }
 
         @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.field(DataFrameField.ID.getPreferredName(), id);
-            builder.field(DataFrameField.WAIT_FOR_COMPLETION.getPreferredName(), waitForCompletion);
-            if (this.getTimeout() != null) {
-                builder.field(DataFrameField.TIMEOUT.getPreferredName(), this.getTimeout());
-            }
-            return builder;
-        }
-
-        @Override
         public int hashCode() {
             // the base class does not implement hashCode, therefore we need to hash timeout ourselves
-            return Objects.hash(id, waitForCompletion, this.getTimeout());
+            return Objects.hash(id, waitForCompletion, force, expandedIds, this.getTimeout());
         }
 
         @Override
@@ -122,63 +137,61 @@ public class StopDataFrameTransformAction extends Action<StopDataFrameTransformA
                 return false;
             }
 
-            return Objects.equals(id, other.id) && Objects.equals(waitForCompletion, other.waitForCompletion);
+            return Objects.equals(id, other.id) &&
+                    Objects.equals(waitForCompletion, other.waitForCompletion) &&
+                    Objects.equals(force, other.force) &&
+                    Objects.equals(expandedIds, other.expandedIds);
         }
 
         @Override
         public boolean match(Task task) {
-            String expectedDescription = DataFrameField.PERSISTENT_TASK_DESCRIPTION_PREFIX + id;
+            if (task.getDescription().startsWith(DataFrameField.PERSISTENT_TASK_DESCRIPTION_PREFIX)) {
+                String id = task.getDescription().substring(DataFrameField.PERSISTENT_TASK_DESCRIPTION_PREFIX.length());
+                if (expandedIds != null) {
+                    return expandedIds.contains(id);
+                }
+            }
 
-            return task.getDescription().equals(expectedDescription);
-        }
-    }
-
-    public static class RequestBuilder extends ActionRequestBuilder<Request, Response> {
-
-        protected RequestBuilder(ElasticsearchClient client, StopDataFrameTransformAction action) {
-            super(client, action, new Request());
+            return false;
         }
     }
 
     public static class Response extends BaseTasksResponse implements Writeable, ToXContentObject {
 
-        private boolean stopped;
-
-        public Response() {
-            super(Collections.emptyList(), Collections.emptyList());
-        }
+        private final boolean acknowledged;
 
         public Response(StreamInput in) throws IOException {
             super(in);
-            readFrom(in);
+            acknowledged = in.readBoolean();
         }
 
-        public Response(boolean stopped) {
+        public Response(boolean acknowledged) {
             super(Collections.emptyList(), Collections.emptyList());
-            this.stopped = stopped;
+            this.acknowledged = acknowledged;
         }
 
-        public boolean isStopped() {
-            return stopped;
+        public Response(List<TaskOperationFailure> taskFailures,
+                        List<? extends ElasticsearchException> nodeFailures,
+                        boolean acknowledged) {
+            super(taskFailures, nodeFailures);
+            this.acknowledged = acknowledged;
         }
 
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            stopped = in.readBoolean();
+        public boolean isAcknowledged() {
+            return acknowledged;
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            out.writeBoolean(stopped);
+            out.writeBoolean(acknowledged);
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             toXContentCommon(builder, params);
-            builder.field("stopped", stopped);
+            builder.field("acknowledged", acknowledged);
             builder.endObject();
             return builder;
         }
@@ -190,12 +203,12 @@ public class StopDataFrameTransformAction extends Action<StopDataFrameTransformA
             if (o == null || getClass() != o.getClass())
                 return false;
             Response response = (Response) o;
-            return stopped == response.stopped;
+            return acknowledged == response.acknowledged;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(stopped);
+            return Objects.hash(acknowledged);
         }
     }
 }

@@ -75,7 +75,7 @@ implementation.
 
 Sample code that illustrates the structure and implementation of a custom
 authorization engine is provided in the
-https://github.com/elastic/elasticsearch/tree/master/plugin/examples/security-example-authorization-engine[elasticsearch]
+https://github.com/elastic/elasticsearch/tree/master/plugins/examples/security-authorization-engine[elasticsearch]
 repository on GitHub. You can use this code as a starting point for creating your
 own authorization engine.
 

@@ -58,7 +58,7 @@ public class InternalAdjacencyMatrix
         public InternalBucket(StreamInput in) throws IOException {
             key = in.readOptionalString();
             docCount = in.readVLong();
-            aggregations = InternalAggregations.readAggregations(in);
+            aggregations = new InternalAggregations(in);
         }
 
         @Override
@@ -239,12 +239,16 @@ public class InternalAdjacencyMatrix
     }
 
     @Override
-    protected int doHashCode() {
-        return Objects.hash(buckets);
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), buckets);
     }
 
     @Override
-    protected boolean doEquals(Object obj) {
+    public boolean equals(Object obj) {
+        if (this == obj) return true;
+        if (obj == null || getClass() != obj.getClass()) return false;
+        if (super.equals(obj) == false) return false;
+
         InternalAdjacencyMatrix that = (InternalAdjacencyMatrix) obj;
         return Objects.equals(buckets, that.buckets);
     }

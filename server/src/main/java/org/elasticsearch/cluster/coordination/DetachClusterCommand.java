@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.cluster.coordination;
 
-import joptsimple.OptionSet;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cluster.metadata.Manifest;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -47,17 +46,9 @@ public class DetachClusterCommand extends ElasticsearchNodeCommand {
         super("Detaches this node from its cluster, allowing it to unsafely join a new cluster");
     }
 
-    @Override
-    protected void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {
-        super.execute(terminal, options, env);
-
-        processNodePathsWithLock(terminal, options, env);
-
-        terminal.println(NODE_DETACHED_MSG);
-    }
 
     @Override
-    protected void processNodePaths(Terminal terminal, Path[] dataPaths) throws IOException {
+    protected void processNodePaths(Terminal terminal, Path[] dataPaths, Environment env) throws IOException {
         final Tuple<Manifest, MetaData> manifestMetaDataTuple = loadMetaData(terminal, dataPaths);
         final Manifest manifest = manifestMetaDataTuple.v1();
         final MetaData metaData = manifestMetaDataTuple.v2();
@@ -65,6 +56,8 @@ public class DetachClusterCommand extends ElasticsearchNodeCommand {
         confirm(terminal, CONFIRMATION_MSG);
 
         writeNewMetaData(terminal, manifest, updateCurrentTerm(), metaData, updateMetaData(metaData), dataPaths);
+
+        terminal.println(NODE_DETACHED_MSG);
     }
 
     // package-private for tests

@@ -142,9 +142,7 @@ import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequestBuilder;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesResponse;
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeAction;
-import org.elasticsearch.action.admin.indices.analyze.AnalyzeRequest;
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeRequestBuilder;
-import org.elasticsearch.action.admin.indices.analyze.AnalyzeResponse;
 import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheAction;
 import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheRequest;
 import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheRequestBuilder;
@@ -160,10 +158,6 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexAction;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequestBuilder;
-import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsAction;
-import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsRequest;
-import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsRequestBuilder;
-import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsResponse;
 import org.elasticsearch.action.admin.indices.exists.types.TypesExistsAction;
 import org.elasticsearch.action.admin.indices.exists.types.TypesExistsRequest;
 import org.elasticsearch.action.admin.indices.exists.types.TypesExistsRequestBuilder;
@@ -314,7 +308,6 @@ import org.elasticsearch.action.search.SearchScrollAction;
 import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.action.search.SearchScrollRequestBuilder;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.termvectors.MultiTermVectorsAction;
 import org.elasticsearch.action.termvectors.MultiTermVectorsRequest;
@@ -351,14 +344,12 @@ public abstract class AbstractClient implements Client {
     protected final Settings settings;
     private final ThreadPool threadPool;
     private final Admin admin;
-    private final ThreadedActionListener.Wrapper threadedWrapper;
 
     public AbstractClient(Settings settings, ThreadPool threadPool) {
         this.settings = settings;
         this.threadPool = threadPool;
         this.admin = new Admin(this);
         this.logger =LogManager.getLogger(this.getClass());
-        this.threadedWrapper = new ThreadedActionListener.Wrapper(logger, settings, threadPool);
     }
 
     @Override
@@ -390,7 +381,6 @@ public abstract class AbstractClient implements Client {
     @Override
     public final <Request extends ActionRequest, Response extends ActionResponse> void execute(
         Action<Response> action, Request request, ActionListener<Response> listener) {
-        listener = threadedWrapper.wrap(listener);
         doExecute(action, request, listener);
     }
 
@@ -578,8 +568,8 @@ public abstract class AbstractClient implements Client {
     }
 
     @Override
-    public TermVectorsRequestBuilder prepareTermVectors(String index, String type, String id) {
-        return new TermVectorsRequestBuilder(this, TermVectorsAction.INSTANCE, index, type, id);
+    public TermVectorsRequestBuilder prepareTermVectors(String index, String id) {
+        return new TermVectorsRequestBuilder(this, TermVectorsAction.INSTANCE, index, id);
     }
 
     @Override
@@ -955,8 +945,8 @@ public abstract class AbstractClient implements Client {
         }
 
         @Override
-        public GetSnapshotsRequestBuilder prepareGetSnapshots(String repository) {
-            return new GetSnapshotsRequestBuilder(this, GetSnapshotsAction.INSTANCE, repository);
+        public GetSnapshotsRequestBuilder prepareGetSnapshots(String... repositories) {
+            return new GetSnapshotsRequestBuilder(this, GetSnapshotsAction.INSTANCE, repositories);
         }
 
 
@@ -1217,21 +1207,6 @@ public abstract class AbstractClient implements Client {
         @Override
         public ThreadPool threadPool() {
             return client.threadPool();
-        }
-
-        @Override
-        public ActionFuture<IndicesExistsResponse> exists(final IndicesExistsRequest request) {
-            return execute(IndicesExistsAction.INSTANCE, request);
-        }
-
-        @Override
-        public void exists(final IndicesExistsRequest request, final ActionListener<IndicesExistsResponse> listener) {
-            execute(IndicesExistsAction.INSTANCE, request, listener);
-        }
-
-        @Override
-        public IndicesExistsRequestBuilder prepareExists(String... indices) {
-            return new IndicesExistsRequestBuilder(this, IndicesExistsAction.INSTANCE, indices);
         }
 
         @Deprecated
@@ -1596,12 +1571,12 @@ public abstract class AbstractClient implements Client {
         }
 
         @Override
-        public ActionFuture<AnalyzeResponse> analyze(final AnalyzeRequest request) {
+        public ActionFuture<AnalyzeAction.Response> analyze(final AnalyzeAction.Request request) {
             return execute(AnalyzeAction.INSTANCE, request);
         }
 
         @Override
-        public void analyze(final AnalyzeRequest request, final ActionListener<AnalyzeResponse> listener) {
+        public void analyze(final AnalyzeAction.Request request, final ActionListener<AnalyzeAction.Response> listener) {
             execute(AnalyzeAction.INSTANCE, request, listener);
         }
 

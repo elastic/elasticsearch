@@ -30,7 +30,6 @@ public class ProcessorTests extends ESTestCase {
         processors = NodeSubclassTests.subclassesOf(Processor.class);
     }
 
-
     public void testProcessorRegistration() throws Exception {
         LinkedHashSet<String> registered = Processors.getNamedWriteables().stream()
                 .map(e -> e.name)
@@ -39,29 +38,30 @@ public class ProcessorTests extends ESTestCase {
         // discover available processors
         int missing = processors.size() - registered.size();
 
+        List<String> notRegistered = new ArrayList<>();
+        for (Class<? extends Processor> proc : processors) {
+            String procName = proc.getName();
+            assertTrue(procName + " does NOT implement NamedWriteable", NamedWriteable.class.isAssignableFrom(proc));
+            Field name = null;
+            String value = null;
+            try {
+                name = proc.getField("NAME");
+            } catch (Exception ex) {
+                fail(procName + " does NOT provide a NAME field\n" + ex);
+            }
+            try {
+                value = name.get(proc).toString();
+            } catch (Exception ex) {
+                fail(procName + " does NOT provide a static NAME field\n" + ex);
+            }
+            if (!registered.contains(value)) {
+                notRegistered.add(procName);
+            }
+            Class<?> declaringClass = proc.getMethod("getWriteableName").getDeclaringClass();
+            assertEquals("Processor: " + proc + " doesn't override getWriteableName", proc, declaringClass);
+        }
 
         if (missing > 0) {
-            List<String> notRegistered = new ArrayList<>();
-            for (Class<? extends Processor> proc : processors) {
-                String procName = proc.getName();
-                assertTrue(procName + " does NOT implement NamedWriteable", NamedWriteable.class.isAssignableFrom(proc));
-                Field name = null;
-                String value = null;
-                try {
-                    name = proc.getField("NAME");
-                } catch (Exception ex) {
-                    fail(procName + " does NOT provide a NAME field\n" + ex);
-                }
-                try {
-                    value = name.get(proc).toString();
-                } catch (Exception ex) {
-                    fail(procName + " does NOT provide a static NAME field\n" + ex);
-                }
-                if (!registered.contains(value)) {
-                    notRegistered.add(procName);
-                }
-            }
-            
             fail(missing + " processor(s) not registered : " + notRegistered);
         } else {
             assertEquals("Detection failed: discovered more registered processors than classes", 0, missing);

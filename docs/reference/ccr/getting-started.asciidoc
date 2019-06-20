@@ -161,13 +161,6 @@ image::images/remote-clusters.jpg["The Remote Clusters page in {kib}"]
 [[ccr-getting-started-leader-index]]
 === Creating a leader index
 
-Leader indices require a special index setting to ensure that the operations
-that need to be replicated are available when the follower requests them from
-the leader. This setting is used to control how many soft deletes are retained.
-A _soft delete_ occurs whenever a document is deleted or updated. Soft deletes
-can be enabled only on new indices created on or after {es} 6.5.0, and enabled
-by default on new indices created on or after {es} 7.0.0.
-
 In the following example, we will create a leader index in the remote cluster:
 
 [source,js]
@@ -177,12 +170,7 @@ PUT /server-metrics
   "settings" : {
     "index" : {
       "number_of_shards" : 1,
-      "number_of_replicas" : 0,
-      "soft_deletes" : {
-        "retention" : {
-          "operations" : 1024 <1>
-        }
-      }
+      "number_of_replicas" : 0
     }
   },
   "mappings" : {
@@ -214,7 +202,6 @@ PUT /server-metrics
 --------------------------------------------------
 // CONSOLE
 // TEST[continued]
-<1> Sets that up to 1024 soft deletes will be retained.
 
 [float]
 [[ccr-getting-started-follower-index]]

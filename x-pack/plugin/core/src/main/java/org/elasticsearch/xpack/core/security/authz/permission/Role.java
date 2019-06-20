@@ -49,7 +49,6 @@ public class Role {
         this.runAs = Objects.requireNonNull(runAs);
     }
 
-
     public String[] names() {
         return names;
     }
@@ -116,7 +115,7 @@ public class Role {
      * @return an instance of {@link ResourcePrivilegesMap}
      */
     public ResourcePrivilegesMap checkIndicesPrivileges(Set<String> checkForIndexPatterns, boolean allowRestrictedIndices,
-                                                                 Set<String> checkForPrivileges) {
+                                                        Set<String> checkForPrivileges) {
         return indices.checkResourcePrivileges(checkForIndexPatterns, allowRestrictedIndices, checkForPrivileges);
     }
 

@@ -88,7 +88,7 @@ public class CumulativeSumPipelineAggregationBuilder extends AbstractPipelineAgg
     }
 
     @Override
-    protected PipelineAggregator createInternal(Map<String, Object> metaData) throws IOException {
+    protected PipelineAggregator createInternal(Map<String, Object> metaData) {
         return new CumulativeSumPipelineAggregator(name, bucketsPaths, formatter(), metaData);
     }
 
@@ -162,12 +162,15 @@ public class CumulativeSumPipelineAggregationBuilder extends AbstractPipelineAgg
     }
 
     @Override
-    protected int doHashCode() {
-        return Objects.hash(format);
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), format);
     }
 
     @Override
-    protected boolean doEquals(Object obj) {
+    public boolean equals(Object obj) {
+        if (this == obj) return true;
+        if (obj == null || getClass() != obj.getClass()) return false;
+        if (super.equals(obj) == false) return false;
         CumulativeSumPipelineAggregationBuilder other = (CumulativeSumPipelineAggregationBuilder) obj;
         return Objects.equals(format, other.format);
     }

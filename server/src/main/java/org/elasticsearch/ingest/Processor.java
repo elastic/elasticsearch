@@ -39,6 +39,9 @@ public interface Processor {
 
     /**
      * Introspect and potentially modify the incoming data.
+     *
+     * @return If <code>null</code> is returned then the current document will be dropped and not be indexed,
+     *         otherwise this document will be kept and indexed
      */
     IngestDocument execute(IngestDocument ingestDocument) throws Exception;
 

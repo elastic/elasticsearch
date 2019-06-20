@@ -1,10 +1,22 @@
 {
   "index": {
     "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/docs-index_.html",
+    "stability": "stable",
     "methods": ["POST", "PUT"],
     "url": {
-      "path": "/{index}/_doc",
-      "paths": ["/{index}/{type}", "/{index}/{type}/{id}", "/{index}/_doc/{id}", "/{index}/_doc"],
+      "paths": ["/{index}/_doc/{id}", "/{index}/_doc"],
+      "deprecated_paths" : [
+        {
+          "version" : "7.0.0",
+          "path" : "/{index}/{type}",
+          "description" : "Specifying types in urls has been deprecated"
+        },
+        {
+          "version" : "7.0.0",
+          "path" : "/{index}/{type}/{id}",
+          "description" : "Specifying types in urls has been deprecated"
+        }
+      ],
       "parts": {
         "id": {
           "type" : "string",
@@ -30,10 +42,6 @@
           "options" : ["index", "create"],
           "default" : "index",
           "description" : "Explicit operation type"
-        },
-        "parent": {
-          "type" : "string",
-          "description" : "ID of the parent document"
         },
         "refresh": {
           "type" : "enum",

@@ -688,7 +688,7 @@ public class SamlMetadataCommandTests extends SamlTestCase {
     private boolean validateSignature(Signature signature) {
         try {
             Certificate[] certificates = CertParsingUtils.
-                    readCertificates(Collections.singletonList(getDataPath("saml.crt").toString()), null);
+                    readCertificates(Collections.singletonList(getDataPath("saml.crt").toString()), newEnvironment());
             PrivateKey key = PemUtils.readPrivateKey(getDataPath("saml.key"),
                     ""::toCharArray);
             Credential verificationCredential = new BasicX509Credential((java.security.cert.X509Certificate) certificates[0], key);

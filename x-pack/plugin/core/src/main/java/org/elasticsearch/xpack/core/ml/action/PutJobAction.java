@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
@@ -59,6 +58,10 @@ public class PutJobAction extends Action<PutJobAction.Response> {
         public Request(Job.Builder jobBuilder) {
             // Validate the jobBuilder immediately so that errors can be detected prior to transportation.
             jobBuilder.validateInputFields();
+            // Validate that detector configs are unique.
+            // This validation logically belongs to validateInputFields call but we perform it only for PUT action to avoid BWC issues which
+            // would occur when parsing an old job config that already had duplicate detectors.
+            jobBuilder.validateDetectorsAreUnique();
 
             // Some fields cannot be set at create time
             List<String> invalidJobCreationSettings = jobBuilder.invalidCreateTimeSettings();
@@ -144,20 +147,12 @@ public class PutJobAction extends Action<PutJobAction.Response> {
         @Override
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
-            if (in.getVersion().before(Version.V_6_3_0)) {
-                //the acknowledged flag was removed
-                in.readBoolean();
-            }
             job = new Job(in);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            if (out.getVersion().before(Version.V_6_3_0)) {
-                //the acknowledged flag is no longer supported
-                out.writeBoolean(true);
-            }
             job.writeTo(out);
         }
 

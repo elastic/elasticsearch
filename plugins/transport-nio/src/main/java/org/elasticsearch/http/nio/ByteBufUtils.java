@@ -227,6 +227,39 @@ class ByteBufUtils {
         }
 
         @Override
+        public short readShort() throws IOException {
+            try {
+                return buffer.readShort();
+            } catch (IndexOutOfBoundsException ex) {
+                EOFException eofException = new EOFException();
+                eofException.initCause(ex);
+                throw eofException;
+            }
+        }
+
+        @Override
+        public int readInt() throws IOException {
+            try {
+                return buffer.readInt();
+            } catch (IndexOutOfBoundsException ex) {
+                EOFException eofException = new EOFException();
+                eofException.initCause(ex);
+                throw eofException;
+            }
+        }
+
+        @Override
+        public long readLong() throws IOException {
+            try {
+                return buffer.readLong();
+            } catch (IndexOutOfBoundsException ex) {
+                EOFException eofException = new EOFException();
+                eofException.initCause(ex);
+                throw eofException;
+            }
+        }
+
+        @Override
         public void reset() throws IOException {
             buffer.resetReaderIndex();
         }

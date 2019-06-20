@@ -165,13 +165,13 @@ public class FunctionRegistryTests extends ESTestCase {
     
     public void testAliasNameIsTheSameAsAFunctionName() {
         FunctionRegistry r = new FunctionRegistry(def(DummyFunction.class, DummyFunction::new, "DUMMY_FUNCTION", "ALIAS"));
-        IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () ->
+        SqlIllegalArgumentException iae = expectThrows(SqlIllegalArgumentException.class, () ->
                 r.addToMap(def(DummyFunction2.class, DummyFunction2::new, "DUMMY_FUNCTION2", "DUMMY_FUNCTION")));
         assertEquals("alias [DUMMY_FUNCTION] is used by [DUMMY_FUNCTION] and [DUMMY_FUNCTION2]", iae.getMessage());
     }
     
     public void testDuplicateAliasInTwoDifferentFunctionsFromTheSameBatch() {
-        IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () ->
+        SqlIllegalArgumentException iae = expectThrows(SqlIllegalArgumentException.class, () ->
                 new FunctionRegistry(def(DummyFunction.class, DummyFunction::new, "DUMMY_FUNCTION", "ALIAS"),
                         def(DummyFunction2.class, DummyFunction2::new, "DUMMY_FUNCTION2", "ALIAS")));
         assertEquals("alias [ALIAS] is used by [DUMMY_FUNCTION(ALIAS)] and [DUMMY_FUNCTION2]", iae.getMessage());
@@ -179,7 +179,7 @@ public class FunctionRegistryTests extends ESTestCase {
     
     public void testDuplicateAliasInTwoDifferentFunctionsFromTwoDifferentBatches() {
         FunctionRegistry r = new FunctionRegistry(def(DummyFunction.class, DummyFunction::new, "DUMMY_FUNCTION", "ALIAS"));
-        IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () ->
+        SqlIllegalArgumentException iae = expectThrows(SqlIllegalArgumentException.class, () ->
                 r.addToMap(def(DummyFunction2.class, DummyFunction2::new, "DUMMY_FUNCTION2", "ALIAS")));
         assertEquals("alias [ALIAS] is used by [DUMMY_FUNCTION] and [DUMMY_FUNCTION2]", iae.getMessage());
     }

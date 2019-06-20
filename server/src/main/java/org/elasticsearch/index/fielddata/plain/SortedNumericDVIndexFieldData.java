@@ -48,6 +48,7 @@ import org.elasticsearch.search.MultiValueMode;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.function.LongUnaryOperator;
 
 /**
  * FieldData backed by {@link LeafReader#getSortedNumericDocValues(String)}
@@ -69,8 +70,8 @@ public class SortedNumericDVIndexFieldData extends DocValuesIndexFieldData imple
      * Values are casted to the provided <code>targetNumericType</code> type if it doesn't
      * match the field's <code>numericType</code>.
      */
-    public SortField sortField(NumericType targetNumericType, Object missingValue, MultiValueMode sortMode, Nested nested,
-                               boolean reverse) {
+    public SortField sortField(NumericType targetNumericType, Object missingValue, MultiValueMode sortMode,
+                               Nested nested, boolean reverse) {
         final XFieldComparatorSource source;
         switch (targetNumericType) {
             case HALF_FLOAT:
@@ -80,6 +81,26 @@ public class SortedNumericDVIndexFieldData extends DocValuesIndexFieldData imple
 
             case DOUBLE:
                 source = new DoubleValuesComparatorSource(this, missingValue, sortMode, nested);
+                break;
+
+            case DATE:
+                if (numericType == NumericType.DATE_NANOSECONDS) {
+                    // converts date values to nanosecond resolution
+                    source = new LongValuesComparatorSource(this, missingValue,
+                        sortMode, nested, dvs -> convertNanosToMillis(dvs));
+                } else {
+                    source = new LongValuesComparatorSource(this, missingValue, sortMode, nested);
+                }
+                break;
+
+            case DATE_NANOSECONDS:
+                if (numericType == NumericType.DATE) {
+                    // converts date_nanos values to millisecond resolution
+                    source = new LongValuesComparatorSource(this, missingValue,
+                        sortMode, nested, dvs -> convertMillisToNanos(dvs));
+                } else {
+                    source = new LongValuesComparatorSource(this, missingValue, sortMode, nested);
+                }
                 break;
 
             default:
@@ -93,9 +114,9 @@ public class SortedNumericDVIndexFieldData extends DocValuesIndexFieldData imple
          * returns a custom sort field otherwise.
          */
         if (nested != null
-            || (sortMode != MultiValueMode.MAX && sortMode != MultiValueMode.MIN)
-            || numericType == NumericType.HALF_FLOAT
-            || targetNumericType != numericType) {
+                || (sortMode != MultiValueMode.MAX && sortMode != MultiValueMode.MIN)
+                || numericType == NumericType.HALF_FLOAT
+                || targetNumericType != numericType) {
             return new SortField(fieldName, source, reverse);
         }
 
@@ -171,29 +192,7 @@ public class SortedNumericDVIndexFieldData extends DocValuesIndexFieldData imple
 
         @Override
         public SortedNumericDocValues getLongValues() {
-            final SortedNumericDocValues dv = getLongValuesAsNanos();
-            return new AbstractSortedNumericDocValues() {
-
-                @Override
-                public boolean advanceExact(int target) throws IOException {
-                    return dv.advanceExact(target);
-                }
-
-                @Override
-                public long nextValue() throws IOException {
-                    return DateUtils.toMilliSeconds(dv.nextValue());
-                }
-
-                @Override
-                public int docValueCount() {
-                    return dv.docValueCount();
-                }
-
-                @Override
-                public int nextDoc() throws IOException {
-                    return dv.nextDoc();
-                }
-            };
+            return convertNanosToMillis(getLongValuesAsNanos());
         }
 
         public SortedNumericDocValues getLongValuesAsNanos() {
@@ -463,4 +462,47 @@ public class SortedNumericDVIndexFieldData extends DocValuesIndexFieldData imple
             return Collections.emptyList();
         }
     }
+
+    /**
+     * Convert the values in <code>dvs</code> from nanosecond to millisecond resolution.
+     */
+    static SortedNumericDocValues convertNanosToMillis(SortedNumericDocValues dvs) {
+        return convertNumeric(dvs, DateUtils::toMilliSeconds);
+    }
+
+    /**
+     * Convert the values in <code>dvs</code> from millisecond to nanosecond resolution.
+     */
+    static SortedNumericDocValues convertMillisToNanos(SortedNumericDocValues values) {
+        return convertNumeric(values, DateUtils::toNanoSeconds);
+    }
+
+    /**
+     * Convert the values in <code>dvs</code> using the provided <code>converter</code>.
+     */
+    private static SortedNumericDocValues convertNumeric(SortedNumericDocValues values, LongUnaryOperator converter) {
+        return new AbstractSortedNumericDocValues() {
+
+            @Override
+            public boolean advanceExact(int target) throws IOException {
+                return values.advanceExact(target);
+            }
+
+            @Override
+            public long nextValue() throws IOException {
+                return converter.applyAsLong(values.nextValue());
+            }
+
+            @Override
+            public int docValueCount() {
+                return values.docValueCount();
+            }
+
+            @Override
+            public int nextDoc() throws IOException {
+                return values.nextDoc();
+            }
+        };
+    }
+
 }

@@ -238,8 +238,7 @@ public class BlobStoreFormatIT extends AbstractSnapshotIntegTestCase {
     }
 
     protected BlobStore createTestBlobStore() throws IOException {
-        Settings settings = Settings.builder().build();
-        return new FsBlobStore(settings, randomRepoPath());
+        return new FsBlobStore(Settings.EMPTY, randomRepoPath(), false);
     }
 
     protected void randomCorruption(BlobContainer blobContainer, String blobName) throws IOException {

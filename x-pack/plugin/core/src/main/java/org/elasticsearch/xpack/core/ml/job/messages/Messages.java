@@ -91,8 +91,11 @@ public final class Messages {
     public static final String JOB_AUDIT_CALENDARS_UPDATED_ON_PROCESS = "Updated calendars in running process";
     public static final String JOB_AUDIT_MEMORY_STATUS_SOFT_LIMIT = "Job memory status changed to soft_limit; memory pruning will now be " +
             "more aggressive";
-    public static final String JOB_AUDIT_MEMORY_STATUS_HARD_LIMIT = "Job memory status changed to hard_limit at {0}; adjust the " +
-            "analysis_limits.model_memory_limit setting to ensure all data is analyzed";
+    public static final String JOB_AUDIT_MEMORY_STATUS_HARD_LIMIT = "Job memory status changed to hard_limit; " +
+            "job exceeded model memory limit {0} by {1}. " +
+            "Adjust the analysis_limits.model_memory_limit setting to ensure all data is analyzed";
+    public static final String JOB_AUDIT_MEMORY_STATUS_HARD_LIMIT_PRE_7_2 = "Job memory status changed to hard_limit at {0}; adjust the " +
+        "analysis_limits.model_memory_limit setting to ensure all data is analyzed";
 
     public static final String JOB_CONFIG_CATEGORIZATION_FILTERS_CONTAINS_DUPLICATES = "categorization_filters contain duplicates";
     public static final String JOB_CONFIG_CATEGORIZATION_FILTERS_CONTAINS_EMPTY =
@@ -147,6 +150,8 @@ public final class Messages {
     public static final String JOB_CONFIG_UPDATE_ANALYSIS_LIMITS_MODEL_MEMORY_LIMIT_CANNOT_BE_DECREASED =
             "Invalid update value for analysis_limits: model_memory_limit cannot be decreased below current usage; " +
                     "current usage [{0}], update had [{1}]";
+    public static final String JOB_CONFIG_DUPLICATE_DETECTORS_DISALLOWED =
+            "Duplicate detectors are not allowed: [{0}]";
     public static final String JOB_CONFIG_DETECTOR_DUPLICATE_FIELD_NAME =
             "{0} and {1} cannot be the same: ''{2}''";
     public static final String JOB_CONFIG_DETECTOR_COUNT_DISALLOWED =

@@ -38,28 +38,22 @@ import org.elasticsearch.discovery.DiscoveryStats;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.TestCustomMetaData;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.transport.RemoteTransportException;
 
-import java.io.IOException;
 import java.util.EnumSet;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
-import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, numClientNodes = 0)
-@TestLogging("_root:DEBUG")
 public class ZenDiscoveryIT extends ESIntegTestCase {
 
     public void testNoShardRelocationsOccurWhenElectedMasterNodeFails() throws Exception {
@@ -95,38 +89,6 @@ public class ZenDiscoveryIT extends ESIntegTestCase {
         r = client().admin().indices().prepareRecoveries("test").get();
         int numRecoveriesAfterNewMaster = r.shardRecoveryStates().get("test").size();
         assertThat(numRecoveriesAfterNewMaster, equalTo(numRecoveriesBeforeNewMaster));
-    }
-
-    public void testNodeFailuresAreProcessedOnce() throws IOException {
-        Settings masterNodeSettings = Settings.builder()
-                .put(Node.NODE_DATA_SETTING.getKey(), false)
-                .build();
-        String master = internalCluster().startNode(masterNodeSettings);
-        Settings dateNodeSettings = Settings.builder()
-                .put(Node.NODE_MASTER_SETTING.getKey(), false)
-                .build();
-        internalCluster().startNodes(2, dateNodeSettings);
-        client().admin().cluster().prepareHealth().setWaitForNodes("3").get();
-
-        ClusterService clusterService = internalCluster().getInstance(ClusterService.class, master);
-        final AtomicInteger numUpdates = new AtomicInteger();
-        final CountDownLatch nodesStopped = new CountDownLatch(1);
-        clusterService.addStateApplier(event -> {
-            numUpdates.incrementAndGet();
-            try {
-                // block until both nodes have stopped to accumulate node failures
-                nodesStopped.await();
-            } catch (InterruptedException e) {
-                //meh
-            }
-        });
-
-        internalCluster().stopRandomNonMasterNode();
-        internalCluster().stopRandomNonMasterNode();
-        nodesStopped.countDown();
-
-        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).get(); // wait for all to be processed
-        assertThat(numUpdates.get(), either(equalTo(1)).or(equalTo(2))); // due to batching, both nodes can be handled in same CS update
     }
 
     public void testHandleNodeJoin_incompatibleClusterState()

@@ -90,7 +90,7 @@ public final class FollowingEngine extends InternalEngine {
             } else {
                 return IndexingStrategy.processButSkipLucene(false, index.version());
             }
-        } else if (maxSeqNoOfUpdatesOrDeletes <= getLocalCheckpoint()) {
+        } else if (maxSeqNoOfUpdatesOrDeletes <= getProcessedLocalCheckpoint()) {
             assert maxSeqNoOfUpdatesOrDeletes < index.seqNo() : "seq_no[" + index.seqNo() + "] <= msu[" + maxSeqNoOfUpdatesOrDeletes + "]";
             numOfOptimizedIndexing.inc();
             return InternalEngine.IndexingStrategy.optimizedAppendOnly(index.version());
@@ -133,7 +133,8 @@ public final class FollowingEngine extends InternalEngine {
 
     @Override
     protected void advanceMaxSeqNoOfUpdatesOrDeletesOnPrimary(long seqNo) {
-        // ignore, this is not really a primary
+        assert getMaxSeqNoOfUpdatesOrDeletes() >= seqNo : seqNo + " < " + getMaxSeqNoOfUpdatesOrDeletes();
+        super.advanceMaxSeqNoOfUpdatesOrDeletesOnPrimary(seqNo); // extra safe in production code
     }
 
     @Override

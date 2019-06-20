@@ -84,7 +84,7 @@ public class PrimaryReplicaSyncer {
     public void resync(final IndexShard indexShard, final ActionListener<ResyncTask> listener) {
         Translog.Snapshot snapshot = null;
         try {
-            final long startingSeqNo = indexShard.getGlobalCheckpoint() + 1;
+            final long startingSeqNo = indexShard.getLastKnownGlobalCheckpoint() + 1;
             final long maxSeqNo = indexShard.seqNoStats().getMaxSeqNo();
             final ShardId shardId = indexShard.shardId();
             // Wrap translog snapshot to make it synchronized as it is accessed by different threads through SnapshotSender.
@@ -246,11 +246,11 @@ public class PrimaryReplicaSyncer {
             Translog.Operation operation;
             while ((operation = snapshot.next()) != null) {
                 final long seqNo = operation.seqNo();
-                if (startingSeqNo >= 0 &&
-                    (seqNo == SequenceNumbers.UNASSIGNED_SEQ_NO || seqNo < startingSeqNo)) {
+                if (seqNo == SequenceNumbers.UNASSIGNED_SEQ_NO || seqNo < startingSeqNo) {
                     totalSkippedOps.incrementAndGet();
                     continue;
                 }
+                assert operation.seqNo() >= 0 : "sending operation with unassigned sequence number [" + operation + "]";
                 operations.add(operation);
                 size += operation.estimateSize();
                 totalSentOps.incrementAndGet();
@@ -260,7 +260,6 @@ public class PrimaryReplicaSyncer {
                     break;
                 }
             }
-
             final long trimmedAboveSeqNo = firstMessage.get() ? maxSeqNo : SequenceNumbers.UNASSIGNED_SEQ_NO;
             // have to send sync request even in case of there are no operations to sync - have to sync trimmedAboveSeqNo at least
             if (!operations.isEmpty() || trimmedAboveSeqNo != SequenceNumbers.UNASSIGNED_SEQ_NO) {

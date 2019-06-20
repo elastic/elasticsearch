@@ -42,7 +42,6 @@ import javax.security.auth.x500.X500Principal;
 import java.io.IOException;
 import java.math.BigInteger;
 import java.net.InetAddress;
-import java.net.SocketException;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
 import java.security.KeyStore;
@@ -268,7 +267,7 @@ public class CertGenUtils {
     /**
      * Converts the {@link InetAddress} objects into a {@link GeneralNames} object that is used to represent subject alternative names.
      */
-    public static GeneralNames getSubjectAlternativeNames(boolean resolveName, Set<InetAddress> addresses) throws SocketException {
+    public static GeneralNames getSubjectAlternativeNames(boolean resolveName, Set<InetAddress> addresses) throws IOException {
         Set<GeneralName> generalNameList = new HashSet<>();
         for (InetAddress address : addresses) {
             if (address.isAnyLocalAddress()) {

@@ -397,7 +397,7 @@ final class PemUtils {
      * defined in RFC 1423. RFC 1423 only defines DES-CBS and triple DES (EDE) in CBC mode. AES in CBC mode is also widely used though ( 3
      * different variants of 128, 192, 256 bit keys )
      *
-     * @param dekHeaderValue The value of the the DEK-Info PEM header
+     * @param dekHeaderValue The value of the DEK-Info PEM header
      * @param password       The password with which the key is encrypted
      * @return a cipher of the appropriate algorithm and parameters to be used for decryption
      * @throws GeneralSecurityException if the algorithm is not available in the used security provider, or if the key is inappropriate

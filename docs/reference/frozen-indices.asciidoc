@@ -91,7 +91,7 @@ GET /twitter/_search?q=user:kimchy&ignore_throttled=false
 ================================
 While frozen indices are slow to search, they can be pre-filtered efficiently. The request parameter `pre_filter_shard_size` specifies
 a threshold that, when exceeded, will enforce a round-trip to pre-filter search shards that cannot possibly match. Whenever not explicitly
-set, the parameter is automatically adjusted to `1` for read-only indices, and to `128 for write indices. This filter phase can limit the
+set, the parameter is automatically adjusted to `1` for read-only indices, and to `128` for write indices. This filter phase can limit the
 number of shards significantly. For instance, if a date range filter is applied, then all indices that do not contain documents within the
 date range can be skipped efficiently.
 ================================

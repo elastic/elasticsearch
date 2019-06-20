@@ -355,7 +355,7 @@ public class XContentHelper {
                 builder.endObject();
             }
             BytesReference bytes = BytesReference.bytes(builder);
-            System.err.println(new String(bytes.toBytesRef().bytes));
+            System.err.println("Fuck2 " + new String(bytes.toBytesRef().bytes));
             return bytes;
         }
     }

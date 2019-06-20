@@ -61,7 +61,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
 import static org.elasticsearch.search.SearchService.DEFAULT_KEEPALIVE_SETTING;
@@ -654,8 +653,6 @@ public class NativeUsersStore {
                 enabled = Boolean.TRUE;
             }
             Map<String, Object> metadata = (Map<String, Object>) sourceMap.get(Fields.METADATA.getPreferredName());
-            metadata = metadata != null ? metadata.entrySet().stream().filter(entry -> entry.getKey() != null && entry.getValue() != null)
-                    .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue)) : Map.of(); 
             return new UserAndPassword(new User(username, roles, fullName, email, metadata, enabled), password.toCharArray());
         } catch (Exception e) {
             logger.error(new ParameterizedMessage("error in the format of data for user [{}]", username), e);

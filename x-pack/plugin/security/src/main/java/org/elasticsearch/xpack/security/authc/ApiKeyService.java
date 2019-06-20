@@ -512,8 +512,6 @@ public class ApiKeyService {
             final Map<String, Object> creator = Objects.requireNonNull((Map<String, Object>) source.get("creator"));
             final String principal = Objects.requireNonNull((String) creator.get("principal"));
             Map<String, Object> metadata = (Map<String, Object>) creator.get("metadata");
-            metadata = metadata != null ? metadata.entrySet().stream().filter(entry -> entry.getKey() != null && entry.getValue() != null)
-                    .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue)) : Map.of();
             final Map<String, Object> roleDescriptors = (Map<String, Object>) source.get("role_descriptors");
             final Map<String, Object> limitedByRoleDescriptors = (Map<String, Object>) source.get("limited_by_role_descriptors");
             final String[] roleNames = (roleDescriptors != null) ? roleDescriptors.keySet().toArray(Strings.EMPTY_ARRAY)

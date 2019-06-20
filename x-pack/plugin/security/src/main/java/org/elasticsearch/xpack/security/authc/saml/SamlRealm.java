@@ -451,7 +451,7 @@ public final class SamlRealm extends Realm implements Releasable {
         if (attributes.name() != null) {
             userMetaBuilder.put(USER_METADATA_NAMEID_VALUE, attributes.name().value);
             if (attributes.name().format != null) {
-                userMetaBuilder.put(USER_METADATA_NAMEID_VALUE, attributes.name().format);
+                userMetaBuilder.put(USER_METADATA_NAMEID_FORMAT, attributes.name().format);
             }
         }
         final Map<String, Object> userMeta = Map.copyOf(userMetaBuilder);

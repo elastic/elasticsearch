@@ -88,4 +88,11 @@ public class S3RepositoryThirdPartyTests extends AbstractThirdPartyRepositoryTes
         // to become consistent.
         assertBusy(() -> super.assertChildren(path, children), 10L, TimeUnit.MINUTES);
     }
+
+    @Override
+    protected void assertDeleted(BlobPath path, String name) throws Exception {
+        // AWS S3 is eventually consistent so we retry for 10 minutes assuming a list operation will never take longer than that
+        // to become consistent.
+        assertBusy(() -> super.assertDeleted(path, name), 10L, TimeUnit.MINUTES);
+    }
 }

@@ -292,35 +292,39 @@ public class PercentilesAggregationBuilder extends LeafOnly<ValuesSource.Numeric
     }
 
     @Override
-    protected boolean innerEquals(Object obj) {
+    public boolean equals(Object obj) {
+        if (this == obj) return true;
+        if (obj == null || getClass() != obj.getClass()) return false;
+        if (super.equals(obj) == false) return false;
+
         PercentilesAggregationBuilder other = (PercentilesAggregationBuilder) obj;
-        if (!Objects.equals(method, other.method)) {
+        if (Objects.equals(method, other.method) == false) {
             return false;
         }
         boolean equalSettings = false;
         switch (method) {
-        case HDR:
-            equalSettings = Objects.equals(numberOfSignificantValueDigits, other.numberOfSignificantValueDigits);
-            break;
-        case TDIGEST:
-            equalSettings = Objects.equals(compression, other.compression);
-            break;
-        default:
-            throw new IllegalStateException("Illegal method [" + method.toString() + "]");
+            case HDR:
+                equalSettings = Objects.equals(numberOfSignificantValueDigits, other.numberOfSignificantValueDigits);
+                break;
+            case TDIGEST:
+                equalSettings = Objects.equals(compression, other.compression);
+                break;
+            default:
+                throw new IllegalStateException("Illegal method [" + method.toString() + "]");
         }
         return equalSettings
-                && Objects.deepEquals(percents, other.percents)
-                && Objects.equals(keyed, other.keyed)
-                && Objects.equals(method, other.method);
+            && Objects.deepEquals(percents, other.percents)
+            && Objects.equals(keyed, other.keyed)
+            && Objects.equals(method, other.method);
     }
 
     @Override
-    protected int innerHashCode() {
+    public int hashCode() {
         switch (method) {
         case HDR:
-            return Objects.hash(Arrays.hashCode(percents), keyed, numberOfSignificantValueDigits, method);
+            return Objects.hash(super.hashCode(), Arrays.hashCode(percents), keyed, numberOfSignificantValueDigits, method);
         case TDIGEST:
-            return Objects.hash(Arrays.hashCode(percents), keyed, compression, method);
+            return Objects.hash(super.hashCode(), Arrays.hashCode(percents), keyed, compression, method);
         default:
             throw new IllegalStateException("Illegal method [" + method.toString() + "]");
         }

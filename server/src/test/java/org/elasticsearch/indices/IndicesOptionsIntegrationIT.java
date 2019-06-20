@@ -49,6 +49,7 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -477,7 +478,7 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
         verify(search("t*"), false);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/39578")
+    @TestLogging("_root:DEBUG")
     public void testOpenCloseApiWildcards() throws Exception {
         createIndex("foo", "foobar", "bar", "barbaz");
         ensureGreen();
@@ -514,9 +515,9 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
         createIndex("foobar");
 
         verify(client().admin().indices().prepareDelete("foo"), true);
-        assertThat(client().admin().indices().prepareExists("foobar").get().isExists(), equalTo(true));
+        assertThat(indexExists("foobar"), equalTo(true));
         verify(client().admin().indices().prepareDelete("foobar"), false);
-        assertThat(client().admin().indices().prepareExists("foobar").get().isExists(), equalTo(false));
+        assertThat(indexExists("foobar"), equalTo(false));
     }
 
     public void testDeleteIndexWildcard() throws Exception {
@@ -525,18 +526,17 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
         createIndex("foo", "foobar", "bar", "barbaz");
 
         verify(client().admin().indices().prepareDelete("foo*"), false);
-        assertThat(client().admin().indices().prepareExists("foo").get().isExists(), equalTo(false));
-        assertThat(client().admin().indices().prepareExists("foobar").get().isExists(), equalTo(false));
-        assertThat(client().admin().indices().prepareExists("bar").get().isExists(), equalTo(true));
-        assertThat(client().admin().indices().prepareExists("barbaz").get().isExists(), equalTo(true));
+        assertThat(indexExists("foobar"), equalTo(false));
+        assertThat(indexExists("bar"), equalTo(true));
+        assertThat(indexExists("barbaz"), equalTo(true));
 
         verify(client().admin().indices().prepareDelete("foo*"), false);
 
         verify(client().admin().indices().prepareDelete("_all"), false);
-        assertThat(client().admin().indices().prepareExists("foo").get().isExists(), equalTo(false));
-        assertThat(client().admin().indices().prepareExists("foobar").get().isExists(), equalTo(false));
-        assertThat(client().admin().indices().prepareExists("bar").get().isExists(), equalTo(false));
-        assertThat(client().admin().indices().prepareExists("barbaz").get().isExists(), equalTo(false));
+        assertThat(indexExists("foo"), equalTo(false));
+        assertThat(indexExists("foobar"), equalTo(false));
+        assertThat(indexExists("bar"), equalTo(false));
+        assertThat(indexExists("barbaz"), equalTo(false));
     }
 
     public void testPutAlias() throws Exception {

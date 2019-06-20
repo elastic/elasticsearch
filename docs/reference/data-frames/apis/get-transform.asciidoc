@@ -35,25 +35,20 @@ Retrieves configuration information for {dataframe-transforms}.
   specify one of these options, the API returns information for all
   {dataframe-transforms}.
 
-////
-==== Request Body
-
-  `page`::
-  `from`:::
+`from`::
       (integer) Skips the specified number of {dataframe-transforms}. The
       default value is `0`.
 
-  `size`:::
-      (integer) Specifies the maximum number of {dataframe-transforms} to obtain.
-      The default value is `100`.
-////
+`size`::
+      (integer) Specifies the maximum number of {dataframe-transforms} to obtain. The default value is `100`.
 
 ==== Results
 
 The API returns the following information:
 
 `transforms`::
-  (array) An array of transform resources.
+  (array) An array of transform resources, which are sorted by the `id` value in
+  ascending order.
 
 ==== Authorization
 
@@ -64,6 +59,15 @@ see {stack-ov}/security-privileges.html[Security privileges] and
 {stack-ov}/built-in-roles.html[Built-in roles].
 
 ==== Examples
+
+The following example retrieves information about a maximum of ten transforms:
+
+[source,js]
+--------------------------------------------------
+GET _data_frame/transforms?size=10
+--------------------------------------------------
+// CONSOLE
+// TEST[skip:setup kibana sample data]
 
 The following example gets configuration information for the
 `ecommerce_transform` {dataframe-transform}:

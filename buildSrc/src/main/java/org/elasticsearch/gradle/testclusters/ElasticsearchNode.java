@@ -23,6 +23,7 @@ import org.elasticsearch.gradle.Distribution;
 import org.elasticsearch.gradle.FileSupplier;
 import org.elasticsearch.gradle.OS;
 import org.elasticsearch.gradle.Version;
+import org.elasticsearch.gradle.http.WaitForHttpResource;
 import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.Logging;
 
@@ -584,6 +585,10 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         return confPathLogs.resolve(defaultConfig.get("cluster.name") + "_server.json").toFile();
     }
 
+    public File getAuditLog() {
+        return confPathLogs.resolve(defaultConfig.get("cluster.name") + "_audit.json").toFile();
+    }
+
     @Override
     public synchronized void stop(boolean tailLogs) {
         if (esProcess == null && tailLogs) {
@@ -883,12 +888,32 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         );
     }
 
-    public File getHttpCertificateAuthoritiesFile() {
-        if (settings.containsKey("xpack.security.http.ssl.certificate_authorities") == false) {
-            throw new TestClustersException("Can't get certificates authority file, not configured for " + this);
+    void configureHttpWait(WaitForHttpResource wait) {
+        if (settings.containsKey("xpack.security.http.ssl.certificate_authorities")) {
+            wait.setCertificateAuthorities(
+                getConfigDir()
+                    .resolve(settings.get("xpack.security.http.ssl.certificate_authorities").get().toString())
+                    .toFile()
+            );
         }
-        return getConfigDir()
-            .resolve(settings.get("xpack.security.http.ssl.certificate_authorities").get().toString())
-            .toFile();
+        if (settings.containsKey("xpack.security.http.ssl.certificate")) {
+            wait.setCertificateAuthorities(
+                getConfigDir()
+                    .resolve(settings.get("xpack.security.http.ssl.certificate").get().toString())
+                    .toFile()
+            );
+        }
+        if (settings.containsKey("xpack.security.http.ssl.keystore.path")) {
+            wait.setTrustStoreFile(
+                getConfigDir()
+                    .resolve(settings.get("xpack.security.http.ssl.keystore.path").get().toString())
+                    .toFile()
+            );
+        }
+        if (keystoreSettings.containsKey("xpack.security.http.ssl.keystore.secure_password")) {
+            wait.setTrustStorePassword(
+                keystoreSettings.get("xpack.security.http.ssl.keystore.secure_password").get().toString()
+            );
+        }
     }
 }

@@ -88,7 +88,7 @@ public abstract class AbstractTransportGetResourcesAction<Resource extends ToXCo
                 indicesOptions.expandWildcardsOpen(),
                 indicesOptions.expandWildcardsClosed(),
                 indicesOptions))
-            .source(sourceBuilder);
+            .source(sourceBuilder.trackTotalHits(true));
 
         executeAsyncWithOrigin(client.threadPool().getThreadContext(),
             executionOrigin(),
@@ -98,6 +98,7 @@ public abstract class AbstractTransportGetResourcesAction<Resource extends ToXCo
                 public void onResponse(SearchResponse response) {
                     List<Resource> docs = new ArrayList<>();
                     Set<String> foundResourceIds = new HashSet<>();
+                    long totalHitCount = response.getHits().getTotalHits().value;
                     for (SearchHit hit : response.getHits().getHits()) {
                         BytesReference docSource = hit.getSourceRef();
                         try (InputStream stream = docSource.streamInput();
@@ -115,7 +116,7 @@ public abstract class AbstractTransportGetResourcesAction<Resource extends ToXCo
                     if (requiredMatches.hasUnmatchedIds()) {
                         listener.onFailure(notFoundException(requiredMatches.unmatchedIdsString()));
                     } else {
-                        listener.onResponse(new QueryPage<>(docs, docs.size(), getResultsField()));
+                        listener.onResponse(new QueryPage<>(docs, totalHitCount, getResultsField()));
                     }
                 }
 

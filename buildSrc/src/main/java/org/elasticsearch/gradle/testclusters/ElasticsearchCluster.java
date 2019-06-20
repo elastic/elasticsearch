@@ -75,6 +75,8 @@ public class ElasticsearchCluster implements TestClusterConfiguration {
                 services, artifactsExtractDir, workingDirBase
             )
         );
+        // configure the cluster name eagerly so nodes know about it
+        this.nodes.all((node) -> node.defaultConfig.put("cluster.name", safeName(clusterName)));
 
         addWaitForClusterHealth();
     }
@@ -222,7 +224,6 @@ public class ElasticsearchCluster implements TestClusterConfiguration {
             nodeNames = nodes.stream().map(ElasticsearchNode::getName).collect(Collectors.joining(","));
         };
         for (ElasticsearchNode node : nodes) {
-            node.defaultConfig.put("cluster.name", safeName(clusterName));
             if (nodeNames != null) {
                 // Can only configure master nodes if we have node names defined
                 if (Version.fromString(node.getVersion()).getMajor() >= 7) {
@@ -336,7 +337,8 @@ public class ElasticsearchCluster implements TestClusterConfiguration {
                     nodes.size()
                 );
                 if (httpSslEnabled) {
-                    wait.setCertificateAuthorities(getFirstNode().getHttpCertificateAuthoritiesFile());
+
+                    getFirstNode().configureHttpWait(wait);
                 }
                 List<Map<String, String>> credentials = getFirstNode().getCredentials();
                 if (getFirstNode().getCredentials().isEmpty() == false) {

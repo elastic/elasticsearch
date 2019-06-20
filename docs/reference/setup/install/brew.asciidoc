@@ -34,13 +34,13 @@ and data directory are stored in the following locations.
 | Type | Description | Default Location | Setting
 | home
   | Elasticsearch home directory or `$ES_HOME`
-  | /usr/local/var/homebrew/linked/elasticsearch
+  | /usr/local/var/homebrew/linked/elasticsearch-full
  d|
 
 | bin
   | Binary scripts including `elasticsearch` to start a node
     and `elasticsearch-plugin` to install plugins
-  | /usr/local/var/homebrew/linked/elasticsearch/bin
+  | /usr/local/var/homebrew/linked/elasticsearch-full/bin
  d|
 
 | conf

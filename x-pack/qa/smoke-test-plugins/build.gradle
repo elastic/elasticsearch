@@ -15,7 +15,6 @@ testClusters.integTest {
   setting 'xpack.license.self_generated.type', 'trial'
   user username: "test_user", password: "x-pack-test-password"
   project(':plugins').getChildProjects().each { pluginName, pluginProject ->
-    // need to get a non-decorated project object, so must re-lookup the project by path
     plugin file(pluginProject.tasks.bundlePlugin.archiveFile)
     tasks.integTest.dependsOn pluginProject.tasks.bundlePlugin
     pluginsCount += 1

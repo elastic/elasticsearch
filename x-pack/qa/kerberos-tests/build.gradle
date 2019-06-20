@@ -28,6 +28,7 @@ testClusters.integTest {
     setting 'xpack.security.authc.realms.file.file1.order', '0'
     setting 'xpack.ml.enabled', 'false'
     setting 'xpack.security.audit.enabled', 'true'
+    setting 'xpack.security.authc.token.enabled', 'true'
     // Kerberos realm
     setting 'xpack.security.authc.realms.kerberos.kerberos.order', '1'
     setting 'xpack.security.authc.realms.kerberos.kerberos.keytab.path', 'es.keytab'
@@ -41,6 +42,7 @@ testClusters.integTest {
     extraConfigFile "es.keytab", project(':test:fixtures:krb5kdc-fixture').ext.krb5Keytabs("peppa", "HTTP_localhost.keytab")
 
     user username: "test_admin", password: "x-pack-test-password"
+    user username: "test_kibana_user", password: "x-pack-test-password", role: "kibana_system"
 }
 
 String realm = "BUILD.ELASTIC.CO"

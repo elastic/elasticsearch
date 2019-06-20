@@ -582,7 +582,11 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     }
 
     public File getServerLog() {
-        return confPathLogs.resolve(safeName(getName()).replaceAll("-[0-9]+$", "") + "_server.json").toFile();
+        return confPathLogs.resolve(defaultConfig.get("cluster.name") + "_server.json").toFile();
+    }
+
+    public File getAuditLog() {
+        return confPathLogs.resolve(defaultConfig.get("cluster.name") + "_audit.json").toFile();
     }
 
     public File getAuditLog() {
@@ -890,6 +894,13 @@ public class ElasticsearchNode implements TestClusterConfiguration {
             wait.setCertificateAuthorities(
                 getConfigDir()
                     .resolve(settings.get("xpack.security.http.ssl.certificate_authorities").get().toString())
+                    .toFile()
+            );
+        }
+        if (settings.containsKey("xpack.security.http.ssl.certificate")) {
+            wait.setCertificateAuthorities(
+                getConfigDir()
+                    .resolve(settings.get("xpack.security.http.ssl.certificate").get().toString())
                     .toFile()
             );
         }

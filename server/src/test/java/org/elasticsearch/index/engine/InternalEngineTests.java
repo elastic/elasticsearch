@@ -4027,7 +4027,6 @@ public class InternalEngineTests extends EngineTestCase {
         searchResult.close();
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/42979")
     public void testLookupSeqNoByIdInLucene() throws Exception {
         int numOps = between(10, 100);
         long seqNo = 0;
@@ -4062,20 +4061,23 @@ public class InternalEngineTests extends EngineTestCase {
              InternalEngine engine = createEngine(config(indexSettings, store, createTempDir(), newMergePolicy(), null))) {
             CheckedRunnable<IOException> lookupAndCheck = () -> {
                 try (Searcher searcher = engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL)) {
-                    for (String id : latestOps.keySet()) {
-                        String msg = "latestOps=" + latestOps + " op=" + id;
-                        DocIdAndSeqNo docIdAndSeqNo = VersionsAndSeqNoResolver.loadDocIdAndSeqNo(searcher.reader(), newUid(id));
-                        assertThat(msg, docIdAndSeqNo.seqNo, equalTo(latestOps.get(id).seqNo()));
-                        assertThat(msg, docIdAndSeqNo.isLive,
-                            equalTo(latestOps.get(id).operationType() == Engine.Operation.TYPE.INDEX));
-                    }
-                    assertThat(VersionsAndSeqNoResolver.loadDocIdAndVersion(
-                        searcher.reader(), newUid("any-" + between(1, 10)), randomBoolean()), nullValue());
                     Map<String, Long> liveOps = latestOps.entrySet().stream()
                         .filter(e -> e.getValue().operationType() == Engine.Operation.TYPE.INDEX)
                         .collect(Collectors.toMap(e -> e.getKey(), e -> e.getValue().seqNo()));
                     assertThat(getDocIds(engine, true).stream().collect(Collectors.toMap(e -> e.getId(), e -> e.getSeqNo())),
                         equalTo(liveOps));
+                    for (String id : latestOps.keySet()) {
+                        String msg = "latestOps=" + latestOps + " op=" + id;
+                        DocIdAndSeqNo docIdAndSeqNo = VersionsAndSeqNoResolver.loadDocIdAndSeqNo(searcher.reader(), newUid(id));
+                        if (liveOps.containsKey(id) == false) {
+                            assertNull(msg, docIdAndSeqNo);
+                        } else {
+                            assertNotNull(msg, docIdAndSeqNo);
+                            assertThat(msg, docIdAndSeqNo.seqNo, equalTo(latestOps.get(id).seqNo()));
+                        }
+                    }
+                    String notFoundId = randomValueOtherThanMany(liveOps::containsKey, () -> Long.toString(randomNonNegativeLong()));
+                    assertNull(VersionsAndSeqNoResolver.loadDocIdAndSeqNo(searcher.reader(), newUid(notFoundId)));
                 }
             };
             for (Engine.Operation op : operations) {

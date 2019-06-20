@@ -1286,7 +1286,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
             GetFiltersResponse getFiltersResponse = execute(getFiltersRequest,
                 machineLearningClient::getFilter,
                 machineLearningClient::getFilterAsync);
-            assertThat(getFiltersResponse.count(), equalTo(2L));
+            assertThat(getFiltersResponse.count(), equalTo(3L));
             assertThat(getFiltersResponse.filters().size(), equalTo(2));
             assertThat(getFiltersResponse.filters().stream().map(MlFilter::getId).collect(Collectors.toList()),
                 containsInAnyOrder("get-filter-test-2", "get-filter-test-3"));

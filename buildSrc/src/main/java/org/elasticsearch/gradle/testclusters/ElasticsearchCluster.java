@@ -75,6 +75,8 @@ public class ElasticsearchCluster implements TestClusterConfiguration {
                 services, artifactsExtractDir, workingDirBase
             )
         );
+        // configure the cluster name eagerly so nodes know about it
+        this.nodes.all((node) -> node.defaultConfig.put("cluster.name", safeName(clusterName)));
 
         addWaitForClusterHealth();
     }
@@ -217,7 +219,6 @@ public class ElasticsearchCluster implements TestClusterConfiguration {
     public void start() {
         String nodeNames = nodes.stream().map(ElasticsearchNode::getName).collect(Collectors.joining(","));
         for (ElasticsearchNode node : nodes) {
-            node.defaultConfig.put("cluster.name", safeName(clusterName));
             if (Version.fromString(node.getVersion()).getMajor() >= 7) {
                 node.defaultConfig.put("cluster.initial_master_nodes", "[" + nodeNames + "]");
                 node.defaultConfig.put("discovery.seed_providers", "file");

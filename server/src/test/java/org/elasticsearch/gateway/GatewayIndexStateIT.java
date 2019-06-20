@@ -315,7 +315,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
                 logger.info("--> delete index and verify it is deleted");
                 final Client client = client(otherNode);
                 client.admin().indices().prepareDelete(indexName).execute().actionGet();
-                assertFalse(client.admin().indices().prepareExists(indexName).execute().actionGet().isExists());
+                assertFalse(indexExists(indexName, client));
                 logger.info("--> index deleted");
                 return super.onNodeStopped(nodeName);
             }
@@ -329,7 +329,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
         ensureGreen();
 
         logger.info("--> verify that the deleted index is removed from the cluster and not reimported as dangling by the restarted node");
-        assertFalse(client().admin().indices().prepareExists(indexName).execute().actionGet().isExists());
+        assertFalse(indexExists(indexName));
         assertBusy(() -> {
             final NodeEnvironment nodeEnv = internalCluster().getInstance(NodeEnvironment.class);
             try {

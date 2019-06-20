@@ -107,9 +107,9 @@ public class ElasticsearchDistribution implements Buildable {
     private final Property<Flavor> flavor;
     private final Property<Boolean> bundledJdk;
 
-    ElasticsearchDistribution(String name, Project project) {
+    ElasticsearchDistribution(String name, Project project, Configuration fileConfiguration, Configuration extractedConfiguration) {
         this.name = name;
-        this.configuration = project.getConfigurations().create("es_distro_file_" + name);
+        this.configuration = fileConfiguration;
         this.version = project.getObjects().property(Version.class);
         this.version.convention(Version.fromString(VersionProperties.getElasticsearch()));
         this.type = project.getObjects().property(Type.class);
@@ -117,7 +117,7 @@ public class ElasticsearchDistribution implements Buildable {
         this.platform = project.getObjects().property(Platform.class);
         this.flavor = project.getObjects().property(Flavor.class);
         this.bundledJdk = project.getObjects().property(Boolean.class);
-        this.extracted = new Extracted(project.getConfigurations().create("es_distro_extracted_" + name));
+        this.extracted = new Extracted(extractedConfiguration);
     }
 
     public String getName() {

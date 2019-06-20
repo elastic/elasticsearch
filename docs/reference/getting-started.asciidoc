@@ -3,7 +3,7 @@
 
 [partintro]
 --
-TIP: The fastest way to get started with {es} is to https://www.elastic.co/start[start a free 14-day trial of Elasticsearch Service] in the cloud.
+TIP: The fastest way to get started with {es} is to https://www.elastic.co/cloud/elasticsearch-service/signup[start a free 14-day trial of Elasticsearch Service] in the cloud.
 
 Elasticsearch is a highly scalable open-source full-text search and analytics engine. It allows you to store, search, and analyze big volumes of data quickly and in near real time. It is generally used as the underlying engine/technology that powers applications that have complex search features and requirements.
 

@@ -27,6 +27,7 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -38,7 +39,8 @@ public class StartReindexJobAction extends Action<StartReindexJobAction.Response
 
     public static final StartReindexJobAction INSTANCE = new StartReindexJobAction();
     // TODO: Name
-    public static final String NAME = "indices:admin/reindex/start_reindex";
+    public static final String NAME = "indices:data/write/start_reindex";
+//    public static final String NAME = "indices:admin/reindex/start_reindex";
 //    public static final String NAME = "cluster:admin/reindex/start_reindex";
 //    public static final String NAME = "indices:data/reindex/start_reindex";
 
@@ -48,20 +50,27 @@ public class StartReindexJobAction extends Action<StartReindexJobAction.Response
 
     @Override
     public StartReindexJobAction.Response newResponse() {
-        return new StartReindexJobAction.Response();
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public Writeable.Reader<Response> getResponseReader() {
+        return Response::new;
     }
 
     public static class Request extends AcknowledgedRequest<Request> implements ToXContentObject, CompositeIndicesRequest {
 
-        private ReindexRequest reindexRequest;
-        private boolean waitForCompletion = false;
+        private final ReindexRequest reindexRequest;
+        private final boolean waitForCompletion;
 
-        public Request() {
-
-        }
 
         public Request(ReindexRequest reindexRequest) {
+            this(reindexRequest, false);
+        }
+
+        public Request(ReindexRequest reindexRequest, boolean waitForCompletion) {
             this.reindexRequest = reindexRequest;
+            this.waitForCompletion = waitForCompletion;
         }
 
         public Request(StreamInput in) throws IOException {
@@ -70,17 +79,9 @@ public class StartReindexJobAction extends Action<StartReindexJobAction.Response
             waitForCompletion = in.readBoolean();
         }
 
-//        public static Request fromXContent(final XContentParser parser, final String id) throws IOException {
-//            Request request = new Request();
-//            request.setReindexJob(ReindexJob.fromXContent(parser));
-//            return request;
-//        }
-
         @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            reindexRequest = new ReindexRequest(in);
-            waitForCompletion = in.readBoolean();
+        public void readFrom(StreamInput in) {
+            throw new UnsupportedOperationException();
         }
 
         @Override
@@ -104,10 +105,6 @@ public class StartReindexJobAction extends Action<StartReindexJobAction.Response
             return reindexRequest;
         }
 
-        public void setWaitForCompletion(boolean waitForCompletion) {
-            this.waitForCompletion = waitForCompletion;
-        }
-
         public boolean getWaitForCompletion() {
             return waitForCompletion;
         }
@@ -115,7 +112,6 @@ public class StartReindexJobAction extends Action<StartReindexJobAction.Response
 
     public static class Response extends AcknowledgedResponse {
 
-        static final ParseField ACKNOWLEDGED = new ParseField("acknowledged");
         static final ParseField TASK_ID = new ParseField("task_id");
         static final ParseField REINDEX_RESPONSE = new ParseField("reindex_response");
 
@@ -123,7 +119,7 @@ public class StartReindexJobAction extends Action<StartReindexJobAction.Response
             "start_reindex_response", true, args -> new Response((boolean) args[0], (String) args[1], (BulkByScrollResponse) args[2]));
 
         static {
-            PARSER.declareBoolean(ConstructingObjectParser.constructorArg(), ACKNOWLEDGED);
+            declareAcknowledgedField(PARSER);
             PARSER.declareString(ConstructingObjectParser.constructorArg(), TASK_ID);
             PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(),
                 (parser, context) -> BulkByScrollResponse.fromXContent(parser), REINDEX_RESPONSE);
@@ -131,10 +127,6 @@ public class StartReindexJobAction extends Action<StartReindexJobAction.Response
 
         private String taskId;
         private BulkByScrollResponse reindexResponse;
-
-        public Response() {
-            super();
-        }
 
         public Response(boolean acknowledged, String taskId) {
             super(acknowledged);
@@ -148,11 +140,6 @@ public class StartReindexJobAction extends Action<StartReindexJobAction.Response
         }
 
         public Response(StreamInput in) throws IOException {
-            readFrom(in);
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
             taskId = in.readString();
             reindexResponse = in.readOptionalWriteable((input) -> {
@@ -160,6 +147,11 @@ public class StartReindexJobAction extends Action<StartReindexJobAction.Response
                 bulkByScrollResponse.readFrom(input);
                 return bulkByScrollResponse;
             });
+        }
+
+        @Override
+        public void readFrom(StreamInput in) {
+            throw new UnsupportedOperationException();
         }
 
         @Override

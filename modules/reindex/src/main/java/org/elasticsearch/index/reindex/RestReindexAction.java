@@ -56,16 +56,18 @@ public class RestReindexAction extends AbstractBaseReindexRestHandler<ReindexReq
 
     @Override
     public RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
+        boolean waitForCompletion = request.paramAsBoolean("wait_for_completion", true);
+
         // Build the internal request
-        StartReindexJobAction.Request internal = new StartReindexJobAction.Request(setCommonOptions(request, buildRequest(request)));
+        StartReindexJobAction.Request internal = new StartReindexJobAction.Request(setCommonOptions(request, buildRequest(request)),
+            waitForCompletion);
 
         // Executes the request and waits for completion
-        if (request.paramAsBoolean("wait_for_completion", true)) {
+        if (waitForCompletion) {
             Map<String, String> params = new HashMap<>();
             params.put(BulkByScrollTask.Status.INCLUDE_CREATED, Boolean.toString(true));
             params.put(BulkByScrollTask.Status.INCLUDE_UPDATED, Boolean.toString(true));
 
-            internal.setWaitForCompletion(true);
             return channel -> client.execute(StartReindexJobAction.INSTANCE, internal, new ActionListener<>() {
 
                 private BulkIndexByScrollResponseContentListener listener = new BulkIndexByScrollResponseContentListener(channel, params);
@@ -82,7 +84,6 @@ public class RestReindexAction extends AbstractBaseReindexRestHandler<ReindexReq
             });
         } else {
             internal.getReindexRequest().setShouldStoreResult(true);
-            internal.setWaitForCompletion(false);
 
             /*
              * Let's try and validate before forking so the user gets some error. The

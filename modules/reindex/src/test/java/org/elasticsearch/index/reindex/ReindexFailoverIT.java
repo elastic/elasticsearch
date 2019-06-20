@@ -30,7 +30,6 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 
 import java.util.ArrayList;
@@ -53,7 +52,6 @@ public class ReindexFailoverIT extends ReindexTestCase {
         return classes;
     }
 
-    @TestLogging("_root:DEBUG")
     public void testReindexFailover() throws Throwable {
         logger.info("--> start 4 nodes, 1 master, 3 data");
 
@@ -90,8 +88,7 @@ public class ReindexFailoverIT extends ReindexTestCase {
 
         // Copy all the docs
         ReindexRequestBuilder copy = reindex().source("source").destination("dest").refresh(true);
-        StartReindexJobAction.Request request = new StartReindexJobAction.Request(copy.request());
-        request.setWaitForCompletion(false);
+        StartReindexJobAction.Request request = new StartReindexJobAction.Request(copy.request(), false);
 
         copy.source().setSize(100);
         client().execute(StartReindexJobAction.INSTANCE, request).get();

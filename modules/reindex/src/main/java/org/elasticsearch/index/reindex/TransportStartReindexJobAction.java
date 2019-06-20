@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.index.reindex;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.ActionListener;
@@ -31,6 +30,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.persistent.PersistentTasksService;
@@ -38,8 +38,8 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.io.IOException;
 import java.util.Map;
-import java.util.Objects;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
@@ -52,8 +52,8 @@ public class TransportStartReindexJobAction
     public TransportStartReindexJobAction(TransportService transportService, ThreadPool threadPool,
                                           ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
                                           ClusterService clusterService, PersistentTasksService persistentTasksService) {
-        super(StartReindexJobAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver,
-            StartReindexJobAction.Request::new);
+        super(StartReindexJobAction.NAME, transportService, clusterService, threadPool, actionFilters, StartReindexJobAction.Request::new,
+            indexNameExpressionResolver);
         this.persistentTasksService = persistentTasksService;
     }
 
@@ -64,7 +64,12 @@ public class TransportStartReindexJobAction
 
     @Override
     protected StartReindexJobAction.Response newResponse() {
-        return new StartReindexJobAction.Response();
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    protected StartReindexJobAction.Response read(StreamInput in) throws IOException {
+        return new StartReindexJobAction.Response(in);
     }
 
     @Override
@@ -84,7 +89,7 @@ public class TransportStartReindexJobAction
                     if (request.getWaitForCompletion()) {
                         waitForReindexDone(persistentTask.getId(), listener);
                     } else {
-                        waitForReindexTask(persistentTask.getId(), listener);
+                        listener.onResponse(new StartReindexJobAction.Response(true, persistentTask.getId()));
                     }
                 }
 
@@ -98,28 +103,6 @@ public class TransportStartReindexJobAction
                     listener.onFailure(e);
                 }
             });
-    }
-
-    private void waitForReindexTask(String taskId, ActionListener<StartReindexJobAction.Response> listener) {
-        // TODO: Configurable timeout?
-        persistentTasksService.waitForPersistentTaskCondition(taskId, Objects::nonNull, TimeValue.timeValueSeconds(15),
-                new PersistentTasksService.WaitForPersistentTaskListener<ReindexJob>() {
-                    @Override
-                    public void onResponse(PersistentTasksCustomMetaData.PersistentTask<ReindexJob> task) {
-                        listener.onResponse(new StartReindexJobAction.Response(true, taskId));
-                    }
-
-                    @Override
-                    public void onFailure(Exception e) {
-                        listener.onFailure(e);
-                    }
-
-                    @Override
-                    public void onTimeout(TimeValue timeout) {
-                        listener.onFailure(new ElasticsearchException("Creation of task for Reindex Job ID ["
-                                + taskId + "] timed out after [" + timeout + "]"));
-                    }
-                });
     }
 
     private void waitForReindexDone(String taskId, ActionListener<StartReindexJobAction.Response> listener) {

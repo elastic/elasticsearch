@@ -26,8 +26,8 @@ import org.elasticsearch.xpack.core.dataframe.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.dataframe.utils.TimeUtils;
 
 import java.io.IOException;
+import java.time.Instant;
 import java.util.Collections;
-import java.util.Date;
 import java.util.Map;
 import java.util.Objects;
 
@@ -46,7 +46,7 @@ public class DataFrameTransformConfig extends AbstractDiffable<DataFrameTransfor
     public static final ParseField PIVOT_TRANSFORM = new ParseField("pivot");
 
     public static final ParseField DESCRIPTION = new ParseField("description");
-    public static final ParseField TRANSFORM_VERSION = new ParseField("transform_version");
+    public static final ParseField VERSION = new ParseField("version");
     public static final ParseField CREATE_TIME = new ParseField("create_time");
     private static final ConstructingObjectParser<DataFrameTransformConfig, String> STRICT_PARSER = createParser(false);
     private static final ConstructingObjectParser<DataFrameTransformConfig, String> LENIENT_PARSER = createParser(true);
@@ -60,7 +60,7 @@ public class DataFrameTransformConfig extends AbstractDiffable<DataFrameTransfor
     // the header only contains name, groups and other context but no authorization keys
     private Map<String, String> headers;
     private Version transformVersion;
-    private Date createTime;
+    private Instant createTime;
 
     private final PivotConfig pivotConfig;
 
@@ -92,7 +92,7 @@ public class DataFrameTransformConfig extends AbstractDiffable<DataFrameTransfor
                     if (lenient == false) {
                         validateStrictParsingParams(args[4], HEADERS.getPreferredName());
                         validateStrictParsingParams(args[7], CREATE_TIME.getPreferredName());
-                        validateStrictParsingParams(args[8], TRANSFORM_VERSION.getPreferredName());
+                        validateStrictParsingParams(args[8], VERSION.getPreferredName());
                     }
 
                     @SuppressWarnings("unchecked")
@@ -106,7 +106,7 @@ public class DataFrameTransformConfig extends AbstractDiffable<DataFrameTransfor
                         headers,
                         pivotConfig,
                         description,
-                        (Date)args[7],
+                        (Instant)args[7],
                         (String)args[8]);
                 });
 
@@ -119,8 +119,8 @@ public class DataFrameTransformConfig extends AbstractDiffable<DataFrameTransfor
         parser.declareObject(optionalConstructorArg(), (p, c) -> PivotConfig.fromXContent(p, lenient), PIVOT_TRANSFORM);
         parser.declareString(optionalConstructorArg(), DESCRIPTION);
         parser.declareField(optionalConstructorArg(),
-            p -> TimeUtils.parseTimeField(p, CREATE_TIME.getPreferredName()), CREATE_TIME, ObjectParser.ValueType.VALUE);
-        parser.declareString(optionalConstructorArg(), TRANSFORM_VERSION);
+            p -> TimeUtils.parseTimeFieldToInstant(p, CREATE_TIME.getPreferredName()), CREATE_TIME, ObjectParser.ValueType.VALUE);
+        parser.declareString(optionalConstructorArg(), VERSION);
         return parser;
     }
 
@@ -134,7 +134,7 @@ public class DataFrameTransformConfig extends AbstractDiffable<DataFrameTransfor
                              final Map<String, String> headers,
                              final PivotConfig pivotConfig,
                              final String description,
-                             final Date createTime,
+                             final Instant createTime,
                              final String version){
         this.id = ExceptionsHelper.requireNonNull(id, DataFrameField.ID.getPreferredName());
         this.source = ExceptionsHelper.requireNonNull(source, DataFrameField.SOURCE.getPreferredName());
@@ -150,7 +150,7 @@ public class DataFrameTransformConfig extends AbstractDiffable<DataFrameTransfor
         if (this.description != null && this.description.length() > MAX_DESCRIPTION_LENGTH) {
             throw new IllegalArgumentException("[description] must be less than 1000 characters in length.");
         }
-        this.createTime = createTime;
+        this.createTime = createTime == null ? null : Instant.ofEpochMilli(createTime.toEpochMilli());
         this.transformVersion = version == null ? null : Version.fromString(version);
     }
 
@@ -171,7 +171,7 @@ public class DataFrameTransformConfig extends AbstractDiffable<DataFrameTransfor
         pivotConfig = in.readOptionalWriteable(PivotConfig::new);
         description = in.readOptionalString();
         if (in.getVersion().onOrAfter(Version.V_7_3_0)) {
-            createTime =  in.readBoolean() ? new Date(in.readVLong()) : null;
+            createTime = in.readOptionalInstant();
             transformVersion = in.readBoolean() ? Version.readVersion(in) : null;
         } else {
             createTime = null;
@@ -209,12 +209,13 @@ public class DataFrameTransformConfig extends AbstractDiffable<DataFrameTransfor
         return this;
     }
 
-    public Date getCreateTime() {
+    public Instant getCreateTime() {
         return createTime;
     }
 
-    public DataFrameTransformConfig setCreateTime(Date createTime) {
-        this.createTime = createTime;
+    public DataFrameTransformConfig setCreateTime(Instant createTime) {
+        ExceptionsHelper.requireNonNull(createTime, CREATE_TIME.getPreferredName());
+        this.createTime = Instant.ofEpochMilli(createTime.toEpochMilli());
         return this;
     }
 
@@ -244,13 +245,8 @@ public class DataFrameTransformConfig extends AbstractDiffable<DataFrameTransfor
         out.writeOptionalWriteable(pivotConfig);
         out.writeOptionalString(description);
         if (out.getVersion().onOrAfter(Version.V_7_3_0)) {
-            if (createTime != null) {
-                out.writeBoolean(true);
-                out.writeVLong(createTime.getTime());
-            } else {
-                out.writeBoolean(false);
-            }
-            if (transformVersion != null) {
+            out.writeOptionalInstant(createTime);
+           if (transformVersion != null) {
                 out.writeBoolean(true);
                 Version.writeVersion(transformVersion, out);
             } else {
@@ -278,10 +274,10 @@ public class DataFrameTransformConfig extends AbstractDiffable<DataFrameTransfor
             builder.field(DESCRIPTION.getPreferredName(), description);
         }
         if (transformVersion != null) {
-            builder.field(TRANSFORM_VERSION.getPreferredName(), transformVersion);
+            builder.field(VERSION.getPreferredName(), transformVersion);
         }
         if (createTime != null) {
-            builder.timeField(CREATE_TIME.getPreferredName(), CREATE_TIME.getPreferredName() + "_string", createTime.getTime());
+            builder.timeField(CREATE_TIME.getPreferredName(), CREATE_TIME.getPreferredName() + "_string", createTime.toEpochMilli());
         }
         builder.endObject();
         return builder;

@@ -18,7 +18,7 @@ import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInter
 import org.junit.After;
 
 import java.io.IOException;
-import java.util.Date;
+import java.time.Instant;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -63,9 +63,8 @@ public class DataFrameTransformIT extends DataFrameIntegTestCase {
 
         DataFrameTransformConfig storedConfig = getDataFrameTransform(config.getId()).getTransformConfigurations().get(0);
         assertThat(storedConfig.getTransformVersion(), equalTo(Version.CURRENT));
-        Date now = new Date();
-        assertTrue(storedConfig.getCreateTime().before(now));
-
+        Instant now = Instant.now();
+        assertTrue("[create_time] is not before current time", storedConfig.getCreateTime().isBefore(now));
         deleteDataFrameTransform(config.getId());
     }
 

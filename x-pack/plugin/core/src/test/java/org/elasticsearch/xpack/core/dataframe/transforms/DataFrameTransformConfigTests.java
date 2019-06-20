@@ -19,7 +19,7 @@ import org.elasticsearch.xpack.core.dataframe.transforms.pivot.PivotConfigTests;
 import org.junit.Before;
 
 import java.io.IOException;
-import java.util.Date;
+import java.time.Instant;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -60,7 +60,7 @@ public class DataFrameTransformConfigTests extends AbstractSerializingDataFrameT
             randomHeaders(),
             PivotConfigTests.randomPivotConfig(),
             randomBoolean() ? null : randomAlphaOfLengthBetween(1, 1000),
-            randomBoolean() ? null : new Date(),
+            randomBoolean() ? null : Instant.now(),
             randomBoolean() ? null : Version.CURRENT.toString());
     }
 
@@ -163,7 +163,7 @@ public class DataFrameTransformConfigTests extends AbstractSerializingDataFrameT
 
     public void testPreventCreateTimeInjection() throws IOException {
         String pivotTransform = "{"
-            + " \"create_time\" : " + new Date().toInstant().toEpochMilli() + " },"
+            + " \"create_time\" : " + Instant.now().toEpochMilli() + " },"
             + " \"source\" : {\"index\":\"src\"},"
             + " \"dest\" : {\"index\": \"dest\"},"
             + " \"pivot\" : {"
@@ -184,7 +184,7 @@ public class DataFrameTransformConfigTests extends AbstractSerializingDataFrameT
 
     public void testPreventVersionInjection() throws IOException {
         String pivotTransform = "{"
-            + " \"transform_version\" : \"7.3.0\","
+            + " \"version\" : \"7.3.0\","
             + " \"source\" : {\"index\":\"src\"},"
             + " \"dest\" : {\"index\": \"dest\"},"
             + " \"pivot\" : {"

@@ -52,9 +52,9 @@ import org.elasticsearch.xpack.dataframe.persistence.DataFrameTransformsConfigMa
 import org.elasticsearch.xpack.dataframe.transforms.pivot.Pivot;
 
 import java.io.IOException;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Date;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -114,7 +114,7 @@ public class TransportPutDataFrameTransformAction
 
         DataFrameTransformConfig config = request.getConfig()
             .setHeaders(filteredHeaders)
-            .setCreateTime(new Date())
+            .setCreateTime(Instant.now())
             .setTransformVersion(Version.CURRENT);
 
         String transformId = config.getId();

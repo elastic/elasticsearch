@@ -28,8 +28,8 @@ import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.AbstractXContentTestCase;
 
 import java.io.IOException;
+import java.time.Instant;
 import java.util.Collections;
-import java.util.Date;
 import java.util.function.Predicate;
 
 import static org.elasticsearch.client.dataframe.transforms.DestConfigTests.randomDestConfig;
@@ -43,7 +43,7 @@ public class DataFrameTransformConfigTests extends AbstractXContentTestCase<Data
             randomDestConfig(),
             PivotConfigTests.randomPivotConfig(),
             randomBoolean() ? null : randomAlphaOfLengthBetween(1, 100),
-            randomBoolean() ? null : new Date(),
+            randomBoolean() ? null : Instant.now(),
             randomBoolean() ? null : Version.CURRENT.toString());
     }
 

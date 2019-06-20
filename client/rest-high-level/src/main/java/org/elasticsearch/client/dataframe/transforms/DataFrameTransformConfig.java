@@ -32,7 +32,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.util.Date;
+import java.time.Instant;
 import java.util.Objects;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
@@ -44,7 +44,7 @@ public class DataFrameTransformConfig implements ToXContentObject {
     public static final ParseField SOURCE = new ParseField("source");
     public static final ParseField DEST = new ParseField("dest");
     public static final ParseField DESCRIPTION = new ParseField("description");
-    public static final ParseField TRANSFORM_VERSION = new ParseField("transform_version");
+    public static final ParseField VERSION = new ParseField("version");
     public static final ParseField CREATE_TIME = new ParseField("create_time");
     // types of transforms
     public static final ParseField PIVOT_TRANSFORM = new ParseField("pivot");
@@ -55,7 +55,7 @@ public class DataFrameTransformConfig implements ToXContentObject {
     private final PivotConfig pivotConfig;
     private final String description;
     private final Version transformVersion;
-    private final Date createTime;
+    private final Instant createTime;
 
     public static final ConstructingObjectParser<DataFrameTransformConfig, Void> PARSER =
             new ConstructingObjectParser<>("data_frame_transform", true,
@@ -65,7 +65,7 @@ public class DataFrameTransformConfig implements ToXContentObject {
                     DestConfig dest = (DestConfig) args[2];
                     PivotConfig pivotConfig = (PivotConfig) args[3];
                     String description = (String)args[4];
-                    Date createTime = (Date)args[5];
+                    Instant createTime = (Instant)args[5];
                     String transformVersion = (String)args[6];
                     return new DataFrameTransformConfig(id, source, dest, pivotConfig, description, createTime, transformVersion);
                 });
@@ -77,8 +77,8 @@ public class DataFrameTransformConfig implements ToXContentObject {
         PARSER.declareObject(optionalConstructorArg(), (p, c) -> PivotConfig.fromXContent(p), PIVOT_TRANSFORM);
         PARSER.declareString(optionalConstructorArg(), DESCRIPTION);
         PARSER.declareField(optionalConstructorArg(),
-            p -> TimeUtil.parseTimeField(p, CREATE_TIME.getPreferredName()), CREATE_TIME, ObjectParser.ValueType.VALUE);
-        PARSER.declareString(optionalConstructorArg(), TRANSFORM_VERSION);
+            p -> TimeUtil.parseTimeFieldToInstant(p, CREATE_TIME.getPreferredName()), CREATE_TIME, ObjectParser.ValueType.VALUE);
+        PARSER.declareString(optionalConstructorArg(), VERSION);
     }
 
     public static DataFrameTransformConfig fromXContent(final XContentParser parser) {
@@ -105,14 +105,14 @@ public class DataFrameTransformConfig implements ToXContentObject {
                              final DestConfig dest,
                              final PivotConfig pivotConfig,
                              final String description,
-                             final Date createTime,
+                             final Instant createTime,
                              final String version) {
         this.id = id;
         this.source = source;
         this.dest = dest;
         this.pivotConfig = pivotConfig;
         this.description = description;
-        this.createTime = createTime;
+        this.createTime = createTime == null ? null : Instant.ofEpochMilli(createTime.toEpochMilli());
         this.transformVersion = version == null ? null : Version.fromString(version);
     }
 
@@ -136,7 +136,7 @@ public class DataFrameTransformConfig implements ToXContentObject {
         return transformVersion;
     }
 
-    public Date getCreateTime() {
+    public Instant getCreateTime() {
         return createTime;
     }
 
@@ -164,10 +164,10 @@ public class DataFrameTransformConfig implements ToXContentObject {
             builder.field(DESCRIPTION.getPreferredName(), description);
         }
         if (createTime != null) {
-            builder.timeField(CREATE_TIME.getPreferredName(), CREATE_TIME.getPreferredName() + "_string", createTime.getTime());
+            builder.timeField(CREATE_TIME.getPreferredName(), CREATE_TIME.getPreferredName() + "_string", createTime.toEpochMilli());
         }
         if (transformVersion != null) {
-            builder.field(TRANSFORM_VERSION.getPreferredName(), transformVersion);
+            builder.field(VERSION.getPreferredName(), transformVersion);
         }
         builder.endObject();
         return builder;

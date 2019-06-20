@@ -26,6 +26,7 @@ import org.elasticsearch.action.support.PlainListenableActionFuture;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.painless.PainlessPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.Script;
@@ -96,6 +97,9 @@ public class ReindexResilientSearchIT extends ReindexTestCase {
         request.setDestIndex("dest");
         request.setRequestsPerSecond(0.3f); // 30 seconds minimum
         request.setAbortOnVersionConflict(false);
+        if (randomBoolean()) {
+            request.getSearchRequest().source(new SearchSourceBuilder().query(new MatchAllQueryBuilder()));
+        }
         PlainListenableActionFuture<BulkByScrollResponse> reindexFuture = PlainListenableActionFuture.newListenableFuture();
         Task reindexTask = reindexNodeClient.executeLocally(ReindexAction.INSTANCE, request, reindexFuture);
 

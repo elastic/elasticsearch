@@ -39,6 +39,7 @@ import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
+import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -92,7 +93,7 @@ public class ClientScrollableHitSource extends ScrollableHitSource {
         } else if (retryFromRequest.source().query() == null) {
             retryFromRequest.source().query(rangeQueryBuilder);
         } else {
-            throw new UnsupportedOperationException("not yet implemented");
+            retryFromRequest.source().query(new BoolQueryBuilder().must(retryFromRequest.source().query()).filter(rangeQueryBuilder));
         }
         return retryFromRequest;
     }

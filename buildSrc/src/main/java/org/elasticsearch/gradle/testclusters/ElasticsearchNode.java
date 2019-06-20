@@ -589,10 +589,6 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         return confPathLogs.resolve(defaultConfig.get("cluster.name") + "_audit.json").toFile();
     }
 
-    public File getAuditLog() {
-        return confPathLogs.resolve(safeName(getName()).replaceAll("-[0-9]+$", "") + "_audit.json").toFile();
-    }
-
     @Override
     public synchronized void stop(boolean tailLogs) {
         if (esProcess == null && tailLogs) {

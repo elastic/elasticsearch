@@ -555,89 +555,77 @@ public class Augmentation {
         return result.toArray(new String[0]);
     }
 
-
-    // getByPath public API
     /**
      * Access values in nested containers with a dot separated path.  Path elements are treated
      * as strings for Maps and integers for Lists.
-     * Throws 'IllegalArgumentException' if path does not exist or a path element for a List is not an integer.
+     * @throws IllegalArgumentException if any of the following:
+     *  - path is empty
+     *  - path contains a trailing '.' or a repeated '.'
+     *  - an element of the path does not exist, ie key or index not present
+     *  - there is a non-container type at a non-terminal path element
+     *  - a path element for a List is not an integer
+     * @return object at path
      */
     public static <E> Object getByPath(List<E> receiver, String path) {
-        return getByPath(receiver, splitPath(path), 0, getByPathMissing(path));
+        return getByPathDispatch(receiver, splitPath(path), 0, throwCantFindValue(path));
     }
 
     /**
-     * Access values in nested containers with a dot separated path.  Path elements are treated
-     * as strings for Maps and integers for Lists.
-     * Throws 'IllegalArgumentException' if path does not exist or a path element for a List is not an integer.
+     * Same as {@link #getByPath(List, String)}, but for Map.
      */
     public static <K,V> Object getByPath(Map<K,V> receiver, String path) {
-        return getByPath(receiver, splitPath(path), 0, getByPathMissing(path));
+        return getByPathDispatch(receiver, splitPath(path), 0, throwCantFindValue(path));
     }
 
     /**
-     * Same as 'getByPath(List, String)' but returns defaultValue if path does not exist.
-     * Throws 'IllegalArgumentException' if there is a non-container type at a non-terminal path element.
+     * Same as {@link #getByPath(List, String)}, but with a default value.
+     * @return element at path or {@code defaultValue} if the terminal path element does not exist.
      */
     public static <E> Object getByPath(List<E> receiver, String path, Object defaultValue) {
-        return getByPath(receiver, splitPath(path), 0, () -> defaultValue);
+        return getByPathDispatch(receiver, splitPath(path), 0, () -> defaultValue);
     }
 
     /**
-     * Same as 'getByPath(Map, String)' but returns defaultValue if path does not exist.
-     * Throws 'IllegalArgumentException' if there is a non-container type at a non-terminal path element.
+     * Same as {@link #getByPath(List, String, Object)}, but for Map.
      */
     public static <K,V> Object getByPath(Map<K,V> receiver, String path, Object defaultValue) {
-        return getByPath(receiver, splitPath(path), 0, () -> defaultValue);
+        return getByPathDispatch(receiver, splitPath(path), 0, () -> defaultValue);
     }
 
-    // getByPath helpers
-    /**
-     * Dispatch function for getByPath, handling successful lookup, obj as Map, List or non-collection.
-     * Throws 'IllegalArgumentException' if elements[i] is an empty string, indicating double separators
-     * or path ends in a separator.
-     */
-    private static Object getByPath(Object obj, String[] elements, int i, Supplier<Object> defaultSupplier) {
+    // Dispatches to getByPathMap, getByPathList or returns obj if done. See handleMissing for dealing with missing
+    // elements.
+    private static Object getByPathDispatch(Object obj, String[] elements, int i, Supplier<Object> defaultSupplier) {
         if (i > elements.length - 1) {
             return obj;
         } else if (elements[i].length() == 0 ) {
             String format = "Extra '.' in path [%s] at index [%d]";
             throw new IllegalArgumentException(String.format(Locale.ROOT, format, String.join(".", elements), i));
         } else if (obj instanceof Map<?,?>) {
-            return getByPath((Map<?,?>) obj, elements, i, defaultSupplier);
+            return getByPathMap((Map<?,?>) obj, elements, i, defaultSupplier);
         } else if (obj instanceof List<?>) {
-            return getByPath((List<?>) obj, elements, i, defaultSupplier);
+            return getByPathList((List<?>) obj, elements, i, defaultSupplier);
         }
         return handleMissing(obj, elements, i, defaultSupplier);
     }
 
-    /**
-     * Map version of getByPath, calls dispatch function on next path element with object map[elements[i]] or
-     * return defaultSupplier if element is missing an i is the last index of elements.
-     * Throws 'IllegalArgumentException' is element is missing and i is not the last index of elements.
-     */
-    private static <K,V> Object getByPath(Map<K,V> map, String[] elements, int i, Supplier<Object> defaultSupplier) {
+    // lookup existing key in map, call back to dispatch.
+    private static <K,V> Object getByPathMap(Map<K,V> map, String[] elements, int i, Supplier<Object> defaultSupplier) {
         String element = elements[i];
         if (map.containsKey(element)) {
-            return getByPath(map.get(element), elements, i + 1, defaultSupplier);
+            return getByPathDispatch(map.get(element), elements, i + 1, defaultSupplier);
         }
         return handleMissing(map, elements, i, defaultSupplier);
     }
 
 
-    /**
-     * List version of getByPath, calls dispatch function on next path element with object list[elements[i]] or
-     * return defaultSupplier if element is missing an i is the last index of elements.
-     * Throws 'IllegalArgumentException' is element is missing and i is not the last index of elements.
-     * Throws 'IllegalArgumentException' with `NumberFormatException' as cause if elements[i] cannot be parsed
-     * as an int.
-     */
-    private static <E> Object getByPath(List<E> list, String[] elements, int i, Supplier<Object> defaultSupplier) {
+    // lookup existing index in list, call back to dispatch.  Throws IllegalArgumentException with NumberFormatException
+    // if index can't be parsed as an int.
+    private static <E> Object getByPathList(List<E> list, String[] elements, int i, Supplier<Object> defaultSupplier) {
         String element = elements[i];
         try {
             int elemInt = Integer.parseInt(element);
             if (list.size() >= elemInt) {
-                return getByPath(list.get(elemInt), elements, i + 1, defaultSupplier);
+                return getByPathDispatch(list.get(elemInt), elements, i + 1, defaultSupplier);
             }
         } catch (NumberFormatException e) {
             String format = "Could not parse [%s] as a int index into list at path [%s] and index [%d]";
@@ -646,46 +634,37 @@ public class Augmentation {
         return handleMissing(list, elements, i, defaultSupplier);
     }
 
-    /**
-     * Splits path by '.'
-     * Throws 'IllegalArgumentException' if no elements are in the path or if path ends with '.'
-     */
+    // Split path on '.', throws IllegalArgumentException for empty paths and paths ending in '.'
     private static String[] splitPath(String path) {
+        if (path.length() == 0) {
+            throw new IllegalArgumentException("Missing path");
+        }
         if (path.endsWith(".")) {
             String format = "Trailing '.' in path [%s]";
             throw new IllegalArgumentException(String.format(Locale.ROOT, format, path));
         }
-        String[] elements = path.split("\\.");
-        if (elements.length == 1 && elements[0].length() == 0) {
-            throw new IllegalArgumentException("Missing path");
-        }
-        return elements;
+        return path.split("\\.");
     }
 
-    /**
-     * Return a Supplier that throws an 'IllegalArgumentException' for path.
-     */
-    private static Supplier<Object> getByPathMissing(String path) {
+
+    // A supplier that throws IllegalArgumentException
+    private static Supplier<Object> throwCantFindValue(String path) {
         return () -> {
             throw new IllegalArgumentException(String.format(Locale.ROOT, "Could not find value at path [%s]", path));
         };
     }
 
-    /**
-     * If an element is missing, return the Supplied object if handling last element in path.
-     * Throws 'IllegalArgumentException' if there are more elements in the path.
-     */
+    // Use defaultSupplier if at last path element, otherwise throw IllegalArgumentException
     private static Object handleMissing(Object obj, String[] elements, int i, Supplier<Object> defaultSupplier) {
-        if (elements.length - 1 == i && (obj instanceof List || obj instanceof Map)) {
-            return defaultSupplier.get();
+        if (obj instanceof List || obj instanceof Map) {
+            if (elements.length - 1 == i) {
+                return defaultSupplier.get();
+            }
+            String format = "Container does not have [%s], for non-terminal index [%d] in path [%s]";
+            throw new IllegalArgumentException(String.format(Locale.ROOT, format, elements[i], i, String.join(".", elements)));
         }
         String format = "Non-container [%s] at [%s], index [%d] in path [%s]";
         throw new IllegalArgumentException(
-            String.format(Locale.ROOT, format,
-                obj.getClass().getName(),
-                elements[i],
-                i,
-                String.join(".", elements)
-            ));
+            String.format(Locale.ROOT, format, obj.getClass().getName(), elements[i], i, String.join(".", elements)));
     }
 }

@@ -54,12 +54,7 @@ include the following characters: `\`, `/`, `*`, `?`, `"`, `<`, `>`, `|`, ` `
 response. See
 <<index-wait-for-active-shards, Wait For active shards>>.
 
-`timeout` (Optional)::
-(<<time-units,time value>>) Maximum time to wait for the operation before
-providing a response.  Defaults to `30s`.
-
-`master_timeout` (Optional)::
-(<<time-units,time value>>) Maximum time to wait to discover the master node in the cluster. If not provided, defaults to the `timeout` value.
+include::{docdir}/rest-api/timeoutparms.asciidoc[]
 
 [float]
 [[indices-create-index-request-body]]

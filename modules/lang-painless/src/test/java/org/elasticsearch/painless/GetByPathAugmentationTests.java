@@ -210,7 +210,7 @@ public class GetByPathAugmentationTests extends ScriptTestCase {
         assertPathError(mapMap, "a..b", "Extra '.' in path [a..b] at index [1]");
     }
 
-    public void testTrainingDot() {
+    public void testTrailingDot() {
         assertPathError(mapMap, "a.b.", "Trailing '.' in path [a.b.]");
     }
 

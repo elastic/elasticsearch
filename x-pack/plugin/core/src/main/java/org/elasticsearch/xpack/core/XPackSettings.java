@@ -114,14 +114,13 @@ public class XPackSettings {
     /** Setting for enabling or disabling sql. Defaults to true. */
     public static final Setting<Boolean> SQL_ENABLED = Setting.boolSetting("xpack.sql.enabled", true, Setting.Property.NodeScope);
 
-<<<<<<< HEAD
-    /** Setting for enabling or disabling voting-only-node. Defaults to true. */
-    public static final Setting<Boolean> VOTING_ONLY_NODE_ENABLED = Setting.boolSetting("xpack.voting_only_node.enabled", true,
-        Setting.Property.NodeScope);
-=======
     /** Setting for enabling or disabling vectors. Defaults to true. */
     public static final Setting<Boolean> VECTORS_ENABLED = Setting.boolSetting("xpack.vectors.enabled", true, Setting.Property.NodeScope);
->>>>>>> elastic/master
+
+    /** Setting for enabling or disabling the voting-only-node functionality. Needs to be enabled on both voting-only nodes and regular
+     *  master-eligible nodes for the voting-only functionality to work correctly. Defaults to true. */
+    public static final Setting<Boolean> VOTING_ONLY_ENABLED = Setting.boolSetting("xpack.voting_only.enabled", true,
+        Setting.Property.NodeScope);
 
     /*
      * SSL settings. These are the settings that are specifically registered for SSL. Many are private as we do not explicitly use them
@@ -213,11 +212,8 @@ public class XPackSettings {
         settings.add(PASSWORD_HASHING_ALGORITHM);
         settings.add(INDEX_LIFECYCLE_ENABLED);
         settings.add(DATA_FRAME_ENABLED);
-<<<<<<< HEAD
-        settings.add(VOTING_ONLY_NODE_ENABLED);
-=======
         settings.add(VECTORS_ENABLED);
->>>>>>> elastic/master
+        settings.add(VOTING_ONLY_ENABLED);
         return Collections.unmodifiableList(settings);
     }
 

@@ -34,7 +34,7 @@ public class VotingOnlyNodeFeatureSet implements XPackFeatureSet {
 
     @Inject
     public VotingOnlyNodeFeatureSet(Settings settings, @Nullable XPackLicenseState licenseState) {
-        this.enabled = XPackSettings.VOTING_ONLY_NODE_ENABLED.get(settings);
+        this.enabled = XPackSettings.VOTING_ONLY_ENABLED.get(settings);
         this.licenseState = licenseState;
     }
 
@@ -51,11 +51,6 @@ public class VotingOnlyNodeFeatureSet implements XPackFeatureSet {
     @Override
     public boolean enabled() {
         return enabled;
-    }
-
-    @Override
-    public Map<String, Object> nativeCodeInfo() {
-        return null;
     }
 
     public static class UsageTransportAction extends XPackUsageFeatureTransportAction {
@@ -77,7 +72,7 @@ public class VotingOnlyNodeFeatureSet implements XPackFeatureSet {
         protected void masterOperation(XPackUsageRequest request, ClusterState state, ActionListener<XPackUsageFeatureResponse> listener) {
             final boolean available = licenseState.isVotingOnlyNodeAllowed();
             final VotingOnlyNodeFeatureSetUsage usage =
-                new VotingOnlyNodeFeatureSetUsage(available, XPackSettings.VOTING_ONLY_NODE_ENABLED.get(settings));
+                new VotingOnlyNodeFeatureSetUsage(available, XPackSettings.VOTING_ONLY_ENABLED.get(settings));
             listener.onResponse(new XPackUsageFeatureResponse(usage));
         }
     }

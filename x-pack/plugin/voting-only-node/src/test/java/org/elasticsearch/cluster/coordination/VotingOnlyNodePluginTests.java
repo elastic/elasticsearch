@@ -43,9 +43,9 @@ public class VotingOnlyNodePluginTests extends ESIntegTestCase {
         internalCluster().setBootstrapMasterNodeIndex(0);
         IllegalStateException ise = expectThrows(IllegalStateException.class, () -> internalCluster().startNode(Settings.builder()
             .put(VotingOnlyNodePlugin.VOTING_ONLY_NODE_SETTING.getKey(), true)
-            .put(XPackSettings.VOTING_ONLY_NODE_ENABLED.getKey(), false)
+            .put(XPackSettings.VOTING_ONLY_ENABLED.getKey(), false)
             .build()));
-        assertThat(ise.getMessage(), containsString(XPackSettings.VOTING_ONLY_NODE_ENABLED.getKey() + " must be set to true to use the " +
+        assertThat(ise.getMessage(), containsString(XPackSettings.VOTING_ONLY_ENABLED.getKey() + " must be set to true to use the " +
             VotingOnlyNodePlugin.VOTING_ONLY_NODE_SETTING.getKey() + " setting"));
     }
 
@@ -57,6 +57,8 @@ public class VotingOnlyNodePluginTests extends ESIntegTestCase {
             hasSize(3)));
         assertThat(client().admin().cluster().prepareClusterStats().get().getNodesStats().getCounts().getRoles().get(
             VotingOnlyNodePlugin.VOTING_ONLY_NODE_ROLE.roleName()).intValue(), equalTo(1));
+        assertThat(client().admin().cluster().prepareNodesStats("voting_only:true").get().getNodes(), hasSize(1));
+        assertThat(client().admin().cluster().prepareNodesStats("master:true", "voting_only:false").get().getNodes(), hasSize(2));
     }
 
     public void testPreferFullMasterOverVotingOnlyNodes() throws Exception {

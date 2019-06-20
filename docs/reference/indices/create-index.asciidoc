@@ -8,7 +8,7 @@ Create an index.
 
 [float]
 [[indices-create-index-request]]
-=== Request
+=== {api-request-title}
 
 [source,js]
 ----
@@ -18,12 +18,12 @@ PUT <index>
 
 [float]
 [[sample-api-desc]]
-=== Description
+=== {api-description-title}
 You can use the create index API to manually create an index in {es}.
 
 [float]
 [[indices-create-index-path-params]]
-=== Path parameters
+=== {api-path-parms-title}
 
 `<index>` (Required)::
 +
@@ -46,7 +46,7 @@ include the following characters: `\`, `/`, `*`, `?`, `"`, `<`, `>`, `|`, ` `
 
 [float]
 [[indices-create-index-query-params]]
-=== Query parameters
+=== {api-query-parms-title}
 
 [[create-index-wait-for-active-shards]]
 `wait_for_active_shards` (Optional)::
@@ -58,7 +58,7 @@ include::{docdir}/rest-api/timeoutparms.asciidoc[]
 
 [float]
 [[indices-create-index-request-body]]
-=== Request body
+=== {api-request-body-title}
 
 [[create-index-settings]]
 `settings` (Optional)::
@@ -77,7 +77,7 @@ aliases>>.
 
 [float]
 [[indices-create-index-response-body]]
-=== Response body
+=== {api-response-body-title}
 
 `acknowledged`::
 +
@@ -104,7 +104,7 @@ If `false`, it is possible that {es} still successfully created the index. A
 
 [float]
 [[indices-create-index-example]]
-=== Example
+=== {api-example-title}
 
 [source,js]
 ----

@@ -30,6 +30,7 @@ import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.disruption.DisruptableMockTransport.ConnectionStatus;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequest;
@@ -53,6 +54,7 @@ import java.util.function.Consumer;
 
 import static org.elasticsearch.transport.TransportService.NOOP_TRANSPORT_INTERCEPTOR;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.endsWith;
 
 public class DisruptableMockTransportTests extends ESTestCase {
 
@@ -398,5 +400,28 @@ public class DisruptableMockTransportTests extends ESTestCase {
 
         deterministicTaskQueue.runAllRunnableTasks();
         assertTrue(responseHandlerCalled.get());
+    }
+
+    public void testBrokenLinkFailsToConnect() {
+        service1.disconnectFromNode(node2);
+
+        disconnectedLinks.add(Tuple.tuple(node1, node2));
+        assertThat(expectThrows(ConnectTransportException.class, () -> service1.connectToNode(node2)).getMessage(),
+            endsWith("is [DISCONNECTED] not [CONNECTED]"));
+        disconnectedLinks.clear();
+
+        blackholedLinks.add(Tuple.tuple(node1, node2));
+        assertThat(expectThrows(ConnectTransportException.class, () -> service1.connectToNode(node2)).getMessage(),
+            endsWith("is [BLACK_HOLE] not [CONNECTED]"));
+        blackholedLinks.clear();
+
+        blackholedRequestLinks.add(Tuple.tuple(node1, node2));
+        assertThat(expectThrows(ConnectTransportException.class, () -> service1.connectToNode(node2)).getMessage(),
+            endsWith("is [BLACK_HOLE_REQUESTS_ONLY] not [CONNECTED]"));
+        blackholedRequestLinks.clear();
+
+        final DiscoveryNode node3 = new DiscoveryNode("node3", buildNewFakeTransportAddress(), Version.CURRENT);
+        assertThat(expectThrows(ConnectTransportException.class, () -> service1.connectToNode(node3)).getMessage(),
+            endsWith("does not exist"));
     }
 }

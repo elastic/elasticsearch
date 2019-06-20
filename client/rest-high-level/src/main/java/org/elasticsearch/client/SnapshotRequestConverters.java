@@ -108,7 +108,7 @@ final class SnapshotRequestConverters {
 
     static Request getSnapshots(GetSnapshotsRequest getSnapshotsRequest) {
         RequestConverters.EndpointBuilder endpointBuilder = new RequestConverters.EndpointBuilder().addPathPartAsIs("_snapshot")
-            .addPathPart(getSnapshotsRequest.repository());
+            .addCommaSeparatedPathParts(getSnapshotsRequest.repositories());
         String endpoint;
         if (getSnapshotsRequest.snapshots().length == 0) {
             endpoint = endpointBuilder.addPathPart("_all").build();

@@ -31,7 +31,7 @@ public class LineTests extends BaseGeometryTestCase<Line> {
     }
 
     public void testBasicSerialization() throws IOException, ParseException {
-        WellKnownText wkt = new WellKnownText();
+        WellKnownText wkt = new WellKnownText(true, true);
         assertEquals("linestring (3.0 1.0, 4.0 2.0)", wkt.toWKT(new Line(new double[]{1, 2}, new double[]{3, 4})));
         assertEquals(new Line(new double[]{1, 2}, new double[]{3, 4}), wkt.fromWKT("linestring (3 1, 4 2)"));
 
@@ -53,5 +53,11 @@ public class LineTests extends BaseGeometryTestCase<Line> {
 
         ex = expectThrows(IllegalArgumentException.class, () -> new Line(new double[]{1, 100, 3, 1}, new double[]{3, 4, 5, 3}));
         assertEquals("invalid latitude 100.0; must be between -90.0 and 90.0", ex.getMessage());
+    }
+
+    public void testWKTValidation() {
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class,
+            () -> new WellKnownText(randomBoolean(), false).fromWKT("linestring (3 1 6, 4 2 5)"));
+        assertEquals("found Z value [6.0] but [ignore_z_value] parameter is [false]", ex.getMessage());
     }
 }

@@ -36,13 +36,20 @@ Retrieves usage information for {dataframe-transforms}.
   specify one of these options, the API returns information for all
   {dataframe-transforms}.
 
+`from`::
+    (integer) Skips the specified number of {dataframe-transforms}. The
+    default value is `0`.
+
+`size`::
+    (integer) Specifies the maximum number of {dataframe-transforms} to obtain. The default value is `100`.
 
 ==== Results
 
 The API returns the following information:
 
 `transforms`::
-  (array) An array of statistics objects for {dataframe-transforms}.
+  (array) An array of statistics objects for {dataframe-transforms}, which are
+  sorted by the `id` value in ascending order.
 
 ==== Authorization
 
@@ -53,6 +60,16 @@ see {stack-ov}/security-privileges.html[Security privileges] and
 {stack-ov}/built-in-roles.html[Built-in roles].
 
 ==== Examples
+
+The following example skips for the first five {dataframe-transforms} and
+gets usage information for a maximum of ten results: 
+
+[source,js]
+--------------------------------------------------
+GET _data_frame/transforms/_stats?from=5&size=10
+--------------------------------------------------
+// CONSOLE
+// TEST[skip:todo]
 
 The following example gets usage information for the `ecommerce_transform`
 {dataframe-transform}:

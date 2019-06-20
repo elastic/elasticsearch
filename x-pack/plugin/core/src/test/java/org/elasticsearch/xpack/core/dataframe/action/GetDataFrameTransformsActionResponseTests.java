@@ -32,7 +32,7 @@ public class GetDataFrameTransformsActionResponseTests extends AbstractWireSeria
         transforms.add(DataFrameTransformConfigTests.randomDataFrameTransformConfig());
         transforms.add(DataFrameTransformConfigTests.randomInvalidDataFrameTransformConfig());
 
-        Response r = new Response(transforms);
+        Response r = new Response(transforms, transforms.size());
         XContentBuilder builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
         r.toXContent(builder, XContent.EMPTY_PARAMS);
         Map<String, Object> responseAsMap = createParser(builder).map();
@@ -52,7 +52,7 @@ public class GetDataFrameTransformsActionResponseTests extends AbstractWireSeria
             transforms.add(DataFrameTransformConfigTests.randomDataFrameTransformConfig());
         }
 
-        Response r = new Response(transforms);
+        Response r = new Response(transforms, transforms.size());
         XContentBuilder builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
         r.toXContent(builder, XContent.EMPTY_PARAMS);
         Map<String, Object> responseAsMap = createParser(builder).map();
@@ -76,7 +76,7 @@ public class GetDataFrameTransformsActionResponseTests extends AbstractWireSeria
             configs.add(DataFrameTransformConfigTests.randomDataFrameTransformConfig());
         }
 
-        return new Response(configs);
+        return new Response(configs, randomNonNegativeLong());
     }
 
     @Override

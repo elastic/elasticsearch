@@ -450,6 +450,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             // TODO: We shouldn't be blanket catching and suppressing all exceptions here and instead handle them safely upstream.
             //       Currently this catch exists as a stop gap solution to tackle unexpected runtime exceptions from implementations
             //       bubbling up and breaking the snapshot functionality.
+            assert false;
             logger.warn(new ParameterizedMessage("[{}] Exception during cleanup of stale indices", metadata.name()), e);
         }
     }
@@ -515,13 +516,9 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             startTime, failure, System.currentTimeMillis(), totalShards, shardFailures,
             includeGlobalState, userMetadata);
         try {
-            final BlobContainer indicesBlobContainer = blobStore().blobContainer(basePath().add("indices"));
-            final Map<String, BlobContainer> foundIndices = indicesBlobContainer.children();
             final RepositoryData updatedRepositoryData = getRepositoryData().addSnapshot(snapshotId, blobStoreSnapshot.state(), indices);
-            final var survivingIndices = updatedRepositoryData.getIndices();
             snapshotFormat.write(blobStoreSnapshot, blobContainer(), snapshotId.getUUID());
             writeIndexGen(updatedRepositoryData, repositoryStateId);
-            cleanupStaleIndices(foundIndices, survivingIndices);
         } catch (FileAlreadyExistsException ex) {
             // if another master was elected and took over finalizing the snapshot, it is possible
             // that both nodes try to finalize the snapshot and write to the same blobs, so we just

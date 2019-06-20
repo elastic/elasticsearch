@@ -181,8 +181,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         Client client = client();
 
         logger.info("-->  creating repository");
-        final String repoName = "test-repo";
-        assertAcked(client.admin().cluster().preparePutRepository(repoName).setType("fs").setSettings(randomRepoSettings()));
+        assertAcked(client.admin().cluster().preparePutRepository("test-repo").setType("fs").setSettings(randomRepoSettings()));
 
         createIndex("test-idx-1", "test-idx-2", "test-idx-3");
         ensureGreen();
@@ -365,10 +364,9 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
 
     public void testFreshIndexUUID() throws InterruptedException {
         Client client = client();
-        final String repoName = "test-repo";
 
         logger.info("-->  creating repository");
-        assertAcked(client.admin().cluster().preparePutRepository(repoName).setType("fs").setSettings(randomRepoSettings()));
+        assertAcked(client.admin().cluster().preparePutRepository("test-repo").setType("fs").setSettings(randomRepoSettings()));
 
         createIndex("test");
         String originalIndexUUID = client().admin().indices().prepareGetSettings("test").get()
@@ -376,7 +374,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         assertTrue(originalIndexUUID, originalIndexUUID != null);
         assertFalse(originalIndexUUID, originalIndexUUID.equals(IndexMetaData.INDEX_UUID_NA_VALUE));
         ensureGreen();
-        CreateSnapshotResponse createSnapshotResponse = client.admin().cluster().prepareCreateSnapshot(repoName, "test-snap")
+        CreateSnapshotResponse createSnapshotResponse = client.admin().cluster().prepareCreateSnapshot("test-repo", "test-snap")
             .setWaitForCompletion(true).setIndices("test").get();
         assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), greaterThan(0));
         assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(),
@@ -396,7 +394,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         client.admin().indices().prepareClose("test").get();
 
         logger.info("--> restore all indices from the snapshot");
-        RestoreSnapshotResponse restoreSnapshotResponse = client.admin().cluster().prepareRestoreSnapshot(repoName, "test-snap")
+        RestoreSnapshotResponse restoreSnapshotResponse = client.admin().cluster().prepareRestoreSnapshot("test-repo", "test-snap")
             .setWaitForCompletion(true).execute().actionGet();
         assertThat(restoreSnapshotResponse.getRestoreInfo().totalShards(), greaterThan(0));
 
@@ -407,7 +405,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
             newIndexUUID.equals(newAfterRestoreIndexUUID));
 
         logger.info("--> restore indices with different names");
-        restoreSnapshotResponse = client.admin().cluster().prepareRestoreSnapshot(repoName, "test-snap")
+        restoreSnapshotResponse = client.admin().cluster().prepareRestoreSnapshot("test-repo", "test-snap")
                 .setRenamePattern("(.+)").setRenameReplacement("$1-copy").setWaitForCompletion(true).execute().actionGet();
         assertThat(restoreSnapshotResponse.getRestoreInfo().totalShards(), greaterThan(0));
 
@@ -783,7 +781,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
     }
 
     public void testSnapshotFileFailureDuringSnapshot() throws InterruptedException {
-        disableRepoConsistencyCheck("This test uses a purposely broken repository so it would fail consistency checks.");
+        disableRepoConsistencyCheck("This test uses a purposely broken repository so it would fail consistency checks");
         Client client = client();
 
         logger.info("-->  creating repository");
@@ -910,6 +908,8 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
     }
 
     public void testDataFileFailureDuringRestore() throws Exception {
+        disableRepoConsistencyCheck("This test intentionally leaves a broken repository");
+
         Path repositoryLocation = randomRepoPath();
         Client client = client();
         logger.info("-->  creating repository");
@@ -973,6 +973,8 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
     }
 
     public void testDataFileCorruptionDuringRestore() throws Exception {
+        disableRepoConsistencyCheck("This test intentionally leaves a broken repository");
+
         Path repositoryLocation = randomRepoPath();
         Client client = client();
         logger.info("-->  creating repository");
@@ -1851,7 +1853,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
     }
 
     public void testDeleteRepositoryWhileSnapshotting() throws Exception {
-        disableRepoConsistencyCheck("This test uses a purposely broken repository so it would fail consistency checks.");
+        disableRepoConsistencyCheck("This test uses a purposely broken repository so it would fail consistency checks");
         Client client = client();
         Path repositoryLocation = randomRepoPath();
         logger.info("-->  creating repository");
@@ -2503,6 +2505,8 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
     }
 
     public void testCloseOrDeleteIndexDuringSnapshot() throws Exception {
+        disableRepoConsistencyCheck("This test intentionally leaves a broken repository");
+
         Client client = client();
 
         boolean allowPartial = randomBoolean();
@@ -2824,7 +2828,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
     }
 
     public void testSnapshotName() throws Exception {
-        disableRepoConsistencyCheck("This test does not create any data in the repository.");
+        disableRepoConsistencyCheck("This test does not create any data in the repository");
 
         final Client client = client();
 
@@ -2847,6 +2851,8 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
     }
 
     public void testListCorruptedSnapshot() throws Exception {
+        disableRepoConsistencyCheck("This test intentionally leaves a broken repository");
+
         Client client = client();
         Path repo = randomRepoPath();
         logger.info("-->  creating repository at {}", repo.toAbsolutePath());

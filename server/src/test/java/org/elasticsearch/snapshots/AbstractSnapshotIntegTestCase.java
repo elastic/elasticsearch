@@ -75,7 +75,16 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
             client().admin().cluster().prepareGetRepositories().get().repositories()
                 .stream()
                 .map(RepositoryMetaData::name)
-                .forEach(name -> BlobStoreTestUtil.assertRepoConsistency(internalCluster(), name));
+                .forEach(name -> {
+                    final List<SnapshotInfo> snapshots = client().admin().cluster().prepareGetSnapshots(name).get().getSnapshots(name);
+                    // Delete one random snapshot to trigger repository cleanup.
+                    if (snapshots.isEmpty() == false) {
+                        client().admin().cluster().prepareDeleteSnapshot(name, randomFrom(snapshots).snapshotId().getName()).get();
+                    }
+                    BlobStoreTestUtil.assertRepoConsistency(internalCluster(), name);
+                });
+        } else {
+            logger.info("--> skipped repo consistency checks because [{}]" ,skipRepoConsistencyCheckReason);
         }
     }
 

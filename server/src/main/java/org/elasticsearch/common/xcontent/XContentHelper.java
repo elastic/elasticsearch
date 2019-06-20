@@ -354,7 +354,9 @@ public class XContentHelper {
             if (toXContent.isFragment()) {
                 builder.endObject();
             }
-            return BytesReference.bytes(builder);
+            BytesReference bytes = BytesReference.bytes(builder);
+            System.err.println(new String(bytes.toBytesRef().bytes));
+            return bytes;
         }
     }
 

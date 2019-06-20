@@ -174,7 +174,7 @@ public class StableMasterDisruptionIT extends ESIntegTestCase {
      * following another elected master node. These nodes should reject this cluster state and prevent them from following the stale master.
      */
     @TestLogging("_root:DEBUG,org.elasticsearch.cluster.service:TRACE")
-    // https://github.com/elastic/elasticsearch/issues/43392
+    // TestLogging for https://github.com/elastic/elasticsearch/issues/43392
     public void testStaleMasterNotHijackingMajority() throws Exception {
         final List<String> nodes = internalCluster().startNodes(3, Settings.builder()
             .put(LeaderChecker.LEADER_CHECK_TIMEOUT_SETTING.getKey(), "1s")

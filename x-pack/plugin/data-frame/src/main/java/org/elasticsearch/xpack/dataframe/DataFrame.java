@@ -39,6 +39,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 import org.elasticsearch.xpack.core.dataframe.action.DeleteDataFrameTransformAction;
 import org.elasticsearch.xpack.core.dataframe.action.GetDataFrameTransformsAction;
@@ -126,7 +127,7 @@ public class DataFrame extends Plugin implements ActionPlugin, PersistentTaskPlu
     @Override
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
         var usageAction = new ActionHandler<>(XPackUsageFeatureAction.DATA_FRAME, DataFrameUsageTransportAction.class);
-        var infoAction = new ActionHandler<>(XPackUsageFeatureAction.DATA_FRAME, DataFrameUsageTransportAction.class);
+        var infoAction = new ActionHandler<>(XPackInfoFeatureAction.DATA_FRAME, DataFrameInfoTransportAction.class);
         if (enabled == false) {
             return Arrays.asList(usageAction, infoAction);
         }

@@ -246,29 +246,20 @@ public class RestController implements HttpServerTransport.Dispatcher {
         } else {
             // Get the map of matching handlers for a request, for the full set of HTTP methods.
             final Set<RestRequest.Method> validMethodSet = getValidHandlerMethodSet(request);
-
-            try {
-                // this will throws an exception if the method is invalid
-                final RestRequest.Method requestMethod = request.method();
-
-                if (validMethodSet.size() > 0
-                    && validMethodSet.contains(requestMethod) == false
-                    && requestMethod != RestRequest.Method.OPTIONS) {
-                    // If an alternative handler for an explicit path is registered to a
-                    // different HTTP method than the one supplied - return a 405 Method
-                    // Not Allowed error.
-                    handleUnsupportedHttpMethod(request, channel, validMethodSet, null);
-                    requestHandled = true;
-                } else if (validMethodSet.contains(requestMethod) == false
-                    && (requestMethod == RestRequest.Method.OPTIONS)) {
-                    handleOptionsRequest(request, channel, validMethodSet);
-                    requestHandled = true;
-                } else {
-                    requestHandled = false;
-                }
-            } catch (IllegalArgumentException e) {
-                handleUnsupportedHttpMethod(request, channel, validMethodSet, e);
+            if (validMethodSet.size() > 0
+                && validMethodSet.contains(request.method()) == false
+                && request.method() != RestRequest.Method.OPTIONS) {
+                // If an alternative handler for an explicit path is registered to a
+                // different HTTP method than the one supplied - return a 405 Method
+                // Not Allowed error.
+                handleUnsupportedHttpMethod(request, channel, validMethodSet, null);
                 requestHandled = true;
+            } else if (validMethodSet.contains(request.method()) == false
+                && (request.method() == RestRequest.Method.OPTIONS)) {
+                handleOptionsRequest(request, channel, validMethodSet);
+                requestHandled = true;
+            } else {
+                requestHandled = false;
             }
         }
         // Return true if the request was handled, false otherwise.
@@ -338,20 +329,27 @@ public class RestController implements HttpServerTransport.Dispatcher {
             return;
         }
 
-        final RestRequest.Method requestMethod = requestMethodOrNull(request);
+        try {
+            // Resolves the HTTP method and fails if the method is invalid
+            final RestRequest.Method requestMethod = request.method();
 
-        // Loop through all possible handlers, attempting to dispatch the request
-        Iterator<MethodHandlers> allHandlers = getAllHandlers(request);
-        for (Iterator<MethodHandlers> it = allHandlers; it.hasNext(); ) {
-            Optional<RestHandler> mHandler = Optional.empty();
-            if (requestMethod != null) {
-                mHandler = Optional.ofNullable(it.next()).flatMap(mh -> mh.getHandler(requestMethod));
+            // Loop through all possible handlers, attempting to dispatch the request
+            Iterator<MethodHandlers> allHandlers = getAllHandlers(request);
+            for (Iterator<MethodHandlers> it = allHandlers; it.hasNext(); ) {
+                Optional<RestHandler> mHandler = Optional.empty();
+                if (requestMethod != null) {
+                    mHandler = Optional.ofNullable(it.next()).flatMap(mh -> mh.getHandler(requestMethod));
+                }
+                requestHandled = dispatchRequest(request, channel, client, mHandler);
+                if (requestHandled) {
+                    break;
+                }
             }
-            requestHandled = dispatchRequest(request, channel, client, mHandler);
-            if (requestHandled) {
-                break;
-            }
+        } catch (final IllegalArgumentException e) {
+            handleUnsupportedHttpMethod(request, channel, getValidHandlerMethodSet(request), e);
+            requestHandled = true;
         }
+
 
         // If request has not been handled, fallback to a bad request error.
         if (requestHandled == false) {
@@ -544,16 +542,5 @@ public class RestController implements HttpServerTransport.Dispatcher {
     private static CircuitBreaker inFlightRequestsBreaker(CircuitBreakerService circuitBreakerService) {
         // We always obtain a fresh breaker to reflect changes to the breaker configuration.
         return circuitBreakerService.getBreaker(CircuitBreaker.IN_FLIGHT_REQUESTS);
-    }
-
-    /**
-     * Returns the HTTP method of the {@link RestRequest}, or {@code null} if the method is invalid;
-     */
-    private static RestRequest.Method requestMethodOrNull(final RestRequest request) {
-        try {
-            return request.method();
-        } catch (IllegalArgumentException ignored) {
-            return null;
-        }
     }
 }

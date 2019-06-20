@@ -38,14 +38,15 @@ import static org.hamcrest.core.Is.is;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class MonitoringFeatureSetTests extends ESTestCase {
+public class MonitoringInfoTransportActionTests extends ESTestCase {
 
     private final MonitoringService monitoring = mock(MonitoringService.class);
     private final XPackLicenseState licenseState = mock(XPackLicenseState.class);
     private final Exporters exporters = mock(Exporters.class);
 
     public void testAvailable() {
-        MonitoringFeatureSet featureSet = new MonitoringFeatureSet(Settings.EMPTY, licenseState);
+        MonitoringInfoTransportAction featureSet = new MonitoringInfoTransportAction(
+            mock(TransportService.class), mock(ActionFilters.class), Settings.EMPTY, licenseState);
         boolean available = randomBoolean();
         when(licenseState.isMonitoringAllowed()).thenReturn(available);
         assertThat(featureSet.available(), is(available));
@@ -55,12 +56,14 @@ public class MonitoringFeatureSetTests extends ESTestCase {
         boolean enabled = randomBoolean();
         Settings.Builder settings = Settings.builder();
         settings.put("xpack.monitoring.enabled", enabled);
-        MonitoringFeatureSet featureSet = new MonitoringFeatureSet(settings.build(), licenseState);
+        MonitoringInfoTransportAction featureSet = new MonitoringInfoTransportAction(
+            mock(TransportService.class), mock(ActionFilters.class), settings.build(), licenseState);
         assertThat(featureSet.enabled(), is(enabled));
     }
 
     public void testEnabledDefault() {
-        MonitoringFeatureSet featureSet = new MonitoringFeatureSet(Settings.EMPTY, licenseState);
+        MonitoringInfoTransportAction featureSet = new MonitoringInfoTransportAction(
+            mock(TransportService.class), mock(ActionFilters.class), Settings.EMPTY, licenseState);
         assertThat(featureSet.enabled(), is(true));
     }
 
@@ -99,7 +102,7 @@ public class MonitoringFeatureSetTests extends ESTestCase {
         when(exporters.getEnabledExporters()).thenReturn(exporterList);
         when(monitoring.isMonitoringActive()).thenReturn(collectionEnabled);
 
-        var usageAction = new MonitoringFeatureSet.UsageTransportAction(mock(TransportService.class), null, null,
+        var usageAction = new MonitoringUsageTransportAction(mock(TransportService.class), null, null,
             mock(ActionFilters.class), null, Settings.EMPTY,licenseState,  monitoring, exporters);
         PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();
         usageAction.masterOperation(null, null, future);

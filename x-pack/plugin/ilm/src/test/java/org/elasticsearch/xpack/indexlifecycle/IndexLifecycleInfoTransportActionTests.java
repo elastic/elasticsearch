@@ -42,7 +42,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class IndexLifecycleFeatureSetTests extends ESTestCase {
+public class IndexLifecycleInfoTransportActionTests extends ESTestCase {
 
     private XPackLicenseState licenseState;
     private ClusterService clusterService;
@@ -54,7 +54,8 @@ public class IndexLifecycleFeatureSetTests extends ESTestCase {
     }
 
     public void testAvailable() {
-        IndexLifecycleFeatureSet featureSet = new IndexLifecycleFeatureSet(Settings.EMPTY, licenseState);
+        IndexLifecycleInfoTransportAction featureSet = new IndexLifecycleInfoTransportAction(
+            mock(TransportService.class), mock(ActionFilters.class), Settings.EMPTY, licenseState);
 
         when(licenseState.isIndexLifecycleAllowed()).thenReturn(false);
         assertThat(featureSet.available(), equalTo(false));
@@ -62,22 +63,26 @@ public class IndexLifecycleFeatureSetTests extends ESTestCase {
         when(licenseState.isIndexLifecycleAllowed()).thenReturn(true);
         assertThat(featureSet.available(), equalTo(true));
 
-        featureSet = new IndexLifecycleFeatureSet(Settings.EMPTY, null);
+        featureSet = new IndexLifecycleInfoTransportAction(
+            mock(TransportService.class), mock(ActionFilters.class), Settings.EMPTY, null);
         assertThat(featureSet.available(), equalTo(false));
     }
 
     public void testEnabled() {
         Settings.Builder settings = Settings.builder().put("xpack.ilm.enabled", false);
-        IndexLifecycleFeatureSet featureSet = new IndexLifecycleFeatureSet(settings.build(), licenseState);
+        IndexLifecycleInfoTransportAction featureSet = new IndexLifecycleInfoTransportAction(
+            mock(TransportService.class), mock(ActionFilters.class), settings.build(), licenseState);
         assertThat(featureSet.enabled(), equalTo(false));
 
         settings = Settings.builder().put("xpack.ilm.enabled", true);
-        featureSet = new IndexLifecycleFeatureSet(settings.build(), licenseState);
+        featureSet = new IndexLifecycleInfoTransportAction(
+            mock(TransportService.class), mock(ActionFilters.class), settings.build(), licenseState);
         assertThat(featureSet.enabled(), equalTo(true));
     }
 
     public void testName() {
-        IndexLifecycleFeatureSet featureSet = new IndexLifecycleFeatureSet(Settings.EMPTY, licenseState);
+        IndexLifecycleInfoTransportAction featureSet = new IndexLifecycleInfoTransportAction(
+            mock(TransportService.class), mock(ActionFilters.class), Settings.EMPTY, licenseState);
         assertThat(featureSet.name(), equalTo("ilm"));
     }
 
@@ -108,7 +113,7 @@ public class IndexLifecycleFeatureSetTests extends ESTestCase {
         ClusterState clusterState = buildClusterState(policies, indexPolicies);
         Mockito.when(clusterService.state()).thenReturn(clusterState);
 
-        var usageAction = new IndexLifecycleFeatureSet.UsageTransportAction(mock(TransportService.class), null, null,
+        var usageAction = new IndexLifecycleUsageTransportAction(mock(TransportService.class), null, null,
             mock(ActionFilters.class), null, Settings.EMPTY, licenseState);
         PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();
         usageAction.masterOperation(null, clusterState, future);

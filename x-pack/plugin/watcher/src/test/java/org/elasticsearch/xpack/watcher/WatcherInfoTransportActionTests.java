@@ -47,7 +47,7 @@ import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class WatcherFeatureSetTests extends ESTestCase {
+public class WatcherInfoTransportActionTests extends ESTestCase {
 
     private XPackLicenseState licenseState;
     private Client client;
@@ -63,7 +63,8 @@ public class WatcherFeatureSetTests extends ESTestCase {
     }
 
     public void testAvailable() {
-        WatcherFeatureSet featureSet = new WatcherFeatureSet(Settings.EMPTY, licenseState);
+        WatcherInfoTransportAction featureSet = new WatcherInfoTransportAction(
+            mock(TransportService.class), mock(ActionFilters.class), Settings.EMPTY, licenseState);
         boolean available = randomBoolean();
         when(licenseState.isWatcherAllowed()).thenReturn(available);
         assertThat(featureSet.available(), is(available));
@@ -79,7 +80,8 @@ public class WatcherFeatureSetTests extends ESTestCase {
         } else {
             settings.put("xpack.watcher.enabled", enabled);
         }
-        WatcherFeatureSet featureSet = new WatcherFeatureSet(settings.build(), licenseState);
+        WatcherInfoTransportAction featureSet = new WatcherInfoTransportAction(
+            mock(TransportService.class), mock(ActionFilters.class), settings.build(), licenseState);
         assertThat(featureSet.enabled(), is(enabled));
     }
 
@@ -110,7 +112,7 @@ public class WatcherFeatureSetTests extends ESTestCase {
             return null;
         }).when(client).execute(eq(WatcherStatsAction.INSTANCE), any(), any());
 
-        var usageAction = new WatcherFeatureSet.UsageTransportAction(mock(TransportService.class), null, null,
+        var usageAction = new WatcherUsageTransportAction(mock(TransportService.class), null, null,
             mock(ActionFilters.class), null, Settings.EMPTY, licenseState, client);
         PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();
         usageAction.masterOperation(null, null, future);

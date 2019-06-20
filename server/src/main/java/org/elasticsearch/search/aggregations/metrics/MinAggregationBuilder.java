@@ -89,16 +89,6 @@ public class MinAggregationBuilder extends ValuesSourceAggregationBuilder.LeafOn
     }
 
     @Override
-    protected int innerHashCode() {
-        return 0;
-    }
-
-    @Override
-    protected boolean innerEquals(Object obj) {
-        return true;
-    }
-
-    @Override
     public String getType() {
         return NAME;
     }

@@ -44,7 +44,7 @@ public class TransportGetDataFrameTransformsAction extends AbstractTransportGetR
     @Override
     protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
         searchResources(request, ActionListener.wrap(
-            r -> listener.onResponse(new Response(r.results())),
+            r -> listener.onResponse(new Response(r.results(), r.count())),
             listener::onFailure
         ));
     }

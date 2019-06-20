@@ -74,7 +74,7 @@ public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTest
     private List<String> transformsToClean = new ArrayList<>();
 
     @After
-    public void cleanUpTransforms() throws IOException {
+    public void cleanUpTransforms() throws Exception {
         for (String transformId : transformsToClean) {
             highLevelClient().dataFrame().stopDataFrameTransform(
                     new StopDataFrameTransformRequest(transformId, Boolean.TRUE, TimeValue.timeValueSeconds(20)), RequestOptions.DEFAULT);
@@ -86,6 +86,7 @@ public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTest
         }
 
         transformsToClean = new ArrayList<>();
+        waitForPendingTasks(adminClient());
     }
 
     private void createIndex(String indexName) throws IOException {
@@ -124,6 +125,11 @@ public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTest
             .setIndex("source-index")
             .setQueryConfig(queryConfig).build();
         // end::put-data-frame-transform-source-config
+        // tag::put-data-frame-transform-dest-config
+        DestConfig destConfig = DestConfig.builder()
+            .setIndex("pivot-destination")
+            .setPipeline("my-pipeline").build();
+        // end::put-data-frame-transform-dest-config
         // tag::put-data-frame-transform-group-config
         GroupConfig groupConfig = GroupConfig.builder()
             .groupBy("reviewer", // <1>
@@ -148,7 +154,7 @@ public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTest
             .builder()
             .setId("reviewer-avg-rating") // <1>
             .setSource(sourceConfig) // <2>
-            .setDest(new DestConfig("pivot-destination")) // <3>
+            .setDest(destConfig) // <3>
             .setPivotConfig(pivotConfig) // <4>
             .setDescription("This is my test transform") // <5>
             .build();
@@ -221,7 +227,7 @@ public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTest
         DataFrameTransformConfig transformConfig = DataFrameTransformConfig.builder()
             .setId("mega-transform")
             .setSource(SourceConfig.builder().setIndex("source-data").setQueryConfig(queryConfig).build())
-            .setDest(new DestConfig("pivot-dest"))
+            .setDest(DestConfig.builder().setIndex("pivot-dest").build())
             .setPivotConfig(pivotConfig)
             .build();
 
@@ -343,7 +349,7 @@ public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTest
                 .setIndex("source-data")
                 .setQuery(new MatchAllQueryBuilder())
                 .build())
-            .setDest(new DestConfig("pivot-dest"))
+            .setDest(DestConfig.builder().setIndex("pivot-dest").build())
             .setPivotConfig(pivotConfig)
             .build();
         DataFrameTransformConfig transformConfig2 = DataFrameTransformConfig.builder()
@@ -352,7 +358,7 @@ public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTest
                 .setIndex("source-data")
                 .setQuery(new MatchAllQueryBuilder())
                 .build())
-            .setDest(new DestConfig("pivot-dest2"))
+            .setDest(DestConfig.builder().setIndex("pivot-dest2").build())
             .setPivotConfig(pivotConfig)
             .build();
 
@@ -487,7 +493,7 @@ public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTest
                 .setIndex("source-data")
                 .setQuery(new MatchAllQueryBuilder())
                 .build())
-            .setDest(new DestConfig("pivot-dest"))
+            .setDest(DestConfig.builder().setIndex("pivot-dest").build())
             .setPivotConfig(pivotConfig)
             .build();
         client.dataFrame().putDataFrameTransform(new PutDataFrameTransformRequest(transformConfig), RequestOptions.DEFAULT);
@@ -573,7 +579,7 @@ public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTest
                 .setIndex("source-data")
                 .setQuery(new MatchAllQueryBuilder())
                 .build())
-            .setDest(new DestConfig("pivot-dest"))
+            .setDest(DestConfig.builder().setIndex("pivot-dest").build())
             .setPivotConfig(pivotConfig)
             .build();
 

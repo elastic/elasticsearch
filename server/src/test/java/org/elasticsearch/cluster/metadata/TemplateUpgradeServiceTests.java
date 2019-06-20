@@ -30,6 +30,7 @@ import org.elasticsearch.client.IndicesAdminClient;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -46,7 +47,6 @@ import org.junit.Before;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -247,8 +247,8 @@ public class TemplateUpgradeServiceTests extends ESTestCase {
         assertThat(service.upgradesInProgress.get(), equalTo(2));
     }
 
-    private static final Set<DiscoveryNode.Role> MASTER_DATA_ROLES =
-        Collections.unmodifiableSet(EnumSet.of(DiscoveryNode.Role.MASTER, DiscoveryNode.Role.DATA));
+    private static final Set<DiscoveryNodeRole> MASTER_DATA_ROLES =
+            Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.DATA_ROLE);
 
     @SuppressWarnings("unchecked")
     public void testClusterStateUpdate() throws InterruptedException {

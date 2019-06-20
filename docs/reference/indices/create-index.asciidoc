@@ -4,7 +4,7 @@
 <titleabbrev>Create index</titleabbrev>
 ++++
 
-Create an index.
+Creates an index.
 
 [float]
 [[indices-create-index-request]]

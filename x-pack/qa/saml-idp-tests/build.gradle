@@ -26,7 +26,7 @@ task setupPorts {
     doLast {
         String portString = idpFixtureProject.postProcessFixture.ext."test.fixtures.shibboleth-idp.tcp.4443"
         int ephemeralPort = Integer.valueOf(portString)
-        File idpMetaFile = file(outputDir + '/idp-metadata.xml')
+        File idpMetaFile = file("$outputDir/idp-metadata.xml")
         List<String> lines = idpMetaFile.readLines("UTF-8")
         StringBuilder content = new StringBuilder()
         for (String line : lines) {

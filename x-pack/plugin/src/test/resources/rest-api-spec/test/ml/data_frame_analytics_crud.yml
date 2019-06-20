@@ -50,7 +50,7 @@ setup:
             "analyzed_fields": [ "obj1.*", "obj2.*" ]
           }
   - match: { id: "simple-outlier-detection-with-query" }
-  - match: { source.index: "index-source" }
+  - match: { source.index: ["index-source"] }
   - match: { source.query: {"term" : { "user" : "Kimchy"} } }
   - match: { dest.index: "index-dest" }
   - match: { analysis: {"outlier_detection":{}} }
@@ -92,7 +92,7 @@ setup:
             "analysis": {"outlier_detection":{}}
           }
   - match: { id: "simple-outlier-detection" }
-  - match: { source.index: "index-source" }
+  - match: { source.index: ["index-source"] }
   - match: { source.query: {"match_all" : {} } }
   - match: { dest.index: "index-dest" }
   - match: { analysis: {"outlier_detection":{}} }
@@ -120,7 +120,7 @@ setup:
             }
           }
   - match: { id: "custom-outlier-detection" }
-  - match: { source.index: "index-source" }
+  - match: { source.index: ["index-source"] }
   - match: { source.query: {"match_all" : {} } }
   - match: { dest.index: "index-dest" }
   - match: { analysis.outlier_detection.n_neighbors: 5 }
@@ -370,16 +370,34 @@ setup:
           }
 
 ---
-"Test put config given source with empty index":
+"Test put config given source with empty index array":
 
   - do:
-      catch: /\[index\] must be non-empty/
+      catch: /source\.index must specify at least one index/
       ml.put_data_frame_analytics:
         id: "simple-outlier-detection"
         body: >
           {
             "source": {
-              "index": ""
+              "index": []
+            },
+            "dest": {
+              "index": "index-dest"
+            },
+            "analysis": {"outlier_detection":{}}
+          }
+
+---
+"Test put config given source with empty string in index array":
+
+  - do:
+      catch: /source\.index must contain non-null and non-empty strings/
+      ml.put_data_frame_analytics:
+        id: "simple-outlier-detection"
+        body: >
+          {
+            "source": {
+              "index": [""]
             },
             "dest": {
               "index": "index-dest"
@@ -832,7 +850,7 @@ setup:
             "analyzed_fields": [ "obj1.*", "obj2.*" ]
           }
   - match: { id: "simple-outlier-detection-with-query" }
-  - match: { source.index: "index-source" }
+  - match: { source.index: ["index-source"] }
   - match: { source.query: {"term" : { "user" : "Kimchy"} } }
   - match: { dest.index: "index-dest" }
   - match: { analysis: {"outlier_detection":{}} }

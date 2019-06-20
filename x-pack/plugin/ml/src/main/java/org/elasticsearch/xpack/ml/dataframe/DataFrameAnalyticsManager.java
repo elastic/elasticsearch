@@ -5,16 +5,20 @@
  */
 package org.elasticsearch.xpack.ml.dataframe;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexAction;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
+import org.elasticsearch.action.admin.indices.get.GetIndexAction;
+import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
+import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
@@ -40,17 +44,17 @@ import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 
 public class DataFrameAnalyticsManager {
 
-    private final ClusterService clusterService;
+    private static final Logger LOGGER = LogManager.getLogger(DataFrameAnalyticsManager.class);
+
     /**
-     * We need a {@link NodeClient} to be get the reindexing task and be able to report progress
+     * We need a {@link NodeClient} to get the reindexing task and be able to report progress
      */
     private final NodeClient client;
     private final DataFrameAnalyticsConfigProvider configProvider;
     private final AnalyticsProcessManager processManager;
 
-    public DataFrameAnalyticsManager(ClusterService clusterService, NodeClient client, DataFrameAnalyticsConfigProvider configProvider,
+    public DataFrameAnalyticsManager(NodeClient client, DataFrameAnalyticsConfigProvider configProvider,
                                      AnalyticsProcessManager processManager) {
-        this.clusterService = Objects.requireNonNull(clusterService);
         this.client = Objects.requireNonNull(client);
         this.configProvider = Objects.requireNonNull(configProvider);
         this.processManager = Objects.requireNonNull(processManager);
@@ -77,7 +81,6 @@ public class DataFrameAnalyticsManager {
                         break;
                     // The task has fully reindexed the documents and we should continue on with our analyses
                     case ANALYZING:
-                        // TODO apply previously stored model state if applicable
                         startAnalytics(task, config, true);
                         break;
                     // If we are already at REINDEXING, we are not 100% sure if we reindexed ALL the docs.
@@ -160,7 +163,27 @@ public class DataFrameAnalyticsManager {
             reindexCompletedListener::onFailure
         );
 
-        DataFrameAnalyticsIndex.createDestinationIndex(client, Clock.systemUTC(), clusterService.state(), config, copyIndexCreatedListener);
+        // Create destination index if it does not exist
+        ActionListener<GetIndexResponse> destIndexListener = ActionListener.wrap(
+            indexResponse -> {
+                LOGGER.info("[{}] Using existing destination index [{}]", config.getId(), indexResponse.indices()[0]);
+                DataFrameAnalyticsIndex.updateMappingsToDestIndex(client, config, indexResponse, ActionListener.wrap(
+                    acknowledgedResponse -> copyIndexCreatedListener.onResponse(null),
+                    copyIndexCreatedListener::onFailure
+                ));
+            },
+            e -> {
+                if (org.elasticsearch.ExceptionsHelper.unwrapCause(e) instanceof IndexNotFoundException) {
+                    LOGGER.info("[{}] Creating destination index [{}]", config.getId(), config.getDest().getIndex());
+                    DataFrameAnalyticsIndex.createDestinationIndex(client, Clock.systemUTC(), config, copyIndexCreatedListener);
+                } else {
+                    copyIndexCreatedListener.onFailure(e);
+                }
+            }
+        );
+
+        ClientHelper.executeWithHeadersAsync(config.getHeaders(), ML_ORIGIN, client, GetIndexAction.INSTANCE,
+                new GetIndexRequest().indices(config.getDest().getIndex()), destIndexListener);
     }
 
     private void startAnalytics(DataFrameAnalyticsTask task, DataFrameAnalyticsConfig config, boolean isTaskRestarting) {

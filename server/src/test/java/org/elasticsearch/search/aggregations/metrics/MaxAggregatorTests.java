@@ -124,9 +124,41 @@ public class MaxAggregatorTests extends AggregatorTestCase {
         });
     }
 
+    public void testUnmappedField() throws IOException {
+        MaxAggregationBuilder aggregationBuilder = new MaxAggregationBuilder("_name").field("number");
+        testCase(aggregationBuilder, new DocValuesFieldExistsQuery("number"), iw -> {
+            iw.addDocument(singleton(new NumericDocValuesField("number", 7)));
+            iw.addDocument(singleton(new NumericDocValuesField("number", 1)));
+        }, max -> {
+            assertEquals(max.getValue(), Double.NEGATIVE_INFINITY, 0);
+            assertFalse(AggregationInspectionHelper.hasValue(max));
+        }, null);
+    }
+
+    public void testUnmappedWithMissingField() throws IOException {
+        MaxAggregationBuilder aggregationBuilder = new MaxAggregationBuilder("_name").field("number").missing(19L);
+
+        testCase(aggregationBuilder, new DocValuesFieldExistsQuery("number"), iw -> {
+            iw.addDocument(singleton(new NumericDocValuesField("number", 7)));
+            iw.addDocument(singleton(new NumericDocValuesField("number", 1)));
+        }, max -> {
+            assertEquals(max.getValue(), 19.0, 0);
+            assertTrue(AggregationInspectionHelper.hasValue(max));
+        }, null);
+    }
+
     private void testCase(Query query,
-                            CheckedConsumer<RandomIndexWriter, IOException> buildIndex,
-                            Consumer<InternalMax> verify) throws IOException {
+                          CheckedConsumer<RandomIndexWriter, IOException> buildIndex,
+                          Consumer<InternalMax> verify) throws IOException {
+        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.INTEGER);
+        fieldType.setName("number");
+        MaxAggregationBuilder aggregationBuilder = new MaxAggregationBuilder("_name").field("number");
+        testCase(aggregationBuilder, query, buildIndex, verify, fieldType);
+    }
+
+    private void testCase(MaxAggregationBuilder aggregationBuilder, Query query,
+                          CheckedConsumer<RandomIndexWriter, IOException> buildIndex,
+                          Consumer<InternalMax> verify, MappedFieldType fieldType) throws IOException {
         Directory directory = newDirectory();
         RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory);
         buildIndex.accept(indexWriter);
@@ -134,10 +166,6 @@ public class MaxAggregatorTests extends AggregatorTestCase {
 
         IndexReader indexReader = DirectoryReader.open(directory);
         IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
-
-        MaxAggregationBuilder aggregationBuilder = new MaxAggregationBuilder("_name").field("number");
-        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.INTEGER);
-        fieldType.setName("number");
 
         MaxAggregator aggregator = createAggregator(query, aggregationBuilder, indexSearcher, createIndexSettings(), fieldType);
         aggregator.preCollection();

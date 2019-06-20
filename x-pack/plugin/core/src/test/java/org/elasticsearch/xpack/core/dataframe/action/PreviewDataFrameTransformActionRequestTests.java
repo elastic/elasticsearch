@@ -40,7 +40,7 @@ public class PreviewDataFrameTransformActionRequestTests extends AbstractSeriali
     @Override
     protected Request createTestInstance() {
         DataFrameTransformConfig config = new DataFrameTransformConfig("transform-preview", randomSourceConfig(),
-                new DestConfig("unused-transform-preview-index"),
+                new DestConfig("unused-transform-preview-index", null),
                 null, PivotConfigTests.randomPivotConfig(), null);
         return new Request(config);
     }

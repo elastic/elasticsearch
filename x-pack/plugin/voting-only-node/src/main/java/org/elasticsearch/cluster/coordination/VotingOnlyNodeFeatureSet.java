@@ -40,7 +40,7 @@ public class VotingOnlyNodeFeatureSet implements XPackFeatureSet {
 
     @Override
     public String name() {
-        return XPackField.VOTING_ONLY_NODE;
+        return XPackField.VOTING_ONLY;
     }
 
     @Override

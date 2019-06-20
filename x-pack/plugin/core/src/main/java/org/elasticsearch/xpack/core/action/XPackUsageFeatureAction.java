@@ -33,10 +33,12 @@ public class XPackUsageFeatureAction extends Action<XPackUsageFeatureResponse> {
     public static final XPackUsageFeatureAction INDEX_LIFECYCLE = new XPackUsageFeatureAction(XPackField.INDEX_LIFECYCLE);
     public static final XPackUsageFeatureAction CCR = new XPackUsageFeatureAction(XPackField.CCR);
     public static final XPackUsageFeatureAction DATA_FRAME = new XPackUsageFeatureAction(XPackField.DATA_FRAME);
-    public static final XPackUsageFeatureAction VOTING_ONLY_NODE = new XPackUsageFeatureAction(XPackField.VOTING_ONLY_NODE);
+    public static final XPackUsageFeatureAction VECTORS = new XPackUsageFeatureAction(XPackField.VECTORS);
+    public static final XPackUsageFeatureAction VOTING_ONLY_NODE = new XPackUsageFeatureAction(XPackField.VOTING_ONLY);
 
     public static final List<XPackUsageFeatureAction> ALL = Arrays.asList(
-        SECURITY, MONITORING, WATCHER, GRAPH, MACHINE_LEARNING, LOGSTASH, SQL, ROLLUP, INDEX_LIFECYCLE, CCR, DATA_FRAME, VOTING_ONLY_NODE
+        SECURITY, MONITORING, WATCHER, GRAPH, MACHINE_LEARNING, LOGSTASH, SQL, ROLLUP, INDEX_LIFECYCLE, CCR, DATA_FRAME, VECTORS,
+        VOTING_ONLY_NODE
     );
 
     private XPackUsageFeatureAction(String name) {

@@ -37,8 +37,10 @@ public final class XPackField {
     public static final String CCR = "ccr";
     /** Name constant for the data frame feature. */
     public static final String DATA_FRAME = "data_frame";
+    /** Name constant for the vectors feature. */
+    public static final String VECTORS = "vectors";
     /** Name constant for the voting-only-node feature. */
-    public static final String VOTING_ONLY_NODE = "voting_only_node";
+    public static final String VOTING_ONLY = "voting_only";
 
     private XPackField() {}
 

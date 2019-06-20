@@ -705,11 +705,7 @@ public class InternalEngine extends Engine {
                 if (docAndSeqNo == null) {
                     status = OpVsLuceneDocStatus.LUCENE_DOC_NOT_FOUND;
                 } else if (op.seqNo() > docAndSeqNo.seqNo) {
-                    if (docAndSeqNo.isLive) {
-                        status = OpVsLuceneDocStatus.OP_NEWER;
-                    } else {
-                        status = OpVsLuceneDocStatus.LUCENE_DOC_NOT_FOUND;
-                    }
+                    status = OpVsLuceneDocStatus.OP_NEWER;
                 } else if (op.seqNo() == docAndSeqNo.seqNo) {
                     assert localCheckpointTracker.contains(op.seqNo()) || softDeleteEnabled == false :
                         "local checkpoint tracker is not updated seq_no=" + op.seqNo() + " id=" + op.id();

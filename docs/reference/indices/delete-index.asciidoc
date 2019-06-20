@@ -4,7 +4,7 @@
 <titleabbrev>Delete index</titleabbrev>
 ++++
 
-Delete an index.
+Deletes an index.
 
 [float]
 [[indices-delete-index-request]]

@@ -95,7 +95,7 @@ public abstract class AbstractBulkByQueryRestHandler<
         }
     }
 
-    protected static void failOnSizeSpecified() {
+    private static void failOnSizeSpecified() {
         throw new IllegalArgumentException("invalid parameter [size], use [max_docs] instead");
     }
 }

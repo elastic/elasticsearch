@@ -67,7 +67,6 @@ public class RestUpdateByQueryAction extends AbstractBulkByQueryRestHandler<Upda
         consumers.put("conflicts", o -> internal.setConflicts((String) o));
         consumers.put("script", o -> internal.setScript(parseScript(o)));
         consumers.put("max_docs", s -> setMaxDocsValidateIdentical(internal, ((Number) s).intValue()));
-        consumers.put("size", s -> failOnSizeSpecified());
 
         parseInternalRequest(internal, request, consumers);
 

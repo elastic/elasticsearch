@@ -31,27 +31,6 @@
             match_all: {}
 
 ---
-"specifying size fails":
-  - skip:
-      version: " - 7.99.99"
-      reason: "size supported until 8"
-
-  - do:
-      index:
-        index:  twitter
-        id:     1
-        body:   { "user": "kimchy" }
-
-  - do:
-      catch: /invalid parameter \[size\], use \[max_docs\] instead/
-      delete_by_query:
-        index: twitter
-        body:
-          size: 1
-          query:
-            match_all: {}
-
----
 "invalid max_docs fails":
   - skip:
       version: " - 7.2.99"

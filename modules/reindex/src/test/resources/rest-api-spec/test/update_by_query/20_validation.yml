@@ -12,25 +12,6 @@
         conflicts: cat
 
 ---
-"specifying size fails":
-  - skip:
-      version: " - 7.99.99"
-      reason: "size supported until 8"
-
-  - do:
-      index:
-        index:  test
-        id:     1
-        body:   { "test": "text" }
-
-  - do:
-      catch: /invalid parameter \[size\], use \[max_docs\] instead/
-      update_by_query:
-        index: test
-        body:
-          size: 1
-
----
 "invalid max_docs in URL fails":
   - skip:
       version: " - 7.2.99"

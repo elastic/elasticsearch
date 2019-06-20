@@ -6,6 +6,10 @@
 <titleabbrev>Get rollup caps</titleabbrev>
 ++++
 
+Returns the capabilities of any rollup jobs that have been configured for a
+specific index or index pattern.
+
+experimental[]
 ////
 [float]
 [[sample-api-request]]
@@ -53,12 +57,6 @@
 // Optional brief example.
 
 ////
-
-
-Returns the capabilities of any rollup jobs that have been configured for a
-specific index or index pattern.
-
-experimental[]
 
 [discrete]
 [[get-rollup-caps-request]]

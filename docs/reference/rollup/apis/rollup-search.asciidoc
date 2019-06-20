@@ -6,6 +6,10 @@
 <titleabbrev>Rollup search</titleabbrev>
 ++++
 
+Searches rolled-up data using the standard query DSL.
+
+experimental[]
+
 ////
 [float]
 [[sample-api-request]]
@@ -54,10 +58,7 @@
 
 ////
 
-
-experimental[]
-
-The Rollup Search endpoint allows searching rolled-up data using the standard query DSL.  The Rollup Search endpoint
+The Rollup Search endpoint
 is needed because, internally, rolled-up documents utilize a different document structure than the original data.  The
 Rollup Search endpoint rewrites standard query DSL into a format that matches the rollup documents, then takes the response
 and rewrites it back to what a client would expect given the original query.

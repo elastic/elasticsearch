@@ -9,69 +9,42 @@
 Deletes an existing rollup job. 
 
 experimental[]
-////
+
 [float]
 [[sample-api-request]]
 ==== {api-request-title}
-// This section show the basic endpoint, without the body or optional parameters.
-// Variables should use <...> syntax
-// If an API supports both PUT and POST, include both here
 
-`PUT /<follower_index>/_ccr/follow`
+`DELETE _rollup/job/<job_id>`
 
 [float]
 [[sample-api-prereqs]]
 ==== {api-prereq-title}
-// Optional list of prerequisites.
+
+If the {es} {security-features} are enabled, you must have `manage` or
+`manage_rollup` cluster privileges to use this API. For more information, see
+{stack-ov}/security-privileges.html[Security privileges].
 
 [float]
 [[sample-api-desc]]
 ==== {api-description-title}
-// Add a more detailed description the context.
-// Link to related APIs if appropriate.
 
-[float]
-[[sample-api-path-params]]
-==== {api-path-parms-title}
-// A list of all path parameters in the endpoint request
+A job must be *stopped* first before it can be deleted. If you attempt to delete
+a started job, an error occurs. Similarly, if you attempt to delete a
+nonexistent job, an exception occurs.
 
-[float]
-[[sample-api-query-params]]
-==== {api-query-parms-title}
-// A list of optional query parameters 
+[IMPORTANT]
+===============================
+When a job is deleted, that only removes the process that is actively monitoring
+and rolling up data. It does not delete any previously rolled up data. This is
+by design; a user may wish to roll up a static dataset. Because the dataset is
+static, once it has been fully rolled up there is no need to keep the indexing
+rollup job around (as there will be no new data). So the job can be deleted,
+leaving behind the rolled up data for analysis.
 
-[float]
-[[sample-api-request-body]]
-==== {api-request-body-title}
-// A list of the properties you can specify in the body of the request
-
-[float]
-[[sample-api-response-body]]
-==== {api-response-body-title}
-// Response body is only required for detailed responses.
-
-[float]
-[[sample-api-example]]
-==== {api-example-title}
-// Optional brief example.
-
-////
-
-
-A job must be *stopped* first before it can be deleted.  Attempting to delete
-a started job will result in an error. Similarly, attempting to delete a nonexistent job will throw an exception.
-
-.Deleting the job does not delete rolled up data
-**********************************
-When a job is deleted, that only removes the process that is actively monitoring and rolling up data.
-It does not delete any previously rolled up data.  This is by design; a user may wish to roll up a static dataset.  Because
-the dataset is static, once it has been fully rolled up there is no need to keep the indexing Rollup job around (as there
-will be no new data).  So the job may be deleted, leaving behind the rolled up data for analysis.
-
-If you wish to also remove the rollup data, and the rollup index only contains the data for a single job, you can simply
-delete the whole rollup index.  If the rollup index stores data from several jobs, you must issue a Delete-By-Query that
-targets the Rollup job's ID in the rollup index:
-
+If you wish to also remove the rollup data, and the rollup index only contains
+the data for a single job, you can simply delete the whole rollup index. If the
+rollup index stores data from several jobs, you must issue a delete-by-query
+that targets the rollup job's ID in the rollup index.
 
 [source,js]
 --------------------------------------------------
@@ -85,34 +58,20 @@ POST my_rollup_index/_delete_by_query
 }
 --------------------------------------------------
 // NOTCONSOLE
+===============================
 
-**********************************
-==== Request
+[float]
+[[sample-api-path-params]]
+==== {api-path-parms-title}
 
-`DELETE _rollup/job/<job_id>`
+`<job_id>` (Required)::
+  (string) Identifier for the job.
 
-//===== Description
+[float]
+[[sample-api-example]]
+==== {api-example-title}
 
-==== Path Parameters
-
-`job_id` (required)::
-  (string) Identifier for the job
-
-
-==== Request Body
-
-There is no request body for the Delete Job API.
-
-==== Authorization
-
-You must have `manage` or `manage_rollup` cluster privileges to use this API.
-For more information, see
-{xpack-ref}/security-privileges.html[Security Privileges].
-
-
-==== Examples
-
-If we have a rollup job named `sensor`, it can be deleted with:
+If you have a rollup job named `sensor`, you can delete it as follows:
 
 [source,js]
 --------------------------------------------------
@@ -121,7 +80,7 @@ DELETE _rollup/job/sensor
 // CONSOLE
 // TEST[setup:sensor_rollup_job]
 
-Which will return the response:
+The API returns the following response:
 
 [source,js]
 ----
@@ -130,34 +89,3 @@ Which will return the response:
 }
 ----
 // TESTRESPONSE
-
-If however we try to delete a job which doesn't exist:
-
-[source,js]
---------------------------------------------------
-DELETE _rollup/job/does_not_exist
---------------------------------------------------
-// CONSOLE
-// TEST[catch:missing]
-
-A 404 `resource_not_found` exception will be thrown:
-
-[source,js]
-----
-{
-    "error" : {
-        "root_cause" : [
-            {
-                "type" : "resource_not_found_exception",
-                "reason" : "the task with id [does_not_exist] doesn't exist",
-                "stack_trace": ...
-            }
-        ],
-        "type" : "resource_not_found_exception",
-        "reason" : "the task with id [does_not_exist] doesn't exist",
-        "stack_trace": ...
-    },
-    "status": 404
-}
-----
-// TESTRESPONSE[s/"stack_trace": .../"stack_trace": $body.$_path/]

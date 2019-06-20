@@ -6,6 +6,11 @@
 <titleabbrev>Get rollup index caps</titleabbrev>
 ++++
 
+Returns the rollup capabilities of all jobs inside of a rollup index (e.g. the
+index where rollup data is stored).
+
+experimental[]
+
 ////
 [float]
 [[sample-api-request]]
@@ -54,10 +59,6 @@
 
 ////
 
-
-experimental[]
-
-This API returns the rollup capabilities of all jobs inside of a rollup index (e.g. the index where rollup data is stored).
 A single rollup index may store the data for multiple rollup jobs, and may have a variety of capabilities depending on those jobs.
 
 This API will allow you to determine:

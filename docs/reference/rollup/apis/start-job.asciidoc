@@ -6,6 +6,9 @@
 <titleabbrev>Start job</titleabbrev>
 ++++
 
+Starts an existing, stopped rollup job.
+
+experimental[]
 ////
 [float]
 [[sample-api-request]]
@@ -55,9 +58,7 @@
 ////
 
 
-experimental[]
-
-This API starts an existing, stopped rollup job.  If the job does not exist an exception will be thrown.
+ If the job does not exist an exception will be thrown.
 Starting an already started job has no action.
 
 ==== Request

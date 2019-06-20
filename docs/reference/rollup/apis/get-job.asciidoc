@@ -6,6 +6,10 @@
 <titleabbrev>Get job</titleabbrev>
 ++++
 
+Returns the configuration, stats and status of rollup jobs.
+
+experimental[]
+
 ////
 [float]
 [[sample-api-request]]
@@ -55,9 +59,7 @@
 ////
 
 
-experimental[]
-
-This API returns the configuration, stats and status of rollup jobs.  The API can return the details for a single job,
+The API can return the details for a single job,
 or for all jobs.
 
 Note: This API only returns active (both `STARTED` and `STOPPED`) jobs.  If a job was created, ran for a while then deleted,

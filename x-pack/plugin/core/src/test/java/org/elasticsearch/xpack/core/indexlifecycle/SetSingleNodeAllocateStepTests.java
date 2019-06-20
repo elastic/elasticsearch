@@ -347,45 +347,193 @@ public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSing
         Mockito.verifyZeroInteractions(client);
     }
 
-    public void testPerformActionHighestVersionNodeIsPicked() throws IOException {
-        final Version indexCreationVersion = VersionUtils.randomPreviousCompatibleVersion(random(), Version.CURRENT);
-        final int numNodes = randomIntBetween(1, 20);
-        IndexMetaData indexMetaData = IndexMetaData.builder(randomAlphaOfLength(10)).settings(settings(indexCreationVersion))
-            .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, numNodes - 1)).build();
-        Index index = indexMetaData.getIndex();
-        Map<Version, Set<String>> nodesByVersion = new HashMap<>();
-        Settings validNodeSettings = Settings.EMPTY;
+    public void testPerformActionSomeShardsOnlyOnNewNodes() {
+        final Version oldVersion = VersionUtils.randomPreviousCompatibleVersion(random(), Version.CURRENT);
+        final int numNodes = randomIntBetween(2, 20); // Need at least 2 nodes to have some nodes on a new version
+        final int numNewNodes = randomIntBetween(1, numNodes - 1);
+        final int numOldNodes = numNodes - numNewNodes;
+
+        final int numberOfShards = randomIntBetween(1, 5);
+        IndexMetaData indexMetaData = IndexMetaData.builder(randomAlphaOfLength(10)).settings(settings(oldVersion))
+            .numberOfShards(numberOfShards).numberOfReplicas(randomIntBetween(0, numNewNodes - 1)).build();
         DiscoveryNodes.Builder nodes = DiscoveryNodes.builder();
-        Version highestAvailableVersion = indexCreationVersion;
-        for (int i = 0; i < numNodes; i++) {
-            String nodeId = "node_id_" + i;
-            String nodeName = "node_" + i;
+
+        Set<String> newNodeIds = new HashSet<>();
+        for (int i = 0; i < numNewNodes; i++) {
+            String nodeId = "new_node_id_" + i;
+            String nodeName = "new_node_" + i;
             int nodePort = 9300 + i;
-            Settings nodeSettings = Settings.builder().put(validNodeSettings).put(Node.NODE_NAME_SETTING.getKey(), nodeName).build();
-            Version nodeVersion = VersionUtils.randomVersionBetween(random(), indexCreationVersion, Version.CURRENT);
-            highestAvailableVersion = Version.max(highestAvailableVersion, nodeVersion);
-            nodesByVersion.computeIfAbsent(nodeVersion, (version) -> new HashSet<>()).add(nodeId);
+            Settings nodeSettings = Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), nodeName).build();
+            newNodeIds.add(nodeId);
             nodes.add(new DiscoveryNode(
                 Node.NODE_NAME_SETTING.get(nodeSettings),
                 nodeId,
                 new TransportAddress(TransportAddress.META_ADDRESS, nodePort),
                 Node.NODE_ATTRIBUTES.getAsMap(nodeSettings),
                 DiscoveryNode.getRolesFromSettings(nodeSettings),
-                nodeVersion));
+                Version.CURRENT));
         }
 
-        Set<String> validNodeIds = nodesByVersion.get(highestAvailableVersion);
-        assertNodeSelected(indexMetaData, index, validNodeIds, nodes);
+        Set<String> oldNodeIds = new HashSet<>();
+        for (int i = 0; i < numOldNodes; i++) {
+            String nodeId = "old_node_id_" + i;
+            String nodeName = "old_node_" + i;
+            int nodePort = 9300 + numNewNodes + i;
+            Settings nodeSettings = Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), nodeName).build();
+            oldNodeIds.add(nodeId);
+            nodes.add(new DiscoveryNode(
+                Node.NODE_NAME_SETTING.get(nodeSettings),
+                nodeId,
+                new TransportAddress(TransportAddress.META_ADDRESS, nodePort),
+                Node.NODE_ATTRIBUTES.getAsMap(nodeSettings),
+                DiscoveryNode.getRolesFromSettings(nodeSettings),
+                oldVersion));
+        }
+
+        Set<String> nodeIds = new HashSet<>();
+        nodeIds.addAll(newNodeIds);
+        nodeIds.addAll(oldNodeIds);
+
+        DiscoveryNodes discoveryNodes = nodes.build();
+        IndexRoutingTable.Builder indexRoutingTable = createRoutingTableWithOneShardOnSubset(indexMetaData, newNodeIds, nodeIds);
+
+        // Since one shard is already on only new nodes, we should always pick a new node
+        assertNodeSelected(indexMetaData, indexMetaData.getIndex(), newNodeIds, discoveryNodes, indexRoutingTable.build());
+    }
+
+    public void testPerformActionSomeShardsOnlyOnNewNodesButNewNodesInvalidAttrs() {
+        final Version oldVersion = VersionUtils.randomPreviousCompatibleVersion(random(), Version.CURRENT);
+        final int numNodes = randomIntBetween(2, 20); // Need at least 2 nodes to have some nodes on a new version
+        final int numNewNodes = randomIntBetween(1, numNodes - 1);
+        final int numOldNodes = numNodes - numNewNodes;
+        final int numberOfShards = randomIntBetween(1, 5);
+        final String attribute = "box_type";
+        final String validAttr = "valid";
+        final String invalidAttr = "not_valid";
+        Settings.Builder indexSettings = settings(oldVersion);
+        indexSettings.put(IndexMetaData.INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + attribute, validAttr);
+        IndexMetaData indexMetaData = IndexMetaData.builder(randomAlphaOfLength(10)).settings(indexSettings)
+            .numberOfShards(numberOfShards).numberOfReplicas(randomIntBetween(0, numNewNodes - 1)).build();
+        DiscoveryNodes.Builder nodes = DiscoveryNodes.builder();
+
+        Set<String> newNodeIds = new HashSet<>();
+        for (int i = 0; i < numNewNodes; i++) {
+            String nodeId = "new_node_id_" + i;
+            String nodeName = "new_node_" + i;
+            int nodePort = 9300 + i;
+            Settings nodeSettings = Settings.builder()
+                .put(Node.NODE_NAME_SETTING.getKey(), nodeName)
+                .put(Node.NODE_ATTRIBUTES.getKey() + attribute, invalidAttr).build();
+            newNodeIds.add(nodeId);
+            nodes.add(new DiscoveryNode(
+                Node.NODE_NAME_SETTING.get(nodeSettings),
+                nodeId,
+                new TransportAddress(TransportAddress.META_ADDRESS, nodePort),
+                Node.NODE_ATTRIBUTES.getAsMap(nodeSettings),
+                DiscoveryNode.getRolesFromSettings(nodeSettings),
+                Version.CURRENT));
+        }
+
+        Set<String> oldNodeIds = new HashSet<>();
+        for (int i = 0; i < numOldNodes; i++) {
+            String nodeId = "old_node_id_" + i;
+            String nodeName = "old_node_" + i;
+            int nodePort = 9300 + numNewNodes + i;
+            Settings nodeSettings = Settings.builder()
+                .put(Node.NODE_NAME_SETTING.getKey(), nodeName)
+                .put(Node.NODE_ATTRIBUTES.getKey() + attribute, validAttr).build();
+            oldNodeIds.add(nodeId);
+            nodes.add(new DiscoveryNode(
+                Node.NODE_NAME_SETTING.get(nodeSettings),
+                nodeId,
+                new TransportAddress(TransportAddress.META_ADDRESS, nodePort),
+                Node.NODE_ATTRIBUTES.getAsMap(nodeSettings),
+                DiscoveryNode.getRolesFromSettings(nodeSettings),
+                oldVersion));
+        }
+        Set<String> nodeIds = new HashSet<>();
+        nodeIds.addAll(newNodeIds);
+        nodeIds.addAll(oldNodeIds);
+
+        DiscoveryNodes discoveryNodes = nodes.build();
+        IndexRoutingTable.Builder indexRoutingTable = createRoutingTableWithOneShardOnSubset(indexMetaData, newNodeIds, nodeIds);
+
+        assertNoValidNode(indexMetaData, indexMetaData.getIndex(), discoveryNodes, indexRoutingTable.build());
+    }
+
+    public void testPerformActionNewShardsExistButWithInvalidAttributes() {
+        final Version oldVersion = VersionUtils.randomPreviousCompatibleVersion(random(), Version.CURRENT);
+        final int numNodes = randomIntBetween(2, 20); // Need at least 2 nodes to have some nodes on a new version
+        final int numNewNodes = randomIntBetween(1, numNodes - 1);
+        final int numOldNodes = numNodes - numNewNodes;
+        final int numberOfShards = randomIntBetween(1, 5);
+        final String attribute = "box_type";
+        final String validAttr = "valid";
+        final String invalidAttr = "not_valid";
+        Settings.Builder indexSettings = settings(oldVersion);
+        indexSettings.put(IndexMetaData.INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + attribute, validAttr);
+        IndexMetaData indexMetaData = IndexMetaData.builder(randomAlphaOfLength(10)).settings(indexSettings)
+            .numberOfShards(numberOfShards).numberOfReplicas(randomIntBetween(0, numOldNodes - 1)).build();
+        DiscoveryNodes.Builder nodes = DiscoveryNodes.builder();
+
+        Set<String> newNodeIds = new HashSet<>();
+        for (int i = 0; i < numNewNodes; i++) {
+            String nodeId = "new_node_id_" + i;
+            String nodeName = "new_node_" + i;
+            int nodePort = 9300 + i;
+            Settings nodeSettings = Settings.builder()
+                .put(Node.NODE_NAME_SETTING.getKey(), nodeName)
+                .put(Node.NODE_ATTRIBUTES.getKey() + attribute, invalidAttr).build();
+            newNodeIds.add(nodeId);
+            nodes.add(new DiscoveryNode(
+                Node.NODE_NAME_SETTING.get(nodeSettings),
+                nodeId,
+                new TransportAddress(TransportAddress.META_ADDRESS, nodePort),
+                Node.NODE_ATTRIBUTES.getAsMap(nodeSettings),
+                DiscoveryNode.getRolesFromSettings(nodeSettings),
+                Version.CURRENT));
+        }
+
+        Set<String> oldNodeIds = new HashSet<>();
+        for (int i = 0; i < numOldNodes; i++) {
+            String nodeId = "old_node_id_" + i;
+            String nodeName = "old_node_" + i;
+            int nodePort = 9300 + numNewNodes + i;
+            Settings nodeSettings = Settings.builder()
+                .put(Node.NODE_NAME_SETTING.getKey(), nodeName)
+                .put(Node.NODE_ATTRIBUTES.getKey() + attribute, validAttr).build();
+            oldNodeIds.add(nodeId);
+            nodes.add(new DiscoveryNode(
+                Node.NODE_NAME_SETTING.get(nodeSettings),
+                nodeId,
+                new TransportAddress(TransportAddress.META_ADDRESS, nodePort),
+                Node.NODE_ATTRIBUTES.getAsMap(nodeSettings),
+                DiscoveryNode.getRolesFromSettings(nodeSettings),
+                oldVersion));
+        }
+        Set<String> nodeIds = new HashSet<>();
+        nodeIds.addAll(newNodeIds);
+        nodeIds.addAll(oldNodeIds);
+
+        DiscoveryNodes discoveryNodes = nodes.build();
+        IndexRoutingTable.Builder indexRoutingTable = createRoutingTableWithOneShardOnSubset(indexMetaData, oldNodeIds, oldNodeIds);
+
+        assertNodeSelected(indexMetaData, indexMetaData.getIndex(), oldNodeIds, discoveryNodes, indexRoutingTable.build());
     }
 
     private void assertNodeSelected(IndexMetaData indexMetaData, Index index,
                                     Set<String> validNodeIds, DiscoveryNodes.Builder nodes) throws IOException {
-        ImmutableOpenMap.Builder<String, IndexMetaData> indices = ImmutableOpenMap.<String, IndexMetaData> builder().fPut(index.getName(),
-                indexMetaData);
         DiscoveryNodes discoveryNodes = nodes.build();
-        IndexRoutingTable.Builder indexRoutingTable = buildRoutingTable(indexMetaData, index, discoveryNodes);
+        IndexRoutingTable.Builder indexRoutingTable = createRoutingTable(indexMetaData, index, discoveryNodes);
+        assertNodeSelected(indexMetaData, index, validNodeIds, discoveryNodes, indexRoutingTable.build());
+    }
+
+    private void assertNodeSelected(IndexMetaData indexMetaData, Index index, Set<String> validNodeIds, DiscoveryNodes nodes,
+                                    IndexRoutingTable indexRoutingTable) {
+        ImmutableOpenMap.Builder<String, IndexMetaData> indices = ImmutableOpenMap.<String, IndexMetaData> builder().fPut(index.getName(),
+            indexMetaData);
         ClusterState clusterState = ClusterState.builder(ClusterState.EMPTY_STATE).metaData(MetaData.builder().indices(indices.build()))
-                .nodes(discoveryNodes).routingTable(RoutingTable.builder().add(indexRoutingTable).build()).build();
+            .nodes(nodes).routingTable(RoutingTable.builder().add(indexRoutingTable).build()).build();
 
         SetSingleNodeAllocateStep step = createRandomInstance();
 
@@ -403,8 +551,8 @@ public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSing
                 @SuppressWarnings("unchecked")
                 ActionListener<AcknowledgedResponse> listener = (ActionListener<AcknowledgedResponse>) invocation.getArguments()[1];
                 assertSettingsRequestContainsValueFrom(request,
-                        IndexMetaData.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + "_id", validNodeIds, true,
-                        indexMetaData.getIndex().getName());
+                    IndexMetaData.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + "_id", validNodeIds, true,
+                    indexMetaData.getIndex().getName());
                 listener.onResponse(new AcknowledgedResponse(true));
                 return null;
             }
@@ -435,11 +583,17 @@ public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSing
 
     private void assertNoValidNode(IndexMetaData indexMetaData, Index index, DiscoveryNodes.Builder nodes) {
         DiscoveryNodes discoveryNodes = nodes.build();
-        ImmutableOpenMap.Builder<String, IndexMetaData> indices = ImmutableOpenMap.<String, IndexMetaData> builder().fPut(index.getName(),
+        IndexRoutingTable.Builder indexRoutingTable = createRoutingTable(indexMetaData, index, discoveryNodes);
+
+        assertNoValidNode(indexMetaData, index, discoveryNodes, indexRoutingTable.build());
+    }
+
+    private void assertNoValidNode(IndexMetaData indexMetaData, Index index, DiscoveryNodes nodes, IndexRoutingTable indexRoutingTable) {
+
+        ImmutableOpenMap.Builder<String, IndexMetaData> indices = ImmutableOpenMap.<String, IndexMetaData>builder().fPut(index.getName(),
             indexMetaData);
-        IndexRoutingTable.Builder indexRoutingTable = buildRoutingTable(indexMetaData, index, discoveryNodes);
         ClusterState clusterState = ClusterState.builder(ClusterState.EMPTY_STATE).metaData(MetaData.builder().indices(indices.build()))
-                .nodes(discoveryNodes).routingTable(RoutingTable.builder().add(indexRoutingTable).build()).build();
+            .nodes(nodes).routingTable(RoutingTable.builder().add(indexRoutingTable).build()).build();
 
         SetSingleNodeAllocateStep step = createRandomInstance();
 
@@ -463,7 +617,7 @@ public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSing
         Mockito.verifyZeroInteractions(client);
     }
 
-    private IndexRoutingTable.Builder buildRoutingTable(IndexMetaData indexMetaData, Index index, DiscoveryNodes discoveryNodes) {
+    private IndexRoutingTable.Builder createRoutingTable(IndexMetaData indexMetaData, Index index, DiscoveryNodes discoveryNodes) {
         assertThat(indexMetaData.getNumberOfReplicas(), lessThanOrEqualTo(discoveryNodes.getSize() - 1));
         List<String> nodeIds = new ArrayList<>();
         for (DiscoveryNode node : discoveryNodes) {
@@ -482,6 +636,34 @@ public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSing
                 String replicaNode = randomFrom(nodesThisShardCanBePutOn);
                 nodesThisShardCanBePutOn.remove(replicaNode);
                 indexRoutingTable.addShard(TestShardRouting.newShardRouting(new ShardId(index, primary), replicaNode,
+                    false, ShardRoutingState.STARTED));
+            }
+        }
+        return indexRoutingTable;
+    }
+
+    private IndexRoutingTable.Builder createRoutingTableWithOneShardOnSubset(IndexMetaData indexMetaData, Set<String> subset,
+                                                                             Set<String> allNodeIds) {
+        IndexRoutingTable.Builder indexRoutingTable = IndexRoutingTable.builder(indexMetaData.getIndex());
+        final int numberOfShards = indexMetaData.getNumberOfShards();
+        final int shardOnlyOnNewNodes = randomIntBetween(0, numberOfShards - 1);
+        for (int primary = 0; primary < indexMetaData.getNumberOfShards(); primary++) {
+            Set<String> nodesThisShardCanBePutOn;
+            if (primary == shardOnlyOnNewNodes) {
+                // This shard should only be allocated to new nodes
+                nodesThisShardCanBePutOn = new HashSet<>(subset);
+            } else {
+                nodesThisShardCanBePutOn = new HashSet<>(allNodeIds);
+            }
+            String currentNode = randomFrom(nodesThisShardCanBePutOn);
+            nodesThisShardCanBePutOn.remove(currentNode);
+            indexRoutingTable.addShard(TestShardRouting.newShardRouting(new ShardId(indexMetaData.getIndex(), primary), currentNode,
+                true, ShardRoutingState.STARTED));
+            for (int replica = 0; replica < indexMetaData.getNumberOfReplicas(); replica++) {
+                assertThat("not enough nodes to allocate all initial shards", nodesThisShardCanBePutOn.size(), greaterThan(0));
+                String replicaNode = randomFrom(nodesThisShardCanBePutOn);
+                nodesThisShardCanBePutOn.remove(replicaNode);
+                indexRoutingTable.addShard(TestShardRouting.newShardRouting(new ShardId(indexMetaData.getIndex(), primary), replicaNode,
                     false, ShardRoutingState.STARTED));
             }
         }

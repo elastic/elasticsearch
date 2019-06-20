@@ -801,8 +801,8 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
             if (containerLimitStr != null) {
                 BigInteger containerLimit = new BigInteger(containerLimitStr);
                 if ((containerLimit.compareTo(BigInteger.valueOf(mem)) < 0 && containerLimit.compareTo(BigInteger.ZERO) > 0)
-                        // mem < 0 means the value couldn't be obtained for some reason
-                        || (mem < 0 && containerLimit.compareTo(BigInteger.valueOf(Long.MAX_VALUE)) < 0)) {
+                        // mem <= 0 means the value couldn't be obtained for some reason
+                        || (mem <= 0 && containerLimit.compareTo(BigInteger.valueOf(Long.MAX_VALUE)) < 0)) {
                     mem = containerLimit.longValue();
                 }
             }

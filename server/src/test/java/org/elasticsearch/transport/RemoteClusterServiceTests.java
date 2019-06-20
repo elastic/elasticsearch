@@ -41,6 +41,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -837,6 +838,81 @@ public class RemoteClusterServiceTests extends ESTestCase {
             DiscoveryNode node = new DiscoveryNode("id", address, Collections.singletonMap("gateway", "true"),
                     allRoles, Version.CURRENT);
             assertTrue(nodePredicate.test(node));
+        }
+    }
+
+    public void testReconnectWhenSeedsNodesAreUpdated() throws Exception {
+        List<DiscoveryNode> knownNodes = new CopyOnWriteArrayList<>();
+        try (MockTransportService cluster_node_0 = startTransport("cluster_node_0", knownNodes, Version.CURRENT);
+             MockTransportService cluster_node_1 = startTransport("cluster_node_1", knownNodes, Version.CURRENT)) {
+
+            final DiscoveryNode node0 = cluster_node_0.getLocalDiscoNode();
+            final DiscoveryNode node1 = cluster_node_1.getLocalDiscoNode();
+            knownNodes.add(node0);
+            knownNodes.add(node1);
+            Collections.shuffle(knownNodes, random());
+
+            try (MockTransportService transportService =
+                     MockTransportService.createNewService(Settings.EMPTY, Version.CURRENT, threadPool, null)) {
+                transportService.start();
+                transportService.acceptIncomingRequests();
+
+                final Settings.Builder builder = Settings.builder();
+                builder.putList("cluster.remote.cluster_test.seeds", Collections.singletonList(node0.getAddress().toString()));
+                try (RemoteClusterService service = new RemoteClusterService(builder.build(), transportService)) {
+                    assertFalse(service.isCrossClusterSearchEnabled());
+                    service.initializeRemoteClusters();
+                    assertTrue(service.isCrossClusterSearchEnabled());
+
+                    final RemoteClusterConnection firstRemoteClusterConnection = service.getRemoteClusterConnection("cluster_test");
+                    assertTrue(firstRemoteClusterConnection.isNodeConnected(node0));
+                    assertTrue(firstRemoteClusterConnection.isNodeConnected(node1));
+                    assertEquals(2, firstRemoteClusterConnection.getNumNodesConnected());
+                    assertFalse(firstRemoteClusterConnection.isClosed());
+
+                    final CountDownLatch firstLatch = new CountDownLatch(1);
+                    service.updateRemoteCluster(
+                        "cluster_test",
+                        Collections.singletonList(node0.getAddress().toString()), null,
+                        genericProfile("cluster_test"), connectionListener(firstLatch));
+                    firstLatch.await();
+
+                    assertTrue(service.isCrossClusterSearchEnabled());
+                    assertTrue(firstRemoteClusterConnection.isNodeConnected(node0));
+                    assertTrue(firstRemoteClusterConnection.isNodeConnected(node1));
+                    assertEquals(2, firstRemoteClusterConnection.getNumNodesConnected());
+                    assertFalse(firstRemoteClusterConnection.isClosed());
+                    assertSame(firstRemoteClusterConnection, service.getRemoteClusterConnection("cluster_test"));
+
+                    final List<String> newSeeds = new ArrayList<>();
+                    newSeeds.add(node1.getAddress().toString());
+                    if (randomBoolean()) {
+                        newSeeds.add(node0.getAddress().toString());
+                        Collections.shuffle(newSeeds, random());
+                    }
+
+                    final CountDownLatch secondLatch = new CountDownLatch(1);
+                    service.updateRemoteCluster(
+                        "cluster_test",
+                        newSeeds, null,
+                        genericProfile("cluster_test"), connectionListener(secondLatch));
+                    secondLatch.await();
+
+                    assertTrue(service.isCrossClusterSearchEnabled());
+                    assertBusy(() -> {
+                        assertFalse(firstRemoteClusterConnection.isNodeConnected(node0));
+                        assertFalse(firstRemoteClusterConnection.isNodeConnected(node1));
+                        assertEquals(0, firstRemoteClusterConnection.getNumNodesConnected());
+                        assertTrue(firstRemoteClusterConnection.isClosed());
+                    });
+
+                    final RemoteClusterConnection secondRemoteClusterConnection = service.getRemoteClusterConnection("cluster_test");
+                    assertTrue(secondRemoteClusterConnection.isNodeConnected(node0));
+                    assertTrue(secondRemoteClusterConnection.isNodeConnected(node1));
+                    assertEquals(2, secondRemoteClusterConnection.getNumNodesConnected());
+                    assertFalse(secondRemoteClusterConnection.isClosed());
+                }
+            }
         }
     }
 

@@ -393,9 +393,6 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         // assert that snapshot is still in progress and clean up
         assertThat(getSnapshotState("snapshot"), equalTo("SUCCESS"));
         assertOK(client().performRequest(new Request("DELETE", "/_snapshot/repo/snapshot")));
-        ResponseException e = expectThrows(ResponseException.class,
-            () -> client().performRequest(new Request("GET", "/_snapshot/repo/snapshot")));
-        assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(404));
     }
 
     public void testReadOnly() throws Exception {
@@ -533,9 +530,6 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         // assert that snapshot succeeded
         assertThat(getSnapshotState("snapshot"), equalTo("SUCCESS"));
         assertOK(client().performRequest(new Request("DELETE", "/_snapshot/repo/snapshot")));
-        ResponseException e = expectThrows(ResponseException.class,
-            () -> client().performRequest(new Request("GET", "/_snapshot/repo/snapshot")));
-        assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(404));
     }
 
     public void testFreezeAction() throws Exception {
@@ -591,9 +585,6 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         // assert that snapshot is still in progress and clean up
         assertThat(getSnapshotState("snapshot"), equalTo("SUCCESS"));
         assertOK(client().performRequest(new Request("DELETE", "/_snapshot/repo/snapshot")));
-        ResponseException e = expectThrows(ResponseException.class,
-            () -> client().performRequest(new Request("GET", "/_snapshot/repo/snapshot")));
-        assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(404));
     }
 
     public void testSetPriority() throws Exception {
@@ -977,13 +968,16 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         logger.info(response.getStatusLine());
     }
 
+    @SuppressWarnings("unchecked")
     private String getSnapshotState(String snapshot) throws IOException {
         Response response = client().performRequest(new Request("GET", "/_snapshot/repo/" + snapshot));
         Map<String, Object> responseMap;
         try (InputStream is = response.getEntity().getContent()) {
             responseMap = XContentHelper.convertToMap(XContentType.JSON.xContent(), is, true);
         }
-        Map<String, Object> snapResponse = ((List<Map<String, Object>>) responseMap.get("snapshots")).get(0);
+
+        Map<String, Object> repoResponse = ((List<Map<String, Object>>) responseMap.get("responses")).get(0);
+        Map<String, Object> snapResponse = ((List<Map<String, Object>>) repoResponse.get("snapshots")).get(0);
         assertThat(snapResponse.get("snapshot"), equalTo(snapshot));
         return (String) snapResponse.get("state");
     }

@@ -81,11 +81,6 @@ public class IndexLifecycleFeatureSetTests extends ESTestCase {
         assertThat(featureSet.name(), equalTo("ilm"));
     }
 
-    public void testNativeCodeInfo() {
-        IndexLifecycleFeatureSet featureSet = new IndexLifecycleFeatureSet(Settings.EMPTY, licenseState);
-        assertNull(featureSet.nativeCodeInfo());
-    }
-
     public void testUsageStats() throws Exception {
         Map<String, String> indexPolicies = new HashMap<>();
         List<LifecyclePolicy> policies = new ArrayList<>();

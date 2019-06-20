@@ -76,11 +76,6 @@ public class SecurityFeatureSet implements XPackFeatureSet {
         return false;
     }
 
-    @Override
-    public Map<String, Object> nativeCodeInfo() {
-        return null;
-    }
-
     private static boolean available(XPackLicenseState licenseState) {
         return licenseState != null && licenseState.isSecurityAvailable();
     }

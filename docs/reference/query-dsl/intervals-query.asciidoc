@@ -40,7 +40,6 @@ POST _search
             }
           ]
         },
-        "boost" : 2.0,
         "_name" : "favourite_food"
       }
     }

@@ -1441,7 +1441,7 @@ public final class InternalTestCluster extends TestCluster {
                     }
                 }
             }
-        });
+        }, 30, TimeUnit.SECONDS);
     }
 
     /**
@@ -1896,6 +1896,8 @@ public final class InternalTestCluster extends TestCluster {
             rolesOrderedByOriginalStartupOrder[nodeAndClient.nodeAndClientId()] = discoveryNode.getRoles();
             nodesByRoles.computeIfAbsent(discoveryNode.getRoles(), k -> new ArrayList<>()).add(nodeAndClient);
         }
+
+        callback.onAllNodesStopped();
 
         assert nodesByRoles.values().stream().mapToInt(List::size).sum() == nodeCount;
 
@@ -2372,6 +2374,9 @@ public final class InternalTestCluster extends TestCluster {
          */
         public Settings onNodeStopped(String nodeName) throws Exception {
             return Settings.EMPTY;
+        }
+
+        public void onAllNodesStopped() throws Exception {
         }
 
         /**

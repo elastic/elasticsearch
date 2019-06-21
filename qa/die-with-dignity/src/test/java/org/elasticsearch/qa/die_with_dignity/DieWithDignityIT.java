@@ -50,7 +50,7 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
 
 public class DieWithDignityIT extends ESRestTestCase {
-
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/43413")
     public void testDieWithDignity() throws Exception {
         // deleting the PID file prevents stopping the cluster from failing since it occurs if and only if the PID file exists
         final Path pidFile = PathUtils.get(System.getProperty("pidfile"));

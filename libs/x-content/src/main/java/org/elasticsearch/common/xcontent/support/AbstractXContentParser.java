@@ -289,7 +289,7 @@ public abstract class AbstractXContentParser implements XContentParser {
         return readListOrderedMap(this);
     }
 
-    interface MapFactory {
+    public interface MapFactory {
         Map<String, Object> newMap();
     }
 
@@ -391,7 +391,7 @@ public abstract class AbstractXContentParser implements XContentParser {
         return list;
     }
 
-    static Object readValue(XContentParser parser, MapFactory mapFactory, XContentParser.Token token) throws IOException {
+    public static Object readValue(XContentParser parser, MapFactory mapFactory, XContentParser.Token token) throws IOException {
         if (token == XContentParser.Token.VALUE_NULL) {
             return null;
         } else if (token == XContentParser.Token.VALUE_STRING) {

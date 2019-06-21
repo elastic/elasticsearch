@@ -862,13 +862,14 @@ public class SnapshotResiliencyTests extends ESTestCase {
         }
 
         public void clearNetworkDisruptions() {
-            disruptedLinks.disconnected.forEach(nodeName -> {
+            final Set<String> disconnectedNodes = new HashSet<>(disruptedLinks.disconnected);
+            disruptedLinks.clear();
+            disconnectedNodes.forEach(nodeName -> {
                 if (testClusterNodes.nodes.containsKey(nodeName)) {
                     final DiscoveryNode node = testClusterNodes.nodes.get(nodeName).node;
                     testClusterNodes.nodes.values().forEach(n -> n.transportService.getConnectionManager().openConnection(node, null));
                 }
             });
-            disruptedLinks.clear();
         }
 
         private NetworkDisruption.DisruptedLinks getDisruption() {

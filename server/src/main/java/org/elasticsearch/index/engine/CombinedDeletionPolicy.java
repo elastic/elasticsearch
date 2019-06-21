@@ -144,7 +144,8 @@ public final class CombinedDeletionPolicy extends IndexDeletionPolicy {
     /**
      * Find a safe commit point from a list of existing commits based on the supplied global checkpoint.
      * The max sequence number of a safe commit point should be at most the global checkpoint.
-     * If an index was created before v6.2, and we haven't retained a safe commit yet, this method will return the oldest commit.
+     * If an index was created before 6.2 or recovered from remote, we might not have a safe commit.
+     * In this case, this method will return the oldest index commit.
      *
      * @param commits          a list of existing commit points
      * @param globalCheckpoint the persisted global checkpoint from the translog, see {@link Translog#readGlobalCheckpoint(Path, String)}
@@ -172,22 +173,13 @@ public final class CombinedDeletionPolicy extends IndexDeletionPolicy {
             if (expectedTranslogUUID.equals(commitUserData.get(Translog.TRANSLOG_UUID_KEY)) == false) {
                 return i + 1;
             }
-            // 5.x commits do not contain MAX_SEQ_NO, we should not keep it and the older commits.
-            if (commitUserData.containsKey(SequenceNumbers.MAX_SEQ_NO) == false) {
-                return Math.min(commits.size() - 1, i + 1);
-            }
             final long maxSeqNoFromCommit = Long.parseLong(commitUserData.get(SequenceNumbers.MAX_SEQ_NO));
             if (maxSeqNoFromCommit <= globalCheckpoint) {
                 return i;
             }
         }
-        /*
-         * We may reach to this point in these cases:
-         * 1. In the previous 6.x, we keep only the last commit - which is likely not a safe commit if writes are in progress.
-         * Thus, after upgrading, we may not find a safe commit until we can reserve one.
-         * 2. In peer-recovery, if the file-based happens, a replica will be received the latest commit from a primary.
-         * However, that commit may not be a safe commit if writes are in progress in the primary.
-         */
+        // If an index was created before 6.2 or recovered from remote, we might not have a safe commit.
+        // In this case, we return the oldest index commit instead.
         return 0;
     }
 
@@ -204,11 +196,9 @@ public final class CombinedDeletionPolicy extends IndexDeletionPolicy {
     boolean hasUnreferencedCommits() throws IOException {
         final IndexCommit lastCommit = this.lastCommit;
         if (safeCommit != lastCommit) { // Race condition can happen but harmless
-            if (lastCommit.getUserData().containsKey(SequenceNumbers.MAX_SEQ_NO)) {
-                final long maxSeqNoFromLastCommit = Long.parseLong(lastCommit.getUserData().get(SequenceNumbers.MAX_SEQ_NO));
-                // We can clean up the current safe commit if the last commit is safe
-                return globalCheckpointSupplier.getAsLong() >= maxSeqNoFromLastCommit;
-            }
+            final long maxSeqNoFromLastCommit = Long.parseLong(lastCommit.getUserData().get(SequenceNumbers.MAX_SEQ_NO));
+            // We can clean up the current safe commit if the last commit is safe
+            return globalCheckpointSupplier.getAsLong() >= maxSeqNoFromLastCommit;
         }
         return false;
     }

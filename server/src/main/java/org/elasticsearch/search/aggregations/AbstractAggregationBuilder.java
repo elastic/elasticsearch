@@ -164,28 +164,17 @@ public abstract class AbstractAggregationBuilder<AB extends AbstractAggregationB
 
     @Override
     public int hashCode() {
-        return Objects.hash(factoriesBuilder, metaData, name, doHashCode());
+        return Objects.hash(factoriesBuilder, metaData, name);
     }
-
-    protected abstract int doHashCode();
 
     @Override
     public boolean equals(Object obj) {
-        if (obj == null)
-            return false;
-        if (getClass() != obj.getClass())
-            return false;
-        @SuppressWarnings("unchecked")
+        if (this == obj) return true;
+        if (obj == null || getClass() != obj.getClass()) return false;
         AbstractAggregationBuilder<AB> other = (AbstractAggregationBuilder<AB>) obj;
-        if (!Objects.equals(name, other.name))
-            return false;
-        if (!Objects.equals(metaData, other.metaData))
-            return false;
-        if (!Objects.equals(factoriesBuilder, other.factoriesBuilder))
-            return false;
-        return doEquals(obj);
+
+        return Objects.equals(name, other.name)
+            && Objects.equals(metaData, other.metaData)
+            && Objects.equals(factoriesBuilder, other.factoriesBuilder);
     }
-
-    protected abstract boolean doEquals(Object obj);
-
 }

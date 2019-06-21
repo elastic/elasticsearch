@@ -71,11 +71,6 @@ public class CCRFeatureSetTests extends ESTestCase {
         assertThat(featureSet.name(), equalTo("ccr"));
     }
 
-    public void testNativeCodeInfo() {
-        CCRFeatureSet featureSet = new CCRFeatureSet (Settings.EMPTY, licenseState);
-        assertNull(featureSet.nativeCodeInfo());
-    }
-
     public void testUsageStats() throws Exception {
         MetaData.Builder metaData = MetaData.builder();
 

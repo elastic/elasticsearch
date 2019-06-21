@@ -31,7 +31,6 @@ import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata;
 
 import java.io.IOException;
 import java.time.Instant;
-import java.util.Map;
 import java.util.Objects;
 
 public class CCRFeatureSet implements XPackFeatureSet {
@@ -58,11 +57,6 @@ public class CCRFeatureSet implements XPackFeatureSet {
     @Override
     public boolean enabled() {
         return enabled;
-    }
-
-    @Override
-    public Map<String, Object> nativeCodeInfo() {
-        return null;
     }
 
     public static class UsageTransportAction extends XPackUsageFeatureTransportAction {

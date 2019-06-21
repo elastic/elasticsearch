@@ -160,7 +160,9 @@ public class CorruptedFileIT extends ESIntegTestCase {
         }
         indexRandom(true, builders);
         ensureGreen();
-        assertAllSuccessful(client().admin().indices().prepareFlush().setForce(true).execute().actionGet());
+        // double flush to create safe commit in case of async durability
+        assertAllSuccessful(client().admin().indices().prepareFlush().setForce(true).get());
+        assertAllSuccessful(client().admin().indices().prepareFlush().setForce(true).get());
         // we have to flush at least once here since we don't corrupt the translog
         SearchResponse countResponse = client().prepareSearch().setSize(0).get();
         assertHitCount(countResponse, numDocs);
@@ -264,7 +266,9 @@ public class CorruptedFileIT extends ESIntegTestCase {
         }
         indexRandom(true, builders);
         ensureGreen();
-        assertAllSuccessful(client().admin().indices().prepareFlush().setForce(true).execute().actionGet());
+        // double flush to create safe commit in case of async durability
+        assertAllSuccessful(client().admin().indices().prepareFlush().setForce(true).get());
+        assertAllSuccessful(client().admin().indices().prepareFlush().setForce(true).get());
         // we have to flush at least once here since we don't corrupt the translog
         SearchResponse countResponse = client().prepareSearch().setSize(0).get();
         assertHitCount(countResponse, numDocs);

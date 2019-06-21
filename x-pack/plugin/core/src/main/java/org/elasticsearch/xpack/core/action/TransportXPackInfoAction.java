@@ -14,17 +14,15 @@ import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.protocol.xpack.XPackInfoRequest;
 import org.elasticsearch.protocol.xpack.XPackInfoResponse;
+import org.elasticsearch.protocol.xpack.XPackInfoResponse.FeatureSetsInfo;
 import org.elasticsearch.protocol.xpack.XPackInfoResponse.FeatureSetsInfo.FeatureSet;
 import org.elasticsearch.protocol.xpack.XPackInfoResponse.LicenseInfo;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackBuild;
-import org.elasticsearch.xpack.core.common.IteratingActionListener;
 
 import java.util.HashSet;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicReferenceArray;
 
 public class TransportXPackInfoAction extends HandledTransportAction<XPackInfoRequest, XPackInfoResponse> {
 
@@ -60,28 +58,17 @@ public class TransportXPackInfoAction extends HandledTransportAction<XPackInfoRe
             }
         }
 
+        FeatureSetsInfo featureSetsInfo = null;
         if (request.getCategories().contains(XPackInfoRequest.Category.FEATURES)) {
-            final var position = new AtomicInteger(0);
-            var featureSets = new AtomicReferenceArray<FeatureSet>(XPackInfoFeatureAction.ALL.size());
-            final XPackInfoResponse.BuildInfo finalBuildInfo = buildInfo;
-            final LicenseInfo finalLicenseInfo = licenseInfo;
-
-            ActionListener<Void> finalListener = ActionListener.wrap(ignore -> {
-                var featureSetsSet = new HashSet<FeatureSet>(featureSets.length());
-                for (int i = 0; i < featureSets.length(); i++) {
-                    featureSetsSet.add(featureSets.get(i));
-                }
-                var featureSetsInfo = new XPackInfoResponse.FeatureSetsInfo(featureSetsSet);
-                listener.onResponse(new XPackInfoResponse(finalBuildInfo, finalLicenseInfo, featureSetsInfo));
-            }, listener::onFailure);
-
-            new IteratingActionListener<>(finalListener, (infoAction, iteratingListener) ->
-                client.executeLocally(infoAction, request, ActionListener.wrap(response ->
-                    featureSets.set(position.getAndIncrement(), response.getInfo()), iteratingListener::onFailure)),
-                XPackInfoFeatureAction.ALL,
-                threadPool.getThreadContext()).run();
-        } else {
-            listener.onResponse(new XPackInfoResponse(buildInfo, licenseInfo, null));
+            var featureSets = new HashSet<FeatureSet>();
+            for (var infoAction : XPackInfoFeatureAction.ALL) {
+                // local actions are executed directly, not on a separate thread, so no thread safe collection is necessary
+                client.executeLocally(infoAction, request,
+                    ActionListener.wrap(response -> featureSets.add(response.getInfo()), listener::onFailure));
+            }
+            featureSetsInfo = new FeatureSetsInfo(featureSets);
         }
+
+        listener.onResponse(new XPackInfoResponse(buildInfo, licenseInfo, featureSetsInfo));
     }
 }

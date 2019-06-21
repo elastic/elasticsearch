@@ -17,9 +17,13 @@ import org.elasticsearch.protocol.xpack.XPackInfoResponse.FeatureSetsInfo.Featur
 import org.elasticsearch.protocol.xpack.license.LicenseStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackFeatureSet;
+import org.junit.After;
+import org.junit.Before;
 
 import java.util.Collections;
 import java.util.EnumSet;
@@ -40,6 +44,17 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class TransportXPackInfoActionTests extends ESTestCase {
+    private ThreadPool threadPool;
+
+    @Before
+    public void setupThreadpool() {
+        threadPool = new TestThreadPool("test");
+    }
+
+    @After
+    public void cleanupThreadpool() {
+        threadPool.close();
+    }
 
     public void testDoExecute() throws Exception {
 
@@ -58,7 +73,7 @@ public class TransportXPackInfoActionTests extends ESTestCase {
         TransportService transportService = new TransportService(Settings.EMPTY, mock(Transport.class), null,
             TransportService.NOOP_TRANSPORT_INTERCEPTOR, x -> null, null, Collections.emptySet());
         TransportXPackInfoAction action = new TransportXPackInfoAction(transportService, mock(ActionFilters.class),
-            licenseService, mock(NodeClient.class), null);
+            licenseService, mock(NodeClient.class), threadPool);
 
         License license = mock(License.class);
         long expiryDate = randomLong();
@@ -81,6 +96,7 @@ public class TransportXPackInfoActionTests extends ESTestCase {
         for (int i = 0; i < maxCategoryCount; i++) {
             categories.add(randomFrom(XPackInfoRequest.Category.values()));
         }
+        categories.add(XPackInfoRequest.Category.FEATURES);
         request.setCategories(categories);
 
         final CountDownLatch latch = new CountDownLatch(1);

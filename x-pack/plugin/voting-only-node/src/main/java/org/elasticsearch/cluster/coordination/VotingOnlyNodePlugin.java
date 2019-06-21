@@ -42,7 +42,6 @@ import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.core.XPackPlugin;
-import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 
 import java.io.IOException;
@@ -96,10 +95,6 @@ public class VotingOnlyNodePlugin extends Plugin implements DiscoveryPlugin, Net
 
     @Override
     public Set<DiscoveryNodeRole> getRoles() {
-        if (VOTING_ONLY_NODE_SETTING.exists(settings) && XPackSettings.VOTING_ONLY_ENABLED.get(settings) == false) {
-            throw new IllegalStateException(XPackSettings.VOTING_ONLY_ENABLED.getKey() + " must be set to true to use the " +
-                VOTING_ONLY_NODE_SETTING.getKey() + " setting");
-        }
         if (isVotingOnlyNode && Node.NODE_MASTER_SETTING.get(settings) == false) {
             throw new IllegalStateException("voting-only node must be master-eligible");
         }
@@ -129,9 +124,6 @@ public class VotingOnlyNodePlugin extends Plugin implements DiscoveryPlugin, Net
 
     @Override
     public Map<String, ElectionStrategy> getElectionStrategies() {
-        if (XPackSettings.VOTING_ONLY_ENABLED.get(settings) == false) {
-            return Collections.emptyMap();
-        }
         return Collections.singletonMap(VOTING_ONLY_ELECTION_STRATEGY, new VotingOnlyNodeElectionStrategy());
     }
 
@@ -151,9 +143,6 @@ public class VotingOnlyNodePlugin extends Plugin implements DiscoveryPlugin, Net
 
     @Override
     public Settings additionalSettings() {
-        if (XPackSettings.VOTING_ONLY_ENABLED.get(settings) == false) {
-            return Settings.EMPTY;
-        }
         return Settings.builder().put(DiscoveryModule.ELECTION_STRATEGY_SETTING.getKey(), VOTING_ONLY_ELECTION_STRATEGY).build();
     }
 

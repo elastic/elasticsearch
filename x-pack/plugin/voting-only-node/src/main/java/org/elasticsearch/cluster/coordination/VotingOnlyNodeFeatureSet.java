@@ -12,14 +12,12 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.protocol.xpack.XPackUsageRequest;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackFeatureSet;
 import org.elasticsearch.xpack.core.XPackField;
-import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureResponse;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureTransportAction;
@@ -27,12 +25,10 @@ import org.elasticsearch.xpack.core.votingonly.VotingOnlyNodeFeatureSetUsage;
 
 public class VotingOnlyNodeFeatureSet implements XPackFeatureSet {
 
-    private final boolean enabled;
     private final XPackLicenseState licenseState;
 
     @Inject
-    public VotingOnlyNodeFeatureSet(Settings settings, @Nullable XPackLicenseState licenseState) {
-        this.enabled = XPackSettings.VOTING_ONLY_ENABLED.get(settings);
+    public VotingOnlyNodeFeatureSet(@Nullable XPackLicenseState licenseState) {
         this.licenseState = licenseState;
     }
 
@@ -48,21 +44,19 @@ public class VotingOnlyNodeFeatureSet implements XPackFeatureSet {
 
     @Override
     public boolean enabled() {
-        return enabled;
+        return true;
     }
 
     public static class UsageTransportAction extends XPackUsageFeatureTransportAction {
 
-        private final Settings settings;
         private final XPackLicenseState licenseState;
 
         @Inject
         public UsageTransportAction(TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
                                     ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                                    Settings settings, XPackLicenseState licenseState) {
+                                    XPackLicenseState licenseState) {
             super(XPackUsageFeatureAction.VOTING_ONLY_NODE.name(), transportService, clusterService,
                 threadPool, actionFilters, indexNameExpressionResolver);
-            this.settings = settings;
             this.licenseState = licenseState;
         }
 
@@ -70,7 +64,7 @@ public class VotingOnlyNodeFeatureSet implements XPackFeatureSet {
         protected void masterOperation(XPackUsageRequest request, ClusterState state, ActionListener<XPackUsageFeatureResponse> listener) {
             final boolean available = licenseState.isVotingOnlyAllowed();
             final VotingOnlyNodeFeatureSetUsage usage =
-                new VotingOnlyNodeFeatureSetUsage(available, XPackSettings.VOTING_ONLY_ENABLED.get(settings));
+                new VotingOnlyNodeFeatureSetUsage(available);
             listener.onResponse(new XPackUsageFeatureResponse(usage));
         }
     }

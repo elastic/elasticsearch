@@ -39,16 +39,6 @@ public class VotingOnlyNodePluginTests extends ESIntegTestCase {
         assertThat(ise.getMessage(), containsString("voting-only node must be master-eligible"));
     }
 
-    public void testRequireVotingOnlyNodeToHaveXPackSettingEnabled() {
-        internalCluster().setBootstrapMasterNodeIndex(0);
-        IllegalStateException ise = expectThrows(IllegalStateException.class, () -> internalCluster().startNode(Settings.builder()
-            .put(VotingOnlyNodePlugin.VOTING_ONLY_NODE_SETTING.getKey(), true)
-            .put(XPackSettings.VOTING_ONLY_ENABLED.getKey(), false)
-            .build()));
-        assertThat(ise.getMessage(), containsString(XPackSettings.VOTING_ONLY_ENABLED.getKey() + " must be set to true to use the " +
-            VotingOnlyNodePlugin.VOTING_ONLY_NODE_SETTING.getKey() + " setting"));
-    }
-
     public void testVotingOnlyNodeStats() throws Exception {
         internalCluster().setBootstrapMasterNodeIndex(0);
         internalCluster().startNodes(2);

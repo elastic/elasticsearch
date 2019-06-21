@@ -61,6 +61,7 @@ public class NioSelector implements Closeable {
     private final AtomicBoolean isClosed = new AtomicBoolean(false);
     private final CompletableFuture<Void> isRunningFuture = new CompletableFuture<>();
     private final AtomicReference<Thread> thread = new AtomicReference<>(null);
+    private final AtomicBoolean wokenUp = new AtomicBoolean(false);
 
     public NioSelector(EventHandler eventHandler) throws IOException {
         this(eventHandler, Selector.open());
@@ -153,13 +154,20 @@ public class NioSelector implements Closeable {
             preSelect();
             long nanosUntilNextTask = taskScheduler.nanosUntilNextTask(System.nanoTime());
             int ready;
-            if (nanosUntilNextTask == 0) {
-                ready = selector.selectNow();
-            } else {
-                long millisUntilNextTask = TimeUnit.NANOSECONDS.toMillis(nanosUntilNextTask);
-                // Only select until the next task needs to be run. Do not select with a value of 0 because
-                // that blocks without a timeout.
-                ready = selector.select(Math.min(300, Math.max(millisUntilNextTask, 1)));
+            try {
+                if (wokenUp.getAndSet(false) || nanosUntilNextTask == 0) {
+                    ready = selector.selectNow();
+                } else {
+                    long millisUntilNextTask = TimeUnit.NANOSECONDS.toMillis(nanosUntilNextTask);
+                    // Only select until the next task needs to be run. Do not select with a value of 0 because
+                    // that blocks without a timeout.
+                    ready = selector.select(Math.min(300, Math.max(millisUntilNextTask, 1)));
+
+                }
+            } finally {
+                if (wokenUp.get()) {
+                    selector.wakeup();
+                }
             }
             if (ready > 0) {
                 Set<SelectionKey> selectionKeys = selector.selectedKeys();
@@ -221,13 +229,10 @@ public class NioSelector implements Closeable {
         if (selectionKey.isAcceptable()) {
             assert context instanceof ServerChannelContext : "Only server channels can receive accept events";
             ServerChannelContext serverChannelContext = (ServerChannelContext) context;
-            int ops = selectionKey.readyOps();
-            if ((ops & SelectionKey.OP_ACCEPT) != 0) {
-                try {
-                    eventHandler.acceptChannel(serverChannelContext);
-                } catch (IOException e) {
-                    eventHandler.acceptException(serverChannelContext, e);
-                }
+            try {
+                eventHandler.acceptChannel(serverChannelContext);
+            } catch (IOException e) {
+                eventHandler.acceptException(serverChannelContext, e);
             }
         } else {
             assert context instanceof SocketChannelContext : "Only sockets channels can receive non-accept events";
@@ -298,10 +303,12 @@ public class NioSelector implements Closeable {
     public void queueChannelClose(NioChannel channel) {
         ChannelContext<?> context = channel.getContext();
         assert context.getSelector() == this : "Must schedule a channel for closure with its selector";
-        channelsToClose.offer(context);
         if (isOnCurrentThread() == false) {
-            ensureSelectorOpenForEnqueuing(channelsToClose, context);
+            ensureSelectorOpenForEnqueuing();
+            channelsToClose.offer(context);
             wakeup();
+        } else {
+            closeChannel(context);
         }
     }
 
@@ -313,9 +320,13 @@ public class NioSelector implements Closeable {
      */
     public void scheduleForRegistration(NioChannel channel) {
         ChannelContext<?> context = channel.getContext();
-        channelsToRegister.add(context);
-        ensureSelectorOpenForEnqueuing(channelsToRegister, context);
-        wakeup();
+        if (isOnCurrentThread() == false) {
+            ensureSelectorOpenForEnqueuing();
+            channelsToRegister.add(context);
+            wakeup();
+        } else {
+            registerChannel(context);
+        }
     }
 
     /**
@@ -380,8 +391,10 @@ public class NioSelector implements Closeable {
     }
 
     private void wakeup() {
-        // TODO: Do we need the wakeup optimizations that some other libraries use?
-        selector.wakeup();
+        assert isOnCurrentThread() == false;
+        if (wokenUp.compareAndSet(false, true)) {
+            selector.wakeup();
+        }
     }
 
     private void handleWrite(SocketChannelContext context) {
@@ -414,30 +427,38 @@ public class NioSelector implements Closeable {
     private void setUpNewChannels() {
         ChannelContext<?> newChannel;
         while ((newChannel = this.channelsToRegister.poll()) != null) {
-            assert newChannel.getSelector() == this : "The channel must be registered with the selector with which it was created";
-            try {
-                if (newChannel.isOpen()) {
-                    eventHandler.handleRegistration(newChannel);
-                    if (newChannel instanceof SocketChannelContext) {
-                        attemptConnect((SocketChannelContext) newChannel, false);
-                    }
-                } else {
-                    eventHandler.registrationException(newChannel, new ClosedChannelException());
+            registerChannel(newChannel);
+        }
+    }
+
+    private void registerChannel(ChannelContext<?> newChannel) {
+        assert newChannel.getSelector() == this : "The channel must be registered with the selector with which it was created";
+        try {
+            if (newChannel.isOpen()) {
+                eventHandler.handleRegistration(newChannel);
+                if (newChannel instanceof SocketChannelContext) {
+                    attemptConnect((SocketChannelContext) newChannel, false);
                 }
-            } catch (Exception e) {
-                eventHandler.registrationException(newChannel, e);
+            } else {
+                eventHandler.registrationException(newChannel, new ClosedChannelException());
             }
+        } catch (Exception e) {
+            eventHandler.registrationException(newChannel, e);
         }
     }
 
     private void closePendingChannels() {
         ChannelContext<?> channelContext;
         while ((channelContext = channelsToClose.poll()) != null) {
-            try {
-                eventHandler.handleClose(channelContext);
-            } catch (Exception e) {
-                eventHandler.closeException(channelContext, e);
-            }
+            closeChannel(channelContext);
+        }
+    }
+
+    private void closeChannel(final ChannelContext<?> channelContext) {
+        try {
+            eventHandler.handleClose(channelContext);
+        } catch (Exception e) {
+            eventHandler.closeException(channelContext, e);
         }
     }
 
@@ -452,28 +473,9 @@ public class NioSelector implements Closeable {
         }
     }
 
-    /**
-     * This is a convenience method to be called after some object (normally channels) are enqueued with this
-     * selector. This method will check if the selector is still open. If it is open, normal operation can
-     * proceed.
-     *
-     * If the selector is closed, then we attempt to remove the object from the queue. If the removal
-     * succeeds then we throw an {@link IllegalStateException} indicating that normal operation failed. If
-     * the object cannot be removed from the queue, then the object has already been handled by the selector
-     * and operation can proceed normally.
-     *
-     * If this method is called from the selector thread, we will not allow the queuing to occur as the
-     * selector thread can manipulate its queues internally even if it is no longer open.
-     *
-     * @param queue the queue to which the object was added
-     * @param objectAdded the objected added
-     * @param <O> the object type
-     */
-    private <O> void ensureSelectorOpenForEnqueuing(ConcurrentLinkedQueue<O> queue, O objectAdded) {
-        if (isOpen() == false && isOnCurrentThread() == false) {
-            if (queue.remove(objectAdded)) {
+    private void ensureSelectorOpenForEnqueuing() {
+        if (isOpen() == false) {
                 throw new IllegalStateException("selector is already closed");
-            }
         }
     }
 }

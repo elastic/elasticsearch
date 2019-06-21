@@ -133,8 +133,8 @@
 ---
 "Indices recovery test with detailed parameter":
   - skip:
-      version: " - 7.9.99"
-      reason: bug with detailed parameter fixed in 8.0
+      version: " - 7.2.99"
+      reason: bug with detailed parameter fixed in 7.3
 
   - do:
       indices.create:

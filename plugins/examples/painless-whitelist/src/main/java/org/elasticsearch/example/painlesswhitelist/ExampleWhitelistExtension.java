@@ -23,22 +23,26 @@ import org.elasticsearch.painless.spi.PainlessExtension;
 import org.elasticsearch.painless.spi.Whitelist;
 import org.elasticsearch.painless.spi.WhitelistInstanceBinding;
 import org.elasticsearch.painless.spi.WhitelistLoader;
+import org.elasticsearch.painless.spi.annotation.WhitelistAnnotationParser;
 import org.elasticsearch.script.FieldScript;
 import org.elasticsearch.script.ScriptContext;
 
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 /** An extension of painless which adds a whitelist. */
 public class ExampleWhitelistExtension implements PainlessExtension {
 
-    private static final Whitelist WHITELIST =
-        WhitelistLoader.loadFromResourceFiles(ExampleWhitelistExtension.class, "example_whitelist.txt");
-
     @Override
     public Map<ScriptContext<?>, List<Whitelist>> getContextWhitelists() {
+        Map<String, WhitelistAnnotationParser> parsers = new HashMap<>(WhitelistAnnotationParser.BASE_ANNOTATION_PARSERS);
+        parsers.put(ExamplePainlessAnnotation.NAME, ExampleWhitelistAnnotationParser.INSTANCE);
+        Whitelist classWhitelist =
+                WhitelistLoader.loadFromResourceFiles(ExampleWhitelistExtension.class, parsers, "example_whitelist.txt");
+
         ExampleWhitelistedInstance ewi = new ExampleWhitelistedInstance(1);
         WhitelistInstanceBinding addValue = new WhitelistInstanceBinding("example addValue", ewi,
             "addValue", "int", Collections.singletonList("int"), Collections.emptyMap());
@@ -47,6 +51,6 @@ public class ExampleWhitelistExtension implements PainlessExtension {
         Whitelist instanceWhitelist = new Whitelist(ewi.getClass().getClassLoader(), Collections.emptyList(),
             Collections.emptyList(), Collections.emptyList(), Arrays.asList(addValue, getValue));
 
-        return Collections.singletonMap(FieldScript.CONTEXT, Arrays.asList(WHITELIST, instanceWhitelist));
+        return Collections.singletonMap(FieldScript.CONTEXT, Arrays.asList(classWhitelist, instanceWhitelist));
     }
 }

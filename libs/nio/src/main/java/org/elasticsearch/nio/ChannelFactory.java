@@ -177,6 +177,7 @@ public abstract class ChannelFactory<ServerSocket extends NioServerSocketChannel
 
         SocketChannel acceptNioChannel(ServerChannelContext serverContext) throws IOException {
             ServerSocketChannel rawChannel = serverContext.getChannel().getRawChannel();
+            assert rawChannel.isBlocking() == false;
             SocketChannel socketChannel = accept(rawChannel);
             if (socketChannel == null) {
                 return null;

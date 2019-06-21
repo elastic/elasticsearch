@@ -45,6 +45,7 @@ PUT /twitter/_settings
 }
 --------------------------------------------------
 // CONSOLE
+// TEST[setup:twitter]
 
 By default, none are enabled (set to `-1`). Levels (`warn`, `info`,
 `debug`, `trace`) allow to control under which logging level the log
@@ -117,6 +118,7 @@ PUT /twitter/_settings
 }
 --------------------------------------------------
 // CONSOLE
+// TEST[setup:twitter]
 
 By default Elasticsearch will log the first 1000 characters of the _source in
 the slowlog. You can change that with `index.indexing.slowlog.source`. Setting

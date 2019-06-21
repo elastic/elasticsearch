@@ -87,19 +87,18 @@ public class VotingOnlyNodePluginTests extends ESIntegTestCase {
         assertBusy(() -> assertThat(
             client().admin().cluster().prepareState().get().getState().getLastCommittedConfiguration().getNodeIds().size(),
             equalTo(3)));
+        final String oldMasterId = client().admin().cluster().prepareState().get().getState().nodes().getMasterNodeId();
 
         internalCluster().stopCurrentMasterNode();
 
-        try {
-            assertThat(client().admin().cluster().prepareState().setMasterNodeTimeout("100ms")
-                .execute().actionGet().getState().nodes().getMasterNodeId(), nullValue());
-            fail("should not be able to find master");
-        } catch (MasterNotDiscoveredException e) {
-            // all is well, no master elected
-        }
+        expectThrows(MasterNotDiscoveredException.class, () ->
+            assertThat(client().admin().cluster().prepareState().setMasterNodeTimeout("100ms").execute().actionGet()
+                .getState().nodes().getMasterNodeId(), nullValue()));
 
         // start a fresh full master node, which will be brought into the cluster as master by the voting-only nodes
         final String newMaster = internalCluster().startNode();
         assertEquals(newMaster, internalCluster().getMasterName());
+        final String newMasterId = client().admin().cluster().prepareState().get().getState().nodes().getMasterNodeId();
+        assertNotEquals(oldMasterId, newMasterId);
     }
 }

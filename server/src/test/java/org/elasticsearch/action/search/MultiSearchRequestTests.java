@@ -187,7 +187,6 @@ public class MultiSearchRequestTests extends ESTestCase {
         assertThat(request.requests().get(2).routing(), equalTo("123"));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/43464")
     public void testEmptyFirstLine1() throws Exception {
         MultiSearchRequest request = parseMultiSearchRequest("/org/elasticsearch/action/search/msearch-empty-first-line1.json");
         assertThat(request.requests().size(), equalTo(4));
@@ -199,7 +198,6 @@ public class MultiSearchRequestTests extends ESTestCase {
             "in the next major version");
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/43464")
     public void testEmptyFirstLine2() throws Exception {
         MultiSearchRequest request = parseMultiSearchRequest("/org/elasticsearch/action/search/msearch-empty-first-line2.json");
         assertThat(request.requests().size(), equalTo(4));

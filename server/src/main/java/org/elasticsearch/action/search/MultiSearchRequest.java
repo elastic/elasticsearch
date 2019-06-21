@@ -180,13 +180,15 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
                                            DeprecationLogger deprecationLogger) throws IOException {
         int from = 0;
         byte marker = xContent.streamSeparator();
+        char carriageReturn = '\r';
+
         while (true) {
             int nextMarker = findNextMarker(marker, from, data);
             if (nextMarker == -1) {
                 break;
             }
-            // support first line with \n
-            if (nextMarker == 0) {
+            // support first line with \n or \r\n (in Windows)
+            if (nextMarker == 0 || (nextMarker == 1 && findNextMarker((byte) carriageReturn, 0, data) == 0)) {
                 from = nextMarker + 1;
                 deprecationLogger.deprecated("support for empty first line before any action metadata in msearch API is deprecated and " +
                     "will be removed in the next major version");

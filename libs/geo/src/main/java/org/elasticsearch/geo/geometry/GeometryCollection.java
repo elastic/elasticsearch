@@ -30,7 +30,7 @@ import java.util.Objects;
 public class GeometryCollection<G extends Geometry> implements Geometry, Iterable<G> {
     public static final GeometryCollection<Geometry> EMPTY = new GeometryCollection<>();
 
-    protected final List<G> shapes;
+    private final List<G> shapes;
 
     private boolean hasAlt;
 

@@ -35,7 +35,6 @@ import org.elasticsearch.geo.geometry.Rectangle;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 
 /**
@@ -144,14 +143,14 @@ public class GeometryTreeWriter implements Writeable {
 
         @Override
         public Void visit(Point point) {
-            Point2DWriter writer = new Point2DWriter(Collections.singletonList(point));
+            Point2DWriter writer = new Point2DWriter(point);
             addWriter(writer);
             return null;
         }
 
         @Override
         public Void visit(MultiPoint multiPoint) {
-            Point2DWriter writer = new Point2DWriter(multiPoint.points());
+            Point2DWriter writer = new Point2DWriter(multiPoint);
             addWriter(writer);
             return null;
         }

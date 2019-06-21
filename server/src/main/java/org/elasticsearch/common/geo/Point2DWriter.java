@@ -20,11 +20,12 @@ package org.elasticsearch.common.geo;
 
 import org.apache.lucene.geo.GeoEncodingUtils;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.geo.geometry.MultiPoint;
 import org.elasticsearch.geo.geometry.Point;
 import org.elasticsearch.geo.geometry.ShapeType;
 
 import java.io.IOException;
-import java.util.List;
+import java.util.Collections;
 
 /**
  * points KD-Tree (2D) writer for use in doc-values.
@@ -39,25 +40,31 @@ public class Point2DWriter extends ShapeTreeWriter {
     // size of a leaf node where searches are done sequentially.
     static final int LEAF_SIZE = 64;
 
-    Point2DWriter(List<Point> pointList) {
-        int numPoints = pointList.size();
+    Point2DWriter(MultiPoint multiPoint) {
+        int numPoints = multiPoint.size();
         int minX = Integer.MAX_VALUE;
         int minY = Integer.MAX_VALUE;
         int maxX = Integer.MIN_VALUE;
         int maxY = Integer.MIN_VALUE;
         coords = new int[numPoints * K];
-        for (int i = 0; i < numPoints; i++) {
-            int x = GeoEncodingUtils.encodeLongitude(pointList.get(i).getLon());
-            int y = GeoEncodingUtils.encodeLatitude(pointList.get(i).getLat());
+        int i = 0;
+        for (Point point : multiPoint) {
+            int x = GeoEncodingUtils.encodeLongitude(point.getLon());
+            int y = GeoEncodingUtils.encodeLatitude(point.getLat());
             minX = Math.min(minX, x);
             minY = Math.min(minY, y);
             maxX = Math.max(maxX, x);
             maxY = Math.max(maxY, y);
             coords[2 * i] = x;
             coords[2 * i + 1] = y;
+            i++;
         }
         sort(0, numPoints - 1, 0);
         this.extent = new Extent(minX, minY, maxX, maxY);
+    }
+
+    Point2DWriter(Point point) {
+        this(new MultiPoint(Collections.singletonList(point)));
     }
 
     @Override

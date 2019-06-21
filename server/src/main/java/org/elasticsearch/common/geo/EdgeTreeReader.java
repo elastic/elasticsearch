@@ -26,7 +26,7 @@ import java.util.Optional;
 
 import static org.apache.lucene.geo.GeoUtils.lineCrossesLineWithBoundary;
 
-public class EdgeTreeReader {
+public class EdgeTreeReader implements ShapeTreeReader {
     final ByteBufferStreamInput input;
     final int startPosition;
 
@@ -43,8 +43,7 @@ public class EdgeTreeReader {
     /**
      * Returns true if the rectangle query and the edge tree's shape overlap
      */
-    public boolean containedInOrCrosses(int minX, int minY, int maxX, int maxY) throws IOException {
-        Extent extent = new Extent(minX, minY, maxX, maxY);
+    public boolean intersects(Extent extent) throws IOException {
         return this.containsBottomLeft(extent) || this.crosses(extent);
     }
 

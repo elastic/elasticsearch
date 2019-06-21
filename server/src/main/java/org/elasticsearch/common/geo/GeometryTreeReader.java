@@ -48,24 +48,11 @@ public class GeometryTreeReader {
         }
         assert input.readVInt() == 1;
         ShapeType shapeType = input.readEnum(ShapeType.class);
-        switch (shapeType) {
-            case POLYGON:
-                EdgeTreeReader edgeReader = new EdgeTreeReader(input);
-                return edgeReader.getExtent();
-            case POINT:
-            case MULTIPOINT:
-                Point2DReader pointReader = new Point2DReader(input);
-                return pointReader.getExtent();
-            case LINESTRING:
-            case MULTILINESTRING:
-                throw new UnsupportedOperationException("TODO: linestring and multilinestring");
-            default:
-                throw new UnsupportedOperationException("unsupported shape type [" + shapeType + "]");
-        }
+        ShapeTreeReader reader = getReader(shapeType, input);
+        return reader.getExtent();
     }
 
-    public boolean containedInOrCrosses(int minLon, int minLat, int maxLon, int maxLat) throws IOException {
-        Extent extent = new Extent(minLon, minLat, maxLon, maxLat);
+    public boolean intersects(Extent extent) throws IOException {
         input.position(0);
         boolean hasExtent = input.readBoolean();
         if (hasExtent) {
@@ -78,27 +65,26 @@ public class GeometryTreeReader {
         int numTrees = input.readVInt();
         for (int i = 0; i < numTrees; i++) {
             ShapeType shapeType = input.readEnum(ShapeType.class);
-            switch (shapeType) {
-                case POLYGON:
-                    EdgeTreeReader edgeReader = new EdgeTreeReader(input);
-                    if (edgeReader.containedInOrCrosses(minLon, minLat, maxLon, maxLat)) {
-                        return true;
-                    }
-                    break;
-                case POINT:
-                case MULTIPOINT:
-                    Point2DReader pointReader = new Point2DReader(input);
-                    if (pointReader.containedIn(extent)) {
-                        return true;
-                    }
-                    break;
-                case LINESTRING:
-                case MULTILINESTRING:
-                    throw new UnsupportedOperationException("TODO: linestring and multilinestring");
-                default:
-                    throw new UnsupportedOperationException("unsupported shape type [" + shapeType +"]");
+            ShapeTreeReader reader = getReader(shapeType, input);
+            if (reader.intersects(extent)) {
+                return true;
             }
         }
         return false;
+    }
+
+    private static ShapeTreeReader getReader(ShapeType shapeType, ByteBufferStreamInput input) throws IOException {
+        switch (shapeType) {
+            case POLYGON:
+                return new EdgeTreeReader(input);
+            case POINT:
+            case MULTIPOINT:
+                return new Point2DReader(input);
+            case LINESTRING:
+            case MULTILINESTRING:
+                throw new UnsupportedOperationException("TODO: linestring and multilinestring");
+            default:
+                throw new UnsupportedOperationException("unsupported shape type [" + shapeType + "]");
+        }
     }
 }

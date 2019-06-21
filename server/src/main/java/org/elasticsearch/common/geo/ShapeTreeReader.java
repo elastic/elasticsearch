@@ -16,32 +16,17 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+package org.elasticsearch.common.geo;
 
-package org.elasticsearch.geo.geometry;
+import org.elasticsearch.geo.geometry.Geometry;
 
-import java.util.List;
+import java.io.IOException;
 
 /**
- * Represents a MultiPoint object on the earth's surface in decimal degrees and optional altitude in meters.
+ * Shape Reader to read different {@link Geometry} doc-values
  */
-public class MultiPoint extends GeometryCollection<Point> {
-    public static final MultiPoint EMPTY = new MultiPoint();
+public interface ShapeTreeReader {
 
-    private MultiPoint() {
-    }
-
-    public MultiPoint(List<Point> points) {
-        super(points);
-    }
-
-    @Override
-    public ShapeType type() {
-        return ShapeType.MULTIPOINT;
-    }
-
-    @Override
-    public <T, E extends Exception> T visit(GeometryVisitor<T, E> visitor) throws E {
-        return visitor.visit(this);
-    }
-
+    Extent getExtent() throws IOException;
+    boolean intersects(Extent extent) throws IOException;
 }

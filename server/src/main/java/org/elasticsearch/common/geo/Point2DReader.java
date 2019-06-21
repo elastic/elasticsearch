@@ -24,7 +24,7 @@ import java.io.IOException;
 import java.util.ArrayDeque;
 import java.util.Deque;
 
-class Point2DReader {
+class Point2DReader implements ShapeTreeReader {
     private final ByteBufferStreamInput input;
     private final int size;
     private final int startPosition;
@@ -35,7 +35,7 @@ class Point2DReader {
         this.startPosition = input.position();
     }
 
-    Extent getExtent() throws IOException {
+    public Extent getExtent() throws IOException {
         if (size == 2) {
             int x = readX(0);
             int y = readY(0);
@@ -45,7 +45,7 @@ class Point2DReader {
         }
     }
 
-    boolean containedIn(Extent extent) throws IOException {
+    public boolean intersects(Extent extent) throws IOException {
         Deque<Integer> stack = new ArrayDeque<>();
         stack.push(0);
         stack.push(size - 1);

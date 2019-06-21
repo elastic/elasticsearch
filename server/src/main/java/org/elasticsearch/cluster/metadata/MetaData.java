@@ -361,38 +361,6 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
     }
 
     /**
-     * Checks if at least one of the specified aliases exists in the specified concrete indices. Wildcards are supported in the
-     * alias names for partial matches.
-     *
-     * @param aliases         The names of the index aliases to find
-     * @param concreteIndices The concrete indexes the index aliases must point to order to be returned.
-     * @return whether at least one of the specified aliases exists in one of the specified concrete indices.
-     */
-    public boolean hasAliases(final String[] aliases, String[] concreteIndices) {
-        assert aliases != null;
-        assert concreteIndices != null;
-        if (concreteIndices.length == 0) {
-            return false;
-        }
-
-        Iterable<String> intersection = HppcMaps.intersection(ObjectHashSet.from(concreteIndices), indices.keys());
-        for (String index : intersection) {
-            IndexMetaData indexMetaData = indices.get(index);
-            List<AliasMetaData> filteredValues = new ArrayList<>();
-            for (ObjectCursor<AliasMetaData> cursor : indexMetaData.getAliases().values()) {
-                AliasMetaData value = cursor.value;
-                if (Regex.simpleMatch(aliases, value.alias())) {
-                    filteredValues.add(value);
-                }
-            }
-            if (!filteredValues.isEmpty()) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    /**
      * Finds all mappings for types and concrete indices. Types are expanded to include all types that match the glob
      * patterns in the types array. Empty types array, null or {"_all"} will be expanded to all types available for
      * the given indices. Only fields that match the provided field filter will be returned (default is a predicate

@@ -18,26 +18,31 @@ import org.elasticsearch.protocol.xpack.XPackInfoResponse.FeatureSetsInfo;
 import org.elasticsearch.protocol.xpack.XPackInfoResponse.FeatureSetsInfo.FeatureSet;
 import org.elasticsearch.protocol.xpack.XPackInfoResponse.LicenseInfo;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackBuild;
 
 import java.util.HashSet;
+import java.util.List;
 
 public class TransportXPackInfoAction extends HandledTransportAction<XPackInfoRequest, XPackInfoResponse> {
 
     private final LicenseService licenseService;
     private final NodeClient client;
-    private final ThreadPool threadPool;
+    private final List<XPackInfoFeatureAction> infoActions;
 
     @Inject
     public TransportXPackInfoAction(TransportService transportService, ActionFilters actionFilters, LicenseService licenseService,
-                                    NodeClient client, ThreadPool threadPool) {
+                                    NodeClient client) {
         super(XPackInfoAction.NAME, transportService, actionFilters,
             XPackInfoRequest::new);
         this.licenseService = licenseService;
         this.client = client;
-        this.threadPool = threadPool;
+        this.infoActions = infoActions();
+    }
+
+    // overrideable for tests
+    protected List<XPackInfoFeatureAction> infoActions() {
+        return XPackInfoFeatureAction.ALL;
     }
 
     @Override
@@ -61,7 +66,7 @@ public class TransportXPackInfoAction extends HandledTransportAction<XPackInfoRe
         FeatureSetsInfo featureSetsInfo = null;
         if (request.getCategories().contains(XPackInfoRequest.Category.FEATURES)) {
             var featureSets = new HashSet<FeatureSet>();
-            for (var infoAction : XPackInfoFeatureAction.ALL) {
+            for (var infoAction : infoActions) {
                 // local actions are executed directly, not on a separate thread, so no thread safe collection is necessary
                 client.executeLocally(infoAction, request,
                     ActionListener.wrap(response -> featureSets.add(response.getInfo()), listener::onFailure));

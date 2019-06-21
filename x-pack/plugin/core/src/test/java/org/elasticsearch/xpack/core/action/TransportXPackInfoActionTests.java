@@ -6,9 +6,9 @@
 package org.elasticsearch.xpack.core.action;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.protocol.xpack.XPackInfoRequest;
@@ -17,20 +17,14 @@ import org.elasticsearch.protocol.xpack.XPackInfoResponse.FeatureSetsInfo.Featur
 import org.elasticsearch.protocol.xpack.license.LicenseStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.threadpool.TestThreadPool;
-import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.core.XPackFeatureSet;
-import org.junit.After;
-import org.junit.Before;
 
-import java.util.Collections;
+import java.util.ArrayList;
 import java.util.EnumSet;
-import java.util.HashSet;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
@@ -40,40 +34,39 @@ import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.core.IsNull.notNullValue;
 import static org.hamcrest.core.IsNull.nullValue;
+import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.stub;
 import static org.mockito.Mockito.when;
 
 public class TransportXPackInfoActionTests extends ESTestCase {
-    private ThreadPool threadPool;
-
-    @Before
-    public void setupThreadpool() {
-        threadPool = new TestThreadPool("test");
-    }
-
-    @After
-    public void cleanupThreadpool() {
-        threadPool.close();
-    }
 
     public void testDoExecute() throws Exception {
 
         LicenseService licenseService = mock(LicenseService.class);
 
-        final Set<XPackFeatureSet> featureSets = new HashSet<>();
+        NodeClient client = mock(NodeClient.class);
+        Map<XPackInfoFeatureAction, FeatureSet> featureSets = new HashMap<>();
         int featureSetCount = randomIntBetween(0, 5);
-        for (int i = 0; i < featureSetCount; i++) {
-            XPackFeatureSet fs = mock(XPackFeatureSet.class);
-            when(fs.name()).thenReturn(randomAlphaOfLength(5));
-            when(fs.available()).thenReturn(randomBoolean());
-            when(fs.enabled()).thenReturn(randomBoolean());
-            featureSets.add(fs);
+        for (XPackInfoFeatureAction infoAction : randomSubsetOf(featureSetCount, XPackInfoFeatureAction.ALL)) {
+            FeatureSet featureSet = new FeatureSet(randomAlphaOfLength(5), randomBoolean(), randomBoolean());
+            featureSets.put(infoAction, featureSet);
+            stub(client.executeLocally(eq(infoAction), any(ActionRequest.class), any(ActionListener.class))).toAnswer(answer -> {
+                @SuppressWarnings("unchecked")
+                var listener = (ActionListener<XPackInfoFeatureResponse>)answer.getArguments()[2];
+                listener.onResponse(new XPackInfoFeatureResponse(featureSet));
+                return null;
+            });
         }
 
-        TransportService transportService = new TransportService(Settings.EMPTY, mock(Transport.class), null,
-            TransportService.NOOP_TRANSPORT_INTERCEPTOR, x -> null, null, Collections.emptySet());
-        TransportXPackInfoAction action = new TransportXPackInfoAction(transportService, mock(ActionFilters.class),
-            licenseService, mock(NodeClient.class), threadPool);
+        TransportXPackInfoAction action = new TransportXPackInfoAction(mock(TransportService.class), mock(ActionFilters.class),
+            licenseService, client) {
+            @Override
+            protected List<XPackInfoFeatureAction> infoActions() {
+                return new ArrayList<>(featureSets.keySet());
+            }
+        };
 
         License license = mock(License.class);
         long expiryDate = randomLong();
@@ -144,7 +137,7 @@ public class TransportXPackInfoActionTests extends ESTestCase {
             assertThat(response.get().getFeatureSetsInfo(), notNullValue());
             Map<String, FeatureSet> features = response.get().getFeatureSetsInfo().getFeatureSets();
             assertThat(features.size(), is(featureSets.size()));
-            for (XPackFeatureSet fs : featureSets) {
+            for (FeatureSet fs : featureSets.values()) {
                 assertThat(features, hasKey(fs.name()));
                 assertThat(features.get(fs.name()).name(), equalTo(fs.name()));
                 assertThat(features.get(fs.name()).available(), equalTo(fs.available()));

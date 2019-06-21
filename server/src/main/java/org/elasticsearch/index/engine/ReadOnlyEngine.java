@@ -22,7 +22,6 @@ import org.apache.lucene.codecs.blocktree.BlockTreeTermsReader;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexWriter;
-import org.apache.lucene.index.ReaderManager;
 import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.SoftDeletesDirectoryReaderWrapper;
@@ -115,7 +114,7 @@ public class ReadOnlyEngine extends Engine {
                 this.indexCommit = Lucene.getIndexCommit(lastCommittedSegmentInfos, directory);
                 reader = open(indexCommit);
                 reader = wrapReader(reader, readerWrapperFunction);
-                readerManager = new ReaderManager(reader); // TODO, searcherFactory);
+                readerManager = new ReaderManager(reader, newReaderConsumer);
                 this.docsStats = docsStats(lastCommittedSegmentInfos);
                 this.indexWriterLock = indexWriterLock;
                 success = true;

@@ -68,14 +68,14 @@ public class LeafIndexSearcher {
     /**
      * Returns the top level reader
      */
-    public IndexReader getIndexReader() {
+    public final IndexReader getIndexReader() {
         return reader;
     }
 
     /**
      * Returns the top level searcher
      */
-    public IndexSearcher getIndexSearcher() {
+    public final IndexSearcher getIndexSearcher() {
         return searcher;
     }
 
@@ -83,7 +83,7 @@ public class LeafIndexSearcher {
     /**
      * Returns the {@link Similarity} associated with this searcher.
      */
-    public Similarity getSimilarity() {
+    public final Similarity getSimilarity() {
         return similarity;
     }
 
@@ -91,7 +91,7 @@ public class LeafIndexSearcher {
      * Returns the {@link QueryCache} associated with this searcher.
      * or null if the cache is disabled.
      */
-    public QueryCache getQueryCache() {
+    public final QueryCache getQueryCache() {
         return queryCache;
     }
 
@@ -99,7 +99,7 @@ public class LeafIndexSearcher {
      * Returns the {@link QueryCachingPolicy} associated with this searcher
      * or null if the cache is disabled.
      */
-    public QueryCachingPolicy getQueryCachingPolicy() {
+    public final QueryCachingPolicy getQueryCachingPolicy() {
         return queryCachingPolicy;
     }
 

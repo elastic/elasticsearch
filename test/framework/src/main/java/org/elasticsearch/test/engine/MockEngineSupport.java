@@ -24,15 +24,10 @@ import org.apache.lucene.index.AssertingDirectoryReader;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.search.AssertingIndexSearcher;
 import org.apache.lucene.search.AssertingLeafIndexSearcher;
-import org.apache.lucene.search.Collector;
-import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.LeafIndexSearcher;
 import org.apache.lucene.search.QueryCache;
 import org.apache.lucene.search.QueryCachingPolicy;
-import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.settings.Setting;
@@ -47,11 +42,8 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.lang.reflect.Constructor;
 import java.util.IdentityHashMap;
-import java.util.List;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicBoolean;
-
-import static org.apache.lucene.util.LuceneTestCase.random;
 
 /**
  * Support class to build MockEngines like {@link MockInternalEngine}
@@ -188,21 +180,8 @@ public final class MockEngineSupport {
             wrappedReader = wrapReader((DirectoryReader) reader);
         }
         LeafIndexSearcher searcher = engineSearcher.leafSearcher();
-        LeafIndexSearcher wrappedSearcher =
-            new AssertingLeafIndexSearcher(wrappedReader,
-                    searcher.getSimilarity(), searcher.getQueryCache(), searcher.getQueryCachingPolicy()) {
-            @Override
-            public IndexSearcher getIndexSearcher() {
-                return new AssertingIndexSearcher(mockContext.random, getIndexReader()) {
-                    @Override
-                    protected void search(List<LeafReaderContext> leaves, Weight weight, Collector collector) throws IOException {
-                        for (LeafReaderContext ctx : leaves) {
-                            searchLeaf(ctx, weight, collector);
-                        }
-                    }
-                };
-            }
-        };
+        LeafIndexSearcher wrappedSearcher = new AssertingLeafIndexSearcher(wrappedReader,
+                    searcher.getSimilarity(), searcher.getQueryCache(), searcher.getQueryCachingPolicy());
         /*
          * pass the original searcher to the super.newSearcher() method to
          * make sure this is the searcher that will be released later on.

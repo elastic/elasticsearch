@@ -26,7 +26,6 @@ import org.apache.lucene.search.similarities.Similarity;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.Random;
 
 import static org.apache.lucene.util.LuceneTestCase.random;
 

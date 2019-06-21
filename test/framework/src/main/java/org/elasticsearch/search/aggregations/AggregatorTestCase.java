@@ -241,7 +241,8 @@ public abstract class AggregatorTestCase extends ESTestCase {
     }
 
     protected SearchContext createSearchContext(IndexSearcher indexSearcher, IndexSettings indexSettings) {
-        AssertingLeafIndexSearcher leafSearcher = new AssertingLeafIndexSearcher(indexSearcher.getIndexReader(), indexSearcher.getSimilarity());
+        AssertingLeafIndexSearcher leafSearcher = new AssertingLeafIndexSearcher(indexSearcher.getIndexReader(),
+            indexSearcher.getSimilarity());
         ContextIndexSearcher contextIndexSearcher = new ContextIndexSearcher(leafSearcher);
         SearchContext searchContext = mock(SearchContext.class);
         when(searchContext.numberOfShards()).thenReturn(1);

@@ -184,6 +184,8 @@ public class RepositoriesIT extends AbstractSnapshotIntegTestCase {
     }
 
     public void testRepositoryVerification() throws Exception {
+        disableRepoConsistencyCheck("This test does not create any data in the repository.");
+
         Client client = client();
 
         Settings settings = Settings.builder()

@@ -10,11 +10,7 @@ Deletes an index.
 [[indices-delete-index-request]]
 === {api-request-title}
 
-[source,js]
-----
-DELETE /<index>
-----
-// NOTCONSOLE
+`DELETE /<index>`
 
 [float]
 [[indices-delete-index-desc]]

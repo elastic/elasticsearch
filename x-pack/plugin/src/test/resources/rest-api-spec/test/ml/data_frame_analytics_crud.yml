@@ -183,6 +183,24 @@ setup:
           }
 
 ---
+"Test put config with pattern dest index name":
+
+  - do:
+      catch: /Invalid index name \[foo\*\]/
+      ml.put_data_frame_analytics:
+        id: "config-with-invalid-dest-index"
+        body: >
+          {
+            "source": {
+              "index": "index-source"
+            },
+            "dest": {
+              "index": "foo*"
+            },
+            "analysis": {"outlier_detection":{}}
+          }
+
+---
 "Test put config with missing concrete source index":
 
   - do:

@@ -159,11 +159,16 @@ so that if one of the three nodes is down, then the remaining two can still
 elect a master amongst them-selves. This only requires one of the two remaining
 nodes to have the capability to act as master, but both need to have voting
 powers. This means that one of the three master-eligible nodes can be made as
-voting-only. If this voting-only node is a dedicated master, a less powerful
-machine or a smaller heap-size can be chosen for this node. Alternatively,
-a voting-only non-dedicated master node can play the role of the third
-master-eligible node, which allows running an HA cluster with only two
+voting-only. If this voting-only node is a dedicated master, a machine with
+a less powerful CPU and a smaller heap-size can be chosen for this node.
+Alternatively, a voting-only non-dedicated master node can play the role of the
+third master-eligible node, which allows running an HA cluster with only two
 dedicated master nodes.
+
+As any master-eligible node, voting-only nodes should have fast disks and a
+reliable low-latency connection to the other nodes in the cluster, as they
+are on the critical path for
+<<cluster-state-publishing,publishing cluster state updates>>.
 
 [float]
 [[data-node]]

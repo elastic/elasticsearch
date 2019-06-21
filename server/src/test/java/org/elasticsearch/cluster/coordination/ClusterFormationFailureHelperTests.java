@@ -49,7 +49,7 @@ import static org.hamcrest.Matchers.oneOf;
 
 public class ClusterFormationFailureHelperTests extends ESTestCase {
 
-    private static final ElectionStrategy electionStrategy = ElectionStrategy.DefaultElectionStrategy.INSTANCE;
+    private static final ElectionStrategy electionStrategy = ElectionStrategy.DEFAULT_INSTANCE;
 
     public void testScheduling() {
         final long expectedDelayMillis;

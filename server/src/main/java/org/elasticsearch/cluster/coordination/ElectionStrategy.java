@@ -23,27 +23,31 @@ import org.elasticsearch.cluster.coordination.CoordinationState.VoteCollection;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 
 /**
- * Allows plugging in a custom election strategy. Note that, in order to guarantee safety of the system, custom election strategies should
- * only be more restrictive than the behavior that's provided by {@link DefaultElectionStrategy}.
+ * Allows plugging in a custom election strategy, restricting the notion of an election quorum.
  */
-public interface ElectionStrategy {
+public class ElectionStrategy {
+
+    public static final ElectionStrategy DEFAULT_INSTANCE = new ElectionStrategy();
+
+    protected ElectionStrategy() {
+
+    }
 
     /**
      * Whether there is an election quorum from the point of view of the given local node under the provided voting configurations
      */
-    boolean isElectionQuorum(DiscoveryNode localNode, long localCurrentTerm, long localAcceptedTerm, long localAcceptedVersion,
-                             VotingConfiguration lastCommittedConfiguration, VotingConfiguration lastAcceptedConfiguration,
-                             VoteCollection joinVotes);
+    public final boolean isElectionQuorum(DiscoveryNode localNode, long localCurrentTerm, long localAcceptedTerm, long localAcceptedVersion,
+                                          VotingConfiguration lastCommittedConfiguration, VotingConfiguration lastAcceptedConfiguration,
+                                          VoteCollection joinVotes) {
+        return joinVotes.isQuorum(lastCommittedConfiguration) &&
+            joinVotes.isQuorum(lastAcceptedConfiguration) &&
+            isCustomElectionQuorum(localNode, localCurrentTerm, localAcceptedTerm, localAcceptedVersion, lastCommittedConfiguration,
+                lastAcceptedConfiguration, joinVotes);
+    }
 
-    class DefaultElectionStrategy implements ElectionStrategy {
-
-        public static final ElectionStrategy INSTANCE = new DefaultElectionStrategy();
-
-        @Override
-        public boolean isElectionQuorum(DiscoveryNode localNode, long localCurrentTerm, long localAcceptedTerm, long localAcceptedVersion,
-                                        VotingConfiguration lastCommittedConfiguration, VotingConfiguration lastAcceptedConfiguration,
-                                        VoteCollection joinVotes) {
-            return joinVotes.isQuorum(lastCommittedConfiguration) && joinVotes.isQuorum(lastAcceptedConfiguration);
-        }
+    protected boolean isCustomElectionQuorum(DiscoveryNode localNode, long localCurrentTerm, long localAcceptedTerm,
+                                             long localAcceptedVersion, VotingConfiguration lastCommittedConfiguration,
+                                             VotingConfiguration lastAcceptedConfiguration, VoteCollection joinVotes) {
+        return true;
     }
 }

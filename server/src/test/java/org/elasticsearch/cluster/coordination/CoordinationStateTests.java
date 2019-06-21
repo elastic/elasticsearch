@@ -766,12 +766,12 @@ public class CoordinationStateTests extends ESTestCase {
     public void testSafety() {
         new CoordinationStateTestCluster(IntStream.range(0, randomIntBetween(1, 5))
             .mapToObj(i -> new DiscoveryNode("node_" + i, buildNewFakeTransportAddress(), Version.CURRENT))
-            .collect(Collectors.toList()), ElectionStrategy.DefaultElectionStrategy.INSTANCE)
+            .collect(Collectors.toList()), ElectionStrategy.DEFAULT_INSTANCE)
             .runRandomly();
     }
 
     public static CoordinationState createCoordinationState(PersistedState storage, DiscoveryNode localNode) {
-        return new CoordinationState(localNode, storage, ElectionStrategy.DefaultElectionStrategy.INSTANCE);
+        return new CoordinationState(localNode, storage, ElectionStrategy.DEFAULT_INSTANCE);
     }
 
     public static ClusterState clusterState(long term, long version, DiscoveryNode localNode, VotingConfiguration lastCommittedConfig,

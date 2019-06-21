@@ -157,12 +157,12 @@ public class VotingOnlyNodePlugin extends Plugin implements DiscoveryPlugin, Net
         return Settings.builder().put(DiscoveryModule.ELECTION_STRATEGY_SETTING.getKey(), VOTING_ONLY_ELECTION_STRATEGY).build();
     }
 
-    static class VotingOnlyNodeElectionStrategy extends ElectionStrategy.DefaultElectionStrategy {
+    static class VotingOnlyNodeElectionStrategy extends ElectionStrategy {
 
         @Override
-        public boolean isElectionQuorum(DiscoveryNode localNode, long localCurrentTerm, long localAcceptedTerm, long localAcceptedVersion,
-                                        VotingConfiguration lastCommittedConfiguration, VotingConfiguration lastAcceptedConfiguration,
-                                        VoteCollection joinVotes) {
+        public boolean isCustomElectionQuorum(DiscoveryNode localNode, long localCurrentTerm, long localAcceptedTerm,
+                                              long localAcceptedVersion, VotingConfiguration lastCommittedConfiguration,
+                                              VotingConfiguration lastAcceptedConfiguration, VoteCollection joinVotes) {
             // if local node is voting only, have additional checks on election quorum definition
             if (isVotingOnlyNode(localNode)) {
                 // if all votes are from voting only nodes, do not elect as master (no need to transfer state)
@@ -177,9 +177,7 @@ public class VotingOnlyNodePlugin extends Plugin implements DiscoveryPlugin, Net
                     return false;
                 }
             }
-            // fall back to default election quorum definition
-            return super.isElectionQuorum(localNode, localCurrentTerm, localAcceptedTerm, localAcceptedVersion,
-                lastCommittedConfiguration, lastAcceptedConfiguration, joinVotes);
+            return true;
         }
     }
 

@@ -87,6 +87,9 @@ public interface DiscoveryPlugin {
      */
     default BiConsumer<DiscoveryNode,ClusterState> getJoinValidator() { return null; }
 
+    /**
+     * Allows plugging in election strategies (see {@link ElectionStrategy}) that define a customized notion of an election quorum.
+     */
     default Map<String, ElectionStrategy> getElectionStrategies() {
         return Collections.emptyMap();
     }

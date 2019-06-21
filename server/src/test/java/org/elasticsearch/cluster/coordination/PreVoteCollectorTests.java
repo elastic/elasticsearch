@@ -114,7 +114,7 @@ public class PreVoteCollectorTests extends ESTestCase {
             assert electionOccurred == false;
             electionOccurred = true;
         }, l -> {
-        }, ElectionStrategy.DefaultElectionStrategy.INSTANCE); // TODO need tests that check that the max term seen is updated
+        }, ElectionStrategy.DEFAULT_INSTANCE); // TODO need tests that check that the max term seen is updated
         preVoteCollector.update(getLocalPreVoteResponse(), null);
     }
 
@@ -234,7 +234,7 @@ public class PreVoteCollectorTests extends ESTestCase {
         startAndRunCollector(votingNodes);
 
         final CoordinationState coordinationState = new CoordinationState(localNode,
-            new InMemoryPersistedState(currentTerm, makeClusterState(votingNodes)), ElectionStrategy.DefaultElectionStrategy.INSTANCE);
+            new InMemoryPersistedState(currentTerm, makeClusterState(votingNodes)), ElectionStrategy.DEFAULT_INSTANCE);
 
         final long newTerm = randomLongBetween(currentTerm + 1, Long.MAX_VALUE);
 

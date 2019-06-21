@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.core.indexlifecycle;
 
+import org.apache.log4j.LogManager;
+import org.apache.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.client.Client;
@@ -36,8 +38,13 @@ import java.util.stream.Collectors;
  * For example, as preparation for shrinking that index.
  */
 public class SetSingleNodeAllocateStep extends AsyncActionStep {
+    private static final Logger logger = LogManager.getLogger(SetSingleNodeAllocateStep.class);
     public static final String NAME = "set-single-node-allocation";
 
+    // These allocation deciders were chosen because these are the conditions that can prevent
+    // allocation long-term, and that we can inspect in advance. Most other allocation deciders
+    // will either only delay relocation (e.g. ThrottlingAllocationDecider), or don't work very
+    // well when reallocating potentially many shards at once (e.g. DiskThresholdDecider)
     private static final AllocationDeciders ALLOCATION_DECIDERS = new AllocationDeciders(List.of(
         new FilterAllocationDecider(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)),
         new NodeVersionAllocationDecider()
@@ -81,6 +88,7 @@ public class SetSingleNodeAllocateStep extends AsyncActionStep {
                         ActionListener.wrap(response -> listener.onResponse(true), listener::onFailure));
             } else {
                 // No nodes currently match the allocation rules so just wait until there is one that does
+                logger.debug("could not find any nodes to allocate index [{}] onto prior to shrink");
                 listener.onResponse(false);
             }
         } else {

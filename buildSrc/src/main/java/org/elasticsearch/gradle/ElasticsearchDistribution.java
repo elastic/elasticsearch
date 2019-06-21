@@ -22,6 +22,7 @@ package org.elasticsearch.gradle;
 import org.gradle.api.Buildable;
 import org.gradle.api.Project;
 import org.gradle.api.artifacts.Configuration;
+import org.gradle.api.model.ObjectFactory;
 import org.gradle.api.provider.Property;
 import org.gradle.api.tasks.TaskDependency;
 
@@ -107,16 +108,16 @@ public class ElasticsearchDistribution implements Buildable {
     private final Property<Flavor> flavor;
     private final Property<Boolean> bundledJdk;
 
-    ElasticsearchDistribution(String name, Project project, Configuration fileConfiguration, Configuration extractedConfiguration) {
+    ElasticsearchDistribution(String name, ObjectFactory objectFactory, Configuration fileConfiguration, Configuration extractedConfiguration) {
         this.name = name;
         this.configuration = fileConfiguration;
-        this.version = project.getObjects().property(Version.class);
+        this.version = objectFactory.property(Version.class);
         this.version.convention(Version.fromString(VersionProperties.getElasticsearch()));
-        this.type = project.getObjects().property(Type.class);
+        this.type = objectFactory.property(Type.class);
         this.type.convention(Type.ARCHIVE);
-        this.platform = project.getObjects().property(Platform.class);
-        this.flavor = project.getObjects().property(Flavor.class);
-        this.bundledJdk = project.getObjects().property(Boolean.class);
+        this.platform = objectFactory.property(Platform.class);
+        this.flavor = objectFactory.property(Flavor.class);
+        this.bundledJdk = objectFactory.property(Boolean.class);
         this.extracted = new Extracted(extractedConfiguration);
     }
 

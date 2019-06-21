@@ -65,7 +65,7 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
         distributionsContainer = project.container(ElasticsearchDistribution.class, name -> {
             Configuration fileConfiguration = project.getConfigurations().create("es_distro_file_" + name);
             Configuration extractedConfiguration = project.getConfigurations().create("es_distro_extracted_" + name);
-            return new ElasticsearchDistribution(name, project, fileConfiguration, extractedConfiguration);
+            return new ElasticsearchDistribution(name, project.getObjects(), fileConfiguration, extractedConfiguration);
         });
         project.getExtensions().add("elasticsearch_distributions", distributionsContainer);
 

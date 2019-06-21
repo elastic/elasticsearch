@@ -78,6 +78,7 @@ public class CloseIndexResponse extends ShardsAcknowledgedResponse {
         }
     }
 
+    @Override
     protected void addCustomFields(final XContentBuilder builder, final Params params) throws IOException {
         super.addCustomFields(builder, params);
         builder.startObject("indices");
@@ -190,7 +191,7 @@ public class CloseIndexResponse extends ShardsAcknowledgedResponse {
     public static class ShardResult implements Writeable, ToXContentFragment {
 
         private final int id;
-        private final ShardResult.Failure[] failures;
+        private final Failure[] failures;
 
         public ShardResult(final int id, final Failure[] failures) {
             this.id = id;
@@ -199,7 +200,7 @@ public class CloseIndexResponse extends ShardsAcknowledgedResponse {
 
         ShardResult(final StreamInput in) throws IOException {
             this.id = in.readVInt();
-            this.failures = in.readOptionalArray(Failure::readFailure, ShardResult.Failure[]::new);
+            this.failures = in.readOptionalArray(Failure::readFailure, Failure[]::new);
         }
 
         @Override
@@ -227,9 +228,7 @@ public class CloseIndexResponse extends ShardsAcknowledgedResponse {
                 builder.startArray("failures");
                 if (failures != null) {
                     for (Failure failure : failures) {
-                        builder.startObject();
                         failure.toXContent(builder, params);
-                        builder.endObject();
                     }
                 }
                 builder.endArray();
@@ -242,7 +241,7 @@ public class CloseIndexResponse extends ShardsAcknowledgedResponse {
             return Strings.toString(this);
         }
 
-        public static class Failure extends DefaultShardOperationFailedException implements Writeable {
+        public static class Failure extends DefaultShardOperationFailedException {
 
             private @Nullable String nodeId;
 
@@ -275,11 +274,11 @@ public class CloseIndexResponse extends ShardsAcknowledgedResponse {
             }
 
             @Override
-            public XContentBuilder toXContent(final XContentBuilder builder, final Params params) throws IOException {
+            public XContentBuilder innerToXContent(final XContentBuilder builder, final Params params) throws IOException {
                 if (nodeId != null) {
                     builder.field("node", nodeId);
                 }
-                return super.toXContent(builder, params);
+                return super.innerToXContent(builder, params);
             }
 
             @Override

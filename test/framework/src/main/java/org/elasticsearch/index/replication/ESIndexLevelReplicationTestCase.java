@@ -553,7 +553,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
 
         public void executeRetentionLeasesSyncRequestOnReplica(RetentionLeaseSyncAction.Request request, IndexShard replica) {
             final PlainActionFuture<Releasable> acquirePermitFuture = new PlainActionFuture<>();
-            replica.acquireReplicaOperationPermit(getPrimary().getOperationPrimaryTerm(), getPrimary().getGlobalCheckpoint(),
+            replica.acquireReplicaOperationPermit(getPrimary().getOperationPrimaryTerm(), getPrimary().getLastKnownGlobalCheckpoint(),
                 getPrimary().getMaxSeqNoOfUpdatesOrDeletes(), acquirePermitFuture, ThreadPool.Names.SAME, request);
             try (Releasable ignored = acquirePermitFuture.actionGet()) {
                 replica.updateRetentionLeasesOnReplica(request.getRetentionLeases());
@@ -660,7 +660,12 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
 
             @Override
             public long globalCheckpoint() {
-                return getPrimaryShard().getGlobalCheckpoint();
+                return getPrimaryShard().getLastSyncedGlobalCheckpoint();
+            }
+
+            @Override
+            public long computedGlobalCheckpoint() {
+                return getPrimaryShard().getLastKnownGlobalCheckpoint();
             }
 
             @Override
@@ -694,7 +699,8 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
                         try {
                             performOnReplica(request, replica);
                             releasable.close();
-                            delegatedListener.onResponse(new ReplicaResponse(replica.getLocalCheckpoint(), replica.getGlobalCheckpoint()));
+                            delegatedListener.onResponse(new ReplicaResponse(replica.getLocalCheckpoint(),
+                                replica.getLastKnownGlobalCheckpoint()));
                         } catch (final Exception e) {
                             Releasables.closeWhileHandlingException(releasable);
                             delegatedListener.onFailure(e);
@@ -757,7 +763,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
         @Override
         protected void performOnReplica(BulkShardRequest request, IndexShard replica) throws Exception {
             executeShardBulkOnReplica(request, replica, getPrimaryShard().getPendingPrimaryTerm(),
-                getPrimaryShard().getGlobalCheckpoint(), getPrimaryShard().getMaxSeqNoOfUpdatesOrDeletes());
+                getPrimaryShard().getLastKnownGlobalCheckpoint(), getPrimaryShard().getMaxSeqNoOfUpdatesOrDeletes());
         }
     }
 
@@ -828,7 +834,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
 
     void indexOnReplica(BulkShardRequest request, ReplicationGroup group, IndexShard replica, long term) throws Exception {
         executeShardBulkOnReplica(request, replica, term,
-            group.primary.getGlobalCheckpoint(), group.primary.getMaxSeqNoOfUpdatesOrDeletes());
+            group.primary.getLastKnownGlobalCheckpoint(), group.primary.getMaxSeqNoOfUpdatesOrDeletes());
     }
 
     /**
@@ -836,7 +842,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
      */
     void deleteOnReplica(BulkShardRequest request, ReplicationGroup group, IndexShard replica) throws Exception {
         executeShardBulkOnReplica(request, replica, group.primary.getPendingPrimaryTerm(),
-            group.primary.getGlobalCheckpoint(), group.primary.getMaxSeqNoOfUpdatesOrDeletes());
+            group.primary.getLastKnownGlobalCheckpoint(), group.primary.getMaxSeqNoOfUpdatesOrDeletes());
     }
 
     class GlobalCheckpointSync extends ReplicationAction<
@@ -885,7 +891,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
         @Override
         protected void performOnReplica(ResyncReplicationRequest request, IndexShard replica) throws Exception {
             executeResyncOnReplica(replica, request, getPrimaryShard().getPendingPrimaryTerm(),
-                getPrimaryShard().getGlobalCheckpoint(), getPrimaryShard().getMaxSeqNoOfUpdatesOrDeletes());
+                getPrimaryShard().getLastKnownGlobalCheckpoint(), getPrimaryShard().getMaxSeqNoOfUpdatesOrDeletes());
         }
     }
 

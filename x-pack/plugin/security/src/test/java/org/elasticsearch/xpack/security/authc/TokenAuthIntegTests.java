@@ -24,7 +24,6 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSource;
 import org.elasticsearch.test.SecuritySettingsSourceField;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.action.token.CreateTokenRequest;
 import org.elasticsearch.xpack.core.security.action.token.CreateTokenResponse;
@@ -57,7 +56,6 @@ import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoTimeout;
 import static org.hamcrest.Matchers.equalTo;
 
-@TestLogging("org.elasticsearch.xpack.security.authz.store.FileRolesStore:DEBUG")
 public class TokenAuthIntegTests extends SecurityIntegTestCase {
 
     @Override
@@ -137,7 +135,6 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
         }
     }
 
-    @TestLogging("org.elasticsearch.xpack.security.authc:DEBUG")
     public void testExpiredTokensDeletedAfterExpiration() throws Exception {
         final Client client = client().filterWithHeader(Collections.singletonMap("Authorization",
                 UsernamePasswordToken.basicAuthHeaderValue(SecuritySettingsSource.TEST_SUPERUSER,

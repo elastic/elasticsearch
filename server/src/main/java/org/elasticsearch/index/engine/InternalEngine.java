@@ -117,6 +117,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.BiFunction;
+import java.util.function.LongConsumer;
 import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -208,7 +209,14 @@ public class InternalEngine extends Engine {
             throttle = new IndexThrottle();
             try {
                 trimUnsafeCommits(engineConfig);
-                translog = openTranslog(engineConfig, translogDeletionPolicy, engineConfig.getGlobalCheckpointSupplier());
+                translog = openTranslog(engineConfig, translogDeletionPolicy, engineConfig.getGlobalCheckpointSupplier(),
+                    seqNo -> {
+                        final LocalCheckpointTracker tracker = getLocalCheckpointTracker();
+                        assert tracker != null || getTranslog().isOpen() == false;
+                        if (tracker != null) {
+                            tracker.markSeqNoAsPersisted(seqNo);
+                        }
+                    });
                 assert translog.getGeneration() != null;
                 this.translog = translog;
                 this.softDeleteEnabled = engineConfig.getIndexSettings().isSoftDeleteEnabled();
@@ -245,10 +253,10 @@ public class InternalEngine extends Engine {
             for (ReferenceManager.RefreshListener listener: engineConfig.getInternalRefreshListener()) {
                 this.internalSearcherManager.addListener(listener);
             }
-            this.lastRefreshedCheckpointListener = new LastRefreshedCheckpointListener(localCheckpointTracker.getCheckpoint());
+            this.lastRefreshedCheckpointListener = new LastRefreshedCheckpointListener(localCheckpointTracker.getProcessedCheckpoint());
             this.internalSearcherManager.addListener(lastRefreshedCheckpointListener);
             maxSeqNoOfUpdatesOrDeletes = new AtomicLong(SequenceNumbers.max(localCheckpointTracker.getMaxSeqNo(), translog.getMaxSeqNo()));
-            if (softDeleteEnabled && localCheckpointTracker.getCheckpoint() < localCheckpointTracker.getMaxSeqNo()) {
+            if (softDeleteEnabled && localCheckpointTracker.getPersistedCheckpoint() < localCheckpointTracker.getMaxSeqNo()) {
                 try (Searcher searcher = acquireSearcher("restore_version_map_and_checkpoint_tracker", SearcherScope.INTERNAL)) {
                     restoreVersionMapAndCheckpointTracker(Lucene.wrapAllDocsLive(searcher.getDirectoryReader()));
                 } catch (IOException e) {
@@ -370,7 +378,7 @@ public class InternalEngine extends Engine {
     public int restoreLocalHistoryFromTranslog(TranslogRecoveryRunner translogRecoveryRunner) throws IOException {
         try (ReleasableLock ignored = readLock.acquire()) {
             ensureOpen();
-            final long localCheckpoint = localCheckpointTracker.getCheckpoint();
+            final long localCheckpoint = localCheckpointTracker.getProcessedCheckpoint();
             try (Translog.Snapshot snapshot = getTranslog().newSnapshotFromMinSeqNo(localCheckpoint + 1)) {
                 return translogRecoveryRunner.run(this, snapshot);
             }
@@ -381,19 +389,23 @@ public class InternalEngine extends Engine {
     public int fillSeqNoGaps(long primaryTerm) throws IOException {
         try (ReleasableLock ignored = writeLock.acquire()) {
             ensureOpen();
-            final long localCheckpoint = localCheckpointTracker.getCheckpoint();
+            final long localCheckpoint = localCheckpointTracker.getProcessedCheckpoint();
             final long maxSeqNo = localCheckpointTracker.getMaxSeqNo();
             int numNoOpsAdded = 0;
             for (
                     long seqNo = localCheckpoint + 1;
                     seqNo <= maxSeqNo;
-                    seqNo = localCheckpointTracker.getCheckpoint() + 1 /* the local checkpoint might have advanced so we leap-frog */) {
+                    seqNo = localCheckpointTracker.getProcessedCheckpoint() + 1 /* leap-frog the local checkpoint */) {
                 innerNoOp(new NoOp(seqNo, primaryTerm, Operation.Origin.PRIMARY, System.nanoTime(), "filling gaps"));
                 numNoOpsAdded++;
-                assert seqNo <= localCheckpointTracker.getCheckpoint()
-                        : "local checkpoint did not advance; was [" + seqNo + "], now [" + localCheckpointTracker.getCheckpoint() + "]";
+                assert seqNo <= localCheckpointTracker.getProcessedCheckpoint() :
+                    "local checkpoint did not advance; was [" + seqNo + "], now [" + localCheckpointTracker.getProcessedCheckpoint() + "]";
 
             }
+            syncTranslog(); // to persist noops associated with the advancement of the local checkpoint
+            assert localCheckpointTracker.getPersistedCheckpoint() == maxSeqNo
+                : "persisted local checkpoint did not advance to max seq no; is [" + localCheckpointTracker.getPersistedCheckpoint() +
+                "], max seq no [" + maxSeqNo + "]";
             return numNoOpsAdded;
         }
     }
@@ -471,13 +483,13 @@ public class InternalEngine extends Engine {
     }
 
     private Translog openTranslog(EngineConfig engineConfig, TranslogDeletionPolicy translogDeletionPolicy,
-                                        LongSupplier globalCheckpointSupplier) throws IOException {
+                                  LongSupplier globalCheckpointSupplier, LongConsumer persistedSequenceNumberConsumer) throws IOException {
 
         final TranslogConfig translogConfig = engineConfig.getTranslogConfig();
         final String translogUUID = loadTranslogUUIDFromLastCommit();
         // We expect that this shard already exists, so it must already have an existing translog else something is badly wrong!
         return new Translog(translogConfig, translogUUID, translogDeletionPolicy, globalCheckpointSupplier,
-            engineConfig.getPrimaryTermSupplier());
+            engineConfig.getPrimaryTermSupplier(), persistedSequenceNumberConsumer);
     }
 
     // Package private for testing purposes only
@@ -709,13 +721,9 @@ public class InternalEngine extends Engine {
                 if (docAndSeqNo == null) {
                     status = OpVsLuceneDocStatus.LUCENE_DOC_NOT_FOUND;
                 } else if (op.seqNo() > docAndSeqNo.seqNo) {
-                    if (docAndSeqNo.isLive) {
-                        status = OpVsLuceneDocStatus.OP_NEWER;
-                    } else {
-                        status = OpVsLuceneDocStatus.LUCENE_DOC_NOT_FOUND;
-                    }
+                    status = OpVsLuceneDocStatus.OP_NEWER;
                 } else if (op.seqNo() == docAndSeqNo.seqNo) {
-                    assert localCheckpointTracker.contains(op.seqNo()) || softDeleteEnabled == false :
+                    assert localCheckpointTracker.hasProcessed(op.seqNo()) || softDeleteEnabled == false :
                         "local checkpoint tracker is not updated seq_no=" + op.seqNo() + " id=" + op.id();
                     status = OpVsLuceneDocStatus.OP_STALE_OR_EQUAL;
                 } else {
@@ -918,7 +926,12 @@ public class InternalEngine extends Engine {
                     versionMap.maybePutIndexUnderLock(index.uid().bytes(),
                         new IndexVersionValue(translogLocation, plan.versionForIndexing, index.seqNo(), index.primaryTerm()));
                 }
-                localCheckpointTracker.markSeqNoAsCompleted(indexResult.getSeqNo());
+                localCheckpointTracker.markSeqNoAsProcessed(indexResult.getSeqNo());
+                if (indexResult.getTranslogLocation() == null) {
+                    // the op is coming from the translog (and is hence persisted already) or it does not have a sequence number
+                    assert index.origin().isFromTranslog() || indexResult.getSeqNo() == SequenceNumbers.UNASSIGNED_SEQ_NO;
+                    localCheckpointTracker.markSeqNoAsPersisted(indexResult.getSeqNo());
+                }
                 indexResult.setTook(System.nanoTime() - index.startTime());
                 indexResult.freeze();
                 return indexResult;
@@ -958,7 +971,7 @@ public class InternalEngine extends Engine {
             // unlike the primary, replicas don't really care to about creation status of documents
             // this allows to ignore the case where a document was found in the live version maps in
             // a delete state and return false for the created flag in favor of code simplicity
-            if (index.seqNo() <= localCheckpointTracker.getCheckpoint()){
+            if (index.seqNo() <= localCheckpointTracker.getProcessedCheckpoint()){
                 // the operation seq# is lower then the current local checkpoint and thus was already put into lucene
                 // this can happen during recovery where older operations are sent from the translog that are already
                 // part of the lucene commit (either from a peer recovery or a local translog)
@@ -1271,7 +1284,12 @@ public class InternalEngine extends Engine {
                 final Translog.Location location = translog.add(new Translog.Delete(delete, deleteResult));
                 deleteResult.setTranslogLocation(location);
             }
-            localCheckpointTracker.markSeqNoAsCompleted(deleteResult.getSeqNo());
+            localCheckpointTracker.markSeqNoAsProcessed(deleteResult.getSeqNo());
+            if (deleteResult.getTranslogLocation() == null) {
+                // the op is coming from the translog (and is hence persisted already) or does not have a sequence number (version conflict)
+                assert delete.origin().isFromTranslog() || deleteResult.getSeqNo() == SequenceNumbers.UNASSIGNED_SEQ_NO;
+                localCheckpointTracker.markSeqNoAsPersisted(deleteResult.getSeqNo());
+            }
             deleteResult.setTook(System.nanoTime() - delete.startTime());
             deleteResult.freeze();
         } catch (RuntimeException | IOException e) {
@@ -1304,7 +1322,7 @@ public class InternalEngine extends Engine {
         // this allows to ignore the case where a document was found in the live version maps in
         // a delete state and return true for the found flag in favor of code simplicity
         final DeletionStrategy plan;
-        if (delete.seqNo() <= localCheckpointTracker.getCheckpoint()) {
+        if (delete.seqNo() <= localCheckpointTracker.getProcessedCheckpoint()) {
             // the operation seq# is lower then the current local checkpoint and thus was already put into lucene
             // this can happen during recovery where older operations are sent from the translog that are already
             // part of the lucene commit (either from a peer recovery or a local translog)
@@ -1478,10 +1496,10 @@ public class InternalEngine extends Engine {
         try (Releasable ignored = noOpKeyedLock.acquire(seqNo)) {
             final NoOpResult noOpResult;
             final Optional<Exception> preFlightError = preFlightCheckForNoOp(noOp);
+            Exception failure = null;
             if (preFlightError.isPresent()) {
-                noOpResult = new NoOpResult(getPrimaryTerm(), noOp.seqNo(), preFlightError.get());
+                noOpResult = new NoOpResult(getPrimaryTerm(), SequenceNumbers.UNASSIGNED_SEQ_NO, preFlightError.get());
             } else {
-                Exception failure = null;
                 markSeqNoAsSeen(noOp.seqNo());
                 if (softDeleteEnabled) {
                     try {
@@ -1514,7 +1532,14 @@ public class InternalEngine extends Engine {
                     noOpResult.setTranslogLocation(location);
                 }
             }
-            localCheckpointTracker.markSeqNoAsCompleted(seqNo);
+            localCheckpointTracker.markSeqNoAsProcessed(noOpResult.getSeqNo());
+            if (noOpResult.getTranslogLocation() == null) {
+                // the op is coming from the translog (and is hence persisted already) or it does not have a sequence number, or we failed
+                // to add a tombstone doc to Lucene with a non-fatal error, which would be very surprising
+                // TODO: always fail the engine in the last case, as this creates gaps in the history
+                assert noOp.origin().isFromTranslog() || noOpResult.getSeqNo() == SequenceNumbers.UNASSIGNED_SEQ_NO || failure != null;
+                localCheckpointTracker.markSeqNoAsPersisted(noOpResult.getSeqNo());
+            }
             noOpResult.setTook(System.nanoTime() - noOp.startTime());
             noOpResult.freeze();
             return noOpResult;
@@ -1544,7 +1569,7 @@ public class InternalEngine extends Engine {
         // since it flushes the index as well (though, in terms of concurrency, we are allowed to do it)
         // both refresh types will result in an internal refresh but only the external will also
         // pass the new reader reference to the external reader manager.
-        final long localCheckpointBeforeRefresh = getLocalCheckpoint();
+        final long localCheckpointBeforeRefresh = localCheckpointTracker.getProcessedCheckpoint();
         boolean refreshed;
         try (ReleasableLock lock = readLock.acquire()) {
             ensureOpen();
@@ -1686,9 +1711,9 @@ public class InternalEngine extends Engine {
          * This method is to maintain translog only, thus IndexWriter#hasUncommittedChanges condition is not considered.
          */
         final long translogGenerationOfNewCommit =
-            translog.getMinGenerationForSeqNo(localCheckpointTracker.getCheckpoint() + 1).translogFileGeneration;
+            translog.getMinGenerationForSeqNo(localCheckpointTracker.getProcessedCheckpoint() + 1).translogFileGeneration;
         return translogGenerationOfLastCommit < translogGenerationOfNewCommit
-            || localCheckpointTracker.getCheckpoint() == localCheckpointTracker.getMaxSeqNo();
+            || localCheckpointTracker.getProcessedCheckpoint() == localCheckpointTracker.getMaxSeqNo();
     }
 
     @Override
@@ -1875,7 +1900,7 @@ public class InternalEngine extends Engine {
          */
         final long timeMSec = engineConfig.getThreadPool().relativeTimeInMillis();
         final long maxTimestampToPrune = timeMSec - engineConfig.getIndexSettings().getGcDeletesInMillis();
-        versionMap.pruneTombstones(maxTimestampToPrune, localCheckpointTracker.getCheckpoint());
+        versionMap.pruneTombstones(maxTimestampToPrune, localCheckpointTracker.getProcessedCheckpoint());
         lastDeleteVersionPruneTimeMSec = timeMSec;
     }
 
@@ -2365,7 +2390,7 @@ public class InternalEngine extends Engine {
     protected void commitIndexWriter(final IndexWriter writer, final Translog translog, @Nullable final String syncId) throws IOException {
         ensureCanFlush();
         try {
-            final long localCheckpoint = localCheckpointTracker.getCheckpoint();
+            final long localCheckpoint = localCheckpointTracker.getProcessedCheckpoint();
             final Translog.TranslogGeneration translogGeneration = translog.getMinGenerationForSeqNo(localCheckpoint + 1);
             final String translogFileGeneration = Long.toString(translogGeneration.translogFileGeneration);
             final String translogUUID = translogGeneration.translogUUID;
@@ -2456,7 +2481,6 @@ public class InternalEngine extends Engine {
         return mergeScheduler.stats();
     }
 
-    // Used only for testing! Package private to prevent anyone else from using it
     LocalCheckpointTracker getLocalCheckpointTracker() {
         return localCheckpointTracker;
     }
@@ -2466,9 +2490,13 @@ public class InternalEngine extends Engine {
         return getTranslog().getLastSyncedGlobalCheckpoint();
     }
 
+    public long getProcessedLocalCheckpoint() {
+        return localCheckpointTracker.getProcessedCheckpoint();
+    }
+
     @Override
-    public long getLocalCheckpoint() {
-        return localCheckpointTracker.getCheckpoint();
+    public long getPersistedLocalCheckpoint() {
+        return localCheckpointTracker.getPersistedCheckpoint();
     }
 
     /**
@@ -2491,7 +2519,7 @@ public class InternalEngine extends Engine {
                 assert versionMap.assertKeyedLockHeldByCurrentThread(op.uid().bytes());
             }
         }
-        return localCheckpointTracker.contains(op.seqNo());
+        return localCheckpointTracker.hasProcessed(op.seqNo());
     }
 
     @Override
@@ -2581,7 +2609,7 @@ public class InternalEngine extends Engine {
 
     @Override
     public boolean hasCompleteOperationHistory(String source, MapperService mapperService, long startingSeqNo) throws IOException {
-        final long currentLocalCheckpoint = getLocalCheckpointTracker().getCheckpoint();
+        final long currentLocalCheckpoint = localCheckpointTracker.getProcessedCheckpoint();
         // avoid scanning translog if not necessary
         if (startingSeqNo > currentLocalCheckpoint) {
             return true;
@@ -2591,11 +2619,11 @@ public class InternalEngine extends Engine {
             Translog.Operation operation;
             while ((operation = snapshot.next()) != null) {
                 if (operation.seqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO) {
-                    tracker.markSeqNoAsCompleted(operation.seqNo());
+                    tracker.markSeqNoAsProcessed(operation.seqNo());
                 }
             }
         }
-        return tracker.getCheckpoint() >= currentLocalCheckpoint;
+        return tracker.getProcessedCheckpoint() >= currentLocalCheckpoint;
     }
 
     /**
@@ -2711,7 +2739,7 @@ public class InternalEngine extends Engine {
         @Override
         public void beforeRefresh() {
             // all changes until this point should be visible after refresh
-            pendingCheckpoint = localCheckpointTracker.getCheckpoint();
+            pendingCheckpoint = localCheckpointTracker.getProcessedCheckpoint();
         }
 
         @Override
@@ -2772,7 +2800,7 @@ public class InternalEngine extends Engine {
         // Operations can be processed on a replica in a different order than on the primary. If the order on the primary is index-1,
         // delete-2, index-3, and the order on a replica is index-1, index-3, delete-2, then the msu of index-3 on the replica is 2
         // even though it is an update (overwrites index-1). We should relax this assertion if there is a pending gap in the seq_no.
-        if (relaxIfGapInSeqNo && getLocalCheckpoint() < maxSeqNoOfUpdates) {
+        if (relaxIfGapInSeqNo && localCheckpointTracker.getProcessedCheckpoint() < maxSeqNoOfUpdates) {
             return true;
         }
         assert seqNo <= maxSeqNoOfUpdates : "id=" + id + " seq_no=" + seqNo + " msu=" + maxSeqNoOfUpdates;
@@ -2796,7 +2824,7 @@ public class InternalEngine extends Engine {
     private void restoreVersionMapAndCheckpointTracker(DirectoryReader directoryReader) throws IOException {
         final IndexSearcher searcher = new IndexSearcher(directoryReader);
         searcher.setQueryCache(null);
-        final Query query = LongPoint.newRangeQuery(SeqNoFieldMapper.NAME, getLocalCheckpoint() + 1, Long.MAX_VALUE);
+        final Query query = LongPoint.newRangeQuery(SeqNoFieldMapper.NAME, getPersistedLocalCheckpoint() + 1, Long.MAX_VALUE);
         final Weight weight = searcher.createWeight(query, ScoreMode.COMPLETE_NO_SCORES, 1.0f);
         for (LeafReaderContext leaf : directoryReader.leaves()) {
             final Scorer scorer = weight.scorer(leaf);
@@ -2813,7 +2841,8 @@ public class InternalEngine extends Engine {
                     continue; // skip children docs which do not have primary term
                 }
                 final long seqNo = dv.docSeqNo(docId);
-                localCheckpointTracker.markSeqNoAsCompleted(seqNo);
+                localCheckpointTracker.markSeqNoAsProcessed(seqNo);
+                localCheckpointTracker.markSeqNoAsPersisted(seqNo);
                 idFieldVisitor.reset();
                 leaf.reader().document(docId, idFieldVisitor);
                 if (idFieldVisitor.getId() == null) {

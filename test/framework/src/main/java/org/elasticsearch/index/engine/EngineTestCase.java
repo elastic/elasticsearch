@@ -412,7 +412,7 @@ public abstract class EngineTestCase extends ESTestCase {
         String translogUUID = Translog.createEmptyTranslog(translogPath, SequenceNumbers.NO_OPS_PERFORMED, shardId,
             primaryTermSupplier.getAsLong());
         return new Translog(translogConfig, translogUUID, createTranslogDeletionPolicy(INDEX_SETTINGS),
-            () -> SequenceNumbers.NO_OPS_PERFORMED, primaryTermSupplier);
+            () -> SequenceNumbers.NO_OPS_PERFORMED, primaryTermSupplier, seqNo -> {});
     }
 
     protected TranslogHandler createTranslogHandler(IndexSettings indexSettings) {
@@ -836,7 +836,7 @@ public abstract class EngineTestCase extends ESTestCase {
             final Engine.Operation.TYPE opType = randomFrom(Engine.Operation.TYPE.values());
             final boolean isNestedDoc = includeNestedDocs && opType == Engine.Operation.TYPE.INDEX && randomBoolean();
             final int nestedValues = between(0, 3);
-            final long startTime = threadPool.relativeTimeInMillis();
+            final long startTime = threadPool.relativeTimeInNanos();
             final int copies = allowDuplicate && rarely() ? between(2, 4) : 1;
             for (int copy = 0; copy < copies; copy++) {
                 final ParsedDocument doc = isNestedDoc ? nestedParsedDocFactory.apply(id, nestedValues) : createParsedDoc(id, null);
@@ -1148,7 +1148,7 @@ public abstract class EngineTestCase extends ESTestCase {
      * @throws InterruptedException if the thread was interrupted while blocking on the condition
      */
     public static void waitForOpsToComplete(InternalEngine engine, long seqNo) throws InterruptedException {
-        engine.getLocalCheckpointTracker().waitForOpsToComplete(seqNo);
+        engine.getLocalCheckpointTracker().waitForProcessedOpsToComplete(seqNo);
     }
 
     public static boolean hasSnapshottedCommits(Engine engine) {

@@ -90,6 +90,8 @@ setup:
   - match: { transforms.0.source.index.0: "airline-data" }
   - match: { transforms.0.dest.index: "airline-data-by-airline" }
   - is_true: transforms.0.source.query.match_all
+  - is_true: transforms.0.create_time
+  - is_true: transforms.0.version
   - match: { transforms.0.pivot.group_by.airline.terms.field: "airline" }
   - match: { transforms.0.pivot.aggregations.avg_response.avg.field: "responsetime" }
   - match: { transforms.0.description: "yaml test transform on airline-data" }

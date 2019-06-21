@@ -21,6 +21,7 @@ package org.elasticsearch.painless.action;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -35,7 +36,7 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.SearchModule;
-import org.elasticsearch.test.AbstractStreamableTestCase;
+import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -43,7 +44,7 @@ import java.util.Collections;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class PainlessExecuteRequestTests extends AbstractStreamableTestCase<PainlessExecuteAction.Request> {
+public class PainlessExecuteRequestTests extends AbstractWireSerializingTestCase<PainlessExecuteAction.Request> {
 
     // Testing XContent serialization manually here, because the xContentType field in ContextSetup determines
     // how the request needs to parse and the xcontent serialization framework randomizes that. The XContentType
@@ -89,8 +90,8 @@ public class PainlessExecuteRequestTests extends AbstractStreamableTestCase<Pain
     }
 
     @Override
-    protected PainlessExecuteAction.Request createBlankInstance() {
-        return new PainlessExecuteAction.Request();
+    protected Writeable.Reader<PainlessExecuteAction.Request> instanceReader() {
+        return PainlessExecuteAction.Request::new;
     }
 
     public void testValidate() {

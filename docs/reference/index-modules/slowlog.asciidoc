@@ -26,7 +26,8 @@ index.search.slowlog.threshold.fetch.trace: 200ms
 index.search.slowlog.level: info
 --------------------------------------------------
 
-All of the above settings are _dynamic_ and are set per-index. For example:
+All of the above settings are _dynamic_ and can be set for each index using the
+<<indices-update-settings, update indices settings>> API. For example: 
 
 [source,js]
 --------------------------------------------------
@@ -100,7 +101,8 @@ index.indexing.slowlog.level: info
 index.indexing.slowlog.source: 1000
 --------------------------------------------------
 
-All of the above settings are _dynamic_ and are set per-index. For example:
+All of the above settings are _dynamic_ and can be set for each index using the
+<<indices-update-settings, update indices settings>> API. For example: 
 
 [source,js]
 --------------------------------------------------

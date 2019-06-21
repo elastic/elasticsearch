@@ -12,7 +12,6 @@ import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
-import org.elasticsearch.xpack.core.XPackSettings;
 
 import java.util.Collection;
 import java.util.Collections;

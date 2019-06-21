@@ -1057,10 +1057,6 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
     public synchronized void activateWithPrimaryContext(PrimaryContext primaryContext) {
         assert invariant();
         assert primaryMode == false;
-        if (primaryContext.checkpoints.keySet().contains(shardAllocationId) == false) {
-            // can happen if replica was removed from cluster but recovery process is unaware of it yet
-            throw new IllegalStateException("primary context [" + primaryContext + "] does not contain allocationId " + shardAllocationId);
-        }
         final Runnable runAfter = getMasterUpdateOperationFromCurrentState();
         primaryMode = true;
         // capture current state to possibly replay missed cluster state update

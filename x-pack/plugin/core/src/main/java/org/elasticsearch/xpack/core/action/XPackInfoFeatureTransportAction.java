@@ -13,6 +13,12 @@ import org.elasticsearch.protocol.xpack.XPackInfoResponse.FeatureSetsInfo.Featur
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 
+/**
+ * A base class to implement {@link XPackInfoFeatureAction} actions.
+ *
+ * Extend this class and implement the abstract methods, and register the appropriate
+ * {@link XPackInfoFeatureAction} to the subclass of this class.
+ */
 public abstract class XPackInfoFeatureTransportAction extends HandledTransportAction<XPackInfoRequest, XPackInfoFeatureResponse> {
 
     public XPackInfoFeatureTransportAction(String name, TransportService transportService, ActionFilters actionFilters) {

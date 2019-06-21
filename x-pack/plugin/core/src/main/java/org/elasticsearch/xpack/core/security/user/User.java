@@ -51,7 +51,7 @@ public class User implements ToXContentObject {
                 User authenticatedUser) {
         this.username = username;
         this.roles = roles == null ? Strings.EMPTY_ARRAY : roles;
-        this.metadata = metadata;
+        this.metadata = metadata == null ? Map.of() : metadata;
         this.fullName = fullName;
         this.email = email;
         this.enabled = enabled;

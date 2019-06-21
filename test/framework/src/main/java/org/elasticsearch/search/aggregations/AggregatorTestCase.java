@@ -25,14 +25,12 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexReaderContext;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.AssertingIndexSearcher;
+import org.apache.lucene.search.AssertingLeafIndexSearcher;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.QueryCache;
-import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Weight;
-import org.apache.lucene.search.XIndexSearcher;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.lease.Releasable;
@@ -46,8 +44,6 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache.Listener;
-import org.elasticsearch.index.cache.query.DisabledQueryCache;
-import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.ContentPath;
@@ -245,21 +241,8 @@ public abstract class AggregatorTestCase extends ESTestCase {
     }
 
     protected SearchContext createSearchContext(IndexSearcher indexSearcher, IndexSettings indexSettings) {
-        Engine.Searcher searcher = new Engine.Searcher("aggregator_test", indexSearcher, () -> indexSearcher.getIndexReader().close());
-        QueryCache queryCache = new DisabledQueryCache(indexSettings);
-        QueryCachingPolicy queryCachingPolicy = new QueryCachingPolicy() {
-            @Override
-            public void onUse(Query query) {
-            }
-
-            @Override
-            public boolean shouldCache(Query query) {
-                // never cache a query
-                return false;
-            }
-        };
-        ContextIndexSearcher contextIndexSearcher = new ContextIndexSearcher(searcher, queryCache, queryCachingPolicy);
-
+        AssertingLeafIndexSearcher leafSearcher = new AssertingLeafIndexSearcher(indexSearcher.getIndexReader(), indexSearcher.getSimilarity());
+        ContextIndexSearcher contextIndexSearcher = new ContextIndexSearcher(leafSearcher);
         SearchContext searchContext = mock(SearchContext.class);
         when(searchContext.numberOfShards()).thenReturn(1);
         when(searchContext.searcher()).thenReturn(contextIndexSearcher);
@@ -450,16 +433,8 @@ public abstract class AggregatorTestCase extends ESTestCase {
      */
     protected static IndexSearcher newIndexSearcher(IndexReader indexReader) {
         if (randomBoolean()) {
-            final IndexSearcher delegate = new IndexSearcher(indexReader);
-            final XIndexSearcher wrappedSearcher = new XIndexSearcher(delegate);
             // this executes basic query checks and asserts that weights are normalized only once etc.
-            return new AssertingIndexSearcher(random(), indexReader) {
-                @Override
-                protected void search(List<LeafReaderContext> leaves, Weight weight, Collector collector) throws IOException {
-                    // we cannot use the asserting searcher because the weight is created by the ContextIndexSearcher
-                    wrappedSearcher.search(leaves, weight, collector);
-                }
-             };
+            return new AssertingIndexSearcher(random(), indexReader);
         } else {
             return new IndexSearcher(indexReader);
         }

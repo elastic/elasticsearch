@@ -21,14 +21,12 @@ package org.elasticsearch.index.engine;
 import org.apache.lucene.codecs.blocktree.BlockTreeTermsReader;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexCommit;
-import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.ReaderManager;
 import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.SoftDeletesDirectoryReaderWrapper;
-import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.ReferenceManager;
-import org.apache.lucene.search.SearcherManager;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.Lock;
 import org.elasticsearch.Version;
@@ -74,11 +72,11 @@ public class ReadOnlyEngine extends Engine {
     private final SegmentInfos lastCommittedSegmentInfos;
     private final SeqNoStats seqNoStats;
     private final TranslogStats translogStats;
-    private final SearcherManager searcherManager;
+    private final ReaderManager readerManager;
     private final IndexCommit indexCommit;
     private final Lock indexWriterLock;
     private final DocsStats docsStats;
-    private final RamAccountingSearcherFactory searcherFactory;
+    private final RamAccountingDirectoryReaderConsumer newReaderConsumer;
 
     /**
      * Creates a new ReadOnlyEngine. This ctor can also be used to open a read-only engine on top of an already opened
@@ -95,7 +93,7 @@ public class ReadOnlyEngine extends Engine {
     public ReadOnlyEngine(EngineConfig config, SeqNoStats seqNoStats, TranslogStats translogStats, boolean obtainLock,
                    Function<DirectoryReader, DirectoryReader> readerWrapperFunction) {
         super(config);
-        this.searcherFactory = new RamAccountingSearcherFactory(engineConfig.getCircuitBreakerService());
+        this.newReaderConsumer = new RamAccountingDirectoryReaderConsumer(engineConfig.getCircuitBreakerService());
         try {
             Store store = config.getStore();
             store.incRef();
@@ -117,7 +115,7 @@ public class ReadOnlyEngine extends Engine {
                 this.indexCommit = Lucene.getIndexCommit(lastCommittedSegmentInfos, directory);
                 reader = open(indexCommit);
                 reader = wrapReader(reader, readerWrapperFunction);
-                searcherManager = new SearcherManager(reader, searcherFactory);
+                readerManager = new ReaderManager(reader); // TODO, searcherFactory);
                 this.docsStats = docsStats(lastCommittedSegmentInfos);
                 this.indexWriterLock = indexWriterLock;
                 success = true;
@@ -199,7 +197,7 @@ public class ReadOnlyEngine extends Engine {
     protected void closeNoLock(String reason, CountDownLatch closedLatch) {
         if (isClosed.compareAndSet(false, true)) {
             try {
-                IOUtils.close(searcherManager, indexWriterLock, store::decRef);
+                IOUtils.close(readerManager, indexWriterLock, store::decRef);
             } catch (Exception ex) {
                 logger.warn("failed to close searcher", ex);
             } finally {
@@ -222,8 +220,8 @@ public class ReadOnlyEngine extends Engine {
     }
 
     @Override
-    protected ReferenceManager<IndexSearcher> getReferenceManager(SearcherScope scope) {
-        return searcherManager;
+    protected ReferenceManager<DirectoryReader> getReferenceManager(SearcherScope scope) {
+        return readerManager;
     }
 
     @Override
@@ -466,8 +464,8 @@ public class ReadOnlyEngine extends Engine {
 
     }
 
-    protected void processReader(IndexReader reader) {
-        searcherFactory.processReaders(reader, null);
+    protected void processReader(DirectoryReader reader) {
+        newReaderConsumer.accept(reader, null);
     }
 
     @Override

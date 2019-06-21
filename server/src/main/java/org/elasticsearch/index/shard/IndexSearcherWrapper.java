@@ -24,6 +24,11 @@ import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.LeafIndexSearcher;
+import org.apache.lucene.search.QueryCache;
+import org.apache.lucene.search.QueryCachingPolicy;
+import org.apache.lucene.search.similarities.Similarity;
+
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.engine.Engine;
@@ -54,11 +59,16 @@ public class IndexSearcherWrapper {
     }
 
     /**
+     * Wraps the given {@link LeafIndexSearcher}.
+     * <p>
+     * NOTE: The wrapper must copy over the provided {@link IndexReader}, {@link Similarity}, {@link QueryCache}
+     * and {@link QueryCachingPolicy} from the original searcher.
+     * </p>
      * @param searcher      The provided index searcher to be wrapped to add custom functionality
      * @return a new index searcher wrapping the provided index searcher or if no wrapping was performed
      *         the provided index searcher
      */
-    protected IndexSearcher wrap(IndexSearcher searcher) throws IOException {
+    protected LeafIndexSearcher wrap(LeafIndexSearcher searcher) throws IOException {
         return searcher;
     }
     /**
@@ -87,22 +97,30 @@ public class IndexSearcherWrapper {
             }
         }
 
-        final IndexSearcher origIndexSearcher = engineSearcher.searcher();
-        final IndexSearcher innerIndexSearcher = new IndexSearcher(reader);
-        innerIndexSearcher.setQueryCache(origIndexSearcher.getQueryCache());
-        innerIndexSearcher.setQueryCachingPolicy(origIndexSearcher.getQueryCachingPolicy());
-        innerIndexSearcher.setSimilarity(origIndexSearcher.getSimilarity());
-        // TODO: Right now IndexSearcher isn't wrapper friendly, when it becomes wrapper friendly we should revise this extension point
-        // For example if IndexSearcher#rewrite() is overwritten than also IndexSearcher#createNormalizedWeight needs to be overwritten
-        // This needs to be fixed before we can allow the IndexSearcher from Engine to be wrapped multiple times
-        final IndexSearcher indexSearcher = wrap(innerIndexSearcher);
-        if (reader == nonClosingReaderWrapper && indexSearcher == innerIndexSearcher) {
+        final LeafIndexSearcher origLeafSearcher = new LeafIndexSearcher(reader, engineSearcher.leafSearcher());
+        final LeafIndexSearcher leafSearcher = wrap(origLeafSearcher);
+
+        // checks that the wrapped searcher did not change the invariants (reader, caches and similarity)
+        if (leafSearcher.getIndexReader() != origLeafSearcher.getIndexReader()) {
+            throw new IllegalStateException("wrapped LeafIndexSearcher cannot use a different index reader");
+        }
+        if (leafSearcher.getQueryCache() != origLeafSearcher.getQueryCache()) {
+            throw new IllegalStateException("wrapped LeafIndexSearcher cannot use a different query cache");
+        }
+        if (leafSearcher.getQueryCachingPolicy() != origLeafSearcher.getQueryCachingPolicy()) {
+            throw new IllegalStateException("wrapped LeafIndexSearcher cannot use a different caching policy");
+        }
+        if (leafSearcher.getSimilarity() != origLeafSearcher.getSimilarity()) {
+            throw new IllegalStateException("wrapped LeafIndexSearcher cannot use a different similarity");
+        }
+
+        if (reader == nonClosingReaderWrapper && leafSearcher == origLeafSearcher) {
             return engineSearcher;
         } else {
             // we close the reader to make sure wrappers can release resources if needed....
             // our NonClosingReaderWrapper makes sure that our reader is not closed
-            return new Engine.Searcher(engineSearcher.source(), indexSearcher, () ->
-                IOUtils.close(indexSearcher.getIndexReader(), // this will close the wrappers excluding the NonClosingReaderWrapper
+            return new Engine.Searcher(engineSearcher.source(), leafSearcher, () ->
+                IOUtils.close(leafSearcher.getIndexReader(), // this will close the wrappers excluding the NonClosingReaderWrapper
                 engineSearcher)); // this will run the closeable on the wrapped engine searcher
         }
     }

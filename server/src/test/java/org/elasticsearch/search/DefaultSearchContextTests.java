@@ -21,7 +21,7 @@ package org.elasticsearch.search;
 
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.RandomIndexWriter;
-import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.AssertingLeafIndexSearcher;
 import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.store.Directory;
@@ -62,7 +62,6 @@ import static org.mockito.Matchers.anyString;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
-
 
 public class DefaultSearchContextTests extends ESTestCase {
 
@@ -110,7 +109,7 @@ public class DefaultSearchContextTests extends ESTestCase {
         try (Directory dir = newDirectory();
              RandomIndexWriter w = new RandomIndexWriter(random(), dir);
              IndexReader reader = w.getReader();
-             Engine.Searcher searcher = new Engine.Searcher("test", new IndexSearcher(reader), reader)) {
+             Engine.Searcher searcher = new Engine.Searcher("test", new AssertingLeafIndexSearcher(reader), reader)) {
 
             SearchShardTarget target = new SearchShardTarget("node", shardId, null, OriginalIndices.NONE);
 

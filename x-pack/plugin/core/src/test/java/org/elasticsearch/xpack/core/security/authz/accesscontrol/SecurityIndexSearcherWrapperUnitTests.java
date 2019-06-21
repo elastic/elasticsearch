@@ -20,13 +20,14 @@ import org.apache.lucene.index.PostingsEnum;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.misc.SweetSpotSimilarity;
+import org.apache.lucene.search.AssertingLeafIndexSearcher;
 import org.apache.lucene.search.BulkScorer;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.LeafCollector;
+import org.apache.lucene.search.LeafIndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.Weight;
@@ -70,6 +71,7 @@ import java.util.Set;
 
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.xpack.core.security.authz.accesscontrol.SecurityIndexSearcherWrapper.intersectScorerAndRoleBits;
+import static org.elasticsearch.xpack.core.security.authz.accesscontrol.SecurityIndexSearcherWrapper.SecurityLeafIndexSearcher;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -163,8 +165,8 @@ public class SecurityIndexSearcherWrapperUnitTests extends ESTestCase {
     public void testWrapSearcherWhenFeatureDisabled() throws Exception {
         securityIndexSearcherWrapper =
                 new SecurityIndexSearcherWrapper(null, null, threadContext, licenseState, scriptService);
-        IndexSearcher indexSearcher = new IndexSearcher(esIn);
-        IndexSearcher result = securityIndexSearcherWrapper.wrap(indexSearcher);
+        AssertingLeafIndexSearcher indexSearcher = new AssertingLeafIndexSearcher(esIn);
+        LeafIndexSearcher result = securityIndexSearcherWrapper.wrap(indexSearcher);
         assertThat(result, sameInstance(indexSearcher));
     }
 
@@ -199,22 +201,10 @@ public class SecurityIndexSearcherWrapperUnitTests extends ESTestCase {
             }
         });
         DirectoryReader directoryReader = DocumentSubsetReader.wrap(esIn, bitsetFilterCache, new MatchAllDocsQuery());
-        IndexSearcher indexSearcher = new IndexSearcher(directoryReader);
-        indexSearcher.setSimilarity(new SweetSpotSimilarity());
-        indexSearcher.setQueryCachingPolicy(new QueryCachingPolicy() {
-            @Override
-            public void onUse(Query query) {
-            }
-
-            @Override
-            public boolean shouldCache(Query query) {
-                return false;
-            }
-        });
-        indexSearcher.setQueryCache((weight, policy) -> weight);
+        AssertingLeafIndexSearcher indexSearcher = new AssertingLeafIndexSearcher(directoryReader, new SweetSpotSimilarity());
         securityIndexSearcherWrapper =
                 new SecurityIndexSearcherWrapper(null, null, threadContext, licenseState, scriptService);
-        IndexSearcher result = securityIndexSearcherWrapper.wrap(indexSearcher);
+        LeafIndexSearcher result = securityIndexSearcherWrapper.wrap(indexSearcher);
         assertThat(result, not(sameInstance(indexSearcher)));
         assertThat(result.getSimilarity(), sameInstance(indexSearcher.getSimilarity()));
         assertThat(result.getQueryCachingPolicy(), sameInstance(indexSearcher.getQueryCachingPolicy()));
@@ -537,7 +527,8 @@ public class SecurityIndexSearcherWrapperUnitTests extends ESTestCase {
         }
 
         DocumentSubsetDirectoryReader filteredReader = DocumentSubsetReader.wrap(reader, cache, roleQuery);
-        IndexSearcher searcher = new SecurityIndexSearcherWrapper.IndexSearcherWrapper(filteredReader);
+        IndexSearcher searcher = new SecurityLeafIndexSearcher(new AssertingLeafIndexSearcher(filteredReader))
+            .getIndexSearcher();
 
         // Searching a non-existing term will trigger a null scorer
         assertEquals(0, searcher.count(new TermQuery(new Term("non_existing_field", "non_existing_value"))));

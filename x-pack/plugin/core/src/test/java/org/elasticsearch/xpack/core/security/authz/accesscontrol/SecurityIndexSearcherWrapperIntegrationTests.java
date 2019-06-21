@@ -15,7 +15,8 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.AssertingLeafIndexSearcher;
+import org.apache.lucene.search.LeafIndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TermQuery;
@@ -157,12 +158,12 @@ public class SecurityIndexSearcherWrapperIntegrationTests extends AbstractBuilde
             doReturn(new TermQueryBuilder("field", values[i])).when(queryShardContext).parseInnerQueryBuilder(any(XContentParser.class));
             when(queryShardContext.toQuery(new TermsQueryBuilder("field", values[i]))).thenReturn(parsedQuery);
             DirectoryReader wrappedDirectoryReader = wrapper.wrap(directoryReader);
-            IndexSearcher indexSearcher = wrapper.wrap(new IndexSearcher(wrappedDirectoryReader));
+            LeafIndexSearcher indexSearcher = wrapper.wrap(new AssertingLeafIndexSearcher(wrappedDirectoryReader));
 
             int expectedHitCount = valuesHitCount[i];
             logger.info("Going to verify hit count with query [{}] with expected total hits [{}]", parsedQuery.query(), expectedHitCount);
             TotalHitCountCollector countCollector = new TotalHitCountCollector();
-            indexSearcher.search(new MatchAllDocsQuery(), countCollector);
+            indexSearcher.getIndexSearcher().search(new MatchAllDocsQuery(), countCollector);
             assertThat(countCollector.getTotalHits(), equalTo(expectedHitCount));
             assertThat(wrappedDirectoryReader.numDocs(), equalTo(expectedHitCount));
         }
@@ -260,9 +261,9 @@ public class SecurityIndexSearcherWrapperIntegrationTests extends AbstractBuilde
 
         DirectoryReader directoryReader = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(directory), shardId);
         DirectoryReader wrappedDirectoryReader = wrapper.wrap(directoryReader);
-        IndexSearcher indexSearcher = wrapper.wrap(new IndexSearcher(wrappedDirectoryReader));
+        LeafIndexSearcher searcher = wrapper.wrap(new AssertingLeafIndexSearcher(wrappedDirectoryReader));
 
-        ScoreDoc[] hits = indexSearcher.search(new MatchAllDocsQuery(), 1000).scoreDocs;
+        ScoreDoc[] hits = searcher.getIndexSearcher().search(new MatchAllDocsQuery(), 1000).scoreDocs;
         Set<Integer> actualDocIds = new HashSet<>();
         for (ScoreDoc doc : hits) {
             actualDocIds.add(doc.doc);

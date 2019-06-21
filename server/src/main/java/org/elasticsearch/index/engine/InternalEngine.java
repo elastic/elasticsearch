@@ -31,7 +31,6 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.IndexableField;
-import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.LiveIndexWriterConfig;
 import org.apache.lucene.index.MergePolicy;
@@ -45,8 +44,6 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
-import org.apache.lucene.search.SearcherFactory;
-import org.apache.lucene.search.SearcherManager;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.AlreadyClosedException;
@@ -115,6 +112,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.LongConsumer;
 import java.util.function.LongSupplier;
@@ -133,8 +131,8 @@ public class InternalEngine extends Engine {
 
     private final IndexWriter indexWriter;
 
-    private final ExternalSearcherManager externalSearcherManager;
-    private final SearcherManager internalSearcherManager;
+    private final ExternalReaderManager externalReaderManager;
+    private final ReaderManager internalReaderManager;
 
     private final Lock flushLock = new ReentrantLock();
     private final ReentrantLock optimizeLock = new ReentrantLock();
@@ -195,8 +193,8 @@ public class InternalEngine extends Engine {
         store.incRef();
         IndexWriter writer = null;
         Translog translog = null;
-        ExternalSearcherManager externalSearcherManager = null;
-        SearcherManager internalSearcherManager = null;
+        ExternalReaderManager externalReaderManager = null;
+        ReaderManager internalReaderManager = null;
         EngineMergeScheduler scheduler = null;
         boolean success = false;
         try {
@@ -235,22 +233,22 @@ public class InternalEngine extends Engine {
                     throw e;
                 }
             }
-            externalSearcherManager = createSearcherManager(new SearchFactory(logger, isClosed, engineConfig));
-            internalSearcherManager = externalSearcherManager.internalSearcherManager;
-            this.internalSearcherManager = internalSearcherManager;
-            this.externalSearcherManager = externalSearcherManager;
-            internalSearcherManager.addListener(versionMap);
+            externalReaderManager = createReaderManager(new IndexReaderWarmer(logger, isClosed, engineConfig));
+            internalReaderManager = externalReaderManager.internalReaderManager;
+            this.internalReaderManager = internalReaderManager;
+            this.externalReaderManager = externalReaderManager;
+            internalReaderManager.addListener(versionMap);
             assert pendingTranslogRecovery.get() == false : "translog recovery can't be pending before we set it";
             // don't allow commits until we are done with recovering
             pendingTranslogRecovery.set(true);
             for (ReferenceManager.RefreshListener listener: engineConfig.getExternalRefreshListener()) {
-                this.externalSearcherManager.addListener(listener);
+                this.externalReaderManager.addListener(listener);
             }
             for (ReferenceManager.RefreshListener listener: engineConfig.getInternalRefreshListener()) {
-                this.internalSearcherManager.addListener(listener);
+                this.internalReaderManager.addListener(listener);
             }
             this.lastRefreshedCheckpointListener = new LastRefreshedCheckpointListener(localCheckpointTracker.getProcessedCheckpoint());
-            this.internalSearcherManager.addListener(lastRefreshedCheckpointListener);
+            this.internalReaderManager.addListener(lastRefreshedCheckpointListener);
             maxSeqNoOfUpdatesOrDeletes = new AtomicLong(SequenceNumbers.max(localCheckpointTracker.getMaxSeqNo(), translog.getMaxSeqNo()));
             if (softDeleteEnabled && localCheckpointTracker.getPersistedCheckpoint() < localCheckpointTracker.getMaxSeqNo()) {
                 try (Searcher searcher = acquireSearcher("restore_version_map_and_checkpoint_tracker", SearcherScope.INTERNAL)) {
@@ -263,7 +261,7 @@ public class InternalEngine extends Engine {
             success = true;
         } finally {
             if (success == false) {
-                IOUtils.closeWhileHandlingException(writer, translog, internalSearcherManager, externalSearcherManager, scheduler);
+                IOUtils.closeWhileHandlingException(writer, translog, internalReaderManager, externalReaderManager, scheduler);
                 if (isClosed.get() == false) {
                     // failure we need to dec the store reference
                     store.decRef();
@@ -312,62 +310,74 @@ public class InternalEngine extends Engine {
      * and old segments can be released in the same way previous version did this (as a side-effect of _refresh)
      */
     @SuppressForbidden(reason = "reference counting is required here")
-    private static final class ExternalSearcherManager extends ReferenceManager<IndexSearcher> {
-        private final SearcherFactory searcherFactory;
-        private final SearcherManager internalSearcherManager;
+    private static final class ExternalReaderManager extends ReferenceManager<DirectoryReader> {
+        private final ReaderManager internalReaderManager;
+        private final BiConsumer<DirectoryReader, DirectoryReader> newReaderConsumer;
 
-        ExternalSearcherManager(SearcherManager internalSearcherManager, SearcherFactory searcherFactory) throws IOException {
-            IndexSearcher acquire = internalSearcherManager.acquire();
+        ExternalReaderManager(ReaderManager internalReaderManager,
+                                BiConsumer<DirectoryReader, DirectoryReader> newReaderConsumer) throws IOException {
+            this.internalReaderManager = internalReaderManager;
+            this.newReaderConsumer = newReaderConsumer;
+            DirectoryReader acquire = internalReaderManager.acquire();
             try {
-                IndexReader indexReader = acquire.getIndexReader();
-                assert indexReader instanceof ElasticsearchDirectoryReader:
-                    "searcher's IndexReader should be an ElasticsearchDirectoryReader, but got " + indexReader;
-                indexReader.incRef(); // steal the reader - getSearcher will decrement if it fails
-                current = SearcherManager.getSearcher(searcherFactory, indexReader, null);
+                assert acquire instanceof ElasticsearchDirectoryReader:
+                    "searcher's IndexReader should be an ElasticsearchDirectoryReader, but got " + acquire;
+                acquire.incRef(); // steal the reader - notifyNewReaderConsumer will decrement if it fails
+                notifyNewReaderConsumer(acquire, null);
+                current = acquire;
             } finally {
-                internalSearcherManager.release(acquire);
+                internalReaderManager.release(acquire);
             }
-            this.searcherFactory = searcherFactory;
-            this.internalSearcherManager = internalSearcherManager;
+        }
+
+        private void notifyNewReaderConsumer(DirectoryReader newReader, DirectoryReader previousReader) throws IOException {
+            boolean success = false;
+            try {
+                newReaderConsumer.accept(newReader, previousReader);
+                success = true;
+            } finally {
+                if (success == false) {
+                    newReader.decRef();
+                }
+            }
         }
 
         @Override
-        protected IndexSearcher refreshIfNeeded(IndexSearcher referenceToRefresh) throws IOException {
+        protected DirectoryReader refreshIfNeeded(DirectoryReader referenceToRefresh) throws IOException {
             // we simply run a blocking refresh on the internal reference manager and then steal it's reader
             // it's a save operation since we acquire the reader which incs it's reference but then down the road
             // steal it by calling incRef on the "stolen" reader
-            internalSearcherManager.maybeRefreshBlocking();
-            IndexSearcher acquire = internalSearcherManager.acquire();
+            internalReaderManager.maybeRefreshBlocking();
+            DirectoryReader acquire = internalReaderManager.acquire();
             try {
-                final IndexReader previousReader = referenceToRefresh.getIndexReader();
-                assert previousReader instanceof ElasticsearchDirectoryReader:
-                    "searcher's IndexReader should be an ElasticsearchDirectoryReader, but got " + previousReader;
+                assert referenceToRefresh instanceof ElasticsearchDirectoryReader:
+                    "searcher's IndexReader should be an ElasticsearchDirectoryReader, but got " + referenceToRefresh;
 
-                final IndexReader newReader = acquire.getIndexReader();
-                if (newReader == previousReader) {
+                if (acquire == referenceToRefresh) {
                     // nothing has changed - both ref managers share the same instance so we can use reference equality
                     return null;
                 } else {
-                    newReader.incRef(); // steal the reader - getSearcher will decrement if it fails
-                    return SearcherManager.getSearcher(searcherFactory, newReader, previousReader);
+                    acquire.incRef(); // steal the reader - notifyNewReaderConsumer will decrement if it fails
+                    notifyNewReaderConsumer(acquire, referenceToRefresh);
+                    return acquire;
                 }
             } finally {
-                internalSearcherManager.release(acquire);
+                internalReaderManager.release(acquire);
             }
         }
 
         @Override
-        protected boolean tryIncRef(IndexSearcher reference) {
-            return reference.getIndexReader().tryIncRef();
+        protected boolean tryIncRef(DirectoryReader reference) {
+            return reference.tryIncRef();
         }
 
         @Override
-        protected int getRefCount(IndexSearcher reference) {
-            return reference.getIndexReader().getRefCount();
+        protected int getRefCount(DirectoryReader reference) {
+            return reference.getRefCount();
         }
 
         @Override
-        protected void decRef(IndexSearcher reference) throws IOException { reference.getIndexReader().decRef(); }
+        protected void decRef(DirectoryReader reference) throws IOException { reference.decRef(); }
     }
 
     @Override
@@ -586,19 +596,18 @@ public class InternalEngine extends Engine {
         return uuid;
     }
 
-    private ExternalSearcherManager createSearcherManager(SearchFactory externalSearcherFactory) throws EngineException {
+    private ExternalReaderManager createReaderManager(IndexReaderWarmer externalReaderWarmer) throws EngineException {
         boolean success = false;
-        SearcherManager internalSearcherManager = null;
+        ReaderManager internalReaderManager = null;
         try {
             try {
                 final DirectoryReader directoryReader = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(indexWriter), shardId);
-                internalSearcherManager = new SearcherManager(directoryReader,
-                        new RamAccountingSearcherFactory(engineConfig.getCircuitBreakerService()));
+                internalReaderManager = new ReaderManager(directoryReader,
+                    new RamAccountingDirectoryReaderConsumer(engineConfig.getCircuitBreakerService()));
                 lastCommittedSegmentInfos = store.readLastCommittedSegmentsInfo();
-                ExternalSearcherManager externalSearcherManager = new ExternalSearcherManager(internalSearcherManager,
-                    externalSearcherFactory);
+                ExternalReaderManager externalReaderManager = new ExternalReaderManager(internalReaderManager, externalReaderWarmer);
                 success = true;
-                return externalSearcherManager;
+                return externalReaderManager;
             } catch (IOException e) {
                 maybeFailEngine("start", e);
                 try {
@@ -610,7 +619,7 @@ public class InternalEngine extends Engine {
             }
         } finally {
             if (success == false) { // release everything we created on a failure
-                IOUtils.closeWhileHandlingException(internalSearcherManager, indexWriter);
+                IOUtils.closeWhileHandlingException(internalReaderManager, indexWriter);
             }
         }
     }
@@ -651,7 +660,7 @@ public class InternalEngine extends Engine {
                                     // in the case of a already pruned translog generation we might get null here - yet very unlikely
                                     final Translog.Index index = (Translog.Index) operation;
                                     TranslogLeafReader reader = new TranslogLeafReader(index);
-                                    return new GetResult(new Searcher("realtime_get", new IndexSearcher(reader), reader),
+                                    return new GetResult(new Searcher("realtime_get", newLeafSearcher(reader, engineConfig), reader),
                                         new VersionsAndSeqNoResolver.DocIdAndVersion(0, index.version(), index.seqNo(), index.primaryTerm(),
                                             reader, 0));
                                 }
@@ -1574,7 +1583,7 @@ public class InternalEngine extends Engine {
                 try {
                     // even though we maintain 2 managers we really do the heavy-lifting only once.
                     // the second refresh will only do the extra work we have to do for warming caches etc.
-                    ReferenceManager<IndexSearcher> referenceManager = getReferenceManager(scope);
+                    ReferenceManager<DirectoryReader> referenceManager = getReferenceManager(scope);
                     // it is intentional that we never refresh both internal / external together
                     if (block) {
                         referenceManager.maybeRefreshBlocking();
@@ -2111,11 +2120,11 @@ public class InternalEngine extends Engine {
                 "Either the write lock must be held or the engine must be currently be failing itself";
             try {
                 this.versionMap.clear();
-                if (internalSearcherManager != null) {
-                    internalSearcherManager.removeListener(versionMap);
+                if (internalReaderManager != null) {
+                    internalReaderManager.removeListener(versionMap);
                 }
                 try {
-                    IOUtils.close(externalSearcherManager, internalSearcherManager);
+                    IOUtils.close(externalReaderManager, internalReaderManager);
                 } catch (Exception e) {
                     logger.warn("Failed to close SearcherManager", e);
                 }
@@ -2147,12 +2156,12 @@ public class InternalEngine extends Engine {
     }
 
     @Override
-    protected final ReferenceManager<IndexSearcher> getReferenceManager(SearcherScope scope) {
+    protected final ReferenceManager<DirectoryReader> getReferenceManager(SearcherScope scope) {
         switch (scope) {
             case INTERNAL:
-                return internalSearcherManager;
+                return internalReaderManager;
             case EXTERNAL:
-                return externalSearcherManager;
+                return externalReaderManager;
             default:
                 throw new IllegalStateException("unknown scope: " + scope);
         }
@@ -2222,40 +2231,32 @@ public class InternalEngine extends Engine {
         return iwc;
     }
 
-    /** Extended SearcherFactory that warms the segments if needed when acquiring a new searcher */
-    static final class SearchFactory extends EngineSearcherFactory {
-        private final Engine.Warmer warmer;
+    /** A listener that warms the segments if needed when acquiring a new reader */
+    static final class IndexReaderWarmer implements BiConsumer<DirectoryReader, DirectoryReader> {
+        private final EngineConfig engineConfig;
         private final Logger logger;
         private final AtomicBoolean isEngineClosed;
 
-        SearchFactory(Logger logger, AtomicBoolean isEngineClosed, EngineConfig engineConfig) {
-            super(engineConfig);
-            warmer = engineConfig.getWarmer();
+        IndexReaderWarmer(Logger logger, AtomicBoolean isEngineClosed, EngineConfig engineConfig) {
+            this.engineConfig = engineConfig;
             this.logger = logger;
             this.isEngineClosed = isEngineClosed;
         }
 
         @Override
-        public IndexSearcher newSearcher(IndexReader reader, IndexReader previousReader) throws IOException {
-            IndexSearcher searcher = super.newSearcher(reader, previousReader);
-            if (reader instanceof LeafReader && isMergedSegment((LeafReader) reader)) {
-                // we call newSearcher from the IndexReaderWarmer which warms segments during merging
-                // in that case the reader is a LeafReader and all we need to do is to build a new Searcher
-                // and return it since it does it's own warming for that particular reader.
-                return searcher;
+        public void accept(DirectoryReader reader, DirectoryReader previousReader) {
+            if (engineConfig.getWarmer() == null) {
+                return;
             }
-            if (warmer != null) {
-                try {
-                    assert searcher.getIndexReader() instanceof ElasticsearchDirectoryReader :
-                        "this class needs an ElasticsearchDirectoryReader but got: " + searcher.getIndexReader().getClass();
-                    warmer.warm(new Searcher("top_reader_warming", searcher, () -> {}));
-                } catch (Exception e) {
-                    if (isEngineClosed.get() == false) {
-                        logger.warn("failed to prepare/warm", e);
-                    }
+            try {
+                assert reader instanceof ElasticsearchDirectoryReader :
+                    "this class needs an ElasticsearchDirectoryReader but got: " + reader.getClass();
+                engineConfig.getWarmer().warm(new Searcher("top_reader_warming", newLeafSearcher(reader, engineConfig), () -> {}));
+            } catch (Exception e) {
+                if (isEngineClosed.get() == false) {
+                    logger.warn("failed to prepare/warm", e);
                 }
             }
-            return searcher;
         }
     }
 

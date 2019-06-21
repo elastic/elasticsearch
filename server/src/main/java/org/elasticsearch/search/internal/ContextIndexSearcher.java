@@ -28,16 +28,12 @@ import org.apache.lucene.search.CollectionStatistics;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.LeafIndexSearcher;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.QueryCache;
-import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.TermStatistics;
 import org.apache.lucene.search.Weight;
-import org.apache.lucene.search.XIndexSearcher;
-import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.search.dfs.AggregatedDfs;
 import org.elasticsearch.search.profile.Timer;
 import org.elasticsearch.search.profile.query.ProfileWeight;
@@ -52,33 +48,24 @@ import java.util.Set;
 /**
  * Context-aware extension of {@link IndexSearcher}.
  */
-public class ContextIndexSearcher extends IndexSearcher implements Releasable {
-
-    /** The wrapped {@link IndexSearcher}. The reason why we sometimes prefer delegating to this searcher instead of {@code super} is that
-     *  this instance may have more assertions, for example if it comes from MockInternalEngine which wraps the IndexSearcher into an
-     *  AssertingIndexSearcher. */
-    private final XIndexSearcher in;
+public class ContextIndexSearcher extends IndexSearcher {
+    private final LeafIndexSearcher wrapped;
 
     private AggregatedDfs aggregatedDfs;
-
-    private final Engine.Searcher engineSearcher;
 
     // TODO revisit moving the profiler to inheritance or wrapping model in the future
     private QueryProfiler profiler;
 
     private Runnable checkCancelled;
 
-    public ContextIndexSearcher(Engine.Searcher searcher, QueryCache queryCache, QueryCachingPolicy queryCachingPolicy) {
-        super(searcher.reader());
-        engineSearcher = searcher;
-        in = new XIndexSearcher(searcher.searcher());
-        setSimilarity(searcher.searcher().getSimilarity());
-        setQueryCache(queryCache);
-        setQueryCachingPolicy(queryCachingPolicy);
-    }
-
-    @Override
-    public void close() {
+    public ContextIndexSearcher(LeafIndexSearcher searcher) {
+        super(searcher.getIndexReader());
+        wrapped = searcher;
+        setSimilarity(wrapped.getSimilarity());
+        setQueryCache(wrapped.getQueryCache());
+        if (wrapped.getQueryCachingPolicy() != null) {
+            setQueryCachingPolicy(wrapped.getQueryCachingPolicy());
+        }
     }
 
     public void setProfiler(QueryProfiler profiler) {
@@ -104,7 +91,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         }
 
         try {
-            return in.rewrite(original);
+            return super.rewrite(original);
         } finally {
             if (profiler != null) {
                 profiler.stopAndAddRewriteTime();
@@ -129,9 +116,11 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
                 profiler.pollLastElement();
             }
             return new ProfileWeight(query, weight, profile);
-        } else {
-            // needs to be 'super', not 'in' in order to use aggregated DFS
+        } else if (aggregatedDfs != null) {
+            // needs to be 'super' in order to use aggregated DFS
             return super.createWeight(query, scoreMode, boost);
+        } else {
+            return wrapped.getIndexSearcher().createWeight(query, scoreMode, boost);
         }
     }
 
@@ -174,16 +163,9 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         } else {
             cancellableWeight = weight;
         }
-        in.search(leaves, cancellableWeight, collector);
-    }
-
-    @Override
-    public Explanation explain(Query query, int doc) throws IOException {
-        if (aggregatedDfs != null) {
-            // dfs data is needed to explain the score
-            return super.explain(createWeight(rewrite(query), ScoreMode.COMPLETE, 1f), doc);
+        for (LeafReaderContext ctx : leaves) {
+            wrapped.searchLeaf(ctx, cancellableWeight, collector);
         }
-        return in.explain(query, doc);
     }
 
     @Override
@@ -215,10 +197,6 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     }
 
     public DirectoryReader getDirectoryReader() {
-        return engineSearcher.getDirectoryReader();
-    }
-
-    public Engine.Searcher getEngineSearcher() {
-        return engineSearcher;
+        return (DirectoryReader) wrapped.getIndexReader();
     }
 }

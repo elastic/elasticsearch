@@ -29,9 +29,13 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.MultiReader;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.misc.SweetSpotSimilarity;
+import org.apache.lucene.search.AssertingLeafIndexSearcher;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.LeafIndexSearcher;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TotalHitCountCollector;
@@ -46,11 +50,11 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.Collections;
-import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class IndexSearcherWrapperTests extends ESTestCase {
@@ -64,8 +68,7 @@ public class IndexSearcherWrapperTests extends ESTestCase {
         doc.add(new TextField("field", "doc", random().nextBoolean() ? Field.Store.YES : Field.Store.NO));
         writer.addDocument(doc);
         DirectoryReader open = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(writer), new ShardId("foo", "_na_", 1));
-        IndexSearcher searcher = new IndexSearcher(open);
-        assertEquals(1, searcher.search(new TermQuery(new Term("field", "doc")), 1).totalHits.value);
+        assertEquals(1, new IndexSearcher(open).search(new TermQuery(new Term("field", "doc")), 1).totalHits.value);
         final AtomicInteger closeCalls = new AtomicInteger(0);
         IndexSearcherWrapper wrapper = new IndexSearcherWrapper() {
             @Override
@@ -74,7 +77,7 @@ public class IndexSearcherWrapperTests extends ESTestCase {
             }
 
             @Override
-            public IndexSearcher wrap(IndexSearcher searcher) throws EngineException {
+            public LeafIndexSearcher wrap(LeafIndexSearcher searcher) throws EngineException {
                 return searcher;
             }
 
@@ -83,7 +86,8 @@ public class IndexSearcherWrapperTests extends ESTestCase {
         final AtomicInteger count = new AtomicInteger();
         final AtomicInteger outerCount = new AtomicInteger();
         final AtomicBoolean closeCalled = new AtomicBoolean(false);
-        final Engine.Searcher wrap =  wrapper.wrap(new Engine.Searcher("foo", searcher, () -> closeCalled.set(true)));
+        final Engine.Searcher wrap =  wrapper.wrap(new Engine.Searcher("foo",
+            new AssertingLeafIndexSearcher(open, iwc.getSimilarity()), () -> closeCalled.set(true)));
         assertEquals(1, wrap.reader().getRefCount());
         ElasticsearchDirectoryReader.addReaderCloseListener(wrap.getDirectoryReader(), key -> {
             if (key == open.getReaderCacheHelper().getKey()) {
@@ -114,9 +118,7 @@ public class IndexSearcherWrapperTests extends ESTestCase {
         doc.add(new TextField("field", "doc", random().nextBoolean() ? Field.Store.YES : Field.Store.NO));
         writer.addDocument(doc);
         DirectoryReader open = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(writer), new ShardId("foo", "_na_", 1));
-        IndexSearcher searcher = new IndexSearcher(open);
-        assertEquals(1, searcher.search(new TermQuery(new Term("field", "doc")), 1).totalHits.value);
-        searcher.setSimilarity(iwc.getSimilarity());
+        assertEquals(1, new IndexSearcher(open).search(new TermQuery(new Term("field", "doc")), 1).totalHits.value);
         final AtomicInteger closeCalls = new AtomicInteger(0);
         IndexSearcherWrapper wrapper = new IndexSearcherWrapper() {
             @Override
@@ -125,16 +127,16 @@ public class IndexSearcherWrapperTests extends ESTestCase {
             }
 
             @Override
-            public IndexSearcher wrap(IndexSearcher searcher) throws EngineException {
+            public LeafIndexSearcher wrap(LeafIndexSearcher searcher) throws EngineException {
+                assert searcher.getIndexReader() instanceof FieldMaskingReader;
                 return searcher;
             }
         };
         final ConcurrentHashMap<Object, TopDocs> cache = new ConcurrentHashMap<>();
         AtomicBoolean closeCalled = new AtomicBoolean(false);
-        try (Engine.Searcher wrap = wrapper.wrap(new Engine.Searcher("foo", searcher, () -> closeCalled.set(true)))) {
-            ElasticsearchDirectoryReader.addReaderCloseListener(wrap.getDirectoryReader(), key -> {
-                cache.remove(key);
-            });
+        try (Engine.Searcher wrap = wrapper.wrap(new Engine.Searcher("foo",
+                new AssertingLeafIndexSearcher(open, iwc.getSimilarity()), () -> closeCalled.set(true)))) {
+            ElasticsearchDirectoryReader.addReaderCloseListener(wrap.getDirectoryReader(), key -> cache.remove(key));
             TopDocs search = wrap.searcher().search(new TermQuery(new Term("field", "doc")), 1);
             cache.put(wrap.reader().getReaderCacheHelper().getKey(), search);
         }
@@ -156,11 +158,10 @@ public class IndexSearcherWrapperTests extends ESTestCase {
         doc.add(new TextField("field", "doc", random().nextBoolean() ? Field.Store.YES : Field.Store.NO));
         writer.addDocument(doc);
         DirectoryReader open = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(writer), new ShardId("foo", "_na_", 1));
-        IndexSearcher searcher = new IndexSearcher(open);
-        assertEquals(1, searcher.search(new TermQuery(new Term("field", "doc")), 1).totalHits.value);
-        searcher.setSimilarity(iwc.getSimilarity());
+        assertEquals(1, new IndexSearcher(open).search(new TermQuery(new Term("field", "doc")), 1).totalHits.value);
         IndexSearcherWrapper wrapper = new IndexSearcherWrapper();
-        try (Engine.Searcher engineSearcher = new Engine.Searcher("foo", searcher, open::close)) {
+        try (Engine.Searcher engineSearcher = new Engine.Searcher("foo",
+                new AssertingLeafIndexSearcher(open, iwc.getSimilarity()), open::close)) {
             final Engine.Searcher wrap = wrapper.wrap(engineSearcher);
             assertSame(wrap, engineSearcher);
         }
@@ -176,8 +177,7 @@ public class IndexSearcherWrapperTests extends ESTestCase {
         doc.add(new TextField("field", "doc", random().nextBoolean() ? Field.Store.YES : Field.Store.NO));
         writer.addDocument(doc);
         DirectoryReader open = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(writer), new ShardId("foo", "_na_", 1));
-        IndexSearcher searcher = new IndexSearcher(open);
-        assertEquals(1, searcher.search(new TermQuery(new Term("field", "doc")), 1).totalHits.value);
+        assertEquals(1, new IndexSearcher(open).search(new TermQuery(new Term("field", "doc")), 1).totalHits.value);
         IndexSearcherWrapper wrapper = new IndexSearcherWrapper() {
             @Override
             public DirectoryReader wrap(DirectoryReader reader) throws IOException {
@@ -185,10 +185,10 @@ public class IndexSearcherWrapperTests extends ESTestCase {
             }
 
             @Override
-            public IndexSearcher wrap(IndexSearcher searcher) throws EngineException {
-                return new IndexSearcher(searcher.getIndexReader()) {
+            public LeafIndexSearcher wrap(LeafIndexSearcher searcher) throws EngineException {
+                return new LeafIndexSearcher(searcher) {
                     @Override
-                    protected void search(List<LeafReaderContext> leaves, Weight weight, Collector collector) throws IOException {
+                    public void searchLeaf(LeafReaderContext ctx, Weight weight, Collector collector) throws IOException {
                         throw new IllegalStateException("boum");
                     }
                 };
@@ -196,10 +196,11 @@ public class IndexSearcherWrapperTests extends ESTestCase {
 
         };
         final AtomicBoolean closeCalled = new AtomicBoolean(false);
-        final Engine.Searcher wrap =  wrapper.wrap(new Engine.Searcher("foo", searcher, () -> closeCalled.set(true)));
+        assert random() != null;
+        final Engine.Searcher wrap =  wrapper.wrap(new Engine.Searcher("foo",
+            new AssertingLeafIndexSearcher(open, iwc.getSimilarity()), () -> closeCalled.set(true)));
         assertEquals(1, wrap.reader().getRefCount());
-        ContextIndexSearcher contextSearcher = new ContextIndexSearcher(wrap, wrap.searcher().getQueryCache(),
-            wrap.searcher().getQueryCachingPolicy());
+        ContextIndexSearcher contextSearcher = new ContextIndexSearcher(wrap.leafSearcher());
         IllegalStateException exc = expectThrows(IllegalStateException.class,
             () -> contextSearcher.search(new TermQuery(new Term("field", "doc")), new TotalHitCountCollector()));
         assertThat(exc.getMessage(), equalTo("boum"));
@@ -207,6 +208,57 @@ public class IndexSearcherWrapperTests extends ESTestCase {
         assertFalse("wrapped reader is closed", wrap.reader().tryIncRef());
         assertTrue(closeCalled.get());
 
+        IOUtils.close(open, writer, dir);
+        assertEquals(0, open.getRefCount());
+    }
+
+    public void testWrapForbidden() throws IOException {
+        Directory dir = newDirectory();
+        IndexWriterConfig iwc = newIndexWriterConfig();
+        IndexWriter writer = new IndexWriter(dir, iwc);
+        Document doc = new Document();
+        doc.add(new StringField("id", "1", random().nextBoolean() ? Field.Store.YES : Field.Store.NO));
+        doc.add(new TextField("field", "doc", random().nextBoolean() ? Field.Store.YES : Field.Store.NO));
+        writer.addDocument(doc);
+        DirectoryReader open = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(writer), new ShardId("foo", "_na_", 1));
+
+        {
+            IndexSearcherWrapper wrapper = new IndexSearcherWrapper() {
+                @Override
+                public LeafIndexSearcher wrap(LeafIndexSearcher searcher) throws EngineException {
+                    return new AssertingLeafIndexSearcher(searcher.getIndexReader(), new SweetSpotSimilarity());
+                }
+            };
+            IllegalStateException exc = expectThrows(IllegalStateException.class, () -> wrapper.wrap(new Engine.Searcher("foo",
+                new AssertingLeafIndexSearcher(open), () -> {
+            })));
+            assertThat(exc.getMessage(), containsString("similarity"));
+        }
+        {
+            IndexSearcherWrapper wrapper = new IndexSearcherWrapper() {
+                @Override
+                public LeafIndexSearcher wrap(LeafIndexSearcher searcher) throws IOException {
+                    return new AssertingLeafIndexSearcher(searcher.getIndexReader(),
+                        IndexSearcher.getDefaultSimilarity(), null, null);
+                }
+            };
+            IllegalStateException exc = expectThrows(IllegalStateException.class, () -> wrapper.wrap(new Engine.Searcher("foo",
+                new AssertingLeafIndexSearcher(open), () -> {
+            })));
+            assertThat(exc.getMessage(), containsString("query cache"));
+        }
+        {
+            IndexSearcherWrapper wrapper = new IndexSearcherWrapper() {
+                @Override
+                public LeafIndexSearcher wrap(LeafIndexSearcher searcher) throws IOException {
+                    return new AssertingLeafIndexSearcher(new MultiReader());
+                }
+            };
+            IllegalStateException exc = expectThrows(IllegalStateException.class, () -> wrapper.wrap(new Engine.Searcher("foo",
+                new AssertingLeafIndexSearcher(open), () -> {
+            })));
+            assertThat(exc.getMessage(), containsString("index reader"));
+        }
         IOUtils.close(open, writer, dir);
         assertEquals(0, open.getRefCount());
     }

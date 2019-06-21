@@ -23,7 +23,6 @@ import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.AlreadyClosedException;
@@ -82,7 +81,6 @@ import org.elasticsearch.index.engine.CommitStats;
 import org.elasticsearch.index.engine.DocIdSeqNoAndSource;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.Engine.DeleteResult;
-import org.elasticsearch.index.engine.EngineException;
 import org.elasticsearch.index.engine.EngineTestCase;
 import org.elasticsearch.index.engine.InternalEngine;
 import org.elasticsearch.index.engine.InternalEngineFactory;
@@ -2357,11 +2355,6 @@ public class IndexShardTests extends IndexShardTestCase {
             public DirectoryReader wrap(DirectoryReader reader) throws IOException {
                 return new FieldMaskingReader("foo", reader);
             }
-
-            @Override
-            public IndexSearcher wrap(IndexSearcher searcher) throws EngineException {
-                return searcher;
-            }
         };
         closeShards(shard);
         IndexShard newShard = newShard(
@@ -2399,11 +2392,6 @@ public class IndexShardTests extends IndexShardTestCase {
             @Override
             public DirectoryReader wrap(DirectoryReader reader) throws IOException {
                 return new FieldMaskingReader("foo", reader);
-            }
-
-            @Override
-            public IndexSearcher wrap(IndexSearcher searcher) throws EngineException {
-                return searcher;
             }
         };
 
@@ -2510,11 +2498,6 @@ public class IndexShardTests extends IndexShardTestCase {
             @Override
             public DirectoryReader wrap(DirectoryReader reader) throws IOException {
                 throw new RuntimeException("boom");
-            }
-
-            @Override
-            public IndexSearcher wrap(IndexSearcher searcher) throws EngineException {
-                return searcher;
             }
         };
 

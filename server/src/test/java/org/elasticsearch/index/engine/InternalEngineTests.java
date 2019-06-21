@@ -54,6 +54,7 @@ import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.index.TieredMergePolicy;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.LeafIndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.search.Sort;
@@ -734,7 +735,7 @@ public class InternalEngineTests extends EngineTestCase {
             }
 
             @Override
-            public IndexSearcher wrap(IndexSearcher searcher) throws EngineException {
+            public LeafIndexSearcher wrap(LeafIndexSearcher searcher) throws EngineException {
                 counter.incrementAndGet();
                 return searcher;
             }
@@ -4715,14 +4716,14 @@ public class InternalEngineTests extends EngineTestCase {
             try (Searcher searcher = engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL)) {
                 engine.refresh("test", Engine.SearcherScope.INTERNAL, true);
                 try (Searcher nextSearcher = engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL)) {
-                    assertSame(searcher.searcher(), nextSearcher.searcher());
+                    assertSame(searcher.reader(), nextSearcher.reader());
                 }
             }
 
             try (Searcher searcher = engine.acquireSearcher("test", Engine.SearcherScope.EXTERNAL)) {
                 engine.refresh("test", Engine.SearcherScope.EXTERNAL, true);
                 try (Searcher nextSearcher = engine.acquireSearcher("test", Engine.SearcherScope.EXTERNAL)) {
-                    assertSame(searcher.searcher(), nextSearcher.searcher());
+                    assertSame(searcher.reader(), nextSearcher.reader());
                 }
             }
         }

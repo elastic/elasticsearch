@@ -23,7 +23,7 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FieldInvertState;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.CollectionStatistics;
-import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.LeafIndexSearcher;
 import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.TermStatistics;
 import org.apache.lucene.search.Weight;
@@ -463,7 +463,7 @@ public class IndexModuleTests extends ESTestCase {
         }
 
         @Override
-        public IndexSearcher wrap(IndexSearcher searcher) throws EngineException {
+        public LeafIndexSearcher wrap(LeafIndexSearcher searcher) throws EngineException {
             return null;
         }
     }

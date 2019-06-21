@@ -27,7 +27,6 @@ import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SegmentCommitInfo;
@@ -36,6 +35,7 @@ import org.apache.lucene.index.SegmentReader;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.LeafIndexSearcher;
 import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.search.suggest.document.CompletionTerms;
 import org.apache.lucene.store.AlreadyClosedException;
@@ -160,18 +160,6 @@ public abstract class Engine implements Closeable {
             return 0;
         }
         return a.ramBytesUsed();
-    }
-
-    /**
-     * Returns whether a leaf reader comes from a merge (versus flush or addIndexes).
-     */
-    protected static boolean isMergedSegment(LeafReader reader) {
-        // We expect leaves to be segment readers
-        final Map<String, String> diagnostics = Lucene.segmentReader(reader).getSegmentInfo().info.getDiagnostics();
-        final String source = diagnostics.get(IndexWriter.SOURCE);
-        assert Arrays.asList(IndexWriter.SOURCE_ADDINDEXES_READERS, IndexWriter.SOURCE_FLUSH,
-                IndexWriter.SOURCE_MERGE).contains(source) : "Unknown source " + source;
-        return IndexWriter.SOURCE_MERGE.equals(source);
     }
 
     public final EngineConfig config() {
@@ -679,10 +667,10 @@ public abstract class Engine implements Closeable {
         }
         Releasable releasable = store::decRef;
         try {
-            ReferenceManager<IndexSearcher> referenceManager = getReferenceManager(scope);
-            IndexSearcher acquire = referenceManager.acquire();
+            ReferenceManager<DirectoryReader> referenceManager = getReferenceManager(scope);
+            DirectoryReader acquire = referenceManager.acquire();
             AtomicBoolean released = new AtomicBoolean(false);
-            Searcher engineSearcher = new Searcher(source, acquire,
+            Searcher engineSearcher = new Searcher(source, newLeafSearcher(acquire, engineConfig),
                 () -> {
                 if (released.compareAndSet(false, true)) {
                     try {
@@ -711,7 +699,11 @@ public abstract class Engine implements Closeable {
         }
     }
 
-    protected abstract ReferenceManager<IndexSearcher> getReferenceManager(SearcherScope scope);
+    protected static LeafIndexSearcher newLeafSearcher(IndexReader reader, EngineConfig config) {
+        return new LeafIndexSearcher(reader, config.getSimilarity(), config.getQueryCache(), config.getQueryCachingPolicy());
+    }
+
+    protected abstract ReferenceManager<DirectoryReader> getReferenceManager(SearcherScope scope);
 
     public enum SearcherScope {
         EXTERNAL, INTERNAL
@@ -1224,10 +1216,10 @@ public abstract class Engine implements Closeable {
 
     public static final class Searcher implements Releasable {
         private final String source;
-        private final IndexSearcher searcher;
+        private final LeafIndexSearcher searcher;
         private final Closeable onClose;
 
-        public Searcher(String source, IndexSearcher searcher, Closeable onClose) {
+        public Searcher(String source, LeafIndexSearcher searcher, Closeable onClose) {
             this.source = source;
             this.searcher = searcher;
             this.onClose = onClose;
@@ -1252,6 +1244,10 @@ public abstract class Engine implements Closeable {
         }
 
         public IndexSearcher searcher() {
+            return searcher.getIndexSearcher();
+        }
+
+        public LeafIndexSearcher leafSearcher() {
             return searcher;
         }
 

@@ -26,12 +26,13 @@ import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.AssertingIndexSearcher;
+import org.apache.lucene.search.AssertingLeafIndexSearcher;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.LeafIndexSearcher;
 import org.apache.lucene.search.QueryCache;
 import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.Weight;
-import org.apache.lucene.search.XIndexSearcher;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.settings.Setting;
@@ -39,7 +40,6 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineConfig;
-import org.elasticsearch.index.engine.EngineException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESIntegTestCase;
 
@@ -50,6 +50,8 @@ import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicBoolean;
+
+import static org.apache.lucene.util.LuceneTestCase.random;
 
 /**
  * Support class to build MockEngines like {@link MockInternalEngine}
@@ -144,32 +146,6 @@ public final class MockEngineSupport {
         }
     }
 
-    public AssertingIndexSearcher newSearcher(Engine.Searcher searcher) throws EngineException {
-        IndexReader reader = searcher.reader();
-        IndexReader wrappedReader = reader;
-        assert reader != null;
-        if (reader instanceof DirectoryReader && mockContext.wrapReader) {
-            wrappedReader = wrapReader((DirectoryReader) reader);
-        }
-        final IndexSearcher delegate = new IndexSearcher(wrappedReader);
-        delegate.setSimilarity(searcher.searcher().getSimilarity());
-        delegate.setQueryCache(filterCache);
-        delegate.setQueryCachingPolicy(filterCachingPolicy);
-        final XIndexSearcher wrappedSearcher = new XIndexSearcher(delegate);
-        // this executes basic query checks and asserts that weights are normalized only once etc.
-        final AssertingIndexSearcher assertingIndexSearcher = new AssertingIndexSearcher(mockContext.random, wrappedReader) {
-            @Override
-            protected void search(List<LeafReaderContext> leaves, Weight weight, Collector collector) throws IOException {
-                // we cannot use the asserting searcher because the weight is created by the ContextIndexSearcher
-                wrappedSearcher.search(leaves, weight, collector);
-            }
-        };
-        assertingIndexSearcher.setSimilarity(searcher.searcher().getSimilarity());
-        assertingIndexSearcher.setQueryCache(filterCache);
-        assertingIndexSearcher.setQueryCachingPolicy(filterCachingPolicy);
-        return assertingIndexSearcher;
-    }
-
     private DirectoryReader wrapReader(DirectoryReader reader) {
         try {
             Constructor<?>[] constructors = mockContext.wrapper.getConstructors();
@@ -205,8 +181,28 @@ public final class MockEngineSupport {
     }
 
     public Engine.Searcher wrapSearcher(Engine.Searcher engineSearcher) {
-        final AssertingIndexSearcher assertingIndexSearcher = newSearcher(engineSearcher);
-        assertingIndexSearcher.setSimilarity(engineSearcher.searcher().getSimilarity());
+        IndexReader reader = engineSearcher.reader();
+        IndexReader wrappedReader = reader;
+        assert reader != null;
+        if (reader instanceof DirectoryReader && mockContext.wrapReader) {
+            wrappedReader = wrapReader((DirectoryReader) reader);
+        }
+        LeafIndexSearcher searcher = engineSearcher.leafSearcher();
+        LeafIndexSearcher wrappedSearcher =
+            new AssertingLeafIndexSearcher(wrappedReader,
+                    searcher.getSimilarity(), searcher.getQueryCache(), searcher.getQueryCachingPolicy()) {
+            @Override
+            public IndexSearcher getIndexSearcher() {
+                return new AssertingIndexSearcher(mockContext.random, getIndexReader()) {
+                    @Override
+                    protected void search(List<LeafReaderContext> leaves, Weight weight, Collector collector) throws IOException {
+                        for (LeafReaderContext ctx : leaves) {
+                            searchLeaf(ctx, weight, collector);
+                        }
+                    }
+                };
+            }
+        };
         /*
          * pass the original searcher to the super.newSearcher() method to
          * make sure this is the searcher that will be released later on.
@@ -216,7 +212,7 @@ public final class MockEngineSupport {
          * get this right here
          */
         SearcherCloseable closeable = new SearcherCloseable(engineSearcher, logger, inFlightSearchers);
-        return new Engine.Searcher(engineSearcher.source(), assertingIndexSearcher, closeable);
+        return new Engine.Searcher(engineSearcher.source(), wrappedSearcher, closeable);
     }
 
     private static final class InFlightSearchers implements Closeable {

@@ -26,7 +26,6 @@ import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.index.StoredFieldVisitor;
 import org.apache.lucene.index.Terms;
-import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.Directory;
@@ -227,13 +226,13 @@ public final class FrozenEngine extends ReadOnlyEngine {
                 // the category that doesn't trigger a reopen
                 if ("can_match".equals(source)) {
                     canMatchReader.incRef();
-                    return new Searcher(source, new IndexSearcher(canMatchReader), canMatchReader::decRef);
+                    return new Searcher(source, newLeafSearcher(canMatchReader, engineConfig), canMatchReader::decRef);
                 }
                 return super.acquireSearcher(source, scope);
             } else {
                 try {
                     LazyDirectoryReader lazyDirectoryReader = new LazyDirectoryReader(reader, this);
-                    Searcher newSearcher = new Searcher(source, new IndexSearcher(lazyDirectoryReader),
+                    Searcher newSearcher = new Searcher(source, newLeafSearcher(lazyDirectoryReader, engineConfig),
                         () -> IOUtils.close(lazyDirectoryReader, store::decRef));
                     releaseRefeference = false;
                     return newSearcher;
@@ -272,8 +271,8 @@ public final class FrozenEngine extends ReadOnlyEngine {
 
         @Override
         public void validateSearchContext(SearchContext context, TransportRequest transportRequest) {
-            Searcher engineSearcher = context.searcher().getEngineSearcher();
-            LazyDirectoryReader lazyDirectoryReader = unwrapLazyReader(engineSearcher.getDirectoryReader());
+            DirectoryReader dirReader = context.searcher().getDirectoryReader();
+            LazyDirectoryReader lazyDirectoryReader = unwrapLazyReader(dirReader);
             if (lazyDirectoryReader != null) {
                 try {
                     lazyDirectoryReader.reset();
@@ -297,8 +296,8 @@ public final class FrozenEngine extends ReadOnlyEngine {
 
         @Override
         public void onNewContext(SearchContext context) {
-            Searcher engineSearcher = context.searcher().getEngineSearcher();
-            LazyDirectoryReader lazyDirectoryReader = unwrapLazyReader(engineSearcher.getDirectoryReader());
+            DirectoryReader dirReader = context.searcher().getDirectoryReader();
+            LazyDirectoryReader lazyDirectoryReader = unwrapLazyReader(dirReader);
             if (lazyDirectoryReader != null) {
                 registerRelease(context, lazyDirectoryReader);
             }

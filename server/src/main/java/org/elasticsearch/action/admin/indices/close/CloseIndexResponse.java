@@ -278,8 +278,7 @@ public class CloseIndexResponse extends ShardsAcknowledgedResponse {
                 if (nodeId != null) {
                     builder.field("node", nodeId);
                 }
-                super.innerToXContent(builder, params);
-                return builder;
+                return super.innerToXContent(builder, params);
             }
 
             @Override

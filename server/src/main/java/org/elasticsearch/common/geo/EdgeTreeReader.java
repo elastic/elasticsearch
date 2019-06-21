@@ -26,6 +26,10 @@ import java.util.Optional;
 
 import static org.apache.lucene.geo.GeoUtils.lineCrossesLineWithBoundary;
 
+/**
+ * This {@link ShapeTreeReader} understands how to parse polygons
+ * serialized with the {@link EdgeTreeWriter}
+ */
 public class EdgeTreeReader implements ShapeTreeReader {
     final ByteBufferStreamInput input;
     final int startPosition;

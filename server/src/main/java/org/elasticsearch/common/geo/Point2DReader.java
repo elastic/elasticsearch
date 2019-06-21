@@ -24,6 +24,10 @@ import java.io.IOException;
 import java.util.ArrayDeque;
 import java.util.Deque;
 
+/**
+ * This {@link ShapeTreeReader} understands how to parse points
+ * serialized with the {@link Point2DWriter}
+ */
 class Point2DReader implements ShapeTreeReader {
     private final ByteBufferStreamInput input;
     private final int size;

@@ -25,7 +25,6 @@ import org.elasticsearch.geo.geometry.Point;
 import org.elasticsearch.geo.geometry.ShapeType;
 
 import java.io.IOException;
-import java.util.Collections;
 
 /**
  * points KD-Tree (2D) writer for use in doc-values.
@@ -64,7 +63,10 @@ public class Point2DWriter extends ShapeTreeWriter {
     }
 
     Point2DWriter(Point point) {
-        this(new MultiPoint(Collections.singletonList(point)));
+        int x = GeoEncodingUtils.encodeLongitude(point.getLon());
+        int y = GeoEncodingUtils.encodeLatitude(point.getLat());
+        coords = new int[] {x, y};
+        this.extent = new Extent(x, y, x, y);
     }
 
     @Override

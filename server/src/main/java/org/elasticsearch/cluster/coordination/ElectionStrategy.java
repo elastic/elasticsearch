@@ -24,10 +24,18 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 
 /**
  * Allows plugging in a custom election strategy, restricting the notion of an election quorum.
+ * Custom additional quorum restrictions can be defined by implementing the {@link #satisfiesAdditionalQuorumConstraints} method.
  */
-public class ElectionStrategy {
+public abstract class ElectionStrategy {
 
-    public static final ElectionStrategy DEFAULT_INSTANCE = new ElectionStrategy();
+    public static final ElectionStrategy DEFAULT_INSTANCE = new ElectionStrategy() {
+        @Override
+        protected boolean satisfiesAdditionalQuorumConstraints(DiscoveryNode localNode, long localCurrentTerm, long localAcceptedTerm,
+                                                               long localAcceptedVersion, VotingConfiguration lastCommittedConfiguration,
+                                                               VotingConfiguration lastAcceptedConfiguration, VoteCollection joinVotes) {
+            return true;
+        }
+    };
 
     protected ElectionStrategy() {
 
@@ -41,13 +49,26 @@ public class ElectionStrategy {
                                           VoteCollection joinVotes) {
         return joinVotes.isQuorum(lastCommittedConfiguration) &&
             joinVotes.isQuorum(lastAcceptedConfiguration) &&
-            isCustomElectionQuorum(localNode, localCurrentTerm, localAcceptedTerm, localAcceptedVersion, lastCommittedConfiguration,
-                lastAcceptedConfiguration, joinVotes);
+            satisfiesAdditionalQuorumConstraints(localNode, localCurrentTerm, localAcceptedTerm, localAcceptedVersion,
+                lastCommittedConfiguration, lastAcceptedConfiguration, joinVotes);
     }
 
-    protected boolean isCustomElectionQuorum(DiscoveryNode localNode, long localCurrentTerm, long localAcceptedTerm,
-                                             long localAcceptedVersion, VotingConfiguration lastCommittedConfiguration,
-                                             VotingConfiguration lastAcceptedConfiguration, VoteCollection joinVotes) {
-        return true;
-    }
+    /**
+     * The extension point to be overridden by plugins. Defines additional constraints on the election quorum.
+     * @param localNode                  the local node for the election quorum
+     * @param localCurrentTerm           the current term of the local node
+     * @param localAcceptedTerm          the last accepted term of the local node
+     * @param localAcceptedVersion       the last accepted version of the local node
+     * @param lastCommittedConfiguration the last committed configuration for the election quorum
+     * @param lastAcceptedConfiguration  the last accepted configuration for the election quorum
+     * @param joinVotes                  the votes that were provided so far
+     * @return true iff the additional quorum constraints are satisfied
+     */
+    protected abstract boolean satisfiesAdditionalQuorumConstraints(DiscoveryNode localNode,
+                                                                    long localCurrentTerm,
+                                                                    long localAcceptedTerm,
+                                                                    long localAcceptedVersion,
+                                                                    VotingConfiguration lastCommittedConfiguration,
+                                                                    VotingConfiguration lastAcceptedConfiguration,
+                                                                    VoteCollection joinVotes);
 }

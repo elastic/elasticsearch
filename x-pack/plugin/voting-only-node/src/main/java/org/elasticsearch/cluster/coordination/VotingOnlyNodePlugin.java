@@ -149,9 +149,9 @@ public class VotingOnlyNodePlugin extends Plugin implements DiscoveryPlugin, Net
     static class VotingOnlyNodeElectionStrategy extends ElectionStrategy {
 
         @Override
-        public boolean isCustomElectionQuorum(DiscoveryNode localNode, long localCurrentTerm, long localAcceptedTerm,
-                                              long localAcceptedVersion, VotingConfiguration lastCommittedConfiguration,
-                                              VotingConfiguration lastAcceptedConfiguration, VoteCollection joinVotes) {
+        public boolean satisfiesAdditionalQuorumConstraints(DiscoveryNode localNode, long localCurrentTerm, long localAcceptedTerm,
+                                                            long localAcceptedVersion, VotingConfiguration lastCommittedConfiguration,
+                                                            VotingConfiguration lastAcceptedConfiguration, VoteCollection joinVotes) {
             // if local node is voting only, have additional checks on election quorum definition
             if (isVotingOnlyNode(localNode)) {
                 // if all votes are from voting only nodes, do not elect as master (no need to transfer state)

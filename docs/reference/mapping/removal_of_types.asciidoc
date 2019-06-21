@@ -416,8 +416,6 @@ POST _reindex
   },
   "script": {
     "source": """
-      ctx._source.type = ctx._type;
-      ctx._id = ctx._type + '-' + ctx._id;
       ctx._type = '_doc';
     """
   }

@@ -58,7 +58,6 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -393,43 +392,65 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 logger.warn(() -> new ParameterizedMessage("cannot read snapshot file [{}]", snapshotId), ex);
             }
             // Delete snapshot from the index file, since it is the maintainer of truth of active snapshots
-            final RepositoryData repositoryData;
             final RepositoryData updatedRepositoryData;
+            final Map<String, BlobContainer> foundIndices;
             try {
-                repositoryData = getRepositoryData();
+                final RepositoryData repositoryData = getRepositoryData();
                 updatedRepositoryData = repositoryData.removeSnapshot(snapshotId);
+                // Cache the indices that were found before writing out the new index-N blob so that a stuck master will never
+                // delete an index that was created by another master node after writing this index-N blob.
+                foundIndices = blobStore().blobContainer(basePath().add("indices")).children();
                 writeIndexGen(updatedRepositoryData, repositoryStateId);
             } catch (Exception ex) {
                 listener.onFailure(new RepositoryException(metadata.name(), "failed to delete snapshot [" + snapshotId + "]", ex));
                 return;
             }
             final SnapshotInfo finalSnapshotInfo = snapshot;
-            final Collection<IndexId> unreferencedIndices = Sets.newHashSet(repositoryData.getIndices().values());
-            unreferencedIndices.removeAll(updatedRepositoryData.getIndices().values());
             try {
                 blobContainer().deleteBlobsIgnoringIfNotExists(
                     Arrays.asList(snapshotFormat.blobName(snapshotId.getUUID()), globalMetaDataFormat.blobName(snapshotId.getUUID())));
             } catch (IOException e) {
                 logger.warn(() -> new ParameterizedMessage("[{}] Unable to delete global metadata files", snapshotId), e);
             }
+            final var survivingIndices = updatedRepositoryData.getIndices();
             deleteIndices(
                 Optional.ofNullable(finalSnapshotInfo)
-                    .map(info -> info.indices().stream().map(repositoryData::resolveIndexId).collect(Collectors.toList()))
+                    .map(info -> info.indices().stream().filter(survivingIndices::containsKey)
+                        .map(updatedRepositoryData::resolveIndexId).collect(Collectors.toList()))
                     .orElse(Collections.emptyList()),
                 snapshotId,
                 ActionListener.map(listener, v -> {
-                    try {
-                        blobStore().blobContainer(indicesPath()).deleteBlobsIgnoringIfNotExists(
-                            unreferencedIndices.stream().map(IndexId::getId).collect(Collectors.toList()));
-                    } catch (IOException e) {
-                        logger.warn(() ->
-                            new ParameterizedMessage(
-                                "[{}] indices {} are no longer part of any snapshots in the repository, " +
-                                    "but failed to clean up their index folders.", metadata.name(), unreferencedIndices), e);
-                    }
+                    cleanupStaleIndices(foundIndices, survivingIndices);
                     return null;
                 })
             );
+        }
+    }
+
+    private void cleanupStaleIndices(Map<String, BlobContainer> foundIndices, Map<String, IndexId> survivingIndices) {
+        try {
+            final Set<String> survivingIndexIds = survivingIndices.values().stream()
+                .map(IndexId::getId).collect(Collectors.toSet());
+            for (Map.Entry<String, BlobContainer> indexEntry : foundIndices.entrySet()) {
+                final String indexSnId = indexEntry.getKey();
+                try {
+                    if (survivingIndexIds.contains(indexSnId) == false) {
+                        logger.debug("[{}] Found stale index [{}]. Cleaning it up", metadata.name(), indexSnId);
+                        indexEntry.getValue().delete();
+                        logger.debug("[{}] Cleaned up stale index [{}]", metadata.name(), indexSnId);
+                    }
+                } catch (IOException e) {
+                    logger.warn(() -> new ParameterizedMessage(
+                        "[{}] index {} is no longer part of any snapshots in the repository, " +
+                            "but failed to clean up their index folders", metadata.name(), indexSnId), e);
+                }
+            }
+        } catch (Exception e) {
+            // TODO: We shouldn't be blanket catching and suppressing all exceptions here and instead handle them safely upstream.
+            //       Currently this catch exists as a stop gap solution to tackle unexpected runtime exceptions from implementations
+            //       bubbling up and breaking the snapshot functionality.
+            assert false : e;
+            logger.warn(new ParameterizedMessage("[{}] Exception during cleanup of stale indices", metadata.name()), e);
         }
     }
 
@@ -494,9 +515,9 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             startTime, failure, System.currentTimeMillis(), totalShards, shardFailures,
             includeGlobalState, userMetadata);
         try {
+            final RepositoryData updatedRepositoryData = getRepositoryData().addSnapshot(snapshotId, blobStoreSnapshot.state(), indices);
             snapshotFormat.write(blobStoreSnapshot, blobContainer(), snapshotId.getUUID());
-            final RepositoryData repositoryData = getRepositoryData();
-            writeIndexGen(repositoryData.addSnapshot(snapshotId, blobStoreSnapshot.state(), indices), repositoryStateId);
+            writeIndexGen(updatedRepositoryData, repositoryStateId);
         } catch (FileAlreadyExistsException ex) {
             // if another master was elected and took over finalizing the snapshot, it is possible
             // that both nodes try to finalize the snapshot and write to the same blobs, so we just

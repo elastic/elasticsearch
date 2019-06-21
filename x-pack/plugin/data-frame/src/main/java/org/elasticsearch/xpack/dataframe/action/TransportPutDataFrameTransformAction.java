@@ -227,10 +227,10 @@ public class TransportPutDataFrameTransformAction
                 .collect(Collectors.toList());
 
             listener.onFailure(Exceptions.authorizationError(
-                "Cannot create data frame transform [{}] because user {} lacks the all the required permissions for indices: [{}]",
+                "Cannot create data frame transform [{}] because user {} lacks the all the required permissions for indices: {}",
                 config.getId(),
                 username,
-                Strings.collectionToCommaDelimitedString(indices)));
+                indices));
         }
     }
 

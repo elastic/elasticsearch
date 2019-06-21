@@ -10,11 +10,7 @@ Creates an index.
 [[indices-create-index-request]]
 === {api-request-title}
 
-[source,js]
-----
-PUT <index>
-----
-// NOTCONSOLE
+`PUT <index>`
 
 [float]
 [[sample-api-desc]]

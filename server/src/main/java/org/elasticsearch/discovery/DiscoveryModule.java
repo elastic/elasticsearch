@@ -76,10 +76,10 @@ public class DiscoveryModule {
         Setting.listSetting("discovery.seed_providers", Collections.emptyList(), Function.identity(),
             Property.NodeScope);
 
-    public static final String DEFAULT_ELECTION_TYPE = "default";
+    public static final String DEFAULT_ELECTION_STRATEGY = "default";
 
-    public static final Setting<String> ELECTION_TYPE_SETTING =
-        new Setting<>("cluster.election.type", DEFAULT_ELECTION_TYPE, Function.identity(), Property.NodeScope);
+    public static final Setting<String> ELECTION_STRATEGY_SETTING =
+        new Setting<>("cluster.election.strategy", DEFAULT_ELECTION_STRATEGY, Function.identity(), Property.NodeScope);
 
     private final Discovery discovery;
 
@@ -93,7 +93,7 @@ public class DiscoveryModule {
         hostProviders.put("settings", () -> new SettingsBasedSeedHostsProvider(settings, transportService));
         hostProviders.put("file", () -> new FileBasedSeedHostsProvider(configFile));
         final Map<String, ElectionStrategy> electionStrategies = new HashMap<>();
-        electionStrategies.put(DEFAULT_ELECTION_TYPE, ElectionStrategy.DefaultElectionStrategy.INSTANCE);
+        electionStrategies.put(DEFAULT_ELECTION_STRATEGY, ElectionStrategy.DefaultElectionStrategy.INSTANCE);
         for (DiscoveryPlugin plugin : plugins) {
             plugin.getSeedHostProviders(transportService, networkService).forEach((key, value) -> {
                 if (hostProviders.put(key, value) != null) {
@@ -139,9 +139,9 @@ public class DiscoveryModule {
             return Collections.unmodifiableList(addresses);
         };
 
-        final ElectionStrategy electionStrategy = electionStrategies.get(ELECTION_TYPE_SETTING.get(settings));
+        final ElectionStrategy electionStrategy = electionStrategies.get(ELECTION_STRATEGY_SETTING.get(settings));
         if (electionStrategy == null) {
-            throw new IllegalArgumentException("Unknown election type " + ELECTION_TYPE_SETTING.get(settings));
+            throw new IllegalArgumentException("Unknown election strategy " + ELECTION_STRATEGY_SETTING.get(settings));
         }
 
         if (ZEN2_DISCOVERY_TYPE.equals(discoveryType) || SINGLE_NODE_DISCOVERY_TYPE.equals(discoveryType)) {

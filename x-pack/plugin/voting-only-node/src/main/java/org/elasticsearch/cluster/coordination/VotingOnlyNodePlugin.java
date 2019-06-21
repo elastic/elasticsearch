@@ -61,7 +61,7 @@ public class VotingOnlyNodePlugin extends Plugin implements DiscoveryPlugin, Net
     public static final Setting<Boolean> VOTING_ONLY_NODE_SETTING
         = Setting.boolSetting("node.voting_only", false, Setting.Property.NodeScope);
 
-    private static final String VOTING_ONLY_ELECTION_TYPE = "supports_voting_only";
+    private static final String VOTING_ONLY_ELECTION_STRATEGY = "supports_voting_only";
 
     static DiscoveryNodeRole VOTING_ONLY_NODE_ROLE = new DiscoveryNodeRole("voting_only", "v") {
         @Override
@@ -132,7 +132,7 @@ public class VotingOnlyNodePlugin extends Plugin implements DiscoveryPlugin, Net
         if (XPackSettings.VOTING_ONLY_ENABLED.get(settings) == false) {
             return Collections.emptyMap();
         }
-        return Collections.singletonMap(VOTING_ONLY_ELECTION_TYPE, new VotingOnlyNodeElectionStrategy());
+        return Collections.singletonMap(VOTING_ONLY_ELECTION_STRATEGY, new VotingOnlyNodeElectionStrategy());
     }
 
     @Override
@@ -154,7 +154,7 @@ public class VotingOnlyNodePlugin extends Plugin implements DiscoveryPlugin, Net
         if (XPackSettings.VOTING_ONLY_ENABLED.get(settings) == false) {
             return Settings.EMPTY;
         }
-        return Settings.builder().put(DiscoveryModule.ELECTION_TYPE_SETTING.getKey(), VOTING_ONLY_ELECTION_TYPE).build();
+        return Settings.builder().put(DiscoveryModule.ELECTION_STRATEGY_SETTING.getKey(), VOTING_ONLY_ELECTION_STRATEGY).build();
     }
 
     static class VotingOnlyNodeElectionStrategy extends ElectionStrategy.DefaultElectionStrategy {

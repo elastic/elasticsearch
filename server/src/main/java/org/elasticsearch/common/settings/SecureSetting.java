@@ -98,9 +98,9 @@ public abstract class SecureSetting<T> extends Setting<T> {
     }
 
     /**
-     * Returns the digest of this secure setting's value or {@code null} if the setting is missing. This method can be called even after the
-     * {@code SecureSettings} have been closed, unlike {@code #get(Settings)}. The digest is used to check for changes of the value (by
-     * re-reading the {@code SecureSettings}), without actually storing the value to compare with.
+     * Returns the digest of this secure setting's value or {@code null} if the setting is missing (inside the keystore). This method can be
+     * called even after the {@code SecureSettings} have been closed, unlike {@code #get(Settings)}. The digest is used to check for changes
+     * of the value (by re-reading the {@code SecureSettings}), without actually transmitting the value to compare with.
      */
     public byte[] getSecretDigest(Settings settings) {
         final SecureSettings secureSettings = settings.getSecureSettings();

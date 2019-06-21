@@ -139,15 +139,15 @@ public class KeyStoreWrapperTests extends ESTestCase {
         keystore.setFile(fileSettingKeyName, fileSettingValue);
 
         final byte[] stringSettingHash = MessageDigest.getInstance("SHA-256").digest(stringSettingValue.getBytes(StandardCharsets.UTF_8));
-        assertTrue(Arrays.equals(keystore.getSHA256Digest(stringSettingKeyName), stringSettingHash));
+        assertThat(keystore.getSHA256Digest(stringSettingKeyName), equalTo(stringSettingHash));
         final byte[] fileSettingHash = MessageDigest.getInstance("SHA-256").digest(fileSettingValue);
-        assertTrue(Arrays.equals(keystore.getSHA256Digest(fileSettingKeyName), fileSettingHash));
+        assertThat(keystore.getSHA256Digest(fileSettingKeyName), equalTo(fileSettingHash));
 
         keystore.close();
 
         // value hashes accessible even when the keystore is closed
-        assertTrue(Arrays.equals(keystore.getSHA256Digest(stringSettingKeyName), stringSettingHash));
-        assertTrue(Arrays.equals(keystore.getSHA256Digest(fileSettingKeyName), fileSettingHash));
+        assertThat(keystore.getSHA256Digest(stringSettingKeyName), equalTo(stringSettingHash));
+        assertThat(keystore.getSHA256Digest(fileSettingKeyName), equalTo(fileSettingHash));
     }
 
     public void testUpgradeNoop() throws Exception {

@@ -113,7 +113,7 @@ public class Setting<T> implements ToXContentObject {
         NodeScope,
 
         /**
-         * Setting values equal on all nodes
+         * Secure setting values equal on all nodes
          */
         Consistent,
 
@@ -334,7 +334,8 @@ public class Setting<T> implements ToXContentObject {
     }
 
     /**
-     * Returns <code>true</code> if this setting's value can be checked for equality across all nodes
+     * Returns <code>true</code> if this setting's value can be checked for equality across all nodes. Only {@link SecureSetting} instances
+     * may have this qualifier.
      */
     public boolean isConsistent() {
         return properties.contains(Property.Consistent);

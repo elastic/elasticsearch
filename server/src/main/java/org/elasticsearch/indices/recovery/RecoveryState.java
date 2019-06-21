@@ -927,7 +927,7 @@ public class RecoveryState implements ToXContentFragment, Streamable, Writeable 
             builder.field(Fields.REUSED, reusedFileCount());
             builder.field(Fields.RECOVERED, recoveredFileCount());
             builder.field(Fields.PERCENT, String.format(Locale.ROOT, "%1.1f%%", recoveredFilesPercent()));
-            if (params.paramAsBoolean("details", false)) {
+            if (params.paramAsBoolean("detailed", false)) {
                 builder.startArray(Fields.DETAILS);
                 for (File file : fileDetails.values()) {
                     file.toXContent(builder, params);

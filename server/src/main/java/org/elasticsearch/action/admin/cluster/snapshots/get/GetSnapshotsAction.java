@@ -20,6 +20,7 @@
 package org.elasticsearch.action.admin.cluster.snapshots.get;
 
 import org.elasticsearch.action.Action;
+import org.elasticsearch.common.io.stream.Writeable;
 
 /**
  * Get snapshots action
@@ -35,7 +36,12 @@ public class GetSnapshotsAction extends Action<GetSnapshotsResponse> {
 
     @Override
     public GetSnapshotsResponse newResponse() {
-        return new GetSnapshotsResponse();
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
+    }
+
+    @Override
+    public Writeable.Reader<GetSnapshotsResponse> getResponseReader() {
+        return GetSnapshotsResponse::new;
     }
 }
 

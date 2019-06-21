@@ -433,12 +433,15 @@ public class GeoDistanceAggregationBuilder extends ValuesSourceAggregationBuilde
     }
 
     @Override
-    protected int innerHashCode() {
-        return Objects.hash(origin, ranges, keyed, distanceType, unit);
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), origin, ranges, keyed, distanceType, unit);
     }
 
     @Override
-    protected boolean innerEquals(Object obj) {
+    public boolean equals(Object obj) {
+        if (this == obj) return true;
+        if (obj == null || getClass() != obj.getClass()) return false;
+        if (super.equals(obj) == false) return false;
         GeoDistanceAggregationBuilder other = (GeoDistanceAggregationBuilder) obj;
         return Objects.equals(origin, other.origin)
                 && Objects.equals(ranges, other.ranges)

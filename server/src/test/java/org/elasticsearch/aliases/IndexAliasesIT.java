@@ -1115,14 +1115,14 @@ public class IndexAliasesIT extends ESIntegTestCase {
                 iae.getMessage());
 
         assertAcked(client().admin().indices().prepareAliases().removeIndex("foo*"));
-        assertFalse(client().admin().indices().prepareExists("foo_foo").execute().actionGet().isExists());
+        assertFalse(indexExists("foo_foo"));
         assertTrue(admin().indices().prepareAliasesExist("foo").get().exists());
-        assertTrue(client().admin().indices().prepareExists("bar_bar").execute().actionGet().isExists());
+        assertTrue(indexExists("bar_bar"));
         assertTrue(admin().indices().prepareAliasesExist("foo").setIndices("bar_bar").get().exists());
 
         assertAcked(client().admin().indices().prepareAliases().removeIndex("bar_bar"));
         assertFalse(admin().indices().prepareAliasesExist("foo").get().exists());
-        assertFalse(client().admin().indices().prepareExists("bar_bar").execute().actionGet().isExists());
+        assertFalse(indexExists("bar_bar"));
     }
 
     public void testRemoveIndexAndReplaceWithAlias() throws InterruptedException, ExecutionException {

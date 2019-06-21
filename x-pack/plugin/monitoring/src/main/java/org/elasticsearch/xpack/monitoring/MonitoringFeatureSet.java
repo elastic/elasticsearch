@@ -56,11 +56,6 @@ public class MonitoringFeatureSet implements XPackFeatureSet {
         return enabled;
     }
 
-    @Override
-    public Map<String, Object> nativeCodeInfo() {
-        return null;
-    }
-
     public static class UsageTransportAction extends XPackUsageFeatureTransportAction {
         private final boolean enabled;
         private final MonitoringService monitoring;
@@ -83,7 +78,6 @@ public class MonitoringFeatureSet implements XPackFeatureSet {
         @Override
         protected void masterOperation(XPackUsageRequest request, ClusterState state, ActionListener<XPackUsageFeatureResponse> listener) {
             final boolean collectionEnabled = monitoring != null && monitoring.isMonitoringActive();
-
             var usage =
                 new MonitoringFeatureSetUsage(licenseState.isMonitoringAllowed(), enabled, collectionEnabled, exportersUsage(exporters));
             listener.onResponse(new XPackUsageFeatureResponse(usage));

@@ -37,6 +37,7 @@ import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.IndexOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
+import org.elasticsearch.index.fielddata.ordinals.GlobalOrdinalsIndexFieldData;
 import org.elasticsearch.index.fielddata.ordinals.GlobalOrdinalsBuilder;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.search.MultiValueMode;
@@ -92,6 +93,17 @@ public class SortedSetDVOrdinalsIndexFieldData extends DocValuesIndexFieldData i
 
     @Override
     public IndexOrdinalsFieldData loadGlobal(DirectoryReader indexReader) {
+        IndexOrdinalsFieldData fieldData = loadGlobalInternal(indexReader);
+        if (fieldData instanceof GlobalOrdinalsIndexFieldData) {
+            // we create a new instance of the cached value for each consumer in order
+            // to avoid creating new TermsEnums for each segment in the cached instance
+            return ((GlobalOrdinalsIndexFieldData) fieldData).newConsumer(indexReader);
+        } else {
+            return fieldData;
+        }
+    }
+
+    private IndexOrdinalsFieldData loadGlobalInternal(DirectoryReader indexReader) {
         if (indexReader.leaves().size() <= 1) {
             // ordinals are already global
             return this;

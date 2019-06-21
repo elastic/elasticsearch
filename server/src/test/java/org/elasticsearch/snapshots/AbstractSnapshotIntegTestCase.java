@@ -84,7 +84,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
                     BlobStoreTestUtil.assertRepoConsistency(internalCluster(), name);
                 });
         } else {
-            logger.info("--> skipped repo consistency checks because [{}]" ,skipRepoConsistencyCheckReason);
+            logger.info("--> skipped repo consistency checks because [{}]", skipRepoConsistencyCheckReason);
         }
     }
 

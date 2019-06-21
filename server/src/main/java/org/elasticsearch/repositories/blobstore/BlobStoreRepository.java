@@ -449,7 +449,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             // TODO: We shouldn't be blanket catching and suppressing all exceptions here and instead handle them safely upstream.
             //       Currently this catch exists as a stop gap solution to tackle unexpected runtime exceptions from implementations
             //       bubbling up and breaking the snapshot functionality.
-            assert false;
+            assert false : e;
             logger.warn(new ParameterizedMessage("[{}] Exception during cleanup of stale indices", metadata.name()), e);
         }
     }

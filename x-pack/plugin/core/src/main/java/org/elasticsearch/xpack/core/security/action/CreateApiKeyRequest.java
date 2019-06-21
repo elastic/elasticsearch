@@ -49,7 +49,7 @@ public final class CreateApiKeyRequest extends ActionRequest {
         } else {
             throw new IllegalArgumentException("name must not be null or empty");
         }
-        this.roleDescriptors = Objects.requireNonNull(roleDescriptors, "role descriptors may not be null");
+        this.roleDescriptors = (roleDescriptors == null) ? List.of() : roleDescriptors;
         this.expiration = expiration;
     }
 
@@ -86,7 +86,7 @@ public final class CreateApiKeyRequest extends ActionRequest {
     }
 
     public void setRoleDescriptors(List<RoleDescriptor> roleDescriptors) {
-        this.roleDescriptors = Collections.unmodifiableList(Objects.requireNonNull(roleDescriptors, "role descriptors may not be null"));
+        this.roleDescriptors = (roleDescriptors == null) ? List.of() : Collections.unmodifiableList(roleDescriptors);
     }
 
     public WriteRequest.RefreshPolicy getRefreshPolicy() {

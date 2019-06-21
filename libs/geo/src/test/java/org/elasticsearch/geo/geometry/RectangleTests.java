@@ -32,7 +32,7 @@ public class RectangleTests extends BaseGeometryTestCase<Rectangle> {
     }
 
     public void testBasicSerialization() throws IOException, ParseException {
-        WellKnownText wkt = new WellKnownText();
+        WellKnownText wkt = new WellKnownText(true, true);
         assertEquals("bbox (10.0, 20.0, 40.0, 30.0)", wkt.toWKT(new Rectangle(30, 40, 10, 20)));
         assertEquals(new Rectangle(30, 40, 10, 20), wkt.fromWKT("bbox (10.0, 20.0, 40.0, 30.0)"));
 

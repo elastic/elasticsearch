@@ -21,6 +21,7 @@ package org.elasticsearch.discovery;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.NotifyOnceListener;
@@ -96,7 +97,7 @@ public class HandshakingTransportAddressConnector implements TransportAddressCon
                                     try {
                                         // success means (amongst other things) that the cluster names match
                                         logger.trace("[{}] handshake successful: {}", this, remoteNode);
-                                        //IOUtils.closeWhileHandlingException(connection);
+                                        IOUtils.closeWhileHandlingException(connection);
 
                                         if (remoteNode.equals(transportService.getLocalNode())) {
                                             // TODO cache this result for some time? forever?
@@ -125,7 +126,10 @@ public class HandshakingTransportAddressConnector implements TransportAddressCon
 
                                 @Override
                                 protected void innerOnFailure(Exception e) {
-                                    logger.trace("handshake failed", e);
+                                    // we opened a connection and successfully performed a low-level handshake, so we were definitely
+                                    // talking to an Elasticsearch node, but the high-level handshake failed indicating some kind of
+                                    // mismatched configurations (e.g. cluster name) that the user should address
+                                    logger.warn(new ParameterizedMessage("handshake failed for [{}]", this), e);
                                     IOUtils.closeWhileHandlingException(connection);
                                     listener.onFailure(e);
                                 }

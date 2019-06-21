@@ -40,6 +40,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.RunOnce;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.Plugin;
@@ -67,6 +68,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Queue;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.LinkedBlockingDeque;
@@ -276,8 +278,25 @@ public final class MockTransportService extends TransportService {
         transport().addConnectBehavior(transportAddress, (transport, discoveryNode, profile, listener) ->
             listener.onFailure(new ConnectTransportException(discoveryNode, "UNRESPONSIVE: simulated")));
 
-        transport().addSendBehavior(transportAddress, (connection, requestId, action, request, options) -> {
-            // don't send anything, the receiving node is unresponsive
+        transport().addSendBehavior(transportAddress, new StubbableTransport.SendRequestBehavior() {
+            private Set<Transport.Connection> toClose = ConcurrentHashMap.newKeySet();
+            @Override
+            public void sendRequest(Transport.Connection connection, long requestId, String action,
+                                    TransportRequest request, TransportRequestOptions options) {
+                // don't send anything, the receiving node is unresponsive
+                toClose.add(connection);
+            }
+
+            @Override
+            public void clearCallback() {
+                // close to simulate that tcp-ip eventually times out and closes connection (necessary to ensure transport eventually
+                // responds).
+                try {
+                    IOUtils.close(toClose);
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                }
+            }
         });
     }
 

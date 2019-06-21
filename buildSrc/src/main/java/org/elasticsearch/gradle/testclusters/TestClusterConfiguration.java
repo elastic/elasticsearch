@@ -66,11 +66,17 @@ public interface TestClusterConfiguration {
 
     void environment(String key, Supplier<CharSequence> valueSupplier);
 
+    void jvmArgs(String... values);
+
+    void jvmArgs(Supplier<String[]> valueSupplier);
+
     void freeze();
 
     void setJavaHome(File javaHome);
 
     void start();
+
+    void restart();
 
     void extraConfigFile(String destination, File from);
 
@@ -116,11 +122,7 @@ public interface TestClusterConfiguration {
                 } catch (TestClustersException e) {
                     throw e;
                 } catch (Exception e) {
-                    if (lastException == null) {
-                        lastException = e;
-                    } else {
-                        lastException = e;
-                    }
+                    throw  e;
                 }
             }
             if (conditionMet == false) {
@@ -129,7 +131,7 @@ public interface TestClusterConfiguration {
                 if (lastException == null) {
                     throw new TestClustersException(message);
                 } else {
-                    throw new TestClustersException(message, lastException);
+                    throw new TestClustersException(message + message, lastException);
                 }
             }
             logger.info(

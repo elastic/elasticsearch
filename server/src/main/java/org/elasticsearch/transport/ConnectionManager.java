@@ -95,6 +95,7 @@ public class ConnectionManager implements Closeable {
     /**
      * Connects to a node with the given connection profile. If the node is already connected this method has no effect.
      * Once a successful is established, it can be validated before being exposed.
+     * The ActionListener will be called on the calling thread or the generic thread pool.
      */
     public void connectToNode(DiscoveryNode node, ConnectionProfile connectionProfile,
                               ConnectionValidator connectionValidator,
@@ -174,6 +175,7 @@ public class ConnectionManager implements Closeable {
                         }
                     }
                 }, e -> {
+                    assert Transports.assertNotTransportThread("Closing ConnectionManager");
                     IOUtils.closeWhileHandlingException(conn);
                     final List<ActionListener<Void>> listeners;
                     try (Releasable ignored = connectionLock.acquire(node.getId())) {
@@ -183,6 +185,7 @@ public class ConnectionManager implements Closeable {
                     ActionListener.onFailure(listeners, e);
                 }));
         }, e -> {
+            assert Transports.assertNotTransportThread("Method contract");
             final List<ActionListener<Void>> listeners;
             try (Releasable ignored = connectionLock.acquire(node.getId())) {
                 listeners = connectingNodes.remove(node);

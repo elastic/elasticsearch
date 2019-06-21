@@ -26,8 +26,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Nullable;
@@ -110,8 +108,6 @@ public class TransportService extends AbstractLifecycleComponent implements Tran
 
     private final RemoteClusterService remoteClusterService;
 
-    private final boolean validateConnections;
-
     /** if set will call requests sent to this id to shortcut and executed locally */
     volatile DiscoveryNode localNode = null;
     private final Transport.Connection localNodeConnection = new Transport.Connection() {
@@ -156,9 +152,6 @@ public class TransportService extends AbstractLifecycleComponent implements Tran
     public TransportService(Settings settings, Transport transport, ThreadPool threadPool, TransportInterceptor transportInterceptor,
                             Function<BoundTransportAddress, DiscoveryNode> localNodeFactory, @Nullable ClusterSettings clusterSettings,
                             Set<String> taskHeaders, ConnectionManager connectionManager) {
-        // The only time we do not want to validate node connections is when this is a transport client using the simple node sampler
-        this.validateConnections = TransportClient.CLIENT_TYPE.equals(settings.get(Client.CLIENT_TYPE_SETTING_S.getKey())) == false ||
-            TransportClient.CLIENT_TRANSPORT_SNIFF.get(settings);
         this.transport = transport;
         this.threadPool = threadPool;
         this.localNodeFactory = localNodeFactory;
@@ -343,7 +336,8 @@ public class TransportService extends AbstractLifecycleComponent implements Tran
     }
 
     /**
-     * Connect to the specified node with the given connection profile
+     * Connect to the specified node with the given connection profile.
+     * The ActionListener will be called on the calling thread or the generic thread pool.
      *
      * @param node the node to connect to
      * @param listener the action listener to notify
@@ -353,7 +347,8 @@ public class TransportService extends AbstractLifecycleComponent implements Tran
     }
 
     /**
-     * Connect to the specified node with the given connection profile
+     * Connect to the specified node with the given connection profile.
+     * The ActionListener will be called on the calling thread or the generic thread pool.
      *
      * @param node the node to connect to
      * @param connectionProfile the connection profile to use when connecting to this node
@@ -372,18 +367,18 @@ public class TransportService extends AbstractLifecycleComponent implements Tran
             // We don't validate cluster names to allow for CCS connections.
             handshake(newConnection, actualProfile.getHandshakeTimeout().millis(), cn -> true, ActionListener.map(listener, resp -> {
                 final DiscoveryNode remote = resp.discoveryNode;
-                if (validateConnections && node.equals(remote) == false) {
+                if (node.equals(remote) == false) {
                     throw new ConnectTransportException(node, "handshake failed. unexpected remote node " + remote);
                 }
                 return null;
             }));
         };
-
     }
 
     /**
      * Establishes and returns a new connection to the given node. The connection is NOT maintained by this service, it's the callers
      * responsibility to close the connection once it goes out of scope.
+     * The ActionListener will be called on the calling thread or the generic thread pool.
      * @param node the node to connect to
      * @param connectionProfile the connection profile to use
      */
@@ -394,6 +389,7 @@ public class TransportService extends AbstractLifecycleComponent implements Tran
     /**
      * Establishes a new connection to the given node. The connection is NOT maintained by this service, it's the callers
      * responsibility to close the connection once it goes out of scope.
+     * The ActionListener will be called on the calling thread or the generic thread pool.
      * @param node the node to connect to
      * @param connectionProfile the connection profile to use
      * @param listener the action listener to notify
@@ -412,6 +408,7 @@ public class TransportService extends AbstractLifecycleComponent implements Tran
      * and returns the discovery node of the node the connection
      * was established with. The handshake will fail if the cluster
      * name on the target node mismatches the local cluster name.
+     * The ActionListener will be called on the calling thread or the generic thread pool.
      *
      * @param connection       the connection to a specific node
      * @param handshakeTimeout handshake timeout
@@ -431,6 +428,7 @@ public class TransportService extends AbstractLifecycleComponent implements Tran
      * and returns the discovery node of the node the connection
      * was established with. The handshake will fail if the cluster
      * name on the target node doesn't match the local cluster name.
+     * The ActionListener will be called on the calling thread or the generic thread pool.
      *
      * @param connection       the connection to a specific node
      * @param handshakeTimeout handshake timeout

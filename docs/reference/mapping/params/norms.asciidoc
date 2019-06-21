@@ -11,11 +11,10 @@ don't need scoring on a specific field, you should disable norms on that
 field. In  particular, this is the case for fields that are used solely for
 filtering or aggregations.
 
-TIP: The `norms` setting must have the same setting for fields of the
-same name in the same index.  Norms can be disabled on existing fields using
+TIP: Norms can be disabled on existing fields using
 the <<indices-put-mapping,PUT mapping API>>.
 
-Norms can be disabled (but not reenabled) after the fact, using the
+Norms can be disabled (but not reenabled after the fact), using the
 <<indices-put-mapping,PUT mapping API>> like so:
 
 [source,js]

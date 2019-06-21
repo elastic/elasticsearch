@@ -80,6 +80,7 @@ public interface Transport extends LifecycleComponent {
 
     /**
      * Opens a new connection to the given node. When the connection is fully connected, the listener is called.
+     * The ActionListener will be called on the calling thread or the generic thread pool.
      */
     void openConnection(DiscoveryNode node, ConnectionProfile profile, ActionListener<Transport.Connection> listener);
 

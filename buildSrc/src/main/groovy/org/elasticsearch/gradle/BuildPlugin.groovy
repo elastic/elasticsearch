@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.gradle
 
+import com.github.jengelman.gradle.plugins.shadow.ShadowExtension
 import com.github.jengelman.gradle.plugins.shadow.ShadowPlugin
 import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
 import groovy.transform.CompileDynamic
@@ -32,6 +33,7 @@ import org.elasticsearch.gradle.precommit.DependencyLicensesTask
 import org.elasticsearch.gradle.precommit.PrecommitTasks
 import org.elasticsearch.gradle.test.ErrorReportingTestListener
 import org.elasticsearch.gradle.testclusters.ElasticsearchCluster
+import org.elasticsearch.gradle.testclusters.TestClustersPlugin
 import org.gradle.api.Action
 import org.gradle.api.GradleException
 import org.gradle.api.InvalidUserDataException
@@ -77,7 +79,6 @@ import org.gradle.authentication.http.HttpHeaderAuthentication
 import org.gradle.external.javadoc.CoreJavadocOptions
 import org.gradle.internal.jvm.Jvm
 import org.gradle.language.base.plugins.LifecycleBasePlugin
-import org.gradle.process.CommandLineArgumentProvider
 import org.gradle.process.ExecResult
 import org.gradle.process.ExecSpec
 import org.gradle.util.GradleVersion
@@ -99,13 +100,17 @@ class BuildPlugin implements Plugin<Project> {
         project.rootProject.pluginManager.apply(GlobalBuildInfoPlugin)
 
         if (project.pluginManager.hasPlugin('elasticsearch.standalone-rest-test')) {
-              throw new InvalidUserDataException('elasticsearch.standalone-test, '
-                + 'elasticsearch.standalone-rest-test, and elasticsearch.build '
-                + 'are mutually exclusive')
+            throw new InvalidUserDataException('elasticsearch.standalone-test, '
+                    + 'elasticsearch.standalone-rest-test, and elasticsearch.build '
+                    + 'are mutually exclusive')
         }
         String minimumGradleVersion = null
         InputStream is = getClass().getResourceAsStream("/minimumGradleVersion")
-        try { minimumGradleVersion = IOUtils.toString(is, StandardCharsets.UTF_8.toString()) } finally { is.close() }
+        try {
+            minimumGradleVersion = IOUtils.toString(is, StandardCharsets.UTF_8.toString())
+        } finally {
+            is.close()
+        }
         if (GradleVersion.current() < GradleVersion.version(minimumGradleVersion.trim())) {
             throw new GradleException(
                     "Gradle ${minimumGradleVersion}+ is required to use elasticsearch.build plugin"
@@ -139,23 +144,25 @@ class BuildPlugin implements Plugin<Project> {
         configurePrecommit(project)
         configureDependenciesInfo(project)
 
-        // Common config when running with a FIPS-140 runtime JVM
-        // Need to do it here to support external plugins
-        if (project == project.rootProject) {
-            GlobalInfoExtension globalInfo = project.extensions.getByType(GlobalInfoExtension)
 
-            // wait until global info is populated because we don't know if we are running in a fips jvm until execution time
-            globalInfo.ready {
-                project.subprojects { Project subproject ->
-                    ExtraPropertiesExtension ext = subproject.extensions.getByType(ExtraPropertiesExtension)
-                    // Common config when running with a FIPS-140 runtime JVM
-                    if (ext.has('inFipsJvm') && ext.get('inFipsJvm')) {
-                        subproject.tasks.withType(Test) { Test task ->
-                            task.systemProperty 'javax.net.ssl.trustStorePassword', 'password'
-                            task.systemProperty 'javax.net.ssl.keyStorePassword', 'password'
-                        }
-                        project.pluginManager.withPlugin("elasticsearch.testclusters") {
-                            NamedDomainObjectContainer<ElasticsearchCluster> testClusters = subproject.extensions.getByName('testClusters') as NamedDomainObjectContainer<ElasticsearchCluster>
+        configureFips140(project)
+    }
+
+    public static void configureFips140(Project project) {
+        // Need to do it here to support external plugins
+        GlobalInfoExtension globalInfo = project.rootProject.extensions.getByType(GlobalInfoExtension)
+        // wait until global info is populated because we don't know if we are running in a fips jvm until execution time
+        globalInfo.ready {
+                ExtraPropertiesExtension ext = project.extensions.getByType(ExtraPropertiesExtension)
+                // Common config when running with a FIPS-140 runtime JVM
+                if (ext.has('inFipsJvm') && ext.get('inFipsJvm')) {
+                    project.tasks.withType(Test) { Test task ->
+                        task.systemProperty 'javax.net.ssl.trustStorePassword', 'password'
+                        task.systemProperty 'javax.net.ssl.keyStorePassword', 'password'
+                    }
+                    project.pluginManager.withPlugin("elasticsearch.testclusters") {
+                        NamedDomainObjectContainer<ElasticsearchCluster> testClusters = project.extensions.findByName(TestClustersPlugin.EXTENSION_NAME) as NamedDomainObjectContainer<ElasticsearchCluster>
+                        if (testClusters != null) {
                             testClusters.all { ElasticsearchCluster cluster ->
                                 cluster.systemProperty 'javax.net.ssl.trustStorePassword', 'password'
                                 cluster.systemProperty 'javax.net.ssl.keyStorePassword', 'password'
@@ -163,7 +170,6 @@ class BuildPlugin implements Plugin<Project> {
                         }
                     }
                 }
-            }
         }
     }
 
@@ -256,15 +262,11 @@ class BuildPlugin implements Plugin<Project> {
             }
         }
 
-        if (ext.get('buildDocker')) {
-            (ext.get('requiresDocker') as List<Task>).add(task)
-        } else {
-            task.enabled = false
-        }
+        (ext.get('requiresDocker') as List<Task>).add(task)
     }
 
     protected static void checkDockerVersionRecent(String dockerVersion) {
-        final Matcher matcher = dockerVersion =~ /Docker version (\d+\.\d+)\.\d+(?:-ce)?, build [0-9a-f]{7,40}/
+        final Matcher matcher = dockerVersion =~ /Docker version (\d+\.\d+)\.\d+(?:-[a-zA-Z0-9]+)?, build [0-9a-f]{7,40}/
         assert matcher.matches(): dockerVersion
         final dockerMajorMinorVersion = matcher.group(1)
         final String[] majorMinor = dockerMajorMinorVersion.split("\\.")
@@ -530,39 +532,43 @@ class BuildPlugin implements Plugin<Project> {
     static void configurePomGeneration(Project project) {
         // Only works with  `enableFeaturePreview('STABLE_PUBLISHING')`
         // https://github.com/gradle/gradle/issues/5696#issuecomment-396965185
-        project.tasks.withType(GenerateMavenPom.class) { GenerateMavenPom generatePOMTask ->
-            // The GenerateMavenPom task is aggressive about setting the destination, instead of fighting it,
-            // just make a copy.
-            ExtraPropertiesExtension ext = generatePOMTask.extensions.getByType(ExtraPropertiesExtension)
-            ext.set('pomFileName', null)
-            generatePOMTask.doLast {
-                project.copy { CopySpec spec ->
-                    spec.from generatePOMTask.destination
-                    spec.into "${project.buildDir}/distributions"
-                    spec.rename {
-                        ext.has('pomFileName') && ext.get('pomFileName') == null ?
-                            "${project.convention.getPlugin(BasePluginConvention).archivesBaseName}-${project.version}.pom" :
-                            ext.get('pomFileName')
+        // dummy task to depend on the real pom generation
+        project.plugins.withType(MavenPublishPlugin).whenPluginAdded {
+            Task generatePomTask = project.tasks.create("generatePom")
+            Task assemble = project.tasks.findByName('assemble')
+            if (assemble) {
+                assemble.dependsOn(generatePomTask)
+            }
+            project.tasks.withType(GenerateMavenPom.class) { GenerateMavenPom pomTask ->
+                // The GenerateMavenPom task is aggressive about setting the destination, instead of fighting it,
+                // just make a copy.
+                ExtraPropertiesExtension ext = pomTask.extensions.getByType(ExtraPropertiesExtension)
+                ext.set('pomFileName', null)
+                pomTask.doLast {
+                    project.copy { CopySpec spec ->
+                        spec.from pomTask.destination
+                        spec.into "${project.buildDir}/distributions"
+                        spec.rename {
+                            ext.has('pomFileName') && ext.get('pomFileName') == null ?
+                                    "${project.convention.getPlugin(BasePluginConvention).archivesBaseName}-${project.version}.pom" :
+                                    ext.get('pomFileName')
+                        }
                     }
                 }
             }
-            // build poms with assemble (if the assemble task exists)
-            Task assemble = project.tasks.findByName('assemble')
-            if (assemble && assemble.enabled) {
-                assemble.dependsOn(generatePOMTask)
-            }
-        }
-        project.plugins.withType(MavenPublishPlugin).whenPluginAdded {
+            generatePomTask.dependsOn = ['generatePomFileForNebulaPublication']
             PublishingExtension publishing = project.extensions.getByType(PublishingExtension)
             publishing.publications.all { MavenPublication publication -> // we only deal with maven
                 // add exclusions to the pom directly, for each of the transitive deps of this project's deps
                 publication.pom.withXml(fixupDependencies(project))
             }
             project.plugins.withType(ShadowPlugin).whenPluginAdded {
-                MavenPublication publication = publishing.publications.maybeCreate('nebula', MavenPublication)
+                MavenPublication publication = publishing.publications.maybeCreate('shadow', MavenPublication)
                 publication.with {
-                    artifacts = [ project.tasks.getByName('shadowJar') ]
+                    ShadowExtension shadow = project.extensions.getByType(ShadowExtension)
+                    shadow.component(publication)
                 }
+                generatePomTask.dependsOn = ['generatePomFileForShadowPublication']
             }
         }
     }
@@ -690,6 +696,15 @@ class BuildPlugin implements Plugin<Project> {
         project.tasks.withType(Jar) { Jar jarTask ->
             // we put all our distributable files under distributions
             jarTask.destinationDir = new File(project.buildDir, 'distributions')
+            project.plugins.withType(ShadowPlugin).whenPluginAdded {
+                /*
+                 * Ensure the original jar task places its output in 'libs' so that we don't overwrite it with the shadow jar. We only do
+                 * this for tasks named jar to exclude javadoc and sources jars.
+                 */
+                if (jarTask instanceof ShadowJar == false && jarTask.name == JavaPlugin.JAR_TASK_NAME) {
+                    jarTask.destinationDir = new File(project.buildDir, 'libs')
+                }
+            }
             // fixup the jar manifest
             jarTask.doFirst {
                 // this doFirst is added before the info plugin, therefore it will run
@@ -716,10 +731,6 @@ class BuildPlugin implements Plugin<Project> {
                         jarTask.manifest.attributes('Change': shortHash)
                     }
                 }
-                // Force manifest entries that change by nature to a constant to be able to compare builds more effectively
-                if (System.properties.getProperty("build.compare_friendly", "false") == "true") {
-                    jarTask.manifest.getAttributes().clear()
-                }
             }
 
             // add license/notice files
@@ -744,12 +755,6 @@ class BuildPlugin implements Plugin<Project> {
             }
         }
         project.plugins.withType(ShadowPlugin).whenPluginAdded {
-            /*
-             * When we use the shadow plugin we entirely replace the
-             * normal jar with the shadow jar so we no longer want to run
-             * the jar task.
-             */
-            project.tasks.getByName(JavaPlugin.JAR_TASK_NAME).enabled = false
             project.tasks.getByName('shadowJar').configure { ShadowJar shadowJar ->
                 /*
                  * Replace the default "shadow" classifier with null
@@ -768,7 +773,6 @@ class BuildPlugin implements Plugin<Project> {
             }
             // Make sure we assemble the shadow jar
             project.tasks.getByName(BasePlugin.ASSEMBLE_TASK_NAME).dependsOn project.tasks.getByName('shadowJar')
-            project.artifacts.add('apiElements', project.tasks.getByName('shadowJar'))
         }
     }
 
@@ -817,7 +821,7 @@ class BuildPlugin implements Plugin<Project> {
                 }
 
                 test.jvmArgumentProviders.add(nonInputProperties)
-                test.extensions.getByType(ExtraPropertiesExtension).set('nonInputProperties', nonInputProperties)
+                test.extensions.add('nonInputProperties', nonInputProperties)
 
                 test.executable = "${ext.get('runtimeJavaHome')}/bin/java"
                 test.workingDir = project.file("${project.buildDir}/testrun/${test.name}")
@@ -842,16 +846,24 @@ class BuildPlugin implements Plugin<Project> {
 
                 // we use './temp' since this is per JVM and tests are forbidden from writing to CWD
                 test.systemProperties 'gradle.dist.lib': new File(project.class.location.toURI()).parent,
-                        'gradle.worker.jar': "${project.gradle.getGradleUserHomeDir()}/caches/${project.gradle.gradleVersion}/workerMain/gradle-worker.jar",
-                        'gradle.user.home': project.gradle.getGradleUserHomeDir(),
                         'java.io.tmpdir': './temp',
                         'java.awt.headless': 'true',
                         'tests.gradle': 'true',
                         'tests.artifact': project.name,
                         'tests.task': test.path,
                         'tests.security.manager': 'true',
-                        'tests.seed': project.property('testSeed'),
                         'jna.nosys': 'true'
+
+                // ignore changing test seed when build is passed -Dignore.tests.seed for cacheability experimentation
+                if (System.getProperty('ignore.tests.seed') != null) {
+                    nonInputProperties.systemProperty('tests.seed', project.property('testSeed'))
+                } else {
+                    test.systemProperty('tests.seed', project.property('testSeed'))
+                }
+
+                // don't track these as inputs since they contain absolute paths and break cache relocatability
+                nonInputProperties.systemProperty('gradle.worker.jar', "${project.gradle.getGradleUserHomeDir()}/caches/${project.gradle.gradleVersion}/workerMain/gradle-worker.jar")
+                nonInputProperties.systemProperty('gradle.user.home', project.gradle.getGradleUserHomeDir())
 
                 nonInputProperties.systemProperty('compiler.java', "${-> (ext.get('compilerJavaVersion') as JavaVersion).getMajorVersion()}")
 
@@ -874,6 +886,7 @@ class BuildPlugin implements Plugin<Project> {
 
                 project.plugins.withType(ShadowPlugin).whenPluginAdded {
                     // Test against a shadow jar if we made one
+                    test.classpath -= project.configurations.getByName('bundle')
                     test.classpath -= project.tasks.getByName('compileJava').outputs.files
                     test.classpath += project.tasks.getByName('shadowJar').outputs.files
 
@@ -963,21 +976,6 @@ class BuildPlugin implements Plugin<Project> {
                     }
                 }
             })
-        }
-    }
-
-    private static class SystemPropertyCommandLineArgumentProvider implements CommandLineArgumentProvider {
-        private final Map<String, Object> systemProperties = [:]
-
-        void systemProperty(String key, Object value) {
-            systemProperties.put(key, value)
-        }
-
-        @Override
-        Iterable<String> asArguments() {
-            return systemProperties.collect { key, value ->
-                "-D${key}=${value.toString()}".toString()
-            }
         }
     }
 }

@@ -12,6 +12,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
@@ -20,19 +21,43 @@ import org.elasticsearch.xpack.core.ml.action.MlInfoAction;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisLimits;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
+import org.elasticsearch.xpack.ml.process.NativeController;
+import org.elasticsearch.xpack.ml.process.NativeControllerHolder;
 
+import java.io.IOException;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.TimeoutException;
 import java.util.function.Supplier;
 
 public class TransportMlInfoAction extends HandledTransportAction<MlInfoAction.Request, MlInfoAction.Response> {
 
     private final ClusterService clusterService;
+    private final Map<String, Object> nativeCodeInfo;
 
     @Inject
-    public TransportMlInfoAction(TransportService transportService, ActionFilters actionFilters, ClusterService clusterService) {
+    public TransportMlInfoAction(TransportService transportService, ActionFilters actionFilters,
+                                 ClusterService clusterService, Environment env) {
         super(MlInfoAction.NAME, transportService, actionFilters, (Supplier<MlInfoAction.Request>) MlInfoAction.Request::new);
         this.clusterService = clusterService;
+
+        try {
+            NativeController nativeController = NativeControllerHolder.getNativeController(clusterService.getNodeName(), env);
+            // TODO: this leniency is only for tests. it can be removed when NativeController is created as a component and
+            // becomes a ctor arg to this action
+            if (nativeController != null) {
+                nativeCodeInfo = nativeController.getNativeCodeInfo();
+            } else {
+                nativeCodeInfo = Collections.emptyMap();
+            }
+        } catch (IOException e) {
+            // this should not be possible since this action is only registered when ML is enabled,
+            // and the MachineLearning plugin would have failed to create components
+            throw new IllegalStateException("native controller failed to load", e);
+        } catch (TimeoutException e) {
+            throw new RuntimeException("Could not get native code info from native controller", e);
+        }
     }
 
     @Override
@@ -40,6 +65,7 @@ public class TransportMlInfoAction extends HandledTransportAction<MlInfoAction.R
         Map<String, Object> info = new HashMap<>();
         info.put("defaults", defaults());
         info.put("limits", limits());
+        info.put("native_code", nativeCodeInfo);
         info.put(MlMetadata.UPGRADE_MODE.getPreferredName(), upgradeMode());
         listener.onResponse(new MlInfoAction.Response(info));
     }

@@ -842,6 +842,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/43498")
     public void testDataFileFailureDuringSnapshot() throws Exception {
         Client client = client();
         logger.info("-->  creating repository");

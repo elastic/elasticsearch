@@ -722,6 +722,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
     }
 
     public void testRegistrationFailure() {
+        disableRepoConsistencyCheck("This test does not create any data in the repository");
         logger.info("--> start first node");
         internalCluster().startNode();
         logger.info("--> start second node");
@@ -741,6 +742,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
     }
 
     public void testThatSensitiveRepositorySettingsAreNotExposed() throws Exception {
+        disableRepoConsistencyCheck("This test does not create any data in the repository");
         Settings nodeSettings = Settings.EMPTY;
         logger.info("--> start two nodes");
         internalCluster().startNodes(2, nodeSettings);

@@ -72,9 +72,12 @@ public interface NioChannelHandler {
      */
     int consumeReads(InboundChannelBuffer channelBuffer) throws IOException;
 
-    default boolean closeNow() {
-        return false;
-    }
+    /**
+     * This method indicates if the underlying channel should be closed.
+     *
+     * @return if the channel should be closed
+     */
+    boolean closeNow();
 
     void close() throws IOException;
 }

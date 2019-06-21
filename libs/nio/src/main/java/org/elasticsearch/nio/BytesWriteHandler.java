@@ -49,5 +49,10 @@ public abstract class BytesWriteHandler implements NioChannelHandler {
     }
 
     @Override
+    public boolean closeNow() {
+        return false;
+    }
+
+    @Override
     public void close() {}
 }

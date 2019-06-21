@@ -38,6 +38,11 @@ public abstract class DelegateHandler implements NioChannelHandler {
     }
 
     @Override
+    public boolean closeNow() {
+        return delegate.closeNow();
+    }
+
+    @Override
     public void close() throws IOException {
         delegate.close();
     }

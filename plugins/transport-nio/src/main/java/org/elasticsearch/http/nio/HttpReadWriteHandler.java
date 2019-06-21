@@ -141,6 +141,11 @@ public class HttpReadWriteHandler implements NioChannelHandler {
     }
 
     @Override
+    public boolean closeNow() {
+        return false;
+    }
+
+    @Override
     public void close() throws IOException {
         try {
             adaptor.close();

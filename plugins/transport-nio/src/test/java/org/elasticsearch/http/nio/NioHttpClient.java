@@ -278,6 +278,11 @@ class NioHttpClient implements Closeable {
         }
 
         @Override
+        public boolean closeNow() {
+            return false;
+        }
+
+        @Override
         public void close() throws IOException {
             try {
                 adaptor.close();

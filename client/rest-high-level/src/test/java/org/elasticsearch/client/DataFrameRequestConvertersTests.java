@@ -44,6 +44,7 @@ import org.elasticsearch.test.ESTestCase;
 import java.io.IOException;
 import java.util.Collections;
 
+import static org.elasticsearch.client.dataframe.GetDataFrameTransformRequest.ALLOW_NO_TRANSFORMS;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
@@ -110,7 +111,6 @@ public class DataFrameRequestConvertersTests extends ESTestCase {
         }
         StopDataFrameTransformRequest stopRequest = new StopDataFrameTransformRequest(id, waitForCompletion, timeValue);
 
-
         Request request = DataFrameRequestConverters.stopDataFrameTransform(stopRequest);
         assertEquals(HttpPost.METHOD_NAME, request.getMethod());
         assertThat(request.getEndpoint(), equalTo("/_data_frame/transforms/" + stopRequest.getId() + "/_stop"));
@@ -128,6 +128,11 @@ public class DataFrameRequestConvertersTests extends ESTestCase {
         } else {
             assertFalse(request.getParameters().containsKey("timeout"));
         }
+
+        assertFalse(request.getParameters().containsKey(ALLOW_NO_TRANSFORMS));
+        stopRequest.setAllowNoTransforms(randomBoolean());
+        request = DataFrameRequestConverters.stopDataFrameTransform(stopRequest);
+        assertEquals(stopRequest.getAllowNoTransforms(), Boolean.parseBoolean(request.getParameters().get(ALLOW_NO_TRANSFORMS)));
     }
 
     public void testPreviewDataFrameTransform() throws IOException {
@@ -153,6 +158,7 @@ public class DataFrameRequestConvertersTests extends ESTestCase {
 
         assertFalse(request.getParameters().containsKey("from"));
         assertFalse(request.getParameters().containsKey("size"));
+        assertFalse(request.getParameters().containsKey(ALLOW_NO_TRANSFORMS));
 
         getStatsRequest.setPageParams(new PageParams(0, null));
         request = DataFrameRequestConverters.getDataFrameTransformStats(getStatsRequest);
@@ -167,6 +173,10 @@ public class DataFrameRequestConvertersTests extends ESTestCase {
         getStatsRequest.setPageParams(new PageParams(0, 10));
         request = DataFrameRequestConverters.getDataFrameTransformStats(getStatsRequest);
         assertThat(request.getParameters(), allOf(hasEntry("from", "0"), hasEntry("size", "10")));
+
+        getStatsRequest.setAllowNoTransforms(false);
+        request = DataFrameRequestConverters.getDataFrameTransformStats(getStatsRequest);
+        assertThat(request.getParameters(), hasEntry("allow_no_transforms", "false"));
     }
 
     public void testGetDataFrameTransform() {
@@ -178,6 +188,7 @@ public class DataFrameRequestConvertersTests extends ESTestCase {
 
         assertFalse(request.getParameters().containsKey("from"));
         assertFalse(request.getParameters().containsKey("size"));
+        assertFalse(request.getParameters().containsKey(ALLOW_NO_TRANSFORMS));
 
         getRequest.setPageParams(new PageParams(0, null));
         request = DataFrameRequestConverters.getDataFrameTransform(getRequest);
@@ -192,6 +203,10 @@ public class DataFrameRequestConvertersTests extends ESTestCase {
         getRequest.setPageParams(new PageParams(0, 10));
         request = DataFrameRequestConverters.getDataFrameTransform(getRequest);
         assertThat(request.getParameters(), allOf(hasEntry("from", "0"), hasEntry("size", "10")));
+
+        getRequest.setAllowNoTransforms(false);
+        request = DataFrameRequestConverters.getDataFrameTransform(getRequest);
+        assertThat(request.getParameters(), hasEntry("allow_no_transforms", "false"));
     }
 
     public void testGetDataFrameTransform_givenMulitpleIds() {

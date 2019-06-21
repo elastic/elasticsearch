@@ -16,6 +16,8 @@ import org.elasticsearch.xpack.core.dataframe.action.StopDataFrameTransformActio
 
 import java.io.IOException;
 
+import static org.elasticsearch.xpack.core.dataframe.DataFrameField.ALLOW_NO_TRANSFORMS;
+
 public class RestStopDataFrameTransformAction extends BaseRestHandler {
 
     public RestStopDataFrameTransformAction(Settings settings, RestController controller) {
@@ -32,6 +34,7 @@ public class RestStopDataFrameTransformAction extends BaseRestHandler {
         boolean force = restRequest.paramAsBoolean(DataFrameField.FORCE.getPreferredName(), false);
 
         StopDataFrameTransformAction.Request request = new StopDataFrameTransformAction.Request(id, waitForCompletion, force, timeout);
+        request.setAllowNoResources(restRequest.paramAsBoolean(ALLOW_NO_TRANSFORMS.getPreferredName(), true));
 
         return channel -> client.execute(StopDataFrameTransformAction.INSTANCE, request,
                 new BaseTasksResponseToXContentListener<>(channel));

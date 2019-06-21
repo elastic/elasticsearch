@@ -37,6 +37,7 @@ import java.io.IOException;
 
 import static org.elasticsearch.client.RequestConverters.REQUEST_BODY_CONTENT_TYPE;
 import static org.elasticsearch.client.RequestConverters.createEntity;
+import static org.elasticsearch.client.dataframe.GetDataFrameTransformRequest.ALLOW_NO_TRANSFORMS;
 
 final class DataFrameRequestConverters {
 
@@ -63,6 +64,9 @@ final class DataFrameRequestConverters {
         }
         if (getRequest.getPageParams() != null && getRequest.getPageParams().getSize() != null) {
             request.addParameter(PageParams.SIZE.getPreferredName(), getRequest.getPageParams().getSize().toString());
+        }
+        if (getRequest.getAllowNoTransforms() != null) {
+            request.addParameter(ALLOW_NO_TRANSFORMS, getRequest.getAllowNoTransforms().toString());
         }
         return request;
     }
@@ -91,21 +95,24 @@ final class DataFrameRequestConverters {
     }
 
     static Request stopDataFrameTransform(StopDataFrameTransformRequest stopRequest) {
-            String endpoint = new RequestConverters.EndpointBuilder()
-                    .addPathPartAsIs("_data_frame", "transforms")
-                    .addPathPart(stopRequest.getId())
-                    .addPathPartAsIs("_stop")
-                    .build();
-            Request request = new Request(HttpPost.METHOD_NAME, endpoint);
-            RequestConverters.Params params = new RequestConverters.Params();
-            if (stopRequest.getWaitForCompletion() != null) {
-                params.withWaitForCompletion(stopRequest.getWaitForCompletion());
-            }
-            if (stopRequest.getTimeout() != null) {
-                params.withTimeout(stopRequest.getTimeout());
-            }
-            request.addParameters(params.asMap());
-            return request;
+        String endpoint = new RequestConverters.EndpointBuilder()
+            .addPathPartAsIs("_data_frame", "transforms")
+            .addPathPart(stopRequest.getId())
+            .addPathPartAsIs("_stop")
+            .build();
+        Request request = new Request(HttpPost.METHOD_NAME, endpoint);
+        RequestConverters.Params params = new RequestConverters.Params();
+        if (stopRequest.getWaitForCompletion() != null) {
+            params.withWaitForCompletion(stopRequest.getWaitForCompletion());
+        }
+        if (stopRequest.getTimeout() != null) {
+            params.withTimeout(stopRequest.getTimeout());
+        }
+        if (stopRequest.getAllowNoTransforms() != null) {
+            request.addParameter(ALLOW_NO_TRANSFORMS, stopRequest.getAllowNoTransforms().toString());
+        }
+        request.addParameters(params.asMap());
+        return request;
     }
 
     static Request previewDataFrameTransform(PreviewDataFrameTransformRequest previewRequest) throws IOException {
@@ -129,6 +136,9 @@ final class DataFrameRequestConverters {
         }
         if (statsRequest.getPageParams() != null && statsRequest.getPageParams().getSize() != null) {
             request.addParameter(PageParams.SIZE.getPreferredName(), statsRequest.getPageParams().getSize().toString());
+        }
+        if (statsRequest.getAllowNoTransforms() != null) {
+            request.addParameter(ALLOW_NO_TRANSFORMS, statsRequest.getAllowNoTransforms().toString());
         }
         return request;
     }

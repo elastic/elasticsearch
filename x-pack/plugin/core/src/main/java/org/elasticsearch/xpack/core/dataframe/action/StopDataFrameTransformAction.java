@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.core.dataframe.action;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.TaskOperationFailure;
@@ -56,6 +57,7 @@ public class StopDataFrameTransformAction extends Action<StopDataFrameTransformA
         private final String id;
         private final boolean waitForCompletion;
         private final boolean force;
+        private boolean allowNoResources = true;
         private Set<String> expandedIds;
 
         public Request(String id, boolean waitForCompletion, boolean force, @Nullable TimeValue timeout) {
@@ -74,6 +76,9 @@ public class StopDataFrameTransformAction extends Action<StopDataFrameTransformA
             force = in.readBoolean();
             if (in.readBoolean()) {
                 expandedIds = new HashSet<>(Arrays.asList(in.readStringArray()));
+            }
+            if (in.getVersion().onOrAfter(Version.V_7_3_0)) {
+                this.allowNoResources = in.readBoolean();
             }
         }
 
@@ -97,6 +102,14 @@ public class StopDataFrameTransformAction extends Action<StopDataFrameTransformA
             this.expandedIds = expandedIds;
         }
 
+        public boolean isAllowNoResources() {
+            return allowNoResources;
+        }
+
+        public void setAllowNoResources(boolean allowNoMatch) {
+            this.allowNoResources = allowNoMatch;
+        }
+
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
@@ -108,6 +121,9 @@ public class StopDataFrameTransformAction extends Action<StopDataFrameTransformA
             if (hasExpandedIds) {
                 out.writeStringArray(expandedIds.toArray(new String[0]));
             }
+            if (out.getVersion().onOrAfter(Version.V_7_3_0)) {
+                out.writeBoolean(allowNoResources);
+            }
         }
 
         @Override
@@ -118,7 +134,7 @@ public class StopDataFrameTransformAction extends Action<StopDataFrameTransformA
         @Override
         public int hashCode() {
             // the base class does not implement hashCode, therefore we need to hash timeout ourselves
-            return Objects.hash(id, waitForCompletion, force, expandedIds, this.getTimeout());
+            return Objects.hash(id, waitForCompletion, force, expandedIds, this.getTimeout(), allowNoResources);
         }
 
         @Override
@@ -140,7 +156,8 @@ public class StopDataFrameTransformAction extends Action<StopDataFrameTransformA
             return Objects.equals(id, other.id) &&
                     Objects.equals(waitForCompletion, other.waitForCompletion) &&
                     Objects.equals(force, other.force) &&
-                    Objects.equals(expandedIds, other.expandedIds);
+                    Objects.equals(expandedIds, other.expandedIds) &&
+                    allowNoResources == other.allowNoResources;
         }
 
         @Override

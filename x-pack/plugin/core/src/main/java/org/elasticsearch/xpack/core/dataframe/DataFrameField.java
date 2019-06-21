@@ -29,6 +29,7 @@ public final class DataFrameField {
     public static final ParseField FORCE = new ParseField("force");
     public static final ParseField MAX_PAGE_SEARCH_SIZE = new ParseField("max_page_search_size");
 
+    public static final ParseField ALLOW_NO_TRANSFORMS = new ParseField("allow_no_transforms");
     /**
      * Fields for checkpointing
      */

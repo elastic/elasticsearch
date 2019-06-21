@@ -32,6 +32,7 @@ include-tagged::{doc-tests-file}[{api}-request-options]
 --------------------------------------------------
 <1> If true wait for the data frame task to stop before responding
 <2> Controls the amount of time to wait until the {dataframe-job} stops.
+<3> Whether to ignore if a wildcard expression matches no transforms.
 
 include::../execution.asciidoc[]
 

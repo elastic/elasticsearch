@@ -716,7 +716,7 @@ public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
                 newPrimary.shardAllocationId,
                 Math.max(SequenceNumbers.NO_OPS_PERFORMED, oldPrimary.getGlobalCheckpoint() + randomInt(5)));
         oldPrimary.updateGlobalCheckpointForShard(newPrimary.shardAllocationId, oldPrimary.getGlobalCheckpoint());
-        ReplicationTracker.PrimaryContext primaryContext = oldPrimary.startRelocationHandoff();
+        ReplicationTracker.PrimaryContext primaryContext = oldPrimary.startRelocationHandoff(newPrimary.shardAllocationId);
 
         if (randomBoolean()) {
             // cluster state update after primary context handoff
@@ -742,7 +742,7 @@ public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
             }
 
             // do another handoff
-            primaryContext = oldPrimary.startRelocationHandoff();
+            primaryContext = oldPrimary.startRelocationHandoff(newPrimary.shardAllocationId);
         }
 
         // send primary context through the wire

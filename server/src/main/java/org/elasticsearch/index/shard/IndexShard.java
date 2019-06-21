@@ -2134,9 +2134,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             final long globalCheckpoint = replicationTracker.getGlobalCheckpoint();
             // async durability means that the local checkpoint might lag (as it is only advanced on fsync)
             // periodically ask for the newest local checkpoint by syncing the global checkpoint, so that ultimately the global
-            // checkpoint can be synced
+            // checkpoint can be synced. Also take into account that a shard might be pending sync, which means that it isn't
+            // in the in-sync set just yet but might be blocked on waiting for its persisted local checkpoint to catch up to
+            // the global checkpoint.
             final boolean syncNeeded =
-                (asyncDurability && stats.getGlobalCheckpoint() < stats.getMaxSeqNo())
+                (asyncDurability && (stats.getGlobalCheckpoint() < stats.getMaxSeqNo() || replicationTracker.pendingInSync()))
                     // check if the persisted global checkpoint
                     || StreamSupport
                             .stream(globalCheckpoints.values().spliterator(), false)

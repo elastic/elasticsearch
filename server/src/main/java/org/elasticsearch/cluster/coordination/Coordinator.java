@@ -33,7 +33,7 @@ import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.coordination.ClusterFormationFailureHelper.ClusterFormationState;
 import org.elasticsearch.cluster.coordination.CoordinationMetaData.VotingConfigExclusion;
 import org.elasticsearch.cluster.coordination.CoordinationMetaData.VotingConfiguration;
-import org.elasticsearch.cluster.coordination.CoordinationState.JoinVoteCollection;
+import org.elasticsearch.cluster.coordination.CoordinationState.VoteCollection;
 import org.elasticsearch.cluster.coordination.FollowersChecker.FollowerCheckRequest;
 import org.elasticsearch.cluster.coordination.JoinHelper.InitialJoinAccumulator;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -1104,7 +1104,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             synchronized (mutex) {
                 final Iterable<DiscoveryNode> foundPeers = getFoundPeers();
                 if (mode == Mode.CANDIDATE) {
-                    final CoordinationState.VoteCollection expectedVotes = new CoordinationState.VoteCollection();
+                    final VoteCollection expectedVotes = new VoteCollection();
                     foundPeers.forEach(expectedVotes::addVote);
                     expectedVotes.addVote(Coordinator.this.getLocalNode());
                     final boolean foundQuorum = coordinationState.get().isElectionQuorum(expectedVotes);
@@ -1312,12 +1312,12 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                                                     // abdicate to it. Assume that every node that completed the publication can provide
                                                     // a vote in that next election and has the latest state.
                                                     final long futureElectionTerm = state.term() + 1;
-                                                    final JoinVoteCollection futureJoinVoteCollection = new JoinVoteCollection();
-                                                    completedNodes().forEach(completedNode -> futureJoinVoteCollection.addJoinVote(
+                                                    final VoteCollection futureVoteCollection = new VoteCollection();
+                                                    completedNodes().forEach(completedNode -> futureVoteCollection.addJoinVote(
                                                         new Join(completedNode, node, futureElectionTerm, state.term(), state.version())));
                                                     return electionStrategy.isElectionQuorum(node, futureElectionTerm,
                                                         state.term(), state.version(), state.getLastCommittedConfiguration(),
-                                                        state.getLastAcceptedConfiguration(), futureJoinVoteCollection);
+                                                        state.getLastAcceptedConfiguration(), futureVoteCollection);
                                                 })
                                                 .collect(Collectors.toList());
                                             if (masterCandidates.isEmpty() == false) {
@@ -1359,7 +1359,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         }
 
         @Override
-        protected boolean isPublishQuorum(CoordinationState.VoteCollection votes) {
+        protected boolean isPublishQuorum(VoteCollection votes) {
             assert Thread.holdsLock(mutex) : "Coordinator mutex not held";
             return coordinationState.get().isPublishQuorum(votes);
         }

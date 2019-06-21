@@ -11,7 +11,6 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.coordination.CoordinationMetaData.VotingConfiguration;
-import org.elasticsearch.cluster.coordination.CoordinationState.JoinVoteCollection;
 import org.elasticsearch.cluster.coordination.CoordinationState.VoteCollection;
 import org.elasticsearch.cluster.coordination.VotingOnlyNodeFeatureSet.UsageTransportAction;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -172,10 +171,9 @@ public class VotingOnlyNodePlugin extends Plugin implements DiscoveryPlugin, Net
                 }
                 // if there's a vote from a full master node with same last accepted term and version, that node should become master
                 // instead, so we should stand down
-                if (joinVotes instanceof JoinVoteCollection &&
-                    ((JoinVoteCollection) joinVotes).getJoins().stream().anyMatch(join -> isFullMasterNode(join.getSourceNode()) &&
-                        join.getLastAcceptedTerm() == localAcceptedTerm &&
-                        join.getLastAcceptedVersion() == localAcceptedVersion)) {
+                if (joinVotes.getJoins().stream().anyMatch(join -> isFullMasterNode(join.getSourceNode()) &&
+                    join.getLastAcceptedTerm() == localAcceptedTerm &&
+                    join.getLastAcceptedVersion() == localAcceptedVersion)) {
                     return false;
                 }
             }

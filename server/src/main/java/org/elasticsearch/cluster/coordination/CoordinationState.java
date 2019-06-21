@@ -49,7 +49,7 @@ public class CoordinationState {
     private final PersistedState persistedState;
 
     // transient state
-    private JoinVoteCollection joinVotes;
+    private VoteCollection joinVotes;
     private boolean startedJoinSinceLastReboot;
     private boolean electionWon;
     private long lastPublishedVersion;
@@ -64,7 +64,7 @@ public class CoordinationState {
         this.electionStrategy = electionStrategy;
 
         // transient state
-        this.joinVotes = new JoinVoteCollection();
+        this.joinVotes = new VoteCollection();
         this.startedJoinSinceLastReboot = false;
         this.electionWon = false;
         this.lastPublishedVersion = 0L;
@@ -193,7 +193,7 @@ public class CoordinationState {
         lastPublishedConfiguration = getLastAcceptedConfiguration();
         startedJoinSinceLastReboot = true;
         electionWon = false;
-        joinVotes = new JoinVoteCollection();
+        joinVotes = new VoteCollection();
         publishVotes = new VoteCollection();
 
         return new Join(localNode, startJoinRequest.getSourceNode(), getCurrentTerm(), getLastAcceptedTerm(),
@@ -494,18 +494,28 @@ public class CoordinationState {
     }
 
     /**
-     * A collection of votes, used to calculate quorums.
+     * A collection of votes, used to calculate quorums. Optionally records the Joins as well.
      */
     public static class VoteCollection {
 
         private final Map<String, DiscoveryNode> nodes;
+        private final Set<Join> joins;
 
         public boolean addVote(DiscoveryNode sourceNode) {
             return nodes.put(sourceNode.getId(), sourceNode) == null;
         }
 
+        public boolean addJoinVote(Join join) {
+            final boolean added = addVote(join.getSourceNode());
+            if (added) {
+                joins.add(join);
+            }
+            return added;
+        }
+
         public VoteCollection() {
             nodes = new HashMap<>();
+            joins = new HashSet<>();
         }
 
         public boolean isQuorum(VotingConfiguration configuration) {
@@ -524,44 +534,31 @@ public class CoordinationState {
             return Collections.unmodifiableCollection(nodes.values());
         }
 
+        public Set<Join> getJoins() {
+            return Collections.unmodifiableSet(joins);
+        }
+
         @Override
         public String toString() {
-            return "VoteCollection{" + String.join(",", nodes.keySet()) + "}";
+            return "VoteCollection{votes=" + nodes.keySet() + ", joins=" + joins + "}";
         }
 
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (!(o instanceof VoteCollection)) return false;
 
             VoteCollection that = (VoteCollection) o;
 
-            return nodes.equals(that.nodes);
+            if (!nodes.equals(that.nodes)) return false;
+            return joins.equals(that.joins);
         }
 
         @Override
         public int hashCode() {
-            return nodes.hashCode();
-        }
-    }
-
-    /**
-     * A collection of votes, extending {@link VoteCollection}, which additionally records the Joins
-     */
-    public static class JoinVoteCollection extends VoteCollection {
-
-        private final Set<Join> joins = new HashSet<>();
-
-        public boolean addJoinVote(Join join) {
-            final boolean added = addVote(join.getSourceNode());
-            if (added) {
-                joins.add(join);
-            }
-            return added;
-        }
-
-        public Set<Join> getJoins() {
-            return Collections.unmodifiableSet(joins);
+            int result = nodes.hashCode();
+            result = 31 * result + joins.hashCode();
+            return result;
         }
     }
 }

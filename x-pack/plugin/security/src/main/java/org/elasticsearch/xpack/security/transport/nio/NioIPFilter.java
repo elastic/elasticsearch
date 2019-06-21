@@ -6,7 +6,7 @@
 package org.elasticsearch.xpack.security.transport.nio;
 
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.nio.DelegateHandler;
+import org.elasticsearch.nio.DelegatingHandler;
 import org.elasticsearch.nio.InboundChannelBuffer;
 import org.elasticsearch.nio.NioChannelHandler;
 import org.elasticsearch.xpack.security.transport.filter.IPFilter;
@@ -14,7 +14,7 @@ import org.elasticsearch.xpack.security.transport.filter.IPFilter;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 
-public final class NioIPFilter extends DelegateHandler {
+public final class NioIPFilter extends DelegatingHandler {
 
     private InetSocketAddress remoteAddress;
     private final IPFilter filter;

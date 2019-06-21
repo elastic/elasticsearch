@@ -32,7 +32,6 @@ import org.elasticsearch.geo.geometry.MultiPolygon;
 import org.elasticsearch.geo.geometry.Point;
 import org.elasticsearch.geo.geometry.Polygon;
 import org.elasticsearch.geo.geometry.Rectangle;
-import org.elasticsearch.geo.geometry.ShapeType;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -65,15 +64,15 @@ public class GeometryTreeWriter implements Writeable {
             out.writeInt(builder.maxLat);
         }
         out.writeVInt(builder.shapeWriters.size());
-        for (EdgeTreeWriter writer : builder.shapeWriters) {
-            out.writeEnum(ShapeType.POLYGON);
+        for (ShapeTreeWriter writer : builder.shapeWriters) {
+            out.writeEnum(writer.getShapeType());
             writer.writeTo(out);
         }
     }
 
     class GeometryTreeBuilder implements GeometryVisitor<Void, RuntimeException> {
 
-        private List<EdgeTreeWriter> shapeWriters;
+        private List<ShapeTreeWriter> shapeWriters;
         // integers are used to represent int-encoded lat/lon values
         int minLat;
         int maxLat;
@@ -86,11 +85,12 @@ public class GeometryTreeWriter implements Writeable {
             maxLat = maxLon = Integer.MIN_VALUE;
         }
 
-        private void addWriter(EdgeTreeWriter writer) {
-            minLon = Math.min(minLon, writer.extent.minX);
-            minLat = Math.min(minLat, writer.extent.minY);
-            maxLon = Math.max(maxLon, writer.extent.maxX);
-            maxLat = Math.max(maxLat, writer.extent.maxY);
+        private void addWriter(ShapeTreeWriter writer) {
+            Extent extent = writer.getExtent();
+            minLon = Math.min(minLon, extent.minX);
+            minLat = Math.min(minLat, extent.minY);
+            maxLon = Math.max(maxLon, extent.maxX);
+            maxLat = Math.max(maxLat, extent.maxY);
             shapeWriters.add(writer);
         }
 
@@ -143,12 +143,16 @@ public class GeometryTreeWriter implements Writeable {
 
         @Override
         public Void visit(Point point) {
-            throw new UnsupportedOperationException("support for Point is a TODO");
+            Point2DWriter writer = new Point2DWriter(point);
+            addWriter(writer);
+            return null;
         }
 
         @Override
         public Void visit(MultiPoint multiPoint) {
-            throw new UnsupportedOperationException("support for MultiPoint is a TODO");
+            Point2DWriter writer = new Point2DWriter(multiPoint);
+            addWriter(writer);
+            return null;
         }
 
         @Override

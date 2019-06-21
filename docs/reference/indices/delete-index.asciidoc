@@ -53,8 +53,8 @@ matches no indices. Defaults to `false`.
 `expand_wildcards` (Optional)::
 +
 --
-(string) Indicates whether wildcard expressions should expand to open or closed
-indices. Possible values are:
+(string) Indicates whether wildcard expressions should expand to
+<<indices-open-close, open or closed indices>>. Possible values are:
 
 * `open` (Default)
 * `closed`

@@ -57,16 +57,17 @@ public class StopDataFrameTransformAction extends Action<StopDataFrameTransformA
         private final String id;
         private final boolean waitForCompletion;
         private final boolean force;
-        private boolean allowNoResources = true;
+        private final boolean allowNoResources;
         private Set<String> expandedIds;
 
-        public Request(String id, boolean waitForCompletion, boolean force, @Nullable TimeValue timeout) {
+        public Request(String id, boolean waitForCompletion, boolean force, @Nullable TimeValue timeout, boolean allowNoResources) {
             this.id = ExceptionsHelper.requireNonNull(id, DataFrameField.ID.getPreferredName());
             this.waitForCompletion = waitForCompletion;
             this.force = force;
 
             // use the timeout value already present in BaseTasksRequest
             this.setTimeout(timeout == null ? DEFAULT_TIMEOUT : timeout);
+            this.allowNoResources = allowNoResources;
         }
 
         public Request(StreamInput in) throws IOException {
@@ -79,6 +80,8 @@ public class StopDataFrameTransformAction extends Action<StopDataFrameTransformA
             }
             if (in.getVersion().onOrAfter(Version.V_7_3_0)) {
                 this.allowNoResources = in.readBoolean();
+            } else {
+                this.allowNoResources = true;
             }
         }
 
@@ -104,10 +107,6 @@ public class StopDataFrameTransformAction extends Action<StopDataFrameTransformA
 
         public boolean isAllowNoResources() {
             return allowNoResources;
-        }
-
-        public void setAllowNoResources(boolean allowNoMatch) {
-            this.allowNoResources = allowNoMatch;
         }
 
         @Override

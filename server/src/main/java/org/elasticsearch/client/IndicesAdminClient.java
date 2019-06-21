@@ -41,9 +41,6 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequestBuilder;
-import org.elasticsearch.action.admin.indices.exists.types.TypesExistsRequest;
-import org.elasticsearch.action.admin.indices.exists.types.TypesExistsRequestBuilder;
-import org.elasticsearch.action.admin.indices.exists.types.TypesExistsResponse;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.admin.indices.flush.FlushRequestBuilder;
 import org.elasticsearch.action.admin.indices.flush.FlushResponse;
@@ -118,34 +115,6 @@ import org.elasticsearch.common.Nullable;
  * @see AdminClient#indices()
  */
 public interface IndicesAdminClient extends ElasticsearchClient {
-
-    /**
-     * Types exists.
-     *
-     * @deprecated Types are deprecated and are in the process of being removed.
-     * @param request The types exists request
-     * @return The result future
-     */
-    @Deprecated
-    ActionFuture<TypesExistsResponse> typesExists(TypesExistsRequest request);
-
-    /**
-     * Types exists.
-     *
-     * @deprecated Types are deprecated and are in the process of being removed.
-     * @param request  The types exists
-     * @param listener A listener to be notified with a result
-     */
-    @Deprecated
-    void typesExists(TypesExistsRequest request, ActionListener<TypesExistsResponse> listener);
-
-    /**
-     * Types exists.
-     *
-     * @deprecated Types are deprecated and are in the process of being removed.
-     */
-    @Deprecated
-    TypesExistsRequestBuilder prepareTypesExists(String... index);
 
     /**
      * Indices stats.

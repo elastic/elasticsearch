@@ -124,11 +124,11 @@ public class SecurityIndexSearcherWrapper extends IndexSearcherWrapper {
             // The reasons why we return a custom searcher:
             // 1) in the case the role query is sparse then large part of the main query can be skipped
             // 2) If the role query doesn't match with any docs in a segment, that a segment can be skipped
-            IndexSearcher indexSearcher = new IndexSearcherWrapper((DocumentSubsetDirectoryReader) directoryReader);
-            indexSearcher.setQueryCache(indexSearcher.getQueryCache());
-            indexSearcher.setQueryCachingPolicy(indexSearcher.getQueryCachingPolicy());
-            indexSearcher.setSimilarity(indexSearcher.getSimilarity());
-            return indexSearcher;
+            IndexSearcher searcherWrapper = new IndexSearcherWrapper((DocumentSubsetDirectoryReader) directoryReader);
+            searcherWrapper.setQueryCache(searcher.getQueryCache());
+            searcherWrapper.setQueryCachingPolicy(searcher.getQueryCachingPolicy());
+            searcherWrapper.setSimilarity(searcher.getSimilarity());
+            return searcherWrapper;
         }
         return searcher;
     }

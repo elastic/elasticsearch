@@ -52,10 +52,6 @@ public class CCRInfoTransportActionTests extends ESTestCase {
 
         when(licenseState.isCcrAllowed()).thenReturn(true);
         assertThat(featureSet.available(), equalTo(true));
-
-        featureSet = new CCRInfoTransportAction(
-            mock(TransportService.class), mock(ActionFilters.class), Settings.EMPTY, null);
-        assertThat(featureSet.available(), equalTo(false));
     }
 
     public void testEnabled() {

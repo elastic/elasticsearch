@@ -62,10 +62,6 @@ public class IndexLifecycleInfoTransportActionTests extends ESTestCase {
 
         when(licenseState.isIndexLifecycleAllowed()).thenReturn(true);
         assertThat(featureSet.available(), equalTo(true));
-
-        featureSet = new IndexLifecycleInfoTransportAction(
-            mock(TransportService.class), mock(ActionFilters.class), Settings.EMPTY, null);
-        assertThat(featureSet.available(), equalTo(false));
     }
 
     public void testEnabled() {

@@ -19,12 +19,12 @@
 
 package org.elasticsearch.painless.spi;
 
-import org.elasticsearch.painless.spi.annotation.PainlessAnnotation;
-
+import java.util.AbstractMap;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 /**
  * Method represents the equivalent of a Java method available as a whitelisted class method
@@ -65,7 +65,7 @@ public class WhitelistMethod {
     public final List<String> canonicalTypeNameParameters;
 
     /** The {@link Map} of annotations for this method. */
-    public final Map<Class<?>, PainlessAnnotation> painlessAnnotations;
+    public final Map<Class<?>, Object> painlessAnnotations;
 
     /**
      * Standard constructor. All values must be not {@code null} with the exception of
@@ -74,7 +74,7 @@ public class WhitelistMethod {
      */
     public WhitelistMethod(String origin, String augmentedCanonicalClassName, String methodName,
             String returnCanonicalTypeName, List<String> canonicalTypeNameParameters,
-            Map<Class<?>, PainlessAnnotation> painlessAnnotations) {
+            List<Object> painlessAnnotations) {
 
         this.origin = Objects.requireNonNull(origin);
         this.augmentedCanonicalClassName = augmentedCanonicalClassName;
@@ -82,6 +82,12 @@ public class WhitelistMethod {
         this.returnCanonicalTypeName = Objects.requireNonNull(returnCanonicalTypeName);
         this.canonicalTypeNameParameters = Collections.unmodifiableList(Objects.requireNonNull(canonicalTypeNameParameters));
 
-        this.painlessAnnotations = Collections.unmodifiableMap(Objects.requireNonNull(painlessAnnotations));
+        if (painlessAnnotations.isEmpty()) {
+            this.painlessAnnotations = Collections.emptyMap();
+        } else {
+            this.painlessAnnotations = Collections.unmodifiableMap(Objects.requireNonNull(painlessAnnotations).stream()
+                    .map(painlessAnnotation -> new AbstractMap.SimpleEntry<>(painlessAnnotation.getClass(), painlessAnnotation))
+                    .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue)));
+        }
     }
 }

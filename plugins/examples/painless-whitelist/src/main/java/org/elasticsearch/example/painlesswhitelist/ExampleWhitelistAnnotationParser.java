@@ -19,7 +19,6 @@
 
 package org.elasticsearch.example.painlesswhitelist;
 
-import org.elasticsearch.painless.spi.annotation.PainlessAnnotation;
 import org.elasticsearch.painless.spi.annotation.WhitelistAnnotationParser;
 
 import java.util.Map;
@@ -33,7 +32,7 @@ public class ExampleWhitelistAnnotationParser implements WhitelistAnnotationPars
     }
 
     @Override
-    public PainlessAnnotation parse(Map<String, String> arguments) {
+    public Object parse(Map<String, String> arguments) {
         if (arguments.size() != 2) {
             throw new IllegalArgumentException("expected exactly two arguments");
         }

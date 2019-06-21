@@ -30,11 +30,11 @@ public class NoImportAnnotationParser implements WhitelistAnnotationParser {
     }
 
     @Override
-    public PainlessAnnotation parse(Map<String, String> arguments) {
+    public Object parse(Map<String, String> arguments) {
         if (arguments.isEmpty() == false) {
             throw new IllegalArgumentException("unexpected parameters for [@no_import] annotation, found " + arguments);
         }
 
-        return new NoImportAnnotation();
+        return NoImportAnnotation.INSTANCE;
     }
 }

@@ -19,9 +19,7 @@
 
 package org.elasticsearch.example.painlesswhitelist;
 
-import org.elasticsearch.painless.spi.annotation.PainlessAnnotation;
-
-public class ExamplePainlessAnnotation implements PainlessAnnotation {
+public class ExamplePainlessAnnotation {
 
     public static final String NAME = "example_annotation";
 
@@ -31,11 +29,6 @@ public class ExamplePainlessAnnotation implements PainlessAnnotation {
     public ExamplePainlessAnnotation(int category, String message) {
         this.category = category;
         this.message = message;
-    }
-
-    @Override
-    public String getName() {
-        return NAME;
     }
 
     public int getCategory() {

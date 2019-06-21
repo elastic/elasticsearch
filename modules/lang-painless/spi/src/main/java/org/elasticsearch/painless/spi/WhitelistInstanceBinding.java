@@ -19,12 +19,12 @@
 
 package org.elasticsearch.painless.spi;
 
-import org.elasticsearch.painless.spi.annotation.PainlessAnnotation;
-
+import java.util.AbstractMap;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 /**
  * An instance binding represents a method call that stores state. Each instance binding must provide
@@ -52,12 +52,12 @@ public class WhitelistInstanceBinding {
     public final List<String> canonicalTypeNameParameters;
 
     /** The {@link Map} of annotations for this instance binding. */
-    public final Map<Class<?>, PainlessAnnotation> painlessAnnotations;
+    public final Map<Class<?>, Object> painlessAnnotations;
 
     /** Standard constructor. All values must be not {@code null}. */
     public WhitelistInstanceBinding(String origin, Object targetInstance,
             String methodName, String returnCanonicalTypeName, List<String> canonicalTypeNameParameters,
-            Map<Class<?>, PainlessAnnotation> painlessAnnotations) {
+            List<Object> painlessAnnotations) {
 
         this.origin = Objects.requireNonNull(origin);
         this.targetInstance = Objects.requireNonNull(targetInstance);
@@ -66,6 +66,12 @@ public class WhitelistInstanceBinding {
         this.returnCanonicalTypeName = Objects.requireNonNull(returnCanonicalTypeName);
         this.canonicalTypeNameParameters = Objects.requireNonNull(canonicalTypeNameParameters);
 
-        this.painlessAnnotations = Collections.unmodifiableMap(Objects.requireNonNull(painlessAnnotations));
+        if (painlessAnnotations.isEmpty()) {
+            this.painlessAnnotations = Collections.emptyMap();
+        } else {
+            this.painlessAnnotations = Collections.unmodifiableMap(Objects.requireNonNull(painlessAnnotations).stream()
+                    .map(painlessAnnotation -> new AbstractMap.SimpleEntry<>(painlessAnnotation.getClass(), painlessAnnotation))
+                    .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue)));
+        }
     }
 }

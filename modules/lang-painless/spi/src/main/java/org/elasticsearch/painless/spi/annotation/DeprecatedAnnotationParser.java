@@ -32,7 +32,7 @@ public class DeprecatedAnnotationParser implements WhitelistAnnotationParser {
     }
 
     @Override
-    public PainlessAnnotation parse(Map<String, String> arguments) {
+    public Object parse(Map<String, String> arguments) {
         String message = arguments.getOrDefault(MESSAGE, "");
 
         if ((arguments.isEmpty() || arguments.size() == 1 && arguments.containsKey(MESSAGE)) == false) {

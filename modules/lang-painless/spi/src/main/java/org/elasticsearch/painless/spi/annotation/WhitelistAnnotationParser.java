@@ -38,5 +38,5 @@ public interface WhitelistAnnotationParser {
             ).collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue))
     );
 
-    PainlessAnnotation parse(Map<String, String> arguments);
+    Object parse(Map<String, String> arguments);
 }

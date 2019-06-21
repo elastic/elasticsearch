@@ -19,7 +19,7 @@
 
 package org.elasticsearch.painless.spi.annotation;
 
-public class DeprecatedAnnotation implements PainlessAnnotation {
+public class DeprecatedAnnotation {
 
     public static final String NAME = "deprecated";
 
@@ -27,11 +27,6 @@ public class DeprecatedAnnotation implements PainlessAnnotation {
 
     public DeprecatedAnnotation(String message) {
         this.message = message;
-    }
-
-    @Override
-    public String getName() {
-        return NAME;
     }
 
     public String getMessage() {

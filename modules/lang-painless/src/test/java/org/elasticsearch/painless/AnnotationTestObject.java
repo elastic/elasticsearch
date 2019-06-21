@@ -19,15 +19,13 @@
 
 package org.elasticsearch.painless;
 
-import org.elasticsearch.painless.spi.annotation.PainlessAnnotation;
 import org.elasticsearch.painless.spi.annotation.WhitelistAnnotationParser;
-import org.junit.Test;
 
 import java.util.Map;
 
 public class AnnotationTestObject {
 
-    public static class TestAnnotation implements PainlessAnnotation {
+    public static class TestAnnotation {
 
         public static final String NAME = "test_annotation";
 
@@ -39,11 +37,6 @@ public class AnnotationTestObject {
             this.one = one;
             this.two = two;
             this.three = three;
-        }
-
-        @Override
-        public String getName() {
-            return NAME;
         }
 
         public String getOne() {
@@ -68,7 +61,7 @@ public class AnnotationTestObject {
         }
 
         @Override
-        public PainlessAnnotation parse(Map<String, String> arguments) {
+        public Object parse(Map<String, String> arguments) {
             if (arguments.size() != 3) {
                 throw new IllegalArgumentException("expected three arguments");
             }
@@ -99,11 +92,11 @@ public class AnnotationTestObject {
 
     }
 
-    public void testAnnotedMethod() {
+    public void annotatedTestMethod() {
 
     }
 
-    public void multipleAnnotedMethod() {
+    public void annotatedMultipleMethod() {
 
     }
 }

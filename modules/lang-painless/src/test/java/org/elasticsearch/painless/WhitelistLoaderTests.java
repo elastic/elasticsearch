@@ -55,7 +55,7 @@ public class WhitelistLoaderTests extends ScriptTestCase {
                 ++count;
             }
 
-            if ("testAnnotatedMethod".equals(whitelistMethod.methodName)) {
+            if ("annotatedTestMethod".equals(whitelistMethod.methodName)) {
                 AnnotationTestObject.TestAnnotation ta =
                         ((AnnotationTestObject.TestAnnotation)whitelistMethod.painlessAnnotations.get(
                                 AnnotationTestObject.TestAnnotation.class));
@@ -66,7 +66,7 @@ public class WhitelistLoaderTests extends ScriptTestCase {
                 ++count;
             }
 
-            if ("multipleAnnotatedMethod".equals(whitelistMethod.methodName)) {
+            if ("annotatedMultipleMethod".equals(whitelistMethod.methodName)) {
                 assertEquals("test",
                         ((DeprecatedAnnotation)whitelistMethod.painlessAnnotations.get(DeprecatedAnnotation.class)).getMessage());
                 AnnotationTestObject.TestAnnotation ta =

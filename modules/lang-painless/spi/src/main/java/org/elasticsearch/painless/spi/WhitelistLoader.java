@@ -19,7 +19,6 @@
 
 package org.elasticsearch.painless.spi;
 
-import org.elasticsearch.painless.spi.annotation.PainlessAnnotation;
 import org.elasticsearch.painless.spi.annotation.WhitelistAnnotationParser;
 
 import java.io.InputStreamReader;
@@ -171,7 +170,7 @@ public final class WhitelistLoader {
                 List<WhitelistConstructor> whitelistConstructors = null;
                 List<WhitelistMethod> whitelistMethods = null;
                 List<WhitelistField> whitelistFields = null;
-                Map<Class<?>, PainlessAnnotation> classAnnotations = null;
+                List<Object> classAnnotations = null;
 
                 while ((line = reader.readLine()) != null) {
                     number = reader.getLineNumber();
@@ -200,7 +199,7 @@ public final class WhitelistLoader {
 
                         if (annotationIndex == -1) {
                             annotationIndex = line.length() - 1;
-                            classAnnotations = Collections.emptyMap();
+                            classAnnotations = Collections.emptyList();
                         } else {
                             classAnnotations = parseWhitelistAnnotations(parsers, line.substring(annotationIndex, line.length() - 1));
                         }
@@ -294,12 +293,12 @@ public final class WhitelistLoader {
                         }
 
                         // Parse the annotations if they exist.
-                        Map<Class<?>, PainlessAnnotation> annotations;
+                        List<Object> annotations;
                         int annotationIndex = line.indexOf('@');
 
                         if (annotationIndex == -1) {
                             annotationIndex = line.length();
-                            annotations = Collections.emptyMap();
+                            annotations = Collections.emptyList();
                         } else {
                             annotations = parseWhitelistAnnotations(parsers, line.substring(annotationIndex));
                         }
@@ -356,10 +355,10 @@ public final class WhitelistLoader {
                             }
 
                             // Parse the annotations if they exist.
-                            Map<Class<?>, PainlessAnnotation> annotations;
+                            List<Object> annotations;
                             int annotationIndex = line.indexOf('@');
                             annotations = annotationIndex == -1 ?
-                                    Collections.emptyMap() : parseWhitelistAnnotations(parsers, line.substring(annotationIndex));
+                                    Collections.emptyList() : parseWhitelistAnnotations(parsers, line.substring(annotationIndex));
 
                             whitelistConstructors.add(new WhitelistConstructor(
                                     origin, Arrays.asList(canonicalTypeNameParameters), annotations));
@@ -404,10 +403,10 @@ public final class WhitelistLoader {
                             }
 
                             // Parse the annotations if they exist.
-                            Map<Class<?>, PainlessAnnotation> annotations;
+                            List<Object> annotations;
                             int annotationIndex = line.indexOf('@');
                             annotations = annotationIndex == -1 ?
-                                    Collections.emptyMap() : parseWhitelistAnnotations(parsers, line.substring(annotationIndex));
+                                    Collections.emptyList() : parseWhitelistAnnotations(parsers, line.substring(annotationIndex));
 
                             whitelistMethods.add(new WhitelistMethod(origin, javaAugmentedClassName, methodName,
                                     returnCanonicalTypeName, Arrays.asList(canonicalTypeNameParameters),
@@ -417,12 +416,12 @@ public final class WhitelistLoader {
                         // Expects the following format: ID ID annotations? '\n'
                         } else {
                             // Parse the annotations if they exist.
-                            Map<Class<?>, PainlessAnnotation> annotations;
+                            List<Object> annotations;
                             int annotationIndex = line.indexOf('@');
 
                             if (annotationIndex == -1) {
                                 annotationIndex = line.length();
-                                annotations = Collections.emptyMap();
+                                annotations = Collections.emptyList();
                             } else {
                                 annotations = parseWhitelistAnnotations(parsers, line.substring(annotationIndex));
                             }
@@ -456,13 +455,13 @@ public final class WhitelistLoader {
         return new Whitelist(loader, whitelistClasses, whitelistStatics, whitelistClassBindings, Collections.emptyList());
     }
 
-    private static Map<Class<?>, PainlessAnnotation> parseWhitelistAnnotations(
+    private static List<Object> parseWhitelistAnnotations(
             Map<String, WhitelistAnnotationParser> parsers, String line) {
 
-        Map<Class<?>, PainlessAnnotation> annotations;
+        List<Object> annotations;
 
         if (line.isBlank()) {
-            annotations = Collections.emptyMap();
+            annotations = Collections.emptyList();
         } else {
             line = line.trim();
 
@@ -475,7 +474,7 @@ public final class WhitelistLoader {
             }
 
             String[] annotationStrings = line.substring(1).split("@");
-            annotations = new HashMap<>(annotationStrings.length);
+            annotations = new ArrayList<>(annotationStrings.length);
 
             for (String annotationString : annotationStrings) {
                 String name;
@@ -529,8 +528,7 @@ public final class WhitelistLoader {
                     throw new IllegalArgumentException("invalid annotation: parser not found for [" + name + "] [" + line + "]");
                 }
 
-                PainlessAnnotation painlessAnnotation = parser.parse(arguments);
-                annotations.put(painlessAnnotation.getClass(), painlessAnnotation);
+                annotations.add(parser.parse(arguments));
             }
         }
 

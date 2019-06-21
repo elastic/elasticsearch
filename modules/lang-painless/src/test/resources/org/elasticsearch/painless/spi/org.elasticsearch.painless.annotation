@@ -2,6 +2,6 @@
 
 class org.elasticsearch.painless.AnnotationTestObject @no_import {
   void deprecatedMethod() @deprecated[message="use another method"]
-  void testAnnotatedMethod() @test_annotation[one="one",two="two",three="three"]
-  void multipleAnnotatedMethod() @test_annotation[one="one",two="two",three="three"] @deprecated[message="test"]
+  void annotatedTestMethod() @test_annotation[one="one",two="two",three="three"]
+  void annotatedMultipleMethod() @test_annotation[one="one",two="two",three="three"] @deprecated[message="test"]
 }

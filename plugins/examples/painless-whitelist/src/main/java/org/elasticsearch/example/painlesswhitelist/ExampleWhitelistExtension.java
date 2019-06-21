@@ -45,9 +45,9 @@ public class ExampleWhitelistExtension implements PainlessExtension {
 
         ExampleWhitelistedInstance ewi = new ExampleWhitelistedInstance(1);
         WhitelistInstanceBinding addValue = new WhitelistInstanceBinding("example addValue", ewi,
-            "addValue", "int", Collections.singletonList("int"), Collections.emptyMap());
+            "addValue", "int", Collections.singletonList("int"), Collections.emptyList());
         WhitelistInstanceBinding getValue = new WhitelistInstanceBinding("example getValue", ewi,
-            "getValue", "int", Collections.emptyList(), Collections.emptyMap());
+            "getValue", "int", Collections.emptyList(), Collections.emptyList());
         Whitelist instanceWhitelist = new Whitelist(ewi.getClass().getClassLoader(), Collections.emptyList(),
             Collections.emptyList(), Collections.emptyList(), Arrays.asList(addValue, getValue));
 

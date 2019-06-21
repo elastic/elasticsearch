@@ -19,12 +19,12 @@
 
 package org.elasticsearch.painless.spi;
 
-import org.elasticsearch.painless.spi.annotation.PainlessAnnotation;
-
+import java.util.AbstractMap;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 /**
  * Class represents the equivalent of a Java class in Painless complete with super classes,
@@ -59,12 +59,12 @@ public final class WhitelistClass {
     public final List<WhitelistField> whitelistFields;
 
     /** The {@link Map} of annotations for this class. */
-    public final Map<Class<?>, PainlessAnnotation> painlessAnnotations;
+    public final Map<Class<?>, Object> painlessAnnotations;
 
     /** Standard constructor. All values must be not {@code null}. */
     public WhitelistClass(String origin, String javaClassName,
             List<WhitelistConstructor> whitelistConstructors, List<WhitelistMethod> whitelistMethods, List<WhitelistField> whitelistFields,
-            Map<Class<?>, PainlessAnnotation> painlessAnnotations) {
+            List<Object> painlessAnnotations) {
 
         this.origin = Objects.requireNonNull(origin);
         this.javaClassName = Objects.requireNonNull(javaClassName);
@@ -73,6 +73,12 @@ public final class WhitelistClass {
         this.whitelistMethods = Collections.unmodifiableList(Objects.requireNonNull(whitelistMethods));
         this.whitelistFields = Collections.unmodifiableList(Objects.requireNonNull(whitelistFields));
 
-        this.painlessAnnotations = Collections.unmodifiableMap(Objects.requireNonNull(painlessAnnotations));
+        if (painlessAnnotations.isEmpty()) {
+            this.painlessAnnotations = Collections.emptyMap();
+        } else {
+            this.painlessAnnotations = Collections.unmodifiableMap(Objects.requireNonNull(painlessAnnotations).stream()
+                    .map(painlessAnnotation -> new AbstractMap.SimpleEntry<>(painlessAnnotation.getClass(), painlessAnnotation))
+                    .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue)));
+        }
     }
 }

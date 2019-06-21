@@ -39,6 +39,8 @@ import org.gradle.api.plugins.ExtraPropertiesExtension;
 import org.gradle.api.tasks.TaskState;
 
 import java.io.File;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -196,12 +198,36 @@ public class TestClustersPlugin implements Plugin<Project> {
                 @Override
                 public void beforeActions(Task task) {
                     // we only start the cluster before the actions, so we'll not start it if the task is up-to-date
-                    usedClusters.getOrDefault(task, Collections.emptyList()).stream()
+                    List<ElasticsearchCluster> clustersUsedByTasks = usedClusters.getOrDefault(task, Collections.emptyList())
+                        .stream()
                         .filter(cluster -> runningClusters.contains(cluster) == false)
-                        .forEach(elasticsearchCluster -> {
-                            elasticsearchCluster.start();
-                            runningClusters.add(elasticsearchCluster);
-                        });
+                        .collect(Collectors.toList());
+
+                    if (clustersUsedByTasks.isEmpty() == false) {
+                        int totalNodesForTask = clustersUsedByTasks.stream()
+                            .map(cluster -> cluster.getNumberOfNodes())
+                            .reduce(Integer::sum).get();
+                        if (totalNodesForTask > GlobalSemaphoreHolderExtension.maxPermits()) {
+                            throw new TestClustersException("Clusters " + task + " are too large, requires " + totalNodesForTask +
+                                " nodes, but this system only supports " + GlobalSemaphoreHolderExtension.maxPermits()
+                            );
+                        }
+                        logger.info(
+                            "Will acquire {} permits for {} on {}",
+                            totalNodesForTask, this, Thread.currentThread().getName()
+                        );
+                        Instant startedAt = Instant.now();
+                        GlobalSemaphoreHolderExtension.get(project).acquireUninterruptibly(totalNodesForTask);
+                        logger.info(
+                            "Acquired {} permits for {} took {} seconds",
+                            totalNodesForTask, this, Duration.between(startedAt, Instant.now())
+                        );
+                        clustersUsedByTasks
+                            .forEach(elasticsearchCluster -> {
+                                elasticsearchCluster.start();
+                                runningClusters.add(elasticsearchCluster);
+                            });
+                    }
                 }
                 @Override
                 public void afterActions(Task task) {}
@@ -220,22 +246,37 @@ public class TestClustersPlugin implements Plugin<Project> {
                         task,
                         Collections.emptyList()
                     );
+                    if (clustersUsedByTask.isEmpty()) {
+                        return;
+                    }
+                    final int permitsToRelease;
                     if (state.getFailure() != null) {
                         // If the task fails, and other tasks use this cluster, the other task will likely never be
                         // executed at all, so we will never get to un-claim and terminate it.
                         clustersUsedByTask.forEach(cluster -> stopCluster(cluster, true));
+                        permitsToRelease = clustersUsedByTask.stream()
+                            .map(cluster -> cluster.getNumberOfNodes())
+                            .reduce(Integer::sum).get();
                     } else {
                         clustersUsedByTask.forEach(
                             cluster -> claimsInventory.put(cluster, claimsInventory.getOrDefault(cluster, 0) - 1)
                         );
-                        claimsInventory.entrySet().stream()
+                        List<ElasticsearchCluster> stoppingClusers = claimsInventory.entrySet().stream()
                             .filter(entry -> entry.getValue() == 0)
                             .filter(entry -> runningClusters.contains(entry.getKey()))
                             .map(Map.Entry::getKey)
-                            .forEach(cluster -> {
-                                stopCluster(cluster, false);
-                                runningClusters.remove(cluster);
-                            });
+                            .collect(Collectors.toList());
+                        stoppingClusers.forEach(cluster -> {
+                            stopCluster(cluster, false);
+                            runningClusters.remove(cluster);
+                        });
+                        permitsToRelease = clustersUsedByTask.stream()
+                            .map(cluster -> cluster.getNumberOfNodes())
+                            .reduce(Integer::sum).orElse(0);
+                    }
+                    if (permitsToRelease != 0) {
+                        logger.info("Will release {} permits for {}", permitsToRelease, this);
+                        GlobalSemaphoreHolderExtension.get(project).release(permitsToRelease);
                     }
                 }
                 @Override

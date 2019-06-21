@@ -39,8 +39,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
-import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
@@ -52,13 +50,8 @@ import java.util.stream.Collectors;
 public class ElasticsearchCluster implements TestClusterConfiguration {
 
     private static final Logger LOGGER = Logging.getLogger(ElasticsearchNode.class);
-    private static final int CLUSTER_UP_TIMEOUT = 40;
+    private static final int CLUSTER_UP_TIMEOUT = 20;
     private static final TimeUnit CLUSTER_UP_TIMEOUT_UNIT = TimeUnit.SECONDS;
-
-    private static final Semaphore globalSemaphore = new Semaphore(
-        Optional.ofNullable(System.getProperty("testclusters.max-nodes")).map(Integer::valueOf)
-            .orElse(Runtime.getRuntime().availableProcessors() / 2)
-    );
 
     private final AtomicBoolean configurationFrozen = new AtomicBoolean(false);
     private final String path;
@@ -224,21 +217,6 @@ public class ElasticsearchCluster implements TestClusterConfiguration {
 
     @Override
     public void start() {
-        if (nodes.size() > globalSemaphore.availablePermits()) {
-            throw new TestClustersException("Cluster " + this + " is too large, requires " + nodes.size() +
-                " nodes, but this system only supports " + globalSemaphore.availablePermits()
-            );
-        }
-        LOGGER.info(
-            "Will acquire {} permits for {} on {}",
-            nodes.size(), this, Thread.currentThread().getName()
-        );
-        long startedAt = System.currentTimeMillis();
-        globalSemaphore.acquireUninterruptibly(nodes.size());
-        LOGGER.info(
-            "Acquired {} permits for {} took {} seconds",
-            nodes.size(), this, (startedAt - System.currentTimeMillis())/1000
-        );
         String nodeNames = nodes.stream().map(ElasticsearchNode::getName).collect(Collectors.joining(","));
         for (ElasticsearchNode node : nodes) {
             if (Version.fromString(node.getVersion()).getMajor() >= 7) {
@@ -300,21 +278,18 @@ public class ElasticsearchCluster implements TestClusterConfiguration {
     }
 
     public void waitForAllConditions() {
-        long startedAt = System.currentTimeMillis();
         LOGGER.info("Waiting for nodes");
         nodes.forEach(ElasticsearchNode::waitForAllConditions);
 
         writeUnicastHostsFiles();
 
         LOGGER.info("Starting to wait for cluster to form");
-        waitForConditions(waitConditions, startedAt, CLUSTER_UP_TIMEOUT, CLUSTER_UP_TIMEOUT_UNIT, this);
+        waitForConditions(waitConditions, System.currentTimeMillis(), CLUSTER_UP_TIMEOUT, CLUSTER_UP_TIMEOUT_UNIT, this);
     }
 
     @Override
     public void stop(boolean tailLogs) {
         nodes.forEach(each -> each.stop(tailLogs));
-        LOGGER.info("Will release {} permits for {}", nodes.size(), this);
-        globalSemaphore.release(nodes.size());
     }
 
     @Override

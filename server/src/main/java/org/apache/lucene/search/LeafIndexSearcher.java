@@ -109,7 +109,7 @@ public class LeafIndexSearcher {
      * that will delegate the leaf search here.
      *
      * @param ctx
-     *          the searcher leave to execute the search on
+     *          the searcher leaf to execute the search on
      * @param weight
      *          to match documents
      * @param collector
@@ -122,7 +122,6 @@ public class LeafIndexSearcher {
             leafCollector = collector.getLeafCollector(ctx);
         } catch (CollectionTerminatedException e) {
             // there is no doc of interest in this reader context
-            // continue with the following leaf
             return;
         }
         BulkScorer scorer = weight.bulkScorer(ctx);
@@ -132,7 +131,6 @@ public class LeafIndexSearcher {
                 scorer.score(leafCollector, ctx.reader().getLiveDocs());
             } catch (CollectionTerminatedException e) {
                 // collection was terminated prematurely
-                // continue with the following leaf
             }
         }
     }

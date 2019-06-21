@@ -24,7 +24,11 @@ import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AbstractTokenFilterFactory;
 import org.elasticsearch.index.analysis.AnalysisMode;
@@ -35,7 +39,9 @@ import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.VersionUtils;
 
+import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
@@ -43,6 +49,7 @@ import java.util.Map;
 import static org.elasticsearch.index.analysis.AnalysisRegistry.DEFAULT_ANALYZER_NAME;
 import static org.elasticsearch.index.analysis.AnalysisRegistry.DEFAULT_SEARCH_ANALYZER_NAME;
 import static org.elasticsearch.index.analysis.AnalysisRegistry.DEFAULT_SEARCH_QUOTED_ANALYZER_NAME;
+import static org.hamcrest.core.IsEqual.equalTo;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -64,7 +71,7 @@ public class TypeParsersTests extends ESTestCase {
         analyzers.put("my_analyzer",
                 new NamedAnalyzer("my_named_analyzer", AnalyzerScope.INDEX, createAnalyzerWithMode("my_analyzer", AnalysisMode.ALL)));
 
-        IndexAnalyzers indexAnalyzers = new IndexAnalyzers(indexSettings, analyzers, Collections.emptyMap(), Collections.emptyMap());
+        IndexAnalyzers indexAnalyzers = new IndexAnalyzers(analyzers, Collections.emptyMap(), Collections.emptyMap());
         when(parserContext.getIndexAnalyzers()).thenReturn(indexAnalyzers);
         TypeParsers.parseTextField(builder, "name", new HashMap<>(fieldNode), parserContext);
 
@@ -73,7 +80,7 @@ public class TypeParsersTests extends ESTestCase {
         analyzers = defaultAnalyzers();
         analyzers.put("my_analyzer", new NamedAnalyzer("my_named_analyzer", AnalyzerScope.INDEX,
                 createAnalyzerWithMode("my_analyzer", mode)));
-        indexAnalyzers = new IndexAnalyzers(indexSettings, analyzers, Collections.emptyMap(), Collections.emptyMap());
+        indexAnalyzers = new IndexAnalyzers(analyzers, Collections.emptyMap(), Collections.emptyMap());
         when(parserContext.getIndexAnalyzers()).thenReturn(indexAnalyzers);
         MapperException ex = expectThrows(MapperException.class,
                 () -> TypeParsers.parseTextField(builder, "name", new HashMap<>(fieldNode), parserContext));
@@ -107,7 +114,7 @@ public class TypeParsersTests extends ESTestCase {
                     new NamedAnalyzer("my_named_analyzer", AnalyzerScope.INDEX, createAnalyzerWithMode("my_analyzer", mode)));
             analyzers.put("standard", new NamedAnalyzer("standard", AnalyzerScope.INDEX, new StandardAnalyzer()));
 
-            IndexAnalyzers indexAnalyzers = new IndexAnalyzers(indexSettings, analyzers, Collections.emptyMap(), Collections.emptyMap());
+            IndexAnalyzers indexAnalyzers = new IndexAnalyzers(analyzers, Collections.emptyMap(), Collections.emptyMap());
             when(parserContext.getIndexAnalyzers()).thenReturn(indexAnalyzers);
             TypeParsers.parseTextField(builder, "name", new HashMap<>(fieldNode), parserContext);
 
@@ -117,7 +124,7 @@ public class TypeParsersTests extends ESTestCase {
             analyzers.put("my_analyzer",
                     new NamedAnalyzer("my_named_analyzer", AnalyzerScope.INDEX, createAnalyzerWithMode("my_analyzer", mode)));
             analyzers.put("standard", new NamedAnalyzer("standard", AnalyzerScope.INDEX, new StandardAnalyzer()));
-            indexAnalyzers = new IndexAnalyzers(indexSettings, analyzers, Collections.emptyMap(), Collections.emptyMap());
+            indexAnalyzers = new IndexAnalyzers(analyzers, Collections.emptyMap(), Collections.emptyMap());
             when(parserContext.getIndexAnalyzers()).thenReturn(indexAnalyzers);
             MapperException ex = expectThrows(MapperException.class,
                     () -> TypeParsers.parseTextField(builder, "name", new HashMap<>(fieldNode), parserContext));
@@ -137,7 +144,7 @@ public class TypeParsersTests extends ESTestCase {
         Map<String, NamedAnalyzer> analyzers = defaultAnalyzers();
         analyzers.put("my_analyzer",
                 new NamedAnalyzer("my_named_analyzer", AnalyzerScope.INDEX, createAnalyzerWithMode("my_analyzer", mode)));
-        IndexAnalyzers indexAnalyzers = new IndexAnalyzers(indexSettings, analyzers, Collections.emptyMap(), Collections.emptyMap());
+        IndexAnalyzers indexAnalyzers = new IndexAnalyzers(analyzers, Collections.emptyMap(), Collections.emptyMap());
         when(parserContext.getIndexAnalyzers()).thenReturn(indexAnalyzers);
         MapperException ex = expectThrows(MapperException.class,
                 () -> TypeParsers.parseTextField(builder, "name", new HashMap<>(fieldNode), parserContext));
@@ -152,9 +159,57 @@ public class TypeParsersTests extends ESTestCase {
                 new NamedAnalyzer("my_named_analyzer", AnalyzerScope.INDEX, createAnalyzerWithMode("my_analyzer", mode)));
         analyzers.put("standard", new NamedAnalyzer("standard", AnalyzerScope.INDEX, new StandardAnalyzer()));
 
-        indexAnalyzers = new IndexAnalyzers(indexSettings, analyzers, Collections.emptyMap(), Collections.emptyMap());
+        indexAnalyzers = new IndexAnalyzers(analyzers, Collections.emptyMap(), Collections.emptyMap());
         when(parserContext.getIndexAnalyzers()).thenReturn(indexAnalyzers);
         TypeParsers.parseTextField(builder, "name", new HashMap<>(fieldNode), parserContext);
+    }
+
+    public void testMultiFieldWithinMultiField() throws IOException {
+        TextFieldMapper.Builder builder = new TextFieldMapper.Builder("textField");
+
+        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject()
+            .field("type", "keyword")
+            .startObject("fields")
+                .startObject("sub-field")
+                    .field("type", "keyword")
+                    .startObject("fields")
+                        .startObject("sub-sub-field")
+                            .field("type", "keyword")
+                        .endObject()
+                    .endObject()
+                .endObject()
+            .endObject()
+        .endObject();
+
+        Mapper.TypeParser typeParser = new KeywordFieldMapper.TypeParser();
+
+        // For indices created prior to 8.0, we should only emit a warning and not fail parsing.
+        Map<String, Object> fieldNode = XContentHelper.convertToMap(
+            BytesReference.bytes(mapping), true, mapping.contentType()).v2();
+
+        Version olderVersion = VersionUtils.randomPreviousCompatibleVersion(random(), Version.V_8_0_0);
+        Mapper.TypeParser.ParserContext olderContext = new Mapper.TypeParser.ParserContext("type",
+            null, null, type -> typeParser, olderVersion, null);
+
+        TypeParsers.parseField(builder, "some-field", fieldNode, olderContext);
+        assertWarnings("At least one multi-field, [sub-field], " +
+            "was encountered that itself contains a multi-field. Defining multi-fields within a multi-field is deprecated " +
+            "and is not supported for indices created in 8.0 and later. To migrate the mappings, all instances of [fields] " +
+            "that occur within a [fields] block should be removed from the mappings, either by flattening the chained " +
+            "[fields] blocks into a single level, or switching to [copy_to] if appropriate.");
+
+        // For indices created in 8.0 or later, we should throw an error.
+        Map<String, Object> fieldNodeCopy = XContentHelper.convertToMap(
+            BytesReference.bytes(mapping), true, mapping.contentType()).v2();
+
+        Version version = VersionUtils.randomVersionBetween(random(), Version.V_8_0_0, Version.CURRENT);
+        Mapper.TypeParser.ParserContext context = new Mapper.TypeParser.ParserContext("type",
+            null, null, type -> typeParser, version, null);
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+            () -> TypeParsers.parseField(builder, "some-field", fieldNodeCopy, context));
+        assertThat(e.getMessage(), equalTo("Encountered a multi-field [sub-field] which itself contains a " +
+            "multi-field. Defining chained multi-fields is not supported."));
     }
 
     private Analyzer createAnalyzerWithMode(String name, AnalysisMode mode) {

@@ -20,15 +20,10 @@
 package org.elasticsearch.index.engine;
 
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
 
 public class SnapshotFailedEngineException extends EngineException {
-
-    public SnapshotFailedEngineException(ShardId shardId, Throwable cause) {
-        super(shardId, "Snapshot failed", cause);
-    }
 
     public SnapshotFailedEngineException(StreamInput in) throws IOException{
         super(in);

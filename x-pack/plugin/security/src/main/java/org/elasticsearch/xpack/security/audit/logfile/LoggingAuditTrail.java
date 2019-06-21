@@ -85,6 +85,8 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
     public static final String IP_FILTER_ORIGIN_FIELD_VALUE = "ip_filter";
 
     // changing any of this names requires changing the log4j2.properties file too
+    public static final String LOG_TYPE = "type";
+    public static final String TIMESTAMP = "timestamp";
     public static final String ORIGIN_TYPE_FIELD_NAME = "origin.type";
     public static final String ORIGIN_ADDRESS_FIELD_NAME = "origin.address";
     public static final String NODE_NAME_FIELD_NAME = "node.name";

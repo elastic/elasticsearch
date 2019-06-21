@@ -25,6 +25,7 @@ import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xpack.core.rollup.ConfigTestHelpers;
 import org.elasticsearch.xpack.core.rollup.RollupField;
 import org.elasticsearch.xpack.core.rollup.action.PutRollupJobAction;
@@ -303,7 +304,7 @@ public class PutJobStateMachineTests extends ESTestCase {
         doAnswer(invocation -> {
             GetMappingsResponse response = mock(GetMappingsResponse.class);
             Map<String, Object> m = new HashMap<>(2);
-            m.put(Rollup.ROLLUP_TEMPLATE_VERSION_FIELD, Version.V_6_4_0);
+            m.put(Rollup.ROLLUP_TEMPLATE_VERSION_FIELD, VersionUtils.randomIndexCompatibleVersion(random()));
             m.put(RollupField.ROLLUP_META,
                 Collections.singletonMap(job.getConfig().getId(), job.getConfig()));
             MappingMetaData meta = new MappingMetaData(RollupField.TYPE_NAME,
@@ -344,7 +345,7 @@ public class PutJobStateMachineTests extends ESTestCase {
         doAnswer(invocation -> {
             GetMappingsResponse response = mock(GetMappingsResponse.class);
             Map<String, Object> m = new HashMap<>(2);
-            m.put(Rollup.ROLLUP_TEMPLATE_VERSION_FIELD, Version.V_6_4_0);
+            m.put(Rollup.ROLLUP_TEMPLATE_VERSION_FIELD, VersionUtils.randomIndexCompatibleVersion(random()));
             m.put(RollupField.ROLLUP_META,
                 Collections.singletonMap(unrelatedJob.getId(), unrelatedJob));
             MappingMetaData meta = new MappingMetaData(RollupField.TYPE_NAME,

@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.dataframe.action;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceAlreadyExistsException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -46,10 +47,12 @@ import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesResponse;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.permission.ResourcePrivileges;
 import org.elasticsearch.xpack.core.security.support.Exceptions;
+import org.elasticsearch.xpack.dataframe.notifications.DataFrameAuditor;
 import org.elasticsearch.xpack.dataframe.persistence.DataFrameTransformsConfigManager;
 import org.elasticsearch.xpack.dataframe.transforms.pivot.Pivot;
 
 import java.io.IOException;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
@@ -65,12 +68,14 @@ public class TransportPutDataFrameTransformAction
     private final Client client;
     private final DataFrameTransformsConfigManager dataFrameTransformsConfigManager;
     private final SecurityContext securityContext;
+    private final DataFrameAuditor auditor;
 
     @Inject
     public TransportPutDataFrameTransformAction(Settings settings, TransportService transportService, ThreadPool threadPool,
                                                 ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
                                                 ClusterService clusterService, XPackLicenseState licenseState,
-                                                DataFrameTransformsConfigManager dataFrameTransformsConfigManager, Client client) {
+                                                DataFrameTransformsConfigManager dataFrameTransformsConfigManager, Client client,
+                                                DataFrameAuditor auditor) {
         super(PutDataFrameTransformAction.NAME, transportService, clusterService, threadPool, actionFilters,
                 PutDataFrameTransformAction.Request::new, indexNameExpressionResolver);
         this.licenseState = licenseState;
@@ -78,6 +83,7 @@ public class TransportPutDataFrameTransformAction
         this.dataFrameTransformsConfigManager = dataFrameTransformsConfigManager;
         this.securityContext = XPackSettings.SECURITY_ENABLED.get(settings) ?
             new SecurityContext(settings, threadPool.getThreadContext()) : null;
+        this.auditor = auditor;
     }
 
     @Override
@@ -106,8 +112,10 @@ public class TransportPutDataFrameTransformAction
                     .filter(e -> ClientHelper.SECURITY_HEADER_FILTERS.contains(e.getKey()))
                     .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
 
-        DataFrameTransformConfig config = request.getConfig();
-        config.setHeaders(filteredHeaders);
+        DataFrameTransformConfig config = request.getConfig()
+            .setHeaders(filteredHeaders)
+            .setCreateTime(Instant.now())
+            .setVersion(Version.CURRENT);
 
         String transformId = config.getId();
         // quick check whether a transform has already been created under that name
@@ -149,7 +157,7 @@ public class TransportPutDataFrameTransformAction
         final String[] concreteDest =
             indexNameExpressionResolver.concreteIndexNames(clusterState, IndicesOptions.lenientExpandOpen(), destIndex);
 
-        if (concreteDest.length > 1 || Regex.isSimpleMatchPattern(destIndex)) {
+        if (concreteDest.length > 1) {
             listener.onFailure(new ElasticsearchStatusException(
                 DataFrameMessages.getMessage(DataFrameMessages.REST_PUT_DATA_FRAME_DEST_SINGLE_INDEX, destIndex),
                 RestStatus.BAD_REQUEST
@@ -169,10 +177,9 @@ public class TransportPutDataFrameTransformAction
         // Early check to verify that the user can create the destination index and can read from the source
         if (licenseState.isAuthAllowed()) {
             final String username = securityContext.getUser().principal();
-            RoleDescriptor.IndicesPrivileges sourceIndexPrivileges = RoleDescriptor.IndicesPrivileges.builder()
-                .indices(config.getSource().getIndex())
-                .privileges("read")
-                .build();
+            List<String> srcPrivileges = new ArrayList<>(2);
+            srcPrivileges.add("read");
+
             List<String> destPrivileges = new ArrayList<>(3);
             destPrivileges.add("read");
             destPrivileges.add("index");
@@ -180,10 +187,17 @@ public class TransportPutDataFrameTransformAction
             // We should check that the creating user has the privileges to create the index.
             if (concreteDest.length == 0) {
                 destPrivileges.add("create_index");
+                // We need to read the source indices mapping to deduce the destination mapping
+                srcPrivileges.add("view_index_metadata");
             }
             RoleDescriptor.IndicesPrivileges destIndexPrivileges = RoleDescriptor.IndicesPrivileges.builder()
                 .indices(destIndex)
                 .privileges(destPrivileges)
+                .build();
+
+            RoleDescriptor.IndicesPrivileges sourceIndexPrivileges = RoleDescriptor.IndicesPrivileges.builder()
+                .indices(config.getSource().getIndex())
+                .privileges(srcPrivileges)
                 .build();
 
             HasPrivilegesRequest privRequest = new HasPrivilegesRequest();
@@ -234,7 +248,10 @@ public class TransportPutDataFrameTransformAction
 
         // <5> Return the listener, or clean up destination index on failure.
         ActionListener<Boolean> putTransformConfigurationListener = ActionListener.wrap(
-            putTransformConfigurationResult -> listener.onResponse(new AcknowledgedResponse(true)),
+            putTransformConfigurationResult -> {
+                auditor.info(config.getId(), "Created data frame transform.");
+                listener.onResponse(new AcknowledgedResponse(true));
+            },
             listener::onFailure
         );
 

@@ -51,7 +51,7 @@ POST /_security/oidc/authenticate
 }
 --------------------------------------------------
 // CONSOLE
-// TEST[skip:These are properly tested in the OpenIDConnectIT suite]
+// TEST[catch:unauthorized]
 
 The following example output contains the access token that was generated in response, the amount of time (in
 seconds) that the token expires in, the type, and the refresh token:

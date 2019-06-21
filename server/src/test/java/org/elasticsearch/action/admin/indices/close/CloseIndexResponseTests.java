@@ -22,17 +22,24 @@ package org.elasticsearch.action.admin.indices.close;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.NoShardAvailableActionException;
+import org.elasticsearch.action.admin.indices.close.CloseIndexResponse.IndexResult;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.ActionNotFoundTransportException;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 
 import static org.elasticsearch.test.VersionUtils.getPreviousVersion;
@@ -45,6 +52,38 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 public class CloseIndexResponseTests extends ESTestCase {
+
+    /**
+     * Test that random responses can be written to xcontent without errors.
+     * Also check some specific simple cases for output.
+     */
+    public void testToXContent() throws IOException {
+        CloseIndexResponse response = randomResponse();
+        XContentType xContentType = randomFrom(XContentType.values());
+        try (XContentBuilder builder = XContentBuilder.builder(xContentType.xContent())) {
+            response.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        }
+
+        Index index = new Index("test", "uuid");
+        IndexResult indexResult = new CloseIndexResponse.IndexResult(index);
+        CloseIndexResponse closeIndexResponse = new CloseIndexResponse(true, true,
+                Collections.singletonList(indexResult));
+        assertEquals("{\"acknowledged\":true,\"shards_acknowledged\":true,\"indices\":{\"test\":{\"closed\":true}}}",
+                Strings.toString(closeIndexResponse));
+
+        CloseIndexResponse.ShardResult[] shards = new CloseIndexResponse.ShardResult[1];
+        shards[0] = new CloseIndexResponse.ShardResult(0, new CloseIndexResponse.ShardResult.Failure[] {
+                new CloseIndexResponse.ShardResult.Failure("test", 0, new ActionNotFoundTransportException("test"), "nodeId") });
+        indexResult = new CloseIndexResponse.IndexResult(index, shards);
+        closeIndexResponse = new CloseIndexResponse(true, true,
+                Collections.singletonList(indexResult));
+        assertEquals("{\"acknowledged\":true,\"shards_acknowledged\":true,"
+                + "\"indices\":{\"test\":{\"closed\":false,\"failedShards\":{\"0\":{"
+                + "\"failures\":[{\"node\":\"nodeId\",\"shard\":0,\"index\":\"test\",\"status\":\"INTERNAL_SERVER_ERROR\","
+                + "\"reason\":{\"type\":\"action_not_found_transport_exception\","
+                + "\"reason\":\"No handler for action [test]\"}}]}}}}}",
+                Strings.toString(closeIndexResponse));
+    }
 
     public void testSerialization() throws Exception {
         final CloseIndexResponse response = randomResponse();
@@ -131,7 +170,10 @@ public class CloseIndexResponseTests extends ESTestCase {
                             acknowledged = false;
                             failures = new CloseIndexResponse.ShardResult.Failure[randomIntBetween(1, 3)];
                             for (int j = 0; j < failures.length; j++) {
-                                String nodeId = randomAlphaOfLength(5);
+                                String nodeId = null;
+                                if (frequently()) {
+                                    nodeId = randomAlphaOfLength(5);
+                                }
                                 failures[j] = new CloseIndexResponse.ShardResult.Failure(indexName, i, randomException(index, i), nodeId);
                             }
                         }

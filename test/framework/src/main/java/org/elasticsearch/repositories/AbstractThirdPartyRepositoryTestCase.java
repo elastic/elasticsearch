@@ -20,6 +20,7 @@ package org.elasticsearch.repositories;
 
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
+import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobMetaData;
@@ -29,8 +30,10 @@ import org.elasticsearch.common.blobstore.support.PlainBlobMetaData;
 import org.elasticsearch.common.settings.SecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
+import org.elasticsearch.repositories.blobstore.BlobStoreTestUtil;
 import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.ByteArrayInputStream;
 import java.util.Collection;
@@ -182,6 +185,86 @@ public abstract class AbstractThirdPartyRepositoryTestCase extends ESSingleNodeT
                 assertEquals(entry.getValue().length(), blobs.get(entry.getKey()).length());
             }
         }
+    }
+
+    public void testCleanup() throws Exception {
+        createRepository("test-repo");
+
+        createIndex("test-idx-1");
+        createIndex("test-idx-2");
+        createIndex("test-idx-3");
+        ensureGreen();
+
+        logger.info("--> indexing some data");
+        for (int i = 0; i < 100; i++) {
+            client().prepareIndex("test-idx-1", "doc", Integer.toString(i)).setSource("foo", "bar" + i).get();
+            client().prepareIndex("test-idx-2", "doc", Integer.toString(i)).setSource("foo", "bar" + i).get();
+            client().prepareIndex("test-idx-3", "doc", Integer.toString(i)).setSource("foo", "bar" + i).get();
+        }
+        client().admin().indices().prepareRefresh().get();
+
+        final String snapshotName = "test-snap-" + System.currentTimeMillis();
+
+        logger.info("--> snapshot");
+        CreateSnapshotResponse createSnapshotResponse = client().admin()
+            .cluster()
+            .prepareCreateSnapshot("test-repo", snapshotName)
+            .setWaitForCompletion(true)
+            .setIndices("test-idx-*", "-test-idx-3")
+            .get();
+        assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), greaterThan(0));
+        assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(),
+            equalTo(createSnapshotResponse.getSnapshotInfo().totalShards()));
+
+        assertThat(client().admin()
+                .cluster()
+                .prepareGetSnapshots("test-repo")
+                .setSnapshots(snapshotName)
+                .get()
+                .getSnapshots("test-repo")
+                .get(0)
+                .state(),
+            equalTo(SnapshotState.SUCCESS));
+
+        logger.info("--> creating a dangling index folder");
+        final BlobStoreRepository repo =
+            (BlobStoreRepository) getInstanceFromNode(RepositoriesService.class).repository("test-repo");
+        final PlainActionFuture<Void> future = PlainActionFuture.newFuture();
+        final Executor genericExec = repo.threadPool().executor(ThreadPool.Names.GENERIC);
+        genericExec.execute(new ActionRunnable<>(future) {
+            @Override
+            protected void doRun() throws Exception {
+                final BlobStore blobStore = repo.blobStore();
+                blobStore.blobContainer(BlobPath.cleanPath().add("indices").add("foo"))
+                    .writeBlob("bar", new ByteArrayInputStream(new byte[0]), 0, false);
+                future.onResponse(null);
+            }
+        });
+        future.actionGet();
+        assertTrue(assertCorruptionVisible(repo, genericExec));
+        logger.info("--> deleting a snapshot to trigger repository cleanup");
+        client().admin().cluster().deleteSnapshot(new DeleteSnapshotRequest("test-repo", snapshotName)).actionGet();
+
+        assertConsistentRepository(repo, genericExec);
+    }
+
+    protected boolean assertCorruptionVisible(BlobStoreRepository repo, Executor executor) throws Exception {
+        final PlainActionFuture<Boolean> future = PlainActionFuture.newFuture();
+        executor.execute(new ActionRunnable<>(future) {
+            @Override
+            protected void doRun() throws Exception {
+                final BlobStore blobStore = repo.blobStore();
+                future.onResponse(
+                    blobStore.blobContainer(BlobPath.cleanPath().add("indices")).children().containsKey("foo")
+                        && blobStore.blobContainer(BlobPath.cleanPath().add("indices").add("foo")).blobExists("bar")
+                );
+            }
+        });
+        return future.actionGet();
+    }
+
+    protected void assertConsistentRepository(BlobStoreRepository repo, Executor executor) throws Exception {
+        BlobStoreTestUtil.assertConsistency(repo, executor);
     }
 
     protected void assertDeleted(BlobPath path, String name) throws Exception {

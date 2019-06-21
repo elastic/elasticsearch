@@ -19,12 +19,14 @@ import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.PostingsEnum;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.TermsEnum;
+import org.apache.lucene.misc.SweetSpotSimilarity;
 import org.apache.lucene.search.BulkScorer;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.Weight;
@@ -198,11 +200,25 @@ public class SecurityIndexSearcherWrapperUnitTests extends ESTestCase {
         });
         DirectoryReader directoryReader = DocumentSubsetReader.wrap(esIn, bitsetFilterCache, new MatchAllDocsQuery());
         IndexSearcher indexSearcher = new IndexSearcher(directoryReader);
+        indexSearcher.setSimilarity(new SweetSpotSimilarity());
+        indexSearcher.setQueryCachingPolicy(new QueryCachingPolicy() {
+            @Override
+            public void onUse(Query query) {
+            }
+
+            @Override
+            public boolean shouldCache(Query query) {
+                return false;
+            }
+        });
+        indexSearcher.setQueryCache((weight, policy) -> weight);
         securityIndexSearcherWrapper =
                 new SecurityIndexSearcherWrapper(null, null, threadContext, licenseState, scriptService);
         IndexSearcher result = securityIndexSearcherWrapper.wrap(indexSearcher);
         assertThat(result, not(sameInstance(indexSearcher)));
         assertThat(result.getSimilarity(), sameInstance(indexSearcher.getSimilarity()));
+        assertThat(result.getQueryCachingPolicy(), sameInstance(indexSearcher.getQueryCachingPolicy()));
+        assertThat(result.getQueryCache(), sameInstance(indexSearcher.getQueryCache()));
         bitsetFilterCache.close();
     }
 

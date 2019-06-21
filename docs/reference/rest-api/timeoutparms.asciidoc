@@ -4,8 +4,10 @@
   returns an error. Defaults to `30s`. For more information about
   time units, see <<time-units>>.
 
+// tag::master_timeout[]
 `master_timeout`::
   (time units) Specifies the period of time to wait for a connection to the
   master node. If no response is received before the timeout expires, the request
   fails and returns an error. Defaults to `30s`. For more information about
   time units, see <<time-units>>.
+// end::master_timeout[]

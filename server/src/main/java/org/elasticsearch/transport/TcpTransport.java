@@ -255,22 +255,19 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
 
     @Override
     public void openConnection(DiscoveryNode node, ConnectionProfile profile, ActionListener<Transport.Connection> listener) {
-        ActionListener.map(listener, ignored -> {
-            Objects.requireNonNull(profile, "connection profile cannot be null");
-            if (node == null) {
-                throw new ConnectTransportException(null, "can't open connection to a null node");
-            }
-            ConnectionProfile finalProfile = maybeOverrideConnectionProfile(profile);
-            closeLock.readLock().lock(); // ensure we don't open connections while we are closing
-            try {
-                ensureOpen();
-                initiateConnection(node, finalProfile, listener);
-                return null;
-            } finally {
-                closeLock.readLock().unlock();
-            }
-        });
 
+        Objects.requireNonNull(profile, "connection profile cannot be null");
+        if (node == null) {
+            throw new ConnectTransportException(null, "can't open connection to a null node");
+        }
+        ConnectionProfile finalProfile = maybeOverrideConnectionProfile(profile);
+        closeLock.readLock().lock(); // ensure we don't open connections while we are closing
+        try {
+            ensureOpen();
+            initiateConnection(node, finalProfile, listener);
+        } finally {
+            closeLock.readLock().unlock();
+        }
     }
 
     private List<TcpChannel> initiateConnection(DiscoveryNode node, ConnectionProfile connectionProfile,

@@ -33,7 +33,7 @@ import org.elasticsearch.common.SuppressForbidden;
  */
 @SuppressForbidden(reason = "reference counting is required here")
 class ReaderManager extends ReferenceManager<DirectoryReader> {
-    protected final BiConsumer<DirectoryReader, DirectoryReader> newReaderConsumer;
+    private final BiConsumer<DirectoryReader, DirectoryReader> newReaderConsumer;
 
     /**
      * Creates and returns a new ReaderManager from the given

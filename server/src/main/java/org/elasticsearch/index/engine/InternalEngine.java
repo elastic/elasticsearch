@@ -2248,13 +2248,16 @@ public class InternalEngine extends Engine {
             if (engineConfig.getWarmer() == null) {
                 return;
             }
-            try {
-                assert reader instanceof ElasticsearchDirectoryReader :
-                    "this class needs an ElasticsearchDirectoryReader but got: " + reader.getClass();
-                engineConfig.getWarmer().warm(new Searcher("top_reader_warming", newLeafSearcher(reader, engineConfig), () -> {}));
-            } catch (Exception e) {
-                if (isEngineClosed.get() == false) {
-                    logger.warn("failed to prepare/warm", e);
+            if (engineConfig.getWarmer() != null) {
+                try {
+                    assert reader instanceof ElasticsearchDirectoryReader :
+                        "this class needs an ElasticsearchDirectoryReader but got: " + reader.getClass();
+                    engineConfig.getWarmer().warm(new Searcher("top_reader_warming", newLeafSearcher(reader, engineConfig), () -> {
+                    }));
+                } catch (Exception e) {
+                    if (isEngineClosed.get() == false) {
+                        logger.warn("failed to prepare/warm", e);
+                    }
                 }
             }
         }

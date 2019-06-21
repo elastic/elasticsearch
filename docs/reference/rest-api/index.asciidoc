@@ -1,9 +1,9 @@
-[[restful-apis]]
-= RESTful APIs
+[[rest-apis]]
+= REST APIs
 
 [partintro]
 --
-{es} exposes RESTful APIs that are used by the UI components and can be called
+{es} exposes REST APIs that are used by the UI components and can be called
 directly to configure and access {es} features.
 
 [NOTE]

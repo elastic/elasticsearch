@@ -620,4 +620,4 @@ without any configuration, if the total number of hits is not tracked.
 [role="exclude",id="xpack-api"]
 === X-Pack APIs
 
-{es} {xpack} APIs are now documented in <<restful-apis, RESTful APIs>>. 
+{es} {xpack} APIs are now documented in <<rest-apis, REST APIs>>. 

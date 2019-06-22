@@ -289,14 +289,18 @@ public class NioSelector implements Closeable {
      * @param writeOperation to be queued
      */
     public void queueWrite(WriteOperation writeOperation) {
-        queuedWrites.offer(writeOperation);
-        if (isOpen() == false) {
-            boolean wasRemoved = queuedWrites.remove(writeOperation);
-            if (wasRemoved) {
-                writeOperation.getListener().accept(null, new ClosedSelectorException());
-            }
+        if (isOnCurrentThread()) {
+            writeToChannel(writeOperation);
         } else {
-            wakeup();
+            queuedWrites.offer(writeOperation);
+            if (isOpen() == false) {
+                boolean wasRemoved = queuedWrites.remove(writeOperation);
+                if (wasRemoved) {
+                    writeOperation.getListener().accept(null, new ClosedSelectorException());
+                }
+            } else {
+                wakeup();
+            }
         }
     }
 

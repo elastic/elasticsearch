@@ -135,13 +135,7 @@ public abstract class SocketChannelContext extends ChannelContext<SocketChannel>
 
         WriteOperation writeOperation = readWriteHandler.createWriteOperation(this, message, listener);
 
-        NioSelector selector = getSelector();
-        if (selector.isOnCurrentThread() == false) {
-            selector.queueWrite(writeOperation);
-            return;
-        }
-
-        selector.writeToChannel(writeOperation);
+        getSelector().queueWrite(writeOperation);
     }
 
     public void queueWriteOperation(WriteOperation writeOperation) {

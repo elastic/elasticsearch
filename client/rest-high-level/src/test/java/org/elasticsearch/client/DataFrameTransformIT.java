@@ -66,6 +66,7 @@ import java.util.Map;
 import java.util.Optional;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.hamcrest.CoreMatchers.nullValue;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -186,16 +187,14 @@ public class DataFrameTransformIT extends ESRestHighLevelClientTestCase {
         DataFrameTransformConfig transform = validDataFrameTransformConfig(id, sourceIndex, "pivot-dest");
 
         DataFrameClient client = highLevelClient().dataFrame();
-        AcknowledgedResponse ack = execute(new PutDataFrameTransformRequest(transform), client::putDataFrameTransform,
-                client::putDataFrameTransformAsync);
-        assertTrue(ack.isAcknowledged());
+        putTransform(transform);
 
         GetDataFrameTransformRequest getRequest = new GetDataFrameTransformRequest(id);
         GetDataFrameTransformResponse getResponse = execute(getRequest, client::getDataFrameTransform,
                 client::getDataFrameTransformAsync);
         assertNull(getResponse.getInvalidTransforms());
         assertThat(getResponse.getTransformConfigurations(), hasSize(1));
-        assertEquals(transform, getResponse.getTransformConfigurations().get(0));
+        assertEquals(transform.getId(), getResponse.getTransformConfigurations().get(0).getId());
     }
 
     public void testGetAllAndPageTransforms() throws IOException {
@@ -205,21 +204,17 @@ public class DataFrameTransformIT extends ESRestHighLevelClientTestCase {
         DataFrameClient client = highLevelClient().dataFrame();
 
         DataFrameTransformConfig transform = validDataFrameTransformConfig("test-get-all-1", sourceIndex, "pivot-dest-1");
-        AcknowledgedResponse ack = execute(new PutDataFrameTransformRequest(transform), client::putDataFrameTransform,
-                client::putDataFrameTransformAsync);
-        assertTrue(ack.isAcknowledged());
+        putTransform(transform);
 
         transform = validDataFrameTransformConfig("test-get-all-2", sourceIndex, "pivot-dest-2");
-        ack = execute(new PutDataFrameTransformRequest(transform), client::putDataFrameTransform,
-                client::putDataFrameTransformAsync);
-        assertTrue(ack.isAcknowledged());
+        putTransform(transform);
 
         GetDataFrameTransformRequest getRequest = new GetDataFrameTransformRequest("_all");
         GetDataFrameTransformResponse getResponse = execute(getRequest, client::getDataFrameTransform,
                 client::getDataFrameTransformAsync);
         assertNull(getResponse.getInvalidTransforms());
         assertThat(getResponse.getTransformConfigurations(), hasSize(2));
-        assertEquals(transform, getResponse.getTransformConfigurations().get(1));
+        assertEquals(transform.getId(), getResponse.getTransformConfigurations().get(1).getId());
 
         getRequest.setPageParams(new PageParams(0,1));
         getResponse = execute(getRequest, client::getDataFrameTransform,
@@ -251,10 +246,7 @@ public class DataFrameTransformIT extends ESRestHighLevelClientTestCase {
         DataFrameTransformConfig transform = validDataFrameTransformConfig(id, sourceIndex, "pivot-dest");
 
         DataFrameClient client = highLevelClient().dataFrame();
-        AcknowledgedResponse ack = execute(new PutDataFrameTransformRequest(transform), client::putDataFrameTransform,
-                client::putDataFrameTransformAsync);
-        assertTrue(ack.isAcknowledged());
-        transformsToClean.add(id);
+        putTransform(transform);
 
         StartDataFrameTransformRequest startRequest = new StartDataFrameTransformRequest(id);
         StartDataFrameTransformResponse startResponse =
@@ -307,7 +299,7 @@ public class DataFrameTransformIT extends ESRestHighLevelClientTestCase {
         aggBuilder.addAggregator(AggregationBuilders.avg("avg_rating").field("stars"));
         PivotConfig pivotConfig = PivotConfig.builder().setGroups(groupConfig).setAggregations(aggBuilder).build();
 
-        DestConfig destConfig = (destination != null) ? new DestConfig(destination) : null;
+        DestConfig destConfig = (destination != null) ? DestConfig.builder().setIndex(destination).build() : null;
 
         return DataFrameTransformConfig.builder()
             .setId(id)
@@ -318,6 +310,7 @@ public class DataFrameTransformIT extends ESRestHighLevelClientTestCase {
             .build();
     }
 
+    // TODO add tests to cover continuous situations
     public void testGetStats() throws Exception {
         String sourceIndex = "transform-source";
         createIndex(sourceIndex);
@@ -333,16 +326,13 @@ public class DataFrameTransformIT extends ESRestHighLevelClientTestCase {
         DataFrameTransformConfig transform = DataFrameTransformConfig.builder()
             .setId(id)
             .setSource(SourceConfig.builder().setIndex(sourceIndex).setQuery(new MatchAllQueryBuilder()).build())
-            .setDest(new DestConfig("pivot-dest"))
+            .setDest(DestConfig.builder().setIndex("pivot-dest").build())
             .setPivotConfig(pivotConfig)
             .setDescription("transform for testing stats")
             .build();
 
         DataFrameClient client = highLevelClient().dataFrame();
-        AcknowledgedResponse ack = execute(new PutDataFrameTransformRequest(transform), client::putDataFrameTransform,
-                client::putDataFrameTransformAsync);
-        assertTrue(ack.isAcknowledged());
-        transformsToClean.add(id);
+        putTransform(transform);
 
         GetDataFrameTransformStatsResponse statsResponse = execute(new GetDataFrameTransformStatsRequest(id),
                 client::getDataFrameTransformStats, client::getDataFrameTransformStatsAsync);
@@ -364,15 +354,25 @@ public class DataFrameTransformIT extends ESRestHighLevelClientTestCase {
             GetDataFrameTransformStatsResponse response = execute(new GetDataFrameTransformStatsRequest(id),
                     client::getDataFrameTransformStats, client::getDataFrameTransformStatsAsync);
             DataFrameTransformStateAndStats stateAndStats = response.getTransformsStateAndStats().get(0);
-            assertEquals(IndexerState.STARTED, stateAndStats.getTransformState().getIndexerState());
-            assertEquals(DataFrameTransformTaskState.STARTED, stateAndStats.getTransformState().getTaskState());
-            assertEquals(null, stateAndStats.getTransformState().getReason());
             assertNotEquals(zeroIndexerStats, stateAndStats.getTransformStats());
             assertNotNull(stateAndStats.getTransformState().getProgress());
+            assertThat(stateAndStats.getTransformState().getTaskState(),
+                is(oneOf(DataFrameTransformTaskState.STARTED, DataFrameTransformTaskState.STOPPED)));
+            assertThat(stateAndStats.getTransformState().getIndexerState(),
+                is(oneOf(IndexerState.STARTED, IndexerState.STOPPED)));
             assertThat(stateAndStats.getTransformState().getProgress().getPercentComplete(), equalTo(100.0));
             assertThat(stateAndStats.getTransformState().getProgress().getTotalDocs(), greaterThan(0L));
             assertThat(stateAndStats.getTransformState().getProgress().getRemainingDocs(), equalTo(0L));
+            assertThat(stateAndStats.getTransformState().getReason(), is(nullValue()));
         });
+    }
+
+    void putTransform(DataFrameTransformConfig config) throws IOException {
+        DataFrameClient client = highLevelClient().dataFrame();
+        AcknowledgedResponse ack = execute(new PutDataFrameTransformRequest(config), client::putDataFrameTransform,
+            client::putDataFrameTransformAsync);
+        assertTrue(ack.isAcknowledged());
+        transformsToClean.add(config.getId());
     }
 }
 

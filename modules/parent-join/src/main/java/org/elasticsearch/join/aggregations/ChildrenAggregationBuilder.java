@@ -112,21 +112,19 @@ public class ChildrenAggregationBuilder
 
     private void joinFieldResolveConfig(SearchContext context, ValuesSourceConfig<WithOrdinals> config) {
         ParentJoinFieldMapper parentJoinFieldMapper = ParentJoinFieldMapper.getMapper(context.mapperService());
-        if(parentJoinFieldMapper != null){
-            
-            ParentIdFieldMapper parentIdFieldMapper = parentJoinFieldMapper.getParentIdFieldMapper(childType, false);
-            if (parentIdFieldMapper != null) {
-                parentFilter = parentIdFieldMapper.getParentFilter();
-                childFilter = parentIdFieldMapper.getChildFilter(childType);
-                MappedFieldType fieldType = parentIdFieldMapper.fieldType();
-                final SortedSetDVOrdinalsIndexFieldData fieldData = context.getForField(fieldType);
-                config.fieldContext(new FieldContext(fieldType.name(), fieldData, fieldType));
-            } else {
-                config.unmapped(true);
-            }
-            
-        }else{
+        if(parentJoinFieldMapper == null){
             config.unmapped(true);
+        }
+        
+        ParentIdFieldMapper parentIdFieldMapper = parentJoinFieldMapper.getParentIdFieldMapper(childType, false);
+        if (parentIdFieldMapper == null) {
+            config.unmapped(true);
+        } else {
+            parentFilter = parentIdFieldMapper.getParentFilter();
+            childFilter = parentIdFieldMapper.getChildFilter(childType);
+            MappedFieldType fieldType = parentIdFieldMapper.fieldType();
+            final SortedSetDVOrdinalsIndexFieldData fieldData = context.getForField(fieldType);
+            config.fieldContext(new FieldContext(fieldType.name(), fieldData, fieldType));
         }
     }
 

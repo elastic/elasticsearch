@@ -311,7 +311,7 @@ public class SSLChannelContextTests extends ESTestCase {
         context.closeChannel();
 
         ArgumentCaptor<WriteOperation> captor = ArgumentCaptor.forClass(WriteOperation.class);
-        verify(selector).writeToChannel(captor.capture());
+        verify(selector).queueWrite(captor.capture());
 
         ArgumentCaptor<Runnable> taskCaptor = ArgumentCaptor.forClass(Runnable.class);
         Runnable cancellable = mock(Runnable.class);
@@ -333,7 +333,7 @@ public class SSLChannelContextTests extends ESTestCase {
             context = new SSLChannelContext(channel, selector, exceptionHandler, sslDriver, readWriteHandler, channelBuffer);
             context.closeChannel();
             ArgumentCaptor<WriteOperation> captor = ArgumentCaptor.forClass(WriteOperation.class);
-            verify(selector).writeToChannel(captor.capture());
+            verify(selector).queueWrite(captor.capture());
             ArgumentCaptor<Runnable> taskCaptor = ArgumentCaptor.forClass(Runnable.class);
             Runnable cancellable = mock(Runnable.class);
             when(nioTimer.scheduleAtRelativeTime(taskCaptor.capture(), anyLong())).thenReturn(cancellable);
@@ -360,7 +360,7 @@ public class SSLChannelContextTests extends ESTestCase {
         context.closeChannel();
 
         ArgumentCaptor<WriteOperation> captor = ArgumentCaptor.forClass(WriteOperation.class);
-        verify(selector).writeToChannel(captor.capture());
+        verify(selector).queueWrite(captor.capture());
 
         context.queueWriteOperation(captor.getValue());
         verify(sslDriver).initiateClose();

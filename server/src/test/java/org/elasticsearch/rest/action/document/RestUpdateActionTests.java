@@ -19,18 +19,29 @@
 
 package org.elasticsearch.rest.action.document;
 
+import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.test.rest.RestActionTestCase;
 import org.junit.Before;
 
+import java.util.Collections;
+import java.util.Map;
+
+import static org.hamcrest.CoreMatchers.equalTo;
+import static org.mockito.Mockito.mock;
+
 public class RestUpdateActionTests extends RestActionTestCase {
+
+    private RestUpdateAction action;
 
     @Before
     public void setUpAction() {
-        new RestUpdateAction(Settings.EMPTY, controller());
+        action = new RestUpdateAction(Settings.EMPTY, controller());
     }
 
     public void testTypeInPath() {
@@ -46,5 +57,41 @@ public class RestUpdateActionTests extends RestActionTestCase {
             .withPath("/some_index/_update/some_id")
             .build();
         dispatchRequest(validRequest);
+    }
+
+    public void testUpdateDocVersion() {
+        Map<String, String> params = Collections.singletonMap("version", "100");
+        String content =
+            "{\n" +
+            "    \"doc\" : {\n" +
+            "        \"name\" : \"new_name\"\n" +
+            "    }\n" +
+            "}";
+        FakeRestRequest updateRequest = new FakeRestRequest.Builder(xContentRegistry())
+            .withMethod(RestRequest.Method.POST)
+            .withPath("test/_update/1")
+            .withParams(params)
+            .withContent(new BytesArray(content), XContentType.JSON)
+            .build();
+        UnsupportedOperationException e = expectThrows(UnsupportedOperationException.class, () -> action.prepareRequest(updateRequest, mock(NodeClient.class)));
+        assertThat(e.getMessage(), equalTo("update requests do not support versioning"));
+    }
+
+    public void testUpdateDocVersionType() {
+        Map<String, String> params = Collections.singletonMap("version_type", "internal");
+        String content =
+            "{\n" +
+            "    \"doc\" : {\n" +
+            "        \"name\" : \"new_name\"\n" +
+            "    }\n" +
+            "}";
+        FakeRestRequest updateRequest = new FakeRestRequest.Builder(xContentRegistry())
+            .withMethod(RestRequest.Method.POST)
+            .withPath("test/_update/1")
+            .withParams(params)
+            .withContent(new BytesArray(content), XContentType.JSON)
+            .build();
+        UnsupportedOperationException e = expectThrows(UnsupportedOperationException.class, () -> action.prepareRequest(updateRequest, mock(NodeClient.class)));
+        assertThat(e.getMessage(), equalTo("update requests do not support versioning"));
     }
 }

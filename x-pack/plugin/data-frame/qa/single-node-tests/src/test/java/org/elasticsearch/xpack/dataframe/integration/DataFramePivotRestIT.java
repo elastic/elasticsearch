@@ -51,11 +51,11 @@ public class DataFramePivotRestIT extends DataFrameRestTestCase {
     }
 
     public void testSimplePivot() throws Exception {
-        String transformId = "simplePivot";
+        String transformId = "simple-pivot";
         String dataFrameIndex = "pivot_reviews";
         setupDataAccessRole(DATA_ACCESS_ROLE, REVIEWS_INDEX_NAME, dataFrameIndex);
 
-        createPivotReviewsTransform(transformId, dataFrameIndex, null, BASIC_AUTH_VALUE_DATA_FRAME_ADMIN_WITH_SOME_DATA_ACCESS);
+        createPivotReviewsTransform(transformId, dataFrameIndex, null, null, BASIC_AUTH_VALUE_DATA_FRAME_ADMIN_WITH_SOME_DATA_ACCESS);
 
         startAndWaitForTransform(transformId, dataFrameIndex, BASIC_AUTH_VALUE_DATA_FRAME_ADMIN_WITH_SOME_DATA_ACCESS);
 
@@ -72,12 +72,12 @@ public class DataFramePivotRestIT extends DataFrameRestTestCase {
     }
 
     public void testSimplePivotWithQuery() throws Exception {
-        String transformId = "simplePivotWithQuery";
+        String transformId = "simple_pivot_with_query";
         String dataFrameIndex = "pivot_reviews_user_id_above_20";
         setupDataAccessRole(DATA_ACCESS_ROLE, REVIEWS_INDEX_NAME, dataFrameIndex);
         String query = "\"match\": {\"user_id\": \"user_26\"}";
 
-        createPivotReviewsTransform(transformId, dataFrameIndex, query, BASIC_AUTH_VALUE_DATA_FRAME_ADMIN_WITH_SOME_DATA_ACCESS);
+        createPivotReviewsTransform(transformId, dataFrameIndex, query, null, BASIC_AUTH_VALUE_DATA_FRAME_ADMIN_WITH_SOME_DATA_ACCESS);
 
         startAndWaitForTransform(transformId, dataFrameIndex, BASIC_AUTH_VALUE_DATA_FRAME_ADMIN_WITH_SOME_DATA_ACCESS);
 
@@ -87,8 +87,48 @@ public class DataFramePivotRestIT extends DataFrameRestTestCase {
         assertOnePivotValue(dataFrameIndex + "/_search?q=reviewer:user_26", 3.918918918);
     }
 
+    public void testPivotWithPipeline() throws Exception {
+        String transformId = "simple_pivot_with_pipeline";
+        String dataFrameIndex = "pivot_with_pipeline";
+        String pipelineId = "my-pivot-pipeline";
+        int pipelineValue = 42;
+        Request pipelineRequest = new Request("PUT", "/_ingest/pipeline/" + pipelineId);
+        pipelineRequest.setJsonEntity("{\n" +
+            "  \"description\" : \"my pivot pipeline\",\n" +
+            "  \"processors\" : [\n" +
+            "    {\n" +
+            "      \"set\" : {\n" +
+            "        \"field\": \"pipeline_field\",\n" +
+            "        \"value\": " + pipelineValue +
+            "      }\n" +
+            "    }\n" +
+            "  ]\n" +
+            "}");
+        client().performRequest(pipelineRequest);
+
+        setupDataAccessRole(DATA_ACCESS_ROLE, REVIEWS_INDEX_NAME, dataFrameIndex);
+        createPivotReviewsTransform(transformId, dataFrameIndex, null, pipelineId, BASIC_AUTH_VALUE_DATA_FRAME_ADMIN_WITH_SOME_DATA_ACCESS);
+
+        startAndWaitForTransform(transformId, dataFrameIndex, BASIC_AUTH_VALUE_DATA_FRAME_ADMIN_WITH_SOME_DATA_ACCESS);
+
+        // we expect 27 documents as there shall be 27 user_id's
+        Map<String, Object> indexStats = getAsMap(dataFrameIndex + "/_stats");
+        assertEquals(27, XContentMapValues.extractValue("_all.total.docs.count", indexStats));
+
+        // get and check some users
+        assertOnePivotValue(dataFrameIndex + "/_search?q=reviewer:user_0", 3.776978417);
+        assertOnePivotValue(dataFrameIndex + "/_search?q=reviewer:user_5", 3.72);
+        assertOnePivotValue(dataFrameIndex + "/_search?q=reviewer:user_11", 3.846153846);
+        assertOnePivotValue(dataFrameIndex + "/_search?q=reviewer:user_20", 3.769230769);
+        assertOnePivotValue(dataFrameIndex + "/_search?q=reviewer:user_26", 3.918918918);
+
+        Map<String, Object> searchResult = getAsMap(dataFrameIndex + "/_search?q=reviewer:user_0");
+        Integer actual = (Integer) ((List<?>) XContentMapValues.extractValue("hits.hits._source.pipeline_field", searchResult)).get(0);
+        assertThat(actual, equalTo(pipelineValue));
+    }
+
     public void testHistogramPivot() throws Exception {
-        String transformId = "simpleHistogramPivot";
+        String transformId = "simple_histogram_pivot";
         String dataFrameIndex = "pivot_reviews_via_histogram";
         setupDataAccessRole(DATA_ACCESS_ROLE, REVIEWS_INDEX_NAME, dataFrameIndex);
 
@@ -126,7 +166,7 @@ public class DataFramePivotRestIT extends DataFrameRestTestCase {
     }
 
     public void testBiggerPivot() throws Exception {
-        String transformId = "biggerPivot";
+        String transformId = "bigger_pivot";
         String dataFrameIndex = "bigger_pivot_reviews";
         setupDataAccessRole(DATA_ACCESS_ROLE, REVIEWS_INDEX_NAME, dataFrameIndex);
 
@@ -138,38 +178,38 @@ public class DataFramePivotRestIT extends DataFrameRestTestCase {
             + " \"dest\": {\"index\":\"" + dataFrameIndex + "\"},";
 
         config += " \"pivot\": {"
-                + "   \"group_by\": {"
-                + "     \"reviewer\": {"
-                + "       \"terms\": {"
-                + "         \"field\": \"user_id\""
-                + " } } },"
-                + "   \"aggregations\": {"
-                + "     \"avg_rating\": {"
-                + "       \"avg\": {"
-                + "         \"field\": \"stars\""
-                + " } },"
-                + "     \"sum_rating\": {"
-                + "       \"sum\": {"
-                + "         \"field\": \"stars\""
-                + " } },"
-                + "     \"cardinality_business\": {"
-                + "       \"cardinality\": {"
-                + "         \"field\": \"business_id\""
-                + " } },"
-                + "     \"min_rating\": {"
-                + "       \"min\": {"
-                + "         \"field\": \"stars\""
-                + " } },"
-                + "     \"max_rating\": {"
-                + "       \"max\": {"
-                + "         \"field\": \"stars\""
-                + " } },"
-                + "     \"count\": {"
-                + "       \"value_count\": {"
-                + "         \"field\": \"business_id\""
-                + " } }"
-                + " } }"
-                + "}";
+            + "   \"group_by\": {"
+            + "     \"reviewer\": {"
+            + "       \"terms\": {"
+            + "         \"field\": \"user_id\""
+            + " } } },"
+            + "   \"aggregations\": {"
+            + "     \"avg_rating\": {"
+            + "       \"avg\": {"
+            + "         \"field\": \"stars\""
+            + " } },"
+            + "     \"sum_rating\": {"
+            + "       \"sum\": {"
+            + "         \"field\": \"stars\""
+            + " } },"
+            + "     \"cardinality_business\": {"
+            + "       \"cardinality\": {"
+            + "         \"field\": \"business_id\""
+            + " } },"
+            + "     \"min_rating\": {"
+            + "       \"min\": {"
+            + "         \"field\": \"stars\""
+            + " } },"
+            + "     \"max_rating\": {"
+            + "       \"max\": {"
+            + "         \"field\": \"stars\""
+            + " } },"
+            + "     \"count\": {"
+            + "       \"value_count\": {"
+            + "         \"field\": \"business_id\""
+            + " } }"
+            + " } }"
+            + "}";
 
         createDataframeTransformRequest.setJsonEntity(config);
         Map<String, Object> createDataframeTransformResponse = entityAsMap(client().performRequest(createDataframeTransformRequest));
@@ -201,7 +241,7 @@ public class DataFramePivotRestIT extends DataFrameRestTestCase {
     }
 
     public void testDateHistogramPivot() throws Exception {
-        String transformId = "simpleDateHistogramPivot";
+        String transformId = "simple_date_histogram_pivot";
         String dataFrameIndex = "pivot_reviews_via_date_histogram";
         setupDataAccessRole(DATA_ACCESS_ROLE, REVIEWS_INDEX_NAME, dataFrameIndex);
 
@@ -260,7 +300,7 @@ public class DataFramePivotRestIT extends DataFrameRestTestCase {
         createPreviewRequest.setJsonEntity(config);
 
         Map<String, Object> previewDataframeResponse = entityAsMap(client().performRequest(createPreviewRequest));
-        List<Map<String, Object>> preview = (List<Map<String, Object>>)previewDataframeResponse.get("preview");
+        List<Map<String, Object>> preview = (List<Map<String, Object>>) previewDataframeResponse.get("preview");
         // preview is limited to 100
         assertThat(preview.size(), equalTo(100));
         Set<String> expectedTopLevelFields = new HashSet<>(Arrays.asList("user", "by_day"));
@@ -268,6 +308,57 @@ public class DataFramePivotRestIT extends DataFrameRestTestCase {
         preview.forEach(p -> {
             Set<String> keys = p.keySet();
             assertThat(keys, equalTo(expectedTopLevelFields));
+            Map<String, Object> nestedObj = (Map<String, Object>) p.get("user");
+            keys = nestedObj.keySet();
+            assertThat(keys, equalTo(expectedNestedFields));
+        });
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testPreviewTransformWithPipeline() throws Exception {
+        String pipelineId = "my-preview-pivot-pipeline";
+        int pipelineValue = 42;
+        Request pipelineRequest = new Request("PUT", "/_ingest/pipeline/" + pipelineId);
+        pipelineRequest.setJsonEntity("{\n" +
+            "  \"description\" : \"my pivot preview pipeline\",\n" +
+            "  \"processors\" : [\n" +
+            "    {\n" +
+            "      \"set\" : {\n" +
+            "        \"field\": \"pipeline_field\",\n" +
+            "        \"value\": " + pipelineValue +
+            "      }\n" +
+            "    }\n" +
+            "  ]\n" +
+            "}");
+        client().performRequest(pipelineRequest);
+
+        setupDataAccessRole(DATA_ACCESS_ROLE, REVIEWS_INDEX_NAME);
+        final Request createPreviewRequest = createRequestWithAuth("POST", DATAFRAME_ENDPOINT + "_preview", null);
+
+        String config = "{ \"source\": {\"index\":\"" + REVIEWS_INDEX_NAME + "\"} ,"
+            + "\"dest\": {\"pipeline\": \"" + pipelineId + "\"},"
+            + " \"pivot\": {"
+            + "   \"group_by\": {"
+            + "     \"user.id\": {\"terms\": { \"field\": \"user_id\" }},"
+            + "     \"by_day\": {\"date_histogram\": {\"fixed_interval\": \"1d\",\"field\":\"timestamp\",\"format\":\"yyyy-MM-dd\"}}},"
+            + "   \"aggregations\": {"
+            + "     \"user.avg_rating\": {"
+            + "       \"avg\": {"
+            + "         \"field\": \"stars\""
+            + " } } } }"
+            + "}";
+        createPreviewRequest.setJsonEntity(config);
+
+        Map<String, Object> previewDataframeResponse = entityAsMap(client().performRequest(createPreviewRequest));
+        List<Map<String, Object>> preview = (List<Map<String, Object>>)previewDataframeResponse.get("preview");
+        // preview is limited to 100
+        assertThat(preview.size(), equalTo(100));
+        Set<String> expectedTopLevelFields = new HashSet<>(Arrays.asList("user", "by_day", "pipeline_field"));
+        Set<String> expectedNestedFields = new HashSet<>(Arrays.asList("id", "avg_rating"));
+        preview.forEach(p -> {
+            Set<String> keys = p.keySet();
+            assertThat(keys, equalTo(expectedTopLevelFields));
+            assertThat(p.get("pipeline_field"), equalTo(pipelineValue));
             Map<String, Object> nestedObj = (Map<String, Object>)p.get("user");
             keys = nestedObj.keySet();
             assertThat(keys, equalTo(expectedNestedFields));
@@ -275,7 +366,7 @@ public class DataFramePivotRestIT extends DataFrameRestTestCase {
     }
 
     public void testPivotWithMaxOnDateField() throws Exception {
-        String transformId = "simpleDateHistogramPivotWithMaxTime";
+        String transformId = "simple_date_histogram_pivot_with_max_time";
         String dataFrameIndex = "pivot_reviews_via_date_histogram_with_max_time";
         setupDataAccessRole(DATA_ACCESS_ROLE, REVIEWS_INDEX_NAME, dataFrameIndex);
 
@@ -322,7 +413,7 @@ public class DataFramePivotRestIT extends DataFrameRestTestCase {
     }
 
     public void testPivotWithScriptedMetricAgg() throws Exception {
-        String transformId = "scriptedMetricPivot";
+        String transformId = "scripted_metric_pivot";
         String dataFrameIndex = "scripted_metric_pivot_reviews";
         setupDataAccessRole(DATA_ACCESS_ROLE, REVIEWS_INDEX_NAME, dataFrameIndex);
 
@@ -375,7 +466,7 @@ public class DataFramePivotRestIT extends DataFrameRestTestCase {
     }
 
     public void testPivotWithBucketScriptAgg() throws Exception {
-        String transformId = "bucketScriptPivot";
+        String transformId = "bucket_script_pivot";
         String dataFrameIndex = "bucket_script_pivot_reviews";
         setupDataAccessRole(DATA_ACCESS_ROLE, REVIEWS_INDEX_NAME, dataFrameIndex);
 
@@ -426,7 +517,7 @@ public class DataFramePivotRestIT extends DataFrameRestTestCase {
     }
 
     public void testPivotWithGeoCentroidAgg() throws Exception {
-        String transformId = "geoCentroidPivot";
+        String transformId = "geo_centroid_pivot";
         String dataFrameIndex = "geo_centroid_pivot_reviews";
         setupDataAccessRole(DATA_ACCESS_ROLE, REVIEWS_INDEX_NAME, dataFrameIndex);
 
@@ -476,7 +567,7 @@ public class DataFramePivotRestIT extends DataFrameRestTestCase {
     }
 
     public void testPivotWithWeightedAvgAgg() throws Exception {
-        String transformId = "weightedAvgAggTransform";
+        String transformId = "weighted_avg_agg_transform";
         String dataFrameIndex = "weighted_avg_pivot_reviews";
         setupDataAccessRole(DATA_ACCESS_ROLE, REVIEWS_INDEX_NAME, dataFrameIndex);
 

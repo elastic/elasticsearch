@@ -67,10 +67,10 @@ public class ReadOnlyEngine extends Engine {
 
     /**
      * Reader attributes used for read only engines. These attributes prevent loading term dictionaries on-heap even if the field is an
-     * ID field.
+     * ID field if we are reading form memory maps.
      */
     public static final Map<String, String> OFF_HEAP_READER_ATTRIBUTES = Collections.singletonMap(BlockTreeTermsReader.FST_MODE_KEY,
-        BlockTreeTermsReader.FSTLoadMode.OFF_HEAP.name());
+        BlockTreeTermsReader.FSTLoadMode.AUTO.name());
     private final SegmentInfos lastCommittedSegmentInfos;
     private final SeqNoStats seqNoStats;
     private final TranslogStats translogStats;
@@ -141,12 +141,12 @@ public class ReadOnlyEngine extends Engine {
         final Version indexVersionCreated = engineConfig.getIndexSettings().getIndexVersionCreated();
         if (indexVersionCreated.onOrAfter(Version.V_7_2_0) ||
             (seqNoStats.getGlobalCheckpoint() != SequenceNumbers.UNASSIGNED_SEQ_NO)) {
+            assert assertMaxSeqNoEqualsToGlobalCheckpoint(seqNoStats.getMaxSeqNo(), seqNoStats.getGlobalCheckpoint());
             if (seqNoStats.getMaxSeqNo() != seqNoStats.getGlobalCheckpoint()) {
                 throw new IllegalStateException("Maximum sequence number [" + seqNoStats.getMaxSeqNo()
                     + "] from last commit does not match global checkpoint [" + seqNoStats.getGlobalCheckpoint() + "]");
             }
         }
-        assert assertMaxSeqNoEqualsToGlobalCheckpoint(seqNoStats.getMaxSeqNo(), seqNoStats.getGlobalCheckpoint());
     }
 
     protected boolean assertMaxSeqNoEqualsToGlobalCheckpoint(final long maxSeqNo, final long globalCheckpoint) {
@@ -329,7 +329,7 @@ public class ReadOnlyEngine extends Engine {
     }
 
     @Override
-    public long getLocalCheckpoint() {
+    public long getPersistedLocalCheckpoint() {
         return seqNoStats.getLocalCheckpoint();
     }
 

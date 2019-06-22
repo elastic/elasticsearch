@@ -56,11 +56,6 @@ public class AzureStorageServiceMock extends AzureStorageService {
     }
 
     @Override
-    public boolean doesContainerExist(String account, String container) {
-        return true;
-    }
-
-    @Override
     public boolean blobExists(String account, String container, String blob) {
         return blobs.containsKey(blob);
     }

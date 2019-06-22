@@ -5,12 +5,15 @@
  */
 package org.elasticsearch.xpack.graph;
 
+import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackFeatureSet;
+import org.elasticsearch.xpack.core.action.XPackUsageFeatureResponse;
 import org.elasticsearch.xpack.core.graph.GraphFeatureSetUsage;
 import org.junit.Before;
 
@@ -32,9 +35,12 @@ public class GraphFeatureSetTests extends ESTestCase {
         boolean available = randomBoolean();
         when(licenseState.isGraphAllowed()).thenReturn(available);
         assertThat(featureSet.available(), is(available));
-        PlainActionFuture<XPackFeatureSet.Usage> future = new PlainActionFuture<>();
-        featureSet.usage(future);
-        XPackFeatureSet.Usage usage = future.get();
+
+        var usageAction = new GraphFeatureSet.UsageTransportAction(mock(TransportService.class), null, null,
+            mock(ActionFilters.class), null, Settings.EMPTY, licenseState);
+        PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();
+        usageAction.masterOperation(null, null, future);
+        XPackFeatureSet.Usage usage = future.get().getUsage();
         assertThat(usage.available(), is(available));
 
         BytesStreamOutput out = new BytesStreamOutput();
@@ -55,9 +61,12 @@ public class GraphFeatureSetTests extends ESTestCase {
         }
         GraphFeatureSet featureSet = new GraphFeatureSet(settings.build(), licenseState);
         assertThat(featureSet.enabled(), is(enabled));
-        PlainActionFuture<XPackFeatureSet.Usage> future = new PlainActionFuture<>();
-        featureSet.usage(future);
-        XPackFeatureSet.Usage usage = future.get();
+
+        GraphFeatureSet.UsageTransportAction usageAction = new GraphFeatureSet.UsageTransportAction(mock(TransportService.class),
+            null, null, mock(ActionFilters.class), null, settings.build(), licenseState);
+        PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();
+        usageAction.masterOperation(null, null, future);
+        XPackFeatureSet.Usage usage = future.get().getUsage();
         assertThat(usage.enabled(), is(enabled));
 
         BytesStreamOutput out = new BytesStreamOutput();

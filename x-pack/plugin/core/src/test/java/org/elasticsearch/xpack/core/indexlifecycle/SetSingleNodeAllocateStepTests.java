@@ -348,7 +348,7 @@ public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSing
     }
 
     public void testPerformActionSomeShardsOnlyOnNewNodes() {
-        final Version oldVersion = VersionUtils.randomPreviousCompatibleVersion(random(), Version.CURRENT);
+        final Version oldVersion = VersionUtils.getPreviousVersion(Version.CURRENT);
         final int numNodes = randomIntBetween(2, 20); // Need at least 2 nodes to have some nodes on a new version
         final int numNewNodes = randomIntBetween(1, numNodes - 1);
         final int numOldNodes = numNodes - numNewNodes;
@@ -402,7 +402,7 @@ public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSing
     }
 
     public void testPerformActionSomeShardsOnlyOnNewNodesButNewNodesInvalidAttrs() {
-        final Version oldVersion = VersionUtils.randomPreviousCompatibleVersion(random(), Version.CURRENT);
+        final Version oldVersion = VersionUtils.getPreviousVersion(Version.CURRENT);
         final int numNodes = randomIntBetween(2, 20); // Need at least 2 nodes to have some nodes on a new version
         final int numNewNodes = randomIntBetween(1, numNodes - 1);
         final int numOldNodes = numNodes - numNewNodes;
@@ -462,7 +462,7 @@ public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSing
     }
 
     public void testPerformActionNewShardsExistButWithInvalidAttributes() {
-        final Version oldVersion = VersionUtils.randomPreviousCompatibleVersion(random(), Version.CURRENT);
+        final Version oldVersion = VersionUtils.getPreviousVersion(Version.CURRENT);
         final int numNodes = randomIntBetween(2, 20); // Need at least 2 nodes to have some nodes on a new version
         final int numNewNodes = randomIntBetween(1, numNodes - 1);
         final int numOldNodes = numNodes - numNewNodes;

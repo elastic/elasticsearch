@@ -28,6 +28,7 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -45,7 +46,7 @@ public class SetSingleNodeAllocateStep extends AsyncActionStep {
     // allocation long-term, and that we can inspect in advance. Most other allocation deciders
     // will either only delay relocation (e.g. ThrottlingAllocationDecider), or don't work very
     // well when reallocating potentially many shards at once (e.g. DiskThresholdDecider)
-    private static final AllocationDeciders ALLOCATION_DECIDERS = new AllocationDeciders(List.of(
+    private static final AllocationDeciders ALLOCATION_DECIDERS = new AllocationDeciders(Arrays.asList(
         new FilterAllocationDecider(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)),
         new NodeVersionAllocationDecider()
     ));

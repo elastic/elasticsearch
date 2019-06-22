@@ -61,7 +61,7 @@ public class CCRInfoTransportActionTests extends ESTestCase {
         assertThat(featureSet.enabled(), equalTo(false));
 
         settings = Settings.builder().put("xpack.ccr.enabled", true);
-        featureSet = new CCRInfoTransportAction(mock(TransportService.class), null, settings.build(), licenseState);
+        featureSet = new CCRInfoTransportAction(mock(TransportService.class), mock(ActionFilters.class), settings.build(), licenseState);
         assertThat(featureSet.enabled(), equalTo(true));
     }
 

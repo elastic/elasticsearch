@@ -842,8 +842,9 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/43498")
     public void testDataFileFailureDuringSnapshot() throws Exception {
+        disableRepoConsistencyCheck("This test intentionally leaves a broken repository");
+
         Client client = client();
         logger.info("-->  creating repository");
         assertAcked(client.admin().cluster().preparePutRepository("test-repo")

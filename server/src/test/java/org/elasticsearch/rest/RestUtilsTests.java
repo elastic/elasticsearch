@@ -150,7 +150,7 @@ public class RestUtilsTests extends ESTestCase {
                 randomDelimiter(),
                 randomDelimiter());
         RestUtils.decodeQueryString(uri, uri.indexOf('?') + 1, params);
-        assertThat(params.get("/?:@-._~!$'()*+,"), equalTo("/?:@-._~!$'()*+,=="));
+        assertThat(params.get("/?:@-._~!$'()* ,"), equalTo("/?:@-._~!$'()* ,=="));
         assertThat(params.size(), equalTo(1));
     }
 

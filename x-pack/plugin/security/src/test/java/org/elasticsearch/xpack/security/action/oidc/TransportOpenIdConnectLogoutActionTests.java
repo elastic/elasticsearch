@@ -193,7 +193,7 @@ public class TransportOpenIdConnectLogoutActionTests extends OpenIdConnectTestCa
     public void testLogoutInvalidatesTokens() throws Exception {
         final String subject = randomAlphaOfLength(8);
         final JWT signedIdToken = generateIdToken(subject, randomAlphaOfLength(8), randomAlphaOfLength(8));
-        final User user = new User("oidc-user", new String[]{"superuser"}, null, null, null, true);
+        final User user = new User("oidc-user", new String[]{"superuser"}, null, null, Map.of(), true);
         final Authentication.RealmRef realmRef = new Authentication.RealmRef(oidcRealm.name(), OpenIdConnectRealmSettings.TYPE, "node01");
         final Map<String, Object> tokenMetadata = new HashMap<>();
         tokenMetadata.put("id_token_hint", signedIdToken.serialize());

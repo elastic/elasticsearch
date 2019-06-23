@@ -20,7 +20,6 @@
 package org.elasticsearch.action.admin.indices.alias;
 
 import org.elasticsearch.action.RequestValidators;
-import org.elasticsearch.action.admin.indices.alias.exists.AliasesExistResponse;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesResponse;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
@@ -44,7 +43,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.hasToString;
 
-public class ValidateIndiesAliasesRequestIT extends ESSingleNodeTestCase {
+public class ValidateIndicesAliasesRequestIT extends ESSingleNodeTestCase {
 
     public static class IndicesAliasesPlugin extends Plugin implements ActionPlugin {
 
@@ -129,8 +128,6 @@ public class ValidateIndiesAliasesRequestIT extends ESSingleNodeTestCase {
         final Exception e = expectThrows(IllegalStateException.class, () -> client().admin().indices().aliases(request).actionGet());
         final String index = "foo_allowed".equals(origin) ? "bar" : "foo";
         assertThat(e, hasToString(containsString("origin [" + origin + "] not allowed for index [" + index + "]")));
-        final AliasesExistResponse response = client().admin().indices().aliasesExist(new GetAliasesRequest("alias")).actionGet();
-        assertFalse(response.exists());
+        assertTrue(client().admin().indices().getAliases(new GetAliasesRequest("alias")).actionGet().getAliases().isEmpty());
     }
-
 }

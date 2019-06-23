@@ -19,6 +19,7 @@
 
 package org.elasticsearch.nio;
 
+import org.elasticsearch.common.CheckedRunnable;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.test.ESTestCase;
@@ -116,19 +117,7 @@ public class NioSelectorTests extends ESTestCase {
         when(channel.getContext()).thenReturn(context);
         when(context.getSelector()).thenReturn(selector);
 
-        final Thread thread = new Thread(new AbstractRunnable() {
-            @Override
-            protected void doRun() {
-                selector.queueChannelClose(channel);
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                throw new AssertionError(e);
-            }
-        });
-        thread.start();
-        thread.join();
+        executeOnNewThread(() -> selector.queueChannelClose(channel));
 
         doThrow(ioException).when(eventHandler).handleClose(context);
 
@@ -213,19 +202,7 @@ public class NioSelectorTests extends ESTestCase {
 
     public void testSelectorClosedIfOpenAndEventLoopNotRunning() throws Exception {
         when(rawSelector.isOpen()).thenReturn(true);
-        final Thread thread = new Thread(new AbstractRunnable() {
-            @Override
-            protected void doRun() throws IOException {
-                selector.close();
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                throw new AssertionError(e);
-            }
-        });
-        thread.start();
-        thread.join();
+        executeOnNewThread(() -> selector.close());
 
         verify(rawSelector).close();
     }
@@ -248,20 +225,7 @@ public class NioSelectorTests extends ESTestCase {
     }
 
     public void testRegisterServerChannelFailsDueToException() throws Exception {
-        final Thread thread = new Thread(new AbstractRunnable() {
-            @Override
-            protected void doRun() {
-                selector.scheduleForRegistration(serverChannel);
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                throw new AssertionError(e);
-            }
-        });
-        thread.start();
-        thread.join();
-
+        executeOnNewThread(() -> selector.scheduleForRegistration(serverChannel));
         ClosedChannelException closedChannelException = new ClosedChannelException();
         doThrow(closedChannelException).when(eventHandler).handleRegistration(serverChannelContext);
 
@@ -281,27 +245,17 @@ public class NioSelectorTests extends ESTestCase {
     }
 
     public void testRegisterSocketChannelFailsDueToException() throws InterruptedException {
-        final Thread thread = new Thread(new AbstractRunnable() {
-            @Override
-            protected void doRun() throws Exception {
-                selector.scheduleForRegistration(channel);
+        executeOnNewThread(() -> {
+            selector.scheduleForRegistration(channel);
 
-                ClosedChannelException closedChannelException = new ClosedChannelException();
-                doThrow(closedChannelException).when(eventHandler).handleRegistration(channelContext);
+            ClosedChannelException closedChannelException = new ClosedChannelException();
+            doThrow(closedChannelException).when(eventHandler).handleRegistration(channelContext);
 
-                selector.preSelect();
+            selector.preSelect();
 
-                verify(eventHandler).registrationException(channelContext, closedChannelException);
-                verify(eventHandler, times(0)).handleConnect(channelContext);
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                throw new AssertionError(e);
-            }
+            verify(eventHandler).registrationException(channelContext, closedChannelException);
+            verify(eventHandler, times(0)).handleConnect(channelContext);
         });
-        thread.start();
-        thread.join();
     }
 
     public void testAcceptEvent() throws IOException {
@@ -342,41 +296,18 @@ public class NioSelectorTests extends ESTestCase {
     }
 
     public void testQueueWriteWhenNotRunning() throws Exception {
-        final Thread thread = new Thread(new AbstractRunnable() {
-            @Override
-            protected void doRun() throws Exception {
-                selector.close();
-
-                selector.queueWrite(new FlushReadyWrite(channelContext, buffers, listener));
-
-                verify(listener).accept(isNull(Void.class), any(ClosedSelectorException.class));
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                throw new AssertionError(e);
-            }
+        executeOnNewThread(() -> {
+            selector.close();
+            selector.queueWrite(new FlushReadyWrite(channelContext, buffers, listener));
         });
-        thread.start();
-        thread.join();
+        verify(listener).accept(isNull(Void.class), any(ClosedSelectorException.class));
     }
 
     public void testQueueWriteChannelIsClosed() throws Exception {
         WriteOperation writeOperation = new FlushReadyWrite(channelContext, buffers, listener);
-        final Thread thread = new Thread(new AbstractRunnable() {
-            @Override
-            protected void doRun() {
-                selector.queueWrite(writeOperation);
-                when(channelContext.isOpen()).thenReturn(false);
-            }
 
-            @Override
-            public void onFailure(Exception e) {
-                throw new AssertionError(e);
-            }
-        });
-        thread.start();
-        thread.join();
+        executeOnNewThread(() -> selector.queueWrite(writeOperation));
+        when(channelContext.isOpen()).thenReturn(false);
         selector.preSelect();
 
         verify(channelContext, times(0)).queueWriteOperation(writeOperation);
@@ -388,19 +319,7 @@ public class NioSelectorTests extends ESTestCase {
 
         WriteOperation writeOperation = new FlushReadyWrite(channelContext, buffers, listener);
         CancelledKeyException cancelledKeyException = new CancelledKeyException();
-        final Thread thread = new Thread(new AbstractRunnable() {
-            @Override
-            protected void doRun() {
-                selector.queueWrite(writeOperation);
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                throw new AssertionError(e);
-            }
-        });
-        thread.start();
-        thread.join();
+        executeOnNewThread(() -> selector.queueWrite(writeOperation));
 
         when(channelContext.getSelectionKey()).thenReturn(selectionKey);
         when(selectionKey.interestOps(anyInt())).thenThrow(cancelledKeyException);
@@ -412,19 +331,7 @@ public class NioSelectorTests extends ESTestCase {
 
     public void testQueueWriteSuccessful() throws Exception {
         WriteOperation writeOperation = new FlushReadyWrite(channelContext, buffers, listener);
-        final Thread thread = new Thread(new AbstractRunnable() {
-            @Override
-            protected void doRun() {
-                selector.queueWrite(writeOperation);
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                throw new AssertionError(e);
-            }
-        });
-        thread.start();
-        thread.join();
+        executeOnNewThread(() -> selector.queueWrite(writeOperation));
 
         assertTrue((selectionKey.interestOps() & SelectionKey.OP_WRITE) == 0);
 
@@ -577,36 +484,14 @@ public class NioSelectorTests extends ESTestCase {
         when(unregisteredContext.getSelector()).thenReturn(selector);
         when(unregisteredChannel.getContext()).thenReturn(unregisteredContext);
 
-        final Thread thread = new Thread(new AbstractRunnable() {
-            @Override
-            protected void doRun() {
-                selector.scheduleForRegistration(channel);
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                throw new AssertionError(e);
-            }
-        });
-        thread.start();
-        thread.join();
+        executeOnNewThread(() -> selector.scheduleForRegistration(channel));
 
         selector.preSelect();
 
-        final Thread thread2 = new Thread(new AbstractRunnable() {
-            @Override
-            protected void doRun() {
-                selector.queueWrite(new FlushReadyWrite(channelContext, buffers, listener));
-                selector.scheduleForRegistration(unregisteredChannel);
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                throw new AssertionError(e);
-            }
+        executeOnNewThread(() -> {
+            selector.queueWrite(new FlushReadyWrite(channelContext, buffers, listener));
+            selector.scheduleForRegistration(unregisteredChannel);
         });
-        thread2.start();
-        thread2.join();
 
         TestSelectionKey testSelectionKey = new TestSelectionKey(0);
         testSelectionKey.attach(channelContext);
@@ -617,5 +502,21 @@ public class NioSelectorTests extends ESTestCase {
         verify(listener).accept(isNull(Void.class), any(ClosedSelectorException.class));
         verify(eventHandler).handleClose(channelContext);
         verify(eventHandler).handleClose(unregisteredContext);
+    }
+
+    private static void executeOnNewThread(CheckedRunnable<Exception> runnable) throws InterruptedException {
+        final Thread thread = new Thread(new AbstractRunnable() {
+            @Override
+            protected void doRun() throws Exception {
+                runnable.run();
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                throw new AssertionError(e);
+            }
+        });
+        thread.start();
+        thread.join();
     }
 }

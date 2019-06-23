@@ -78,7 +78,7 @@ public class ConsistentSettingsServiceTests extends ESTestCase {
     }
 
     public void testSingleAffixSetting() throws Exception {
-        Setting.AffixSetting<?> affixStringSetting = Setting.affixKeySetting("test.afix.", "bar",
+        Setting.AffixSetting<?> affixStringSetting = Setting.affixKeySetting("test.affix.", "bar",
                 (key) -> SecureSetting.secureString(key, null, Setting.Property.Consistent));
         // add two affix settings to the keystore
         MockSecureSettings secureSettings = new MockSecureSettings();

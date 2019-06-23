@@ -26,7 +26,6 @@ apply plugin: 'elasticsearch.test-with-dependencies'
 esplugin {
   description 'The Reindex module adds APIs to reindex from one index to another or update documents in place.'
   classname 'org.elasticsearch.index.reindex.ReindexPlugin'
-  hasClientJar = true
 }
 
 testClusters.integTest {
@@ -55,8 +54,8 @@ test {
 }
 
 dependencies {
-  compile "org.elasticsearch.client:elasticsearch-rest-client:${version}"
-  compile "org.elasticsearch:elasticsearch-ssl-config:${version}"
+  compile project(":client:rest")
+  compile project(":libs:elasticsearch-ssl-config")
   // for http - testing reindex from remote
   testCompile project(path: ':modules:transport-netty4', configuration: 'runtime')
   // for parent/child testing

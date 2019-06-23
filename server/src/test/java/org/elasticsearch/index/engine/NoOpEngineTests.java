@@ -85,12 +85,12 @@ public class NoOpEngineTests extends EngineTestCase {
 
         flushAndTrimTranslog(engine);
 
-        long localCheckpoint = engine.getLocalCheckpoint();
+        long localCheckpoint = engine.getPersistedLocalCheckpoint();
         long maxSeqNo = engine.getSeqNoStats(100L).getMaxSeqNo();
         engine.close();
 
         final NoOpEngine noOpEngine = new NoOpEngine(noOpConfig(INDEX_SETTINGS, store, primaryTranslogDir, tracker));
-        assertThat(noOpEngine.getLocalCheckpoint(), equalTo(localCheckpoint));
+        assertThat(noOpEngine.getPersistedLocalCheckpoint(), equalTo(localCheckpoint));
         assertThat(noOpEngine.getSeqNoStats(100L).getMaxSeqNo(), equalTo(maxSeqNo));
         try (Engine.IndexCommitRef ref = noOpEngine.acquireLastIndexCommit(false)) {
             try (IndexReader reader = DirectoryReader.open(ref.getIndexCommit())) {
@@ -114,7 +114,8 @@ public class NoOpEngineTests extends EngineTestCase {
                     if (rarely()) {
                         engine.flush();
                     }
-                    globalCheckpoint.set(engine.getLocalCheckpoint());
+                    engine.syncTranslog(); // advance persisted local checkpoint
+                    globalCheckpoint.set(engine.getPersistedLocalCheckpoint());
                 }
 
                 for (int i = 0; i < numDocs; i++) {
@@ -122,11 +123,12 @@ public class NoOpEngineTests extends EngineTestCase {
                         String delId = Integer.toString(i);
                         Engine.DeleteResult result = engine.delete(new Engine.Delete("test", delId, newUid(delId), primaryTerm.get()));
                         assertTrue(result.isFound());
-                        globalCheckpoint.set(engine.getLocalCheckpoint());
+                        engine.syncTranslog(); // advance persisted local checkpoint
+                        globalCheckpoint.set(engine.getPersistedLocalCheckpoint());
                         deletions += 1;
                     }
                 }
-                engine.getLocalCheckpointTracker().waitForOpsToComplete(numDocs + deletions - 1);
+                engine.getLocalCheckpointTracker().waitForProcessedOpsToComplete(numDocs + deletions - 1);
                 flushAndTrimTranslog(engine);
             }
 
@@ -144,7 +146,7 @@ public class NoOpEngineTests extends EngineTestCase {
                 assertEquals(expectedDocStats.getTotalSizeInBytes(), noOpEngine.docStats().getTotalSizeInBytes());
                 assertEquals(expectedDocStats.getAverageSizeInBytes(), noOpEngine.docStats().getAverageSizeInBytes());
                 assertEquals(expectedSegmentStats.getCount(), noOpEngine.segmentsStats(includeFileSize, true).getCount());
-                assertEquals(expectedSegmentStats.getMemoryInBytes(), noOpEngine.segmentsStats(includeFileSize, true).getMemoryInBytes());
+                // don't compare memory in bytes since we load the index with term-dict off-heap
                 assertEquals(expectedSegmentStats.getFileSizes().size(),
                     noOpEngine.segmentsStats(includeFileSize, true).getFileSizes().size());
 

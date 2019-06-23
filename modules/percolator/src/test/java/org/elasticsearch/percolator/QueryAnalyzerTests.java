@@ -28,8 +28,8 @@ import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.BlendedTermQuery;
-import org.apache.lucene.queries.CommonTermsQuery;
 import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
@@ -44,7 +44,6 @@ import org.apache.lucene.search.SynonymQuery;
 import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TermRangeQuery;
-import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.join.QueryBitSetProducer;
 import org.apache.lucene.search.join.ScoreMode;
 import org.apache.lucene.search.spans.SpanFirstQuery;
@@ -520,27 +519,10 @@ public class QueryAnalyzerTests extends ESTestCase {
         assertThat(terms.get(0).bytes(), equalTo(termQuery1.getTerm().bytes()));
     }
 
-    public void testExtractQueryMetadata_commonTermsQuery() {
-        CommonTermsQuery commonTermsQuery = new CommonTermsQuery(BooleanClause.Occur.SHOULD, BooleanClause.Occur.SHOULD, 100);
-        commonTermsQuery.add(new Term("_field", "_term1"));
-        commonTermsQuery.add(new Term("_field", "_term2"));
-        Result result = analyze(commonTermsQuery, Version.CURRENT);
-        assertThat(result.verified, is(false));
-        assertThat(result.minimumShouldMatch, equalTo(1));
-        List<QueryExtraction> terms = new ArrayList<>(result.extractions);
-        terms.sort(Comparator.comparing(qt -> qt.term));
-        assertThat(terms.size(), equalTo(2));
-        assertThat(result.minimumShouldMatch, equalTo(1));
-        assertThat(terms.get(0).field(), equalTo("_field"));
-        assertThat(terms.get(0).text(), equalTo("_term1"));
-        assertThat(terms.get(1).field(), equalTo("_field"));
-        assertThat(terms.get(1).text(), equalTo("_term2"));
-    }
-
     public void testExtractQueryMetadata_blendedTermQuery() {
         Term[] termsArr = new Term[]{new Term("_field", "_term1"), new Term("_field", "_term2")};
-        BlendedTermQuery commonTermsQuery = BlendedTermQuery.dismaxBlendedQuery(termsArr, 1.0f);
-        Result result = analyze(commonTermsQuery, Version.CURRENT);
+        BlendedTermQuery blendedTermQuery = BlendedTermQuery.dismaxBlendedQuery(termsArr, 1.0f);
+        Result result = analyze(blendedTermQuery, Version.CURRENT);
         assertThat(result.verified, is(true));
         assertThat(result.minimumShouldMatch, equalTo(1));
         List<QueryAnalyzer.QueryExtraction> terms = new ArrayList<>(result.extractions);

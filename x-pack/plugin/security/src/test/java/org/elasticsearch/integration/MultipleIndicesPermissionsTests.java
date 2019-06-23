@@ -20,25 +20,29 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.client.security.PutUserRequest;
+import org.elasticsearch.client.security.RefreshPolicy;
+import org.elasticsearch.client.security.user.User;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSource;
-import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.junit.After;
 import org.junit.Before;
 
 import java.util.Collections;
+import java.util.List;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
-import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.BASIC_AUTH_HEADER;
-import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
+import static org.elasticsearch.test.SecuritySettingsSource.SECURITY_REQUEST_OPTIONS;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
-import static org.hamcrest.Matchers.is;
+import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.BASIC_AUTH_HEADER;
+import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.is;
 
 public class MultipleIndicesPermissionsTests extends SecurityIntegTestCase {
 
@@ -47,7 +51,9 @@ public class MultipleIndicesPermissionsTests extends SecurityIntegTestCase {
     @Before
     public void waitForSecurityIndexWritable() throws Exception {
         // adds a dummy user to the native realm to force .security index creation
-        securityClient().preparePutUser("dummy_user", "password".toCharArray(), Hasher.BCRYPT, "missing_role").get();
+        new TestRestHighLevelClient().security().putUser(
+            PutUserRequest.withPassword(new User("dummy_user", List.of("missing_role")), "password".toCharArray(), true,
+                RefreshPolicy.IMMEDIATE), SECURITY_REQUEST_OPTIONS);
         assertSecurityIndexActive();
     }
 

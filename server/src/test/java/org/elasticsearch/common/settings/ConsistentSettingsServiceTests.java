@@ -83,8 +83,8 @@ public class ConsistentSettingsServiceTests extends ESTestCase {
         // add two affix settings to the keystore
         MockSecureSettings secureSettings = new MockSecureSettings();
         secureSettings.setString("test.noise.setting", "noise");
-        secureSettings.setString("test.afix.first.bar", "first_secure");
-        secureSettings.setString("test.afix.second.bar", "second_secure");
+        secureSettings.setString("test.affix.first.bar", "first_secure");
+        secureSettings.setString("test.affix.second.bar", "second_secure");
         Settings.Builder builder = Settings.builder();
         builder.setSecureSettings(secureSettings);
         Settings settings = builder.build();
@@ -95,7 +95,7 @@ public class ConsistentSettingsServiceTests extends ESTestCase {
         ConsistentSettingsService consistentService = new ConsistentSettingsService(settings, clusterService, List.of(affixStringSetting));
         assertThat(consistentService.areAllConsistent(), is(true));
         // change value
-        secureSettings.setString("test.afix.second.bar", "_TYPO_second_secure");
+        secureSettings.setString("test.affix.second.bar", "_TYPO_second_secure");
         assertThat(consistentService.areAllConsistent(), is(false));
         assertThat(new ConsistentSettingsService(settings, clusterService, List.of(affixStringSetting)).areAllConsistent(), is(false));
         // publish change
@@ -103,7 +103,7 @@ public class ConsistentSettingsServiceTests extends ESTestCase {
         assertThat(consistentService.areAllConsistent(), is(true));
         assertThat(new ConsistentSettingsService(settings, clusterService, List.of(affixStringSetting)).areAllConsistent(), is(true));
         // add value
-        secureSettings.setString("test.afix.third.bar", "third_secure");
+        secureSettings.setString("test.affix.third.bar", "third_secure");
         builder = Settings.builder();
         builder.setSecureSettings(secureSettings);
         settings = builder.build();
@@ -114,9 +114,9 @@ public class ConsistentSettingsServiceTests extends ESTestCase {
         // remove value
         secureSettings = new MockSecureSettings();
         secureSettings.setString("test.another.noise.setting", "noise");
-        // missing value test.afix.first.bar
-        secureSettings.setString("test.afix.second.bar", "second_secure");
-        secureSettings.setString("test.afix.third.bar", "third_secure");
+        // missing value test.affix.first.bar
+        secureSettings.setString("test.affix.second.bar", "second_secure");
+        secureSettings.setString("test.affix.third.bar", "third_secure");
         builder = Settings.builder();
         builder.setSecureSettings(secureSettings);
         settings = builder.build();
@@ -125,12 +125,12 @@ public class ConsistentSettingsServiceTests extends ESTestCase {
 
     public void testStringAndAffixSettings() throws Exception {
         Setting<?> stringSetting = SecureSetting.secureString("mock.simple.foo", null, Setting.Property.Consistent);
-        Setting.AffixSetting<?> affixStringSetting = Setting.affixKeySetting("mock.afix.", "bar",
+        Setting.AffixSetting<?> affixStringSetting = Setting.affixKeySetting("mock.affix.", "bar",
                 (key) -> SecureSetting.secureString(key, null, Setting.Property.Consistent));
         MockSecureSettings secureSettings = new MockSecureSettings();
         secureSettings.setString(randomAlphaOfLength(8).toLowerCase(Locale.ROOT), "noise");
         secureSettings.setString(stringSetting.getKey(), "somethingsecure");
-        secureSettings.setString("mock.afix.foo.bar", "another_secure");
+        secureSettings.setString("mock.affix.foo.bar", "another_secure");
         Settings.Builder builder = Settings.builder();
         builder.setSecureSettings(secureSettings);
         Settings settings = builder.build();
@@ -155,6 +155,5 @@ public class ConsistentSettingsServiceTests extends ESTestCase {
         assertThat(new ConsistentSettingsService(settings, clusterService, List.of(affixStringSetting)).areAllConsistent(), is(true));
         assertThat(new ConsistentSettingsService(settings, clusterService, List.of(stringSetting, affixStringSetting)).areAllConsistent(),
                 is(true));
-
     }
 }

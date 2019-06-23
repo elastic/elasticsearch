@@ -40,95 +40,43 @@ public class ConsistentSettingsIT extends ESIntegTestCase {
     static final AffixSetting<SecureString> DUMMY_AFFIX_STRING_CONSISTENT_SETTING = Setting.affixKeySetting(
             "dummy.consistent.secure.string.affix.setting.", "suffix",
             key -> SecureSetting.secureString(key, null, Setting.Property.Consistent));
-    static final Setting<SecureString> EXTRA_DUMMY_STRING_CONSISTENT_SETTING = SecureSetting
-            .secureString("extra.dummy.consistent.secure.string.setting", null, Setting.Property.Consistent);
-    static final AffixSetting<SecureString> DUMMY_AFFIX_STRING_INCONSISTENT_SETTING = Setting.affixKeySetting(
-            "dummy.inconsistent.secure.string.affix.setting.", "suffix",
-            key -> SecureSetting.secureString(key, null));
     private final AtomicReference<Function<Integer, Settings>> nodeSettingsOverride = new AtomicReference<>(null);
 
-    public void testAllConsistentSuccess() throws Exception {
-        internalCluster().getInstances(Environment.class).forEach(environment -> {
-            ClusterService clusterService = internalCluster().getInstance(ClusterService.class);
-            assertTrue(new ConsistentSettingsService(environment.settings(), clusterService, Collections.emptyList()).areAllConsistent());
-            assertTrue(new ConsistentSettingsService(environment.settings(), clusterService,
-                    Collections.singletonList(DUMMY_STRING_CONSISTENT_SETTING)).areAllConsistent());
-            assertTrue(new ConsistentSettingsService(environment.settings(), clusterService,
-                    Collections.singletonList(DUMMY_AFFIX_STRING_CONSISTENT_SETTING)).areAllConsistent());
-            assertTrue(new ConsistentSettingsService(environment.settings(), clusterService,
-                    List.of(DUMMY_STRING_CONSISTENT_SETTING, DUMMY_AFFIX_STRING_CONSISTENT_SETTING)).areAllConsistent());
-        });
+    public void testAllConsistentOnAllNodesSuccess() throws Exception {
+        for (String nodeName : internalCluster().getNodeNames()) {
+            Environment environment = internalCluster().getInstance(Environment.class, nodeName);
+            ClusterService clusterService = internalCluster().getInstance(ClusterService.class, nodeName);
+            assertTrue("Empty settings list always consistent.",
+                    new ConsistentSettingsService(environment.settings(), clusterService, Collections.emptyList()).areAllConsistent());
+            assertTrue(
+                    "Simple consistent secure setting is consistent [" + clusterService.state().metaData().hashesOfConsistentSettings()
+                            + "].",
+                    new ConsistentSettingsService(environment.settings(), clusterService,
+                            Collections.singletonList(DUMMY_STRING_CONSISTENT_SETTING)).areAllConsistent());
+            assertTrue(
+                    "Affix consistent secure setting is consistent [" + clusterService.state().metaData().hashesOfConsistentSettings()
+                            + "].",
+                    new ConsistentSettingsService(environment.settings(), clusterService,
+                            Collections.singletonList(DUMMY_AFFIX_STRING_CONSISTENT_SETTING)).areAllConsistent());
+            assertTrue("All secure settings are consistent [" + clusterService.state().metaData().hashesOfConsistentSettings() + "].",
+                    new ConsistentSettingsService(environment.settings(), clusterService,
+                            List.of(DUMMY_STRING_CONSISTENT_SETTING, DUMMY_AFFIX_STRING_CONSISTENT_SETTING)).areAllConsistent());
+        }
     }
 
-    public void testAllConsistentFailForSimpleSetting() throws Exception {
+    public void testConsistencyFailures() throws Exception {
         nodeSettingsOverride.set(nodeOrdinal -> {
             Settings.Builder builder = Settings.builder().put(super.nodeSettings(nodeOrdinal));
             MockSecureSettings secureSettings = new MockSecureSettings();
-            // different value
-            secureSettings.setString("dummy.consistent.secure.string.setting", "DIFFERENT_VALUE");
-            secureSettings.setString("dummy.consistent.secure.string.affix.setting." + "affix1" + ".suffix", "affix_value_1");
-            secureSettings.setString("dummy.consistent.secure.string.affix.setting." + "affix2" + ".suffix", "affix_value_2");
-            assert builder.getSecureSettings() == null : "Deal with the settings merge";
-            builder.setSecureSettings(secureSettings);
-            return builder.build();
-        });
-        String newNodeName = internalCluster().startNode();
-        Environment environment = internalCluster().getInstance(Environment.class, newNodeName);
-        ClusterService clusterService = internalCluster().getInstance(ClusterService.class, newNodeName);
-        assertTrue(new ConsistentSettingsService(environment.settings(), clusterService, Collections.emptyList()).areAllConsistent());
-        assertFalse(new ConsistentSettingsService(environment.settings(), clusterService,
-                Collections.singletonList(DUMMY_STRING_CONSISTENT_SETTING)).areAllConsistent());
-        assertTrue(new ConsistentSettingsService(environment.settings(), clusterService,
-                Collections.singletonList(DUMMY_AFFIX_STRING_CONSISTENT_SETTING)).areAllConsistent());
-        assertFalse(new ConsistentSettingsService(environment.settings(), clusterService,
-                List.of(DUMMY_STRING_CONSISTENT_SETTING, DUMMY_AFFIX_STRING_CONSISTENT_SETTING)).areAllConsistent());
-        nodeSettingsOverride.set(null);
-        newNodeName = internalCluster().startNode();
-        environment = internalCluster().getInstance(Environment.class, newNodeName);
-        clusterService = internalCluster().getInstance(ClusterService.class, newNodeName);
-        assertTrue(new ConsistentSettingsService(environment.settings(), clusterService, Collections.emptyList()).areAllConsistent());
-        assertTrue(new ConsistentSettingsService(environment.settings(), clusterService,
-                Collections.singletonList(DUMMY_STRING_CONSISTENT_SETTING)).areAllConsistent());
-        assertTrue(new ConsistentSettingsService(environment.settings(), clusterService,
-                Collections.singletonList(DUMMY_AFFIX_STRING_CONSISTENT_SETTING)).areAllConsistent());
-        assertTrue(new ConsistentSettingsService(environment.settings(), clusterService,
-                List.of(DUMMY_STRING_CONSISTENT_SETTING, DUMMY_AFFIX_STRING_CONSISTENT_SETTING)).areAllConsistent());
-        nodeSettingsOverride.set(nodeOrdinal -> {
-            Settings.Builder builder = Settings.builder().put(super.nodeSettings(nodeOrdinal));
-            MockSecureSettings secureSettings = new MockSecureSettings();
-            // missing value
-            // secureSettings.setString("dummy.consistent.secure.string.setting", "string_value");
-            secureSettings.setString("dummy.consistent.secure.string.affix.setting." + "affix1" + ".suffix", "affix_value_1");
-            secureSettings.setString("dummy.consistent.secure.string.affix.setting." + "affix2" + ".suffix", "affix_value_2");
-            assert builder.getSecureSettings() == null : "Deal with the settings merge";
-            builder.setSecureSettings(secureSettings);
-            return builder.build();
-        });
-        newNodeName = internalCluster().startNode();
-        environment = internalCluster().getInstance(Environment.class, newNodeName);
-        clusterService = internalCluster().getInstance(ClusterService.class, newNodeName);
-        assertTrue(new ConsistentSettingsService(environment.settings(), clusterService, Collections.emptyList()).areAllConsistent());
-        assertFalse(new ConsistentSettingsService(environment.settings(), clusterService,
-                Collections.singletonList(DUMMY_STRING_CONSISTENT_SETTING)).areAllConsistent());
-        assertTrue(new ConsistentSettingsService(environment.settings(), clusterService,
-                Collections.singletonList(DUMMY_AFFIX_STRING_CONSISTENT_SETTING)).areAllConsistent());
-        assertFalse(new ConsistentSettingsService(environment.settings(), clusterService,
-                List.of(DUMMY_STRING_CONSISTENT_SETTING, DUMMY_AFFIX_STRING_CONSISTENT_SETTING)).areAllConsistent());
-        nodeSettingsOverride.set(null);
-    }
-
-    public void testAllConsistentFailForAffixSetting() throws Exception {
-        nodeSettingsOverride.set(nodeOrdinal -> {
-            Settings.Builder builder = Settings.builder().put(super.nodeSettings(nodeOrdinal));
-            MockSecureSettings secureSettings = new MockSecureSettings();
-            secureSettings.setString("dummy.consistent.secure.string.setting", "string_value");
             if (randomBoolean()) {
-                secureSettings.setString("dummy.consistent.secure.string.affix.setting." + "affix1" + ".suffix", "affix_value_1");
-                secureSettings.setString("dummy.consistent.secure.string.affix.setting." + "affix2" + ".suffix", "DIFFERENT_VALUE");
+                // different value
+                secureSettings.setString("dummy.consistent.secure.string.setting", "DIFFERENT_VALUE");
             } else {
-                secureSettings.setString("dummy.consistent.secure.string.affix.setting." + "affix1" + ".suffix", "DIFFERENT_VALUE_1");
-                secureSettings.setString("dummy.consistent.secure.string.affix.setting." + "affix2" + ".suffix", "DIFFERENT_VALUE_2");
+                // missing value
+                // secureSettings.setString("dummy.consistent.secure.string.setting", "string_value");
             }
+            secureSettings.setString("dummy.consistent.secure.string.affix.setting." + "affix1" + ".suffix", "affix_value_1");
+            secureSettings.setString("dummy.consistent.secure.string.affix.setting." + "affix2" + ".suffix", "affix_value_2");
             assert builder.getSecureSettings() == null : "Deal with the settings merge";
             builder.setSecureSettings(secureSettings);
             return builder.build();
@@ -136,35 +84,42 @@ public class ConsistentSettingsIT extends ESIntegTestCase {
         String newNodeName = internalCluster().startNode();
         Environment environment = internalCluster().getInstance(Environment.class, newNodeName);
         ClusterService clusterService = internalCluster().getInstance(ClusterService.class, newNodeName);
-        assertTrue(new ConsistentSettingsService(environment.settings(), clusterService, Collections.emptyList()).areAllConsistent());
-        assertTrue(new ConsistentSettingsService(environment.settings(), clusterService,
-                Collections.singletonList(DUMMY_STRING_CONSISTENT_SETTING)).areAllConsistent());
-        assertFalse(new ConsistentSettingsService(environment.settings(), clusterService,
-                Collections.singletonList(DUMMY_AFFIX_STRING_CONSISTENT_SETTING)).areAllConsistent());
-        assertFalse(new ConsistentSettingsService(environment.settings(), clusterService,
-                List.of(DUMMY_STRING_CONSISTENT_SETTING, DUMMY_AFFIX_STRING_CONSISTENT_SETTING)).areAllConsistent());
-        nodeSettingsOverride.set(null);
-        newNodeName = internalCluster().startNode();
-        environment = internalCluster().getInstance(Environment.class, newNodeName);
-        clusterService = internalCluster().getInstance(ClusterService.class, newNodeName);
-        assertTrue(new ConsistentSettingsService(environment.settings(), clusterService, Collections.emptyList()).areAllConsistent());
-        assertTrue(new ConsistentSettingsService(environment.settings(), clusterService,
-                Collections.singletonList(DUMMY_STRING_CONSISTENT_SETTING)).areAllConsistent());
-        assertTrue(new ConsistentSettingsService(environment.settings(), clusterService,
-                Collections.singletonList(DUMMY_AFFIX_STRING_CONSISTENT_SETTING)).areAllConsistent());
-        assertTrue(new ConsistentSettingsService(environment.settings(), clusterService,
-                List.of(DUMMY_STRING_CONSISTENT_SETTING, DUMMY_AFFIX_STRING_CONSISTENT_SETTING)).areAllConsistent());
+        assertTrue("Empty settings list always consistent.",
+                new ConsistentSettingsService(environment.settings(), clusterService, Collections.emptyList()).areAllConsistent());
+        assertFalse(
+                "Simple consistent secure setting is NOT consistent [" + clusterService.state().metaData().hashesOfConsistentSettings()
+                        + "].",
+                new ConsistentSettingsService(environment.settings(), clusterService,
+                        Collections.singletonList(DUMMY_STRING_CONSISTENT_SETTING)).areAllConsistent());
+        assertTrue(
+                "Affix consistent secure setting is consistent [" + clusterService.state().metaData().hashesOfConsistentSettings()
+                        + "].",
+                new ConsistentSettingsService(environment.settings(), clusterService,
+                        Collections.singletonList(DUMMY_AFFIX_STRING_CONSISTENT_SETTING)).areAllConsistent());
+        assertFalse("All secure settings are NOT consistent [" + clusterService.state().metaData().hashesOfConsistentSettings() + "].",
+                new ConsistentSettingsService(environment.settings(), clusterService,
+                        List.of(DUMMY_STRING_CONSISTENT_SETTING, DUMMY_AFFIX_STRING_CONSISTENT_SETTING)).areAllConsistent());
         nodeSettingsOverride.set(nodeOrdinal -> {
             Settings.Builder builder = Settings.builder().put(super.nodeSettings(nodeOrdinal));
             MockSecureSettings secureSettings = new MockSecureSettings();
             secureSettings.setString("dummy.consistent.secure.string.setting", "string_value");
-            // missing value
             if (randomBoolean()) {
                 secureSettings.setString("dummy.consistent.secure.string.affix.setting." + "affix1" + ".suffix", "affix_value_1");
-                // missing dummy.consistent.secure.string.affix.setting.affix2.suffix"
+                if (randomBoolean()) {
+                    secureSettings.setString("dummy.consistent.secure.string.affix.setting." + "affix2" + ".suffix", "DIFFERENT_VALUE");
+                } else {
+                    // missing value
+                    // "dummy.consistent.secure.string.affix.setting.affix2.suffix"
+                }
             } else {
-                // missing dummy.consistent.secure.string.affix.setting.affix1.suffix
-                // missing dummy.consistent.secure.string.affix.setting.affix2.suffix
+                if (randomBoolean()) {
+                    secureSettings.setString("dummy.consistent.secure.string.affix.setting." + "affix1" + ".suffix", "DIFFERENT_VALUE_1");
+                    secureSettings.setString("dummy.consistent.secure.string.affix.setting." + "affix2" + ".suffix", "DIFFERENT_VALUE_2");
+                } else {
+                    // missing values
+                    // dummy.consistent.secure.string.affix.setting.affix1.suffix
+                    // dummy.consistent.secure.string.affix.setting.affix2.suffix
+                }
             }
             assert builder.getSecureSettings() == null : "Deal with the settings merge";
             builder.setSecureSettings(secureSettings);
@@ -173,73 +128,21 @@ public class ConsistentSettingsIT extends ESIntegTestCase {
         newNodeName = internalCluster().startNode();
         environment = internalCluster().getInstance(Environment.class, newNodeName);
         clusterService = internalCluster().getInstance(ClusterService.class, newNodeName);
-        assertTrue(new ConsistentSettingsService(environment.settings(), clusterService, Collections.emptyList()).areAllConsistent());
-        assertTrue(new ConsistentSettingsService(environment.settings(), clusterService,
-                Collections.singletonList(DUMMY_STRING_CONSISTENT_SETTING)).areAllConsistent());
-        assertFalse(new ConsistentSettingsService(environment.settings(), clusterService,
-                Collections.singletonList(DUMMY_AFFIX_STRING_CONSISTENT_SETTING)).areAllConsistent());
-        assertFalse(new ConsistentSettingsService(environment.settings(), clusterService,
-                List.of(DUMMY_STRING_CONSISTENT_SETTING, DUMMY_AFFIX_STRING_CONSISTENT_SETTING)).areAllConsistent());
-        nodeSettingsOverride.set(null);
-    }
-
-    public void testAllConsistentAffixFailWithExtra() throws Exception {
-        nodeSettingsOverride.set(nodeOrdinal -> {
-            Settings.Builder builder = Settings.builder().put(super.nodeSettings(nodeOrdinal));
-            MockSecureSettings secureSettings = new MockSecureSettings();
-            secureSettings.setString("dummy.consistent.secure.string.setting", "string_value");
-            secureSettings.setString("extra.dummy.consistent.secure.string.setting", "extra_string_value");
-            secureSettings.setString("dummy.consistent.secure.string.affix.setting." + "affix1" + ".suffix", "affix_value_1");
-            secureSettings.setString("dummy.consistent.secure.string.affix.setting." + "affix2" + ".suffix", "affix_value_2");
-            assert builder.getSecureSettings() == null : "Deal with the settings merge";
-            builder.setSecureSettings(secureSettings);
-            return builder.build();
-        });
-        String newNodeName = internalCluster().startNode();
-        Environment environment = internalCluster().getInstance(Environment.class, newNodeName);
-        ClusterService clusterService = internalCluster().getInstance(ClusterService.class, newNodeName);
-        assertTrue(new ConsistentSettingsService(environment.settings(), clusterService, Collections.emptyList()).areAllConsistent());
-        assertTrue(new ConsistentSettingsService(environment.settings(), clusterService,
-                Collections.singletonList(DUMMY_STRING_CONSISTENT_SETTING)).areAllConsistent());
-        assertTrue(new ConsistentSettingsService(environment.settings(), clusterService,
-                Collections.singletonList(DUMMY_AFFIX_STRING_CONSISTENT_SETTING)).areAllConsistent());
-        assertFalse(new ConsistentSettingsService(environment.settings(), clusterService,
-                Collections.singletonList(EXTRA_DUMMY_STRING_CONSISTENT_SETTING)).areAllConsistent());
-        assertFalse(new ConsistentSettingsService(environment.settings(), clusterService,
-                List.of(DUMMY_STRING_CONSISTENT_SETTING, DUMMY_AFFIX_STRING_CONSISTENT_SETTING, EXTRA_DUMMY_STRING_CONSISTENT_SETTING))
-                        .areAllConsistent());
-        nodeSettingsOverride.set(null);
-        newNodeName = internalCluster().startNode();
-        environment = internalCluster().getInstance(Environment.class, newNodeName);
-        clusterService = internalCluster().getInstance(ClusterService.class, newNodeName);
-        assertTrue(new ConsistentSettingsService(environment.settings(), clusterService, Collections.emptyList()).areAllConsistent());
-        assertTrue(new ConsistentSettingsService(environment.settings(), clusterService,
-                Collections.singletonList(DUMMY_STRING_CONSISTENT_SETTING)).areAllConsistent());
-        assertTrue(new ConsistentSettingsService(environment.settings(), clusterService,
-                Collections.singletonList(DUMMY_AFFIX_STRING_CONSISTENT_SETTING)).areAllConsistent());
-        assertTrue(new ConsistentSettingsService(environment.settings(), clusterService,
-                List.of(DUMMY_STRING_CONSISTENT_SETTING, DUMMY_AFFIX_STRING_CONSISTENT_SETTING)).areAllConsistent());
-        nodeSettingsOverride.set(nodeOrdinal -> {
-            Settings.Builder builder = Settings.builder().put(super.nodeSettings(nodeOrdinal));
-            MockSecureSettings secureSettings = new MockSecureSettings();
-            secureSettings.setString("dummy.consistent.secure.string.setting", "string_value");
-            secureSettings.setString("dummy.consistent.secure.string.affix.setting." + "affix1" + ".suffix", "affix_value_1");
-            secureSettings.setString("dummy.consistent.secure.string.affix.setting." + "affix2" + ".suffix", "affix_value_2");
-            secureSettings.setString("dummy.consistent.secure.string.affix.setting." + "affix_extra" + ".suffix", "extra_affix_value");
-            assert builder.getSecureSettings() == null : "Deal with the settings merge";
-            builder.setSecureSettings(secureSettings);
-            return builder.build();
-        });
-        newNodeName = internalCluster().startNode();
-        environment = internalCluster().getInstance(Environment.class, newNodeName);
-        clusterService = internalCluster().getInstance(ClusterService.class, newNodeName);
-        assertTrue(new ConsistentSettingsService(environment.settings(), clusterService, Collections.emptyList()).areAllConsistent());
-        assertTrue(new ConsistentSettingsService(environment.settings(), clusterService,
-                Collections.singletonList(DUMMY_STRING_CONSISTENT_SETTING)).areAllConsistent());
-        assertFalse(new ConsistentSettingsService(environment.settings(), clusterService,
-                Collections.singletonList(DUMMY_AFFIX_STRING_CONSISTENT_SETTING)).areAllConsistent());
-        assertFalse(new ConsistentSettingsService(environment.settings(), clusterService,
-                List.of(DUMMY_STRING_CONSISTENT_SETTING, DUMMY_AFFIX_STRING_CONSISTENT_SETTING)).areAllConsistent());
+        assertTrue("Empty settings list always consistent.",
+                new ConsistentSettingsService(environment.settings(), clusterService, Collections.emptyList()).areAllConsistent());
+        assertTrue(
+                "Simple consistent secure setting is consistent [" + clusterService.state().metaData().hashesOfConsistentSettings()
+                        + "].",
+                new ConsistentSettingsService(environment.settings(), clusterService,
+                        Collections.singletonList(DUMMY_STRING_CONSISTENT_SETTING)).areAllConsistent());
+        assertFalse(
+                "Affix consistent secure setting is NOT consistent [" + clusterService.state().metaData().hashesOfConsistentSettings()
+                        + "].",
+                new ConsistentSettingsService(environment.settings(), clusterService,
+                        Collections.singletonList(DUMMY_AFFIX_STRING_CONSISTENT_SETTING)).areAllConsistent());
+        assertFalse("All secure settings are NOT consistent [" + clusterService.state().metaData().hashesOfConsistentSettings() + "].",
+                new ConsistentSettingsService(environment.settings(), clusterService,
+                        List.of(DUMMY_STRING_CONSISTENT_SETTING, DUMMY_AFFIX_STRING_CONSISTENT_SETTING)).areAllConsistent());
         nodeSettingsOverride.set(null);
     }
 
@@ -257,8 +160,6 @@ public class ConsistentSettingsIT extends ESIntegTestCase {
         secureSettings.setString("dummy.consistent.secure.string.setting", "string_value");
         secureSettings.setString("dummy.consistent.secure.string.affix.setting." + "affix1" + ".suffix", "affix_value_1");
         secureSettings.setString("dummy.consistent.secure.string.affix.setting." + "affix2" + ".suffix", "affix_value_2");
-        // this is "inconsistent" hence it can differ from node to node
-        secureSettings.setString("dummy.inconsistent.secure.string.affix.setting." + "affix1" + ".suffix", "affix_value_" + nodeOrdinal);
         assert builder.getSecureSettings() == null : "Deal with the settings merge";
         builder.setSecureSettings(secureSettings);
         return builder.build();
@@ -281,8 +182,6 @@ public class ConsistentSettingsIT extends ESIntegTestCase {
             List<Setting<?>> settings = new ArrayList<>(super.getSettings());
             settings.add(DUMMY_STRING_CONSISTENT_SETTING);
             settings.add(DUMMY_AFFIX_STRING_CONSISTENT_SETTING);
-            settings.add(DUMMY_AFFIX_STRING_INCONSISTENT_SETTING);
-            settings.add(EXTRA_DUMMY_STRING_CONSISTENT_SETTING);
             return settings;
         }
     }

@@ -124,7 +124,6 @@ integTest.runner {
 testClusters.integTest {
   distribution = "DEFAULT"
   systemProperty 'es.scripting.update.ctx_in_params', 'false'
-  systemProperty 'es.rest.url_plus_as_space', 'false'
   setting 'reindex.remote.whitelist', '[ "[::1]:*", "127.0.0.1:*" ]'
   setting 'xpack.license.self_generated.type', 'trial'
   setting 'xpack.security.enabled', 'true'

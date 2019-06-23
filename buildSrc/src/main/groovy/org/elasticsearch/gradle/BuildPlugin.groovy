@@ -823,8 +823,6 @@ class BuildPlugin implements Plugin<Project> {
                 test.jvmArgumentProviders.add(nonInputProperties)
                 test.extensions.add('nonInputProperties', nonInputProperties)
 
-                test.systemProperty 'es.rest.url_plus_as_space', 'false'
-
                 test.executable = "${ext.get('runtimeJavaHome')}/bin/java"
                 test.workingDir = project.file("${project.buildDir}/testrun/${test.name}")
                 test.maxParallelForks = project.rootProject.extensions.getByType(ExtraPropertiesExtension).get('defaultParallel') as Integer

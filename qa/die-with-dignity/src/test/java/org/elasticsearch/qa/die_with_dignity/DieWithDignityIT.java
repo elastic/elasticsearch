@@ -21,7 +21,6 @@ package org.elasticsearch.qa.die_with_dignity;
 
 import org.apache.http.ConnectionClosedException;
 import org.apache.lucene.util.Constants;
-import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.test.rest.ESRestTestCase;

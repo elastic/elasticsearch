@@ -352,7 +352,7 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
         final Repository repository = snapshotsService.getRepositoriesService().repository(snapshot.getRepository());
         // we flush first to make sure we get the latest writes snapshotted
         repository.snapshotShard(indexShard.mapperService(), snapshot.getSnapshotId(), indexId,
-            ShardSnapshotContext.create(indexShard, snapshotStatus, listener));
+            new ShardSnapshotContext(indexShard, snapshotStatus, listener));
     }
 
     /**

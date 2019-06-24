@@ -49,6 +49,27 @@ public class ShardSnapshotContext {
 
     private SetOnce<IndexCommit> indexCommit = new SetOnce<>();
 
+    public ShardSnapshotContext(IndexShard indexShard, IndexShardSnapshotStatus snapshotStatus, ActionListener<Void> listener) {
+        this(indexShard.store(), listener, snapshotStatus, new IndexCommitProvider() {
+            private Engine.IndexCommitRef snapshotRef;
+
+            @Override
+            public IndexCommit get() {
+                if (snapshotRef == null) {
+                    snapshotRef = indexShard.acquireLastIndexCommit(true);
+                }
+                return snapshotRef.getIndexCommit();
+            }
+
+            @Override
+            public void close() throws IOException {
+                if (snapshotRef != null) {
+                    snapshotRef.close();
+                }
+            }
+        });
+    }
+
     public ShardSnapshotContext(Store store, ActionListener<Void> listener, IndexShardSnapshotStatus status,
                                 IndexCommitProvider indexCommitProvider) {
         this.store = store;
@@ -137,27 +158,5 @@ public class ShardSnapshotContext {
     }
 
     public interface IndexCommitProvider extends Closeable, CheckedSupplier<IndexCommit, IOException> {
-    }
-
-    public static ShardSnapshotContext create(IndexShard indexShard, IndexShardSnapshotStatus snapshotStatus,
-                                              ActionListener<Void> listener) {
-        return new ShardSnapshotContext(indexShard.store(), listener, snapshotStatus, new IndexCommitProvider() {
-            private Engine.IndexCommitRef snapshotRef;
-
-            @Override
-            public void close() throws IOException {
-                if (snapshotRef != null) {
-                    snapshotRef.close();
-                }
-            }
-
-            @Override
-            public IndexCommit get() throws IOException {
-                if (snapshotRef == null) {
-                    snapshotRef = indexShard.acquireLastIndexCommit(true);
-                }
-                return snapshotRef.getIndexCommit();
-            }
-        });
     }
 }

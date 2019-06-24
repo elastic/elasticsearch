@@ -829,7 +829,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
         IndexId indexId = new IndexId(index.getName(), index.getUUID());
         final PlainActionFuture<Void> future = PlainActionFuture.newFuture();
         repository.snapshotShard(shard.mapperService(), snapshot.getSnapshotId(), indexId,
-            ShardSnapshotContext.create(shard, snapshotStatus, future));
+            new ShardSnapshotContext(shard, snapshotStatus, future));
         future.actionGet();
 
         final IndexShardSnapshotStatus.Copy lastSnapshotStatus = snapshotStatus.asCopy();

@@ -14,7 +14,7 @@ setup:
             {
               "cluster": [ "monitor" ],
               "indices": [
-                { "names": ["this*", "index_to_monitor"], "privileges": ["monitor", "indices:admin/get"] }
+                { "names": ["this*", "index_to_monitor"], "privileges": ["monitor"] }
               ]
             }
 

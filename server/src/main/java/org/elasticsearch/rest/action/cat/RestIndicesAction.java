@@ -19,24 +19,25 @@
 
 package org.elasticsearch.rest.action.cat;
 
+import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.StepListener;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
-import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
-import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
+import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest;
+import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.admin.indices.stats.CommonStats;
 import org.elasticsearch.action.admin.indices.stats.IndexStats;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
+import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.health.ClusterIndexHealth;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Table;
 import org.elasticsearch.common.settings.Settings;
@@ -52,12 +53,15 @@ import java.time.Instant;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
-import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.action.support.master.MasterNodeRequest.DEFAULT_MASTER_NODE_TIMEOUT;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
@@ -99,64 +103,45 @@ public class RestIndicesAction extends AbstractCatAction {
                 }
             });
 
-            final StepListener<Map<String, Settings>> step1 = new StepListener<>();
-            sendGetIndicesRequest(indices, indicesOptions, local, masterNodeTimeout, client, step1);
+            sendGetSettingsRequest(indices, indicesOptions, local, masterNodeTimeout, client, new ActionListener<>() {
+                @Override
+                public void onResponse(final GetSettingsResponse getSettingsResponse) {
+                    final String[] concreteIndices = new String[getSettingsResponse.getIndexToSettings().size()];
+                    int i = 0;
+                    for(ObjectObjectCursor<String, Settings> cursor : getSettingsResponse.getIndexToSettings()) {
+                        concreteIndices[i++] = cursor.key;
+                    }
 
-            final StepListener<Map<String, ClusterIndexHealth>> step2 = new StepListener<>();
-            step1.whenComplete(indicesSettings -> {
-                String[] concreteIndices = indicesSettings.keySet().toArray(Strings.EMPTY_ARRAY);
-                sendClusterHealthRequest(concreteIndices, indicesOptions, local, masterNodeTimeout, client, step2);
-            }, listener::onFailure);
+                    final GroupedActionListener<ActionResponse> groupedListener = createGroupedListener(request, 4, listener);
+                    groupedListener.onResponse(getSettingsResponse);
 
-            final StepListener<Map<String, IndexStats>> step3 = new StepListener<>();
-            step2.whenComplete(indicesHealths -> {
-                String[] concreteIndices = indicesHealths.keySet().toArray(Strings.EMPTY_ARRAY);
-                sendIndicesStatsRequest(concreteIndices, indicesOptions, includeUnloadedSegments, client, step3);
-            }, listener::onFailure);
+                    sendIndicesStatsRequest(concreteIndices, indicesOptions, includeUnloadedSegments, client, groupedListener);
+                    sendClusterStateRequest(concreteIndices, indicesOptions, local, masterNodeTimeout, client, groupedListener);
+                    sendClusterHealthRequest(concreteIndices, indicesOptions, local, masterNodeTimeout, client, groupedListener);
+                }
 
-            final StepListener<Map<String, IndexMetaData>> step4 = new StepListener<>();
-            step3.whenComplete(indicesStats -> {
-                String[] concreteIndices = indicesStats.keySet().toArray(Strings.EMPTY_ARRAY);
-                sendClusterStateRequest(concreteIndices, indicesOptions, local, masterNodeTimeout, client, step4);
-            }, listener::onFailure);
-
-            step4.whenComplete(indicesMetaDatas -> {
-                final Map<String, Settings> indicesSettings = step1.result();
-                final Map<String, ClusterIndexHealth> indicesHealths = step2.result();
-                final Map<String, IndexStats> indicesStats = step3.result();
-
-                listener.onResponse(buildTable(request, indicesSettings, indicesHealths, indicesStats, indicesMetaDatas));
-            }, listener::onFailure);
+                @Override
+                public void onFailure(final Exception e) {
+                    listener.onFailure(e);
+                }
+            });
         };
     }
 
-    private void sendGetIndicesRequest(final String[] indices,
-                                       final IndicesOptions indicesOptions,
-                                       final boolean local,
-                                       final TimeValue masterNodeTimeout,
-                                       final NodeClient client,
-                                       final ActionListener<Map<String, Settings>> listener) {
-        final GetIndexRequest request = new GetIndexRequest();
+    private void sendGetSettingsRequest(final String[] indices,
+                                        final IndicesOptions indicesOptions,
+                                        final boolean local,
+                                        final TimeValue masterNodeTimeout,
+                                        final NodeClient client,
+                                        final ActionListener<GetSettingsResponse> listener) {
+        final GetSettingsRequest request = new GetSettingsRequest();
         request.indices(indices);
         request.indicesOptions(indicesOptions);
         request.local(local);
         request.masterNodeTimeout(masterNodeTimeout);
-        request.includeDefaults(false);
-        request.features(GetIndexRequest.Feature.SETTINGS);
+        request.names(IndexSettings.INDEX_SEARCH_THROTTLED.getKey());
 
-        client.admin().indices().getIndex(request, new ActionListener<>() {
-            @Override
-            public void onResponse(final GetIndexResponse response) {
-                final Map<String, Settings> indexSettings = new LinkedHashMap<>(indices.length);
-                response.getSettings().forEach(index -> indexSettings.put(index.key, index.value));
-                listener.onResponse(Collections.unmodifiableMap(indexSettings));
-            }
-
-            @Override
-            public void onFailure(final Exception e) {
-                listener.onFailure(e);
-            }
-        });
+        client.admin().indices().getSettings(request, listener);
     }
 
     private void sendClusterStateRequest(final String[] indices,
@@ -164,7 +149,7 @@ public class RestIndicesAction extends AbstractCatAction {
                                          final boolean local,
                                          final TimeValue masterNodeTimeout,
                                          final NodeClient client,
-                                         final ActionListener<Map<String, IndexMetaData>> listener) {
+                                         final GroupedActionListener<ActionResponse> listener) {
 
         final ClusterStateRequest request = new ClusterStateRequest();
         request.indices(indices);
@@ -175,14 +160,7 @@ public class RestIndicesAction extends AbstractCatAction {
         client.admin().cluster().state(request, new ActionListener<>() {
             @Override
             public void onResponse(final ClusterStateResponse response) {
-                final MetaData metaData = response.getState().getMetaData();
-                final LinkedHashMap<String, IndexMetaData> results = new LinkedHashMap<>();
-                for (String index : indices) {
-                    if (metaData.hasIndex(index)) {
-                        results.put(index, metaData.index(index));
-                    }
-                }
-                listener.onResponse(results);
+                listener.onResponse(response);
             }
 
             @Override
@@ -197,7 +175,7 @@ public class RestIndicesAction extends AbstractCatAction {
                                           final boolean local,
                                           final TimeValue masterNodeTimeout,
                                           final NodeClient client,
-                                          final ActionListener<Map<String, ClusterIndexHealth>> listener) {
+                                          final GroupedActionListener<ActionResponse> listener) {
 
         final ClusterHealthRequest request = new ClusterHealthRequest();
         request.indices(indices);
@@ -208,11 +186,7 @@ public class RestIndicesAction extends AbstractCatAction {
         client.admin().cluster().health(request, new ActionListener<>() {
             @Override
             public void onResponse(final ClusterHealthResponse response) {
-                final LinkedHashMap<String, ClusterIndexHealth> results = new LinkedHashMap<>();
-                for (String index : indices) {
-                    results.put(index, response.getIndices().get(index));
-                }
-                listener.onResponse(results);
+                listener.onResponse(response);
             }
 
             @Override
@@ -226,7 +200,7 @@ public class RestIndicesAction extends AbstractCatAction {
                                          final IndicesOptions indicesOptions,
                                          final boolean includeUnloadedSegments,
                                          final NodeClient client,
-                                         final ActionListener<Map<String, IndexStats>> listener) {
+                                         final GroupedActionListener<ActionResponse> listener) {
 
         final IndicesStatsRequest request = new IndicesStatsRequest();
         request.indices(indices);
@@ -237,11 +211,7 @@ public class RestIndicesAction extends AbstractCatAction {
         client.admin().indices().stats(request, new ActionListener<>() {
             @Override
             public void onResponse(final IndicesStatsResponse response) {
-                final LinkedHashMap<String, IndexStats> results = new LinkedHashMap<>();
-                for (String index : indices) {
-                    results.put(index, response.getIndex(index));
-                }
-                listener.onResponse(results);
+                listener.onResponse(response);
             }
 
             @Override
@@ -249,6 +219,35 @@ public class RestIndicesAction extends AbstractCatAction {
                 listener.onFailure(e);
             }
         });
+    }
+
+    private GroupedActionListener<ActionResponse> createGroupedListener(final RestRequest request, final int size,
+                                                                        final ActionListener<Table> listener) {
+        return new GroupedActionListener<>(new ActionListener<>() {
+            @Override
+            public void onResponse(final Collection<ActionResponse> responses) {
+                GetSettingsResponse settingsResponse = extractResponse(responses, GetSettingsResponse.class);
+                Map<String, Settings> indicesSettings = StreamSupport.stream(settingsResponse.getIndexToSettings().spliterator(), false)
+                    .collect(Collectors.toMap(cursor -> cursor.key, cursor -> cursor.value));
+
+                ClusterStateResponse stateResponse = extractResponse(responses, ClusterStateResponse.class);
+                Map<String, IndexMetaData> indicesStates = StreamSupport.stream(stateResponse.getState().getMetaData().spliterator(), false)
+                    .collect(Collectors.toMap(indexMetaData -> indexMetaData.getIndex().getName(), Function.identity()));
+
+                ClusterHealthResponse healthResponse = extractResponse(responses, ClusterHealthResponse.class);
+                Map<String, ClusterIndexHealth> indicesHealths = healthResponse.getIndices();
+
+                IndicesStatsResponse statsResponse = extractResponse(responses, IndicesStatsResponse.class);
+                Map<String, IndexStats> indicesStats = statsResponse.getIndices();
+
+                listener.onResponse(buildTable(request, indicesSettings, indicesHealths, indicesStats, indicesStates));
+            }
+
+            @Override
+            public void onFailure(final Exception e) {
+                listener.onFailure(e);
+            }
+        }, size);
     }
 
     private static final Set<String> RESPONSE_PARAMS;
@@ -770,5 +769,10 @@ public class RestIndicesAction extends AbstractCatAction {
         });
 
         return table;
+    }
+
+    @SuppressWarnings("unchecked")
+    private static <A extends ActionResponse> A extractResponse(final Collection<? extends ActionResponse> responses, Class<A> c) {
+        return (A) responses.stream().filter(c::isInstance).findFirst().get();
     }
 }

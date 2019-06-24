@@ -72,7 +72,7 @@ public class NativeAutodetectProcessFactory implements AutodetectProcessFactory 
         AutodetectStateProcessor stateProcessor = new AutodetectStateProcessor(client, job.getId());
         ProcessResultsParser<AutodetectResult> resultsParser = new ProcessResultsParser<>(AutodetectResult.PARSER);
         NativeAutodetectProcess autodetect = new NativeAutodetectProcess(
-                job.getId(), processPipes.getLogStream().get(), processPipes.getProcessInStream().get(),
+                job.getId(), nativeController, processPipes.getLogStream().get(), processPipes.getProcessInStream().get(),
                 processPipes.getProcessOutStream().get(), processPipes.getRestoreStream().orElse(null), numberOfFields,
                 filesToDelete, resultsParser, onProcessCrash);
         try {

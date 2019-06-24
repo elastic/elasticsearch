@@ -210,9 +210,11 @@ import org.elasticsearch.xpack.ml.job.process.normalizer.NativeNormalizerProcess
 import org.elasticsearch.xpack.ml.job.process.normalizer.NormalizerFactory;
 import org.elasticsearch.xpack.ml.job.process.normalizer.NormalizerProcessFactory;
 import org.elasticsearch.xpack.ml.notifications.Auditor;
+import org.elasticsearch.xpack.ml.process.DummyController;
+import org.elasticsearch.xpack.ml.process.MlController;
+import org.elasticsearch.xpack.ml.process.MlControllerHolder;
 import org.elasticsearch.xpack.ml.process.MlMemoryTracker;
 import org.elasticsearch.xpack.ml.process.NativeController;
-import org.elasticsearch.xpack.ml.process.NativeControllerHolder;
 import org.elasticsearch.xpack.ml.process.NativeStorageProvider;
 import org.elasticsearch.xpack.ml.rest.RestDeleteExpiredDataAction;
 import org.elasticsearch.xpack.ml.rest.RestFindFileStructureAction;
@@ -462,16 +464,13 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
 
         NativeStorageProvider nativeStorageProvider = new NativeStorageProvider(environment, MIN_DISK_SPACE_OFF_HEAP.get(settings));
 
+        MlController mlController;
         AutodetectProcessFactory autodetectProcessFactory;
         NormalizerProcessFactory normalizerProcessFactory;
         AnalyticsProcessFactory analyticsProcessFactory;
-        if (MachineLearningField.AUTODETECT_PROCESS.get(settings) && MachineLearningInfoTransportAction.isRunningOnMlPlatform(true)) {
+        if (MachineLearningField.AUTODETECT_PROCESS.get(settings)) {
             try {
-                NativeController nativeController = NativeControllerHolder.getNativeController(clusterService.getNodeName(), environment);
-                if (nativeController == null) {
-                    // This will only only happen when path.home is not set, which is disallowed in production
-                    throw new ElasticsearchException("Failed to create native process controller for Machine Learning");
-                }
+                NativeController nativeController = NativeController.makeNativeController(clusterService.getNodeName(), environment);
                 autodetectProcessFactory = new NativeAutodetectProcessFactory(
                     environment,
                     settings,
@@ -480,12 +479,14 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
                     clusterService);
                 normalizerProcessFactory = new NativeNormalizerProcessFactory(environment, nativeController);
                 analyticsProcessFactory = new NativeAnalyticsProcessFactory(environment, nativeController);
+                mlController = nativeController;
             } catch (IOException e) {
                 // This also should not happen in production, as the MachineLearningInfoTransportAction should have
                 // hit the same error first and brought down the node with a friendlier error message
                 throw new ElasticsearchException("Failed to create native process factories for Machine Learning", e);
             }
         } else {
+            mlController = new DummyController();
             autodetectProcessFactory = (job, autodetectParams, executorService, onProcessCrash) ->
                     new BlackHoleAutodetectProcess(job.getId());
             // factor of 1.0 makes renormalization a no-op
@@ -516,7 +517,7 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
         MlMemoryTracker memoryTracker = new MlMemoryTracker(settings, clusterService, threadPool, jobManager, jobResultsProvider,
             dataFrameAnalyticsConfigProvider);
         this.memoryTracker.set(memoryTracker);
-        MlLifeCycleService mlLifeCycleService = new MlLifeCycleService(environment, clusterService, datafeedManager,
+        MlLifeCycleService mlLifeCycleService = new MlLifeCycleService(clusterService, datafeedManager, mlController,
             autodetectProcessManager, memoryTracker);
 
         // this object registers as a license state listener, and is never removed, so there's no need to retain another reference to it
@@ -529,6 +530,7 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
 
         return Arrays.asList(
                 mlLifeCycleService,
+                new MlControllerHolder(mlController),
                 jobResultsProvider,
                 jobConfigProvider,
                 datafeedConfigProvider,

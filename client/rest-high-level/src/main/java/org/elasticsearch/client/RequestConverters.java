@@ -1041,13 +1041,6 @@ final class RequestConverters {
             return this;
         }
 
-        Params withVerify(boolean verify) {
-            if (verify) {
-                return putParam("verify", Boolean.TRUE.toString());
-            }
-            return this;
-        }
-
         Params withWaitForStatus(ClusterHealthStatus status) {
             if (status != null) {
                 return putParam("wait_for_status", status.name().toLowerCase(Locale.ROOT));

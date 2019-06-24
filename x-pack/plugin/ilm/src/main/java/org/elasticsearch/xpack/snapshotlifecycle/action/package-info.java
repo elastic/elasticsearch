@@ -9,7 +9,7 @@
  *
  * <p>The {@link org.elasticsearch.xpack.snapshotlifecycle.action.TransportPutSnapshotLifecycleAction} creates or updates a snapshot
  * lifecycle policy in the cluster state. The {@link org.elasticsearch.xpack.snapshotlifecycle.action.TransportGetSnapshotLifecycleAction}
- * simply retrieves a policy by name. The {@link org.elasticsearch.xpack.snapshotlifecycle.action.TransportDeleteSnapshotLifecycleAction}
+ * simply retrieves a policy by id. The {@link org.elasticsearch.xpack.snapshotlifecycle.action.TransportDeleteSnapshotLifecycleAction}
  * removes a policy from the cluster state. These actions only interact with the cluster state. Most of the logic that take place in
  * response to these actions happens on the master node in the {@link org.elasticsearch.xpack.snapshotlifecycle.SnapshotLifecycleService}.
  *

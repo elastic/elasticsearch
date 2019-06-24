@@ -42,6 +42,7 @@ import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
@@ -390,7 +391,10 @@ public class IndexServiceTests extends ESSingleNodeTestCase {
             .put(TRANSLOG_RETENTION_CHECK_INTERVAL_SETTING.getKey(), "100ms")
             .build());
 
-        final Translog translog = IndexShardTestCase.getTranslog(indexService.getShard(0));
+        Translog translog = IndexShardTestCase.getTranslog(indexService.getShard(0));
+        final Path translogPath = translog.getConfig().getTranslogPath();
+        final String translogUuid = translog.getTranslogUUID();
+
         final int numDocs = scaledRandomIntBetween(10, 100);
         for (int i = 0; i < numDocs; i++) {
             client().prepareIndex().setIndex(indexName).setId(String.valueOf(i)).setSource("{\"foo\": \"bar\"}", XContentType.JSON).get();
@@ -398,6 +402,8 @@ public class IndexServiceTests extends ESSingleNodeTestCase {
                 client().admin().indices().prepareFlush(indexName).get();
             }
         }
+        assertThat(translog.totalOperations(), equalTo(numDocs));
+        assertThat(translog.stats().estimatedNumberOfOperations(), equalTo(numDocs));
         assertAcked(client().admin().indices().prepareClose("test"));
 
         indexService = getInstanceFromNode(IndicesService.class).indexServiceSafe(indexService.index());
@@ -409,9 +415,16 @@ public class IndexServiceTests extends ESSingleNodeTestCase {
             lastCommitedTranslogGeneration = Long.parseLong(lastCommittedUserData.get(Translog.TRANSLOG_GENERATION_KEY));
         }
         assertBusy(() -> {
-            long minTranslogGen = Translog.readMinTranslogGeneration(translog.getConfig().getTranslogPath(), translog.getTranslogUUID());
+            long minTranslogGen = Translog.readMinTranslogGeneration(translogPath, translogUuid);
             assertThat(minTranslogGen, equalTo(lastCommitedTranslogGeneration));
         });
+
+        assertAcked(client().admin().indices().prepareOpen("test"));
+
+        indexService = getInstanceFromNode(IndicesService.class).indexServiceSafe(indexService.index());
+        translog = IndexShardTestCase.getTranslog(indexService.getShard(0));
+        assertThat(translog.totalOperations(), equalTo(0));
+        assertThat(translog.stats().estimatedNumberOfOperations(), equalTo(0));
     }
 
     public void testIllegalFsyncInterval() {

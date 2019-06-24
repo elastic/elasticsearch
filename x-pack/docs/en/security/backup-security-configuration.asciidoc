@@ -86,7 +86,7 @@ used to snapshot the `.security` index. The snapshot operation can also
 optionally capture the persistent settings from the global cluster metadata.
 
 . Create a repository that you can use to backup the `.security` index.
-Ideally this repository is dedicated only to this scope.
+Ideally this repository is dedicated only to this index.
 +
 --
 [source,js]

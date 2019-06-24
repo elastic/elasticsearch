@@ -21,3 +21,20 @@ summarize your data and store it in a new index. Alternatively, you can use
 the transforms.
 
 // end::notable-highlights[]
+
+// tag::notable-highlights[]
+[float]
+==== Closed indices are now replicated
+
+Elasticsearch 7.2.0 brings a better support for closed indices by allowing
+shards of closed indices to be replicated. As soon as an index is closed,
+Elasticsearch takes care of tearing down the "opened" shards before
+reinitializing them as "closed" shards, which require much less resources
+while still providing the ability for shards to be promoted as primaries or
+to be recovered from peer.
+
+Note that only indices closed in Elasticsearch 7.2.0 are automatically
+replicated. Indices closed on previous versions of Elasticsearch will
+remain non replicated unless they are opened and closed again in 7.2.0.
+
+// end::notable-highlights[]

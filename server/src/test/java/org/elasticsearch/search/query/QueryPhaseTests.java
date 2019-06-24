@@ -66,8 +66,13 @@ import org.apache.lucene.search.join.ScoreMode;
 import org.apache.lucene.search.spans.SpanNearQuery;
 import org.apache.lucene.search.spans.SpanTermQuery;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.IOContext;
+import org.apache.lucene.store.IndexInput;
+import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
+import org.apache.lucene.util.bkd.BKDReader;
+import org.apache.lucene.util.bkd.BKDWriter;
 import org.elasticsearch.action.search.SearchTask;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.DateFieldMapper;
@@ -89,11 +94,14 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-import static org.elasticsearch.search.query.QueryPhase.indexFieldHasDuplicateData;
+import static org.elasticsearch.search.query.QueryPhase.estimateMedianValue;
+import static org.elasticsearch.search.query.QueryPhase.estimatePointCount;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.spy;
@@ -654,7 +662,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
         TestSearchContext searchContext = spy(new TestSearchContext(null, indexShard));
         when(searchContext.mapperService()).thenReturn(mapperService);
 
-        final int numDocs = 1000;
+        final int numDocs = 4000;
         Directory dir = newDirectory();
         IndexWriter writer = new IndexWriter(dir, new IndexWriterConfig(null));
         for (int i = 0; i < numDocs; ++i) {
@@ -710,39 +718,68 @@ public class QueryPhaseTests extends IndexShardTestCase {
         dir.close();
     }
 
-    public void testIndexFieldHasDuplicateData() throws IOException {
-        final int numDocs = 10000;
-        final int threshold1 = numDocs * 60 / 100;
-        final int threshold2 = numDocs * 40 / 100;
-        final int threshold3 = numDocs * 5 / 100;
+    public void testIndexHasDuplicateData() throws IOException {
+        int valuesCount = 5000;
+        int maxPointsInLeafNode = 40;
+        long expectedMedianCount = (long)(valuesCount * 0.6);
+        long expectedMedianValue = randomLongBetween(-10000000L, 10000000L);
 
-        final String fieldName = "duplicateField";
-        final String fieldName2 = "notMuchDuplicateField";
-        final String fieldName3 = "notDuplicateField";
+        try (Directory dir = newDirectory()) {
+            BKDWriter w = new BKDWriter(valuesCount, dir, "tmp", 1, 1, 8, maxPointsInLeafNode, 1, valuesCount);
+            byte[] longBytes = new byte[8];
+            for (int docId = 0; docId < valuesCount; docId++) {
+                long value = docId < expectedMedianCount ? expectedMedianValue : randomLongBetween(-10000000L, 10000000L);
+                LongPoint.encodeDimension(value, longBytes, 0);
+                w.add(longBytes, docId);
+            }
+            long indexFP;
+            try (IndexOutput out = dir.createOutput("bkd", IOContext.DEFAULT)) {
+                indexFP = w.finish(out);
+            }
+            try (IndexInput in = dir.openInput("bkd", IOContext.DEFAULT)) {
+                in.seek(indexFP);
+                BKDReader r = new BKDReader(in);
+                long medianValue = estimateMedianValue(r);
+                long medianCount = estimatePointCount(r, medianValue, medianValue);
 
-        long duplicateValue = randomLongBetween(-10000000L, 10000000L);
-        long value, value2, value3;
-        Directory dir = newDirectory();
-        IndexWriter writer = new IndexWriter(dir, new IndexWriterConfig(null));
-        for (int i = 0; i < numDocs; ++i) {
-            value = i < threshold1 ? duplicateValue : i;
-            value2 = i < threshold2 ? duplicateValue : i;
-            value3 = i < threshold3 ? duplicateValue : i;
-            Document doc = new Document();
-            doc.add(new LongPoint(fieldName, value));
-            doc.add(new LongPoint(fieldName2, value2));
-            doc.add(new LongPoint(fieldName3, value3));
-            writer.addDocument(doc);
+                assertEquals(expectedMedianValue, medianValue);
+                assertThat(medianCount, greaterThanOrEqualTo((long) (valuesCount/2))); //assert that Index has duplicate data
+                assertThat(medianCount, greaterThanOrEqualTo((long) (0.75 * expectedMedianCount)));
+                assertThat(medianCount, lessThanOrEqualTo((long) (1.25 * expectedMedianCount)));
+            }
         }
-        writer.close();
-        final IndexReader reader = DirectoryReader.open(dir);
-        assertTrue(indexFieldHasDuplicateData(reader, fieldName));
-        assertFalse(indexFieldHasDuplicateData(reader, fieldName2));
-        assertFalse(indexFieldHasDuplicateData(reader, fieldName3));
-        reader.close();
-        dir.close();
     }
 
+    public void testIndexHasNotDuplicateData() throws IOException {
+        int valuesCount = 5000;
+        int maxPointsInLeafNode = 40;
+        long expectedMedianCount = (long)(valuesCount * 0.35);
+        long expectedMedianValue = randomLongBetween(-10000000L, 10000000L);
+
+        try (Directory dir = newDirectory()) {
+            BKDWriter w = new BKDWriter(valuesCount, dir, "tmp", 1, 1, 8, maxPointsInLeafNode, 1, valuesCount);
+            byte[] longBytes = new byte[8];
+            for (int docId = 0; docId < valuesCount; docId++) {
+                long value = docId < expectedMedianCount ? expectedMedianValue : randomLongBetween(-10000000L, 10000000L);
+                LongPoint.encodeDimension(value, longBytes, 0);
+                w.add(longBytes, docId);
+            }
+            long indexFP;
+            try (IndexOutput out = dir.createOutput("bkd", IOContext.DEFAULT)) {
+                indexFP = w.finish(out);
+            }
+            try (IndexInput in = dir.openInput("bkd", IOContext.DEFAULT)) {
+                in.seek(indexFP);
+                BKDReader r = new BKDReader(in);
+                long medianValue = estimateMedianValue(r);
+                long medianCount = estimatePointCount(r, medianValue, medianValue);
+
+                // can't make any assertion about the values of medianValue and medianCount
+                // as BKDReader::estimatePointCount can be really off for non-duplicate data
+                assertThat(medianCount, lessThan((long) (valuesCount/2))); //assert that Index does NOT have duplicate data
+            }
+        }
+    }
 
     public void testMaxScoreQueryVisitor() {
         BitSetProducer producer = context -> new FixedBitSet(1);

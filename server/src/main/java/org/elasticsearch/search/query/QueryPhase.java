@@ -487,40 +487,36 @@ public class QueryPhase implements SearchPhase {
         long globalMedianCount = 0;
         for (LeafReaderContext lrc : reader.leaves()) {
             PointValues pointValues = lrc.reader().getPointValues(field);
+            if (pointValues == null) continue;
             int docCount = pointValues.getDocCount();
             if (docCount <= 512) { // skipping small segments as estimateMedianCount doesn't work well on them
                 continue;
             }
             globalDocCount += docCount;
-            byte[] minValueAsBytes = pointValues.getMinPackedValue();
-            byte[] maxValueAsBytes = pointValues.getMaxPackedValue();
-            long minValue = LongPoint.decodeDimension(minValueAsBytes, 0);
-            long maxValue = LongPoint.decodeDimension(maxValueAsBytes, 0);
-            long medianCount = estimateMedianCount(pointValues, minValue, maxValue, docCount/2);
+            long medianValue = estimateMedianValue(pointValues);
+            long medianCount = estimatePointCount(pointValues, medianValue, medianValue);
             globalMedianCount += medianCount;
         }
         return (globalMedianCount >= globalDocCount/2);
     }
 
-    private static long estimateMedianCount(PointValues pointValues, long minValue, long maxValue, long threshold) {
+    static long estimateMedianValue(PointValues pointValues) throws IOException {
+        long minValue = LongPoint.decodeDimension(pointValues.getMinPackedValue(), 0);
+        long maxValue = LongPoint.decodeDimension(pointValues.getMaxPackedValue(), 0);
         while (minValue < maxValue) {
             long avgValue = Math.floorDiv(minValue + maxValue, 2);
             long countLeft = estimatePointCount(pointValues, minValue, avgValue);
-            if (countLeft >= threshold) {
+            long countRight = estimatePointCount(pointValues, avgValue + 1, maxValue);
+            if (countLeft >= countRight) {
                 maxValue = avgValue;
-                threshold = countLeft/2;
             } else {
-                long countRight = estimatePointCount(pointValues, avgValue + 1, maxValue);
                 minValue = avgValue + 1;
-                threshold = countRight/2;
             }
         }
-        // maxValue is the approximate median value, estimate its count
-        long medianCount = estimatePointCount(pointValues, maxValue, maxValue);
-        return medianCount;
+        return maxValue;
     }
 
-    private static long estimatePointCount(PointValues pointValues, long minValue, long maxValue) {
+    static long estimatePointCount(PointValues pointValues, long minValue, long maxValue) {
         final byte[] minValueAsBytes = new byte[Long.BYTES];
         LongPoint.encodeDimension(minValue, minValueAsBytes, 0);
         final byte[] maxValueAsBytes = new byte[Long.BYTES];
@@ -534,16 +530,7 @@ public class QueryPhase implements SearchPhase {
             public void visit(int docID) {}
 
             @Override
-            public void visit(int docID, byte[] packedValue) {
-                if (Arrays.compareUnsigned(packedValue, 0, Long.BYTES, minValueAsBytes, 0, Long.BYTES) < 0) {
-                    // Doc's value is too low, in this dimension
-                    return;
-                }
-                if (Arrays.compareUnsigned(packedValue, 0, Long.BYTES, maxValueAsBytes, 0, Long.BYTES) > 0) {
-                    // Doc's value is too high, in this dimension
-                    return;
-                }
-            }
+            public void visit(int docID, byte[] packedValue) {}
 
             @Override
             public PointValues.Relation compare(byte[] minPackedValue, byte[] maxPackedValue) {

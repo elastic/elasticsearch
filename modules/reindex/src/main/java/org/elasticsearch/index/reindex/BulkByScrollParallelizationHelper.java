@@ -112,7 +112,7 @@ class BulkByScrollParallelizationHelper {
             (sum, term) -> sum + term
         ));
         Set<Integer> counts = new HashSet<>(countsByIndex.values());
-        int leastShards = Collections.min(counts);
+        int leastShards = counts.isEmpty() ? 1 : Collections.min(counts);
         return Math.min(leastShards, AUTO_SLICE_CEILING);
     }
 

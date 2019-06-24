@@ -73,12 +73,16 @@ public class HistogramValuesSourceBuilder extends CompositeValuesSourceBuilder<H
     }
 
     @Override
-    protected int innerHashCode() {
-        return Objects.hash(interval);
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), interval);
     }
 
     @Override
-    protected boolean innerEquals(HistogramValuesSourceBuilder other) {
+    public boolean equals(Object obj) {
+        if (this == obj) return true;
+        if (obj == null || getClass() != obj.getClass()) return false;
+        if (super.equals(obj) == false) return false;
+        HistogramValuesSourceBuilder other = (HistogramValuesSourceBuilder) obj;
         return Objects.equals(interval, other.interval);
     }
 

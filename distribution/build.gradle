@@ -400,11 +400,11 @@ task run(type: RunTask) {
       setting 'xpack.graph.enabled', 'true'
       setting 'xpack.watcher.enabled', 'true'
       setting 'xpack.license.self_generated.type', 'trial'
-      setupCommand 'setupTestAdmin',
-        'bin/elasticsearch-users', 'useradd', 'elastic-admin', '-p', 'elastic-password', '-r', 'superuser'
     } else if (licenseType != 'basic') {
       throw new IllegalArgumentException("Unsupported self-generated license type: [" + licenseType + "[basic] or [trial].")
     }
+    setupCommand 'setupTestAdmin',
+            'bin/elasticsearch-users', 'useradd', 'elastic-admin', '-p', 'elastic-password', '-r', 'superuser'
     setting 'xpack.security.enabled', 'true'
     setting 'xpack.monitoring.enabled', 'true'
     setting 'xpack.sql.enabled', 'true'

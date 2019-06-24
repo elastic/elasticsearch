@@ -688,6 +688,15 @@ public class XPackLicenseState {
     }
 
     /**
+     * Determine if Vectors support should be enabled.
+     * <p>
+     *  Vectors is available for all license types except {@link OperationMode#MISSING}
+     */
+    public synchronized boolean isVectorsAllowed() {
+        return status.active;
+    }
+
+    /**
      * Determine if ODBC support should be enabled.
      * <p>
      * ODBC is available only in for {@link OperationMode#PLATINUM} and {@link OperationMode#TRIAL} licences

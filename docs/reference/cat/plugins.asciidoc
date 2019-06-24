@@ -31,6 +31,6 @@ U7321H6 mapper-size             {version_qualified} The Mapper Size plugin allow
 U7321H6 store-smb               {version_qualified} The Store SMB plugin adds support for SMB stores.
 U7321H6 transport-nio           {version_qualified} The nio transport.
 ------------------------------------------------------------------------------
-// TESTRESPONSE[s/([.()])/\\$1/ s/U7321H6/.+/ _cat]
+// TESTRESPONSE[s/([.()])/\\$1/ s/U7321H6/.+/ non_json]
 
 We can tell quickly how many plugins per node we have and which versions.

@@ -20,6 +20,7 @@
 package org.elasticsearch.action.admin.indices.shrink;
 
 import org.elasticsearch.action.Action;
+import org.elasticsearch.common.io.stream.Writeable;
 
 public class ResizeAction extends Action<ResizeResponse> {
 
@@ -32,6 +33,11 @@ public class ResizeAction extends Action<ResizeResponse> {
 
     @Override
     public ResizeResponse newResponse() {
-        return new ResizeResponse();
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
+    }
+
+    @Override
+    public Writeable.Reader<ResizeResponse> getResponseReader() {
+        return ResizeResponse::new;
     }
 }

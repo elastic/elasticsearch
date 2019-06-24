@@ -183,7 +183,8 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
                     remote = new RemoteClusterConnection(settings, clusterAlias, seedList, transportService, numRemoteConnections,
                         getNodePredicate(settings), proxyAddress, connectionProfile);
                     remoteClusters.put(clusterAlias, remote);
-                } else if (connectionProfileChanged(remote.getConnectionManager().getConnectionProfile(), connectionProfile)) {
+                } else if (connectionProfileChanged(remote.getConnectionManager().getConnectionProfile(), connectionProfile)
+                        || seedsChanged(remote.getSeedNodes(), seedList)) {
                     // New ConnectionProfile. Must tear down existing connection
                     try {
                         IOUtils.close(remote);
@@ -419,6 +420,16 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
     private boolean connectionProfileChanged(ConnectionProfile oldProfile, ConnectionProfile newProfile) {
         return Objects.equals(oldProfile.getCompressionEnabled(), newProfile.getCompressionEnabled()) == false
             || Objects.equals(oldProfile.getPingInterval(), newProfile.getPingInterval()) == false;
+    }
+
+    private boolean seedsChanged(final List<Tuple<String, Supplier<DiscoveryNode>>> oldSeedNodes,
+                                 final List<Tuple<String, Supplier<DiscoveryNode>>> newSeedNodes) {
+        if (oldSeedNodes.size() != newSeedNodes.size()) {
+            return true;
+        }
+        Set<String> oldSeeds = oldSeedNodes.stream().map(Tuple::v1).collect(Collectors.toSet());
+        Set<String> newSeeds = newSeedNodes.stream().map(Tuple::v1).collect(Collectors.toSet());
+        return oldSeeds.equals(newSeeds) == false;
     }
 
     /**

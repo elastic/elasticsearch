@@ -249,7 +249,7 @@ Response:
 }
 --------------------------------------------------
 // TESTRESPONSE[s/"source" : \{[^}]*\}/"source" : $body.$_path/]
-// TESTRESPONSE[s/"details" : \[[^\]]*\]//]
+// TESTRESPONSE[s/"details" : \[[^\]]*\]/"details" : $body.$_path/]
 // TESTRESPONSE[s/: (\-)?[0-9]+/: $body.$_path/]
 // TESTRESPONSE[s/: "[^"]*"/: $body.$_path/]
 ////

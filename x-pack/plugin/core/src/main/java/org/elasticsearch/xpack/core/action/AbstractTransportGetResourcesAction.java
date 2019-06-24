@@ -30,6 +30,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.action.util.ExpandedIdsMatcher;
 import org.elasticsearch.xpack.core.action.util.QueryPage;
@@ -70,7 +71,10 @@ public abstract class AbstractTransportGetResourcesAction<Resource extends ToXCo
     protected void searchResources(AbstractGetResourcesRequest request, ActionListener<QueryPage<Resource>> listener) {
         String[] tokens = Strings.tokenizeToStringArray(request.getResourceId(), ",");
         SearchSourceBuilder sourceBuilder = new SearchSourceBuilder()
-            .sort(request.getResourceIdField())
+            .sort(SortBuilders.fieldSort(request.getResourceIdField())
+                // If there are no resources, there might be no mapping for the id field.
+                // This makes sure we don't get an error if that happens.
+                .unmappedType("long"))
             .query(buildQuery(tokens, request.getResourceIdField()));
         if (request.getPageParams() != null) {
             sourceBuilder.from(request.getPageParams().getFrom())
@@ -84,7 +88,7 @@ public abstract class AbstractTransportGetResourcesAction<Resource extends ToXCo
                 indicesOptions.expandWildcardsOpen(),
                 indicesOptions.expandWildcardsClosed(),
                 indicesOptions))
-            .source(sourceBuilder);
+            .source(sourceBuilder.trackTotalHits(true));
 
         executeAsyncWithOrigin(client.threadPool().getThreadContext(),
             executionOrigin(),
@@ -94,6 +98,7 @@ public abstract class AbstractTransportGetResourcesAction<Resource extends ToXCo
                 public void onResponse(SearchResponse response) {
                     List<Resource> docs = new ArrayList<>();
                     Set<String> foundResourceIds = new HashSet<>();
+                    long totalHitCount = response.getHits().getTotalHits().value;
                     for (SearchHit hit : response.getHits().getHits()) {
                         BytesReference docSource = hit.getSourceRef();
                         try (InputStream stream = docSource.streamInput();
@@ -111,7 +116,7 @@ public abstract class AbstractTransportGetResourcesAction<Resource extends ToXCo
                     if (requiredMatches.hasUnmatchedIds()) {
                         listener.onFailure(notFoundException(requiredMatches.unmatchedIdsString()));
                     } else {
-                        listener.onResponse(new QueryPage<>(docs, docs.size(), getResultsField()));
+                        listener.onResponse(new QueryPage<>(docs, totalHitCount, getResultsField()));
                     }
                 }
 

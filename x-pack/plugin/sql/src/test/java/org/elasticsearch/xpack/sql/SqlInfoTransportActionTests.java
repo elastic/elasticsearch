@@ -38,7 +38,7 @@ import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class SqlFeatureSetTests extends ESTestCase {
+public class SqlInfoTransportActionTests extends ESTestCase {
 
     private XPackLicenseState licenseState;
     private Client client;
@@ -54,7 +54,8 @@ public class SqlFeatureSetTests extends ESTestCase {
     }
 
     public void testAvailable() {
-        SqlFeatureSet featureSet = new SqlFeatureSet(Settings.EMPTY, licenseState, client);
+        SqlInfoTransportAction featureSet = new SqlInfoTransportAction(
+            mock(TransportService.class), mock(ActionFilters.class), Settings.EMPTY, licenseState);
         boolean available = randomBoolean();
         when(licenseState.isSqlAllowed()).thenReturn(available);
         assertThat(featureSet.available(), is(available));
@@ -70,7 +71,8 @@ public class SqlFeatureSetTests extends ESTestCase {
         } else {
             settings.put("xpack.sql.enabled", enabled);
         }
-        SqlFeatureSet featureSet = new SqlFeatureSet(settings.build(), licenseState, client);
+        SqlInfoTransportAction featureSet = new SqlInfoTransportAction(
+            mock(TransportService.class), mock(ActionFilters.class), settings.build(), licenseState);
         assertThat(featureSet.enabled(), is(enabled));
     }
 
@@ -101,7 +103,7 @@ public class SqlFeatureSetTests extends ESTestCase {
             return null;
         }).when(client).execute(eq(SqlStatsAction.INSTANCE), any(), any());
 
-        var usageAction = new SqlFeatureSet.UsageTransportAction(mock(TransportService.class), null, null,
+        var usageAction = new SqlUsageTransportAction(mock(TransportService.class), null, null,
             mock(ActionFilters.class), null, Settings.EMPTY, licenseState, client);
         PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();
         usageAction.masterOperation(null, null, future);

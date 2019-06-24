@@ -20,6 +20,7 @@
 package org.elasticsearch.action.admin.indices.create;
 
 import org.elasticsearch.action.Action;
+import org.elasticsearch.common.io.stream.Writeable;
 
 public class CreateIndexAction extends Action<CreateIndexResponse> {
 
@@ -32,6 +33,11 @@ public class CreateIndexAction extends Action<CreateIndexResponse> {
 
     @Override
     public CreateIndexResponse newResponse() {
-        return new CreateIndexResponse();
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
+    }
+
+    @Override
+    public Writeable.Reader<CreateIndexResponse> getResponseReader() {
+        return CreateIndexResponse::new;
     }
 }

@@ -41,7 +41,7 @@ integTestRunner {
     'ml/data_frame_analytics_crud/Test put config with inconsistent body/param ids',
     'ml/data_frame_analytics_crud/Test put config with invalid id',
     'ml/data_frame_analytics_crud/Test put config with invalid dest index name',
-    'ml/data_frame_analytics_crud/Test put config with pattern dest index name"',
+    'ml/data_frame_analytics_crud/Test put config with pattern dest index name',
     'ml/data_frame_analytics_crud/Test put config with missing concrete source index',
     'ml/data_frame_analytics_crud/Test put config with missing wildcard source index',
     'ml/data_frame_analytics_crud/Test put config with dest index same as source index',

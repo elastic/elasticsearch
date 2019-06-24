@@ -41,9 +41,6 @@ appear before it in the chain.
 Additional settings are:
 
 * `expand` (defaults to `true`).
-* `updateable` (defaults to false). If `true`, this marks the filter to be updateable using the 
-<<indices-reload-analyzers,analyzer reload API>>, but it will also restrict the filter to only be usable in 
-<<search-analyzer,search analyzers>>.
 * `lenient` (defaults to `false`). If `true` ignores exceptions while parsing the synonym configuration. It is important
 to note that only those synonym rules which cannot get parsed are ignored. For instance consider the following request:
  
@@ -186,41 +183,3 @@ error.
 If you need to build analyzers that include both multi-token filters and synonym
 filters, consider using the <<analysis-multiplexer-tokenfilter,multiplexer>> filter,
 with the multi-token filters in one branch and the synonym filter in the other.
-
-=== Updateability of search time synonyms
-
-Synonym filters that are used in <<search-analyzer,search analyzers>> can be marked
-as updateable using the `updateable` flag:
-
-[source,js]
---------------------------------------------------
-PUT /test_index
-{
-    "settings": {
-        "index" : {
-            "analysis" : {
-                "analyzer" : {
-                    "synonym" : {
-                        "tokenizer" : "whitespace",
-                        "filter" : ["synonym"]
-                    }
-                },
-                "filter" : {
-                    "synonym" : {
-                        "type" : "synonym",
-                        "synonyms_path" : "analysis/synonym.txt",
-                        "updateable" : true
-                    }
-                }
-            }
-        }
-    }
-}
---------------------------------------------------
-// CONSOLE
-
-Using the <<indices-reload-analyzers,analyzer reload API>>, you can trigger reloading of the
-synonym definition. The contents of the configured synonyms file will be reloaded and the
-synonyms definition the filter uses will be updated. 
-
-NOTE: Trying to use the above analyzer as an index analyzer will result in an error.

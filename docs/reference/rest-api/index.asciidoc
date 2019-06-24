@@ -12,6 +12,7 @@ directly to configure and access {xpack} features.
 * <<data-frame-apis,{dataframe-cap} APIs>>
 * <<graph-explore-api,Graph Explore API>>
 * <<freeze-index-api>>, <<unfreeze-index-api>>
+* <<indices-reload-analyzers,Reload Search Analyzers API>>
 * <<index-lifecycle-management-api,Index lifecycle management APIs>>
 * <<licensing-apis,Licensing APIs>>
 * <<ml-apis,Machine Learning APIs>>
@@ -35,4 +36,5 @@ include::{es-repo-dir}/rollup/rollup-api.asciidoc[]
 include::{xes-repo-dir}/rest-api/security.asciidoc[]
 include::{es-repo-dir}/indices/apis/unfreeze.asciidoc[]
 include::{xes-repo-dir}/rest-api/watcher.asciidoc[]
+include::{es-repo-dir}/indices/apis/reload-analyzers.asciidoc[]
 include::defs.asciidoc[]

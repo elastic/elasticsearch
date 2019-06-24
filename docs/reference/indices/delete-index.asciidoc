@@ -34,13 +34,9 @@ of `_all` or `*` to delete all indices.
 
 [float]
 [[indices-delete-query-params]]
-==== {api-query-parms-title}
+=== {api-query-parms-title}
 
 include::{docdir}/rest-api/timeoutparms.asciidoc[]
-
-`ignore_unavailable` (Optional)::
-(boolean) Indicates whether unavailable indices are skipped. Defaults to
-`false`.
 
 `allow_no_indices` (Optional)::
 (boolean) Indicates whether the operation is skipped if a wildcard expression
@@ -57,6 +53,10 @@ matches no indices. Defaults to `false`.
 * `none`
 * `all`
 --
+
+`ignore_unavailable` (Optional)::
+(boolean) Indicates whether unavailable indices are skipped. Defaults to
+`false`.
 
 [float]
 [[indices-delete-index-example]]

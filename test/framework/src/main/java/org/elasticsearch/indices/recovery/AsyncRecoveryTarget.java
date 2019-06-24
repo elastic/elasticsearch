@@ -19,9 +19,7 @@
 
 package org.elasticsearch.indices.recovery;
 
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.index.seqno.ReplicationTracker;
 import org.elasticsearch.index.seqno.RetentionLeases;
@@ -83,8 +81,6 @@ public class AsyncRecoveryTarget implements RecoveryTargetHandler {
     @Override
     public void writeFileChunk(StoreFileMetaData fileMetaData, long position, BytesReference content,
                                boolean lastChunk, int totalTranslogOps, ActionListener<Void> listener) {
-        // TODO: remove this clone once we send file chunk async
-        final BytesReference copy = new BytesArray(BytesRef.deepCopyOf(content.toBytesRef()));
-        executor.execute(() -> target.writeFileChunk(fileMetaData, position, copy, lastChunk, totalTranslogOps, listener));
+        executor.execute(() -> target.writeFileChunk(fileMetaData, position, content, lastChunk, totalTranslogOps, listener));
     }
 }

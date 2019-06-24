@@ -49,7 +49,7 @@ import org.elasticsearch.nio.NioSelectorGroup;
 import org.elasticsearch.nio.NioSelector;
 import org.elasticsearch.nio.NioServerSocketChannel;
 import org.elasticsearch.nio.NioSocketChannel;
-import org.elasticsearch.nio.ReadWriteHandler;
+import org.elasticsearch.nio.NioChannelHandler;
 import org.elasticsearch.nio.SocketChannelContext;
 import org.elasticsearch.nio.WriteOperation;
 import org.elasticsearch.tasks.Task;
@@ -207,7 +207,7 @@ class NioHttpClient implements Closeable {
         }
     }
 
-    private static class HttpClientHandler implements ReadWriteHandler {
+    private static class HttpClientHandler implements NioChannelHandler {
 
         private final NettyAdaptor adaptor;
         private final CountDownLatch latch;
@@ -275,6 +275,11 @@ class NioHttpClient implements Closeable {
             }
 
             return bytesConsumed;
+        }
+
+        @Override
+        public boolean closeNow() {
+            return false;
         }
 
         @Override

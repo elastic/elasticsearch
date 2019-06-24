@@ -24,6 +24,22 @@ ES_JVM_OPTIONS="$ES_PATH_CONF"/jvm.options
 JVM_OPTIONS=`"$JAVA" -cp "$ES_CLASSPATH" org.elasticsearch.tools.launchers.JvmOptionsParser "$ES_JVM_OPTIONS"`
 ES_JAVA_OPTS="${JVM_OPTIONS//\$\{ES_TMPDIR\}/$ES_TMPDIR}"
 
+KEYSTORE_PASSWORD=
+# If keystore exists and is encrypted, prompt for a password
+if [ -f "$ES_PATH_CONF"/elasticsearch.keystore ]
+    && ! echo $* | grep -E '(^-h |-h$| -h |--help$|--help )' >/dev/null 2>&1 \
+    && ! echo $* | grep -E '(^-V |-V$| -V |--version$|--version )' >/dev/null 2>&1 \
+    && ! "`dirname "$0"`"/elasticsearch-keystore list <<<"" >/dev/null 2>&1 ; then
+  echo -n "Elasticsearch keystore password: "
+  read -s KEYSTORE_PASSWORD
+  echo
+
+  if ! "`dirname "$0"`"/elasticsearch-keystore list <<<$KEYSTORE_PASSWORD >/dev/null 2>&1 ; then
+    echo "Incorrect password for encrypted keystore" >&2
+    exit 1
+  fi
+fi
+
 # manual parsing to find out, if process should be detached
 if ! echo $* | grep -E '(^-d |-d$| -d |--daemonize$|--daemonize )' > /dev/null; then
   exec \
@@ -36,7 +52,8 @@ if ! echo $* | grep -E '(^-d |-d$| -d |--daemonize$|--daemonize )' > /dev/null; 
     -Des.bundled_jdk="$ES_BUNDLED_JDK" \
     -cp "$ES_CLASSPATH" \
     org.elasticsearch.bootstrap.Elasticsearch \
-    "$@"
+    "$@" "${KEYSTORE_PASSWORD:+-i}"\
+    <<<$KEYSTORE_PASSWORD
 else
   exec \
     "$JAVA" \

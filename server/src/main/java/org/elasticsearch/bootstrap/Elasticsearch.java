@@ -49,6 +49,7 @@ class Elasticsearch extends EnvironmentAwareCommand {
     private final OptionSpecBuilder daemonizeOption;
     private final OptionSpec<Path> pidfileOption;
     private final OptionSpecBuilder quietOption;
+    private final OptionSpecBuilder stdinOption;
 
     // visible for testing
     Elasticsearch() {
@@ -67,6 +68,8 @@ class Elasticsearch extends EnvironmentAwareCommand {
             "Turns off standard output/error streams logging in console")
             .availableUnless(versionOption)
             .availableUnless(daemonizeOption);
+        stdinOption = parser.acceptsAll(Arrays.asList("i", "stdin"),
+            "Listens for a keystore password on stdin");
     }
 
     /**
@@ -138,6 +141,7 @@ class Elasticsearch extends EnvironmentAwareCommand {
         final boolean daemonize = options.has(daemonizeOption);
         final Path pidFile = pidfileOption.value(options);
         final boolean quiet = options.has(quietOption);
+        final boolean stdin = options.has(stdinOption);
 
         // a misconfigured java.io.tmpdir can cause hard-to-diagnose problems later, so reject it immediately
         try {
@@ -147,16 +151,16 @@ class Elasticsearch extends EnvironmentAwareCommand {
         }
 
         try {
-            init(daemonize, pidFile, quiet, env);
+            init(daemonize, pidFile, quiet, stdin, env);
         } catch (NodeValidationException e) {
             throw new UserException(ExitCodes.CONFIG, e.getMessage());
         }
     }
 
-    void init(final boolean daemonize, final Path pidFile, final boolean quiet, Environment initialEnv)
+    void init(final boolean daemonize, final Path pidFile, final boolean quiet, final boolean stdin, Environment initialEnv)
         throws NodeValidationException, UserException {
         try {
-            Bootstrap.init(!daemonize, pidFile, quiet, initialEnv);
+            Bootstrap.init(!daemonize, pidFile, quiet, stdin, initialEnv);
         } catch (BootstrapException | RuntimeException e) {
             // format exceptions to the console in a special way
             // to avoid 2MB stacktraces from guice, etc.

@@ -49,9 +49,12 @@ import org.elasticsearch.node.InternalSettingsPreparer;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.NodeValidationException;
 
+import java.io.BufferedReader;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.InputStreamReader;
 import java.io.PrintStream;
+import java.io.Reader;
 import java.io.UnsupportedEncodingException;
 import java.net.URISyntaxException;
 import java.nio.file.Path;
@@ -226,12 +229,28 @@ final class Bootstrap {
         };
     }
 
-    static SecureSettings loadSecureSettings(Environment initialEnv) throws BootstrapException {
+    static SecureSettings loadSecureSettings(Environment initialEnv, boolean stdin) throws BootstrapException {
         final KeyStoreWrapper keystore;
         try {
             keystore = KeyStoreWrapper.load(initialEnv.configFile());
         } catch (IOException e) {
             throw new BootstrapException(e);
+        }
+
+        char[] password;
+        if (stdin) {
+            try (
+                BufferedReader br = new BufferedReader(
+                     new InputStreamReader(System.in)
+                )
+            ) {
+                password = br.readLine().toCharArray();
+            } catch (IOException e) {
+                throw new BootstrapException(e);
+            }
+        } else {
+            // TODO[wrb]: is there a case w/o stdin?
+            password = new char[0];
         }
 
         try {
@@ -240,8 +259,8 @@ final class Bootstrap {
                 keyStoreWrapper.save(initialEnv.configFile(), new char[0]);
                 return keyStoreWrapper;
             } else {
-                keystore.decrypt(new char[0] /* TODO: read password from stdin */);
-                KeyStoreWrapper.upgrade(keystore, initialEnv.configFile(), new char[0]);
+                keystore.decrypt(password);
+                KeyStoreWrapper.upgrade(keystore, initialEnv.configFile(), password);
             }
         } catch (Exception e) {
             throw new BootstrapException(e);
@@ -290,17 +309,18 @@ final class Bootstrap {
      * This method is invoked by {@link Elasticsearch#main(String[])} to startup elasticsearch.
      */
     static void init(
-            final boolean foreground,
-            final Path pidFile,
-            final boolean quiet,
-            final Environment initialEnv) throws BootstrapException, NodeValidationException, UserException {
+        final boolean foreground,
+        final Path pidFile,
+        final boolean quiet,
+        final boolean stdin,
+        final Environment initialEnv) throws BootstrapException, NodeValidationException, UserException {
         // force the class initializer for BootstrapInfo to run before
         // the security manager is installed
         BootstrapInfo.init();
 
         INSTANCE = new Bootstrap();
 
-        final SecureSettings keystore = loadSecureSettings(initialEnv);
+        final SecureSettings keystore = loadSecureSettings(initialEnv, stdin);
         final Environment environment = createEnvironment(pidFile, keystore, initialEnv.settings(), initialEnv.configFile());
 
         LogConfigurator.setNodeName(Node.NODE_NAME_SETTING.get(environment.settings()));

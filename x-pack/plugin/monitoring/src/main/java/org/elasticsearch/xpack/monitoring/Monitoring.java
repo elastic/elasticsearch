@@ -33,6 +33,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 import org.elasticsearch.xpack.core.monitoring.MonitoringField;
 import org.elasticsearch.xpack.core.monitoring.action.MonitoringBulkAction;
@@ -98,7 +99,6 @@ public class Monitoring extends Plugin implements ActionPlugin {
     public Collection<Module> createGuiceModules() {
         List<Module> modules = new ArrayList<>();
         modules.add(b -> {
-            XPackPlugin.bindFeatureSet(b, MonitoringFeatureSet.class);
             if (enabled == false) {
                 b.bind(MonitoringService.class).toProvider(Providers.of(null));
                 b.bind(Exporters.class).toProvider(Providers.of(null));
@@ -142,13 +142,15 @@ public class Monitoring extends Plugin implements ActionPlugin {
 
     @Override
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
-        var usageAction = new ActionHandler<>(XPackUsageFeatureAction.MONITORING, MonitoringFeatureSet.UsageTransportAction.class);
+        var usageAction = new ActionHandler<>(XPackUsageFeatureAction.MONITORING, MonitoringUsageTransportAction.class);
+        var infoAction = new ActionHandler<>(XPackInfoFeatureAction.MONITORING, MonitoringInfoTransportAction.class);
         if (false == enabled) {
-            return singletonList(usageAction);
+            return Arrays.asList(usageAction, infoAction);
         }
         return Arrays.asList(
             new ActionHandler<>(MonitoringBulkAction.INSTANCE, TransportMonitoringBulkAction.class),
-            usageAction);
+            usageAction,
+            infoAction);
     }
 
     @Override

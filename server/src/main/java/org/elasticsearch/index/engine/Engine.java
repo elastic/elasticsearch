@@ -793,9 +793,9 @@ public abstract class Engine implements Closeable {
     }
 
     /**
-     * @return the local checkpoint for this Engine
+     * @return the persisted local checkpoint for this Engine
      */
-    public abstract long getLocalCheckpoint();
+    public abstract long getPersistedLocalCheckpoint();
 
     /**
      * @return a {@link SeqNoStats} object, using local state and the supplied global checkpoint
@@ -1716,6 +1716,8 @@ public abstract class Engine implements Closeable {
                     close(); // double close is not a problem
                 }
             }
+        } else {
+            logger.trace("skipping flushAndClose as already closed");
         }
         awaitPendingClose();
     }

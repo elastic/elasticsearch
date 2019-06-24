@@ -12,7 +12,7 @@ import org.elasticsearch.xpack.ml.utils.NamedPipeHelper;
 import java.io.IOException;
 
 /**
- * Manages a singleton NativeController so that both the MachineLearningFeatureSet and MachineLearning classes can
+ * Manages a singleton NativeController so that both the MachineLearningInfoTransportAction and MachineLearning classes can
  * get access to the same one.
  */
 public class NativeControllerHolder {

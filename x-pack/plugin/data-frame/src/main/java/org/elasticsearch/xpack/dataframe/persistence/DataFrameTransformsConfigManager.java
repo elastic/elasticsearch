@@ -23,6 +23,7 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -196,13 +197,16 @@ public class DataFrameTransformsConfigManager {
      * @param pageParams             The paging params
      * @param foundIdsListener       The listener on signal on success or failure
      */
-    public void expandTransformIds(String transformIdsExpression, PageParams pageParams, ActionListener<List<String>> foundIdsListener) {
+    public void expandTransformIds(String transformIdsExpression,
+                                   PageParams pageParams,
+                                   ActionListener<Tuple<Long, List<String>>> foundIdsListener) {
         String[] idTokens = ExpandedIdsMatcher.tokenizeExpression(transformIdsExpression);
         QueryBuilder queryBuilder = buildQueryFromTokenizedIds(idTokens, DataFrameTransformConfig.NAME);
 
         SearchRequest request = client.prepareSearch(DataFrameInternalIndex.INDEX_NAME)
             .addSort(DataFrameField.ID.getPreferredName(), SortOrder.ASC)
             .setFrom(pageParams.getFrom())
+            .setTrackTotalHits(true)
             .setSize(pageParams.getSize())
             .setQuery(queryBuilder)
             // We only care about the `id` field, small optimization
@@ -214,6 +218,7 @@ public class DataFrameTransformsConfigManager {
         executeAsyncWithOrigin(client.threadPool().getThreadContext(), DATA_FRAME_ORIGIN, request,
             ActionListener.<SearchResponse>wrap(
                 searchResponse -> {
+                    long totalHits = searchResponse.getHits().getTotalHits().value;
                     List<String> ids = new ArrayList<>(searchResponse.getHits().getHits().length);
                     for (SearchHit hit : searchResponse.getHits().getHits()) {
                         BytesReference source = hit.getSourceRef();
@@ -235,7 +240,7 @@ public class DataFrameTransformsConfigManager {
                                     requiredMatches.unmatchedIdsString())));
                         return;
                     }
-                    foundIdsListener.onResponse(ids);
+                    foundIdsListener.onResponse(new Tuple<>(totalHits, ids));
                 },
                 foundIdsListener::onFailure
             ), client::search);

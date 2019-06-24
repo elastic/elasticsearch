@@ -36,7 +36,7 @@ cluster to ensure that enough shard copies are safely kept around at all
 times (configurable with `index.number_of_replicas`).
 
 In addition to that, it is now possible to snapshot closed indices using
-the <<modules-snapshots,Snapshot/Restore API>>. To include a closed index
+the {ref}/modules-snapshots.html[Snapshot/Restore API]. To include a closed index
 when creating a snapshot on Elasticsearch 7.2+, the `expand_wildcards`
 parameter must be explicitly set to either `all` or `closed` .
 

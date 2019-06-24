@@ -26,8 +26,10 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 import org.elasticsearch.index.store.Store;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Supplier;
 
 /**
  * Manages the {@link IndexCommit} associated with the shard snapshot as well as its {@link IndexShardSnapshotStatus} instance.
@@ -39,6 +41,8 @@ public abstract class ShardSnapshotContext {
     private final ActionListener<Void> listener;
 
     private final IndexShardSnapshotStatus status;
+
+    private final AtomicBoolean closed = new AtomicBoolean(false);
 
     protected ShardSnapshotContext(Store store, ActionListener<Void> listener, IndexShardSnapshotStatus status) {
         this.store = store;
@@ -53,13 +57,36 @@ public abstract class ShardSnapshotContext {
      * @return IndexCommit index commit
      * @throws IOException on failure
      */
-    public abstract IndexCommit indexCommit() throws IOException;
+    public IndexCommit indexCommit() throws IOException {
+        synchronized (this) {
+            if (closed.get()) {
+                throw new IllegalStateException("Tried to get index commit from closed context.");
+            }
+            return doIndexCommit();
+        }
+    }
+
+    /**
+     * See {@link #indexCommit()}
+     */
+    protected abstract IndexCommit doIndexCommit() throws IOException;
 
     /**
      * Release resources backing the {@link IndexCommit} returned by {@link #indexCommit()}.
      * @throws IOException on failure
      */
-    protected abstract void releaseIndexCommit() throws IOException;
+    private void releaseIndexCommit() throws IOException {
+        if (closed.compareAndSet(false, true)) {
+            synchronized (this) {
+                doReleaseIndexCommit();
+            }
+        }
+    }
+
+    /**
+     * See {@link #releaseIndexCommit()}
+     */
+    protected abstract void doReleaseIndexCommit() throws IOException;
 
     public Store store() {
         return store;
@@ -109,33 +136,26 @@ public abstract class ShardSnapshotContext {
         return listener;
     }
 
+    public interface IndexCommitProvider extends Closeable, Supplier<IndexCommit> {
+    }
+
     public static ShardSnapshotContext create(IndexShard indexShard, IndexShardSnapshotStatus snapshotStatus,
                                               ActionListener<Void> listener) {
         return new ShardSnapshotContext(indexShard.store(), listener, snapshotStatus) {
 
-            private final AtomicBoolean closed = new AtomicBoolean(false);
             private Engine.IndexCommitRef snapshotRef;
 
             @Override
-            protected void releaseIndexCommit() throws IOException {
-                if (closed.compareAndSet(false, true)) {
-                    synchronized (this) {
-                        if (snapshotRef != null) {
-                            snapshotRef.close();
-                        }
-                    }
+            protected void doReleaseIndexCommit() throws IOException {
+                if (snapshotRef != null) {
+                    snapshotRef.close();
                 }
             }
 
             @Override
-            public IndexCommit indexCommit() {
-                synchronized (this) {
-                    if (closed.get()) {
-                        throw new IllegalStateException("Tried to get index commit from closed context.");
-                    }
-                    if (snapshotRef == null) {
-                        snapshotRef = indexShard.acquireLastIndexCommit(true);
-                    }
+            protected IndexCommit doIndexCommit() {
+                if (snapshotRef == null) {
+                    snapshotRef = indexShard.acquireLastIndexCommit(true);
                 }
                 return snapshotRef.getIndexCommit();
             }

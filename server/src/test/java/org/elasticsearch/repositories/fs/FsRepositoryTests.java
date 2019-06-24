@@ -216,12 +216,12 @@ public class FsRepositoryTests extends ESTestCase {
         }
 
         @Override
-        protected void releaseIndexCommit() {
+        protected void doReleaseIndexCommit() {
 
         }
 
         @Override
-        public IndexCommit indexCommit() {
+        public IndexCommit doIndexCommit() {
             return indexCommit;
         }
     }

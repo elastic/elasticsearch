@@ -41,7 +41,6 @@ import java.nio.file.Path;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
@@ -141,40 +140,29 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
             final long maxDoc = segmentInfos.totalMaxDoc();
             tempStore.bootstrapNewHistory(maxDoc, maxDoc);
             super.snapshotShard(mapperService, snapshotId, indexId,
-                                new ShardSnapshotContext(tempStore, context.completionListener(), context.status()) {
+                new ShardSnapshotContext(tempStore, context.completionListener(), context.status()) {
+                    private DirectoryReader reader;
+                    private IndexCommit indexCommit;
 
-                                    private final AtomicBoolean closed = new AtomicBoolean(false);
-                                    private DirectoryReader reader;
-                                    private IndexCommit indexCommit;
+                    @Override
+                    protected void doReleaseIndexCommit() throws IOException {
+                        if (reader != null) {
+                            reader.close();
+                        }
+                    }
 
-                                    @Override
-                                    protected void releaseIndexCommit() throws IOException {
-                                        if (closed.compareAndSet(false, true)) {
-                                            synchronized (this) {
-                                                if (reader != null) {
-                                                    reader.close();
-                                                }
-                                            }
-                                        }
-                                    }
-
-                                    @Override
-                                    public IndexCommit indexCommit() throws IOException {
-                                        synchronized (this) {
-                                            if (closed.get()) {
-                                                throw new IllegalStateException("Tried to get index commit from closed context");
-                                            }
-                                            if (reader == null) {
-                                                reader = DirectoryReader.open(tempStore.directory(), Collections.singletonMap(
-                                                    BlockTreeTermsReader.FST_MODE_KEY, BlockTreeTermsReader.FSTLoadMode.OFF_HEAP.name()));
-                                                assert indexCommit == null;
-                                                indexCommit = reader.getIndexCommit();
-                                            }
-                                            assert indexCommit != null;
-                                            return indexCommit;
-                                        }
-                                    }
-                                });
+                    @Override
+                    protected IndexCommit doIndexCommit() throws IOException {
+                        if (reader == null) {
+                            reader = DirectoryReader.open(tempStore.directory(), Collections.singletonMap(
+                                BlockTreeTermsReader.FST_MODE_KEY, BlockTreeTermsReader.FSTLoadMode.OFF_HEAP.name()));
+                            assert indexCommit == null;
+                            indexCommit = reader.getIndexCommit();
+                        }
+                        assert indexCommit != null;
+                        return indexCommit;
+                    }
+                });
         } catch (IOException e) {
             if (directory != null) {
                 try {

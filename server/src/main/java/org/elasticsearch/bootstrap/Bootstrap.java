@@ -26,6 +26,7 @@ import org.apache.logging.log4j.core.LoggerContext;
 import org.apache.logging.log4j.core.appender.ConsoleAppender;
 import org.apache.logging.log4j.core.config.Configurator;
 import org.apache.lucene.util.Constants;
+import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.apache.lucene.util.StringHelper;
 import org.elasticsearch.ElasticsearchException;
@@ -239,15 +240,7 @@ final class Bootstrap {
 
         char[] password;
         if (stdin) {
-            try (
-                BufferedReader br = new BufferedReader(
-                     new InputStreamReader(System.in)
-                )
-            ) {
-                password = br.readLine().toCharArray();
-            } catch (IOException e) {
-                throw new BootstrapException(e);
-            }
+            password = Terminal.DEFAULT.readSecret("Elasticsearch password? ");
         } else {
             // TODO[wrb]: is there a case w/o stdin?
             password = new char[0];
@@ -263,6 +256,9 @@ final class Bootstrap {
                 KeyStoreWrapper.upgrade(keystore, initialEnv.configFile(), password);
             }
         } catch (Exception e) {
+            if (password.length != 0) {
+                throw new BootstrapException(new SecurityException("Incorrect keystore password"));
+            }
             throw new BootstrapException(e);
         }
         return keystore;

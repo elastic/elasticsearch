@@ -228,11 +228,15 @@ public class SerialDiffPipelineAggregationBuilder extends AbstractPipelineAggreg
     }
 
     @Override
-    protected int doHashCode() {
-        return Objects.hash(format, gapPolicy, lag);
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), format, gapPolicy, lag);
     }
+
     @Override
-    protected boolean doEquals(Object obj) {
+    public boolean equals(Object obj) {
+        if (this == obj) return true;
+        if (obj == null || getClass() != obj.getClass()) return false;
+        if (super.equals(obj) == false) return false;
         SerialDiffPipelineAggregationBuilder other = (SerialDiffPipelineAggregationBuilder) obj;
         return Objects.equals(format, other.format)
                 && Objects.equals(gapPolicy, other.gapPolicy)

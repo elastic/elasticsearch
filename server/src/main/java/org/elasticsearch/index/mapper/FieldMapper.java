@@ -33,6 +33,8 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.support.AbstractXContentParser;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper.FieldNamesFieldType;
 import org.elasticsearch.index.similarity.SimilarityProvider;
@@ -46,6 +48,7 @@ import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.HashMap;
 import java.util.Objects;
 import java.util.stream.StreamSupport;
 
@@ -276,14 +279,33 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
                 context.doc().add(field);
             }
         } catch (Exception e) {
-            throw new MapperParsingException("failed to parse field [{}] of type [{}] in document with id '{}'", e, fieldType().name(),
-                    fieldType().typeName(), context.sourceToParse().id());
+            String valuePreview = "";
+            try {
+                XContentParser parser = context.parser();
+                Object complexValue = AbstractXContentParser.readValue(parser, ()-> new HashMap<String, Object>());
+                if (complexValue == null) {
+                    valuePreview = "null";
+                } else {
+                    valuePreview = complexValue.toString();
+                }
+            } catch (Exception innerException) {
+                throw new MapperParsingException("failed to parse field [{}] of type [{}] in document with id '{}'. " +
+                    "Could not parse field value preview,",
+                    e, fieldType().name(), fieldType().typeName(), context.sourceToParse().id());
+            }
+
+            throw new MapperParsingException("failed to parse field [{}] of type [{}] in document with id '{}'. " +
+                "Preview of field's value: '{}'", e, fieldType().name(), fieldType().typeName(),
+                context.sourceToParse().id(), valuePreview);
         }
         multiFields.parse(this, context);
     }
 
     /**
      * Parse the field value and populate <code>fields</code>.
+     *
+     * Implementations of this method should ensure that on failing to parse parser.currentToken() must be the
+     * current failing token
      */
     protected abstract void parseCreateField(ParseContext context, List<IndexableField> fields) throws IOException;
 

@@ -1,5 +1,6 @@
 {
   "ml.get_calendar_events": {
+    "stability": "stable",
     "methods": [ "GET" ],
     "url": {
       "paths": [

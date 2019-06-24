@@ -123,7 +123,7 @@ teardown:
         transform_id: "_all"
         from: 0
         size: 1
-  - match: { count: 1 }
+  - match: { count: 3 }
   - match: { transforms.0.id: "airline-transform-stats" }
 
   - do:
@@ -131,7 +131,7 @@ teardown:
         transform_id: "_all"
         from: 1
         size: 2
-  - match: { count: 2 }
+  - match: { count: 3 }
   - match: { transforms.0.id: "airline-transform-stats-dos" }
   - match: { transforms.1.id: "airline-transform-stats-the-third" }
 

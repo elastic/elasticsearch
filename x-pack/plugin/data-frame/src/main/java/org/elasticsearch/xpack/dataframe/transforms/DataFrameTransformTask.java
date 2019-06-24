@@ -12,6 +12,7 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BulkAction;
+import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.search.SearchAction;
@@ -247,7 +248,7 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
 
         IndexerState state = getIndexer().stop();
         if (state == IndexerState.STOPPED) {
-            //doSaveState calls `onStop` when the task state is `STOPPED`
+            getIndexer().onStop();
             getIndexer().doSaveState(state, getIndexer().getPosition(), () -> {});
         }
     }
@@ -454,6 +455,7 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
         private final String transformId;
         private final DataFrameTransformTask transformTask;
         private final AtomicInteger failureCount;
+        private volatile boolean auditBulkFailures = true;
         // Keeps track of the last exception that was written to our audit, keeps us from spamming the audit index
         private volatile String lastAuditedExceptionMessage = null;
 
@@ -490,8 +492,6 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
 
         @Override
         protected void onStart(long now, ActionListener<Void> listener) {
-            // Reset our failure count as we are starting again
-            failureCount.set(0);
             // On each run, we need to get the total number of docs and reset the count of processed docs
             // Since multiple checkpoints can be executed in the task while it is running on the same node, we need to gather
             // the progress here, and not in the executor.
@@ -542,8 +542,28 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
 
         @Override
         protected void doNextBulk(BulkRequest request, ActionListener<BulkResponse> nextPhase) {
-            ClientHelper.executeWithHeadersAsync(transformConfig.getHeaders(), ClientHelper.DATA_FRAME_ORIGIN, client, BulkAction.INSTANCE,
-                    request, nextPhase);
+            ClientHelper.executeWithHeadersAsync(transformConfig.getHeaders(),
+                ClientHelper.DATA_FRAME_ORIGIN,
+                client,
+                BulkAction.INSTANCE,
+                request,
+                ActionListener.wrap(bulkResponse -> {
+                    if (bulkResponse.hasFailures() && auditBulkFailures) {
+                        int failureCount = 0;
+                        for(BulkItemResponse item : bulkResponse.getItems()) {
+                            if (item.isFailed()) {
+                                failureCount++;
+                            }
+                        }
+                        auditor.warning(transformId,
+                            "Experienced at least [" +
+                                failureCount +
+                                "] bulk index failures. See the logs of the node running the transform for details. " +
+                                bulkResponse.buildFailureMessage());
+                        auditBulkFailures = false;
+                    }
+                    nextPhase.onResponse(bulkResponse);
+                }, nextPhase::onFailure));
         }
 
         @Override
@@ -590,7 +610,7 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
                             r -> {
                                 // for auto stop shutdown the task
                                 if (state.getTaskState().equals(DataFrameTransformTaskState.STOPPED)) {
-                                    onStop();
+                                    transformTask.shutdown();
                                 }
                                 next.run();
                             },
@@ -600,7 +620,7 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
                                     "Failure updating stats of transform: " + statsExc.getMessage());
                                 // for auto stop shutdown the task
                                 if (state.getTaskState().equals(DataFrameTransformTaskState.STOPPED)) {
-                                    onStop();
+                                    transformTask.shutdown();
                                 }
                                 next.run();
                             }
@@ -630,9 +650,12 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
             try {
                 super.onFinish(listener);
                 long checkpoint = transformTask.currentCheckpoint.incrementAndGet();
+                // Reset our failure count as we have finished and may start again with a new checkpoint
+                failureCount.set(0);
                 auditor.info(transformTask.getTransformId(), "Finished indexing for data frame transform checkpoint [" + checkpoint + "].");
                 logger.info(
                     "Finished indexing for data frame transform [" + transformTask.getTransformId() + "] checkpoint [" + checkpoint + "]");
+                auditBulkFailures = true;
                 listener.onResponse(null);
             } catch (Exception e) {
                 listener.onFailure(e);
@@ -643,7 +666,6 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
         protected void onStop() {
             auditor.info(transformConfig.getId(), "Data frame transform has stopped.");
             logger.info("Data frame transform [{}] indexer has stopped", transformConfig.getId());
-            transformTask.shutdown();
         }
 
         @Override

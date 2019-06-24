@@ -26,8 +26,8 @@ public class PostStartBasicResponse extends AcknowledgedResponse implements Stat
     private static final ParseField ERROR_MESSAGE_FIELD = new ParseField("error_message");
     private static final ParseField MESSAGE_FIELD = new ParseField("message");
 
-    private Map<String, String[]> acknowledgeMessages;
-    private String acknowledgeMessage;
+    private final Map<String, String[]> acknowledgeMessages;
+    private final String acknowledgeMessage;
 
     public enum Status {
         GENERATED_BASIC(true, null, RestStatus.OK),
@@ -57,9 +57,24 @@ public class PostStartBasicResponse extends AcknowledgedResponse implements Stat
         }
     }
 
-    private Status status;
+    private final Status status;
 
-    public PostStartBasicResponse() {
+    public PostStartBasicResponse(StreamInput in) throws IOException {
+        super(in);
+        status = in.readEnum(Status.class);
+        acknowledgeMessage = in.readOptionalString();
+        int size = in.readVInt();
+        Map<String, String[]> acknowledgeMessages = new HashMap<>(size);
+        for (int i = 0; i < size; i++) {
+            String feature = in.readString();
+            int nMessages = in.readVInt();
+            String[] messages = new String[nMessages];
+            for (int j = 0; j < nMessages; j++) {
+                messages[j] = in.readString();
+            }
+            acknowledgeMessages.put(feature, messages);
+        }
+        this.acknowledgeMessages = acknowledgeMessages;
     }
 
     PostStartBasicResponse(Status status) {
@@ -75,25 +90,6 @@ public class PostStartBasicResponse extends AcknowledgedResponse implements Stat
 
     public Status getStatus() {
         return status;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        status = in.readEnum(Status.class);
-        acknowledgeMessage = in.readOptionalString();
-        int size = in.readVInt();
-        Map<String, String[]> acknowledgeMessages = new HashMap<>(size);
-        for (int i = 0; i < size; i++) {
-            String feature = in.readString();
-            int nMessages = in.readVInt();
-            String[] messages = new String[nMessages];
-            for (int j = 0; j < nMessages; j++) {
-                messages[j] = in.readString();
-            }
-            acknowledgeMessages.put(feature, messages);
-        }
-        this.acknowledgeMessages = acknowledgeMessages;
     }
 
     @Override

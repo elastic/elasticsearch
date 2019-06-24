@@ -9,6 +9,10 @@
 "Test start given missing source index":
 
   - do:
+      indices.create:
+        index: missing
+
+  - do:
       ml.put_data_frame_analytics:
         id: "missing_index"
         body: >
@@ -23,7 +27,11 @@
           }
 
   - do:
-      catch: /cannot retrieve data because index \[missing\] does not exist/
+      indices.delete:
+        index: missing
+
+  - do:
+      catch: /No index matches source index \[missing]/
       ml.start_data_frame_analytics:
         id: "missing_index"
 

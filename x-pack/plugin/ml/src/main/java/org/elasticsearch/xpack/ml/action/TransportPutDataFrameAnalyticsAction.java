@@ -9,6 +9,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
@@ -36,9 +37,11 @@ import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesResponse;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.permission.ResourcePrivileges;
 import org.elasticsearch.xpack.core.security.support.Exceptions;
+import org.elasticsearch.xpack.ml.dataframe.SourceDestValidator;
 import org.elasticsearch.xpack.ml.dataframe.persistence.DataFrameAnalyticsConfigProvider;
 
 import java.io.IOException;
+import java.util.Objects;
 import java.util.function.Supplier;
 
 public class TransportPutDataFrameAnalyticsAction
@@ -49,13 +52,16 @@ public class TransportPutDataFrameAnalyticsAction
     private final ThreadPool threadPool;
     private final SecurityContext securityContext;
     private final Client client;
+    private final ClusterService clusterService;
+    private final IndexNameExpressionResolver indexNameExpressionResolver;
 
     private volatile ByteSizeValue maxModelMemoryLimit;
 
     @Inject
     public TransportPutDataFrameAnalyticsAction(Settings settings, TransportService transportService, ActionFilters actionFilters,
                                                 XPackLicenseState licenseState, Client client, ThreadPool threadPool,
-                                                ClusterService clusterService, DataFrameAnalyticsConfigProvider configProvider) {
+                                                ClusterService clusterService, IndexNameExpressionResolver indexNameExpressionResolver,
+                                                DataFrameAnalyticsConfigProvider configProvider) {
         super(PutDataFrameAnalyticsAction.NAME, transportService, actionFilters,
             (Supplier<PutDataFrameAnalyticsAction.Request>) PutDataFrameAnalyticsAction.Request::new);
         this.licenseState = licenseState;
@@ -64,6 +70,8 @@ public class TransportPutDataFrameAnalyticsAction
         this.securityContext = XPackSettings.SECURITY_ENABLED.get(settings) ?
             new SecurityContext(settings, threadPool.getThreadContext()) : null;
         this.client = client;
+        this.clusterService = clusterService;
+        this.indexNameExpressionResolver = Objects.requireNonNull(indexNameExpressionResolver);
 
         maxModelMemoryLimit = MachineLearningField.MAX_MODEL_MEMORY_LIMIT.get(settings);
         clusterService.getClusterSettings()
@@ -146,5 +154,7 @@ public class TransportPutDataFrameAnalyticsAction
             throw ExceptionsHelper.badRequestException("id [{}] is too long; must not contain more than {} characters", config.getId(),
                 MlStrings.ID_LENGTH_LIMIT);
         }
+        config.getDest().validate();
+        new SourceDestValidator(clusterService.state(), indexNameExpressionResolver).check(config);
     }
 }

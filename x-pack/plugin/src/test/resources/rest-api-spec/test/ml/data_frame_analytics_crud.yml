@@ -1,4 +1,10 @@
 ---
+setup:
+  - do:
+      indices.create:
+        index: index-source
+
+---
 "Test get-all and get-all-stats given no analytics exist":
 
   - do:
@@ -154,6 +160,159 @@
             },
             "dest": {
               "index": "index-dest"
+            },
+            "analysis": {"outlier_detection":{}}
+          }
+
+---
+"Test put config with invalid dest index name":
+
+  - do:
+      catch: /Invalid index name \[<script>Foo\]*/
+      ml.put_data_frame_analytics:
+        id: "config-with-invalid-dest-index"
+        body: >
+          {
+            "source": {
+              "index": "index-source"
+            },
+            "dest": {
+              "index": "<script>Foo"
+            },
+            "analysis": {"outlier_detection":{}}
+          }
+
+---
+"Test put config with pattern dest index name":
+
+  - do:
+      catch: /Invalid index name \[foo\*\]/
+      ml.put_data_frame_analytics:
+        id: "config-with-invalid-dest-index"
+        body: >
+          {
+            "source": {
+              "index": "index-source"
+            },
+            "dest": {
+              "index": "foo*"
+            },
+            "analysis": {"outlier_detection":{}}
+          }
+
+---
+"Test put config with missing concrete source index":
+
+  - do:
+      catch: /No index matches source index \[missing]/
+      ml.put_data_frame_analytics:
+        id: "config-with-missing-concrete-source-index"
+        body: >
+          {
+            "source": {
+              "index": "missing"
+            },
+            "dest": {
+              "index": "index-dest"
+            },
+            "analysis": {"outlier_detection":{}}
+          }
+
+---
+"Test put config with missing wildcard source index":
+
+  - do:
+      catch: /No index matches source index \[missing\*\]/
+      ml.put_data_frame_analytics:
+        id: "config-with-missing-wildcard-source-index"
+        body: >
+          {
+            "source": {
+              "index": "missing*"
+            },
+            "dest": {
+              "index": "index-dest"
+            },
+            "analysis": {"outlier_detection":{}}
+          }
+
+---
+"Test put config with dest index same as source index":
+
+  - do:
+      catch: /Destination index \[index-source\] must not be included in source index \[index-source\]/
+      ml.put_data_frame_analytics:
+        id: "config-with-same-source-dest-index"
+        body: >
+          {
+            "source": {
+              "index": "index-source"
+            },
+            "dest": {
+              "index": "index-source"
+            },
+            "analysis": {"outlier_detection":{}}
+          }
+
+---
+"Test put config with dest index matching multiple indices":
+
+  - do:
+      indices.create:
+        index: multiple-dest-index-1
+
+  - do:
+      indices.create:
+        index: multiple-dest-index-2
+
+  - do:
+      indices.put_alias:
+        index: multiple-dest-index-1
+        name: multiple-dest-index
+
+  - do:
+      indices.put_alias:
+        index: multiple-dest-index-2
+        name: multiple-dest-index
+
+  - do:
+      catch: /Destination index \[multiple-dest-index\] should match a single index; matches \[multiple-dest-index-[12], multiple-dest-index-[12]\]/
+      ml.put_data_frame_analytics:
+        id: "config-with-dest-index-matching-multiple-indices"
+        body: >
+          {
+            "source": {
+              "index": "index-source"
+            },
+            "dest": {
+              "index": "multiple-dest-index"
+            },
+            "analysis": {"outlier_detection":{}}
+          }
+
+---
+"Test put config with dest index included in source via alias":
+
+  - do:
+      indices.create:
+        index: another-source-index
+
+  - do:
+      indices.put_alias:
+        index: another-source-index
+        name: dest-alias
+
+  - do:
+      catch: /Destination index \[dest-alias\], which is an alias for \[another-source-index\], must not be included in source index \[another-source-index\]/
+      ml.put_data_frame_analytics:
+        id: "config-with-dest-index-included-in-source-via-alias"
+        body: >
+          {
+            "source": {
+              "index": "another-source-index"
+            },
+            "dest": {
+              "index": "dest-alias"
             },
             "analysis": {"outlier_detection":{}}
           }
@@ -339,7 +498,7 @@
         body: >
           {
             "source": {
-              "index": "index-foo-1_source"
+              "index": "index-source"
             },
             "dest": {
               "index": "index-foo-1_dest"
@@ -353,7 +512,7 @@
         body: >
           {
             "source": {
-              "index": "index-foo-2_source"
+              "index": "index-source"
             },
             "dest": {
               "index": "index-foo-2_dest"
@@ -368,7 +527,7 @@
         body: >
           {
             "source": {
-              "index": "index-bar_source"
+              "index": "index-source"
             },
             "dest": {
               "index": "index-bar_dest"
@@ -500,7 +659,7 @@
         body: >
           {
             "source": {
-              "index": "index-foo-1_source"
+              "index": "index-source"
             },
             "dest": {
               "index": "index-foo-1_dest"
@@ -514,7 +673,7 @@
         body: >
           {
             "source": {
-              "index": "index-foo-2_source"
+              "index": "index-source"
             },
             "dest": {
               "index": "index-foo-2_dest"
@@ -529,7 +688,7 @@
         body: >
           {
             "source": {
-              "index": "index-bar_source"
+              "index": "index-source"
             },
             "dest": {
               "index": "index-bar_dest"

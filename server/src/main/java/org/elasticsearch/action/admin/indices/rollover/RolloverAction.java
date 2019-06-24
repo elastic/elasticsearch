@@ -20,6 +20,7 @@
 package org.elasticsearch.action.admin.indices.rollover;
 
 import org.elasticsearch.action.Action;
+import org.elasticsearch.common.io.stream.Writeable;
 
 public class RolloverAction extends Action<RolloverResponse> {
 
@@ -32,6 +33,11 @@ public class RolloverAction extends Action<RolloverResponse> {
 
     @Override
     public RolloverResponse newResponse() {
-        return new RolloverResponse();
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
+    }
+
+    @Override
+    public Writeable.Reader<RolloverResponse> getResponseReader() {
+        return RolloverResponse::new;
     }
 }

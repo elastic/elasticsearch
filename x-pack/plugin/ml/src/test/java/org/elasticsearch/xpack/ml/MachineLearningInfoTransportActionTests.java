@@ -72,7 +72,7 @@ import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class MachineLearningFeatureSetTests extends ESTestCase {
+public class MachineLearningInfoTransportActionTests extends ESTestCase {
 
     private Settings commonSettings;
     private ClusterService clusterService;
@@ -98,29 +98,30 @@ public class MachineLearningFeatureSetTests extends ESTestCase {
         givenDatafeeds(Collections.emptyList());
     }
 
-    private MachineLearningFeatureSet.UsageTransportAction newUsageAction(Settings settings) {
-        return new MachineLearningFeatureSet.UsageTransportAction(mock(TransportService.class), clusterService,
+    private MachineLearningUsageTransportAction newUsageAction(Settings settings) {
+        return new MachineLearningUsageTransportAction(mock(TransportService.class), clusterService,
             null, mock(ActionFilters.class), mock(IndexNameExpressionResolver.class),
             TestEnvironment.newEnvironment(settings), client, licenseState, jobManagerHolder);
     }
 
     public void testIsRunningOnMlPlatform() {
-        assertTrue(MachineLearningFeatureSet.isRunningOnMlPlatform("Linux", "amd64", true));
-        assertTrue(MachineLearningFeatureSet.isRunningOnMlPlatform("Windows 10", "amd64", true));
-        assertTrue(MachineLearningFeatureSet.isRunningOnMlPlatform("Mac OS X", "x86_64", true));
-        assertFalse(MachineLearningFeatureSet.isRunningOnMlPlatform("Linux", "i386", false));
-        assertFalse(MachineLearningFeatureSet.isRunningOnMlPlatform("Windows 10", "i386", false));
-        assertFalse(MachineLearningFeatureSet.isRunningOnMlPlatform("SunOS", "amd64", false));
+        assertTrue(MachineLearningInfoTransportAction.isRunningOnMlPlatform("Linux", "amd64", true));
+        assertTrue(MachineLearningInfoTransportAction.isRunningOnMlPlatform("Windows 10", "amd64", true));
+        assertTrue(MachineLearningInfoTransportAction.isRunningOnMlPlatform("Mac OS X", "x86_64", true));
+        assertFalse(MachineLearningInfoTransportAction.isRunningOnMlPlatform("Linux", "i386", false));
+        assertFalse(MachineLearningInfoTransportAction.isRunningOnMlPlatform("Windows 10", "i386", false));
+        assertFalse(MachineLearningInfoTransportAction.isRunningOnMlPlatform("SunOS", "amd64", false));
         expectThrows(ElasticsearchException.class,
-                () -> MachineLearningFeatureSet.isRunningOnMlPlatform("Linux", "i386", true));
+                () -> MachineLearningInfoTransportAction.isRunningOnMlPlatform("Linux", "i386", true));
         expectThrows(ElasticsearchException.class,
-                () -> MachineLearningFeatureSet.isRunningOnMlPlatform("Windows 10", "i386", true));
+                () -> MachineLearningInfoTransportAction.isRunningOnMlPlatform("Windows 10", "i386", true));
         expectThrows(ElasticsearchException.class,
-                () -> MachineLearningFeatureSet.isRunningOnMlPlatform("SunOS", "amd64", true));
+                () -> MachineLearningInfoTransportAction.isRunningOnMlPlatform("SunOS", "amd64", true));
     }
 
     public void testAvailable() throws Exception {
-        MachineLearningFeatureSet featureSet = new MachineLearningFeatureSet(commonSettings, licenseState);
+        MachineLearningInfoTransportAction featureSet = new MachineLearningInfoTransportAction(
+            mock(TransportService.class), mock(ActionFilters.class), commonSettings, licenseState);
         boolean available = randomBoolean();
         when(licenseState.isMachineLearningAllowed()).thenReturn(available);
         assertThat(featureSet.available(), is(available));
@@ -145,7 +146,8 @@ public class MachineLearningFeatureSetTests extends ESTestCase {
             settings.put("xpack.ml.enabled", enabled);
         }
         boolean expected = enabled || useDefault;
-        MachineLearningFeatureSet featureSet = new MachineLearningFeatureSet(settings.build(), licenseState);
+        MachineLearningInfoTransportAction featureSet = new MachineLearningInfoTransportAction(
+            mock(TransportService.class), mock(ActionFilters.class), settings.build(), licenseState);
         assertThat(featureSet.enabled(), is(expected));
         var usageAction = newUsageAction(settings.build());
         PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();

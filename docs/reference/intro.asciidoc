@@ -1,7 +1,9 @@
 [[elasticsearch-intro]]
-= You know, for search (and analysis)
+= Elasticsearch introduction
 [partintro]
 --
+_**You know, for search (and analysis)**_
+
 {es} is the distributed search and analytics engine at the heart of
 the {stack}. {ls} and {beats} facilitate collecting, aggregating, and
 enriching your data and storing it in {es}. {kib} enables you to

@@ -48,7 +48,7 @@ import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
  */
 public class ReindexRequestTests extends AbstractBulkByScrollRequestTestCase<ReindexRequest> {
 
-    private final String matchAll = "{\"match_all\":{}}";
+    private final BytesReference matchAll = new BytesArray("{ \"foo\" : \"bar\" }");
 
     @Override
     protected NamedWriteableRegistry writableRegistry() {
@@ -132,14 +132,17 @@ public class ReindexRequestTests extends AbstractBulkByScrollRequestTestCase<Rei
         assertEquals(expectedInstance.getSlices(), newInstance.getSlices());
         assertEquals(expectedInstance.isAbortOnVersionConflict(), newInstance.isAbortOnVersionConflict());
         assertEquals(expectedInstance.getRemoteInfo(), newInstance.getRemoteInfo());
+        assertEquals(expectedInstance.getDestination().getPipeline(), newInstance.getDestination().getPipeline());
+        assertEquals(expectedInstance.getDestination().routing(), newInstance.getDestination().routing());
+        assertEquals(expectedInstance.getDestination().opType(), newInstance.getDestination().opType());
+        assertEquals(expectedInstance.getDestination().type(), newInstance.getDestination().type());
     }
 
     public void testReindexFromRemoteDoesNotSupportSearchQuery() {
         ReindexRequest reindex = newRequest();
         reindex.setRemoteInfo(
                 new RemoteInfo(randomAlphaOfLength(5), randomAlphaOfLength(5), between(1, Integer.MAX_VALUE), null,
-                    new BytesArray(matchAll), null, null, emptyMap(),
-                    RemoteInfo.DEFAULT_SOCKET_TIMEOUT, RemoteInfo.DEFAULT_CONNECT_TIMEOUT));
+                    matchAll, null, null, emptyMap(), RemoteInfo.DEFAULT_SOCKET_TIMEOUT, RemoteInfo.DEFAULT_CONNECT_TIMEOUT));
         reindex.getSearchRequest().source().query(matchAllQuery()); // Unsupported place to put query
         ActionRequestValidationException e = reindex.validate();
         assertEquals("Validation Failed: 1: reindex from remote sources should use RemoteInfo's query instead of source's query;",
@@ -150,8 +153,7 @@ public class ReindexRequestTests extends AbstractBulkByScrollRequestTestCase<Rei
         ReindexRequest reindex = newRequest();
         reindex.setRemoteInfo(
                 new RemoteInfo(randomAlphaOfLength(5), randomAlphaOfLength(5), between(1, Integer.MAX_VALUE), null,
-                    new BytesArray(matchAll), null, null, emptyMap(),
-                    RemoteInfo.DEFAULT_SOCKET_TIMEOUT, RemoteInfo.DEFAULT_CONNECT_TIMEOUT));
+                    matchAll, null, null, emptyMap(), RemoteInfo.DEFAULT_SOCKET_TIMEOUT, RemoteInfo.DEFAULT_CONNECT_TIMEOUT));
         reindex.setSlices(between(2, Integer.MAX_VALUE));
         ActionRequestValidationException e = reindex.validate();
         assertEquals(
@@ -173,10 +175,9 @@ public class ReindexRequestTests extends AbstractBulkByScrollRequestTestCase<Rei
             original.setScript(mockScript(randomAlphaOfLength(5)));
         }
         if (randomBoolean()) {
-            original.setRemoteInfo(new RemoteInfo(randomAlphaOfLength(5), randomAlphaOfLength(5), between(1, 10000),
-                    null, new BytesArray(matchAll), null, null, emptyMap(),
-                    parseTimeValue(randomPositiveTimeValue(), "socket_timeout"),
-                    parseTimeValue(randomPositiveTimeValue(), "connect_timeout")));
+            original.setRemoteInfo(new RemoteInfo(randomAlphaOfLength(5), randomAlphaOfLength(5), between(1, 10000), null, matchAll, null,
+                null, emptyMap(), parseTimeValue(randomPositiveTimeValue(), "socket_timeout"),
+                parseTimeValue(randomPositiveTimeValue(), "connect_timeout")));
         }
     }
 
@@ -314,8 +315,6 @@ public class ReindexRequestTests extends AbstractBulkByScrollRequestTestCase<Rei
         }
     }
 
-
-
     private RemoteInfo buildRemoteInfoHostTestCase(String hostInRest) throws IOException {
         Map<String, Object> remote = new HashMap<>();
         remote.put("host", hostInRest);
@@ -325,5 +324,4 @@ public class ReindexRequestTests extends AbstractBulkByScrollRequestTestCase<Rei
 
         return ReindexRequest.buildRemoteInfo(source);
     }
-
 }

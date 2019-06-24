@@ -249,6 +249,7 @@ public class TestClustersPlugin implements Plugin<Project> {
                     if (clustersUsedByTask.isEmpty()) {
                         return;
                     }
+                    logger.info("Clusters were used, stopping and releasing permits");
                     final int permitsToRelease;
                     if (state.getFailure() != null) {
                         // If the task fails, and other tasks use this cluster, the other task will likely never be
@@ -270,14 +271,13 @@ public class TestClustersPlugin implements Plugin<Project> {
                             stopCluster(cluster, false);
                             runningClusters.remove(cluster);
                         });
-                        permitsToRelease = clustersUsedByTask.stream()
+                        permitsToRelease = stoppingClusers.stream()
                             .map(cluster -> cluster.getNumberOfNodes())
                             .reduce(Integer::sum).orElse(0);
                     }
-                    if (permitsToRelease != 0) {
-                        logger.info("Will release {} permits for {}", permitsToRelease, this);
-                        GlobalSemaphoreHolderExtension.get(project).release(permitsToRelease);
-                    }
+
+                    logger.info("Will release {} permits for {}", permitsToRelease, this);
+                    GlobalSemaphoreHolderExtension.get(project).release(permitsToRelease);
                 }
                 @Override
                 public void beforeExecute(Task task) {}

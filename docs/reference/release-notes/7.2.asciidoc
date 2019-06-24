@@ -142,7 +142,6 @@ Distributed::
 * Prevent in-place downgrades and invalid upgrades {pull}41731[#41731]
 * Add index name to cluster block exception {pull}41489[#41489] (issue: {issue}40870[#40870])
 * Noop peer recoveries on closed index {pull}41400[#41400] (issue: {issue}33888[#33888])
-* Ensure no uncommitted ops when open readonly engine {pull}41317[#41317] (issue: {issue}33888[#33888])
 * Do not trim unsafe commits when open readonly engine {pull}41041[#41041] (issue: {issue}33888[#33888])
 * Avoid background sync on relocated primary {pull}40800[#40800] (issue: {issue}40731[#40731])
 * No mapper service and index caches for replicated closed indices {pull}40423[#40423]
@@ -167,6 +166,7 @@ Engine::
 
 Features/CAT APIs::
 * Add start and stop time to cat recovery API {pull}40378[#40378]
+* Return 0 for negative "free" and "total" memory reported by the OS {pull}42725[#42725] (issue: {issue}42157[#42157])
 
 Features/Indices APIs::
 * Introduce aliases version {pull}41397[#41397] (issue: {issue}41396[#41396])
@@ -355,6 +355,7 @@ Engine::
 
 Features/ILM::
 * Make ILM force merging best effort {pull}43246[#43246] (issues: {issue}42824[#42824], {issue}43245[#43245])
+* Narrow period of Shrink action in which ILM prevents stopping {pull}43254[#43254] (issue: {issue}43253[#43253])
 
 Features/Indices APIs::
 * Add pre-upgrade check to test cluster routing allocation is enabled {pull}39340[#39340] (issue: {issue}39339[#39339])

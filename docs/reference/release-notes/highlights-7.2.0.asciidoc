@@ -52,7 +52,7 @@ The implementation is based on the OpenGIS® Implementation Standard for Geograp
 information - "Simple feature access". This is the current de-facto standard for GIS
 system implementation. This release includes a small subset of SQL option AKA ISO 19125-2.
 
-For this initial beta release we added support for returning
+For this initial beta release, we added support for returning
 geo_shapes and geo_points as results, added support for a few geo functions
 (ST_AsText, ST_Distance, ST_GeometryType, ST_GeometryFromText, ST_X, ST_Y, and ST_Z)
 , and added a limited support for using geo_points in distance queries. For example:

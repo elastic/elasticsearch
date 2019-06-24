@@ -4,7 +4,7 @@
 
 The {es} {security-features} are configured by files and by various API
 endpoints. The security settings, which are prefixed with `xpack.security`, are
-ordinarily included in regular backups. However, the backup is not complete
+ordinarily included in regular file-system backups. However, the backup is not complete
 until a special index, which holds most of the non-setting configuration, is
 also included. Hence, the backup and restore of the security configuration
 entails an extra step to a conventional backup and restore.

@@ -1,3 +1,4 @@
+apply plugin: 'elasticsearch.testclusters'
 apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
 
@@ -5,21 +6,12 @@ dependencies {
   testCompile project(':x-pack:qa')
 }
 
-integTestCluster {
+testClusters.integTest {
+  distribution = "DEFAULT"
   setting 'xpack.ilm.enabled', 'false'
   setting 'xpack.monitoring.enabled', 'true'
   setting 'xpack.watcher.enabled', 'true'
   setting 'xpack.security.enabled', 'false'
   setting 'xpack.ml.enabled', 'false'
   setting 'xpack.license.self_generated.type', 'trial'
-
-  // exporter settings are configured dynamically in our tests
-  // configure a local exporter, the HTTP exporter is configured via dynamic settings change
-  //setting 'xpack.monitoring.exporters.my_local.type', 'local'
-  //setting 'xpack.monitoring.exporters.my_local.index.name.time_format', 'YYYY'
-  //setting 'xpack.monitoring.exporters.my_http.type', 'http'
-  //setting 'xpack.monitoring.exporters.my_http.host', 'http'
-  //setting 'xpack.monitoring.exporters.my_http.index.name.time_format', 'YYYY-MM'
-  // one of the exporters should configure cluster alerts
-  // setting 'xpack.monitoring.exporters.my_http.cluster_alerts.management.enabled', 'true'
 }

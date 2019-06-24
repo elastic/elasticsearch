@@ -12,6 +12,7 @@ import org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister;
 import org.junit.Before;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
@@ -57,5 +58,20 @@ public class DatafeedTimingStatsReporterTests extends ESTestCase {
     private Void advanceTime(int seconds) {
         clock.fastForwardSeconds(seconds);
         return null;
+    }
+
+    public void testTimingStatsDifferSignificantly() {
+        assertThat(
+            DatafeedTimingStatsReporter.differSignificantly(
+                new DatafeedTimingStats(JOB_ID, 1000.0), new DatafeedTimingStats(JOB_ID, 1000.0)),
+            is(false));
+        assertThat(
+            DatafeedTimingStatsReporter.differSignificantly(
+                new DatafeedTimingStats(JOB_ID, 1000.0), new DatafeedTimingStats(JOB_ID, 1100.0)),
+            is(false));
+        assertThat(
+            DatafeedTimingStatsReporter.differSignificantly(
+                new DatafeedTimingStats(JOB_ID, 1000.0), new DatafeedTimingStats(JOB_ID, 1120.0)),
+            is(true));
     }
 }

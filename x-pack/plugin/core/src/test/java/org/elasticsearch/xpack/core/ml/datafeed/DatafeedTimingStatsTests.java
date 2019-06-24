@@ -12,7 +12,6 @@ import org.elasticsearch.test.AbstractSerializingTestCase;
 import java.io.IOException;
 
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.is;
 
 public class DatafeedTimingStatsTests extends AbstractSerializingTestCase<DatafeedTimingStats> {
 
@@ -92,17 +91,5 @@ public class DatafeedTimingStatsTests extends AbstractSerializingTestCase<Datafe
 
     public void testDocumentId() {
         assertThat(DatafeedTimingStats.documentId("my-job-id"), equalTo("my-job-id_datafeed_timing_stats"));
-    }
-
-    public void testTimingStatsDifferSignificantly() {
-        assertThat(
-            DatafeedTimingStats.differSignificantly(new DatafeedTimingStats(JOB_ID, 1000.0), new DatafeedTimingStats(JOB_ID, 1000.0)),
-            is(false));
-        assertThat(
-            DatafeedTimingStats.differSignificantly(new DatafeedTimingStats(JOB_ID, 1000.0), new DatafeedTimingStats(JOB_ID, 1100.0)),
-            is(false));
-        assertThat(
-            DatafeedTimingStats.differSignificantly(new DatafeedTimingStats(JOB_ID, 1000.0), new DatafeedTimingStats(JOB_ID, 1120.0)),
-            is(true));
     }
 }

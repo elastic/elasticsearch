@@ -49,9 +49,6 @@ Security::
 Authentication::
 * Add an OpenID Connect authentication realm {pull}40674[#40674]
 
-Cluster Coordination::
-* Add GET /_cluster/master endpoint {pull}40047[#40047]
-
 Distributed::
 * Add support for replicating closed indices {pull}39499[#39499] (issues: {issue}33888[#33888], {issue}33903[#33903], {issue}37359[#37359], {issue}37413[#37413], {issue}38024[#38024], {issue}38326[#38326], {issue}38327[#38327], {issue}38329[#38329], {issue}38421[#38421], {issue}38631[#38631], {issue}38767[#38767], {issue}38854[#38854], {issue}38955[#38955], {issue}39006[#39006], {issue}39110[#39110], {issue}39186[#39186], {issue}39249[#39249], {issue}39364[#39364])
 

@@ -9,7 +9,7 @@
 
 // tag::notable-highlights[]
 [discrete]
-==== {dataframes-cap} (Beta)
+==== {dataframes-cap}
 
 beta[] You can now transform your data with
 {stack-ov}/ml-dataframes.html[data frames]. There is a new {kib} wizard that
@@ -46,7 +46,7 @@ remain non replicated unless they are opened and closed again in 7.2+.
 
 // tag::notable-highlights[]
 [float]
-==== Geo features in SQL (Beta)
+==== Geo features in SQL
 beta[] This release introduces the first set of geo features to SQL.
 The implementation is based on the OpenGIS® Implementation Standard for Geographic
 information - "Simple feature access". This is the current de-facto standard for GIS

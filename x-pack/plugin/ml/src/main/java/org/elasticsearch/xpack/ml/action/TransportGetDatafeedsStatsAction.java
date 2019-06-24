@@ -77,8 +77,13 @@ public class TransportGetDatafeedsStatsAction extends TransportMasterNodeReadAct
                         timingStatsByJobId -> {
                             PersistentTasksCustomMetaData tasksInProgress = state.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
                             List<GetDatafeedsStatsAction.Response.DatafeedStats> results = datafeedBuilders.stream()
-                                .map(datafeedBuilder -> getDatafeedStats(
-                                    datafeedBuilder.getId(), state, tasksInProgress, jobIdByDatafeedId, timingStatsByJobId))
+                                .map(
+                                    datafeedBuilder -> getDatafeedStats(
+                                        datafeedBuilder.getId(),
+                                        state,
+                                        tasksInProgress,
+                                        jobIdByDatafeedId.get(datafeedBuilder.getId()),
+                                        timingStatsByJobId))
                                 .collect(Collectors.toList());
                             QueryPage<GetDatafeedsStatsAction.Response.DatafeedStats> statsPage =
                                 new QueryPage<>(results, results.size(), DatafeedConfig.RESULTS_FIELD);
@@ -93,7 +98,7 @@ public class TransportGetDatafeedsStatsAction extends TransportMasterNodeReadAct
     private static GetDatafeedsStatsAction.Response.DatafeedStats getDatafeedStats(String datafeedId,
                                                                                    ClusterState state,
                                                                                    PersistentTasksCustomMetaData tasks,
-                                                                                   Map<String, String> jobIdByDatafeedId,
+                                                                                   String jobId,
                                                                                    Map<String, DatafeedTimingStats> timingStatsByJobId) {
         PersistentTasksCustomMetaData.PersistentTask<?> task = MlTasks.getDatafeedTask(datafeedId, tasks);
         DatafeedState datafeedState = MlTasks.getDatafeedState(datafeedId, tasks);
@@ -104,7 +109,6 @@ public class TransportGetDatafeedsStatsAction extends TransportMasterNodeReadAct
             explanation = task.getAssignment().getExplanation();
         }
         DatafeedTimingStats timingStats = null;
-        String jobId = jobIdByDatafeedId.get(datafeedId);
         if (jobId != null) {
             timingStats = timingStatsByJobId.get(jobId);
             if (timingStats == null) {

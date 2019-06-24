@@ -174,7 +174,8 @@ public class EnrichPolicyExecutorTests extends ESTestCase {
         secondTaskComplete.await();
 
         // Validate exception from second run
-        assertThat(expected.getMessage(), containsString("Policy execution failed. Exceeded maximum concurrent policy executions [2]"));
+        assertThat(expected.getMessage(), containsString("Policy execution failed. Policy execution for [test_policy_3] would exceed " +
+            "maximum concurrent policy executions [2]"));
 
         // Ensure that the lock from the previous run has been cleared
         CountDownLatch finalTaskComplete = new CountDownLatch(1);

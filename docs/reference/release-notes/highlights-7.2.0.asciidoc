@@ -93,7 +93,7 @@ position within the input) are supported.
 ==== Distance Feature Query
 
 The `distance_feature` query is a specialized query that only works on `date`, `date_nanos`, or `geo_point`
-fields. Its goal is to boost documents scores based on proximity to some given origin.
+fields. The query boosts documents scores based on proximity to some given origin.
 For example, you can use this query to give higher scores to documents with dates
 closer to a certain date or locations closer to a certain location.
 closer to a certain date, or to documents with locations closer to a certain location.

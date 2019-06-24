@@ -32,7 +32,7 @@ import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class CCRFeatureSetTests extends ESTestCase {
+public class CCRInfoTransportActionTests extends ESTestCase {
 
     private XPackLicenseState licenseState;
     private ClusterService clusterService;
@@ -44,30 +44,30 @@ public class CCRFeatureSetTests extends ESTestCase {
     }
 
     public void testAvailable() {
-        CCRFeatureSet featureSet = new CCRFeatureSet(Settings.EMPTY, licenseState);
+        CCRInfoTransportAction featureSet = new CCRInfoTransportAction(
+            mock(TransportService.class), mock(ActionFilters.class), Settings.EMPTY, licenseState);
 
         when(licenseState.isCcrAllowed()).thenReturn(false);
         assertThat(featureSet.available(), equalTo(false));
 
         when(licenseState.isCcrAllowed()).thenReturn(true);
         assertThat(featureSet.available(), equalTo(true));
-
-        featureSet = new CCRFeatureSet(Settings.EMPTY, null);
-        assertThat(featureSet.available(), equalTo(false));
     }
 
     public void testEnabled() {
         Settings.Builder settings = Settings.builder().put("xpack.ccr.enabled", false);
-        CCRFeatureSet featureSet = new CCRFeatureSet(settings.build(), licenseState);
+        CCRInfoTransportAction featureSet = new CCRInfoTransportAction(
+            mock(TransportService.class), mock(ActionFilters.class), settings.build(), licenseState);
         assertThat(featureSet.enabled(), equalTo(false));
 
         settings = Settings.builder().put("xpack.ccr.enabled", true);
-        featureSet = new CCRFeatureSet(settings.build(), licenseState);
+        featureSet = new CCRInfoTransportAction(mock(TransportService.class), mock(ActionFilters.class), settings.build(), licenseState);
         assertThat(featureSet.enabled(), equalTo(true));
     }
 
     public void testName() {
-        CCRFeatureSet featureSet = new CCRFeatureSet(Settings.EMPTY, licenseState);
+        CCRInfoTransportAction featureSet = new CCRInfoTransportAction(
+            mock(TransportService.class), mock(ActionFilters.class), Settings.EMPTY, licenseState);
         assertThat(featureSet.name(), equalTo("ccr"));
     }
 
@@ -105,11 +105,11 @@ public class CCRFeatureSetTests extends ESTestCase {
         ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).metaData(metaData).build();
         Mockito.when(clusterService.state()).thenReturn(clusterState);
 
-        var usageAction = new CCRFeatureSet.UsageTransportAction(mock(TransportService.class), null, null,
+        var usageAction = new CCRUsageTransportAction(mock(TransportService.class), null, null,
             mock(ActionFilters.class), null, Settings.EMPTY, licenseState);
         PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();
         usageAction.masterOperation(null, clusterState, future);
-        CCRFeatureSet.Usage ccrUsage = (CCRFeatureSet.Usage) future.get().getUsage();
+        CCRInfoTransportAction.Usage ccrUsage = (CCRInfoTransportAction.Usage) future.get().getUsage();
         assertThat(ccrUsage.enabled(), equalTo(true));
         assertThat(ccrUsage.available(), equalTo(false));
 

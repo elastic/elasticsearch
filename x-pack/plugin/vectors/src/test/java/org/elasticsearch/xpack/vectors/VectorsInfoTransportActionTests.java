@@ -21,7 +21,7 @@ import static org.hamcrest.core.Is.is;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class VectorsFeatureSetTests extends ESTestCase {
+public class VectorsInfoTransportActionTests extends ESTestCase {
 
     private XPackLicenseState licenseState;
 
@@ -31,12 +31,13 @@ public class VectorsFeatureSetTests extends ESTestCase {
     }
 
     public void testAvailable() throws Exception {
-        VectorsFeatureSet featureSet = new VectorsFeatureSet(Settings.EMPTY, licenseState);
+        VectorsInfoTransportAction featureSet = new VectorsInfoTransportAction(
+            mock(TransportService.class), mock(ActionFilters.class), Settings.EMPTY, licenseState);
         boolean available = randomBoolean();
         when(licenseState.isVectorsAllowed()).thenReturn(available);
         assertThat(featureSet.available(), is(available));
 
-        var usageAction = new VectorsFeatureSet.UsageTransportAction(mock(TransportService.class), null, null,
+        var usageAction = new VectorsUsageTransportAction(mock(TransportService.class), null, null,
             mock(ActionFilters.class), null, Settings.EMPTY, licenseState);
         PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();
         usageAction.masterOperation(null, null, future);
@@ -59,10 +60,11 @@ public class VectorsFeatureSetTests extends ESTestCase {
         } else {
             settings.put("xpack.vectors.enabled", enabled);
         }
-        VectorsFeatureSet featureSet = new VectorsFeatureSet(settings.build(), licenseState);
+        VectorsInfoTransportAction featureSet = new VectorsInfoTransportAction(
+mock(TransportService.class), mock(ActionFilters.class), settings.build(), licenseState);
         assertThat(featureSet.enabled(), is(enabled));
 
-        VectorsFeatureSet.UsageTransportAction usageAction = new VectorsFeatureSet.UsageTransportAction(mock(TransportService.class),
+        VectorsUsageTransportAction usageAction = new VectorsUsageTransportAction(mock(TransportService.class),
             null, null, mock(ActionFilters.class), null, settings.build(), licenseState);
         PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();
         usageAction.masterOperation(null, null, future);

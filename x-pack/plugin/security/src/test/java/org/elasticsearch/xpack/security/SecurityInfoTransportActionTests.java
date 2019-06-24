@@ -47,7 +47,7 @@ import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class SecurityFeatureSetTests extends ESTestCase {
+public class SecurityInfoTransportActionTests extends ESTestCase {
 
     private Settings settings;
     private XPackLicenseState licenseState;
@@ -67,7 +67,8 @@ public class SecurityFeatureSetTests extends ESTestCase {
     }
 
     public void testAvailable() {
-        SecurityFeatureSet featureSet = new SecurityFeatureSet(settings, licenseState);
+        SecurityInfoTransportAction featureSet = new SecurityInfoTransportAction(
+            mock(TransportService.class), mock(ActionFilters.class), settings, licenseState);
         when(licenseState.isSecurityAvailable()).thenReturn(true);
         assertThat(featureSet.available(), is(true));
 
@@ -76,11 +77,13 @@ public class SecurityFeatureSetTests extends ESTestCase {
     }
 
     public void testEnabled() {
-        SecurityFeatureSet featureSet = new SecurityFeatureSet(settings, licenseState);
+        SecurityInfoTransportAction featureSet = new SecurityInfoTransportAction(
+            mock(TransportService.class), mock(ActionFilters.class), settings, licenseState);
         assertThat(featureSet.enabled(), is(true));
 
         when(licenseState.isSecurityDisabledByLicenseDefaults()).thenReturn(true);
-        featureSet = new SecurityFeatureSet(settings, licenseState);
+        featureSet = new SecurityInfoTransportAction(
+            mock(TransportService.class), mock(ActionFilters.class), settings, licenseState);
         assertThat(featureSet.enabled(), is(false));
     }
 
@@ -321,8 +324,8 @@ public class SecurityFeatureSetTests extends ESTestCase {
         }).when(roleMappingStore).usageStats(any(ActionListener.class));
     }
 
-    private SecurityFeatureSet.UsageTransportAction newUsageAction(Settings settings) {
-        return new SecurityFeatureSet.UsageTransportAction(mock(TransportService.class),null,
+    private SecurityUsageTransportAction newUsageAction(Settings settings) {
+        return new SecurityUsageTransportAction(mock(TransportService.class),null,
             null, mock(ActionFilters.class),null,
             settings, licenseState, realms, rolesStore, roleMappingStore, ipFilter);
     }

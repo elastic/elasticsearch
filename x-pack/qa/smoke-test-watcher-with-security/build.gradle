@@ -1,3 +1,4 @@
+apply plugin: 'elasticsearch.testclusters'
 apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
 
@@ -12,8 +13,9 @@ task copyWatcherRestTests(type: Copy) {
   include 'rest-api-spec/test/watcher/**'
 }
 
-integTestCluster {
-  dependsOn copyWatcherRestTests
+integTest.runner.dependsOn copyWatcherRestTests
+testClusters.integTest {
+  distribution = "DEFAULT"
   setting 'xpack.ilm.enabled', 'false'
   setting 'xpack.monitoring.enabled', 'false'
   setting 'xpack.ml.enabled', 'false'
@@ -22,27 +24,13 @@ integTestCluster {
   setting 'xpack.notification.email.account._email.smtp.host', 'host.domain'
   setting 'xpack.notification.email.account._email.smtp.port', '587'
   setting 'xpack.notification.email.account._email.smtp.user', '_user'
-  keystoreSetting 'xpack.notification.email.account._email.smtp.secure_password', '_passwd'
+  keystore  'xpack.notification.email.account._email.smtp.secure_password', '_passwd'
   setting 'xpack.license.self_generated.type', 'trial'
   setting 'logger.org.elasticsearch.xpack.watcher', 'debug'
   setting 'logger.org.elasticsearch.xpack.core.watcher', 'debug'
-  extraConfigFile 'roles.yml', 'roles.yml'
-  setupCommand 'setupTestAdminUser',
-               'bin/elasticsearch-users', 'useradd', 'test_admin', '-p', 'x-pack-test-password', '-r', 'superuser'
-  setupCommand 'setupXpackUserForTests',
-               'bin/elasticsearch-users', 'useradd', 'x_pack_rest_user', '-p', 'x-pack-test-password', '-r', 'watcher_manager'
-  setupCommand 'setupWatcherManagerUser',
-               'bin/elasticsearch-users', 'useradd', 'watcher_manager', '-p', 'x-pack-test-password', '-r', 'watcher_manager'
-  setupCommand 'setupPowerlessUser',
-               'bin/elasticsearch-users', 'useradd', 'powerless_user', '-p', 'x-pack-test-password', '-r', 'crappy_role'
-  waitCondition = { node, ant ->
-    File tmpFile = new File(node.cwd, 'wait.success')
-    ant.get(src: "http://${node.httpUri()}/_cluster/health?wait_for_nodes=>=${numNodes}&wait_for_status=yellow",
-            dest: tmpFile.toString(),
-            username: 'test_admin',
-            password: 'x-pack-test-password',
-            ignoreerrors: true,
-            retries: 10)
-    return tmpFile.exists()
-  }
+  extraConfigFile 'roles.yml', file('roles.yml')
+  user username: "test_admin", password: "x-pack-test-password"
+  user username: "x_pack_rest_user", password: "x-pack-test-password", role: "watcher_manager"
+  user username: "watcher_manager", password: "x-pack-test-password", role: "watcher_manager"
+  user username: "powerless_user", password: "x-pack-test-password", role: "crappy_role"
 }

@@ -35,13 +35,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
 
-import static org.elasticsearch.xpack.dataframe.DataFrameFeatureSet.PROVIDED_STATS;
+import static org.elasticsearch.xpack.dataframe.DataFrameInfoTransportAction.PROVIDED_STATS;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.core.Is.is;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class DataFrameFeatureSetTests extends ESTestCase {
+public class DataFrameInfoTransportActionTests extends ESTestCase {
     private XPackLicenseState licenseState;
 
     @Before
@@ -50,7 +50,8 @@ public class DataFrameFeatureSetTests extends ESTestCase {
     }
 
     public void testAvailable() {
-        DataFrameFeatureSet featureSet = new DataFrameFeatureSet(Settings.EMPTY, licenseState);
+        DataFrameInfoTransportAction featureSet = new DataFrameInfoTransportAction(
+            mock(TransportService.class), mock(ActionFilters.class), Settings.EMPTY, licenseState);
         boolean available = randomBoolean();
         when(licenseState.isDataFrameAllowed()).thenReturn(available);
         assertThat(featureSet.available(), is(available));
@@ -60,12 +61,14 @@ public class DataFrameFeatureSetTests extends ESTestCase {
         boolean enabled = randomBoolean();
         Settings.Builder settings = Settings.builder();
         settings.put("xpack.data_frame.enabled", enabled);
-        DataFrameFeatureSet featureSet = new DataFrameFeatureSet(settings.build(), licenseState);
+        DataFrameInfoTransportAction featureSet = new DataFrameInfoTransportAction(
+            mock(TransportService.class), mock(ActionFilters.class), settings.build(), licenseState);
         assertThat(featureSet.enabled(), is(enabled));
     }
 
     public void testEnabledDefault() {
-        DataFrameFeatureSet featureSet = new DataFrameFeatureSet(Settings.EMPTY, licenseState);
+        DataFrameInfoTransportAction featureSet = new DataFrameInfoTransportAction(
+            mock(TransportService.class), mock(ActionFilters.class), Settings.EMPTY, licenseState);
         assertTrue(featureSet.enabled());
     }
 
@@ -74,7 +77,8 @@ public class DataFrameFeatureSetTests extends ESTestCase {
         SearchResponse withEmptyAggs = mock(SearchResponse.class);
         when(withEmptyAggs.getAggregations()).thenReturn(emptyAggs);
 
-        assertThat(DataFrameFeatureSet.parseSearchAggs(withEmptyAggs), equalTo(DataFrameIndexerTransformStats.withDefaultTransformId()));
+        assertThat(DataFrameInfoTransportAction.parseSearchAggs(withEmptyAggs),
+            equalTo(DataFrameIndexerTransformStats.withDefaultTransformId()));
 
         DataFrameIndexerTransformStats expectedStats = new DataFrameIndexerTransformStats("_all",
             1,  // numPages
@@ -97,7 +101,7 @@ public class DataFrameFeatureSetTests extends ESTestCase {
         SearchResponse withAggs = mock(SearchResponse.class);
         when(withAggs.getAggregations()).thenReturn(aggregations);
 
-        assertThat(DataFrameFeatureSet.parseSearchAggs(withAggs), equalTo(expectedStats));
+        assertThat(DataFrameInfoTransportAction.parseSearchAggs(withAggs), equalTo(expectedStats));
     }
 
     private static Aggregation buildAgg(String name, double value) {
@@ -111,7 +115,7 @@ public class DataFrameFeatureSetTests extends ESTestCase {
         when(licenseState.isDataFrameAllowed()).thenReturn(true);
         Settings.Builder settings = Settings.builder();
         settings.put("xpack.data_frame.enabled", false);
-        var usageAction = new DataFrameFeatureSet.UsageTransportAction(mock(TransportService.class), null, null,
+        var usageAction = new DataFrameUsageTransportAction(mock(TransportService.class), null, null,
             mock(ActionFilters.class), null, settings.build(), licenseState, mock(Client.class));
         PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();
         usageAction.masterOperation(null, mock(ClusterState.class), future);

@@ -6,6 +6,7 @@
 package org.elasticsearch.license;
 
 import org.elasticsearch.action.Action;
+import org.elasticsearch.common.io.stream.Writeable;
 
 public class PostStartBasicAction extends Action<PostStartBasicResponse> {
 
@@ -18,6 +19,11 @@ public class PostStartBasicAction extends Action<PostStartBasicResponse> {
 
     @Override
     public PostStartBasicResponse newResponse() {
-        return new PostStartBasicResponse();
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
+    }
+
+    @Override
+    public Writeable.Reader<PostStartBasicResponse> getResponseReader() {
+        return PostStartBasicResponse::new;
     }
 }

@@ -24,7 +24,7 @@ import static org.hamcrest.core.Is.is;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class RollupFeatureSetTests extends ESTestCase {
+public class RollupInfoTransportActionTests extends ESTestCase {
     private XPackLicenseState licenseState;
 
     @Before
@@ -33,7 +33,8 @@ public class RollupFeatureSetTests extends ESTestCase {
     }
 
     public void testAvailable() {
-        RollupFeatureSet featureSet = new RollupFeatureSet(Settings.EMPTY, licenseState);
+        RollupInfoTransportAction featureSet = new RollupInfoTransportAction(
+            mock(TransportService.class), mock(ActionFilters.class), Settings.EMPTY, licenseState);
         boolean available = randomBoolean();
         when(licenseState.isRollupAllowed()).thenReturn(available);
         assertThat(featureSet.available(), is(available));
@@ -43,17 +44,19 @@ public class RollupFeatureSetTests extends ESTestCase {
         boolean enabled = randomBoolean();
         Settings.Builder settings = Settings.builder();
         settings.put("xpack.rollup.enabled", enabled);
-        RollupFeatureSet featureSet = new RollupFeatureSet(settings.build(), licenseState);
+        RollupInfoTransportAction featureSet = new RollupInfoTransportAction(
+            mock(TransportService.class), mock(ActionFilters.class), settings.build(), licenseState);
         assertThat(featureSet.enabled(), is(enabled));
     }
 
     public void testEnabledDefault() {
-        RollupFeatureSet featureSet = new RollupFeatureSet(Settings.EMPTY, licenseState);
+        RollupInfoTransportAction featureSet = new RollupInfoTransportAction(
+            mock(TransportService.class), mock(ActionFilters.class), Settings.EMPTY, licenseState);
         assertThat(featureSet.enabled(), is(true));
     }
 
     public void testUsage() throws ExecutionException, InterruptedException, IOException {
-        var usageAction = new RollupFeatureSet.UsageTransportAction(mock(TransportService.class), null, null,
+        var usageAction = new RollupUsageTransportAction(mock(TransportService.class), null, null,
             mock(ActionFilters.class), null, Settings.EMPTY, licenseState);
         PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();
         usageAction.masterOperation(null, null, future);

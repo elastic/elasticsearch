@@ -17,8 +17,6 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.protocol.xpack.XPackUsageRequest;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.core.XPackFeatureSet;
-import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureResponse;
@@ -30,58 +28,31 @@ import org.elasticsearch.xpack.monitoring.exporter.Exporters;
 import java.util.HashMap;
 import java.util.Map;
 
-public class MonitoringFeatureSet implements XPackFeatureSet {
-
+public class MonitoringUsageTransportAction extends XPackUsageFeatureTransportAction {
     private final boolean enabled;
+    private final MonitoringService monitoring;
     private final XPackLicenseState licenseState;
+    private final Exporters exporters;
 
     @Inject
-    public MonitoringFeatureSet(Settings settings, XPackLicenseState licenseState) {
+    public MonitoringUsageTransportAction(TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
+                                          ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
+                                          Settings settings, XPackLicenseState licenseState, @Nullable MonitoringService monitoring,
+                                          @Nullable Exporters exporters) {
+        super(XPackUsageFeatureAction.MONITORING.name(), transportService, clusterService, threadPool,
+            actionFilters, indexNameExpressionResolver);
         this.enabled = XPackSettings.MONITORING_ENABLED.get(settings);
         this.licenseState = licenseState;
+        this.monitoring = monitoring;
+        this.exporters = exporters;
     }
 
     @Override
-    public String name() {
-        return XPackField.MONITORING;
-    }
-
-    @Override
-    public boolean available() {
-        return licenseState != null && licenseState.isMonitoringAllowed();
-    }
-
-    @Override
-    public boolean enabled() {
-        return enabled;
-    }
-
-    public static class UsageTransportAction extends XPackUsageFeatureTransportAction {
-        private final boolean enabled;
-        private final MonitoringService monitoring;
-        private final XPackLicenseState licenseState;
-        private final Exporters exporters;
-
-        @Inject
-        public UsageTransportAction(TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
-                                    ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                                    Settings settings, XPackLicenseState licenseState, @Nullable MonitoringService monitoring,
-                                    @Nullable Exporters exporters) {
-            super(XPackUsageFeatureAction.MONITORING.name(), transportService, clusterService, threadPool,
-                actionFilters, indexNameExpressionResolver);
-            this.enabled = XPackSettings.MONITORING_ENABLED.get(settings);
-            this.licenseState = licenseState;
-            this.monitoring = monitoring;
-            this.exporters = exporters;
-        }
-
-        @Override
-        protected void masterOperation(XPackUsageRequest request, ClusterState state, ActionListener<XPackUsageFeatureResponse> listener) {
-            final boolean collectionEnabled = monitoring != null && monitoring.isMonitoringActive();
-            var usage =
-                new MonitoringFeatureSetUsage(licenseState.isMonitoringAllowed(), enabled, collectionEnabled, exportersUsage(exporters));
-            listener.onResponse(new XPackUsageFeatureResponse(usage));
-        }
+    protected void masterOperation(XPackUsageRequest request, ClusterState state, ActionListener<XPackUsageFeatureResponse> listener) {
+        final boolean collectionEnabled = monitoring != null && monitoring.isMonitoringActive();
+        var usage =
+            new MonitoringFeatureSetUsage(licenseState.isMonitoringAllowed(), enabled, collectionEnabled, exportersUsage(exporters));
+        listener.onResponse(new XPackUsageFeatureResponse(usage));
     }
 
     static Map<String, Object> exportersUsage(Exporters exporters) {
@@ -98,5 +69,4 @@ public class MonitoringFeatureSet implements XPackFeatureSet {
         }
         return usage;
     }
-
 }

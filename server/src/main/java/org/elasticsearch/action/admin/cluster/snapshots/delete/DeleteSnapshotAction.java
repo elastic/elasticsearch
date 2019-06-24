@@ -21,6 +21,7 @@ package org.elasticsearch.action.admin.cluster.snapshots.delete;
 
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.common.io.stream.Writeable;
 
 /**
  * Delete snapshot action
@@ -36,7 +37,12 @@ public class DeleteSnapshotAction extends Action<AcknowledgedResponse> {
 
     @Override
     public AcknowledgedResponse newResponse() {
-        return new AcknowledgedResponse();
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
+    }
+
+    @Override
+    public Writeable.Reader<AcknowledgedResponse> getResponseReader() {
+        return AcknowledgedResponse::new;
     }
 }
 

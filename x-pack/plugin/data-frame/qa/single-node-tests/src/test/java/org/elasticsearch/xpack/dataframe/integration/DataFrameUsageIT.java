@@ -20,7 +20,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.core.dataframe.DataFrameField.INDEX_DOC_TYPE;
-import static org.elasticsearch.xpack.dataframe.DataFrameFeatureSet.PROVIDED_STATS;
+import static org.elasticsearch.xpack.dataframe.DataFrameInfoTransportAction.PROVIDED_STATS;
 
 public class DataFrameUsageIT extends DataFrameRestTestCase {
 

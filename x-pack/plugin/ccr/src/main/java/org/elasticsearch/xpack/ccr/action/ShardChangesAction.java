@@ -75,8 +75,8 @@ public class ShardChangesAction extends Action<ShardChangesAction.Response> {
 
         private long fromSeqNo;
         private int maxOperationCount;
-        private ShardId shardId;
-        private String expectedHistoryUUID;
+        private final ShardId shardId;
+        private final String expectedHistoryUUID;
         private TimeValue pollTimeout = TransportResumeFollowAction.DEFAULT_READ_POLL_TIMEOUT;
         private ByteSizeValue maxBatchSize = TransportResumeFollowAction.DEFAULT_MAX_READ_REQUEST_SIZE;
 
@@ -88,7 +88,17 @@ public class ShardChangesAction extends Action<ShardChangesAction.Response> {
             this.expectedHistoryUUID = expectedHistoryUUID;
         }
 
-        Request() {
+        Request(StreamInput in) throws IOException {
+            super(in);
+            fromSeqNo = in.readVLong();
+            maxOperationCount = in.readVInt();
+            shardId = new ShardId(in);
+            expectedHistoryUUID = in.readString();
+            pollTimeout = in.readTimeValue();
+            maxBatchSize = new ByteSizeValue(in);
+
+            // Starting the clock in order to know how much time is spent on fetching operations:
+            relativeStartNanos = System.nanoTime();
         }
 
         public ShardId getShard() {
@@ -146,20 +156,6 @@ public class ShardChangesAction extends Action<ShardChangesAction.Response> {
                         addValidationError("maxBatchSize [" + maxBatchSize.getStringRep() + "] must be larger than 0", validationException);
             }
             return validationException;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            fromSeqNo = in.readVLong();
-            maxOperationCount = in.readVInt();
-            shardId = new ShardId(in);
-            expectedHistoryUUID = in.readString();
-            pollTimeout = in.readTimeValue();
-            maxBatchSize = new ByteSizeValue(in);
-
-            // Starting the clock in order to know how much time is spent on fetching operations:
-            relativeStartNanos = System.nanoTime();
         }
 
         @Override

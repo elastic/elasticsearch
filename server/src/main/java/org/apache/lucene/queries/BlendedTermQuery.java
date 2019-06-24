@@ -22,11 +22,8 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexReaderContext;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.index.TermStates;
 import org.apache.lucene.index.TermState;
-import org.apache.lucene.search.BooleanClause;
-import org.apache.lucene.search.BooleanClause.Occur;
-import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.index.TermStates;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.DisjunctionMaxQuery;
 import org.apache.lucene.search.Query;
@@ -276,50 +273,6 @@ public abstract class BlendedTermQuery extends Query {
     @Override
     public int hashCode() {
         return Objects.hash(classHash(), Arrays.hashCode(equalsTerms()));
-    }
-
-    /**
-     * @deprecated Since max_score optimization landed in 7.0, normal MultiMatchQuery
-     *             will achieve the same result without any configuration.
-     */
-    @Deprecated
-    public static BlendedTermQuery commonTermsBlendedQuery(Term[] terms, final float[] boosts, final float maxTermFrequency) {
-        return new BlendedTermQuery(terms, boosts) {
-            @Override
-            protected Query topLevelQuery(Term[] terms, TermStates[] ctx, int[] docFreqs, int maxDoc) {
-                BooleanQuery.Builder highBuilder = new BooleanQuery.Builder();
-                BooleanQuery.Builder lowBuilder = new BooleanQuery.Builder();
-                for (int i = 0; i < terms.length; i++) {
-                    Query query = new TermQuery(terms[i], ctx[i]);
-                    if (boosts != null && boosts[i] != 1f) {
-                        query = new BoostQuery(query, boosts[i]);
-                    }
-                    if ((maxTermFrequency >= 1f && docFreqs[i] > maxTermFrequency)
-                            || (docFreqs[i] > (int) Math.ceil(maxTermFrequency
-                            * maxDoc))) {
-                        highBuilder.add(query, BooleanClause.Occur.SHOULD);
-                    } else {
-                        lowBuilder.add(query, BooleanClause.Occur.SHOULD);
-                    }
-                }
-                BooleanQuery high = highBuilder.build();
-                BooleanQuery low = lowBuilder.build();
-                if (low.clauses().isEmpty()) {
-                    BooleanQuery.Builder queryBuilder = new BooleanQuery.Builder();
-                    for (BooleanClause booleanClause : high) {
-                        queryBuilder.add(booleanClause.getQuery(), Occur.MUST);
-                    }
-                    return queryBuilder.build();
-                } else if (high.clauses().isEmpty()) {
-                    return low;
-                } else {
-                    return new BooleanQuery.Builder()
-                        .add(high, BooleanClause.Occur.SHOULD)
-                        .add(low, BooleanClause.Occur.MUST)
-                        .build();
-                }
-            }
-        };
     }
 
     public static BlendedTermQuery dismaxBlendedQuery(Term[] terms, final float tieBreakerMultiplier) {

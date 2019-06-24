@@ -17,8 +17,6 @@ import org.elasticsearch.action.admin.indices.close.CloseIndexAction;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexAction;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
-import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsAction;
-import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingAction;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
@@ -1191,28 +1189,6 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
             assertThat(indices.size(), equalTo(expectedIndices.length));
             assertThat(indices, hasItems(expectedIndices));
             assertThat(request.indices(), arrayContainingInAnyOrder(expectedIndices));
-        }
-    }
-
-    public void testIndicesExists() {
-        //verify that the ignore_unavailable and allow_no_indices get replaced like es core does, to make sure that
-        //indices exists api never throws exception due to missing indices, but only returns false instead.
-        {
-            IndicesExistsRequest request = new IndicesExistsRequest();
-            assertNoIndices(request, resolveIndices(request,
-                    buildAuthorizedIndices(userNoIndices, IndicesExistsAction.NAME)));
-        }
-
-        {
-            IndicesExistsRequest request = new IndicesExistsRequest("does_not_exist");
-
-            assertNoIndices(request, resolveIndices(request,
-                    buildAuthorizedIndices(user, IndicesExistsAction.NAME)));
-        }
-        {
-            IndicesExistsRequest request = new IndicesExistsRequest("does_not_exist_*");
-            assertNoIndices(request, resolveIndices(request,
-                    buildAuthorizedIndices(user, IndicesExistsAction.NAME)));
         }
     }
 

@@ -46,7 +46,8 @@ public class CompositeAggregationCursorTests extends AbstractWireSerializingTest
         return new CompositeAggregationCursor(instance.next(), instance.extractors(),
                 randomValueOtherThan(instance.mask(), () -> randomBitSet(instance.extractors().size())),
                 randomValueOtherThan(instance.limit(), () -> randomIntBetween(1, 512)),
-                randomBoolean(), instance.indices());
+                !instance.includeFrozen(),
+                instance.indices());
     }
 
     @Override

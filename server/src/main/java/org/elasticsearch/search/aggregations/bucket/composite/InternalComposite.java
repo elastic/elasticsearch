@@ -182,7 +182,11 @@ public class InternalComposite
     }
 
     @Override
-    protected boolean doEquals(Object obj) {
+    public boolean equals(Object obj) {
+        if (this == obj) return true;
+        if (obj == null || getClass() != obj.getClass()) return false;
+        if (super.equals(obj) == false) return false;
+
         InternalComposite that = (InternalComposite) obj;
         return Objects.equals(size, that.size) &&
             Objects.equals(buckets, that.buckets) &&
@@ -191,8 +195,8 @@ public class InternalComposite
     }
 
     @Override
-    protected int doHashCode() {
-        return Objects.hash(size, buckets, afterKey, Arrays.hashCode(reverseMuls));
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), size, buckets, afterKey, Arrays.hashCode(reverseMuls));
     }
 
     private static class BucketIterator implements Comparable<BucketIterator> {

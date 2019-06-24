@@ -8,6 +8,8 @@
 <titleabbrev>Start {dataframe-transforms}</titleabbrev>
 ++++
 
+beta[]
+
 Starts one or more {dataframe-transforms}.
 
 ==== Request
@@ -24,7 +26,14 @@ Starts one or more {dataframe-transforms}.
   must start and end with alphanumeric characters.
 
 //==== Request Body
-//==== Authorization
+==== Authorization
+
+If the {es} {security-features} are enabled, you must have
+`manage_data_frame_transforms` cluster privileges to use this API. You must also
+have `view_index_metadata` privileges on the source index for the
+{dataframe-transform}. For more information, see
+{stack-ov}/security-privileges.html[Security privileges] and
+{stack-ov}/built-in-roles.html[Built-in roles].
 
 ==== Examples
 

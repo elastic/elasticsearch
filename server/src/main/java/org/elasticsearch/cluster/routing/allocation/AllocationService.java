@@ -240,7 +240,7 @@ public class AllocationService {
      * Checks if the are replicas with the auto-expand feature that need to be adapted.
      * Returns an updated cluster state if changes were necessary, or the identical cluster if no changes were required.
      */
-    private ClusterState adaptAutoExpandReplicas(ClusterState clusterState) {
+    public ClusterState adaptAutoExpandReplicas(ClusterState clusterState) {
         final Map<Integer, List<String>> autoExpandReplicaChanges =
             AutoExpandReplicas.getAutoExpandReplicaChanges(clusterState.metaData(), clusterState.nodes());
         if (autoExpandReplicaChanges.isEmpty()) {
@@ -337,16 +337,16 @@ public class AllocationService {
         allocation.debugDecision(true);
         // we ignore disable allocation, because commands are explicit
         allocation.ignoreDisable(true);
-        RoutingExplanations explanations = commands.execute(allocation, explain);
-        // we revert the ignore disable flag, since when rerouting, we want the original setting to take place
-        allocation.ignoreDisable(false);
-        // the assumption is that commands will move / act on shards (or fail through exceptions)
-        // so, there will always be shard "movements", so no need to check on reroute
 
         if (retryFailed) {
             resetFailedAllocationCounter(allocation);
         }
 
+        RoutingExplanations explanations = commands.execute(allocation, explain);
+        // we revert the ignore disable flag, since when rerouting, we want the original setting to take place
+        allocation.ignoreDisable(false);
+        // the assumption is that commands will move / act on shards (or fail through exceptions)
+        // so, there will always be shard "movements", so no need to check on reroute
         reroute(allocation);
         return new CommandsResult(explanations, buildResultAndLogHealthChange(clusterState, allocation, "reroute commands"));
     }

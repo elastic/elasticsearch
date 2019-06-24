@@ -59,9 +59,10 @@ setup:
   - is_true: started
 
   - do:
-      catch: /Cannot start task for Rollup Job \[foo\] because state was/
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       rollup.start_job:
         id: foo
+  - is_true: started
+
 

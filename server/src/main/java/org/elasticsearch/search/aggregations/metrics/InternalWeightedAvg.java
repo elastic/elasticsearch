@@ -129,12 +129,15 @@ public class InternalWeightedAvg extends InternalNumericMetricsAggregation.Singl
     }
 
     @Override
-    protected int doHashCode() {
-        return Objects.hash(sum, weight, format.getWriteableName());
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), sum, weight, format.getWriteableName());
     }
 
     @Override
-    protected boolean doEquals(Object obj) {
+    public boolean equals(Object obj) {
+        if (this == obj) return true;
+        if (obj == null || getClass() != obj.getClass()) return false;
+        if (super.equals(obj) == false) return false;
         InternalWeightedAvg other = (InternalWeightedAvg) obj;
         return Objects.equals(sum, other.sum) &&
                 Objects.equals(weight, other.weight) &&

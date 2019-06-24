@@ -105,7 +105,7 @@ public class FsRepositoryTests extends ESTestCase {
             final PlainActionFuture<Void> future1 = PlainActionFuture.newFuture();
             runGeneric(threadPool, () -> {
                 IndexShardSnapshotStatus snapshotStatus = IndexShardSnapshotStatus.newInitializing();
-                repository.snapshotShard(null, snapshotId, indexId, new TestSnapshotContext(indexCommit, store, snapshotStatus, future1));
+                repository.snapshotShard(null, snapshotId, indexId, testShardSnapshotContext(indexCommit, store, snapshotStatus, future1));
                 future1.actionGet();
                 IndexShardSnapshotStatus.Copy copy = snapshotStatus.asCopy();
                 assertEquals(copy.getTotalFileCount(), copy.getIncrementalFileCount());
@@ -132,7 +132,7 @@ public class FsRepositoryTests extends ESTestCase {
             runGeneric(threadPool, () -> {
                 IndexShardSnapshotStatus snapshotStatus = IndexShardSnapshotStatus.newInitializing();
                 repository.snapshotShard(null, incSnapshotId, indexId,
-                    new TestSnapshotContext(incIndexCommit, store, snapshotStatus, future2));
+                    testShardSnapshotContext(incIndexCommit, store, snapshotStatus, future2));
                 future2.actionGet();
                 IndexShardSnapshotStatus.Copy copy = snapshotStatus.asCopy();
                 assertEquals(2, copy.getIncrementalFileCount());
@@ -206,23 +206,17 @@ public class FsRepositoryTests extends ESTestCase {
         }
     }
 
-    private static class TestSnapshotContext extends ShardSnapshotContext {
+    private static ShardSnapshotContext testShardSnapshotContext(IndexCommit indexCommit, Store store,
+                                                                 IndexShardSnapshotStatus snapshotStatus, ActionListener<Void> listener) {
+        return new ShardSnapshotContext(store, listener, snapshotStatus, new ShardSnapshotContext.IndexCommitProvider() {
+            @Override
+            public IndexCommit get() {
+                return indexCommit;
+            }
 
-        private final IndexCommit indexCommit;
-
-        TestSnapshotContext(IndexCommit indexCommit, Store store, IndexShardSnapshotStatus snapshotStatus, ActionListener<Void> listener) {
-            super(store, listener, snapshotStatus);
-            this.indexCommit = indexCommit;
-        }
-
-        @Override
-        protected void doReleaseIndexCommit() {
-
-        }
-
-        @Override
-        public IndexCommit doIndexCommit() {
-            return indexCommit;
-        }
+            @Override
+            public void close() {
+            }
+        });
     }
 }

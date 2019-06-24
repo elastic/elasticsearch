@@ -140,29 +140,27 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
             final long maxDoc = segmentInfos.totalMaxDoc();
             tempStore.bootstrapNewHistory(maxDoc, maxDoc);
             super.snapshotShard(mapperService, snapshotId, indexId,
-                new ShardSnapshotContext(tempStore, context.completionListener(), context.status()) {
-                    private DirectoryReader reader;
-                    private IndexCommit indexCommit;
+                new ShardSnapshotContext(tempStore, context.completionListener(), context.status(),
+                    new ShardSnapshotContext.IndexCommitProvider() {
+                        private DirectoryReader reader;
 
-                    @Override
-                    protected void doReleaseIndexCommit() throws IOException {
-                        if (reader != null) {
-                            reader.close();
+                        @Override
+                        public IndexCommit get() throws IOException {
+                            if (reader == null) {
+                                reader = DirectoryReader.open(tempStore.directory(), Collections.singletonMap(
+                                    BlockTreeTermsReader.FST_MODE_KEY, BlockTreeTermsReader.FSTLoadMode.OFF_HEAP.name()));
+                                return reader.getIndexCommit();
+                            }
+                            throw new AssertionError("Should not be called twice, the caller should cache the index commit");
                         }
-                    }
 
-                    @Override
-                    protected IndexCommit doIndexCommit() throws IOException {
-                        if (reader == null) {
-                            reader = DirectoryReader.open(tempStore.directory(), Collections.singletonMap(
-                                BlockTreeTermsReader.FST_MODE_KEY, BlockTreeTermsReader.FSTLoadMode.OFF_HEAP.name()));
-                            assert indexCommit == null;
-                            indexCommit = reader.getIndexCommit();
+                        @Override
+                        public void close() throws IOException {
+                            if (reader != null) {
+                                reader.close();
+                            }
                         }
-                        assert indexCommit != null;
-                        return indexCommit;
-                    }
-                });
+                    }));
         } catch (IOException e) {
             if (directory != null) {
                 try {

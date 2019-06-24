@@ -209,22 +209,22 @@ Infra/Scripting::
 Machine Learning::
 * Improve message misformation error in file structure finder {pull}42175[#42175]
 * Improve hard_limit audit message {pull}42086[#42086] (issue: {issue}38034[#38034])
-* Increase maximum forecast interval to 10 years. {pull}41082[#41082] (issue: {issue}41103[#41103])
 * Add validation that rejects duplicate detectors in PutJobAction {pull}40967[#40967] (issue: {issue}39704[#39704])
 * Add created_by info to usage stats {pull}40518[#40518] (issue: {issue}38403[#38403])
 * Data frame transforms config HLRC objects {pull}39691[#39691]
 * Use scaling thread pool and xpack.ml.max_open_jobs cluster-wide dynamic {pull}39320[#39320] (issue: {issue}29809[#29809])
 * Add task recovery on node change  {pull}39416[#39416]
 * Stop tasks on failure {pull}39203[#39203]
-* Add _preview endpoint {pull}38924[#38924]
-* Remove hard limit for maximum forecast interval and limit based on the time interval of data added
-to the model {ml-pull}214[#214]
+* Add _preview endpoint {pull}38924[#38924] 
 * Use hardened compiler options to build 3rd party libraries {ml-pull}453[#453]
 * Only select more complex trend models for forecasting if there is evidence that they are needed
 {ml-pull}463[#463]
 * Improve residual model selection {ml-pull}468[#468]
 * Stop linking to libcrypt on Linux {ml-pull}480[#480]
 * Improvements to hard_limit audit message {ml-pull}486[#486]
+* Increase maximum forecast interval from 8 weeks to a limit based on the amount
+of data seen, up to a maximum of 10 years {ml-pull}214[#214] and
+{pull}41082[#41082] (issue: {issue}41103[#41103])
 
 Mapping::
 * Updates max dimensions for sparse_vector and dense_vector to 1024. {pull}40597[#40597] (issue: {issue}40492[#40492])

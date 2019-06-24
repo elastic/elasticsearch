@@ -108,8 +108,6 @@ import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -225,6 +223,9 @@ public class SnapshotResiliencyTests extends ESTestCase {
     @After
     public void verifyReposThenStopServices() {
         try {
+            if (blobStoreContext != null) {
+                blobStoreContext.forceConsistent();
+            }
             BlobStoreTestUtil.assertConsistency(
                 (BlobStoreRepository) testClusterNodes.randomMasterNodeSafe().repositoriesService.repository("repo"),
                 Runnable::run);

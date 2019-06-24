@@ -32,15 +32,15 @@ public class RemoteInfoTests extends ESTestCase {
     }
 
     public void testToString() {
-        assertEquals("host=testhost port=12344 query={\"match_all\":{}}",
+        assertEquals("host=testhost port=12344 query={ \"foo\" : \"bar\" }",
             newRemoteInfo("http", null, null, null).toString());
-        assertEquals("host=testhost port=12344 query={\"match_all\":{}} username=testuser",
+        assertEquals("host=testhost port=12344 query={ \"foo\" : \"bar\" } username=testuser",
             newRemoteInfo("http", null, "testuser", null).toString());
-        assertEquals("host=testhost port=12344 query={\"match_all\":{}} username=testuser password=<<>>",
+        assertEquals("host=testhost port=12344 query={ \"foo\" : \"bar\" } username=testuser password=<<>>",
             newRemoteInfo("http", null, "testuser", "testpass").toString());
-        assertEquals("scheme=https host=testhost port=12344 query={\"match_all\":{}} username=testuser password=<<>>",
+        assertEquals("scheme=https host=testhost port=12344 query={ \"foo\" : \"bar\" } username=testuser password=<<>>",
             newRemoteInfo("https", null, "testuser", "testpass").toString());
-        assertEquals("scheme=https host=testhost port=12344 pathPrefix=prxy query={\"match_all\":{}} username=testuser password=<<>>",
+        assertEquals("scheme=https host=testhost port=12344 pathPrefix=prxy query={ \"foo\" : \"bar\" } username=testuser password=<<>>",
             newRemoteInfo("https", "prxy", "testuser", "testpass").toString());
     }
 }

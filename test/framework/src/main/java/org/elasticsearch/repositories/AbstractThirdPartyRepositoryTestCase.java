@@ -36,6 +36,7 @@ import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.ByteArrayInputStream;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -237,6 +238,10 @@ public abstract class AbstractThirdPartyRepositoryTestCase extends ESSingleNodeT
                 final BlobStore blobStore = repo.blobStore();
                 blobStore.blobContainer(BlobPath.cleanPath().add("indices").add("foo"))
                     .writeBlob("bar", new ByteArrayInputStream(new byte[0]), 0, false);
+                for (String prefix : Arrays.asList("snap-", "meta-")) {
+                    blobStore.blobContainer(BlobPath.cleanPath())
+                        .writeBlob(prefix + "foo.dat", new ByteArrayInputStream(new byte[0]), 0, false);
+                }
                 future.onResponse(null);
             }
         });
@@ -257,6 +262,8 @@ public abstract class AbstractThirdPartyRepositoryTestCase extends ESSingleNodeT
                 future.onResponse(
                     blobStore.blobContainer(BlobPath.cleanPath().add("indices")).children().containsKey("foo")
                         && blobStore.blobContainer(BlobPath.cleanPath().add("indices").add("foo")).blobExists("bar")
+                        && blobStore.blobContainer(BlobPath.cleanPath()).blobExists("meta-foo.dat")
+                        && blobStore.blobContainer(BlobPath.cleanPath()).blobExists("snap-foo.dat")
                 );
             }
         });

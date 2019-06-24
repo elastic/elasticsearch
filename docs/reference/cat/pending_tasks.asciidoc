@@ -24,6 +24,6 @@ insertOrder timeInQueue priority source
        1690       787ms HIGH     update-mapping [foo][t]
        1691       773ms HIGH     update-mapping [foo][t]
 --------------------------------------------------
-// TESTRESPONSE[s/(\n.+)+/(\\n.+)*/ _cat]
+// TESTRESPONSE[s/(\n.+)+/(\\n.+)*/ non_json]
 // We can't assert anything about the tasks in progress here because we don't
 // know what might be in progress....

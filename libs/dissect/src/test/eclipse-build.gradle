@@ -3,5 +3,5 @@
 apply from: '../../build.gradle'
 
 dependencies {
-  testCompile project(':libs:dissect')
+  testCompile project(':libs:elasticsearch-dissect')
 }

@@ -10,7 +10,7 @@ description = 'Code shared between jdbc and cli'
 dependencies {
     compile xpackProject('plugin:sql:sql-proto')
     compile "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
-    testCompile "org.elasticsearch.test:framework:${version}"
+    testCompile project(":test:framework")
 }
 
 dependencyLicenses {

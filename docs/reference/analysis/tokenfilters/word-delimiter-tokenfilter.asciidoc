@@ -18,7 +18,7 @@ Parameters include:
 
 `generate_word_parts`::
     If `true` causes parts of words to be
-    generated: "PowerShot" => "Power" "Shot". Defaults to `true`.
+    generated: "Power-Shot", "(Power,Shot)" => "Power" "Shot". Defaults to `true`.
 
 `generate_number_parts`::
     If `true` causes number subwords to be

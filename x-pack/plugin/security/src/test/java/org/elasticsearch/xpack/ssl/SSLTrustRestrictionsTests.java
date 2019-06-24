@@ -15,7 +15,6 @@ import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.SecurityIntegTestCase;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.core.ssl.CertParsingUtils;
@@ -50,7 +49,6 @@ import static org.hamcrest.Matchers.is;
  * @see RestrictedTrustManager
  */
 @ESIntegTestCase.ClusterScope(numDataNodes = 1, numClientNodes = 0, supportsDedicatedMasters = false)
-@TestLogging("org.elasticsearch.xpack.ssl.RestrictedTrustManager:DEBUG")
 public class SSLTrustRestrictionsTests extends SecurityIntegTestCase {
 
     private static final TimeValue MAX_WAIT_RELOAD = TimeValue.timeValueSeconds(1);
@@ -68,7 +66,6 @@ public class SSLTrustRestrictionsTests extends SecurityIntegTestCase {
     protected int maxNumberOfNodes() {
         // We are trying to test the SSL configuration for which clients/nodes may join a cluster
         // We prefer the cluster to only have 1 node, so that the SSL checking doesn't happen until the test methods run
-        // (That's not _quite_ true, because the base setup code checks the cluster using transport client, but it's the best we can do)
         return 1;
     }
 

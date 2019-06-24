@@ -987,7 +987,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
         assert pendingInSync.isEmpty() : "relocation handoff started while there are still shard copies pending in-sync: " + pendingInSync;
         if (checkpoints.containsKey(targetAllocationId) == false) {
             // can happen if the relocation target was removed from cluster but the recovery process isn't aware of that.
-            throw new IllegalStateException("relocation target [" + targetAllocationId + "] is no longer part of the group");
+            throw new IllegalStateException("relocation target [" + targetAllocationId + "] is no longer part of the replication group");
         }
         handoffInProgress = true;
         // copy clusterStateVersion and checkpoints and return
@@ -1045,7 +1045,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
         // TODO: remove this check after backporting to 7.x
         if (primaryContext.checkpoints.containsKey(shardAllocationId) == false) {
             // can happen if the old primary was on an old version
-            assert indexSettings.getIndexVersionCreated().onOrAfter(Version.V_8_0_0);
+            assert indexSettings.getIndexVersionCreated().before(Version.V_8_0_0);
             throw new IllegalStateException("primary context [" + primaryContext + "] does not contain " + shardAllocationId);
         }
         final Runnable runAfter = getMasterUpdateOperationFromCurrentState();

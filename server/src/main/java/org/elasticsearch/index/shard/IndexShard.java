@@ -619,7 +619,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      *
      * @param consumer a {@link Runnable} that is executed after operations are blocked
      * @throws IllegalIndexShardStateException if the shard is not relocating due to concurrent cancellation
-     * @throws IllegalStateException           if the relocation target is no longer part of the group
+     * @throws IllegalStateException           if the relocation target is no longer part of the replication group
      * @throws InterruptedException            if blocking operations is interrupted
      */
     public void relocated(final String targetAllocationId, final Consumer<ReplicationTracker.PrimaryContext> consumer)

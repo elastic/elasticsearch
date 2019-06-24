@@ -1981,7 +1981,7 @@ public class IndexShardTests extends IndexShardTestCase {
         final IllegalStateException error = expectThrows(IllegalStateException.class,
             () -> shard.relocated(toNode1.getTargetRelocatingShard().allocationId().getId(), ctx -> relocated.set(true)));
         assertThat(error.getMessage(), equalTo("relocation target [" + toNode1.getTargetRelocatingShard().allocationId().getId()
-            + "] is no longer part of the group"));
+            + "] is no longer part of the replication group"));
         assertFalse(relocated.get());
         shard.relocated(toNode2.getTargetRelocatingShard().allocationId().getId(), ctx -> relocated.set(true));
         assertTrue(relocated.get());

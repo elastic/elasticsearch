@@ -66,7 +66,6 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -1220,13 +1219,7 @@ public class IndicesService extends AbstractLifecycleComponent
             }
             // Reschedule itself to run again if not closed
             if (closed.get() == false) {
-                try {
-                    threadPool.schedule(this, interval, ThreadPool.Names.SAME);
-                } catch (EsRejectedExecutionException e) {
-                    if (closed.get() == false) {
-                        throw e;
-                    }
-                }
+                threadPool.scheduleUnlessShuttingDown(interval, ThreadPool.Names.SAME, this);
             }
         }
 

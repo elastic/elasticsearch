@@ -20,6 +20,7 @@
 package org.elasticsearch.action.admin.cluster.reroute;
 
 import org.elasticsearch.action.Action;
+import org.elasticsearch.common.io.stream.Writeable;
 
 public class ClusterRerouteAction extends Action<ClusterRerouteResponse> {
 
@@ -32,6 +33,11 @@ public class ClusterRerouteAction extends Action<ClusterRerouteResponse> {
 
     @Override
     public ClusterRerouteResponse newResponse() {
-        return new ClusterRerouteResponse();
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
+    }
+
+    @Override
+    public Writeable.Reader<ClusterRerouteResponse> getResponseReader() {
+        return ClusterRerouteResponse::new;
     }
 }

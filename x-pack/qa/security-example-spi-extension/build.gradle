@@ -1,3 +1,4 @@
+apply plugin: 'elasticsearch.testclusters'
 apply plugin: 'elasticsearch.esplugin'
 
 esplugin {
@@ -13,12 +14,16 @@ dependencies {
 }
 
 
-integTestRunner {
-    systemProperty 'tests.security.manager', 'false'
+integTest.runner {
+    dependsOn buildZip
 }
 
-integTestCluster {
-  dependsOn buildZip
+testClusters.integTest {
+  // This is important, so that all the modules are available too.
+  // There are index templates that use token filters that are in analysis-module and
+  // processors are being used that are in ingest-common module.
+  distribution = 'default'
+
   setting 'xpack.security.authc.realms.custom.custom.order', '0'
   setting 'xpack.security.authc.realms.custom.custom.filtered_setting', 'should be filtered'
   setting 'xpack.security.authc.realms.file.esusers.order', '1'
@@ -29,22 +34,5 @@ integTestCluster {
   setting 'xpack.monitoring.enabled', 'false'
   setting 'xpack.license.self_generated.type', 'trial'
 
-  // This is important, so that all the modules are available too.
-  // There are index templates that use token filters that are in analysis-module and
-  // processors are being used that are in ingest-common module.
-  distribution = 'default'
-
-  setupCommand 'setupDummyUser',
-               'bin/elasticsearch-users', 'useradd', 'test_user', '-p', 'x-pack-test-password', '-r', 'superuser'
-  waitCondition = { node, ant ->
-    File tmpFile = new File(node.cwd, 'wait.success')
-    ant.get(src: "http://${node.httpUri()}/_cluster/health?wait_for_nodes=>=${numNodes}&wait_for_status=yellow",
-            dest: tmpFile.toString(),
-            username: 'test_user',
-            password: 'x-pack-test-password',
-            ignoreerrors: true,
-            retries: 10)
-    return tmpFile.exists()
-  }
+  user  username: "test_user", password: "x-pack-test-password"
 }
-check.dependsOn integTest

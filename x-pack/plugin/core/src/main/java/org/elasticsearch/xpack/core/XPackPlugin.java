@@ -62,9 +62,12 @@ import org.elasticsearch.xpack.core.action.XPackInfoAction;
 import org.elasticsearch.xpack.core.action.XPackUsageAction;
 import org.elasticsearch.xpack.core.action.XPackUsageResponse;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
+import org.elasticsearch.xpack.core.rest.action.ReloadAnalyzerAction;
 import org.elasticsearch.xpack.core.rest.action.RestFreezeIndexAction;
+import org.elasticsearch.xpack.core.rest.action.RestReloadAnalyzersAction;
 import org.elasticsearch.xpack.core.rest.action.RestXPackInfoAction;
 import org.elasticsearch.xpack.core.rest.action.RestXPackUsageAction;
+import org.elasticsearch.xpack.core.rest.action.TransportReloadAnalyzersAction;
 import org.elasticsearch.xpack.core.security.authc.TokenMetaData;
 import org.elasticsearch.xpack.core.ssl.SSLConfigurationReloader;
 import org.elasticsearch.xpack.core.ssl.SSLService;
@@ -257,6 +260,7 @@ public class XPackPlugin extends XPackClientPlugin implements ExtensiblePlugin, 
         actions.add(new ActionHandler<>(TransportFreezeIndexAction.FreezeIndexAction.INSTANCE,
             TransportFreezeIndexAction.class));
         actions.addAll(licensing.getActions());
+        actions.add(new ActionHandler<>(ReloadAnalyzerAction.INSTANCE, TransportReloadAnalyzersAction.class));
         return actions;
     }
 
@@ -288,6 +292,7 @@ public class XPackPlugin extends XPackClientPlugin implements ExtensiblePlugin, 
         handlers.add(new RestXPackInfoAction(settings, restController));
         handlers.add(new RestXPackUsageAction(settings, restController));
         handlers.add(new RestFreezeIndexAction(settings, restController));
+        handlers.add(new RestReloadAnalyzersAction(settings, restController));
         handlers.addAll(licensing.getRestHandlers(settings, restController, clusterSettings, indexScopedSettings, settingsFilter,
                 indexNameExpressionResolver, nodesInCluster));
         return handlers;

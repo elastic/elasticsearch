@@ -147,6 +147,9 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
 
         // Validate segments
         validateSegments(createdEnrichIndex, 1);
+
+        // Validate Index is read only
+        ensureEnrichIndexIsReadOnly(createdEnrichIndex);
     }
 
     public void testRunnerMultiSource() throws Exception {
@@ -243,6 +246,9 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
 
         // Validate segments
         validateSegments(createdEnrichIndex, 3);
+
+        // Validate Index is read only
+        ensureEnrichIndexIsReadOnly(createdEnrichIndex);
     }
 
     public void testRunnerNoSourceIndex() throws Exception {
@@ -525,6 +531,9 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
 
         // Validate segments
         validateSegments(createdEnrichIndex, 1);
+
+        // Validate Index is read only
+        ensureEnrichIndexIsReadOnly(createdEnrichIndex);
     }
 
     public void testRunnerExplicitObjectSourceMapping() throws Exception {
@@ -647,6 +656,9 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
 
         // Validate segments
         validateSegments(createdEnrichIndex, 1);
+
+        // Validate Index is read only
+        ensureEnrichIndexIsReadOnly(createdEnrichIndex);
     }
 
     public void testRunnerTwoObjectLevelsSourceMapping() throws Exception {
@@ -784,6 +796,9 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
 
         // Validate segments
         validateSegments(createdEnrichIndex, 1);
+
+        // Validate Index is read only
+        ensureEnrichIndexIsReadOnly(createdEnrichIndex);
     }
 
     public void testRunnerDottedKeyNameSourceMapping() throws Exception {
@@ -894,6 +909,9 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
 
         // Validate segments
         validateSegments(createdEnrichIndex, 1);
+
+        // Validate Index is read only
+        ensureEnrichIndexIsReadOnly(createdEnrichIndex);
     }
 
     private EnrichPolicyRunner createPolicyRunner(String policyName, EnrichPolicy policy, ActionListener<PolicyExecutionResult> listener,
@@ -922,5 +940,15 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
         assertThat(shard.getSegments().size(), is(equalTo(1)));
         Segment segment = shard.getSegments().iterator().next();
         assertThat(segment.getNumDocs(), is(equalTo(expectedDocs)));
+    }
+
+    private void ensureEnrichIndexIsReadOnly(String createdEnrichIndex) {
+        ElasticsearchException expected = expectThrows(ElasticsearchException.class, () -> client().index(new IndexRequest()
+            .index(createdEnrichIndex)
+            .id(randomAlphaOfLength(10))
+            .source(Collections.singletonMap(randomAlphaOfLength(6), randomAlphaOfLength(10)))).actionGet());
+
+        assertThat(expected.getMessage(), containsString("index [" + createdEnrichIndex +
+            "] blocked by: [FORBIDDEN/8/index write (api)]"));
     }
 }

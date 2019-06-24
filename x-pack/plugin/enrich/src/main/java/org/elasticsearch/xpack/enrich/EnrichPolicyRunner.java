@@ -27,6 +27,7 @@ import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
+import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
@@ -304,6 +305,24 @@ public class EnrichPolicyRunner implements Runnable {
         client.admin().indices().refresh(new RefreshRequest(destinationIndexName), new ActionListener<RefreshResponse>() {
             @Override
             public void onResponse(RefreshResponse refreshResponse) {
+                setIndexReadOnly(destinationIndexName);
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                listener.onFailure(e);
+            }
+        });
+    }
+
+    private void setIndexReadOnly(final String destinationIndexName) {
+        logger.debug("Policy [{}]: Setting new enrich index [{}] to be read only", policyName, destinationIndexName);
+        UpdateSettingsRequest request = new UpdateSettingsRequest(destinationIndexName)
+            .setPreserveExisting(true)
+            .settings(Settings.builder().put("index.blocks.write", "true"));
+        client.admin().indices().updateSettings(request, new ActionListener<AcknowledgedResponse>() {
+            @Override
+            public void onResponse(AcknowledgedResponse acknowledgedResponse) {
                 updateEnrichPolicyAlias(destinationIndexName);
             }
 

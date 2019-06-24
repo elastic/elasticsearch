@@ -927,8 +927,8 @@ public class InternalEngine extends Engine {
                 }
                 localCheckpointTracker.markSeqNoAsProcessed(indexResult.getSeqNo());
                 if (indexResult.getTranslogLocation() == null) {
-                    // the op is coming from the translog (and is hence persisted already) or it does not have a sequence number
-                    assert index.origin().isFromTranslog() || originalIndex.seqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO;
+                    // the op is coming from the translog (and is hence persisted already) or we did not generate a seq_no
+                    assert index.origin().isFromTranslog() || originalIndex.seqNo() == index.seqNo();
                     localCheckpointTracker.markSeqNoAsPersisted(indexResult.getSeqNo());
                 }
                 indexResult.setTook(System.nanoTime() - index.startTime());

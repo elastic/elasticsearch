@@ -25,6 +25,7 @@ import groovy.transform.CompileStatic
 import org.elasticsearch.gradle.BuildPlugin
 import org.elasticsearch.gradle.ExportElasticsearchBuildResourcesTask
 import org.elasticsearch.gradle.VersionProperties
+import org.elasticsearch.gradle.info.GlobalBuildInfoPlugin
 import org.elasticsearch.gradle.precommit.PrecommitTasks
 import org.gradle.api.InvalidUserDataException
 import org.gradle.api.JavaVersion
@@ -57,12 +58,14 @@ class StandaloneRestTestPlugin implements Plugin<Project> {
                 + 'elasticsearch.standalone-rest-test, and elasticsearch.build '
                 + 'are mutually exclusive')
         }
+        project.rootProject.pluginManager.apply(GlobalBuildInfoPlugin)
         project.pluginManager.apply(JavaBasePlugin)
 
         project.getTasks().create("buildResources", ExportElasticsearchBuildResourcesTask)
         BuildPlugin.configureRepositories(project)
         BuildPlugin.configureTestTasks(project)
         BuildPlugin.configureInputNormalization(project)
+        BuildPlugin.configureFips140(project)
 
         ExtraPropertiesExtension ext = project.extensions.getByType(ExtraPropertiesExtension)
         project.extensions.getByType(JavaPluginExtension).sourceCompatibility = ext.get('minimumRuntimeVersion') as JavaVersion
@@ -79,7 +82,7 @@ class StandaloneRestTestPlugin implements Plugin<Project> {
 
         // create a compileOnly configuration as others might expect it
         project.configurations.create("compileOnly")
-        project.dependencies.add('testCompile', "org.elasticsearch.test:framework:${VersionProperties.elasticsearch}")
+        project.dependencies.add('testCompile', project.project(':test:framework'))
 
         EclipseModel eclipse = project.extensions.getByType(EclipseModel)
         eclipse.classpath.sourceSets = [testSourceSet]

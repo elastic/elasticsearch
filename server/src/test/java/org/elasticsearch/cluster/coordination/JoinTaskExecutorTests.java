@@ -28,7 +28,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 
-import static org.elasticsearch.test.VersionUtils.getPreviousVersion;
 import static org.elasticsearch.test.VersionUtils.maxCompatibleVersion;
 import static org.elasticsearch.test.VersionUtils.randomCompatibleVersion;
 import static org.elasticsearch.test.VersionUtils.randomVersionBetween;
@@ -55,8 +54,7 @@ public class JoinTaskExecutorTests extends ESTestCase {
         Settings.builder().build();
         MetaData.Builder metaBuilder = MetaData.builder();
         IndexMetaData indexMetaData = IndexMetaData.builder("test")
-            .settings(settings(VersionUtils.getPreviousVersion(Version.CURRENT
-                .minimumIndexCompatibilityVersion())))
+            .settings(settings(Version.fromString("6.8.0"))) // latest V6 released version
             .numberOfShards(1)
             .numberOfReplicas(1).build();
         metaBuilder.put(indexMetaData, false);
@@ -76,7 +74,7 @@ public class JoinTaskExecutorTests extends ESTestCase {
         final Version maxNodeVersion = nodes.getMaxNodeVersion();
         final Version minNodeVersion = nodes.getMinNodeVersion();
 
-        final Version tooLow = getPreviousVersion(maxNodeVersion.minimumCompatibilityVersion());
+        final Version tooLow = Version.fromId(maxNodeVersion.minimumCompatibilityVersion().id - 100);
         expectThrows(IllegalStateException.class, () -> {
             if (randomBoolean()) {
                 JoinTaskExecutor.ensureNodesCompatibility(tooLow, nodes);

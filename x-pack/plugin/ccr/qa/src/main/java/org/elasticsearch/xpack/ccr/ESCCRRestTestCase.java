@@ -143,6 +143,7 @@ public class ESCCRRestTestCase extends ESRestTestCase {
         int followerMaxSeqNo = 0;
         int followerMappingVersion = 0;
         int followerSettingsVersion = 0;
+        int followerAliasesVersion = 0;
 
         List<?> hits = (List<?>) XContentMapValues.extractValue("hits.hits", response);
         assertThat(hits.size(), greaterThanOrEqualTo(1));
@@ -164,11 +165,15 @@ public class ESCCRRestTestCase extends ESRestTestCase {
             int foundFollowerSettingsVersion =
                     (int) XContentMapValues.extractValue("_source.ccr_stats.follower_settings_version", hit);
             followerSettingsVersion = Math.max(followerSettingsVersion, foundFollowerSettingsVersion);
+            int foundFollowerAliasesVersion =
+                    (int) XContentMapValues.extractValue("_source.ccr_stats.follower_aliases_version", hit);
+            followerAliasesVersion = Math.max(followerAliasesVersion, foundFollowerAliasesVersion);
         }
 
         assertThat(followerMaxSeqNo, greaterThan(0));
         assertThat(followerMappingVersion, greaterThan(0));
         assertThat(followerSettingsVersion, greaterThan(0));
+        assertThat(followerAliasesVersion, greaterThan(0));
     }
 
     protected static void verifyAutoFollowMonitoring() throws IOException {

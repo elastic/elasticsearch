@@ -56,20 +56,21 @@ include::{docdir}/rest-api/timeoutparms.asciidoc[]
 [[indices-create-index-request-body]]
 === {api-request-body-title}
 
-[[create-index-settings]]
-`settings` (Optional)::
-(object) Configuration options for the index. See <<index-modules-settings,
-Index settings>>.
+[[create-index-aliases]]
+`aliases` (Optional)::
+(object) Index aliases which include the index. See <<indices-aliases, Index
+aliases>>.
 
 [[mappings]]
 `mappings` (Optional)::
 (object) Describes fields in the index and their datatypes. See <<mapping-types,
 Field datatypes>>.
 
-[[create-index-aliases]]
-`aliases` (Optional)::
-(object) Index aliases which include the index. See <<indices-aliases, Index
-aliases>>.
+[[create-index-settings]]
+`settings` (Optional)::
+(object) Configuration options for the index. See <<index-modules-settings,
+Index settings>>.
+
 
 [float]
 [[indices-create-index-response-body]]
@@ -106,14 +107,6 @@ If `false`, it is possible that {es} still successfully created the index. A
 ----
 PUT test
 {
-    "settings" : {
-        "number_of_shards" : 1
-    },
-    "mappings" : {
-        "properties" : {
-            "field1" : { "type" : "text" }
-        }
-    },
     "aliases" : {
         "alias_1" : {},
         "alias_2" : {
@@ -122,6 +115,14 @@ PUT test
             },
             "routing" : "kimchy"
         }
+    },
+    "mappings" : {
+        "properties" : {
+            "field1" : { "type" : "text" }
+        }
+    },
+    "settings" : {
+        "number_of_shards" : 1
     }
 }
 ----

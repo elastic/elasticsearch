@@ -20,6 +20,8 @@
 package org.elasticsearch.nio;
 
 import java.io.IOException;
+import java.net.InetSocketAddress;
+import java.net.ServerSocket;
 import java.nio.channels.ServerSocketChannel;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
@@ -50,6 +52,20 @@ public class ServerChannelContext extends ChannelContext<ServerSocketChannel> {
     }
 
     @Override
+    protected void register() throws IOException {
+        super.register();
+
+        configureSocket(rawChannel.socket());
+
+        InetSocketAddress localAddress = socketConfig.getLocalAddress();
+        try {
+            rawChannel.bind(localAddress);
+        } catch (IOException e) {
+            throw new IOException("Failed to bind server socket channel {localAddress=" + localAddress + "}.", e);
+        }
+    }
+
+    @Override
     public void closeChannel() {
         if (isClosing.compareAndSet(false, true)) {
             getSelector().queueChannelClose(channel);
@@ -64,6 +80,10 @@ public class ServerChannelContext extends ChannelContext<ServerSocketChannel> {
     @Override
     public NioServerSocketChannel getChannel() {
         return channel;
+    }
+
+    private void configureSocket(ServerSocket socket) throws IOException {
+        socket.setReuseAddress(socketConfig.tcpReuseAddress());
     }
 
 }

@@ -282,10 +282,6 @@ public class DeterministicTaskQueue {
         return getThreadPool(Function.identity());
     }
 
-    public Random getRandom() {
-        return random;
-    }
-
     /**
      * @return A <code>ThreadPool</code> that uses this task queue and wraps <code>Runnable</code>s in the given wrapper.
      */

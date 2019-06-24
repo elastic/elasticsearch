@@ -7,7 +7,7 @@ endpoints. The security settings, which are prefixed with `xpack.security`, are
 ordinarily included in regular file-system backups. However, the backup is not complete
 until a special index, which holds most of the non-setting configuration, is
 also included. Hence, the backup and restore of the security configuration
-entails an extra step to a conventional backup and restore.
+requires a combination of file-based backups, and {es} snapshots.
 
 [float]
 [[backup-security-files-location]]

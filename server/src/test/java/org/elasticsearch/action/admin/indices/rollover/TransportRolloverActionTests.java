@@ -27,6 +27,8 @@ import org.elasticsearch.action.admin.indices.stats.CommonStats;
 import org.elasticsearch.action.admin.indices.stats.IndexStats;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequestBuilder;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
+import org.elasticsearch.action.admin.indices.stats.IndicesStatsTests;
+import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -43,6 +45,9 @@ import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.MetaDataCreateIndexService;
 import org.elasticsearch.cluster.metadata.MetaDataIndexAliasesService;
+import org.elasticsearch.cluster.routing.RecoverySource;
+import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
@@ -50,13 +55,29 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.index.cache.query.QueryCacheStats;
+import org.elasticsearch.index.cache.request.RequestCacheStats;
+import org.elasticsearch.index.engine.SegmentsStats;
+import org.elasticsearch.index.fielddata.FieldDataStats;
+import org.elasticsearch.index.flush.FlushStats;
+import org.elasticsearch.index.get.GetStats;
+import org.elasticsearch.index.merge.MergeStats;
+import org.elasticsearch.index.refresh.RefreshStats;
+import org.elasticsearch.index.search.stats.SearchStats;
 import org.elasticsearch.index.shard.DocsStats;
-import org.elasticsearch.rest.action.cat.RestIndicesActionTests;
+import org.elasticsearch.index.shard.IndexingStats;
+import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.shard.ShardPath;
+import org.elasticsearch.index.store.StoreStats;
+import org.elasticsearch.index.warmer.WarmerStats;
+import org.elasticsearch.search.suggest.completion.CompletionStats;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.mockito.ArgumentCaptor;
 
+import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
@@ -64,6 +85,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
+import static java.util.Collections.emptyList;
 import static org.elasticsearch.action.admin.indices.rollover.TransportRolloverAction.evaluateConditions;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -189,7 +211,7 @@ public class TransportRolloverActionTests extends ESTestCase {
             .creationDate(System.currentTimeMillis() - TimeValue.timeValueHours(randomIntBetween(5, 10)).getMillis())
             .settings(settings)
             .build();
-        IndicesStatsResponse indicesStats = RestIndicesActionTests.randomIndicesStatsResponse(new IndexMetaData[]{metaData});
+        IndicesStatsResponse indicesStats = randomIndicesStatsResponse(new IndexMetaData[]{metaData});
         Map<String, Boolean> results2 = evaluateConditions(conditions, null, indicesStats);
         assertThat(results2.size(), equalTo(3));
         results2.forEach((k, v) -> assertFalse(v));
@@ -489,5 +511,43 @@ public class TransportRolloverActionTests extends ESTestCase {
         final Condition<?> condition = mock(Condition.class);
         when(condition.evaluate(any())).thenReturn(new Condition.Result(condition, true));
         return condition;
+    }
+
+    public static IndicesStatsResponse randomIndicesStatsResponse(final IndexMetaData[] indices) {
+        List<ShardStats> shardStats = new ArrayList<>();
+        for (final IndexMetaData index : indices) {
+            int numShards = randomIntBetween(1, 3);
+            int primaryIdx = randomIntBetween(-1, numShards - 1); // -1 means there is no primary shard.
+            for (int i = 0; i < numShards; i++) {
+                ShardId shardId = new ShardId(index.getIndex(), i);
+                boolean primary = (i == primaryIdx);
+                Path path = createTempDir().resolve("indices").resolve(index.getIndexUUID()).resolve(String.valueOf(i));
+                ShardRouting shardRouting = ShardRouting.newUnassigned(shardId, primary,
+                    primary ? RecoverySource.EmptyStoreRecoverySource.INSTANCE : RecoverySource.PeerRecoverySource.INSTANCE,
+                    new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null)
+                );
+                shardRouting = shardRouting.initialize("node-0", null, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
+                shardRouting = shardRouting.moveToStarted();
+                CommonStats stats = new CommonStats();
+                stats.fieldData = new FieldDataStats();
+                stats.queryCache = new QueryCacheStats();
+                stats.docs = new DocsStats();
+                stats.store = new StoreStats();
+                stats.indexing = new IndexingStats();
+                stats.search = new SearchStats();
+                stats.segments = new SegmentsStats();
+                stats.merge = new MergeStats();
+                stats.refresh = new RefreshStats();
+                stats.completion = new CompletionStats();
+                stats.requestCache = new RequestCacheStats();
+                stats.get = new GetStats();
+                stats.flush = new FlushStats();
+                stats.warmer = new WarmerStats();
+                shardStats.add(new ShardStats(shardRouting, new ShardPath(false, path, path, shardId), stats, null, null, null));
+            }
+        }
+        return IndicesStatsTests.newIndicesStatsResponse(
+            shardStats.toArray(new ShardStats[shardStats.size()]), shardStats.size(), shardStats.size(), 0, emptyList()
+        );
     }
 }

@@ -33,6 +33,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.elasticsearch.action.ValidateActions.addValidationError;
+
 public class PreviewDataFrameTransformAction extends Action<PreviewDataFrameTransformAction.Response> {
 
     public static final PreviewDataFrameTransformAction INSTANCE = new PreviewDataFrameTransformAction();
@@ -94,8 +96,15 @@ public class PreviewDataFrameTransformAction extends Action<PreviewDataFrameTran
 
         @Override
         public ActionRequestValidationException validate() {
-            return null;
+            ActionRequestValidationException validationException = null;
+            if(config.getPivotConfig() != null) {
+                for(String failure : config.getPivotConfig().aggFieldValidation()) {
+                    validationException = addValidationError(failure, validationException);
+                }
+            }
+            return validationException;
         }
+
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {

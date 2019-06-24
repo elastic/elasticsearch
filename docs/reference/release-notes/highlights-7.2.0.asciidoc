@@ -40,11 +40,8 @@ the <<modules-snapshots,Snapshot/Restore API>>. To include a closed index
 when creating a snapshot on Elasticsearch 7.2+, the `expand_wildcards`
 parameter must be explicitly set to either `all` or `closed` .
 
-To snapshot closed indices,
-setting the expand_wildcards option either to all or closed (see https://www.elastic.co/guide/en/elasticsearch/reference/current/multi-index.html).
-
 Note that only indices closed in Elasticsearch 7.2+ are automatically
 replicated. Indices closed on previous versions of Elasticsearch will
-remain non replicated unless they are opened and closed again in 7.2.0.
+remain non replicated unless they are opened and closed again in 7.2+.
 
 // end::notable-highlights[]

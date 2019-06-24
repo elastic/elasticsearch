@@ -16,21 +16,29 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.nio;
 
-import java.util.function.BiConsumer;
+package org.elasticsearch.painless.spi.annotation;
 
-/**
- * This is a basic write operation that can be queued with a channel. The only requirements of a write
- * operation is that is has a listener and a reference to its channel. The actual conversion of the write
- * operation implementation to bytes will be performed by the {@link NioChannelHandler}.
- */
-public interface WriteOperation {
+import java.util.Map;
 
-    BiConsumer<Void, Exception> getListener();
+public class DeprecatedAnnotationParser implements WhitelistAnnotationParser {
 
-    SocketChannelContext getChannel();
+    public static final DeprecatedAnnotationParser INSTANCE = new DeprecatedAnnotationParser();
 
-    Object getObject();
+    public static final String MESSAGE = "message";
 
+    private DeprecatedAnnotationParser() {
+
+    }
+
+    @Override
+    public Object parse(Map<String, String> arguments) {
+        String message = arguments.getOrDefault(MESSAGE, "");
+
+        if ((arguments.isEmpty() || arguments.size() == 1 && arguments.containsKey(MESSAGE)) == false) {
+            throw new IllegalArgumentException("unexpected parameters for [@deprecation] annotation, found " + arguments);
+        }
+
+        return new DeprecatedAnnotation(message);
+    }
 }

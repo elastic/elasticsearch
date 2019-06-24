@@ -19,8 +19,12 @@
 
 package org.elasticsearch.painless.spi;
 
+import java.util.AbstractMap;
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 /**
  * A class binding represents a method call that stores state. Each class binding's Java class must
@@ -51,9 +55,13 @@ public class WhitelistClassBinding {
      */
     public final List<String> canonicalTypeNameParameters;
 
+    /** The {@link Map} of annotations for this class binding. */
+    public final Map<Class<?>, Object> painlessAnnotations;
+
     /** Standard constructor. All values must be not {@code null}. */
     public WhitelistClassBinding(String origin, String targetJavaClassName,
-            String methodName, String returnCanonicalTypeName, List<String> canonicalTypeNameParameters) {
+            String methodName, String returnCanonicalTypeName, List<String> canonicalTypeNameParameters,
+            List<Object> painlessAnnotations) {
 
         this.origin = Objects.requireNonNull(origin);
         this.targetJavaClassName = Objects.requireNonNull(targetJavaClassName);
@@ -61,5 +69,13 @@ public class WhitelistClassBinding {
         this.methodName = Objects.requireNonNull(methodName);
         this.returnCanonicalTypeName = Objects.requireNonNull(returnCanonicalTypeName);
         this.canonicalTypeNameParameters = Objects.requireNonNull(canonicalTypeNameParameters);
+
+        if (painlessAnnotations.isEmpty()) {
+            this.painlessAnnotations = Collections.emptyMap();
+        } else {
+            this.painlessAnnotations = Collections.unmodifiableMap(Objects.requireNonNull(painlessAnnotations).stream()
+                    .map(painlessAnnotation -> new AbstractMap.SimpleEntry<>(painlessAnnotation.getClass(), painlessAnnotation))
+                    .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue)));
+        }
     }
 }

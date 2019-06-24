@@ -16,21 +16,26 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.nio;
 
-import java.util.function.BiConsumer;
+package org.elasticsearch.example.painlesswhitelist;
 
-/**
- * This is a basic write operation that can be queued with a channel. The only requirements of a write
- * operation is that is has a listener and a reference to its channel. The actual conversion of the write
- * operation implementation to bytes will be performed by the {@link NioChannelHandler}.
- */
-public interface WriteOperation {
+public class ExamplePainlessAnnotation {
 
-    BiConsumer<Void, Exception> getListener();
+    public static final String NAME = "example_annotation";
 
-    SocketChannelContext getChannel();
+    public int category;
+    public String message;
 
-    Object getObject();
+    public ExamplePainlessAnnotation(int category, String message) {
+        this.category = category;
+        this.message = message;
+    }
 
+    public int getCategory() {
+        return category;
+    }
+
+    public String getMessage() {
+        return message;
+    }
 }

@@ -16,21 +16,25 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.nio;
 
-import java.util.function.BiConsumer;
+package org.elasticsearch.painless.spi.annotation;
 
-/**
- * This is a basic write operation that can be queued with a channel. The only requirements of a write
- * operation is that is has a listener and a reference to its channel. The actual conversion of the write
- * operation implementation to bytes will be performed by the {@link NioChannelHandler}.
- */
-public interface WriteOperation {
+import java.util.Map;
 
-    BiConsumer<Void, Exception> getListener();
+public class NoImportAnnotationParser implements WhitelistAnnotationParser {
 
-    SocketChannelContext getChannel();
+    public static final NoImportAnnotationParser INSTANCE = new NoImportAnnotationParser();
 
-    Object getObject();
+    private NoImportAnnotationParser() {
 
+    }
+
+    @Override
+    public Object parse(Map<String, String> arguments) {
+        if (arguments.isEmpty() == false) {
+            throw new IllegalArgumentException("unexpected parameters for [@no_import] annotation, found " + arguments);
+        }
+
+        return NoImportAnnotation.INSTANCE;
+    }
 }

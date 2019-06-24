@@ -35,7 +35,7 @@ import org.gradle.api.artifacts.repositories.IvyArtifactRepository;
 import org.gradle.api.credentials.HttpHeaderCredentials;
 import org.gradle.api.file.FileTree;
 import org.gradle.api.plugins.ExtraPropertiesExtension;
-import org.gradle.api.tasks.Copy;
+import org.gradle.api.tasks.Sync;
 import org.gradle.api.tasks.TaskProvider;
 import org.gradle.authentication.http.HttpHeaderAuthentication;
 
@@ -54,7 +54,7 @@ import java.util.function.Supplier;
  */
 public class DistributionDownloadPlugin implements Plugin<Project> {
 
-    private static final String FAKE_GROUP = "elasticsearch-distribution";
+    private static final String FAKE_IVY_GROUP = "elasticsearch-distribution";
     private static final String DOWNLOAD_REPO_NAME = "elasticsearch-downloads";
 
     private BwcVersions bwcVersions;
@@ -62,7 +62,11 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
 
     @Override
     public void apply(Project project) {
-        distributionsContainer = project.container(ElasticsearchDistribution.class, name -> new ElasticsearchDistribution(name, project));
+        distributionsContainer = project.container(ElasticsearchDistribution.class, name -> {
+            Configuration fileConfiguration = project.getConfigurations().create("es_distro_file_" + name);
+            Configuration extractedConfiguration = project.getConfigurations().create("es_distro_extracted_" + name);
+            return new ElasticsearchDistribution(name, project.getObjects(), fileConfiguration, extractedConfiguration);
+        });
         project.getExtensions().add("elasticsearch_distributions", distributionsContainer);
 
         setupDownloadServiceRepo(project);
@@ -112,18 +116,16 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
         String extractedConfigName = "extracted_" + downloadConfigName;
         final Configuration downloadConfig = configurations.create(downloadConfigName);
         configurations.create(extractedConfigName);
-        Object distroDep = dependencyNotation(rootProject, distribution);
-        rootProject.getDependencies().add(downloadConfigName, distroDep);
+        rootProject.getDependencies().add(downloadConfigName, dependencyNotation(rootProject, distribution));
 
         // add task for extraction, delaying resolving config until runtime
         if (distribution.getType() == Type.ARCHIVE || distribution.getType() == Type.INTEG_TEST_ZIP) {
             Supplier<File> archiveGetter = downloadConfig::getSingleFile;
             String extractDir = rootProject.getBuildDir().toPath().resolve("elasticsearch-distros").resolve(extractedConfigName).toString();
-            TaskProvider<Copy> extractTask = rootProject.getTasks().register(extractTaskName, Copy.class, copyTask -> {
-                copyTask.dependsOn(downloadConfig);
-                copyTask.doFirst(t -> rootProject.delete(extractDir));
-                copyTask.into(extractDir);
-                copyTask.from((Callable<FileTree>)() -> {
+            TaskProvider<Sync> extractTask = rootProject.getTasks().register(extractTaskName, Sync.class, syncTask -> {
+                syncTask.dependsOn(downloadConfig);
+                syncTask.into(extractDir);
+                syncTask.from((Callable<FileTree>)() -> {
                     File archiveFile = archiveGetter.get();
                     String archivePath = archiveFile.toString();
                     if (archivePath.endsWith(".zip")) {
@@ -155,12 +157,12 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
             });
             ivyRepo.getAuthentication().create("header", HttpHeaderAuthentication.class);
             ivyRepo.patternLayout(layout -> layout.artifact("/downloads/elasticsearch/[module]-[revision](-[classifier]).[ext]"));
-            ivyRepo.content(content -> content.includeGroup(FAKE_GROUP));
+            ivyRepo.content(content -> content.includeGroup(FAKE_IVY_GROUP));
         });
         project.getRepositories().all(repo -> {
             if (repo.getName().equals(DOWNLOAD_REPO_NAME) == false) {
                 // all other repos should ignore the special group name
-                repo.content(content -> content.excludeGroup(FAKE_GROUP));
+                repo.content(content -> content.excludeGroup(FAKE_IVY_GROUP));
             }
         });
         // TODO: need maven repo just for integ-test-zip, but only in external cases
@@ -199,7 +201,7 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
             extension = distribution.getPlatform() == Platform.WINDOWS ? "zip" : "tar.gz";
             classifier = distribution.getPlatform() + "-" + classifier;
         }
-        return FAKE_GROUP + ":elasticsearch" + (distribution.getFlavor() == Flavor.OSS ? "-oss:" : ":")
+        return FAKE_IVY_GROUP + ":elasticsearch" + (distribution.getFlavor() == Flavor.OSS ? "-oss:" : ":")
             + distribution.getVersion() + ":" + classifier + "@" + extension;
     }
 

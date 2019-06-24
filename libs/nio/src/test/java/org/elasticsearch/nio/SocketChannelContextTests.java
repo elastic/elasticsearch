@@ -35,7 +35,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.IntFunction;
-import java.util.function.Predicate;
 
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyInt;
@@ -54,7 +53,7 @@ public class SocketChannelContextTests extends ESTestCase {
     private NioSocketChannel channel;
     private BiConsumer<Void, Exception> listener;
     private NioSelector selector;
-    private ReadWriteHandler readWriteHandler;
+    private NioChannelHandler readWriteHandler;
     private ByteBuffer ioBuffer = ByteBuffer.allocate(1024);
 
     @SuppressWarnings("unchecked")
@@ -68,7 +67,7 @@ public class SocketChannelContextTests extends ESTestCase {
         when(channel.getRawChannel()).thenReturn(rawChannel);
         exceptionHandler = mock(Consumer.class);
         selector = mock(NioSelector.class);
-        readWriteHandler = mock(ReadWriteHandler.class);
+        readWriteHandler = mock(NioChannelHandler.class);
         InboundChannelBuffer channelBuffer = InboundChannelBuffer.allocatingInstance();
         context = new TestSocketChannelContext(channel, selector, exceptionHandler, readWriteHandler, channelBuffer);
 
@@ -99,22 +98,6 @@ public class SocketChannelContextTests extends ESTestCase {
         when(rawChannel.read(any(ByteBuffer.class))).thenReturn(-1);
         assertFalse(context.closeNow());
         context.read();
-        assertTrue(context.closeNow());
-    }
-
-    public void testValidateInRegisterCanSucceed() throws IOException {
-        InboundChannelBuffer channelBuffer = InboundChannelBuffer.allocatingInstance();
-        context = new TestSocketChannelContext(channel, selector, exceptionHandler, readWriteHandler, channelBuffer, (c) -> true);
-        assertFalse(context.closeNow());
-        context.register();
-        assertFalse(context.closeNow());
-    }
-
-    public void testValidateInRegisterCanFail() throws IOException {
-        InboundChannelBuffer channelBuffer = InboundChannelBuffer.allocatingInstance();
-        context = new TestSocketChannelContext(channel, selector, exceptionHandler, readWriteHandler, channelBuffer, (c) -> false);
-        assertFalse(context.closeNow());
-        context.register();
         assertTrue(context.closeNow());
     }
 
@@ -394,14 +377,8 @@ public class SocketChannelContextTests extends ESTestCase {
     private static class TestSocketChannelContext extends SocketChannelContext {
 
         private TestSocketChannelContext(NioSocketChannel channel, NioSelector selector, Consumer<Exception> exceptionHandler,
-                                         ReadWriteHandler readWriteHandler, InboundChannelBuffer channelBuffer) {
-            this(channel, selector, exceptionHandler, readWriteHandler, channelBuffer, ALWAYS_ALLOW_CHANNEL);
-        }
-
-        private TestSocketChannelContext(NioSocketChannel channel, NioSelector selector, Consumer<Exception> exceptionHandler,
-                                         ReadWriteHandler readWriteHandler, InboundChannelBuffer channelBuffer,
-                                         Predicate<NioSocketChannel> allowChannelPredicate) {
-            super(channel, selector, exceptionHandler, readWriteHandler, channelBuffer, allowChannelPredicate);
+                                         NioChannelHandler readWriteHandler, InboundChannelBuffer channelBuffer) {
+            super(channel, selector, exceptionHandler, readWriteHandler, channelBuffer);
         }
 
         @Override

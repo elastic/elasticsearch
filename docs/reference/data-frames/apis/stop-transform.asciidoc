@@ -40,10 +40,11 @@ All {dataframe-transforms} can be stopped by using `_all` or `*` as the `<data_f
 
  `timeout`::
    (time value) If `wait_for_completion=true`, the API blocks for (at maximum)
-   the specified duration while waiting for the job to stop. If more than
+   the specified duration while waiting for the transform to stop. If more than
    `timeout` time has passed, the API throws a timeout exception. Even if a
    timeout exception is thrown, the stop request is still processing and
-   eventually moves the job to `STOPPED`. The timeout simply means the API call itself timed out while waiting for the status change. Defaults to `30s`
+   eventually moves the transform to `STOPPED`. The timeout simply means the API
+   call itself timed out while waiting for the status change. Defaults to `30s`
     
 //==== Request Body
 ==== Authorization

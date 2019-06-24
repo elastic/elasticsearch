@@ -77,7 +77,7 @@ flows as described in http://ela.st/oidc-spec. It also supports consuming and ve
 [float]
 ==== Search as you type field mapping type
 
-The `search_as_you_type` field type is a text-like field that is optimized to
+The `search_as_you_type` field type is a text-like field optimized to
 provide out-of-the-box support for queries that serve an as-you-type completion
 use case. It creates a series of subfields that are analyzed to index terms
 that can be efficiently matched by a query that partially matches the entire

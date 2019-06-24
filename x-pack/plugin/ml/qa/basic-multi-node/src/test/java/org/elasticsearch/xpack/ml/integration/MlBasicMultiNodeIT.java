@@ -14,9 +14,9 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.ml.MachineLearning;
+import org.yaml.snakeyaml.util.UriEncoder;
 
 import java.io.IOException;
-import java.net.URLEncoder;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -303,7 +303,7 @@ public class MlBasicMultiNodeIT extends ESRestTestCase {
         }
         xContentBuilder.endObject();
 
-        Request request = new Request("PUT", MachineLearning.BASE_PATH + "anomaly_detectors/" + URLEncoder.encode(jobId, "UTF-8"));
+        Request request = new Request("PUT", MachineLearning.BASE_PATH + "anomaly_detectors/" + UriEncoder.encode(jobId));
         request.setJsonEntity(Strings.toString(xContentBuilder));
         return client().performRequest(request);
     }

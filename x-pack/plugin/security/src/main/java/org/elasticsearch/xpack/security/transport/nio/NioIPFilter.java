@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.security.transport.nio;
 
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.nio.DelegatingHandler;
 import org.elasticsearch.nio.InboundChannelBuffer;
 import org.elasticsearch.nio.NioChannelHandler;
@@ -16,12 +15,12 @@ import java.net.InetSocketAddress;
 
 public final class NioIPFilter extends DelegatingHandler {
 
-    private InetSocketAddress remoteAddress;
+    private final InetSocketAddress remoteAddress;
     private final IPFilter filter;
     private final String profile;
     private boolean denied = false;
 
-    NioIPFilter(NioChannelHandler delegate, InetSocketAddress remoteAddress, @Nullable IPFilter filter, String profile) {
+    NioIPFilter(NioChannelHandler delegate, InetSocketAddress remoteAddress, IPFilter filter, String profile) {
         super(delegate);
         this.remoteAddress = remoteAddress;
         this.filter = filter;
@@ -30,7 +29,7 @@ public final class NioIPFilter extends DelegatingHandler {
 
     @Override
     public void channelRegistered() {
-        if (allowChannel()) {
+        if (filter.accept(profile, remoteAddress)) {
             super.channelRegistered();
         } else {
             denied = true;
@@ -50,13 +49,5 @@ public final class NioIPFilter extends DelegatingHandler {
     @Override
     public boolean closeNow() {
         return denied;
-    }
-
-    private boolean allowChannel() {
-        if (filter != null) {
-            return filter.accept(profile, remoteAddress);
-        } else {
-            return true;
-        }
     }
 }

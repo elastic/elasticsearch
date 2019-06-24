@@ -19,40 +19,50 @@
 
 package org.elasticsearch.nio;
 
-import java.nio.ByteBuffer;
-import java.util.Collections;
+import java.io.IOException;
 import java.util.List;
 import java.util.function.BiConsumer;
 
-public abstract class BytesWriteHandler implements NioChannelHandler {
+public abstract class DelegatingHandler implements NioChannelHandler {
 
-    private static final List<FlushOperation> EMPTY_LIST = Collections.emptyList();
+    private NioChannelHandler delegate;
 
-    public WriteOperation createWriteOperation(SocketChannelContext context, Object message, BiConsumer<Void, Exception> listener) {
-        assert message instanceof ByteBuffer[] : "This channel only supports messages that are of type: " + ByteBuffer[].class
-            + ". Found type: " + message.getClass() + ".";
-        return new FlushReadyWrite(context, (ByteBuffer[]) message, listener);
+    public DelegatingHandler(NioChannelHandler delegate) {
+        this.delegate = delegate;
     }
 
     @Override
-    public void channelRegistered() {}
+    public void channelRegistered() {
+        this.delegate.channelRegistered();
+    }
+
+    @Override
+    public WriteOperation createWriteOperation(SocketChannelContext context, Object message, BiConsumer<Void, Exception> listener) {
+        return delegate.createWriteOperation(context, message, listener);
+    }
 
     @Override
     public List<FlushOperation> writeToBytes(WriteOperation writeOperation) {
-        assert writeOperation instanceof FlushReadyWrite : "Write operation must be flush ready";
-        return Collections.singletonList((FlushReadyWrite) writeOperation);
+        return delegate.writeToBytes(writeOperation);
     }
 
     @Override
     public List<FlushOperation> pollFlushOperations() {
-        return EMPTY_LIST;
+        return delegate.pollFlushOperations();
+    }
+
+    @Override
+    public int consumeReads(InboundChannelBuffer channelBuffer) throws IOException {
+        return delegate.consumeReads(channelBuffer);
     }
 
     @Override
     public boolean closeNow() {
-        return false;
+        return delegate.closeNow();
     }
 
     @Override
-    public void close() {}
+    public void close() throws IOException {
+        delegate.close();
+    }
 }

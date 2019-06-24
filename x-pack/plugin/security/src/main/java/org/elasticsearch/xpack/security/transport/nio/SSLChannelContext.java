@@ -9,9 +9,9 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.nio.FlushOperation;
 import org.elasticsearch.nio.InboundChannelBuffer;
+import org.elasticsearch.nio.NioChannelHandler;
 import org.elasticsearch.nio.NioSelector;
 import org.elasticsearch.nio.NioSocketChannel;
-import org.elasticsearch.nio.ReadWriteHandler;
 import org.elasticsearch.nio.SocketChannelContext;
 import org.elasticsearch.nio.WriteOperation;
 
@@ -23,12 +23,11 @@ import java.util.LinkedList;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
-import java.util.function.Predicate;
 
 /**
  * Provides a TLS/SSL read/write layer over a channel. This context will use a {@link SSLDriver} to handshake
  * with the peer channel. Once the handshake is complete, any data from the peer channel will be decrypted
- * before being passed to the {@link ReadWriteHandler}. Outbound data will be encrypted before being flushed
+ * before being passed to the {@link NioChannelHandler}. Outbound data will be encrypted before being flushed
  * to the channel.
  */
 public final class SSLChannelContext extends SocketChannelContext {
@@ -43,15 +42,14 @@ public final class SSLChannelContext extends SocketChannelContext {
     private Runnable closeTimeoutCanceller = DEFAULT_TIMEOUT_CANCELLER;
 
     SSLChannelContext(NioSocketChannel channel, NioSelector selector, Consumer<Exception> exceptionHandler, SSLDriver sslDriver,
-                      ReadWriteHandler readWriteHandler, InboundChannelBuffer applicationBuffer) {
+                      NioChannelHandler readWriteHandler, InboundChannelBuffer applicationBuffer) {
         this(channel, selector, exceptionHandler, sslDriver, readWriteHandler, InboundChannelBuffer.allocatingInstance(),
-            applicationBuffer, ALWAYS_ALLOW_CHANNEL);
+            applicationBuffer);
     }
 
     SSLChannelContext(NioSocketChannel channel, NioSelector selector, Consumer<Exception> exceptionHandler, SSLDriver sslDriver,
-                      ReadWriteHandler readWriteHandler, InboundChannelBuffer networkReadBuffer, InboundChannelBuffer channelBuffer,
-                      Predicate<NioSocketChannel> allowChannelPredicate) {
-        super(channel, selector, exceptionHandler, readWriteHandler, channelBuffer, allowChannelPredicate);
+                      NioChannelHandler readWriteHandler, InboundChannelBuffer networkReadBuffer, InboundChannelBuffer channelBuffer) {
+        super(channel, selector, exceptionHandler, readWriteHandler, channelBuffer);
         this.sslDriver = sslDriver;
         this.networkReadBuffer = networkReadBuffer;
     }

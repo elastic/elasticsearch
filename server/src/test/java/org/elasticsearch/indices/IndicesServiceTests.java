@@ -22,6 +22,7 @@ import org.apache.lucene.search.similarities.BM25Similarity;
 import org.apache.lucene.search.similarities.Similarity;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.admin.indices.stats.IndexShardStats;
 import org.elasticsearch.cluster.ClusterName;
@@ -329,8 +330,10 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
                 fail(e.getMessage());
             }
         });
-        assertThat(indicesService.hasUncompletedPendingDeletes(), equalTo(hasBogus)); // "bogus" index has not been removed
-        assertFalse(shardPath.exists());
+        assertBusy(() -> {
+            assertThat(indicesService.hasUncompletedPendingDeletes(), equalTo(hasBogus)); // "bogus" index has not been removed
+            assertFalse(shardPath.exists());
+        });
     }
 
     public void testVerifyIfIndexContentDeleted() throws Exception {
@@ -385,18 +388,18 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
                                                              .numberOfShards(1)
                                                              .numberOfReplicas(0)
                                                              .build();
-        DanglingListener listener = new DanglingListener();
-        dangling.allocateDangled(Arrays.asList(indexMetaData), listener);
-        listener.latch.await();
+        CountDownLatch latch = new CountDownLatch(1);
+        dangling.allocateDangled(Arrays.asList(indexMetaData), ActionListener.wrap(latch::countDown));
+        latch.await();
         assertThat(clusterService.state(), equalTo(originalState));
 
         // remove the alias
         client().admin().indices().prepareAliases().removeAlias(indexName, alias).get();
 
         // now try importing a dangling index with the same name as the alias, it should succeed.
-        listener = new DanglingListener();
-        dangling.allocateDangled(Arrays.asList(indexMetaData), listener);
-        listener.latch.await();
+        latch = new CountDownLatch(1);
+        dangling.allocateDangled(Arrays.asList(indexMetaData), ActionListener.wrap(latch::countDown));
+        latch.await();
         assertThat(clusterService.state(), not(originalState));
         assertNotNull(clusterService.state().getMetaData().index(alias));
     }
@@ -429,20 +432,6 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         final ClusterState clusterState = new ClusterState.Builder(new ClusterName("testCluster")).metaData(metaData).build();
         // if all goes well, this won't throw an exception, otherwise, it will throw an IllegalStateException
         indicesService.verifyIndexIsDeleted(tombstonedIndex, clusterState);
-    }
-
-    private static class DanglingListener implements LocalAllocateDangledIndices.Listener {
-        final CountDownLatch latch = new CountDownLatch(1);
-
-        @Override
-        public void onResponse(LocalAllocateDangledIndices.AllocateDangledResponse response) {
-            latch.countDown();
-        }
-
-        @Override
-        public void onFailure(Throwable e) {
-            latch.countDown();
-        }
     }
 
     /**

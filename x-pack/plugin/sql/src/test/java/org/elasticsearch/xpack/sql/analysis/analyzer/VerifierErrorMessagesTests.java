@@ -241,6 +241,27 @@ public class VerifierErrorMessagesTests extends ESTestCase {
             error("SELECT INTERVAL 1 MONTH - CAST('12:23:56.789' AS TIME)"));
     }
 
+    public void testAddIntervalAndNumberNotAllowed() {
+        assertEquals("1:8: [+] has arguments with incompatible types [INTERVAL_DAY] and [INTEGER]",
+            error("SELECT INTERVAL 1 DAY + 100"));
+        assertEquals("1:8: [+] has arguments with incompatible types [INTEGER] and [INTERVAL_DAY]",
+            error("SELECT 100 + INTERVAL 1 DAY"));
+    }
+
+    public void testSubtractIntervalAndNumberNotAllowed() {
+        assertEquals("1:8: [-] has arguments with incompatible types [INTERVAL_MINUTE] and [DOUBLE]",
+            error("SELECT INTERVAL 10 MINUTE - 100.0"));
+        assertEquals("1:8: [-] has arguments with incompatible types [DOUBLE] and [INTERVAL_MINUTE]",
+            error("SELECT 100.0 - INTERVAL 10 MINUTE"));
+    }
+
+    public void testMultiplyIntervalWithDecimalNotAllowed() {
+        assertEquals("1:8: [*] has arguments with incompatible types [INTERVAL_MONTH] and [DOUBLE]",
+            error("SELECT INTERVAL 1 MONTH * 1.234"));
+        assertEquals("1:8: [*] has arguments with incompatible types [DOUBLE] and [INTERVAL_MONTH]",
+            error("SELECT 1.234 * INTERVAL 1 MONTH"));
+    }
+
     public void testMultipleColumns() {
         assertEquals("1:43: Unknown column [xxx]\nline 1:8: Unknown column [xxx]",
                 error("SELECT xxx FROM test GROUP BY DAY_oF_YEAR(xxx)"));
@@ -773,4 +794,28 @@ public class VerifierErrorMessagesTests extends ESTestCase {
     public void testProjectUnresolvedAliasInFilter() {
         assertEquals("1:8: Unknown column [tni]", error("SELECT tni AS i FROM test WHERE i > 10 GROUP BY i"));
     }
+
+    public void testGeoShapeInWhereClause() {
+        assertEquals("1:49: geo shapes cannot be used for filtering",
+            error("SELECT ST_AsWKT(shape) FROM test WHERE ST_AsWKT(shape) = 'point (10 20)'"));
+
+        // We get only one message back because the messages are grouped by the node that caused the issue
+        assertEquals("1:46: geo shapes cannot be used for filtering",
+            error("SELECT MAX(ST_X(shape)) FROM test WHERE ST_Y(shape) > 10 GROUP BY ST_GEOMETRYTYPE(shape) ORDER BY ST_ASWKT(shape)"));
+    }
+
+    public void testGeoShapeInGroupBy() {
+        assertEquals("1:44: geo shapes cannot be used in grouping",
+            error("SELECT ST_X(shape) FROM test GROUP BY ST_X(shape)"));
+    }
+
+    public void testGeoShapeInOrderBy() {
+        assertEquals("1:44: geo shapes cannot be used for sorting",
+            error("SELECT ST_X(shape) FROM test ORDER BY ST_Z(shape)"));
+    }
+
+    public void testGeoShapeInSelect() {
+        accept("SELECT ST_X(shape) FROM test");
+    }
+
 }

@@ -54,8 +54,9 @@ detects anomalies where the geographic location of a credit card transaction is
 unusual for a particular customer’s credit card. An anomaly might indicate fraud.
 
 IMPORTANT: The `field_name` that you supply must be a single string that contains
-two comma-separated numbers of the form `latitude,longitude`. The `latitude` and
-`longitude` must be in the range -180 to 180 and represent a point on the
+two comma-separated numbers of the form `latitude,longitude`, a `geo_point` field,
+a `geo_shape` field that contains point values, or a `geo_centroid` aggregation.
+The `latitude` and `longitude` must be in the range -180 to 180 and represent a point on the
 surface of the Earth.
 
 For example, JSON data might contain the following transaction coordinates:
@@ -71,34 +72,9 @@ For example, JSON data might contain the following transaction coordinates:
 // NOTCONSOLE
 
 In {es}, location data is likely to be stored in `geo_point` fields. For more
-information, see {ref}/geo-point.html[Geo-point datatype]. This data type is not
-supported natively in {ml-features}. You can, however, use Painless scripts
-in `script_fields` in your {dfeed} to transform the data into an appropriate
-format. For example, the following Painless script transforms
-`"coords": {"lat" : 41.44, "lon":90.5}` into `"lat-lon": "41.44,90.5"`:
-
-[source,js]
---------------------------------------------------
-PUT _ml/datafeeds/datafeed-test2
-{
-  "job_id": "farequote",
-  "indices": ["farequote"],
-  "query": {
-    "match_all": {
-          "boost": 1
-    }
-  },
-  "script_fields": {
-    "lat-lon": {
-      "script": {
-        "source": "doc['coords'].lat + ',' + doc['coords'].lon",
-        "lang": "painless"
-      }
-    }
-  }
-}
---------------------------------------------------
-// CONSOLE
-// TEST[skip:setup:farequote_job]
+information, see {ref}/geo-point.html[Geo-point datatype]. This data type is
+supported natively in {ml-features}. Specifically, {dfeed} when pulling data from
+a `geo_point` field, will transform the data into the appropriate `lat,lon` string
+format before sending to the {ml} job.
 
 For more information, see <<ml-configuring-transform>>.

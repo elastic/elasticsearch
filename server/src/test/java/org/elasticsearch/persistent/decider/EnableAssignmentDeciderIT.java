@@ -23,9 +23,7 @@ import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.persistent.PersistentTaskParams;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
-import org.elasticsearch.persistent.PersistentTasksCustomMetaData.PersistentTask;
 import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.persistent.TestPersistentTasksPlugin;
 import org.elasticsearch.persistent.TestPersistentTasksPlugin.TestParams;
@@ -51,11 +49,6 @@ public class EnableAssignmentDeciderIT extends ESIntegTestCase {
     }
 
     @Override
-    protected Collection<Class<? extends Plugin>> transportClientPlugins() {
-        return nodePlugins();
-    }
-
-    @Override
     protected boolean ignoreExternalCluster() {
         return true;
     }
@@ -72,17 +65,7 @@ public class EnableAssignmentDeciderIT extends ESIntegTestCase {
         for (int i = 0; i < numberOfTasks; i++) {
             PersistentTasksService service = internalCluster().getInstance(PersistentTasksService.class);
             service.sendStartRequest("task_" + i, TestPersistentTasksExecutor.NAME, new TestParams(randomAlphaOfLength(10)),
-                new ActionListener<PersistentTask<PersistentTaskParams>>() {
-                    @Override
-                    public void onResponse(PersistentTask<PersistentTaskParams> task) {
-                        latch.countDown();
-                    }
-
-                    @Override
-                    public void onFailure(Exception e) {
-                        latch.countDown();
-                    }
-                });
+                ActionListener.wrap(latch::countDown));
         }
         latch.await();
 

@@ -63,7 +63,7 @@ public class ChangePolicyforIndexIT extends ESRestTestCase {
         Map<String, Phase> phases2 = new HashMap<>();
         phases2.put("hot", new Phase("hot", TimeValue.ZERO, singletonMap(RolloverAction.NAME, new RolloverAction(null, null, 1000L))));
         phases2.put("warm", new Phase("warm", TimeValue.ZERO,
-                singletonMap(AllocateAction.NAME, new AllocateAction(1, singletonMap("_name", "node-1,node-2"), null, null))));
+                singletonMap(AllocateAction.NAME, new AllocateAction(1, singletonMap("_name", "integTest-1,integTest-2"), null, null))));
         LifecyclePolicy lifecyclePolicy2 = new LifecyclePolicy("policy_1", phases2);
         // PUT policy_1 and policy_2
         XContentBuilder builder1 = jsonBuilder();
@@ -81,7 +81,7 @@ public class ChangePolicyforIndexIT extends ESRestTestCase {
 
         // create the test-index index and set the policy to policy_1
         Settings settings = Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 4)
-                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0).put("index.routing.allocation.include._name", "node-0")
+                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0).put("index.routing.allocation.include._name", "integTest-0")
                 .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, "alias").put(LifecycleSettings.LIFECYCLE_NAME, "policy_1").build();
         Request createIndexRequest = new Request("PUT", "/" + indexName);
         createIndexRequest.setJsonEntity(
@@ -114,7 +114,7 @@ public class ChangePolicyforIndexIT extends ESRestTestCase {
         // Check the index goes to the warm phase and completes
         assertBusy(() -> assertStep(indexName, TerminalPolicyStep.KEY));
 
-        // Check index is allocated on node-1 and node-2 as per policy_2
+        // Check index is allocated on integTest-1 and integTest-2 as per policy_2
         Request getSettingsRequest = new Request("GET", "/" + indexName + "/_settings");
         Response getSettingsResponse = client().performRequest(getSettingsRequest);
         assertOK(getSettingsResponse);
@@ -127,7 +127,7 @@ public class ChangePolicyforIndexIT extends ESRestTestCase {
         @SuppressWarnings("unchecked")
         String includesAllocation = (String) ((Map<String, Object>) ((Map<String, Object>) routingSettings.get("allocation"))
                 .get("include")).get("_name");
-        assertEquals("node-1,node-2", includesAllocation);
+        assertEquals("integTest-1,integTest-2", includesAllocation);
     }
 
     private void assertStep(String indexName, StepKey expectedStep) throws IOException {

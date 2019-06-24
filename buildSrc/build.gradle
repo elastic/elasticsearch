@@ -45,21 +45,17 @@ if (project == rootProject) {
 // we update the version property to reflect if we are building a snapshot or a release build
 // we write this back out below to load it in the Build.java which will be shown in rest main action
 // to indicate this being a snapshot build or a release build.
-File propsFile = project.file('version.properties')
-Properties props = VersionPropertiesLoader.loadBuildSrcVersion(propsFile)
+Properties props = VersionPropertiesLoader.loadBuildSrcVersion(project.file('version.properties'))
 version = props.getProperty("elasticsearch")
+
+task generateVersionProperties(type: WriteProperties) {
+  outputFile = "${buildDir}/version.properties"
+  comment = 'Generated version properties'
+  properties(props)
+}
+
 processResources {
-  inputs.file(propsFile)
-  // We need to be explicit with the version because we add snapshot and qualifier to it based on properties
-  inputs.property("dynamic_elasticsearch_version", props.getProperty("elasticsearch"))
-  doLast {
-    Writer writer = file("$destinationDir/version.properties").newWriter()
-    try {
-      props.store(writer, "Generated version properties")
-    } finally {
-      writer.close()
-    }
-  }
+  from(generateVersionProperties)
 }
 
 /*****************************************************************************
@@ -69,37 +65,28 @@ processResources {
 if (JavaVersion.current() < JavaVersion.VERSION_11) {
   throw new GradleException('At least Java 11 is required to build elasticsearch gradle tools')
 }
-// Gradle 4.10 does not support setting this to 11 yet
-targetCompatibility = "10"
-sourceCompatibility = "10"
 
-// We have a few classes that need to be compiled for older java versions because these are used to run checks against
-// those
+// Keep compatibility with Java 8 for external users of build-tools that haven't migrated to Java 11
+targetCompatibility = '11'
+sourceCompatibility = '11'
+
 sourceSets {
-  minimumRuntime {
-    // We only want Java here, but the Groovy doesn't configure javadoc correctly if we don't define this as groovy
-    groovy {
-      srcDirs = ['src/main/minimumRuntime']
-    }
-  }
-}
-compileMinimumRuntimeGroovy {
-  targetCompatibility = 8
-  sourceCompatibility = 8
-}
-dependencies {
-  if (project.ext.has("isEclipse") == false || project.ext.isEclipse == false) {
-      // eclipse is confused if this is set explicitly
-    compile sourceSets.minimumRuntime.output
-  }
-  minimumRuntimeCompile "junit:junit:${props.getProperty('junit')}"
-  minimumRuntimeCompile localGroovy()
-  minimumRuntimeCompile gradleApi()
-}
-jar {
-  from sourceSets.minimumRuntime.output
+    // We have a few classes that need to be compiled for older java versions
+    minimumRuntime { }
 }
 
+compileMinimumRuntimeJava {
+    targetCompatibility = 8
+    sourceCompatibility = 8
+}
+
+jar {
+    from sourceSets.minimumRuntime.output
+}
+
+javadoc {
+    source sourceSets.minimumRuntime.allSource
+}
 
 /*****************************************************************************
  *                    Dependencies used by the entire build                  *
@@ -110,8 +97,15 @@ repositories {
 }
 
 dependencies {
+  if (project.ext.has("isEclipse") == false || project.ext.isEclipse == false) {
+    // eclipse is confused if this is set explicitly
+    compile sourceSets.minimumRuntime.output
+  }
+
   compile localGroovy()
   
+  compile 'commons-codec:commons-codec:1.12'
+
   compile 'com.netflix.nebula:gradle-extra-configurations-plugin:3.0.3'
   compile 'com.netflix.nebula:nebula-publishing-plugin:4.4.4'
   compile 'com.netflix.nebula:gradle-info-plugin:3.0.3'
@@ -124,6 +118,10 @@ dependencies {
   compile 'com.avast.gradle:gradle-docker-compose-plugin:0.8.12'
   testCompile "junit:junit:${props.getProperty('junit')}"
   testCompile "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${props.getProperty('randomizedrunner')}"
+  testCompile 'com.github.tomakehurst:wiremock-jre8-standalone:2.23.2'
+  minimumRuntimeCompile "junit:junit:${props.getProperty('junit')}"
+  minimumRuntimeCompile localGroovy()
+  minimumRuntimeCompile gradleApi()
 }
 
 /*****************************************************************************
@@ -151,10 +149,6 @@ if (project != rootProject) {
   apply plugin: 'nebula.maven-base-publish'
   apply plugin: 'nebula.maven-scm'
 
-  // we need to apply these again to override the build plugin
-  targetCompatibility = "10"
-  sourceCompatibility = "10"
-
   // groovydoc succeeds, but has some weird internal exception...
   groovydoc.enabled = false
 
@@ -162,8 +156,8 @@ if (project != rootProject) {
   dependencyLicenses.enabled = false
   dependenciesInfo.enabled = false
   forbiddenApisMain.enabled = false
-  forbiddenApisTest.enabled = false
   forbiddenApisMinimumRuntime.enabled = false
+  forbiddenApisTest.enabled = false
   jarHell.enabled = false
   thirdPartyAudit.enabled = false
 
@@ -178,6 +172,11 @@ if (project != rootProject) {
     distribution project(':distribution:archives:oss-darwin-tar')
     distribution project(':distribution:archives:linux-tar')
     distribution project(':distribution:archives:oss-linux-tar')
+  }
+    
+  // for external projects we want to remove the marker file indicating we are running the Elasticsearch project
+  processResources {
+      exclude 'buildSrc.marker'
   }
 
   String localDownloads = "${rootProject.buildDir}/local-downloads"
@@ -209,6 +208,8 @@ if (project != rootProject) {
       systemProperty 'test.lucene-snapshot-revision', isLuceneSnapshot[0][1]
     }
     maxParallelForks System.getProperty('tests.jvms', project.rootProject.ext.defaultParallel.toString()) as Integer
+    // These tests run Gradle which doesn't have FIPS support
+    onlyIf { project.inFipsJvm == false }
   }
   check.dependsOn(integTest)
 

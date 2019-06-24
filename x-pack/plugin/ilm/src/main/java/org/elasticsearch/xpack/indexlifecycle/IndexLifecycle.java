@@ -34,6 +34,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 import org.elasticsearch.xpack.core.indexlifecycle.AllocateAction;
 import org.elasticsearch.xpack.core.indexlifecycle.DeleteAction;
 import org.elasticsearch.xpack.core.indexlifecycle.ForceMergeAction;
@@ -88,17 +89,16 @@ import java.util.List;
 import java.util.function.Supplier;
 
 import static java.util.Collections.emptyList;
+import static java.util.Collections.singletonList;
 
 public class IndexLifecycle extends Plugin implements ActionPlugin {
     private final SetOnce<IndexLifecycleService> indexLifecycleInitialisationService = new SetOnce<>();
     private Settings settings;
     private boolean enabled;
-    private boolean transportClientMode;
 
     public IndexLifecycle(Settings settings) {
         this.settings = settings;
         this.enabled = XPackSettings.INDEX_LIFECYCLE_ENABLED.get(settings);
-        this.transportClientMode = XPackPlugin.transportClientMode(settings);
     }
 
     // overridable by tests
@@ -108,13 +108,7 @@ public class IndexLifecycle extends Plugin implements ActionPlugin {
 
     public Collection<Module> createGuiceModules() {
         List<Module> modules = new ArrayList<>();
-
-        if (transportClientMode) {
-            return modules;
-        }
-
         modules.add(b -> XPackPlugin.bindFeatureSet(b, IndexLifecycleFeatureSet.class));
-
         return modules;
     }
 
@@ -132,7 +126,7 @@ public class IndexLifecycle extends Plugin implements ActionPlugin {
                                                ResourceWatcherService resourceWatcherService, ScriptService scriptService,
                                                NamedXContentRegistry xContentRegistry, Environment environment,
                                                NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry) {
-        if (enabled == false || transportClientMode) {
+        if (enabled == false) {
             return emptyList();
         }
         indexLifecycleInitialisationService.set(new IndexLifecycleService(settings, client, clusterService, threadPool,
@@ -190,8 +184,10 @@ public class IndexLifecycle extends Plugin implements ActionPlugin {
 
     @Override
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
+        var usageAction =
+            new ActionHandler<>(XPackUsageFeatureAction.INDEX_LIFECYCLE, IndexLifecycleFeatureSet.UsageTransportAction.class);
         if (enabled == false) {
-            return emptyList();
+            return singletonList(usageAction);
         }
         return Arrays.asList(
                 new ActionHandler<>(PutLifecycleAction.INSTANCE, TransportPutLifecycleAction.class),
@@ -203,7 +199,8 @@ public class IndexLifecycle extends Plugin implements ActionPlugin {
                 new ActionHandler<>(RetryAction.INSTANCE, TransportRetryAction.class),
                 new ActionHandler<>(StartILMAction.INSTANCE, TransportStartILMAction.class),
                 new ActionHandler<>(StopILMAction.INSTANCE, TransportStopILMAction.class),
-                new ActionHandler<>(GetStatusAction.INSTANCE, TransportGetStatusAction.class));
+                new ActionHandler<>(GetStatusAction.INSTANCE, TransportGetStatusAction.class),
+                usageAction);
     }
 
     @Override

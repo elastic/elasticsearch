@@ -76,13 +76,15 @@ public class Pivot {
      * the page size, the type of aggregations and the data. As the page size is the number of buckets we return
      * per page the page size is a multiplier for the costs of aggregating bucket.
      *
-     * Initially this returns a default, in future it might inspect the configuration and base the initial size
-     * on the aggregations used.
+     * The user may set a maximum in the {@link PivotConfig#getMaxPageSearchSize()}, but if that is not provided,
+     *    the default {@link Pivot#DEFAULT_INITIAL_PAGE_SIZE} is used.
+     *
+     * In future we might inspect the configuration and base the initial size on the aggregations used.
      *
      * @return the page size
      */
     public int getInitialPageSize() {
-        return DEFAULT_INITIAL_PAGE_SIZE;
+        return config.getMaxPageSearchSize() == null ? DEFAULT_INITIAL_PAGE_SIZE : config.getMaxPageSearchSize();
     }
 
     public SearchRequest buildSearchRequest(SourceConfig sourceConfig, Map<String, Object> position, int pageSize) {

@@ -21,6 +21,7 @@ import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.core.dataframe.DataFrameField;
 import org.elasticsearch.xpack.dataframe.persistence.DataFrameInternalIndex;
+import org.junit.After;
 import org.junit.AfterClass;
 
 import java.io.IOException;
@@ -76,6 +77,9 @@ public abstract class DataFrameRestTestCase extends ESRestTestCase {
                       .startObject("stars")
                         .field("type", "integer")
                       .endObject()
+                      .startObject("location")
+                        .field("type", "geo_point")
+                      .endObject()
                     .endObject()
                   .endObject();
             }
@@ -103,6 +107,7 @@ public abstract class DataFrameRestTestCase extends ESRestTestCase {
                 min = 10 + (i % 49);
             }
             int sec = 10 + (i % 49);
+            String location = (user + 10) + "," + (user + 15);
 
             String date_string = "2017-01-" + day + "T" + hour + ":" + min + ":" + sec + "Z";
             bulk.append("{\"user_id\":\"")
@@ -113,7 +118,9 @@ public abstract class DataFrameRestTestCase extends ESRestTestCase {
                 .append(business)
                 .append("\",\"stars\":")
                 .append(stars)
-                .append(",\"timestamp\":\"")
+                .append(",\"location\":\"")
+                .append(location)
+                .append("\",\"timestamp\":\"")
                 .append(date_string)
                 .append("\"}\n");
 
@@ -140,12 +147,23 @@ public abstract class DataFrameRestTestCase extends ESRestTestCase {
         createPivotReviewsTransform(transformId, dataFrameIndex, query, null);
     }
 
-    protected void createPivotReviewsTransform(String transformId, String dataFrameIndex, String query, String authHeader)
+    protected void createPivotReviewsTransform(String transformId, String dataFrameIndex, String query, String pipeline)
+        throws IOException {
+        createPivotReviewsTransform(transformId, dataFrameIndex, query, pipeline, null);
+    }
+
+
+    protected void createPivotReviewsTransform(String transformId, String dataFrameIndex, String query, String pipeline, String authHeader)
         throws IOException {
         final Request createDataframeTransformRequest = createRequestWithAuth("PUT", DATAFRAME_ENDPOINT + transformId, authHeader);
 
-        String config = "{"
-            + " \"dest\": {\"index\":\"" + dataFrameIndex + "\"},";
+        String config = "{";
+
+        if (pipeline != null) {
+            config += " \"dest\": {\"index\":\"" + dataFrameIndex + "\", \"pipeline\":\"" + pipeline + "\"},";
+        } else {
+            config += " \"dest\": {\"index\":\"" + dataFrameIndex + "\"},";
+        }
 
         if (query != null) {
             config += " \"source\": {\"index\":\"" + REVIEWS_INDEX_NAME + "\", \"query\":{" + query + "}},";
@@ -184,7 +202,7 @@ public abstract class DataFrameRestTestCase extends ESRestTestCase {
             startTransformRequest.setOptions(expectWarnings(warnings));
         }
         Map<String, Object> startTransformResponse = entityAsMap(client().performRequest(startTransformRequest));
-        assertThat(startTransformResponse.get("started"), equalTo(Boolean.TRUE));
+        assertThat(startTransformResponse.get("acknowledged"), equalTo(Boolean.TRUE));
     }
 
     protected void stopDataFrameTransform(String transformId, boolean force) throws Exception {
@@ -193,7 +211,7 @@ public abstract class DataFrameRestTestCase extends ESRestTestCase {
         stopTransformRequest.addParameter(DataFrameField.FORCE.getPreferredName(), Boolean.toString(force));
         stopTransformRequest.addParameter(DataFrameField.WAIT_FOR_COMPLETION.getPreferredName(), Boolean.toString(true));
         Map<String, Object> stopTransformResponse = entityAsMap(client().performRequest(stopTransformRequest));
-        assertThat(stopTransformResponse.get("stopped"), equalTo(Boolean.TRUE));
+        assertThat(stopTransformResponse.get("acknowledged"), equalTo(Boolean.TRUE));
     }
 
     protected void startAndWaitForTransform(String transformId, String dataFrameIndex) throws Exception {
@@ -211,6 +229,9 @@ public abstract class DataFrameRestTestCase extends ESRestTestCase {
         assertTrue(indexExists(dataFrameIndex));
         // wait until the dataframe has been created and all data is available
         waitForDataFrameCheckpoint(transformId);
+
+        // TODO: assuming non-continuous data frames, so transform should auto-stop
+        waitForDataFrameStopped(transformId);
         refreshIndex(dataFrameIndex);
     }
 
@@ -224,6 +245,13 @@ public abstract class DataFrameRestTestCase extends ESRestTestCase {
         }
 
         return request;
+    }
+
+    void waitForDataFrameStopped(String transformId) throws Exception {
+        assertBusy(() -> {
+            assertEquals("stopped", getDataFrameTaskState(transformId));
+            assertEquals("stopped", getDataFrameIndexerState(transformId));
+        }, 15, TimeUnit.SECONDS);
     }
 
     void waitForDataFrameCheckpoint(String transformId) throws Exception {
@@ -272,16 +300,20 @@ public abstract class DataFrameRestTestCase extends ESRestTestCase {
         adminClient().performRequest(request);
     }
 
-    @AfterClass
-    public static void removeIndices() throws Exception {
+    @After
+    public void waitForDataFrame() throws Exception {
         wipeDataFrameTransforms();
         waitForPendingDataFrameTasks();
+    }
+
+    @AfterClass
+    public static void removeIndices() throws Exception {
         // we might have disabled wiping indices, but now its time to get rid of them
         // note: can not use super.cleanUpCluster() as this method must be static
         wipeIndices();
     }
 
-    protected static void wipeDataFrameTransforms() throws IOException, InterruptedException {
+    public void wipeDataFrameTransforms() throws IOException {
         List<Map<String, Object>> transformConfigs = getDataFrameTransforms();
         for (Map<String, Object> transformConfig : transformConfigs) {
             String transformId = (String) transformConfig.get("id");
@@ -290,10 +322,12 @@ public abstract class DataFrameRestTestCase extends ESRestTestCase {
             request.addParameter("timeout", "10s");
             request.addParameter("ignore", "404");
             adminClient().performRequest(request);
+        }
+
+        for (Map<String, Object> transformConfig : transformConfigs) {
+            String transformId = (String) transformConfig.get("id");
             String state = getDataFrameIndexerState(transformId);
-            if (state != null) {
-                assertEquals("stopped", getDataFrameIndexerState(transformId));
-            }
+            assertEquals("Transform [" + transformId + "] indexer is not in the stopped state", "stopped", state);
         }
 
         for (Map<String, Object> transformConfig : transformConfigs) {

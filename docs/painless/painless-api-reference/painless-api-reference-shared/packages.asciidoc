@@ -3,7 +3,7 @@
 
 [role="exclude",id="painless-api-reference-shared-java-lang"]
 === Shared API for package java.lang
-See the <<painless-api-reference-shared, Shared API>> for a high-level overview of all packages.
+See the <<painless-api-reference-shared, Shared API>> for a high-level overview of all packages and classes.
 
 [[painless-api-reference-shared-Appendable]]
 ==== Appendable
@@ -1253,6 +1253,8 @@ See the <<painless-api-reference-shared, Shared API>> for a high-level overview 
 * String {java11-javadoc}/java.base/java/lang/String.html#replace(java.lang.CharSequence,java.lang.CharSequence)[replace](CharSequence, CharSequence)
 * String replaceAll(Pattern, Function)
 * String replaceFirst(Pattern, Function)
+* String[] splitOnToken(String)
+* String[] splitOnToken(String, int)
 * boolean {java11-javadoc}/java.base/java/lang/String.html#startsWith(java.lang.String)[startsWith](String)
 * boolean {java11-javadoc}/java.base/java/lang/String.html#startsWith(java.lang.String,int)[startsWith](String, int)
 * CharSequence {java11-javadoc}/java.base/java/lang/CharSequence.html#subSequence(int,int)[subSequence](int, int)
@@ -1399,7 +1401,7 @@ See the <<painless-api-reference-shared, Shared API>> for a high-level overview 
 
 [role="exclude",id="painless-api-reference-shared-java-math"]
 === Shared API for package java.math
-See the <<painless-api-reference-shared, Shared API>> for a high-level overview of all packages.
+See the <<painless-api-reference-shared, Shared API>> for a high-level overview of all packages and classes.
 
 [[painless-api-reference-shared-BigDecimal]]
 ==== BigDecimal
@@ -1557,7 +1559,7 @@ See the <<painless-api-reference-shared, Shared API>> for a high-level overview 
 
 [role="exclude",id="painless-api-reference-shared-java-text"]
 === Shared API for package java.text
-See the <<painless-api-reference-shared, Shared API>> for a high-level overview of all packages.
+See the <<painless-api-reference-shared, Shared API>> for a high-level overview of all packages and classes.
 
 [[painless-api-reference-shared-Annotation]]
 ==== Annotation
@@ -2265,7 +2267,7 @@ See the <<painless-api-reference-shared, Shared API>> for a high-level overview 
 
 [role="exclude",id="painless-api-reference-shared-java-time"]
 === Shared API for package java.time
-See the <<painless-api-reference-shared, Shared API>> for a high-level overview of all packages.
+See the <<painless-api-reference-shared, Shared API>> for a high-level overview of all packages and classes.
 
 [[painless-api-reference-shared-Clock]]
 ==== Clock
@@ -3078,7 +3080,7 @@ See the <<painless-api-reference-shared, Shared API>> for a high-level overview 
 
 [role="exclude",id="painless-api-reference-shared-java-time-chrono"]
 === Shared API for package java.time.chrono
-See the <<painless-api-reference-shared, Shared API>> for a high-level overview of all packages.
+See the <<painless-api-reference-shared, Shared API>> for a high-level overview of all packages and classes.
 
 [[painless-api-reference-shared-AbstractChronology]]
 ==== AbstractChronology
@@ -3675,7 +3677,7 @@ See the <<painless-api-reference-shared, Shared API>> for a high-level overview 
 
 [role="exclude",id="painless-api-reference-shared-java-time-format"]
 === Shared API for package java.time.format
-See the <<painless-api-reference-shared, Shared API>> for a high-level overview of all packages.
+See the <<painless-api-reference-shared, Shared API>> for a high-level overview of all packages and classes.
 
 [[painless-api-reference-shared-DateTimeFormatter]]
 ==== DateTimeFormatter
@@ -3874,7 +3876,7 @@ See the <<painless-api-reference-shared, Shared API>> for a high-level overview 
 
 [role="exclude",id="painless-api-reference-shared-java-time-temporal"]
 === Shared API for package java.time.temporal
-See the <<painless-api-reference-shared, Shared API>> for a high-level overview of all packages.
+See the <<painless-api-reference-shared, Shared API>> for a high-level overview of all packages and classes.
 
 [[painless-api-reference-shared-ChronoField]]
 ==== ChronoField
@@ -4166,7 +4168,7 @@ See the <<painless-api-reference-shared, Shared API>> for a high-level overview 
 
 [role="exclude",id="painless-api-reference-shared-java-time-zone"]
 === Shared API for package java.time.zone
-See the <<painless-api-reference-shared, Shared API>> for a high-level overview of all packages.
+See the <<painless-api-reference-shared, Shared API>> for a high-level overview of all packages and classes.
 
 [[painless-api-reference-shared-ZoneOffsetTransition]]
 ==== ZoneOffsetTransition
@@ -4265,7 +4267,7 @@ See the <<painless-api-reference-shared, Shared API>> for a high-level overview 
 
 [role="exclude",id="painless-api-reference-shared-java-util"]
 === Shared API for package java.util
-See the <<painless-api-reference-shared, Shared API>> for a high-level overview of all packages.
+See the <<painless-api-reference-shared, Shared API>> for a high-level overview of all packages and classes.
 
 [[painless-api-reference-shared-AbstractCollection]]
 ==== AbstractCollection
@@ -4333,6 +4335,8 @@ See the <<painless-api-reference-shared, Shared API>> for a high-level overview 
 * List findResults(Function)
 * void {java11-javadoc}/java.base/java/lang/Iterable.html#forEach(java.util.function.Consumer)[forEach](Consumer)
 * def {java11-javadoc}/java.base/java/util/List.html#get(int)[get](int)
+* Object getByPath(String)
+* Object getByPath(String, Object)
 * int getLength()
 * Map groupBy(Function)
 * int {java11-javadoc}/java.base/java/util/List.html#hashCode()[hashCode]()
@@ -4384,6 +4388,8 @@ See the <<painless-api-reference-shared, Shared API>> for a high-level overview 
 * List findResults(BiFunction)
 * void {java11-javadoc}/java.base/java/util/Map.html#forEach(java.util.function.BiConsumer)[forEach](BiConsumer)
 * def {java11-javadoc}/java.base/java/util/Map.html#get(java.lang.Object)[get](def)
+* Object getByPath(String)
+* Object getByPath(String, Object)
 * def {java11-javadoc}/java.base/java/util/Map.html#getOrDefault(java.lang.Object,java.lang.Object)[getOrDefault](def, def)
 * Map groupBy(BiFunction)
 * int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
@@ -4498,6 +4504,8 @@ See the <<painless-api-reference-shared, Shared API>> for a high-level overview 
 * List findResults(Function)
 * void {java11-javadoc}/java.base/java/lang/Iterable.html#forEach(java.util.function.Consumer)[forEach](Consumer)
 * def {java11-javadoc}/java.base/java/util/List.html#get(int)[get](int)
+* Object getByPath(String)
+* Object getByPath(String, Object)
 * int getLength()
 * Map groupBy(Function)
 * int {java11-javadoc}/java.base/java/util/List.html#hashCode()[hashCode]()
@@ -4664,6 +4672,8 @@ See the <<painless-api-reference-shared, Shared API>> for a high-level overview 
 * List findResults(Function)
 * void {java11-javadoc}/java.base/java/lang/Iterable.html#forEach(java.util.function.Consumer)[forEach](Consumer)
 * def {java11-javadoc}/java.base/java/util/List.html#get(int)[get](int)
+* Object getByPath(String)
+* Object getByPath(String, Object)
 * int getLength()
 * Map groupBy(Function)
 * int {java11-javadoc}/java.base/java/util/List.html#hashCode()[hashCode]()
@@ -5365,6 +5375,8 @@ See the <<painless-api-reference-shared, Shared API>> for a high-level overview 
 * List findResults(BiFunction)
 * void {java11-javadoc}/java.base/java/util/Map.html#forEach(java.util.function.BiConsumer)[forEach](BiConsumer)
 * def {java11-javadoc}/java.base/java/util/Map.html#get(java.lang.Object)[get](def)
+* Object getByPath(String)
+* Object getByPath(String, Object)
 * def {java11-javadoc}/java.base/java/util/Map.html#getOrDefault(java.lang.Object,java.lang.Object)[getOrDefault](def, def)
 * Map groupBy(BiFunction)
 * int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
@@ -5455,6 +5467,8 @@ See the <<painless-api-reference-shared, Shared API>> for a high-level overview 
 * List findResults(BiFunction)
 * void {java11-javadoc}/java.base/java/util/Map.html#forEach(java.util.function.BiConsumer)[forEach](BiConsumer)
 * def {java11-javadoc}/java.base/java/util/Map.html#get(java.lang.Object)[get](def)
+* Object getByPath(String)
+* Object getByPath(String, Object)
 * def {java11-javadoc}/java.base/java/util/Map.html#getOrDefault(java.lang.Object,java.lang.Object)[getOrDefault](def, def)
 * Map groupBy(BiFunction)
 * int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
@@ -5500,6 +5514,8 @@ See the <<painless-api-reference-shared, Shared API>> for a high-level overview 
 * List findResults(BiFunction)
 * void {java11-javadoc}/java.base/java/util/Map.html#forEach(java.util.function.BiConsumer)[forEach](BiConsumer)
 * def {java11-javadoc}/java.base/java/util/Map.html#get(java.lang.Object)[get](def)
+* Object getByPath(String)
+* Object getByPath(String, Object)
 * def {java11-javadoc}/java.base/java/util/Map.html#getOrDefault(java.lang.Object,java.lang.Object)[getOrDefault](def, def)
 * Map groupBy(BiFunction)
 * int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
@@ -5666,6 +5682,8 @@ See the <<painless-api-reference-shared, Shared API>> for a high-level overview 
 * List findResults(BiFunction)
 * void {java11-javadoc}/java.base/java/util/Map.html#forEach(java.util.function.BiConsumer)[forEach](BiConsumer)
 * def {java11-javadoc}/java.base/java/util/Map.html#get(java.lang.Object)[get](def)
+* Object getByPath(String)
+* Object getByPath(String, Object)
 * def {java11-javadoc}/java.base/java/util/Map.html#getOrDefault(java.lang.Object,java.lang.Object)[getOrDefault](def, def)
 * Map groupBy(BiFunction)
 * int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
@@ -5762,6 +5780,8 @@ See the <<painless-api-reference-shared, Shared API>> for a high-level overview 
 * List findResults(Function)
 * void {java11-javadoc}/java.base/java/lang/Iterable.html#forEach(java.util.function.Consumer)[forEach](Consumer)
 * def {java11-javadoc}/java.base/java/util/List.html#get(int)[get](int)
+* Object getByPath(String)
+* Object getByPath(String, Object)
 * def {java11-javadoc}/java.base/java/util/Deque.html#getFirst()[getFirst]()
 * def {java11-javadoc}/java.base/java/util/Deque.html#getLast()[getLast]()
 * int getLength()
@@ -5834,6 +5854,8 @@ See the <<painless-api-reference-shared, Shared API>> for a high-level overview 
 * List findResults(Function)
 * void {java11-javadoc}/java.base/java/lang/Iterable.html#forEach(java.util.function.Consumer)[forEach](Consumer)
 * def {java11-javadoc}/java.base/java/util/List.html#get(int)[get](int)
+* Object getByPath(String)
+* Object getByPath(String, Object)
 * int getLength()
 * Map groupBy(Function)
 * int {java11-javadoc}/java.base/java/util/List.html#hashCode()[hashCode]()
@@ -6054,6 +6076,8 @@ See the <<painless-api-reference-shared, Shared API>> for a high-level overview 
 * List findResults(BiFunction)
 * void {java11-javadoc}/java.base/java/util/Map.html#forEach(java.util.function.BiConsumer)[forEach](BiConsumer)
 * def {java11-javadoc}/java.base/java/util/Map.html#get(java.lang.Object)[get](def)
+* Object getByPath(String)
+* Object getByPath(String, Object)
 * def {java11-javadoc}/java.base/java/util/Map.html#getOrDefault(java.lang.Object,java.lang.Object)[getOrDefault](def, def)
 * Map groupBy(BiFunction)
 * int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
@@ -6155,6 +6179,8 @@ See the <<painless-api-reference-shared, Shared API>> for a high-level overview 
 * def {java11-javadoc}/java.base/java/util/NavigableMap.html#floorKey(java.lang.Object)[floorKey](def)
 * void {java11-javadoc}/java.base/java/util/Map.html#forEach(java.util.function.BiConsumer)[forEach](BiConsumer)
 * def {java11-javadoc}/java.base/java/util/Map.html#get(java.lang.Object)[get](def)
+* Object getByPath(String)
+* Object getByPath(String, Object)
 * def {java11-javadoc}/java.base/java/util/Map.html#getOrDefault(java.lang.Object,java.lang.Object)[getOrDefault](def, def)
 * Map groupBy(BiFunction)
 * int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
@@ -6640,6 +6666,8 @@ See the <<painless-api-reference-shared, Shared API>> for a high-level overview 
 * def {java11-javadoc}/java.base/java/util/SortedMap.html#firstKey()[firstKey]()
 * void {java11-javadoc}/java.base/java/util/Map.html#forEach(java.util.function.BiConsumer)[forEach](BiConsumer)
 * def {java11-javadoc}/java.base/java/util/Map.html#get(java.lang.Object)[get](def)
+* Object getByPath(String)
+* Object getByPath(String, Object)
 * def {java11-javadoc}/java.base/java/util/Map.html#getOrDefault(java.lang.Object,java.lang.Object)[getOrDefault](def, def)
 * Map groupBy(BiFunction)
 * int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
@@ -6842,6 +6870,8 @@ See the <<painless-api-reference-shared, Shared API>> for a high-level overview 
 * def {java11-javadoc}/java.base/java/util/Vector.html#firstElement()[firstElement]()
 * void {java11-javadoc}/java.base/java/lang/Iterable.html#forEach(java.util.function.Consumer)[forEach](Consumer)
 * def {java11-javadoc}/java.base/java/util/List.html#get(int)[get](int)
+* Object getByPath(String)
+* Object getByPath(String, Object)
 * int getLength()
 * Map groupBy(Function)
 * int {java11-javadoc}/java.base/java/util/List.html#hashCode()[hashCode]()
@@ -6986,6 +7016,8 @@ See the <<painless-api-reference-shared, Shared API>> for a high-level overview 
 * def {java11-javadoc}/java.base/java/util/NavigableMap.html#floorKey(java.lang.Object)[floorKey](def)
 * void {java11-javadoc}/java.base/java/util/Map.html#forEach(java.util.function.BiConsumer)[forEach](BiConsumer)
 * def {java11-javadoc}/java.base/java/util/Map.html#get(java.lang.Object)[get](def)
+* Object getByPath(String)
+* Object getByPath(String, Object)
 * def {java11-javadoc}/java.base/java/util/Map.html#getOrDefault(java.lang.Object,java.lang.Object)[getOrDefault](def, def)
 * Map groupBy(BiFunction)
 * int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
@@ -7156,6 +7188,8 @@ See the <<painless-api-reference-shared, Shared API>> for a high-level overview 
 * def {java11-javadoc}/java.base/java/util/Vector.html#firstElement()[firstElement]()
 * void {java11-javadoc}/java.base/java/lang/Iterable.html#forEach(java.util.function.Consumer)[forEach](Consumer)
 * def {java11-javadoc}/java.base/java/util/List.html#get(int)[get](int)
+* Object getByPath(String)
+* Object getByPath(String, Object)
 * int getLength()
 * Map groupBy(Function)
 * int {java11-javadoc}/java.base/java/util/List.html#hashCode()[hashCode]()
@@ -7194,7 +7228,7 @@ See the <<painless-api-reference-shared, Shared API>> for a high-level overview 
 
 [role="exclude",id="painless-api-reference-shared-java-util-function"]
 === Shared API for package java.util.function
-See the <<painless-api-reference-shared, Shared API>> for a high-level overview of all packages.
+See the <<painless-api-reference-shared, Shared API>> for a high-level overview of all packages and classes.
 
 [[painless-api-reference-shared-BiConsumer]]
 ==== BiConsumer
@@ -7582,7 +7616,7 @@ See the <<painless-api-reference-shared, Shared API>> for a high-level overview 
 
 [role="exclude",id="painless-api-reference-shared-java-util-regex"]
 === Shared API for package java.util.regex
-See the <<painless-api-reference-shared, Shared API>> for a high-level overview of all packages.
+See the <<painless-api-reference-shared, Shared API>> for a high-level overview of all packages and classes.
 
 [[painless-api-reference-shared-Matcher]]
 ==== Matcher
@@ -7635,7 +7669,7 @@ See the <<painless-api-reference-shared, Shared API>> for a high-level overview 
 
 [role="exclude",id="painless-api-reference-shared-java-util-stream"]
 === Shared API for package java.util.stream
-See the <<painless-api-reference-shared, Shared API>> for a high-level overview of all packages.
+See the <<painless-api-reference-shared, Shared API>> for a high-level overview of all packages and classes.
 
 [[painless-api-reference-shared-BaseStream]]
 ==== BaseStream
@@ -7957,7 +7991,7 @@ See the <<painless-api-reference-shared, Shared API>> for a high-level overview 
 
 [role="exclude",id="painless-api-reference-shared-org-apache-lucene-util"]
 === Shared API for package org.apache.lucene.util
-See the <<painless-api-reference-shared, Shared API>> for a high-level overview of all packages.
+See the <<painless-api-reference-shared, Shared API>> for a high-level overview of all packages and classes.
 
 [[painless-api-reference-shared-BytesRef]]
 ==== BytesRef
@@ -7974,7 +8008,7 @@ See the <<painless-api-reference-shared, Shared API>> for a high-level overview 
 
 [role="exclude",id="painless-api-reference-shared-org-elasticsearch-common-geo"]
 === Shared API for package org.elasticsearch.common.geo
-See the <<painless-api-reference-shared, Shared API>> for a high-level overview of all packages.
+See the <<painless-api-reference-shared, Shared API>> for a high-level overview of all packages and classes.
 
 [[painless-api-reference-shared-GeoPoint]]
 ==== GeoPoint
@@ -7987,7 +8021,7 @@ See the <<painless-api-reference-shared, Shared API>> for a high-level overview 
 
 [role="exclude",id="painless-api-reference-shared-org-elasticsearch-index-fielddata"]
 === Shared API for package org.elasticsearch.index.fielddata
-See the <<painless-api-reference-shared, Shared API>> for a high-level overview of all packages.
+See the <<painless-api-reference-shared, Shared API>> for a high-level overview of all packages and classes.
 
 [[painless-api-reference-shared-ScriptDocValues-Booleans]]
 ==== ScriptDocValues.Booleans
@@ -8014,6 +8048,8 @@ See the <<painless-api-reference-shared, Shared API>> for a high-level overview 
 * List findResults(Function)
 * void {java11-javadoc}/java.base/java/lang/Iterable.html#forEach(java.util.function.Consumer)[forEach](Consumer)
 * Boolean get(int)
+* Object getByPath(String)
+* Object getByPath(String, Object)
 * int getLength()
 * boolean getValue()
 * Map groupBy(Function)
@@ -8069,6 +8105,8 @@ See the <<painless-api-reference-shared, Shared API>> for a high-level overview 
 * List findResults(Function)
 * void {java11-javadoc}/java.base/java/lang/Iterable.html#forEach(java.util.function.Consumer)[forEach](Consumer)
 * BytesRef get(int)
+* Object getByPath(String)
+* Object getByPath(String, Object)
 * int getLength()
 * BytesRef getValue()
 * Map groupBy(Function)
@@ -8124,6 +8162,8 @@ See the <<painless-api-reference-shared, Shared API>> for a high-level overview 
 * List findResults(Function)
 * void {java11-javadoc}/java.base/java/lang/Iterable.html#forEach(java.util.function.Consumer)[forEach](Consumer)
 * JodaCompatibleZonedDateTime get(int)
+* Object getByPath(String)
+* Object getByPath(String, Object)
 * int getLength()
 * JodaCompatibleZonedDateTime getValue()
 * Map groupBy(Function)
@@ -8179,6 +8219,8 @@ See the <<painless-api-reference-shared, Shared API>> for a high-level overview 
 * List findResults(Function)
 * void {java11-javadoc}/java.base/java/lang/Iterable.html#forEach(java.util.function.Consumer)[forEach](Consumer)
 * Double get(int)
+* Object getByPath(String)
+* Object getByPath(String, Object)
 * int getLength()
 * double getValue()
 * Map groupBy(Function)
@@ -8238,6 +8280,8 @@ See the <<painless-api-reference-shared, Shared API>> for a high-level overview 
 * double geohashDistance(String)
 * double geohashDistanceWithDefault(String, double)
 * GeoPoint get(int)
+* Object getByPath(String)
+* Object getByPath(String, Object)
 * double getLat()
 * double[] getLats()
 * int getLength()
@@ -8299,6 +8343,8 @@ See the <<painless-api-reference-shared, Shared API>> for a high-level overview 
 * List findResults(Function)
 * void {java11-javadoc}/java.base/java/lang/Iterable.html#forEach(java.util.function.Consumer)[forEach](Consumer)
 * Long get(int)
+* Object getByPath(String)
+* Object getByPath(String, Object)
 * int getLength()
 * long getValue()
 * Map groupBy(Function)
@@ -8354,6 +8400,8 @@ See the <<painless-api-reference-shared, Shared API>> for a high-level overview 
 * List findResults(Function)
 * void {java11-javadoc}/java.base/java/lang/Iterable.html#forEach(java.util.function.Consumer)[forEach](Consumer)
 * String get(int)
+* Object getByPath(String)
+* Object getByPath(String, Object)
 * int getLength()
 * String getValue()
 * Map groupBy(Function)
@@ -8386,7 +8434,7 @@ See the <<painless-api-reference-shared, Shared API>> for a high-level overview 
 
 [role="exclude",id="painless-api-reference-shared-org-elasticsearch-index-mapper"]
 === Shared API for package org.elasticsearch.index.mapper
-See the <<painless-api-reference-shared, Shared API>> for a high-level overview of all packages.
+See the <<painless-api-reference-shared, Shared API>> for a high-level overview of all packages and classes.
 
 [[painless-api-reference-shared-IpFieldMapper-IpFieldType-IpScriptDocValues]]
 ==== IpFieldMapper.IpFieldType.IpScriptDocValues
@@ -8413,6 +8461,8 @@ See the <<painless-api-reference-shared, Shared API>> for a high-level overview 
 * List findResults(Function)
 * void {java11-javadoc}/java.base/java/lang/Iterable.html#forEach(java.util.function.Consumer)[forEach](Consumer)
 * String get(int)
+* Object getByPath(String)
+* Object getByPath(String, Object)
 * int getLength()
 * String getValue()
 * Map groupBy(Function)
@@ -8445,7 +8495,7 @@ See the <<painless-api-reference-shared, Shared API>> for a high-level overview 
 
 [role="exclude",id="painless-api-reference-shared-org-elasticsearch-index-query"]
 === Shared API for package org.elasticsearch.index.query
-See the <<painless-api-reference-shared, Shared API>> for a high-level overview of all packages.
+See the <<painless-api-reference-shared, Shared API>> for a high-level overview of all packages and classes.
 
 [[painless-api-reference-shared-IntervalFilterScript-Interval]]
 ==== IntervalFilterScript.Interval
@@ -8459,7 +8509,7 @@ See the <<painless-api-reference-shared, Shared API>> for a high-level overview 
 
 [role="exclude",id="painless-api-reference-shared-org-elasticsearch-index-similarity"]
 === Shared API for package org.elasticsearch.index.similarity
-See the <<painless-api-reference-shared, Shared API>> for a high-level overview of all packages.
+See the <<painless-api-reference-shared, Shared API>> for a high-level overview of all packages and classes.
 
 [[painless-api-reference-shared-ScriptedSimilarity-Doc]]
 ==== ScriptedSimilarity.Doc
@@ -8499,7 +8549,7 @@ See the <<painless-api-reference-shared, Shared API>> for a high-level overview 
 
 [role="exclude",id="painless-api-reference-shared-org-elasticsearch-painless-api"]
 === Shared API for package org.elasticsearch.painless.api
-See the <<painless-api-reference-shared, Shared API>> for a high-level overview of all packages.
+See the <<painless-api-reference-shared, Shared API>> for a high-level overview of all packages and classes.
 
 [[painless-api-reference-shared-Debug]]
 ==== Debug
@@ -8511,7 +8561,7 @@ See the <<painless-api-reference-shared, Shared API>> for a high-level overview 
 
 [role="exclude",id="painless-api-reference-shared-org-elasticsearch-script"]
 === Shared API for package org.elasticsearch.script
-See the <<painless-api-reference-shared, Shared API>> for a high-level overview of all packages.
+See the <<painless-api-reference-shared, Shared API>> for a high-level overview of all packages and classes.
 
 [[painless-api-reference-shared-JodaCompatibleZonedDateTime]]
 ==== JodaCompatibleZonedDateTime
@@ -8594,7 +8644,7 @@ See the <<painless-api-reference-shared, Shared API>> for a high-level overview 
 
 [role="exclude",id="painless-api-reference-shared-org-elasticsearch-search-lookup"]
 === Shared API for package org.elasticsearch.search.lookup
-See the <<painless-api-reference-shared, Shared API>> for a high-level overview of all packages.
+See the <<painless-api-reference-shared, Shared API>> for a high-level overview of all packages and classes.
 
 [[painless-api-reference-shared-FieldLookup]]
 ==== FieldLookup

@@ -43,7 +43,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
-import static org.hamcrest.Matchers.is;
 
 public class IndicesPermissionTests extends ESTestCase {
 
@@ -214,7 +213,7 @@ public class IndicesPermissionTests extends ESTestCase {
         assertEquals(readIndicesPrivileges, indicesPrivileges.build());
 
         out = new BytesStreamOutput();
-        out.setVersion(Version.V_6_0_0);
+        out.setVersion(Version.CURRENT);
         indicesPrivileges = RoleDescriptor.IndicesPrivileges.builder();
         indicesPrivileges.grantedFields(allowed);
         indicesPrivileges.deniedFields(denied);
@@ -224,7 +223,7 @@ public class IndicesPermissionTests extends ESTestCase {
         indicesPrivileges.build().writeTo(out);
         out.close();
         in = out.bytes().streamInput();
-        in.setVersion(Version.V_6_0_0);
+        in.setVersion(Version.CURRENT);
         RoleDescriptor.IndicesPrivileges readIndicesPrivileges2 = new RoleDescriptor.IndicesPrivileges(in);
         assertEquals(readIndicesPrivileges, readIndicesPrivileges2);
     }

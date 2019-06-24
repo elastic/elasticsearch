@@ -19,7 +19,6 @@
 package org.elasticsearch.cluster.coordination;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.coordination.JoinTaskExecutor;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -29,11 +28,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 
-import static org.elasticsearch.test.VersionUtils.getPreviousVersion;
-import static org.elasticsearch.test.VersionUtils.incompatibleFutureVersion;
 import static org.elasticsearch.test.VersionUtils.maxCompatibleVersion;
 import static org.elasticsearch.test.VersionUtils.randomCompatibleVersion;
-import static org.elasticsearch.test.VersionUtils.randomVersion;
 import static org.elasticsearch.test.VersionUtils.randomVersionBetween;
 
 public class JoinTaskExecutorTests extends ESTestCase {
@@ -58,8 +54,7 @@ public class JoinTaskExecutorTests extends ESTestCase {
         Settings.builder().build();
         MetaData.Builder metaBuilder = MetaData.builder();
         IndexMetaData indexMetaData = IndexMetaData.builder("test")
-            .settings(settings(VersionUtils.getPreviousVersion(Version.CURRENT
-                .minimumIndexCompatibilityVersion())))
+            .settings(settings(Version.fromString("6.8.0"))) // latest V6 released version
             .numberOfShards(1)
             .numberOfReplicas(1).build();
         metaBuilder.put(indexMetaData, false);
@@ -71,39 +66,25 @@ public class JoinTaskExecutorTests extends ESTestCase {
 
     public void testPreventJoinClusterWithUnsupportedNodeVersions() {
         DiscoveryNodes.Builder builder = DiscoveryNodes.builder();
-        final Version version = randomVersion(random());
+        final Version version = randomCompatibleVersion(random(), Version.CURRENT);
         builder.add(new DiscoveryNode(UUIDs.base64UUID(), buildNewFakeTransportAddress(), version));
         builder.add(new DiscoveryNode(UUIDs.base64UUID(), buildNewFakeTransportAddress(), randomCompatibleVersion(random(), version)));
         DiscoveryNodes nodes = builder.build();
 
         final Version maxNodeVersion = nodes.getMaxNodeVersion();
         final Version minNodeVersion = nodes.getMinNodeVersion();
-        if (maxNodeVersion.onOrAfter(Version.V_7_0_0)) {
-            final Version tooLow = getPreviousVersion(maxNodeVersion.minimumCompatibilityVersion());
-            expectThrows(IllegalStateException.class, () -> {
-                if (randomBoolean()) {
-                    JoinTaskExecutor.ensureNodesCompatibility(tooLow, nodes);
-                } else {
-                    JoinTaskExecutor.ensureNodesCompatibility(tooLow, minNodeVersion, maxNodeVersion);
-                }
-            });
-        }
 
-        if (minNodeVersion.before(Version.V_6_0_0)) {
-            Version tooHigh = incompatibleFutureVersion(minNodeVersion);
-            expectThrows(IllegalStateException.class, () -> {
-                if (randomBoolean()) {
-                    JoinTaskExecutor.ensureNodesCompatibility(tooHigh, nodes);
-                } else {
-                    JoinTaskExecutor.ensureNodesCompatibility(tooHigh, minNodeVersion, maxNodeVersion);
-                }
-            });
-        }
+        final Version tooLow = Version.fromId(maxNodeVersion.minimumCompatibilityVersion().id - 100);
+        expectThrows(IllegalStateException.class, () -> {
+            if (randomBoolean()) {
+                JoinTaskExecutor.ensureNodesCompatibility(tooLow, nodes);
+            } else {
+                JoinTaskExecutor.ensureNodesCompatibility(tooLow, minNodeVersion, maxNodeVersion);
+            }
+        });
 
-        if (minNodeVersion.onOrAfter(Version.V_7_0_0)) {
-            Version oldMajor = Version.V_6_4_0.minimumCompatibilityVersion();
-            expectThrows(IllegalStateException.class, () -> JoinTaskExecutor.ensureMajorVersionBarrier(oldMajor, minNodeVersion));
-        }
+        Version oldMajor = minNodeVersion.minimumCompatibilityVersion();
+        expectThrows(IllegalStateException.class, () -> JoinTaskExecutor.ensureMajorVersionBarrier(oldMajor, minNodeVersion));
 
         final Version minGoodVersion = maxNodeVersion.major == minNodeVersion.major ?
             // we have to stick with the same major

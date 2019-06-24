@@ -31,6 +31,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.coordination.ClusterBootstrapService;
+import org.elasticsearch.cluster.coordination.LagDetector;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.Murmur3HashFunction;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -83,8 +84,7 @@ import static org.hamcrest.Matchers.not;
 /**
  * Tests various cluster operations (e.g., indexing) during disruptions.
  */
-@TestLogging("_root:DEBUG,org.elasticsearch.cluster.service:TRACE")
-@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, transportClientRatio = 0)
+@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
 
     private enum ConflictMode {
@@ -109,6 +109,7 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
         "org.elasticsearch.discovery:TRACE,org.elasticsearch.action.support.replication:TRACE," +
         "org.elasticsearch.cluster.service:TRACE,org.elasticsearch.indices.recovery:TRACE," +
         "org.elasticsearch.indices.cluster:TRACE,org.elasticsearch.index.shard:TRACE")
+    // TestLogging for https://github.com/elastic/elasticsearch/issues/41068
     public void testAckedIndexing() throws Exception {
 
         final int seconds = !(TEST_NIGHTLY && rarely()) ? 1 : 5;
@@ -118,6 +119,7 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
 
         assertAcked(prepareCreate("test")
             .setSettings(Settings.builder()
+                .put(indexSettings())
                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1 + randomInt(2))
                 .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, randomInt(2))
             ));
@@ -389,7 +391,6 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/41047")
     public void testCannotJoinIfMasterLostDataFolder() throws Exception {
         String masterNode = internalCluster().startMasterOnlyNode();
         String dataNode = internalCluster().startDataOnlyNode();
@@ -402,7 +403,18 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
 
             @Override
             public Settings onNodeStopped(String nodeName) {
-                return Settings.builder().put(ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING.getKey(), nodeName).build();
+                return Settings.builder()
+                    .put(ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING.getKey(), nodeName)
+                    /*
+                     * the data node might join while the master is still not fully established as master just yet and bypasses the join
+                     * validation that is done before adding the node to the cluster. Only the join validation when handling the publish
+                     * request takes place, but at this point the cluster state has been successfully committed, and will subsequently be
+                     * exposed to the applier. The health check below therefore sees the cluster state with the 2 nodes and thinks all is
+                     * good, even though the data node never accepted this state. What's worse is that it takes 90 seconds for the data
+                     * node to be kicked out of the cluster (lag detection). We speed this up here.
+                     */
+                    .put(LagDetector.CLUSTER_FOLLOWER_LAG_TIMEOUT_SETTING.getKey(), "10s")
+                    .build();
             }
 
             @Override
@@ -411,9 +423,11 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
             }
         });
 
-        assertFalse(internalCluster().client(masterNode).admin().cluster().prepareHealth().get().isTimedOut());
-        assertTrue(internalCluster().client(masterNode).admin().cluster().prepareHealth().setWaitForNodes("2").setTimeout("2s").get()
-            .isTimedOut());
+        assertBusy(() -> {
+            assertFalse(internalCluster().client(masterNode).admin().cluster().prepareHealth().get().isTimedOut());
+            assertTrue(internalCluster().client(masterNode).admin().cluster().prepareHealth().setWaitForNodes("2").setTimeout("2s").get()
+                .isTimedOut());
+        }, 30, TimeUnit.SECONDS);
         internalCluster().stopRandomNode(InternalTestCluster.nameFilter(dataNode)); // otherwise we will fail during clean-up
     }
 
@@ -445,7 +459,7 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
         });
         internalCluster().restartNode(masterNode1, InternalTestCluster.EMPTY_CALLBACK);
         ensureYellow();
-        assertFalse(client().admin().indices().prepareExists(idxName).get().isExists());
+        assertFalse(indexExists(idxName));
     }
 
     public void testRestartNodeWhileIndexing() throws Exception {

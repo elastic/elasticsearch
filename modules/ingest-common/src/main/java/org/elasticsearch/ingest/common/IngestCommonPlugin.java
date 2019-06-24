@@ -87,7 +87,8 @@ public class IngestCommonPlugin extends Plugin implements ActionPlugin, IngestPl
                 entry(BytesProcessor.TYPE, new BytesProcessor.Factory()),
                 entry(PipelineProcessor.TYPE, new PipelineProcessor.Factory(parameters.ingestService)),
                 entry(DissectProcessor.TYPE, new DissectProcessor.Factory()),
-                entry(DropProcessor.TYPE, new DropProcessor.Factory()));
+                entry(DropProcessor.TYPE, new DropProcessor.Factory()),
+                entry(HtmlStripProcessor.TYPE, new HtmlStripProcessor.Factory()));
     }
 
     @Override

@@ -394,7 +394,7 @@ public class ShardStateAction {
 
         FailedShardEntry(StreamInput in) throws IOException {
             super(in);
-            shardId = ShardId.readShardId(in);
+            shardId = new ShardId(in);
             allocationId = in.readString();
             primaryTerm = in.readVLong();
             message = in.readString();
@@ -580,7 +580,11 @@ public class ShardStateAction {
 
         @Override
         public void onFailure(String source, Exception e) {
-            logger.error(() -> new ParameterizedMessage("unexpected failure during [{}]", source), e);
+            if (e instanceof FailedToCommitClusterStateException || e instanceof NotMasterException) {
+                logger.debug(() -> new ParameterizedMessage("failure during [{}]", source), e);
+            } else {
+                logger.error(() -> new ParameterizedMessage("unexpected failure during [{}]", source), e);
+            }
         }
     }
 
@@ -592,7 +596,7 @@ public class ShardStateAction {
 
         StartedShardEntry(StreamInput in) throws IOException {
             super(in);
-            shardId = ShardId.readShardId(in);
+            shardId = new ShardId(in);
             allocationId = in.readString();
             primaryTerm = in.readVLong();
             this.message = in.readString();

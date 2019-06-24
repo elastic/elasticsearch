@@ -356,7 +356,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
             logger.trace("{} preparing for file-based recovery from [{}]", recoveryTarget.shardId(), recoveryTarget.sourceNode());
         } else {
             logger.trace(
-                "{} preparing for sequence-number-based recovery starting at local checkpoint [{}] from [{}]",
+                "{} preparing for sequence-number-based recovery starting at sequence number [{}] from [{}]",
                 recoveryTarget.shardId(),
                 startingSeqNo,
                 recoveryTarget.sourceNode());

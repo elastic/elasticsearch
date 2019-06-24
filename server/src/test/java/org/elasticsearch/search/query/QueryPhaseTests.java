@@ -353,11 +353,23 @@ public class QueryPhaseTests extends IndexShardTestCase {
         TestSearchContext context = new TestSearchContext(null, indexShard);
         context.setTask(new SearchTask(123L, "", "", "", null, Collections.emptyMap()));
         context.parsedQuery(new ParsedQuery(new MatchAllDocsQuery()));
-        context.terminateAfter(1);
 
         final IndexReader reader = DirectoryReader.open(dir);
         IndexSearcher contextSearcher = new IndexSearcher(reader);
 
+        context.terminateAfter(numDocs);
+        {
+            context.setSize(10);
+            TotalHitCountCollector collector = new TotalHitCountCollector();
+            context.queryCollectors().put(TotalHitCountCollector.class, collector);
+            QueryPhase.execute(context, contextSearcher, checkCancelled -> {});
+            assertFalse(context.queryResult().terminatedEarly());
+            assertThat(context.queryResult().topDocs().topDocs.totalHits.value, equalTo((long) numDocs));
+            assertThat(context.queryResult().topDocs().topDocs.scoreDocs.length, equalTo(10));
+            assertThat(collector.getTotalHits(), equalTo(numDocs));
+        }
+
+        context.terminateAfter(1);
         {
             context.setSize(1);
             QueryPhase.execute(context, contextSearcher, checkCancelled -> {});
@@ -419,7 +431,6 @@ public class QueryPhaseTests extends IndexShardTestCase {
             assertThat(context.queryResult().topDocs().topDocs.scoreDocs.length, equalTo(0));
             assertThat(collector.getTotalHits(), equalTo(1));
         }
-
         reader.close();
         dir.close();
     }

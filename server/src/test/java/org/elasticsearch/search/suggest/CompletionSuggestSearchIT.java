@@ -19,6 +19,7 @@
 package org.elasticsearch.search.suggest;
 
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
+
 import org.apache.lucene.analysis.TokenStreamToAutomaton;
 import org.apache.lucene.search.suggest.document.ContextSuggestField;
 import org.apache.lucene.util.LuceneTestCase.SuppressCodecs;
@@ -355,6 +356,26 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
             assertThat(sourceFields, not(contains("b")));
             id--;
         }
+    }
+
+    /**
+     * Suggestions run on an empty index should return a suggest element as part of the response. See #42473 for details.
+     */
+    public void testSuggestEmptyIndex() throws IOException, InterruptedException {
+        final CompletionMappingBuilder mapping = new CompletionMappingBuilder();
+        createIndexAndMapping(mapping);
+
+        CompletionSuggestionBuilder prefix = SuggestBuilders.completionSuggestion(FIELD).prefix("v");
+        SearchResponse searchResponse = client().prepareSearch(INDEX).suggest(new SuggestBuilder().addSuggestion("foo", prefix))
+                .setFetchSource("a", "b").get();
+        Suggest suggest = searchResponse.getSuggest();
+        assertNotNull(suggest);
+        CompletionSuggestion completionSuggestion = suggest.getSuggestion("foo");
+        CompletionSuggestion.Entry options = completionSuggestion.getEntries().get(0);
+        assertEquals("v", options.getText().string());
+        assertEquals(1, options.getLength());
+        assertEquals(0, options.getOffset());
+        assertEquals(0, options.options.size());
     }
 
     public void testThatWeightsAreWorking() throws Exception {
@@ -813,7 +834,7 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
         refresh();
 
         SearchPhaseExecutionException e = expectThrows(SearchPhaseExecutionException.class,
-            () -> client().prepareSearch(INDEX).setTypes(TYPE).addSort(new FieldSortBuilder(FIELD)).get());
+                () -> client().prepareSearch(INDEX).addSort(new FieldSortBuilder(FIELD)).get());
         assertThat(e.status().getStatus(), is(400));
         assertThat(e.toString(), containsString("Fielddata is not supported on field [" + FIELD + "] of type [completion]"));
     }

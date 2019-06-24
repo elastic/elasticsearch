@@ -30,7 +30,6 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -38,7 +37,6 @@ import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
-import static java.util.Collections.singletonList;
 import static org.elasticsearch.index.seqno.SequenceNumbers.NO_OPS_PERFORMED;
 import static org.elasticsearch.index.translog.TranslogDeletionPolicies.createTranslogDeletionPolicy;
 import static org.hamcrest.Matchers.equalTo;
@@ -180,41 +178,6 @@ public class CombinedDeletionPolicyTests extends ESTestCase {
             Math.max(NO_OPS_PERFORMED, Math.min(getLocalCheckpoint(safeCommit) + 1, globalCheckpoint.get() + 1 - extraRetainedOps))));
     }
 
-    public void testLegacyIndex() throws Exception {
-        final AtomicLong globalCheckpoint = new AtomicLong();
-        final SoftDeletesPolicy softDeletesPolicy = new SoftDeletesPolicy(globalCheckpoint::get, -1, 0, () -> RetentionLeases.EMPTY);
-        final UUID translogUUID = UUID.randomUUID();
-
-        TranslogDeletionPolicy translogPolicy = createTranslogDeletionPolicy();
-        CombinedDeletionPolicy indexPolicy = new CombinedDeletionPolicy(logger, translogPolicy, softDeletesPolicy, globalCheckpoint::get);
-
-        long legacyTranslogGen = randomNonNegativeLong();
-        IndexCommit legacyCommit = mockLegacyIndexCommit(translogUUID, legacyTranslogGen);
-        assertThat(CombinedDeletionPolicy.findSafeCommitPoint(singletonList(legacyCommit), globalCheckpoint.get()),
-            equalTo(legacyCommit));
-
-        long safeTranslogGen = randomLongBetween(legacyTranslogGen, Long.MAX_VALUE);
-        long maxSeqNo = randomLongBetween(1, Long.MAX_VALUE);
-        final IndexCommit freshCommit = mockIndexCommit(randomLongBetween(-1, maxSeqNo), maxSeqNo, translogUUID, safeTranslogGen);
-
-        globalCheckpoint.set(randomLongBetween(0, maxSeqNo - 1));
-        indexPolicy.onCommit(Arrays.asList(legacyCommit, freshCommit));
-        verify(legacyCommit, times(1)).delete(); // Do not keep the legacy commit once we have a new commit.
-        verify(freshCommit, times(0)).delete();
-        assertThat(translogPolicy.getMinTranslogGenerationForRecovery(), equalTo(safeTranslogGen));
-        assertThat(translogPolicy.getTranslogGenerationOfLastCommit(), equalTo(safeTranslogGen));
-
-        // Make the fresh commit safe.
-        resetDeletion(legacyCommit);
-        globalCheckpoint.set(randomLongBetween(maxSeqNo, Long.MAX_VALUE));
-        indexPolicy.onCommit(Arrays.asList(legacyCommit, freshCommit));
-        verify(legacyCommit, times(2)).delete();
-        verify(freshCommit, times(0)).delete();
-        assertThat(translogPolicy.getMinTranslogGenerationForRecovery(), equalTo(safeTranslogGen));
-        assertThat(translogPolicy.getTranslogGenerationOfLastCommit(), equalTo(safeTranslogGen));
-        assertThat(softDeletesPolicy.getMinRetainedSeqNo(), equalTo(getLocalCheckpoint(freshCommit) + 1));
-    }
-
     public void testDeleteInvalidCommits() throws Exception {
         final AtomicLong globalCheckpoint = new AtomicLong(randomNonNegativeLong());
         final SoftDeletesPolicy softDeletesPolicy = new SoftDeletesPolicy(globalCheckpoint::get, -1, 0, () -> RetentionLeases.EMPTY);
@@ -317,15 +280,4 @@ public class CombinedDeletionPolicyTests extends ESTestCase {
     private long getLocalCheckpoint(IndexCommit commit) throws IOException {
         return Long.parseLong(commit.getUserData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY));
     }
-
-    IndexCommit mockLegacyIndexCommit(UUID translogUUID, long translogGen) throws IOException {
-        final Map<String, String> userData = new HashMap<>();
-        userData.put(Translog.TRANSLOG_UUID_KEY, translogUUID.toString());
-        userData.put(Translog.TRANSLOG_GENERATION_KEY, Long.toString(translogGen));
-        final IndexCommit commit = mock(IndexCommit.class);
-        when(commit.getUserData()).thenReturn(userData);
-        resetDeletion(commit);
-        return commit;
-    }
-
 }

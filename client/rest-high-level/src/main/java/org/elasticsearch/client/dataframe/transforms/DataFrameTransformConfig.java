@@ -19,17 +19,21 @@
 
 package org.elasticsearch.client.dataframe.transforms;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.client.dataframe.transforms.pivot.PivotConfig;
+import org.elasticsearch.client.dataframe.transforms.util.TimeUtil;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 
 import java.io.IOException;
+import java.time.Instant;
 import java.util.Objects;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
@@ -42,6 +46,8 @@ public class DataFrameTransformConfig implements ToXContentObject {
     public static final ParseField DEST = new ParseField("dest");
     public static final ParseField DESCRIPTION = new ParseField("description");
     public static final ParseField SYNC = new ParseField("sync");
+    public static final ParseField VERSION = new ParseField("version");
+    public static final ParseField CREATE_TIME = new ParseField("create_time");
     // types of transforms
     public static final ParseField PIVOT_TRANSFORM = new ParseField("pivot");
 
@@ -51,6 +57,8 @@ public class DataFrameTransformConfig implements ToXContentObject {
     private final SyncConfig syncConfig;
     private final PivotConfig pivotConfig;
     private final String description;
+    private final Version transformVersion;
+    private final Instant createTime;
 
     public static final ConstructingObjectParser<DataFrameTransformConfig, Void> PARSER =
             new ConstructingObjectParser<>("data_frame_transform", true,
@@ -61,7 +69,9 @@ public class DataFrameTransformConfig implements ToXContentObject {
                     SyncConfig syncConfig = (SyncConfig) args[3];
                     PivotConfig pivotConfig = (PivotConfig) args[4];
                     String description = (String)args[5];
-                    return new DataFrameTransformConfig(id, source, dest, syncConfig, pivotConfig, description);
+                    Instant createTime = (Instant)args[6];
+                    String transformVersion = (String)args[7];
+                    return new DataFrameTransformConfig(id, source, dest, syncConfig, pivotConfig, description, createTime, transformVersion);
                 });
 
     static {
@@ -71,6 +81,9 @@ public class DataFrameTransformConfig implements ToXContentObject {
         PARSER.declareObject(optionalConstructorArg(), (p, c) -> parseSyncConfig(p), SYNC);
         PARSER.declareObject(optionalConstructorArg(), (p, c) -> PivotConfig.fromXContent(p), PIVOT_TRANSFORM);
         PARSER.declareString(optionalConstructorArg(), DESCRIPTION);
+        PARSER.declareField(optionalConstructorArg(),
+            p -> TimeUtil.parseTimeFieldToInstant(p, CREATE_TIME.getPreferredName()), CREATE_TIME, ObjectParser.ValueType.VALUE);
+        PARSER.declareString(optionalConstructorArg(), VERSION);
     }
 
     private static SyncConfig parseSyncConfig(XContentParser parser) throws IOException {
@@ -98,7 +111,7 @@ public class DataFrameTransformConfig implements ToXContentObject {
      * @return A DataFrameTransformConfig to preview, NOTE it will have a {@code null} id, destination and index.
      */
     public static DataFrameTransformConfig forPreview(final SourceConfig source, final PivotConfig pivotConfig) {
-        return new DataFrameTransformConfig(null, source, null, null, pivotConfig, null);
+        return new DataFrameTransformConfig(null, source, null, null, pivotConfig, null, null, null);
     }
 
     DataFrameTransformConfig(final String id,
@@ -106,13 +119,17 @@ public class DataFrameTransformConfig implements ToXContentObject {
                              final DestConfig dest,
                              final SyncConfig syncConfig,
                              final PivotConfig pivotConfig,
-                             final String description) {
+                             final String description,
+                             final Instant createTime,
+                             final String version) {
         this.id = id;
         this.source = source;
         this.dest = dest;
         this.syncConfig = syncConfig;
         this.pivotConfig = pivotConfig;
         this.description = description;
+        this.createTime = createTime == null ? null : Instant.ofEpochMilli(createTime.toEpochMilli());
+        this.transformVersion = version == null ? null : Version.fromString(version);
     }
 
     public String getId() {
@@ -133,6 +150,14 @@ public class DataFrameTransformConfig implements ToXContentObject {
 
     public PivotConfig getPivotConfig() {
         return pivotConfig;
+    }
+
+    public Version getVersion() {
+        return transformVersion;
+    }
+
+    public Instant getCreateTime() {
+        return createTime;
     }
 
     @Nullable
@@ -163,6 +188,12 @@ public class DataFrameTransformConfig implements ToXContentObject {
         if (description != null) {
             builder.field(DESCRIPTION.getPreferredName(), description);
         }
+        if (createTime != null) {
+            builder.timeField(CREATE_TIME.getPreferredName(), CREATE_TIME.getPreferredName() + "_string", createTime.toEpochMilli());
+        }
+        if (transformVersion != null) {
+            builder.field(VERSION.getPreferredName(), transformVersion);
+        }
         builder.endObject();
         return builder;
     }
@@ -180,11 +211,13 @@ public class DataFrameTransformConfig implements ToXContentObject {
         final DataFrameTransformConfig that = (DataFrameTransformConfig) other;
 
         return Objects.equals(this.id, that.id)
-                && Objects.equals(this.source, that.source)
-                && Objects.equals(this.dest, that.dest)
-                && Objects.equals(this.description, that.description)
-                && Objects.equals(this.syncConfig, that.syncConfig)
-                && Objects.equals(this.pivotConfig, that.pivotConfig);
+            && Objects.equals(this.source, that.source)
+            && Objects.equals(this.dest, that.dest)
+            && Objects.equals(this.description, that.description)
+            && Objects.equals(this.syncConfig, that.syncConfig)
+            && Objects.equals(this.transformVersion, that.transformVersion)
+            && Objects.equals(this.createTime, that.createTime)
+            && Objects.equals(this.pivotConfig, that.pivotConfig);
     }
 
     @Override
@@ -241,7 +274,7 @@ public class DataFrameTransformConfig implements ToXContentObject {
         }
 
         public DataFrameTransformConfig build() {
-            return new DataFrameTransformConfig(id, source, dest, syncConfig, pivotConfig, description);
+            return new DataFrameTransformConfig(id, source, dest, syncConfig, pivotConfig, description, null, null);
         }
     }
 }

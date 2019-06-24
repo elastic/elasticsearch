@@ -23,7 +23,6 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
@@ -59,6 +58,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.MlMetaIndex;
@@ -272,7 +272,6 @@ import java.io.IOException;
 import java.math.BigInteger;
 import java.nio.file.Path;
 import java.time.Clock;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -282,7 +281,6 @@ import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 
 import static java.util.Collections.emptyList;
-import static java.util.Collections.singletonList;
 import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
 
 public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlugin, PersistentTaskPlugin {
@@ -466,7 +464,7 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
         AutodetectProcessFactory autodetectProcessFactory;
         NormalizerProcessFactory normalizerProcessFactory;
         AnalyticsProcessFactory analyticsProcessFactory;
-        if (MachineLearningField.AUTODETECT_PROCESS.get(settings) && MachineLearningFeatureSet.isRunningOnMlPlatform(true)) {
+        if (MachineLearningField.AUTODETECT_PROCESS.get(settings) && MachineLearningInfoTransportAction.isRunningOnMlPlatform(true)) {
             try {
                 NativeController nativeController = NativeControllerHolder.getNativeController(clusterService.getNodeName(), environment);
                 if (nativeController == null) {
@@ -482,7 +480,7 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
                 normalizerProcessFactory = new NativeNormalizerProcessFactory(environment, nativeController);
                 analyticsProcessFactory = new NativeAnalyticsProcessFactory(environment, nativeController);
             } catch (IOException e) {
-                // This also should not happen in production, as the MachineLearningFeatureSet should have
+                // This also should not happen in production, as the MachineLearningInfoTransportAction should have
                 // hit the same error first and brought down the node with a friendlier error message
                 throw new ElasticsearchException("Failed to create native process factories for Machine Learning", e);
             }
@@ -565,14 +563,6 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
         );
     }
 
-    public Collection<Module> createGuiceModules() {
-        List<Module> modules = new ArrayList<>();
-        modules.add(b -> {
-            XPackPlugin.bindFeatureSet(b, MachineLearningFeatureSet.class);
-        });
-        return modules;
-    }
-
     @Override
     public List<RestHandler> getRestHandlers(Settings settings, RestController restController, ClusterSettings clusterSettings,
                                              IndexScopedSettings indexScopedSettings, SettingsFilter settingsFilter,
@@ -641,9 +631,11 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
     @Override
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
         var usageAction =
-            new ActionHandler<>(XPackUsageFeatureAction.MACHINE_LEARNING, MachineLearningFeatureSet.UsageTransportAction.class);
+            new ActionHandler<>(XPackUsageFeatureAction.MACHINE_LEARNING, MachineLearningUsageTransportAction.class);
+        var infoAction =
+            new ActionHandler<>(XPackInfoFeatureAction.MACHINE_LEARNING, MachineLearningInfoTransportAction.class);
         if (false == enabled) {
-            return singletonList(usageAction);
+            return Arrays.asList(usageAction, infoAction);
         }
         return Arrays.asList(
                 new ActionHandler<>(GetJobsAction.INSTANCE, TransportGetJobsAction.class),
@@ -703,8 +695,8 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
                 new ActionHandler<>(StartDataFrameAnalyticsAction.INSTANCE, TransportStartDataFrameAnalyticsAction.class),
                 new ActionHandler<>(StopDataFrameAnalyticsAction.INSTANCE, TransportStopDataFrameAnalyticsAction.class),
                 new ActionHandler<>(EvaluateDataFrameAction.INSTANCE, TransportEvaluateDataFrameAction.class),
-                usageAction
-        );
+                usageAction,
+                infoAction);
     }
 
     @Override
@@ -864,8 +856,8 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
             if (containerLimitStr != null) {
                 BigInteger containerLimit = new BigInteger(containerLimitStr);
                 if ((containerLimit.compareTo(BigInteger.valueOf(mem)) < 0 && containerLimit.compareTo(BigInteger.ZERO) > 0)
-                        // mem < 0 means the value couldn't be obtained for some reason
-                        || (mem < 0 && containerLimit.compareTo(BigInteger.valueOf(Long.MAX_VALUE)) < 0)) {
+                        // mem <= 0 means the value couldn't be obtained for some reason
+                        || (mem <= 0 && containerLimit.compareTo(BigInteger.valueOf(Long.MAX_VALUE)) < 0)) {
                     mem = containerLimit.longValue();
                 }
             }

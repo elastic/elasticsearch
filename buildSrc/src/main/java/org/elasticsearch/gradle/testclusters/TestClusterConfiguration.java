@@ -122,7 +122,7 @@ public interface TestClusterConfiguration {
                 } catch (TestClustersException e) {
                     throw e;
                 } catch (Exception e) {
-                    throw  e;
+                    lastException = e;
                 }
             }
             if (conditionMet == false) {
@@ -131,7 +131,17 @@ public interface TestClusterConfiguration {
                 if (lastException == null) {
                     throw new TestClustersException(message);
                 } else {
-                    throw new TestClustersException(message + message, lastException);
+                    String extraCause = "";
+                    Throwable cause = lastException;
+                    int ident = 2;
+                    while (cause != null) {
+                        if (cause.getMessage() != null && cause.getMessage().isEmpty() == false) {
+                            extraCause += "\n" + " ".repeat(ident) + cause.getMessage();
+                            ident += 2;
+                        }
+                        cause = cause.getCause();
+                    }
+                    throw new TestClustersException(message + extraCause, lastException);
                 }
             }
             logger.info(

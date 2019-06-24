@@ -19,7 +19,7 @@ public class CreateTokenRequestTests extends ESTestCase {
         ActionRequestValidationException ve = request.validate();
         assertNotNull(ve);
         assertEquals(1, ve.validationErrors().size());
-        assertThat(ve.validationErrors().get(0), containsString("[password, refresh_token, client_credentials]"));
+        assertThat(ve.validationErrors().get(0), containsString("[password, _kerberos, refresh_token, client_credentials]"));
         assertThat(ve.validationErrors().get(0), containsString("grant_type"));
 
         request.setGrantType("password");
@@ -49,20 +49,24 @@ public class CreateTokenRequestTests extends ESTestCase {
         assertNull(ve);
 
         request.setRefreshToken(randomAlphaOfLengthBetween(1, 10));
+        request.setKerberosTicket(new SecureString(randomAlphaOfLengthBetween(1, 256).toCharArray()));
         ve = request.validate();
         assertNotNull(ve);
-        assertEquals(1, ve.validationErrors().size());
-        assertThat(ve.validationErrors().get(0), containsString("refresh_token is not supported"));
+        assertEquals(2, ve.validationErrors().size());
+        assertThat(ve.validationErrors(), hasItem(containsString("kerberos_ticket is not supported")));
+        assertThat(ve.validationErrors(), hasItem(containsString("refresh_token is not supported")));
 
         request.setGrantType("refresh_token");
         ve = request.validate();
         assertNotNull(ve);
-        assertEquals(2, ve.validationErrors().size());
+        assertEquals(3, ve.validationErrors().size());
         assertThat(ve.validationErrors(), hasItem(containsString("username is not supported")));
         assertThat(ve.validationErrors(), hasItem(containsString("password is not supported")));
+        assertThat(ve.validationErrors(), hasItem(containsString("kerberos_ticket is not supported")));
 
         request.setUsername(null);
         request.setPassword(null);
+        request.setKerberosTicket(null);
         ve = request.validate();
         assertNull(ve);
 
@@ -78,12 +82,28 @@ public class CreateTokenRequestTests extends ESTestCase {
 
         request.setUsername(randomAlphaOfLengthBetween(1, 32));
         request.setPassword(new SecureString(randomAlphaOfLengthBetween(1, 32).toCharArray()));
+        request.setKerberosTicket(new SecureString(randomAlphaOfLengthBetween(1, 256).toCharArray()));
         request.setRefreshToken(randomAlphaOfLengthBetween(1, 32));
+        ve = request.validate();
+        assertNotNull(ve);
+        assertEquals(4, ve.validationErrors().size());
+        assertThat(ve.validationErrors(), hasItem(containsString("username is not supported")));
+        assertThat(ve.validationErrors(), hasItem(containsString("password is not supported")));
+        assertThat(ve.validationErrors(), hasItem(containsString("refresh_token is not supported")));
+        assertThat(ve.validationErrors(), hasItem(containsString("kerberos_ticket is not supported")));
+
+        request.setGrantType("_kerberos");
         ve = request.validate();
         assertNotNull(ve);
         assertEquals(3, ve.validationErrors().size());
         assertThat(ve.validationErrors(), hasItem(containsString("username is not supported")));
         assertThat(ve.validationErrors(), hasItem(containsString("password is not supported")));
         assertThat(ve.validationErrors(), hasItem(containsString("refresh_token is not supported")));
+
+        request.setUsername(null);
+        request.setPassword(null);
+        request.setRefreshToken(null);
+        ve = request.validate();
+        assertNull(ve);
     }
 }

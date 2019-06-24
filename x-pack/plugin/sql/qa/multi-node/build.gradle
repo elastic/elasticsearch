@@ -6,8 +6,8 @@ description = 'Run a subset of SQL tests against multiple nodes'
  * feel should need to be tested against more than one node.
  */
 
-integTestCluster {
-  numNodes = 2
+testClusters.integTest{
+  numberOfNodes = 2
   setting 'xpack.security.enabled', 'false'
   setting 'xpack.license.self_generated.type', 'trial'
 }

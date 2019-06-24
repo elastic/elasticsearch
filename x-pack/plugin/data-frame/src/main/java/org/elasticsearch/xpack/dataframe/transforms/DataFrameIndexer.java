@@ -211,6 +211,9 @@ public abstract class DataFrameIndexer extends AsyncTwoPhaseIndexer<Map<String, 
             }
 
             IndexRequest request = new IndexRequest(indexName).source(builder).id(id);
+            if (transformConfig.getDestination().getPipeline() != null) {
+                request.setPipeline(transformConfig.getDestination().getPipeline());
+            }
             return request;
         });
     }

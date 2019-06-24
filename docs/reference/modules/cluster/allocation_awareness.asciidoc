@@ -46,7 +46,7 @@ You can also set custom attributes when you start a node:
 +
 [source,sh]
 --------------------------------------------------------
-`./bin/elasticsearch -Enode.attr.rack_id=rack_one`
+./bin/elasticsearch -Enode.attr.rack_id=rack_one
 --------------------------------------------------------
 
 . Tell {es} to take one or more awareness attributes into account when

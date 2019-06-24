@@ -91,8 +91,8 @@ public class GetDataFrameTransformsAction extends Action<GetDataFrameTransformsA
         public static final String INVALID_TRANSFORMS_DEPRECATION_WARNING = "Found [{}] invalid transforms";
         private static final ParseField INVALID_TRANSFORMS = new ParseField("invalid_transforms");
 
-        public Response(List<DataFrameTransformConfig> transformConfigs) {
-            super(new QueryPage<>(transformConfigs, transformConfigs.size(), DataFrameField.TRANSFORMS));
+        public Response(List<DataFrameTransformConfig> transformConfigs, long count) {
+            super(new QueryPage<>(transformConfigs, count, DataFrameField.TRANSFORMS));
         }
 
         public Response() {

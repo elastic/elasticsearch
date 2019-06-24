@@ -92,20 +92,4 @@ public class BlobPath implements Iterable<String> {
         }
         return sb.toString();
     }
-
-    @Override
-    public boolean equals(final Object o) {
-        if (this == o) {
-            return true;
-        }
-        if (o == null || getClass() != o.getClass()) {
-            return false;
-        }
-        return paths.equals(((BlobPath) o).paths);
-    }
-
-    @Override
-    public int hashCode() {
-        return paths.hashCode();
-    }
 }

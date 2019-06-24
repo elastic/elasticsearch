@@ -46,7 +46,6 @@ import static org.hamcrest.Matchers.not;
 public class DieWithDignityIT extends ESRestTestCase {
 
     public void testDieWithDignity() throws Exception {
-
         // deleting the PID file prevents stopping the cluster from failing since it occurs if and only if the PID file exists
         final Path pidFile = PathUtils.get(System.getProperty("pidfile"));
         final List<String> pidFileLines = Files.readAllLines(pidFile);

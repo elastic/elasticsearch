@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.snapshots;
 
+import joptsimple.OptionParser;
 import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
 import org.elasticsearch.cli.EnvironmentAwareCommand;
@@ -27,7 +28,9 @@ import org.elasticsearch.env.Environment;
 public class CleanupS3RepositoryCommand extends EnvironmentAwareCommand {
 
     private final OptionSpec<String> regionOption;
+    private final OptionSpec<String> endpointOption;
     private final OptionSpec<String> bucketOption;
+    private final OptionSpec<String> basePathOption;
     private final OptionSpec<String> accessKeyOption;
     private final OptionSpec<String> secretKeyOption;
 
@@ -37,7 +40,13 @@ public class CleanupS3RepositoryCommand extends EnvironmentAwareCommand {
         regionOption = parser.accepts("region", "S3 region")
                 .withRequiredArg();
 
-        bucketOption = parser.accepts("bucketOption", "Bucket name")
+        endpointOption = parser.accepts("endpoint", "S3 endpoint")
+                .withRequiredArg();
+
+        bucketOption = parser.accepts("bucket", "Bucket name")
+                .withRequiredArg();
+
+        basePathOption = parser.accepts("basePath", "Base path")
                 .withRequiredArg();
 
         accessKeyOption = parser.accepts("access_key", "Access key")
@@ -53,8 +62,15 @@ public class CleanupS3RepositoryCommand extends EnvironmentAwareCommand {
         terminal.println("Cleanup tool is running");
 
         String region = regionOption.value(options);
-        if (region == null) {
-            terminal.println("region option is required for cleaning up S3 repository");
+        String endpoint  = endpointOption.value(options);
+
+        if (region == null && endpoint == null) {
+            terminal.println("region or endpoint option is required for cleaning up S3 repository");
+            return;
+        }
+
+        if (region != null && endpoint != null) {
+            terminal.println("You should choose either region or endpoint");
             return;
         }
 
@@ -63,6 +79,8 @@ public class CleanupS3RepositoryCommand extends EnvironmentAwareCommand {
             terminal.println("bucket option is required for cleaning up S3 repository");
             return;
         }
+
+        String basePath = basePathOption.value(options);
 
         String accessKey = accessKeyOption.value(options);
         if (accessKey == null) {
@@ -76,8 +94,13 @@ public class CleanupS3RepositoryCommand extends EnvironmentAwareCommand {
             return;
         }
 
-        Repository repository = new S3Repository(terminal, region, accessKey, secretKey, bucket);
+        Repository repository = new S3Repository(terminal, endpoint, region, accessKey, secretKey, bucket, basePath);
         repository.cleanup();
+    }
+
+    // package-private for testing
+    OptionParser getParser() {
+        return parser;
     }
 
 

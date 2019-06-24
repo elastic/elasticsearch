@@ -3,10 +3,11 @@ package org.elasticsearch.snapshots;
 import com.amazonaws.AmazonServiceException;
 import com.amazonaws.auth.AWSStaticCredentialsProvider;
 import com.amazonaws.auth.BasicAWSCredentials;
+import com.amazonaws.client.builder.AwsClientBuilder;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3ClientBuilder;
-import com.amazonaws.services.s3.model.DeleteObjectRequest;
 import com.amazonaws.services.s3.model.DeleteObjectsRequest;
+import com.amazonaws.services.s3.model.ListObjectsRequest;
 import com.amazonaws.services.s3.model.ObjectListing;
 import com.amazonaws.services.s3.model.S3ObjectSummary;
 import org.elasticsearch.cli.Terminal;
@@ -35,23 +36,35 @@ public class S3Repository implements Repository {
     private final Terminal terminal;
     private final AmazonS3 client;
     private final String bucket;
+    private final String basePath;
 
-    S3Repository(Terminal terminal, String region, String accessKey, String secretKey, String bucket) {
+    S3Repository(Terminal terminal, String endpoint, String region, String accessKey, String secretKey, String bucket, String basePath) {
         this.terminal = terminal;
-        this.client = buildS3Client(region, accessKey, secretKey);
+        this.client = buildS3Client(endpoint, region, accessKey, secretKey);
+        this.basePath = basePath;
         this.bucket = bucket;
     }
 
-    private static AmazonS3 buildS3Client(String region, String accessKey, String secretKey) {
+    private static AmazonS3 buildS3Client(String endpoint, String region, String accessKey, String secretKey) {
         final AmazonS3ClientBuilder builder = AmazonS3ClientBuilder.standard();
         builder.withCredentials(new AWSStaticCredentialsProvider(new BasicAWSCredentials(accessKey, secretKey)));
-        builder.withRegion(region);
+        if (Strings.hasLength(endpoint)) {
+            builder.withEndpointConfiguration(new AwsClientBuilder.EndpointConfiguration(endpoint, null))
+                    .enablePathStyleAccess();
+        } else {
+            builder.withRegion(region);
+        }
+
         return builder.build();
+    }
+
+    private final String fullPath(String path) {
+        return basePath + "/" + path;
     }
 
     @Override
     public Long readLatestIndexId() throws IOException {
-        try (InputStream blob = client.getObject(bucket, BlobStoreRepository.INDEX_LATEST_BLOB).getObjectContent()) {
+        try (InputStream blob = client.getObject(bucket, fullPath(BlobStoreRepository.INDEX_LATEST_BLOB)).getObjectContent()) {
             BytesStreamOutput out = new BytesStreamOutput();
             Streams.copy(blob, out);
             return Numbers.bytesToLong(out.bytes().toBytesRef());
@@ -64,7 +77,7 @@ public class S3Repository implements Repository {
     @Override
     public RepositoryData getRepositoryData(Long indexFileGeneration) throws IOException {
         final String snapshotsIndexBlobName = BlobStoreRepository.INDEX_FILE_PREFIX + indexFileGeneration;
-        try (InputStream blob = client.getObject(bucket, snapshotsIndexBlobName).getObjectContent()) {
+        try (InputStream blob = client.getObject(bucket, fullPath(snapshotsIndexBlobName)).getObjectContent()) {
             BytesStreamOutput out = new BytesStreamOutput();
             Streams.copy(blob, out);
             // EMPTY is safe here because RepositoryData#fromXContent calls namedObject
@@ -82,7 +95,11 @@ public class S3Repository implements Repository {
     public Set<String> getAllIndexIds() {
         try {
             List<String> prefixes = new ArrayList<>();
-            ObjectListing object_listing = client.listObjects(bucket, "indices/");
+            ListObjectsRequest request = new ListObjectsRequest();
+            request.setBucketName(bucket);
+            request.setPrefix(fullPath("indices/"));
+            request.setDelimiter("/");
+            ObjectListing object_listing = client.listObjects(request);
             prefixes.addAll(object_listing.getCommonPrefixes());
 
             while (object_listing.isTruncated()) ;
@@ -90,9 +107,9 @@ public class S3Repository implements Repository {
                 object_listing = client.listNextBatchOfObjects(object_listing);
                 prefixes.addAll(object_listing.getCommonPrefixes());
             }
-            int indicesPrefixLength = "indices/".length();
-            assert prefixes.stream().allMatch(prefix -> prefix.startsWith("indices/"));
-            return prefixes.stream().map(prefix -> prefix.substring(indicesPrefixLength)).collect(Collectors.toSet());
+            int indicesPrefixLength = fullPath("indices/").length();
+            assert prefixes.stream().allMatch(prefix -> prefix.startsWith(fullPath("indices/")));
+            return prefixes.stream().map(prefix -> prefix.substring(indicesPrefixLength, prefix.length()-1)).collect(Collectors.toSet());
         } catch (AmazonServiceException e) {
             terminal.println("Failed to list indices");
             throw e;
@@ -102,7 +119,7 @@ public class S3Repository implements Repository {
     @Override
     public Date getIndexNTimestamp(Long indexFileGeneration) {
         final String snapshotsIndexBlobName = BlobStoreRepository.INDEX_FILE_PREFIX + indexFileGeneration;
-        ObjectListing listing = client.listObjects(bucket, snapshotsIndexBlobName);
+        ObjectListing listing = client.listObjects(bucket, fullPath(snapshotsIndexBlobName));
         List<S3ObjectSummary> summaries = listing.getObjectSummaries();
         if (summaries.size() != 1) {
             terminal.println("Unexpected size");
@@ -115,7 +132,7 @@ public class S3Repository implements Repository {
 
     @Override
     public Date getIndexTimestamp(String indexId) {
-        ObjectListing listing = client.listObjects(bucket, "indices/" + indexId + "/");
+        ObjectListing listing = client.listObjects(bucket, fullPath("indices/" + indexId + "/"));
         List<S3ObjectSummary> summaries = listing.getObjectSummaries();
         while (summaries.isEmpty() && listing.isTruncated()) {
             summaries = listing.getObjectSummaries();
@@ -132,16 +149,13 @@ public class S3Repository implements Repository {
     private List<String> listAllFiles(String prefix) {
         List<String> files = new ArrayList<>();
 
-        ObjectListing listing = client.listObjects(prefix);
+        ObjectListing listing = client.listObjects(bucket, prefix);
         while (true) {
             List<S3ObjectSummary> summaries = listing.getObjectSummaries();
             for (S3ObjectSummary obj : summaries) {
                 files.add(obj.getKey());
             }
 
-            for (String newPrefix : listing.getCommonPrefixes()) {
-                files.addAll(listAllFiles(newPrefix));
-            }
             if (listing.isTruncated()) {
                 listing = client.listNextBatchOfObjects(listing);
             } else {
@@ -171,7 +185,7 @@ public class S3Repository implements Repository {
     @Override
     public void deleteIndices(Set<String> leakedIndexIds) {
         for (String indexId : leakedIndexIds) {
-            List<String> files = listAllFiles("indices/" + indexId);
+            List<String> files = listAllFiles(fullPath("indices/" + indexId));
             deleteFiles(files);
         }
     }

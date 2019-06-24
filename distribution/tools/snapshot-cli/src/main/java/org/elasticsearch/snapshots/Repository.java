@@ -24,6 +24,9 @@ public interface Repository {
                 .getIndices().values().stream().map(IndexId::getId).collect(Collectors.toSet());
         Set<String> allIndexIds = getAllIndexIds();
         Set<String> deletionCandidates = Sets.difference(allIndexIds, referencedIndexIds);
+        if (deletionCandidates.isEmpty()) {
+            return;
+        }
         Date indexNTimestamp = getIndexNTimestamp(latestIndexId);
         Set<String> leakedIndexIds = new HashSet<>();
         for (String candidate : deletionCandidates) {

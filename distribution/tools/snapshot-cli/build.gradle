@@ -18,6 +18,7 @@
  */
 
 apply plugin: 'elasticsearch.build'
+apply plugin: 'elasticsearch.test.fixtures'
 
 dependencies {
   compileOnly project(":server")
@@ -26,4 +27,51 @@ dependencies {
   compile "com.amazonaws:aws-java-sdk-kms:${versions.aws}"
   compile "com.amazonaws:aws-java-sdk-core:${versions.aws}"
   testCompile project(":test:framework")
+  testCompile project(":plugins:repository-s3")
+}
+
+test {
+  // these are tested explicitly in separate test tasks
+  exclude '**/S3CleanupTests.class'
+}
+
+String s3PermanentAccessKey = 's3_integration_test_permanent_access_key'
+String s3PermanentSecretKey = 's3_integration_test_permanent_secret_key'
+String s3PermanentBucket = 'permanent-bucket-test'
+String s3PermanentBasePath = 'integration_test'
+
+task thirdPartyTest(type: Test) {
+  include '**/S3CleanupTests.class'
+  systemProperty 'test.s3.account', s3PermanentAccessKey
+  systemProperty 'test.s3.key', s3PermanentSecretKey
+  systemProperty 'test.s3.bucket', s3PermanentBucket
+  systemProperty 'test.s3.base', s3PermanentBasePath
+}
+
+task writeDockerFile {
+  File minioDockerfile = new File("${project.buildDir}/minio-docker/Dockerfile")
+  outputs.file(minioDockerfile)
+  doLast {
+    minioDockerfile.parentFile.mkdirs()
+    minioDockerfile.text = 
+            "FROM minio/minio:RELEASE.2019-01-23T23-18-58Z\n" +
+            "RUN mkdir -p /minio/data/${s3PermanentBucket}\n" +
+            "ENV MINIO_ACCESS_KEY ${s3PermanentAccessKey}\n" +
+            "ENV MINIO_SECRET_KEY ${s3PermanentSecretKey}"
+  }
+}
+
+preProcessFixture {
+  dependsOn(writeDockerFile)
+}
+
+def minioAddress = {
+  int minioPort = postProcessFixture.ext."test.fixtures.minio-fixture.tcp.9000"
+  assert minioPort > 0
+  'http://127.0.0.1:' + minioPort
+}
+
+thirdPartyTest {
+  dependsOn tasks.postProcessFixture
+  nonInputProperties.systemProperty 'test.s3.endpoint', "${ -> minioAddress.call() }"
 }

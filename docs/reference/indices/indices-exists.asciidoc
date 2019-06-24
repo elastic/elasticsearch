@@ -1,17 +1,86 @@
 [[indices-exists]]
-== Indices Exists
+== Indices exists API
+++++
+<titleabbrev>Indices exists</titleabbrev>
+++++
 
-Used to check if the index (indices) exists or not. For example:
+Checks for the existence of an index or <<indices-aliases, index alias>>.
+
+[float]
+[[indices-exists-api-request]]
+=== {api-request-title}
+
+`HEAD <index>`
+
+[float]
+[[indices-exists-api-desc]]
+=== {api-description-title}
+
+You can use the index exists API to check if one or more indices or
+<<indices-aliases, index aliases>> exist.
+
+[float]
+[[indices-exists-api-path-params]]
+=== {api-path-parms-title}
+
+`<index>` (Required)::
+(string) Comma-separated list or wildcard expression of index names or
+<<indices-aliases, index aliases>> to check.
+
+[float]
+[[indices-exists-api-query-params]]
+=== {api-query-parms-title}
+
+`allow_no_indices` (Optional)::
+(boolean) Indicates whether the operation is skipped if a wildcard expression
+matches no indices. Defaults to `false`.
+
+`expand_wildcards` (Optional)::
++
+--
+(string) Indicates whether wildcard expressions should expand to
+<<indices-open-close, open or closed indices>>. Possible values are:
+
+ * `open` (Default)
+* `closed`
+* `none`
+* `all`
+--
+
+`flat_settings` (Optional)::
+(boolean) Indicates whether settings are returned in a flat format. Defaults to
+`false`.
+
+`ignore_unavailable` (Optional)::
+(boolean) Indicates whether unavailable indices are skipped. Defaults to
+`false`.
+
+`include_defaults` (Optional)::
+(boolean) Indicates whether default settings are included in the response.
+Defaults to `false`.
+
+`local` (Optional)::
+(boolean) Indicates whether only local node information is included in the
+response. Defaults to `false`. If `true`, state information is not retrieved
+from the master node.
+
+[float]
+[[indices-exists-api-response-codes]]
+=== Response codes
+
+`200`::
+Indicates all listed indices or index aliases exist.
+
+`404`::
+Indicates one or more listed indices or index aliases **do not** exist.
+
+[float]
+[[indices-exists-api-example]]
+=== {api-example-title}
 
 [source,js]
---------------------------------------------------
+----
 HEAD twitter
---------------------------------------------------
+----
 // CONSOLE
 // TEST[setup:twitter]
-
-The HTTP status code indicates if the index exists or not. A `404` means
-it does not exist, and `200` means it does.
-
-IMPORTANT: This request does not distinguish between an index and an alias,
-i.e. status code `200` is also returned if an alias exists with that name.

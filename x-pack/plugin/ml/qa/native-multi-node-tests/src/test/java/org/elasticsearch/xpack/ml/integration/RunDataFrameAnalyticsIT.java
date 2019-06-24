@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.ml.integration;
 
-import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsRequest;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
@@ -248,8 +247,7 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
 
         assertThat(stopAnalytics(id).isStopped(), is(true));
         assertState(id, DataFrameAnalyticsState.STOPPED);
-
-        if (client().admin().indices().exists(new IndicesExistsRequest(config.getDest().getIndex())).actionGet().isExists() == false) {
+        if (indexExists(config.getDest().getIndex()) == false) {
             // We stopped before we even created the destination index
             return;
         }

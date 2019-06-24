@@ -193,7 +193,7 @@ public class DataFrameTransformConfig extends AbstractDiffable<DataFrameTransfor
             createTime = in.readOptionalInstant();
             transformVersion = in.readBoolean() ? Version.readVersion(in) : null;
         } else {
-						syncConfig = null;
+            syncConfig = null;
             createTime = null;
             transformVersion = null;
         }

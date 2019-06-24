@@ -11,6 +11,9 @@ import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
@@ -30,12 +33,22 @@ public class DeleteDataFrameAnalyticsAction extends Action<AcknowledgedResponse>
 
     @Override
     public AcknowledgedResponse newResponse() {
-        return new AcknowledgedResponse();
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
+    }
+
+    @Override
+    public Writeable.Reader<AcknowledgedResponse> getResponseReader() {
+        return AcknowledgedResponse::new;
     }
 
     public static class Request extends AcknowledgedRequest<Request> implements ToXContentFragment {
 
         private String id;
+
+        public Request(StreamInput in) throws IOException {
+            super(in);
+            id = in.readString();
+        }
 
         public Request() {}
 
@@ -64,6 +77,12 @@ public class DeleteDataFrameAnalyticsAction extends Action<AcknowledgedResponse>
             if (o == null || getClass() != o.getClass()) return false;
             DeleteDataFrameAnalyticsAction.Request request = (DeleteDataFrameAnalyticsAction.Request) o;
             return Objects.equals(id, request.id);
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
+            out.writeString(id);
         }
 
         @Override

@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.license.LicenseUtils;
@@ -56,6 +57,7 @@ import org.elasticsearch.xpack.ml.dataframe.persistence.DataFrameAnalyticsConfig
 import org.elasticsearch.xpack.ml.job.JobNodeSelector;
 import org.elasticsearch.xpack.ml.process.MlMemoryTracker;
 
+import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Predicate;
@@ -85,8 +87,8 @@ public class TransportStartDataFrameAnalyticsAction
                                                   IndexNameExpressionResolver indexNameExpressionResolver,
                                                   PersistentTasksService persistentTasksService,
                                                   DataFrameAnalyticsConfigProvider configProvider, MlMemoryTracker memoryTracker) {
-        super(StartDataFrameAnalyticsAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver,
-                StartDataFrameAnalyticsAction.Request::new);
+        super(StartDataFrameAnalyticsAction.NAME, transportService, clusterService, threadPool, actionFilters,
+                StartDataFrameAnalyticsAction.Request::new, indexNameExpressionResolver);
         this.licenseState = licenseState;
         this.client = client;
         this.persistentTasksService = persistentTasksService;
@@ -103,7 +105,12 @@ public class TransportStartDataFrameAnalyticsAction
 
     @Override
     protected AcknowledgedResponse newResponse() {
-        return new AcknowledgedResponse();
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
+    }
+
+    @Override
+    protected AcknowledgedResponse read(StreamInput in) throws IOException {
+        return new AcknowledgedResponse(in);
     }
 
     @Override

@@ -17,6 +17,7 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
@@ -44,7 +45,12 @@ public class StartDataFrameAnalyticsAction extends Action<AcknowledgedResponse> 
 
     @Override
     public AcknowledgedResponse newResponse() {
-        return new AcknowledgedResponse();
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
+    }
+
+    @Override
+    public Writeable.Reader<AcknowledgedResponse> getResponseReader() {
+        return AcknowledgedResponse::new;
     }
 
     public static class Request extends MasterNodeRequest<Request> implements ToXContentObject {
@@ -77,7 +83,9 @@ public class StartDataFrameAnalyticsAction extends Action<AcknowledgedResponse> 
         }
 
         public Request(StreamInput in) throws IOException {
-            readFrom(in);
+            super(in);
+            id = in.readString();
+            timeout = in.readTimeValue();
         }
 
         public Request() {}
@@ -101,13 +109,6 @@ public class StartDataFrameAnalyticsAction extends Action<AcknowledgedResponse> 
         @Override
         public ActionRequestValidationException validate() {
             return null;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            id = in.readString();
-            timeout = in.readTimeValue();
         }
 
         @Override

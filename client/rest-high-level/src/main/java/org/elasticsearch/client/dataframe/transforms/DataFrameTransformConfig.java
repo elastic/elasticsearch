@@ -71,7 +71,14 @@ public class DataFrameTransformConfig implements ToXContentObject {
                     String description = (String)args[5];
                     Instant createTime = (Instant)args[6];
                     String transformVersion = (String)args[7];
-                    return new DataFrameTransformConfig(id, source, dest, syncConfig, pivotConfig, description, createTime, transformVersion);
+                    return new DataFrameTransformConfig(id,
+                        source,
+                        dest,
+                        syncConfig,
+                        pivotConfig,
+                        description,
+                        createTime,
+                        transformVersion);
                 });
 
     static {

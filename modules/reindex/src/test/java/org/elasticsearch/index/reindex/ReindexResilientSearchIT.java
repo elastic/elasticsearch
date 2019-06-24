@@ -27,9 +27,6 @@ import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
-import org.elasticsearch.painless.PainlessPlugin;
-import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.script.Script;
 import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
@@ -40,7 +37,6 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.hamcrest.Matchers;
 
-import java.util.Collection;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -53,11 +49,6 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 
 @ESIntegTestCase.ClusterScope(scope = TEST)
 public class ReindexResilientSearchIT extends ReindexTestCase {
-
-    @Override
-    protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Stream.concat(super.nodePlugins().stream(), Stream.of(PainlessPlugin.class)).collect(Collectors.toList());
-    }
 
     public void testDataNodeRestart() throws Exception {
         internalCluster().ensureAtLeastNumDataNodes(2);
@@ -118,6 +109,7 @@ public class ReindexResilientSearchIT extends ReindexTestCase {
             .setRequestsPerSecond(Float.POSITIVE_INFINITY).execute().get();
 
         BulkByScrollResponse bulkByScrollResponse = reindexFuture.actionGet(30, TimeUnit.SECONDS);
+        // todo: this assert fails sometimes due to missing retry on transport closed
         assertThat(bulkByScrollResponse.getBulkFailures(), Matchers.empty());
 //        assertEquals(0, bulkByScrollResponse.getSearchFailures().size());
 
@@ -127,8 +119,8 @@ public class ReindexResilientSearchIT extends ReindexTestCase {
     private void assertSameDocs(int numberOfDocuments, String... indices) {
         refresh(indices);
         SearchSourceBuilder sourceBuilder = SearchSourceBuilder.searchSource().size(0)
-            .aggregation(new TermsAggregationBuilder("unique_count", ValueType.STRING)
-                .script(new Script("doc['_id'].value + '|' + doc['data'].value"))
+            .aggregation(new TermsAggregationBuilder("unique_count", ValueType.LONG)
+                .field("data")
                 .order(BucketOrder.count(true))
                 .size(numberOfDocuments + 1)
             );
@@ -137,6 +129,7 @@ public class ReindexResilientSearchIT extends ReindexTestCase {
         Terms termsAggregation = searchResponse.getAggregations().get("unique_count");
         assertEquals("Must have a bucket per doc", termsAggregation.getBuckets().size(), numberOfDocuments);
         assertEquals("First bucket must have a doc per index", termsAggregation.getBuckets().get(0).getDocCount(), indices.length);
-        // grouping by id, we are sure that no bucket has more than #indices docs, thus above is enough to check that we have the same docs.
+        // grouping by unique field data, we are sure that no bucket has more than #indices docs, thus above is enough to check that we
+        // have the same docs.
     }
 }

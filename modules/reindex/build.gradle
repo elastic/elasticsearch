@@ -60,8 +60,6 @@ dependencies {
   testCompile project(path: ':modules:transport-netty4', configuration: 'runtime')
   // for parent/child testing
   testCompile project(path: ':modules:parent-join', configuration: 'runtime')
-
-  testCompile project(':modules:lang-painless')
 }
 
 thirdPartyAudit.ignoreMissingClasses (

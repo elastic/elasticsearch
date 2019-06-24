@@ -65,11 +65,11 @@ public class StopDataFrameTransformRequest implements Validatable {
         return timeout;
     }
 
-    public Boolean getAllowNoTransforms() {
+    public Boolean getAllowNoMatch() {
         return allowNoTransforms;
     }
 
-    public void setAllowNoTransforms(Boolean allowNoTransforms) {
+    public void setAllowNoMatch(Boolean allowNoTransforms) {
         this.allowNoTransforms = allowNoTransforms;
     }
 

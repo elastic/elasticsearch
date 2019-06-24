@@ -26,7 +26,7 @@ setup:
       catch: missing
       data_frame.get_data_frame_transform:
         transform_id: "*"
-        allow_no_transforms: false
+        allow_no_match: false
 
 ---
 "Test get transform when it does not exist":

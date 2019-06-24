@@ -30,7 +30,7 @@ import java.util.Optional;
 
 public class GetDataFrameTransformRequest implements Validatable {
 
-    public static final String ALLOW_NO_TRANSFORMS = "allow_no_transforms";
+    public static final String ALLOW_NO_MATCH = "allow_no_match";
     /**
      * Helper method to create a request that will get ALL Data Frame Transforms
      * @return new {@link GetDataFrameTransformRequest} object for the id "_all"
@@ -59,11 +59,11 @@ public class GetDataFrameTransformRequest implements Validatable {
         this.pageParams = pageParams;
     }
 
-    public Boolean getAllowNoTransforms() {
+    public Boolean getAllowNoMatch() {
         return allowNoTransforms;
     }
 
-    public void setAllowNoTransforms(Boolean allowNoTransforms) {
+    public void setAllowNoMatch(Boolean allowNoTransforms) {
         this.allowNoTransforms = allowNoTransforms;
     }
 

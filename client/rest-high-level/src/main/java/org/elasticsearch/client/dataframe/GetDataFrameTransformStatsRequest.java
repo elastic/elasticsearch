@@ -47,11 +47,11 @@ public class GetDataFrameTransformStatsRequest implements Validatable {
         this.pageParams = pageParams;
     }
 
-    public Boolean getAllowNoTransforms() {
+    public Boolean getAllowNoMatch() {
         return allowNoTransforms;
     }
 
-    public void setAllowNoTransforms(Boolean allowNoTransforms) {
+    public void setAllowNoMatch(Boolean allowNoTransforms) {
         this.allowNoTransforms = allowNoTransforms;
     }
 

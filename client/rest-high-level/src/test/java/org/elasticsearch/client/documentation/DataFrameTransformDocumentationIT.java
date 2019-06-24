@@ -261,7 +261,7 @@ public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTest
             // tag::stop-data-frame-transform-request-options
             request.setWaitForCompletion(Boolean.TRUE);  // <1>
             request.setTimeout(TimeValue.timeValueSeconds(30));  // <2>
-            request.setAllowNoTransforms(true); // <3>
+            request.setAllowNoMatch(true); // <3>
             // end::stop-data-frame-transform-request-options
 
             // tag::stop-data-frame-transform-execute
@@ -505,7 +505,7 @@ public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTest
 
         // tag::get-data-frame-transform-stats-request-options
         request.setPageParams(new PageParams(0, 100)); // <1>
-        request.setAllowNoTransforms(true); // <2>
+        request.setAllowNoMatch(true); // <2>
         // end::get-data-frame-transform-stats-request-params
 
         {
@@ -599,7 +599,7 @@ public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTest
 
             // tag::get-data-frame-transform-request-options
             request.setPageParams(new PageParams(0, 100)); // <1>
-            request.setAllowNoTransforms(true); // <2>
+            request.setAllowNoMatch(true); // <2>
             // end::get-data-frame-transform-request-options
 
             // tag::get-data-frame-transform-execute

@@ -37,7 +37,7 @@ import java.io.IOException;
 
 import static org.elasticsearch.client.RequestConverters.REQUEST_BODY_CONTENT_TYPE;
 import static org.elasticsearch.client.RequestConverters.createEntity;
-import static org.elasticsearch.client.dataframe.GetDataFrameTransformRequest.ALLOW_NO_TRANSFORMS;
+import static org.elasticsearch.client.dataframe.GetDataFrameTransformRequest.ALLOW_NO_MATCH;
 
 final class DataFrameRequestConverters {
 
@@ -65,8 +65,8 @@ final class DataFrameRequestConverters {
         if (getRequest.getPageParams() != null && getRequest.getPageParams().getSize() != null) {
             request.addParameter(PageParams.SIZE.getPreferredName(), getRequest.getPageParams().getSize().toString());
         }
-        if (getRequest.getAllowNoTransforms() != null) {
-            request.addParameter(ALLOW_NO_TRANSFORMS, getRequest.getAllowNoTransforms().toString());
+        if (getRequest.getAllowNoMatch() != null) {
+            request.addParameter(ALLOW_NO_MATCH, getRequest.getAllowNoMatch().toString());
         }
         return request;
     }
@@ -108,8 +108,8 @@ final class DataFrameRequestConverters {
         if (stopRequest.getTimeout() != null) {
             params.withTimeout(stopRequest.getTimeout());
         }
-        if (stopRequest.getAllowNoTransforms() != null) {
-            request.addParameter(ALLOW_NO_TRANSFORMS, stopRequest.getAllowNoTransforms().toString());
+        if (stopRequest.getAllowNoMatch() != null) {
+            request.addParameter(ALLOW_NO_MATCH, stopRequest.getAllowNoMatch().toString());
         }
         request.addParameters(params.asMap());
         return request;
@@ -137,8 +137,8 @@ final class DataFrameRequestConverters {
         if (statsRequest.getPageParams() != null && statsRequest.getPageParams().getSize() != null) {
             request.addParameter(PageParams.SIZE.getPreferredName(), statsRequest.getPageParams().getSize().toString());
         }
-        if (statsRequest.getAllowNoTransforms() != null) {
-            request.addParameter(ALLOW_NO_TRANSFORMS, statsRequest.getAllowNoTransforms().toString());
+        if (statsRequest.getAllowNoMatch() != null) {
+            request.addParameter(ALLOW_NO_MATCH, statsRequest.getAllowNoMatch().toString());
         }
         return request;
     }

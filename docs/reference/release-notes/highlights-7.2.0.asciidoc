@@ -68,7 +68,7 @@ This release introduces OpenId Connect as an authentication realm.
 Elasticsearch (with the assistance of Kibana or another web component) can now serve as an
 OpenID Connect Relying Party (RP). {es} supports the Authorization Code Grant and Implicit
 flows as described in http://ela.st/oidc-spec. It also supports consuming and verifying signed ID Tokens
-,RP initiated single sign on (SSO), 3rd party initiated SSO, and RP initiated single logout is supported.
+, RP initiated single sign on (SSO), 3rd party initiated SSO, and RP initiated single logout.
 
 
 // end::notable-highlights[]

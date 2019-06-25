@@ -19,7 +19,6 @@
 
 package org.elasticsearch.rest.action.cat;
 
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
@@ -106,18 +105,20 @@ public class RestIndicesAction extends AbstractCatAction {
             sendGetSettingsRequest(indices, indicesOptions, local, masterNodeTimeout, client, new ActionListener<>() {
                 @Override
                 public void onResponse(final GetSettingsResponse getSettingsResponse) {
-                    final String[] concreteIndices = new String[getSettingsResponse.getIndexToSettings().size()];
-                    int i = 0;
-                    for(ObjectObjectCursor<String, Settings> cursor : getSettingsResponse.getIndexToSettings()) {
-                        concreteIndices[i++] = cursor.key;
-                    }
-
                     final GroupedActionListener<ActionResponse> groupedListener = createGroupedListener(request, 4, listener);
                     groupedListener.onResponse(getSettingsResponse);
 
-                    sendIndicesStatsRequest(concreteIndices, indicesOptions, includeUnloadedSegments, client, groupedListener);
-                    sendClusterStateRequest(concreteIndices, indicesOptions, local, masterNodeTimeout, client, groupedListener);
-                    sendClusterHealthRequest(concreteIndices, indicesOptions, local, masterNodeTimeout, client, groupedListener);
+                    // Indices that were successfully resolved during the get settings request might be deleted when the subsequent cluster
+                    // state, cluster health and indices stats requests execute. We have to distinguish two cases:
+                    // 1) the deleted index was explicitly passed as parameter to the /_cat/indices request. In this case we want the
+                    //    subsequent requests to fail.
+                    // 2) the deleted index was resolved as part of a wildcard or _all. In this case, we want the subsequent requests not to
+                    //    fail on the deleted index (as we want to ignore wildcards that cannot be resolved).
+                    // This behavior can be ensured by letting the cluster state, cluster health and indices stats requests re-resolve the
+                    // index names with the same indices options that we used for the initial cluster state request (strictExpand).
+                    sendIndicesStatsRequest(indices, indicesOptions, includeUnloadedSegments, client, groupedListener);
+                    sendClusterStateRequest(indices, indicesOptions, local, masterNodeTimeout, client, groupedListener);
+                    sendClusterHealthRequest(indices, indicesOptions, local, masterNodeTimeout, client, groupedListener);
                 }
 
                 @Override

@@ -272,12 +272,16 @@ public abstract class InternalSignificantTerms<A extends InternalSignificantTerm
     protected abstract SignificanceHeuristic getSignificanceHeuristic();
 
     @Override
-    protected int doHashCode() {
-        return Objects.hash(minDocCount, requiredSize);
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), minDocCount, requiredSize);
     }
 
     @Override
-    protected boolean doEquals(Object obj) {
+    public boolean equals(Object obj) {
+        if (this == obj) return true;
+        if (obj == null || getClass() != obj.getClass()) return false;
+        if (super.equals(obj) == false) return false;
+
         InternalSignificantTerms<?, ?> that = (InternalSignificantTerms<?, ?>) obj;
         return Objects.equals(minDocCount, that.minDocCount)
                 && Objects.equals(requiredSize, that.requiredSize);

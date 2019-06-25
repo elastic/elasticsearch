@@ -14,8 +14,11 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+
+import java.io.IOException;
 
 public class TransportPostStartBasicAction extends TransportMasterNodeAction<PostStartBasicRequest, PostStartBasicResponse> {
 
@@ -37,7 +40,12 @@ public class TransportPostStartBasicAction extends TransportMasterNodeAction<Pos
 
     @Override
     protected PostStartBasicResponse newResponse() {
-        return new PostStartBasicResponse();
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
+    }
+
+    @Override
+    protected PostStartBasicResponse read(StreamInput in) throws IOException {
+        return new PostStartBasicResponse(in);
     }
 
     @Override

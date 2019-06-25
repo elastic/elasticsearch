@@ -49,14 +49,13 @@ public class TransportDeleteDataFrameTransformAction extends TransportMasterNode
     }
 
     @Override
-    protected AcknowledgedResponse newResponse() {
-        return new AcknowledgedResponse();
+    protected AcknowledgedResponse read(StreamInput in) throws IOException {
+        return new AcknowledgedResponse(in);
     }
 
-    protected AcknowledgedResponse read(StreamInput in) throws IOException {
-        AcknowledgedResponse response = new AcknowledgedResponse();
-        response.readFrom(in);
-        return response;
+    @Override
+    protected AcknowledgedResponse newResponse() {
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override

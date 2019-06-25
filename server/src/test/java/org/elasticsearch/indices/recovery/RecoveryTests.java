@@ -143,6 +143,7 @@ public class RecoveryTests extends ESIndexLevelReplicationTestCase {
             // index #2
             orgReplica.applyIndexOperationOnReplica(2, 1, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false,
                 new SourceToParse(indexName, "type", "id-2", new BytesArray("{}"), XContentType.JSON));
+            orgReplica.sync(); // advance local checkpoint
             orgReplica.updateGlobalCheckpointOnReplica(3L, "test");
             // index #5 -> force NoOp #4.
             orgReplica.applyIndexOperationOnReplica(5, 1, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false,
@@ -207,6 +208,7 @@ public class RecoveryTests extends ESIndexLevelReplicationTestCase {
             // index #2
             orgReplica.applyIndexOperationOnReplica(2, 1, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false,
                 new SourceToParse(indexName, "type", "id-2", new BytesArray("{}"), XContentType.JSON));
+            orgReplica.sync(); // advance local checkpoint
             orgReplica.updateGlobalCheckpointOnReplica(3L, "test");
             // index #5 -> force NoOp #4.
             orgReplica.applyIndexOperationOnReplica(5, 1, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false,
@@ -330,11 +332,11 @@ public class RecoveryTests extends ESIndexLevelReplicationTestCase {
             @Override
             public void prepareForTranslogOperations(boolean fileBasedRecovery, int totalTranslogOps, ActionListener<Void> listener) {
                 super.prepareForTranslogOperations(fileBasedRecovery, totalTranslogOps, listener);
-                assertThat(replicaShard.getGlobalCheckpoint(), equalTo(primaryShard.getGlobalCheckpoint()));
+                assertThat(replicaShard.getLastKnownGlobalCheckpoint(), equalTo(primaryShard.getLastKnownGlobalCheckpoint()));
             }
             @Override
             public void cleanFiles(int totalTranslogOps, long globalCheckpoint, Store.MetadataSnapshot sourceMetaData) throws IOException {
-                assertThat(globalCheckpoint, equalTo(primaryShard.getGlobalCheckpoint()));
+                assertThat(globalCheckpoint, equalTo(primaryShard.getLastKnownGlobalCheckpoint()));
                 super.cleanFiles(totalTranslogOps, globalCheckpoint, sourceMetaData);
             }
         }, true, true);

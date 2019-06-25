@@ -25,11 +25,12 @@ the transforms.
 ==== Closed indices are now replicated
 
 Elasticsearch 7.2.0 brings better support for closed indices by allowing
-shards of closed indices to be replicated. As soon as an index is closed,
-Elasticsearch takes care of safely tearing down the "opened" shards before
-reinitializing them as "closed" shards, which require much less resources
-while still providing the ability for shards to be promoted as primaries or
-to be recovered from peer. The data is also automatically replicated by the
+shards of closed indices to be replicated.
+As soon as an index is closed, Elasticsearch takes care of safely tearing down
+the "opened" shards before reinitializing them as "closed" shards, which require
+fewer resources. Closed shards can later be promoted to primary shards or
+automatically recovered during {ref}/recovery.html[peer recovery]
+The data is also automatically replicated by the
 cluster to ensure that enough shard copies are safely kept around at all
 times (configurable with `index.number_of_replicas`).
 
@@ -96,6 +97,5 @@ The `distance_feature` query is a specialized query that only works on `date`, `
 fields. The query boosts documents scores based on proximity to some given origin.
 For example, you can use this query to give higher scores to documents with dates
 closer to a certain date or locations closer to a certain location.
-closer to a certain date, or to documents with locations closer to a certain location.
 
 // end::notable-highlights[]

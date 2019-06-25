@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.ml.dataframe.process;
 
 import org.elasticsearch.xpack.ml.process.AbstractNativeProcess;
+import org.elasticsearch.xpack.ml.process.NativeController;
 import org.elasticsearch.xpack.ml.process.ProcessResultsParser;
 
 import java.io.IOException;
@@ -22,10 +23,11 @@ public class NativeAnalyticsProcess extends AbstractNativeProcess implements Ana
 
     private final ProcessResultsParser<AnalyticsResult> resultsParser = new ProcessResultsParser<>(AnalyticsResult.PARSER);
 
-    protected NativeAnalyticsProcess(String jobId, InputStream logStream, OutputStream processInStream, InputStream processOutStream,
-                                     OutputStream processRestoreStream, int numberOfFields, List<Path> filesToDelete,
-                                     Consumer<String> onProcessCrash) {
-        super(jobId, logStream, processInStream, processOutStream, processRestoreStream, numberOfFields, filesToDelete, onProcessCrash);
+    protected NativeAnalyticsProcess(String jobId, NativeController nativeController, InputStream logStream, OutputStream processInStream,
+                                     InputStream processOutStream, OutputStream processRestoreStream, int numberOfFields,
+                                     List<Path> filesToDelete, Consumer<String> onProcessCrash) {
+        super(jobId, nativeController, logStream, processInStream, processOutStream, processRestoreStream, numberOfFields, filesToDelete,
+            onProcessCrash);
     }
 
     @Override

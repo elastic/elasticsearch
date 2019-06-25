@@ -64,7 +64,7 @@ public class SnapshotRetentionServiceTests extends ESTestCase {
     }
 
     private static class FakeRetentionTask extends SnapshotRetentionTask {
-        public FakeRetentionTask() {
+        FakeRetentionTask() {
             super(null, null);
         }
 

@@ -13,9 +13,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformConfig;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformConfigTests;
-import org.elasticsearch.xpack.core.watcher.watch.ClockMock;
 import org.mockito.ArgumentCaptor;
 
 import java.io.IOException;
@@ -37,13 +35,11 @@ import static org.mockito.Mockito.verifyNoMoreInteractions;
 public class DataframeIndexTests extends ESTestCase {
 
     private static final String TRANSFORM_ID = "some-random-transform-id";
-    private static final DataFrameTransformConfig TRANSFORM_CONFIG =
-        DataFrameTransformConfigTests.randomDataFrameTransformConfig(TRANSFORM_ID);
     private static final int CURRENT_TIME_MILLIS = 123456789;
     private static final String CREATED_BY = "data-frame-transform";
 
     private Client client = mock(Client.class);
-    private Clock clock = ClockMock.fixed(Instant.ofEpochMilli(CURRENT_TIME_MILLIS), ZoneId.systemDefault());
+    private Clock clock = Clock.fixed(Instant.ofEpochMilli(CURRENT_TIME_MILLIS), ZoneId.systemDefault());
 
     public void testCreateDestinationIndex() throws IOException {
         doAnswer(
@@ -58,7 +54,7 @@ public class DataframeIndexTests extends ESTestCase {
         DataframeIndex.createDestinationIndex(
             client,
             clock,
-            TRANSFORM_CONFIG,
+            DataFrameTransformConfigTests.randomDataFrameTransformConfig(TRANSFORM_ID),
             new HashMap<>(),
             ActionListener.wrap(
                 value -> assertTrue(value),

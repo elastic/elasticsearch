@@ -27,7 +27,6 @@ import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsDest;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsSource;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.OutlierDetection;
-import org.elasticsearch.xpack.core.watcher.watch.ClockMock;
 import org.mockito.ArgumentCaptor;
 
 import java.io.IOException;
@@ -66,7 +65,7 @@ public class DataFrameAnalyticsIndexTests extends ESTestCase {
 
     private ThreadPool threadPool = mock(ThreadPool.class);
     private Client client = mock(Client.class);
-    private Clock clock = ClockMock.fixed(Instant.ofEpochMilli(123456789L), ZoneId.systemDefault());
+    private Clock clock = Clock.fixed(Instant.ofEpochMilli(123456789L), ZoneId.systemDefault());
 
     public void testCreateDestinationIndex() throws IOException {
         when(client.threadPool()).thenReturn(threadPool);

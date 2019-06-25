@@ -45,13 +45,9 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 public class TestClustersPlugin implements Plugin<Project> {
@@ -60,18 +56,14 @@ public class TestClustersPlugin implements Plugin<Project> {
     public static final String EXTENSION_NAME = "testClusters";
     private static final String HELPER_CONFIGURATION_PREFIX = "testclusters";
     private static final String SYNC_ARTIFACTS_TASK_NAME = "syncTestClustersArtifacts";
-    private static final int EXECUTOR_SHUTDOWN_TIMEOUT = 1;
-    private static final TimeUnit EXECUTOR_SHUTDOWN_TIMEOUT_UNIT = TimeUnit.MINUTES;
 
     private static final Logger logger =  Logging.getLogger(TestClustersPlugin.class);
     private static final String TESTCLUSTERS_INSPECT_FAILURE = "testclusters.inspect.failure";
 
     private final Map<Task, List<ElasticsearchCluster>> usedClusters = new HashMap<>();
     private final Map<ElasticsearchCluster, Integer> claimsInventory = new HashMap<>();
-    private final Set<ElasticsearchCluster> runningClusters =new HashSet<>();
-    private final Thread shutdownHook = new Thread(this::shutDownAllClusters);
+    private final Set<ElasticsearchCluster> runningClusters = new HashSet<>();
     private final Boolean allowClusterToSurvive = Boolean.valueOf(System.getProperty(TESTCLUSTERS_INSPECT_FAILURE, "false"));
-    private ExecutorService executorService = Executors.newSingleThreadExecutor();
 
     public static String getHelperConfigurationName(String version) {
         return HELPER_CONFIGURATION_PREFIX + "-" + version;
@@ -101,9 +93,6 @@ public class TestClustersPlugin implements Plugin<Project> {
 
         // After each task we determine if there are clusters that are no longer needed.
         configureStopClustersHook(project);
-
-        // configure hooks to make sure no test cluster processes survive the build
-        configureCleanupHooks(project);
 
         // Since we have everything modeled in the DSL, add all the required dependencies e.x. the distribution to the
         // configuration so the user doesn't have to repeat this.
@@ -198,37 +187,43 @@ public class TestClustersPlugin implements Plugin<Project> {
                 @Override
                 public void beforeActions(Task task) {
                     // we only start the cluster before the actions, so we'll not start it if the task is up-to-date
-                    List<ElasticsearchCluster> clustersUsedByTasks = usedClusters.getOrDefault(task, Collections.emptyList())
+                    List<ElasticsearchCluster> neededButNotRunning = usedClusters.getOrDefault(
+                        task,
+                        Collections.emptyList()
+                    )
                         .stream()
                         .filter(cluster -> runningClusters.contains(cluster) == false)
                         .collect(Collectors.toList());
 
-                    if (clustersUsedByTasks.isEmpty() == false) {
-                        int totalNodesForTask = clustersUsedByTasks.stream()
+                    if (neededButNotRunning.isEmpty() == false) {
+                        int totalNodesForTask = neededButNotRunning.stream()
                             .map(cluster -> cluster.getNumberOfNodes())
                             .reduce(Integer::sum).get();
-                        if (totalNodesForTask > GlobalSemaphoreHolderExtension.maxPermits()) {
+                        if (totalNodesForTask > RateLimitInternalExtension.maxPermits()) {
                             throw new TestClustersException("Clusters " + task + " are too large, requires " + totalNodesForTask +
-                                " nodes, but this system only supports " + GlobalSemaphoreHolderExtension.maxPermits()
+                                " nodes, but this system only supports " + RateLimitInternalExtension.maxPermits()
                             );
                         }
                         // It seems that Gradle runs `beforeActions` and `afterExecute` in the same single worker so
                         // blocking here would mean that all of these hooks are blocked and the permits are never
-                        // released. We add this to a task action instead because task actions have their own workers
-                        // Since we do it this late, our doFirst will come before any in the build script so tasks will
-                        // still be able to rely on the cluster being started when _their_ doFirst executes.
-                        task.doFirst(action -> {
+                        // released.
+                        // To prevent deadlocking, we have to use to make use if a thread that blocks when no permits are
+                        // available.
+                        // The task will eventually block when waiting for the cluster. We don't count that towards the
+                        // timeout.
+                        RateLimitInternalExtension.executorService(project).submit( () -> {
                             logger.info(
                                 "Will acquire {} permits for {} on {}",
                                 totalNodesForTask, task, Thread.currentThread().getName()
                             );
                             Instant startedAt = Instant.now();
-                            GlobalSemaphoreHolderExtension.get(project).acquireUninterruptibly(totalNodesForTask);
+                            RateLimitInternalExtension.semaphore(project).acquireUninterruptibly(totalNodesForTask);
                             logger.info(
                                 "Acquired {} permits for {} took {} seconds",
                                 totalNodesForTask, task, Duration.between(startedAt, Instant.now())
                             );
-                            clustersUsedByTasks
+                            RateLimitInternalExtension.cleanupThread(project).watch(neededButNotRunning);
+                            neededButNotRunning
                                 .forEach(elasticsearchCluster -> {
                                     elasticsearchCluster.start();
                                     runningClusters.add(elasticsearchCluster);
@@ -260,7 +255,7 @@ public class TestClustersPlugin implements Plugin<Project> {
                     final int permitsToRelease;
                     if (state.getFailure() != null) {
                         // If the task fails, and other tasks use this cluster, the other task will likely never be
-                        // executed at all, so we will never get to un-claim and terminate it.
+                        // executed at all, so we will never getSemapthore to un-claim and terminate it.
                         clustersUsedByTask.forEach(cluster -> stopCluster(cluster, true));
                         permitsToRelease = clustersUsedByTask.stream()
                             .map(cluster -> cluster.getNumberOfNodes())
@@ -278,13 +273,14 @@ public class TestClustersPlugin implements Plugin<Project> {
                             stopCluster(cluster, false);
                             runningClusters.remove(cluster);
                         });
+                        RateLimitInternalExtension.cleanupThread(project).unWatch(stoppingClusers);
                         permitsToRelease = stoppingClusers.stream()
                             .map(cluster -> cluster.getNumberOfNodes())
                             .reduce(Integer::sum).orElse(0);
                     }
 
                     logger.info("Will release {} permits for {}", permitsToRelease, task);
-                    GlobalSemaphoreHolderExtension.get(project).release(permitsToRelease);
+                    RateLimitInternalExtension.semaphore(project).release(permitsToRelease);
                 }
                 @Override
                 public void beforeExecute(Task task) {}
@@ -315,7 +311,7 @@ public class TestClustersPlugin implements Plugin<Project> {
     }
 
     /**
-     * Boilerplate to get testClusters container extension
+     * Boilerplate to getSemapthore testClusters container extension
      *
      * Equivalent to project.testClusters in the DSL
      */
@@ -452,64 +448,6 @@ public class TestClustersPlugin implements Plugin<Project> {
 
                 }
             })));
-    }
-
-    private void configureCleanupHooks(Project project) {
-        // When the Gradle daemon is used, it will interrupt all threads when the build concludes.
-        // This is our signal to clean up
-        executorService.submit(() -> {
-            while (true) {
-                try {
-                    Thread.sleep(Long.MAX_VALUE);
-                } catch (InterruptedException interrupted) {
-                    shutDownAllClusters();
-                    Thread.currentThread().interrupt();
-                    return;
-                }
-            }
-        });
-
-        // When the Daemon is not used, or runs into issues, rely on a shutdown hook
-        // When the daemon is used, but does not work correctly and eventually dies off (e.x. due to non interruptible
-        // thread in the build) process will be stopped eventually when the daemon dies.
-        Runtime.getRuntime().addShutdownHook(shutdownHook);
-
-        // When we don't run into anything out of the ordinary, and the build completes, makes sure to clean up
-        project.getGradle().buildFinished(buildResult -> {
-            shutdownExecutorService();
-            if (false == Runtime.getRuntime().removeShutdownHook(shutdownHook)) {
-                logger.info("Trying to deregister shutdown hook when it was not registered.");
-            }
-        });
-    }
-
-    private void shutdownExecutorService() {
-        executorService.shutdownNow();
-        try {
-            if (executorService.awaitTermination(EXECUTOR_SHUTDOWN_TIMEOUT, EXECUTOR_SHUTDOWN_TIMEOUT_UNIT) == false) {
-                throw new IllegalStateException(
-                    "Failed to shut down executor service after " +
-                    EXECUTOR_SHUTDOWN_TIMEOUT + " " + EXECUTOR_SHUTDOWN_TIMEOUT_UNIT
-                );
-            }
-        } catch (InterruptedException e) {
-            logger.info("Wait for testclusters shutdown interrupted", e);
-            Thread.currentThread().interrupt();
-        }
-    }
-
-    private void shutDownAllClusters() {
-        synchronized (runningClusters) {
-            if (runningClusters.isEmpty()) {
-                return;
-            }
-            Iterator<ElasticsearchCluster> iterator = runningClusters.iterator();
-            while (iterator.hasNext()) {
-                ElasticsearchCluster next = iterator.next();
-                iterator.remove();
-                next.stop(false);
-            }
-        }
     }
 
 }

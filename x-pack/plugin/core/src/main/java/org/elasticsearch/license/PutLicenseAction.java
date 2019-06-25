@@ -6,6 +6,7 @@
 package org.elasticsearch.license;
 
 import org.elasticsearch.action.Action;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.protocol.xpack.license.PutLicenseResponse;
 
 public class PutLicenseAction extends Action<PutLicenseResponse> {
@@ -19,6 +20,11 @@ public class PutLicenseAction extends Action<PutLicenseResponse> {
 
     @Override
     public PutLicenseResponse newResponse() {
-        return new PutLicenseResponse();
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
+    }
+
+    @Override
+    public Writeable.Reader<PutLicenseResponse> getResponseReader() {
+        return PutLicenseResponse::new;
     }
 }

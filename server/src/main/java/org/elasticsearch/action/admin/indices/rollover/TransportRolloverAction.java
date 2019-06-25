@@ -46,11 +46,13 @@ import org.elasticsearch.cluster.metadata.MetaDataIndexTemplateService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.shard.DocsStats;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
@@ -91,7 +93,12 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
 
     @Override
     protected RolloverResponse newResponse() {
-        return new RolloverResponse();
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
+    }
+
+    @Override
+    protected RolloverResponse read(StreamInput in) throws IOException {
+        return new RolloverResponse(in);
     }
 
     @Override

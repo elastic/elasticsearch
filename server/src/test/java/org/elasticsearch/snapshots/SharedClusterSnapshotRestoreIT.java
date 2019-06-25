@@ -842,8 +842,9 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/43498")
     public void testDataFileFailureDuringSnapshot() throws Exception {
+        disableRepoConsistencyCheck("This test intentionally leaves a broken repository");
+
         Client client = client();
         logger.info("-->  creating repository");
         assertAcked(client.admin().cluster().preparePutRepository("test-repo")
@@ -1325,6 +1326,18 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         logger.info("--> make sure that number of files is back to what it was when the first snapshot was made, " +
                     "plus two because one backup index-N file should remain and incompatible-snapshots");
         assertThat(numberOfFiles(repo), equalTo(numberOfFiles[0] + 2));
+    }
+
+    public void testGetSnapshotsNoRepos() {
+        ensureGreen();
+        GetSnapshotsResponse getSnapshotsResponse = client().admin().cluster()
+                .prepareGetSnapshots(new String[]{"_all"})
+                .setSnapshots(randomFrom("_all", "*"))
+                .get();
+
+        assertTrue(getSnapshotsResponse.getRepositories().isEmpty());
+        assertTrue(getSnapshotsResponse.getFailedResponses().isEmpty());
+        assertTrue(getSnapshotsResponse.getSuccessfulResponses().isEmpty());
     }
 
     public void testGetSnapshotsMultipleRepos() {

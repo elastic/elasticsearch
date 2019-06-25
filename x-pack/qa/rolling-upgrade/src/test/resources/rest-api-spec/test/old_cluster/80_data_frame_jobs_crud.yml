@@ -1,5 +1,5 @@
 ---
-"Test put data frame transforms on old cluster":
+"Test put batch data frame transforms on old cluster":
   - do:
       indices.create:
         index: old-dataframe-transform-airline-data
@@ -14,6 +14,11 @@
                 type: float
               event_rate:
                 type: integer
+  - do:
+      cluster.health:
+        index: "old-dataframe-transform-airline-data"
+        wait_for_status: green
+
   - do:
       ingest.put_pipeline:
         id: "data_frame_simple_pipeline"
@@ -138,3 +143,57 @@
       cluster.health:
         index: ".data-frame-internal-1"
         wait_for_status: green
+
+---
+"Test put continuous data frame transform on old cluster":
+  - do:
+      indices.create:
+        index: old-dataframe-transform-airline-data-cont
+        body:
+          mappings:
+            properties:
+              time:
+                type: date
+              airline:
+                type: keyword
+              responsetime:
+                type: float
+              event_rate:
+                type: integer
+  - do:
+      cluster.health:
+        index: "old-dataframe-transform-airline-data-cont"
+        wait_for_status: green
+
+  - do:
+      data_frame.put_data_frame_transform:
+        transform_id: "old-simple-continuous-transform"
+        body: >
+          {
+            "source": { "index": "old-dataframe-transform-airline-data-cont" },
+            "dest": { "index": "old-simple-continuous-transform-idx" },
+            "pivot": {
+              "group_by": { "airline": {"terms": {"field": "airline"}}},
+              "aggs": {"avg_response": {"avg": {"field": "responsetime"}}}
+            }
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      data_frame.get_data_frame_transform:
+        transform_id: "old-simple-continuous-transform"
+  - match: { count: 1 }
+  - match: { transforms.0.id: "old-simple-continuous-transform" }
+  - is_true: transforms.0.version
+  - is_true: transforms.0.create_time
+
+  - do:
+      data_frame.start_data_frame_transform:
+        transform_id: "old-simple-continuous-transform"
+  - match: { acknowledged: true }
+  - do:
+      data_frame.get_data_frame_transform_stats:
+        transform_id: "old-simple-continuous-transform"
+  - match: { count: 1 }
+  - match: { transforms.0.id: "old-simple-continuous-transform" }
+  - match: { transforms.0.state.task_state: "/started/" }

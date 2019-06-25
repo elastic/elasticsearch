@@ -1,5 +1,5 @@
 ---
-"Test put mixed cluser data frame transform":
+"Test put batch data frame transforms on mixed cluster":
   - do:
       indices.create:
         index: mixed-dataframe-transform-airline-data
@@ -14,6 +14,10 @@
                 type: float
               event_rate:
                 type: integer
+  - do:
+      cluster.health:
+        index: "mixed-dataframe-transform-airline-data"
+        wait_for_status: green
   - do:
       data_frame.put_data_frame_transform:
         transform_id: "mixed-simple-transform"
@@ -119,7 +123,12 @@
         index: ".data-frame-internal-1"
         wait_for_status: green
 ---
-"Test GET, start, and stop old cluster transforms":
+"Test GET, start, and stop old cluster batch transforms":
+  - do:
+      cluster.health:
+        index: "old-dataframe-transform-airline-data"
+        wait_for_status: green
+
   - do:
       data_frame.get_data_frame_transform:
         transform_id: "old-simple-transform"

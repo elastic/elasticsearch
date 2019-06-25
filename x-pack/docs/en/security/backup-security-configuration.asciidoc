@@ -140,7 +140,8 @@ POST /_security/user/snapshot_user
 . Create a snapshot.
 +
 --
-The following example exemplifies the create snapshot operation, inside the
+The following example shows how to use the create snapshot API to backup
+the security index to the `my_backup` repository.
 `my_backup` repository:
 
 [source,js]

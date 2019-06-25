@@ -9,6 +9,51 @@ indices using the <<modules-snapshots,snapshots>> every day at a particular
 time.
 
 [float]
+[[slm-and-security]]
+=== Security and SLM
+Before starting, it's important to understand the privileges that are needed
+when configuring SLM if you are using the security plugin. There are two
+built-in cluster privileges that can be used to assist: `manage_slm` and
+`read_slm`.
+
+An example of configuring an administrator role for SLM follows:
+
+[source,js]
+-----------------------------------
+POST /_security/role/slm-admin
+{
+  "cluster": ["manage_slm", "create_snapshot"],
+  "indices": [
+    {
+      "names": [".slm-history-*"],
+      "privileges": ["all"]
+    }
+  ]
+}
+-----------------------------------
+// CONSOLE
+// TEST[skip:security is not enabled here]
+
+Or, for a read-only role that can retrieve policies (but not update, execute, or
+delete them), as well as only view the history index:
+
+[source,js]
+-----------------------------------
+POST /_security/role/slm-read-only
+{
+  "cluster": ["read_slm"],
+  "indices": [
+    {
+      "names": [".slm-history-*"],
+      "privileges": ["read"]
+    }
+  ]
+}
+-----------------------------------
+// CONSOLE
+// TEST[skip:security is not enabled here]
+
+[float]
 [[slm-gs-create-policy]]
 === Setting up a repository
 

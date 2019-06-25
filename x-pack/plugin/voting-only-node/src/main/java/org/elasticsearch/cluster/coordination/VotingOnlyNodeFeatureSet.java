@@ -18,6 +18,8 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackFeatureSet;
 import org.elasticsearch.xpack.core.XPackField;
+import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
+import org.elasticsearch.xpack.core.action.XPackInfoFeatureTransportAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureResponse;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureTransportAction;
@@ -55,7 +57,7 @@ public class VotingOnlyNodeFeatureSet implements XPackFeatureSet {
         public UsageTransportAction(TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
                                     ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
                                     XPackLicenseState licenseState) {
-            super(XPackUsageFeatureAction.VOTING_ONLY_NODE.name(), transportService, clusterService,
+            super(XPackUsageFeatureAction.VOTING_ONLY.name(), transportService, clusterService,
                 threadPool, actionFilters, indexNameExpressionResolver);
             this.licenseState = licenseState;
         }
@@ -66,6 +68,33 @@ public class VotingOnlyNodeFeatureSet implements XPackFeatureSet {
             final VotingOnlyNodeFeatureSetUsage usage =
                 new VotingOnlyNodeFeatureSetUsage(available);
             listener.onResponse(new XPackUsageFeatureResponse(usage));
+        }
+    }
+
+    public static class UsageInfoAction extends XPackInfoFeatureTransportAction {
+
+        private final XPackLicenseState licenseState;
+
+        @Inject
+        public UsageInfoAction(TransportService transportService, ActionFilters actionFilters,
+                               XPackLicenseState licenseState) {
+            super(XPackInfoFeatureAction.VOTING_ONLY.name(), transportService, actionFilters);
+            this.licenseState = licenseState;
+        }
+
+        @Override
+        protected String name() {
+            return XPackField.VOTING_ONLY;
+        }
+
+        @Override
+        protected boolean available() {
+            return licenseState.isVotingOnlyAllowed();
+        }
+
+        @Override
+        protected boolean enabled() {
+            return true;
         }
     }
 }

@@ -210,9 +210,11 @@ import org.elasticsearch.xpack.ml.job.process.normalizer.NativeNormalizerProcess
 import org.elasticsearch.xpack.ml.job.process.normalizer.NormalizerFactory;
 import org.elasticsearch.xpack.ml.job.process.normalizer.NormalizerProcessFactory;
 import org.elasticsearch.xpack.ml.notifications.Auditor;
+import org.elasticsearch.xpack.ml.process.DummyController;
+import org.elasticsearch.xpack.ml.process.MlController;
+import org.elasticsearch.xpack.ml.process.MlControllerHolder;
 import org.elasticsearch.xpack.ml.process.MlMemoryTracker;
 import org.elasticsearch.xpack.ml.process.NativeController;
-import org.elasticsearch.xpack.ml.process.NativeControllerHolder;
 import org.elasticsearch.xpack.ml.process.NativeStorageProvider;
 import org.elasticsearch.xpack.ml.rest.RestDeleteExpiredDataAction;
 import org.elasticsearch.xpack.ml.rest.RestFindFileStructureAction;
@@ -326,6 +328,10 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
     public static final Setting<Integer> MAX_OPEN_JOBS_PER_NODE =
             Setting.intSetting("xpack.ml.max_open_jobs", 20, 1, MAX_MAX_OPEN_JOBS_PER_NODE, Property.Dynamic, Property.NodeScope);
 
+    public static final Setting<TimeValue> PROCESS_CONNECT_TIMEOUT =
+        Setting.timeSetting("xpack.ml.process_connect_timeout", TimeValue.timeValueSeconds(10),
+            TimeValue.timeValueSeconds(5), Setting.Property.Dynamic, Setting.Property.NodeScope);
+
     // Undocumented setting for integration test purposes
     public static final Setting<ByteSizeValue> MIN_DISK_SPACE_OFF_HEAP =
         Setting.byteSizeSetting("xpack.ml.min_disk_space_off_heap", new ByteSizeValue(5, ByteSizeUnit.GB), Setting.Property.NodeScope);
@@ -361,6 +367,7 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
     public List<Setting<?>> getSettings() {
         return List.of(
                 MachineLearningField.AUTODETECT_PROCESS,
+                PROCESS_CONNECT_TIMEOUT,
                 ML_ENABLED,
                 CONCURRENT_JOB_ALLOCATIONS,
                 MachineLearningField.MAX_MODEL_MEMORY_LIMIT,
@@ -462,24 +469,22 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
 
         NativeStorageProvider nativeStorageProvider = new NativeStorageProvider(environment, MIN_DISK_SPACE_OFF_HEAP.get(settings));
 
+        MlController mlController;
         AutodetectProcessFactory autodetectProcessFactory;
         NormalizerProcessFactory normalizerProcessFactory;
         AnalyticsProcessFactory analyticsProcessFactory;
-        if (MachineLearningField.AUTODETECT_PROCESS.get(settings) && MachineLearningInfoTransportAction.isRunningOnMlPlatform(true)) {
+        if (MachineLearningField.AUTODETECT_PROCESS.get(settings)) {
             try {
-                NativeController nativeController = NativeControllerHolder.getNativeController(clusterService.getNodeName(), environment);
-                if (nativeController == null) {
-                    // This will only only happen when path.home is not set, which is disallowed in production
-                    throw new ElasticsearchException("Failed to create native process controller for Machine Learning");
-                }
+                NativeController nativeController = NativeController.makeNativeController(clusterService.getNodeName(), environment);
                 autodetectProcessFactory = new NativeAutodetectProcessFactory(
                     environment,
                     settings,
                     nativeController,
                     client,
                     clusterService);
-                normalizerProcessFactory = new NativeNormalizerProcessFactory(environment, nativeController);
-                analyticsProcessFactory = new NativeAnalyticsProcessFactory(environment, nativeController);
+                normalizerProcessFactory = new NativeNormalizerProcessFactory(environment, nativeController, clusterService);
+                analyticsProcessFactory = new NativeAnalyticsProcessFactory(environment, nativeController, clusterService);
+                mlController = nativeController;
             } catch (IOException e) {
                 // The low level cause of failure from the named pipe helper's perspective is almost never the real root cause, so
                 // only log this at the lowest level of detail.  It's almost always "file not found" on a named pipe we expect to be
@@ -491,6 +496,7 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
                     + XPackSettings.MACHINE_LEARNING_ENABLED.getKey() + ": false].");
             }
         } else {
+            mlController = new DummyController();
             autodetectProcessFactory = (job, autodetectParams, executorService, onProcessCrash) ->
                     new BlackHoleAutodetectProcess(job.getId());
             // factor of 1.0 makes renormalization a no-op
@@ -521,7 +527,7 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
         MlMemoryTracker memoryTracker = new MlMemoryTracker(settings, clusterService, threadPool, jobManager, jobResultsProvider,
             dataFrameAnalyticsConfigProvider);
         this.memoryTracker.set(memoryTracker);
-        MlLifeCycleService mlLifeCycleService = new MlLifeCycleService(environment, clusterService, datafeedManager,
+        MlLifeCycleService mlLifeCycleService = new MlLifeCycleService(clusterService, datafeedManager, mlController,
             autodetectProcessManager, memoryTracker);
 
         // this object registers as a license state listener, and is never removed, so there's no need to retain another reference to it
@@ -534,6 +540,7 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
 
         return Arrays.asList(
                 mlLifeCycleService,
+                new MlControllerHolder(mlController),
                 jobResultsProvider,
                 jobConfigProvider,
                 datafeedConfigProvider,

@@ -90,11 +90,10 @@ public class CloseIndexResponseTests extends ESTestCase {
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             response.writeTo(out);
 
-            final CloseIndexResponse deserializedResponse = new CloseIndexResponse();
             try (StreamInput in = out.bytes().streamInput()) {
-                deserializedResponse.readFrom(in);
+                final CloseIndexResponse deserializedResponse = new CloseIndexResponse(in);
+                assertCloseIndexResponse(deserializedResponse, response);
             }
-            assertCloseIndexResponse(deserializedResponse, response);
         }
     }
 
@@ -105,12 +104,11 @@ public class CloseIndexResponseTests extends ESTestCase {
                 out.setVersion(randomVersionBetween(random(), Version.V_7_0_0, getPreviousVersion(Version.V_7_2_0)));
                 response.writeTo(out);
 
-                final AcknowledgedResponse deserializedResponse = new AcknowledgedResponse();
                 try (StreamInput in = out.bytes().streamInput()) {
                     in.setVersion(out.getVersion());
-                    deserializedResponse.readFrom(in);
+                    final AcknowledgedResponse deserializedResponse = new AcknowledgedResponse(in);
+                    assertThat(deserializedResponse.isAcknowledged(), equalTo(response.isAcknowledged()));
                 }
-                assertThat(deserializedResponse.isAcknowledged(), equalTo(response.isAcknowledged()));
             }
         }
         {
@@ -118,12 +116,11 @@ public class CloseIndexResponseTests extends ESTestCase {
             try (BytesStreamOutput out = new BytesStreamOutput()) {
                 response.writeTo(out);
 
-                final CloseIndexResponse deserializedResponse = new CloseIndexResponse();
                 try (StreamInput in = out.bytes().streamInput()) {
                     in.setVersion(randomVersionBetween(random(), Version.V_7_0_0, getPreviousVersion(Version.V_7_2_0)));
-                    deserializedResponse.readFrom(in);
+                    final CloseIndexResponse deserializedResponse = new CloseIndexResponse(in);
+                    assertThat(deserializedResponse.isAcknowledged(), equalTo(response.isAcknowledged()));
                 }
-                assertThat(deserializedResponse.isAcknowledged(), equalTo(response.isAcknowledged()));
             }
         }
         {
@@ -132,17 +129,16 @@ public class CloseIndexResponseTests extends ESTestCase {
                 Version version = randomVersionBetween(random(), Version.V_7_2_0, Version.CURRENT);
                 out.setVersion(version);
                 response.writeTo(out);
-                final CloseIndexResponse deserializedResponse = new CloseIndexResponse();
                 try (StreamInput in = out.bytes().streamInput()) {
                     in.setVersion(version);
-                    deserializedResponse.readFrom(in);
-                }
-                assertThat(deserializedResponse.isAcknowledged(), equalTo(response.isAcknowledged()));
-                assertThat(deserializedResponse.isShardsAcknowledged(), equalTo(response.isShardsAcknowledged()));
-                if (version.onOrAfter(Version.V_7_3_0)) {
-                    assertThat(deserializedResponse.getIndices(), hasSize(response.getIndices().size()));
-                } else {
-                    assertThat(deserializedResponse.getIndices(), empty());
+                    final CloseIndexResponse deserializedResponse = new CloseIndexResponse(in);
+                    assertThat(deserializedResponse.isAcknowledged(), equalTo(response.isAcknowledged()));
+                    assertThat(deserializedResponse.isShardsAcknowledged(), equalTo(response.isShardsAcknowledged()));
+                    if (version.onOrAfter(Version.V_7_3_0)) {
+                        assertThat(deserializedResponse.getIndices(), hasSize(response.getIndices().size()));
+                    } else {
+                        assertThat(deserializedResponse.getIndices(), empty());
+                    }
                 }
             }
         }

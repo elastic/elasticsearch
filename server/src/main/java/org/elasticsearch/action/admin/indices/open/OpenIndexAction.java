@@ -20,6 +20,7 @@
 package org.elasticsearch.action.admin.indices.open;
 
 import org.elasticsearch.action.Action;
+import org.elasticsearch.common.io.stream.Writeable;
 
 public class OpenIndexAction extends Action<OpenIndexResponse> {
 
@@ -32,6 +33,11 @@ public class OpenIndexAction extends Action<OpenIndexResponse> {
 
     @Override
     public OpenIndexResponse newResponse() {
-        return new OpenIndexResponse();
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
+    }
+
+    @Override
+    public Writeable.Reader<OpenIndexResponse> getResponseReader() {
+        return OpenIndexResponse::new;
     }
 }

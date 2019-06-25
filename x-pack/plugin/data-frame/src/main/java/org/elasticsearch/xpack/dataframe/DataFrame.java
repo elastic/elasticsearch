@@ -16,7 +16,6 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
@@ -40,6 +39,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 import org.elasticsearch.xpack.core.dataframe.action.DeleteDataFrameTransformAction;
 import org.elasticsearch.xpack.core.dataframe.action.GetDataFrameTransformsAction;
@@ -73,7 +73,6 @@ import org.elasticsearch.xpack.dataframe.transforms.DataFrameTransformPersistent
 
 import java.io.IOException;
 import java.time.Clock;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -83,7 +82,6 @@ import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 
 import static java.util.Collections.emptyList;
-import static java.util.Collections.singletonList;
 
 public class DataFrame extends Plugin implements ActionPlugin, PersistentTaskPlugin {
 
@@ -102,13 +100,6 @@ public class DataFrame extends Plugin implements ActionPlugin, PersistentTaskPlu
     public DataFrame(Settings settings) {
         this.settings = settings;
         this.enabled = XPackSettings.DATA_FRAME_ENABLED.get(settings);
-    }
-
-    @Override
-    public Collection<Module> createGuiceModules() {
-        List<Module> modules = new ArrayList<>();
-        modules.add(b -> XPackPlugin.bindFeatureSet(b, DataFrameFeatureSet.class));
-        return modules;
     }
 
     protected XPackLicenseState getLicenseState() { return XPackPlugin.getSharedLicenseState(); }
@@ -135,9 +126,10 @@ public class DataFrame extends Plugin implements ActionPlugin, PersistentTaskPlu
 
     @Override
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
-        var usageAction = new ActionHandler<>(XPackUsageFeatureAction.DATA_FRAME, DataFrameFeatureSet.UsageTransportAction.class);
-        if (!enabled) {
-            return singletonList(usageAction);
+        var usageAction = new ActionHandler<>(XPackUsageFeatureAction.DATA_FRAME, DataFrameUsageTransportAction.class);
+        var infoAction = new ActionHandler<>(XPackInfoFeatureAction.DATA_FRAME, DataFrameInfoTransportAction.class);
+        if (enabled == false) {
+            return Arrays.asList(usageAction, infoAction);
         }
 
         return Arrays.asList(
@@ -149,7 +141,8 @@ public class DataFrame extends Plugin implements ActionPlugin, PersistentTaskPlu
                 new ActionHandler<>(GetDataFrameTransformsAction.INSTANCE, TransportGetDataFrameTransformsAction.class),
                 new ActionHandler<>(GetDataFrameTransformsStatsAction.INSTANCE, TransportGetDataFrameTransformsStatsAction.class),
                 new ActionHandler<>(PreviewDataFrameTransformAction.INSTANCE, TransportPreviewDataFrameTransformAction.class),
-                usageAction);
+                usageAction,
+                infoAction);
     }
 
     @Override

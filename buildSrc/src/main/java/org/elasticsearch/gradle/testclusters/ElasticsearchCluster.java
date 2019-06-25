@@ -320,7 +320,6 @@ public class ElasticsearchCluster implements TestClusterConfiguration {
 
     private void addWaitForClusterHealth() {
         waitConditions.put("cluster health yellow", (node) -> {
-
             try {
                 boolean httpSslEnabled = getFirstNode().isHttpSslEnabled();
                 WaitForHttpResource wait = new WaitForHttpResource(
@@ -339,7 +338,7 @@ public class ElasticsearchCluster implements TestClusterConfiguration {
                 }
                 return wait.wait(500);
             } catch (IOException e) {
-                throw new IllegalStateException("Connection attempt to " + this + " failed", e);
+                throw new UncheckedIOException("IO error while waiting cluster", e);
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
                 throw new TestClustersException("Interrupted while waiting for " + this, e);

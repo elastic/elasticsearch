@@ -37,8 +37,6 @@ import static org.mockito.Mockito.mock;
  * It's not always easy / convenient to construct these dependencies.
  * This class constructor takes far fewer dependencies and constructs usable {@link GatewayMetaState} with 2 restrictions:
  * no metadata upgrade will be performed and no cluster state updaters will be run. This is sufficient for most of the tests.
- * Metadata upgrade is tested in {@link  GatewayMetaStateTests} and different {@link ClusterStateUpdaters} in
- * {@link ClusterStateUpdatersTests}.
  */
 public class MockGatewayMetaState extends GatewayMetaState {
     private final DiscoveryNode localNode;

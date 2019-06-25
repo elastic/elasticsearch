@@ -171,6 +171,7 @@ public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTest
                     client.dataFrame().putDataFrameTransform(
                             request, RequestOptions.DEFAULT);
             // end::put-data-frame-transform-execute
+            transformsToClean.add(request.getConfig().getId());
 
             assertTrue(response.isAcknowledged());
         }
@@ -208,6 +209,7 @@ public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTest
             // end::put-data-frame-transform-execute-async
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
+            transformsToClean.add(request.getConfig().getId());
         }
     }
 
@@ -431,6 +433,7 @@ public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTest
                     .setQueryConfig(queryConfig)
                     .build(), // <1>
                 pivotConfig); // <2>
+
         PreviewDataFrameTransformRequest request =
                 new PreviewDataFrameTransformRequest(transformConfig); // <3>
         // end::preview-data-frame-transform-request
@@ -478,7 +481,6 @@ public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTest
 
         RestHighLevelClient client = highLevelClient();
 
-        QueryConfig queryConfig = new QueryConfig(new MatchAllQueryBuilder());
         GroupConfig groupConfig = GroupConfig.builder().groupBy("reviewer",
             TermsGroupSource.builder().setField("user_id").build()).build();
         AggregatorFactories.Builder aggBuilder = new AggregatorFactories.Builder();
@@ -497,6 +499,7 @@ public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTest
             .setPivotConfig(pivotConfig)
             .build();
         client.dataFrame().putDataFrameTransform(new PutDataFrameTransformRequest(transformConfig), RequestOptions.DEFAULT);
+        transformsToClean.add(id);
 
         // tag::get-data-frame-transform-stats-request
         GetDataFrameTransformStatsRequest request =
@@ -564,7 +567,6 @@ public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTest
     public void testGetDataFrameTransform() throws IOException, InterruptedException {
         createIndex("source-data");
 
-        QueryConfig queryConfig = new QueryConfig(new MatchAllQueryBuilder());
         GroupConfig groupConfig = GroupConfig.builder().groupBy("reviewer",
             TermsGroupSource.builder().setField("user_id").build()).build();
         AggregatorFactories.Builder aggBuilder = new AggregatorFactories.Builder();

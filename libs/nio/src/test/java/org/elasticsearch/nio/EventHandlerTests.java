@@ -44,7 +44,7 @@ public class EventHandlerTests extends ESTestCase {
     private Consumer<Exception> channelExceptionHandler;
     private Consumer<Exception> genericExceptionHandler;
 
-    private ReadWriteHandler readWriteHandler;
+    private NioChannelHandler readWriteHandler;
     private EventHandler handler;
     private DoNotRegisterSocketContext context;
     private DoNotRegisterServerContext serverContext;
@@ -56,7 +56,7 @@ public class EventHandlerTests extends ESTestCase {
     public void setUpHandler() throws IOException {
         channelExceptionHandler = mock(Consumer.class);
         genericExceptionHandler = mock(Consumer.class);
-        readWriteHandler = mock(ReadWriteHandler.class);
+        readWriteHandler = mock(NioChannelHandler.class);
         channelFactory = mock(ChannelFactory.class);
         NioSelector selector = mock(NioSelector.class);
         ArrayList<NioSelector> selectors = new ArrayList<>();
@@ -260,7 +260,7 @@ public class EventHandlerTests extends ESTestCase {
 
 
         DoNotRegisterSocketContext(NioSocketChannel channel, NioSelector selector, Consumer<Exception> exceptionHandler,
-                                   ReadWriteHandler handler) {
+                                   NioChannelHandler handler) {
             super(channel, selector, exceptionHandler, handler, InboundChannelBuffer.allocatingInstance());
         }
 

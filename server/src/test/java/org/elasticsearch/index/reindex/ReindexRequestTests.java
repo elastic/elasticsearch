@@ -52,13 +52,13 @@ public class ReindexRequestTests extends AbstractBulkByScrollRequestTestCase<Rei
 
     @Override
     protected NamedWriteableRegistry writableRegistry() {
-        SearchModule searchModule = new SearchModule(Settings.EMPTY, Collections.emptyList());
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, false, Collections.emptyList());
         return new NamedWriteableRegistry(searchModule.getNamedWriteables());
     }
 
     @Override
     protected NamedXContentRegistry xContentRegistry() {
-        SearchModule searchModule = new SearchModule(Settings.EMPTY, Collections.emptyList());
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, false, Collections.emptyList());
         return new NamedXContentRegistry(searchModule.getNamedXContents());
     }
 

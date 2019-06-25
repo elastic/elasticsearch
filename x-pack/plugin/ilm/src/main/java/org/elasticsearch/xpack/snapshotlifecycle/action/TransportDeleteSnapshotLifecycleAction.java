@@ -18,12 +18,14 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.snapshotlifecycle.SnapshotLifecycleMetadata;
 import org.elasticsearch.xpack.core.snapshotlifecycle.SnapshotLifecyclePolicyMetadata;
 import org.elasticsearch.xpack.core.snapshotlifecycle.action.DeleteSnapshotLifecycleAction;
 
+import java.io.IOException;
 import java.util.Map;
 import java.util.stream.Collectors;
 
@@ -44,7 +46,13 @@ public class TransportDeleteSnapshotLifecycleAction extends
 
     @Override
     protected DeleteSnapshotLifecycleAction.Response newResponse() {
-        return new DeleteSnapshotLifecycleAction.Response();
+        throw new UnsupportedOperationException();
+    }
+
+
+    @Override
+    protected DeleteSnapshotLifecycleAction.Response read(StreamInput in) throws IOException {
+        return new DeleteSnapshotLifecycleAction.Response(in);
     }
 
     @Override

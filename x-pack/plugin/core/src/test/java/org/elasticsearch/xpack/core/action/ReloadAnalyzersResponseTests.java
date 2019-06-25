@@ -3,12 +3,13 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.core.rest.action;
+package org.elasticsearch.xpack.core.action;
 
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractBroadcastResponseTestCase;
+import org.elasticsearch.xpack.core.action.ReloadAnalyzersResponse;
 
 import java.io.IOException;
 import java.util.Arrays;

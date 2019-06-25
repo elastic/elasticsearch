@@ -13,6 +13,8 @@ import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
+import org.elasticsearch.xpack.core.action.ReloadAnalyzerAction;
+import org.elasticsearch.xpack.core.action.ReloadAnalyzersRequest;
 
 import java.io.IOException;
 public class RestReloadAnalyzersAction extends BaseRestHandler {

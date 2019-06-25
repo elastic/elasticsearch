@@ -17,6 +17,9 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.action.ReloadAnalyzerAction;
+import org.elasticsearch.xpack.core.action.ReloadAnalyzersRequest;
+import org.elasticsearch.xpack.core.action.ReloadAnalyzersResponse;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;

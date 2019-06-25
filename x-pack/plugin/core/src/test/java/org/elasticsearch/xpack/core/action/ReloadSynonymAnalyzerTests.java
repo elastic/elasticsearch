@@ -4,7 +4,7 @@
  * you may not use this file except in compliance with the Elastic License.
  */
 
-package org.elasticsearch.xpack.core.rest.action;
+package org.elasticsearch.xpack.core.action;
 
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeAction.AnalyzeToken;
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeAction.Response;
@@ -15,6 +15,8 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
+import org.elasticsearch.xpack.core.action.ReloadAnalyzerAction;
+import org.elasticsearch.xpack.core.action.ReloadAnalyzersRequest;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;

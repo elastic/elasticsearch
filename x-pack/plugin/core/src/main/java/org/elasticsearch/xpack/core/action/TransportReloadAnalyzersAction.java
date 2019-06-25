@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.core.rest.action;
+package org.elasticsearch.xpack.core.action;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -29,7 +29,7 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.core.rest.action.TransportReloadAnalyzersAction.ReloadResult;
+import org.elasticsearch.xpack.core.action.TransportReloadAnalyzersAction.ReloadResult;
 
 import java.io.IOException;
 import java.util.ArrayList;

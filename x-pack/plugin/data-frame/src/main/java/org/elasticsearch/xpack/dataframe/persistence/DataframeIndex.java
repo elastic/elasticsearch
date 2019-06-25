@@ -83,7 +83,7 @@ public final class DataframeIndex {
                 if (groupSource instanceof DateHistogramGroupSource) {
                     String format = ((DateHistogramGroupSource) groupSource).getFormat();
                     if (format != null) {
-                        builder.field(FORMAT, DEFAULT_TIME_FORMAT + "||" + format);
+                        builder.field(FORMAT, format + "||" + DEFAULT_TIME_FORMAT);
                     }
                 }
                 builder.endObject();

@@ -1,0 +1,34 @@
+--
+:api: get-data-frame-analytics
+:request: GetDataFrameAnalyticsRequest
+:response: GetDataFrameAnalyticsResponse
+--
+[id="{upid}-{api}"]
+=== Get Data Frame Analytics API
+
+The Get Data Frame Analytics API is used to get one or more {dataframe-analytics-config}s.
+The API accepts a +{request}+ object and returns a +{response}+.
+
+[id="{upid}-{api}-request"]
+==== Get Data Frame Analytics Request
+
+A +{request}+ requires either a {dataframe-analytics-config} id, a comma separated list of ids or
+the special wildcard `_all` to get all {dataframe-analytics-config}s.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request]
+--------------------------------------------------
+<1> Constructing a new GET request referencing an existing {dataframe-analytics-config}
+
+include::../execution.asciidoc[]
+
+[id="{upid}-{api}-response"]
+==== Response
+
+The returned +{response}+ contains the requested {dataframe-analytics-config}s.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-response]
+--------------------------------------------------

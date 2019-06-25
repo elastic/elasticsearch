@@ -49,6 +49,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.shard.DocsStats;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -110,7 +111,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
     }
 
     @Override
-    protected void masterOperation(final RolloverRequest rolloverRequest, final ClusterState state,
+    protected void masterOperation(Task task, final RolloverRequest rolloverRequest, final ClusterState state,
                                    final ActionListener<RolloverResponse> listener) {
         final MetaData metaData = state.metaData();
         validate(metaData, rolloverRequest);

@@ -31,6 +31,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.CapturingTransport;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -63,9 +64,9 @@ public class GetSettingsActionTests extends ESTestCase {
                 new Resolver(), IndexScopedSettings.DEFAULT_SCOPED_SETTINGS);
         }
         @Override
-        protected void masterOperation(GetSettingsRequest request, ClusterState state, ActionListener<GetSettingsResponse> listener) {
+        protected void masterOperation(Task task, GetSettingsRequest request, ClusterState state, ActionListener<GetSettingsResponse> listener) {
             ClusterState stateWithIndex = ClusterStateCreationUtils.state(indexName, 1, 1);
-            super.masterOperation(request, stateWithIndex, listener);
+            super.masterOperation(task, request, stateWithIndex, listener);
         }
     }
 

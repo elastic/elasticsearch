@@ -106,7 +106,7 @@ public class SqlInfoTransportActionTests extends ESTestCase {
         var usageAction = new SqlUsageTransportAction(mock(TransportService.class), null, null,
             mock(ActionFilters.class), null, Settings.EMPTY, licenseState, client);
         PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();
-        usageAction.masterOperation(null, null, future);
+        usageAction.masterOperation(null, null, null, future);
         SqlFeatureSetUsage sqlUsage = (SqlFeatureSetUsage) future.get().getUsage();
         
         long fooBarBaz = ObjectPath.eval("foo.bar.baz", sqlUsage.stats());

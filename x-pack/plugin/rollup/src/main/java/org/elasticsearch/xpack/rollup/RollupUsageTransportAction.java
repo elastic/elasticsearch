@@ -14,6 +14,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.protocol.xpack.XPackUsageRequest;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackSettings;
@@ -38,7 +39,7 @@ public class RollupUsageTransportAction extends XPackUsageFeatureTransportAction
     }
 
     @Override
-    protected void masterOperation(XPackUsageRequest request, ClusterState state, ActionListener<XPackUsageFeatureResponse> listener) {
+    protected void masterOperation(Task task, XPackUsageRequest request, ClusterState state, ActionListener<XPackUsageFeatureResponse> listener) {
         boolean available = licenseState.isRollupAllowed();
         // TODO expose the currently running rollup tasks on this node?  Unclear the best way to do that
         RollupFeatureSetUsage usage =

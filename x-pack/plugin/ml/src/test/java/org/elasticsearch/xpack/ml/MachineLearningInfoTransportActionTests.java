@@ -127,7 +127,7 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
         assertThat(featureSet.available(), is(available));
         var usageAction = newUsageAction(commonSettings);
         PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();
-        usageAction.masterOperation(null, ClusterState.EMPTY_STATE, future);
+        usageAction.masterOperation(null, null, ClusterState.EMPTY_STATE, future);
         XPackFeatureSet.Usage usage = future.get().getUsage();
         assertThat(usage.available(), is(available));
 
@@ -151,7 +151,7 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
         assertThat(featureSet.enabled(), is(expected));
         var usageAction = newUsageAction(settings.build());
         PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();
-        usageAction.masterOperation(null, ClusterState.EMPTY_STATE, future);
+        usageAction.masterOperation(null, null, ClusterState.EMPTY_STATE, future);
         XPackFeatureSet.Usage usage = future.get().getUsage();
         assertThat(usage.enabled(), is(expected));
 
@@ -184,7 +184,7 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
 
         var usageAction = newUsageAction(settings.build());
         PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();
-        usageAction.masterOperation(null, ClusterState.EMPTY_STATE, future);
+        usageAction.masterOperation(null, null, ClusterState.EMPTY_STATE, future);
         XPackFeatureSet.Usage mlUsage = future.get().getUsage();
 
         BytesStreamOutput out = new BytesStreamOutput();
@@ -264,7 +264,7 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
 
         var usageAction = newUsageAction(settings.build());
         PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();
-        usageAction.masterOperation(null, ClusterState.EMPTY_STATE, future);
+        usageAction.masterOperation(null, null, ClusterState.EMPTY_STATE, future);
         XPackFeatureSet.Usage mlUsage = future.get().getUsage();
         BytesStreamOutput out = new BytesStreamOutput();
         mlUsage.writeTo(out);
@@ -286,7 +286,7 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
 
         var usageAction = newUsageAction(settings.build());
         PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();
-        usageAction.masterOperation(null, clusterState, future);
+        usageAction.masterOperation(null, null, clusterState, future);
         XPackFeatureSet.Usage usage = future.get().getUsage();
 
         assertThat(usage.available(), is(true));
@@ -312,7 +312,7 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
 
         var usageAction = newUsageAction(settings.build());
         PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();
-        usageAction.masterOperation(null, ClusterState.EMPTY_STATE, future);
+        usageAction.masterOperation(null, null, ClusterState.EMPTY_STATE, future);
         XPackFeatureSet.Usage usage = future.get().getUsage();
 
         assertThat(usage.available(), is(true));

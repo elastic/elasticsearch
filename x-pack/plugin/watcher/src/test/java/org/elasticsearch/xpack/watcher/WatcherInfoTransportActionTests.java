@@ -115,7 +115,7 @@ public class WatcherInfoTransportActionTests extends ESTestCase {
         var usageAction = new WatcherUsageTransportAction(mock(TransportService.class), null, null,
             mock(ActionFilters.class), null, Settings.EMPTY, licenseState, client);
         PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();
-        usageAction.masterOperation(null, null, future);
+        usageAction.masterOperation(null, null, null, future);
         WatcherFeatureSetUsage watcherUsage = (WatcherFeatureSetUsage) future.get().getUsage();
         assertThat(watcherUsage.stats().keySet(), containsInAnyOrder("foo", "spam"));
         long fooBarBaz = ObjectPath.eval("foo.bar.baz", watcherUsage.stats());

@@ -20,6 +20,7 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.protocol.xpack.XPackUsageRequest;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ClientHelper;
@@ -60,7 +61,7 @@ public class DataFrameUsageTransportAction extends XPackUsageFeatureTransportAct
     }
 
     @Override
-    protected void masterOperation(XPackUsageRequest request, ClusterState state, ActionListener<XPackUsageFeatureResponse> listener) {
+    protected void masterOperation(Task task, XPackUsageRequest request, ClusterState state, ActionListener<XPackUsageFeatureResponse> listener) {
         boolean available = licenseState.isDataFrameAllowed();
         if (enabled == false) {
             var usage = new DataFrameFeatureSetUsage(available, enabled, Collections.emptyMap(),

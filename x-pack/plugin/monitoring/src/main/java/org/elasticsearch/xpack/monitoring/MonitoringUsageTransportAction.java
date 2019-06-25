@@ -15,6 +15,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.protocol.xpack.XPackUsageRequest;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackSettings;
@@ -48,7 +49,7 @@ public class MonitoringUsageTransportAction extends XPackUsageFeatureTransportAc
     }
 
     @Override
-    protected void masterOperation(XPackUsageRequest request, ClusterState state, ActionListener<XPackUsageFeatureResponse> listener) {
+    protected void masterOperation(Task task, XPackUsageRequest request, ClusterState state, ActionListener<XPackUsageFeatureResponse> listener) {
         final boolean collectionEnabled = monitoring != null && monitoring.isMonitoringActive();
         var usage =
             new MonitoringFeatureSetUsage(licenseState.isMonitoringAllowed(), enabled, collectionEnabled, exportersUsage(exporters));

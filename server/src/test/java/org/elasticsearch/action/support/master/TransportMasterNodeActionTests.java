@@ -185,7 +185,7 @@ public class TransportMasterNodeActionTests extends ESTestCase {
         }
 
         @Override
-        protected void masterOperation(Request request, ClusterState state, ActionListener<Response> listener) throws Exception {
+        protected void masterOperation(Task task, Request request, ClusterState state, ActionListener<Response> listener) throws Exception {
             listener.onResponse(new Response()); // default implementation, overridden in specific tests
         }
 
@@ -447,7 +447,7 @@ public class TransportMasterNodeActionTests extends ESTestCase {
 
         new Action( "internal:testAction", transportService, clusterService, threadPool) {
             @Override
-            protected void masterOperation(Request request, ClusterState state, ActionListener<Response> listener) throws Exception {
+            protected void masterOperation(Task task, Request request, ClusterState state, ActionListener<Response> listener) throws Exception {
                 // The other node has become master, simulate failures of this node while publishing cluster state through ZenDiscovery
                 setState(clusterService, ClusterStateCreationUtils.state(localNode, remoteNode, allNodes));
                 Exception failure = randomBoolean()

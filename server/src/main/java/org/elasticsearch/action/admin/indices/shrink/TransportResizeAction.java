@@ -41,6 +41,7 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.DocsStats;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -97,7 +98,7 @@ public class TransportResizeAction extends TransportMasterNodeAction<ResizeReque
     }
 
     @Override
-    protected void masterOperation(final ResizeRequest resizeRequest, final ClusterState state,
+    protected void masterOperation(Task task, final ResizeRequest resizeRequest, final ClusterState state,
                                    final ActionListener<ResizeResponse> listener) {
 
         // there is no need to fetch docs stats for split but we keep it simple and do it anyway for simplicity of the code

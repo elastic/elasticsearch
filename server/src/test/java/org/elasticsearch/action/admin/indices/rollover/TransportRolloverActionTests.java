@@ -400,7 +400,7 @@ public class TransportRolloverActionTests extends ESTestCase {
         RolloverRequest rolloverRequest = new RolloverRequest("logs-alias", "logs-index-000003");
         rolloverRequest.addMaxIndexDocsCondition(500L);
         rolloverRequest.dryRun(true);
-        transportRolloverAction.masterOperation(rolloverRequest, stateBefore, future);
+        transportRolloverAction.masterOperation(null, rolloverRequest, stateBefore, future);
 
         RolloverResponse response = future.actionGet();
         assertThat(response.getOldIndex(), equalTo("logs-index-000002"));
@@ -416,7 +416,7 @@ public class TransportRolloverActionTests extends ESTestCase {
         rolloverRequest = new RolloverRequest("logs-alias", "logs-index-000003");
         rolloverRequest.addMaxIndexDocsCondition(300L);
         rolloverRequest.dryRun(true);
-        transportRolloverAction.masterOperation(rolloverRequest, stateBefore, future);
+        transportRolloverAction.masterOperation(null, rolloverRequest, stateBefore, future);
 
         response = future.actionGet();
         assertThat(response.getOldIndex(), equalTo("logs-index-000002"));

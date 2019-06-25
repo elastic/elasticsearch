@@ -18,6 +18,7 @@
       cluster.health:
         index: "mixed-dataframe-transform-airline-data"
         wait_for_status: green
+
   - do:
       data_frame.put_data_frame_transform:
         transform_id: "mixed-simple-transform"
@@ -140,7 +141,7 @@
                 type: integer
   - do:
       cluster.health:
-        index: ".data-frame-internal-1,mixed-dataframe-transform-airline-data-cont"
+        index: "mixed-dataframe-transform-airline-data-cont"
         wait_for_status: green
 
   - do:
@@ -183,6 +184,10 @@
   - match: { count: 1 }
   - match: { transforms.0.id: "mixed-simple-continuous-transform" }
   - match: { transforms.0.state.task_state: "started" }
+  - do:
+      cluster.health:
+        index: ".data-frame-internal-1"
+        wait_for_status: green
 ---
 "Test GET, start, and stop old cluster batch transforms":
   - do:
@@ -265,7 +270,6 @@
 "Test GET, stop, start, old continuous transforms":
   - do:
       cluster.health:
-        index: ".data-frame-internal-1,old-dataframe-transform-airline-data-cont"
         wait_for_status: green
 
   - do:

@@ -213,11 +213,6 @@ setup:
         transform_id: "new-simple-continuous-transform"
 ---
 "Get start, stop, and delete old and mixed cluster batch data frame transforms":
-  - do:
-      cluster.health:
-        index: ".data-frame-internal-1,mixed-dataframe-transform-airline-data,old-dataframe-transform-airline-data"
-        wait_for_status: green
-
   # Simple and complex OLD transforms
   - do:
       data_frame.get_data_frame_transform:
@@ -377,11 +372,6 @@ setup:
 
 ---
 "Test GET, stop, delete, old and mixed continuous transforms":
-  - do:
-      cluster.health:
-        index: ".data-frame-internal-1,old-dataframe-transform-airline-data-cont,mixed-dataframe-transform-airline-data-cont"
-        wait_for_status: green
-
   - do:
       data_frame.get_data_frame_transform:
         transform_id: "old-simple-continuous-transform"

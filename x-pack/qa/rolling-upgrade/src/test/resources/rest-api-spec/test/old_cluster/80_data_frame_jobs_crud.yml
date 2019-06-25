@@ -16,7 +16,7 @@
                 type: integer
   - do:
       cluster.health:
-        index: ".data-frame-internal-1,old-dataframe-transform-airline-data"
+        index: "old-dataframe-transform-airline-data"
         wait_for_status: green
 
   - do:
@@ -205,3 +205,7 @@
   - match: { count: 1 }
   - match: { transforms.0.id: "old-simple-continuous-transform" }
   - match: { transforms.0.state.task_state: "started" }
+  - do:
+      cluster.health:
+        index: ".data-frame-internal-1"
+        wait_for_status: green

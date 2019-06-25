@@ -56,7 +56,6 @@ index settings, aliases, mappings, and index templates.
 * <<indices-refresh>>
 * <<indices-flush>>
 * <<indices-forcemerge>>
-* <<indices-reload-analyzers>>
 
 --
 
@@ -109,6 +108,4 @@ include::indices/flush.asciidoc[]
 include::indices/refresh.asciidoc[]
 
 include::indices/forcemerge.asciidoc[]
-
-include::indices/reload-analyzers.asciidoc[]
 

@@ -320,11 +320,11 @@ public class MatchQuery {
             super(analyzer);
             this.fieldType = fieldType;
             if (hasPositions(fieldType)) {
-                setAutoGenerateMultiTermSynonymsPhraseQuery(autoGenerateSynonymsPhraseQuery);
+                setAutoGenerateMultiTermSynonymsPhraseQuery(MatchQuery.this.autoGenerateSynonymsPhraseQuery);
             } else {
                 setAutoGenerateMultiTermSynonymsPhraseQuery(false);
             }
-            setEnablePositionIncrements(enablePositionIncrements);
+            setEnablePositionIncrements(MatchQuery.this.enablePositionIncrements);
         }
 
         @Override

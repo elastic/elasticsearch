@@ -1,5 +1,6 @@
 {
   "ml.validate_detector": {
+    "stability": "stable",
     "methods": [ "POST" ],
     "url": {
       "paths": [ "/_ml/anomaly_detectors/_validate/detector" ],

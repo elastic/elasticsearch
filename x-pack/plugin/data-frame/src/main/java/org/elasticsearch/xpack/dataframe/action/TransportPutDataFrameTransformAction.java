@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.dataframe.action;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceAlreadyExistsException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -21,10 +22,9 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
@@ -51,6 +51,7 @@ import org.elasticsearch.xpack.dataframe.persistence.DataFrameTransformsConfigMa
 import org.elasticsearch.xpack.dataframe.transforms.pivot.Pivot;
 
 import java.io.IOException;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
@@ -90,8 +91,13 @@ public class TransportPutDataFrameTransformAction
     }
 
     @Override
+    protected AcknowledgedResponse read(StreamInput in) throws IOException {
+        return new AcknowledgedResponse(in);
+    }
+
+    @Override
     protected AcknowledgedResponse newResponse() {
-        return new AcknowledgedResponse();
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override
@@ -110,8 +116,10 @@ public class TransportPutDataFrameTransformAction
                     .filter(e -> ClientHelper.SECURITY_HEADER_FILTERS.contains(e.getKey()))
                     .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
 
-        DataFrameTransformConfig config = request.getConfig();
-        config.setHeaders(filteredHeaders);
+        DataFrameTransformConfig config = request.getConfig()
+            .setHeaders(filteredHeaders)
+            .setCreateTime(Instant.now())
+            .setVersion(Version.CURRENT);
 
         String transformId = config.getId();
         // quick check whether a transform has already been created under that name
@@ -173,10 +181,9 @@ public class TransportPutDataFrameTransformAction
         // Early check to verify that the user can create the destination index and can read from the source
         if (licenseState.isAuthAllowed()) {
             final String username = securityContext.getUser().principal();
-            RoleDescriptor.IndicesPrivileges sourceIndexPrivileges = RoleDescriptor.IndicesPrivileges.builder()
-                .indices(config.getSource().getIndex())
-                .privileges("read")
-                .build();
+            List<String> srcPrivileges = new ArrayList<>(2);
+            srcPrivileges.add("read");
+
             List<String> destPrivileges = new ArrayList<>(3);
             destPrivileges.add("read");
             destPrivileges.add("index");
@@ -184,10 +191,17 @@ public class TransportPutDataFrameTransformAction
             // We should check that the creating user has the privileges to create the index.
             if (concreteDest.length == 0) {
                 destPrivileges.add("create_index");
+                // We need to read the source indices mapping to deduce the destination mapping
+                srcPrivileges.add("view_index_metadata");
             }
             RoleDescriptor.IndicesPrivileges destIndexPrivileges = RoleDescriptor.IndicesPrivileges.builder()
                 .indices(destIndex)
                 .privileges(destPrivileges)
+                .build();
+
+            RoleDescriptor.IndicesPrivileges sourceIndexPrivileges = RoleDescriptor.IndicesPrivileges.builder()
+                .indices(config.getSource().getIndex())
+                .privileges(srcPrivileges)
                 .build();
 
             HasPrivilegesRequest privRequest = new HasPrivilegesRequest();
@@ -217,17 +231,16 @@ public class TransportPutDataFrameTransformAction
         if (privilegesResponse.isCompleteMatch()) {
             putDataFrame(config, listener);
         } else {
-            XContentBuilder builder = JsonXContent.contentBuilder();
-            builder.startObject();
-            for (ResourcePrivileges index : privilegesResponse.getIndexPrivileges()) {
-                builder.field(index.getResource());
-                builder.map(index.getPrivileges());
-            }
-            builder.endObject();
+            List<String> indices = privilegesResponse.getIndexPrivileges()
+                .stream()
+                .map(ResourcePrivileges::getResource)
+                .collect(Collectors.toList());
 
-            listener.onFailure(Exceptions.authorizationError("Cannot create data frame transform [{}]" +
-                    " because user {} lacks permissions on the indices: {}",
-                config.getId(), username, Strings.toString(builder)));
+            listener.onFailure(Exceptions.authorizationError(
+                "Cannot create data frame transform [{}] because user {} lacks all the required permissions for indices: {}",
+                config.getId(),
+                username,
+                indices));
         }
     }
 

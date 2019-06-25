@@ -1,6 +1,7 @@
 {
   "security.delete_role": {
     "documentation": "https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-delete-role.html",
+    "stability": "stable",
     "methods": [ "DELETE" ],
     "url": {
       "paths": [

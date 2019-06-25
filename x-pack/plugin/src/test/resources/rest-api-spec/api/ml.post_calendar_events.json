@@ -1,5 +1,6 @@
 {
   "ml.post_calendar_events": {
+    "stability": "stable",
     "methods": [ "POST" ],
     "url": {
       "paths": [ "/_ml/calendars/{calendar_id}/events" ],

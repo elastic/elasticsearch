@@ -156,7 +156,7 @@ public final class NoOpEngine extends ReadOnlyEngine {
                     translogDeletionPolicy.setMinTranslogGenerationForRecovery(lastCommitGeneration);
 
                     try (Translog translog = new Translog(translogConfig, translogUuid, translogDeletionPolicy,
-                        engineConfig.getGlobalCheckpointSupplier(), engineConfig.getPrimaryTermSupplier())) {
+                        engineConfig.getGlobalCheckpointSupplier(), engineConfig.getPrimaryTermSupplier(), seqNo -> {})) {
                         translog.trimUnreferencedReaders();
                     }
                 }

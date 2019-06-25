@@ -36,6 +36,7 @@ import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.DocsStats;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.index.translog.TranslogDeletionPolicy;
 import org.elasticsearch.test.IndexSettingsModule;
 
 import java.io.IOException;
@@ -86,12 +87,12 @@ public class NoOpEngineTests extends EngineTestCase {
 
         engine.flush(true, true);
 
-        long localCheckpoint = engine.getLocalCheckpoint();
+        long localCheckpoint = engine.getPersistedLocalCheckpoint();
         long maxSeqNo = engine.getSeqNoStats(100L).getMaxSeqNo();
         engine.close();
 
         final NoOpEngine noOpEngine = new NoOpEngine(noOpConfig(INDEX_SETTINGS, store, primaryTranslogDir, tracker));
-        assertThat(noOpEngine.getLocalCheckpoint(), equalTo(localCheckpoint));
+        assertThat(noOpEngine.getPersistedLocalCheckpoint(), equalTo(localCheckpoint));
         assertThat(noOpEngine.getSeqNoStats(100L).getMaxSeqNo(), equalTo(maxSeqNo));
         try (Engine.IndexCommitRef ref = noOpEngine.acquireLastIndexCommit(false)) {
             try (IndexReader reader = DirectoryReader.open(ref.getIndexCommit())) {
@@ -115,7 +116,8 @@ public class NoOpEngineTests extends EngineTestCase {
                     if (rarely()) {
                         engine.flush();
                     }
-                    globalCheckpoint.set(engine.getLocalCheckpoint());
+                    engine.syncTranslog(); // advance persisted local checkpoint
+                    globalCheckpoint.set(engine.getPersistedLocalCheckpoint());
                 }
 
                 for (int i = 0; i < numDocs; i++) {
@@ -123,12 +125,13 @@ public class NoOpEngineTests extends EngineTestCase {
                         String delId = Integer.toString(i);
                         Engine.DeleteResult result = engine.delete(new Engine.Delete("test", delId, newUid(delId), primaryTerm.get()));
                         assertTrue(result.isFound());
-                        globalCheckpoint.set(engine.getLocalCheckpoint());
+                        engine.syncTranslog(); // advance persisted local checkpoint
+                        globalCheckpoint.set(engine.getPersistedLocalCheckpoint());
                         deletions += 1;
                     }
                 }
-                engine.getLocalCheckpointTracker().waitForOpsToComplete(numDocs + deletions - 1);
-                engine.flush(true, true);
+                engine.getLocalCheckpointTracker().waitForProcessedOpsToComplete(numDocs + deletions - 1);
+                flushAndTrimTranslog(engine);
             }
 
             final DocsStats expectedDocStats;
@@ -195,5 +198,14 @@ public class NoOpEngineTests extends EngineTestCase {
         noOpEngine.trimUnreferencedTranslogFiles();
         assertThat(Translog.readMinTranslogGeneration(translogPath, translogUuid), equalTo(lastCommitedTranslogGeneration));
         noOpEngine.close();
+    }
+
+    private void flushAndTrimTranslog(final InternalEngine engine) {
+        engine.flush(true, true);
+        final TranslogDeletionPolicy deletionPolicy = engine.getTranslog().getDeletionPolicy();
+        deletionPolicy.setRetentionSizeInBytes(-1);
+        deletionPolicy.setRetentionAgeInMillis(-1);
+        deletionPolicy.setMinTranslogGenerationForRecovery(engine.getTranslog().getGeneration().translogFileGeneration);
+        engine.flush(true, true);
     }
 }

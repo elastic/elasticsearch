@@ -224,7 +224,7 @@ enum TextFormat {
 
         boolean header = hasHeader(request);
 
-        if (header) {
+        if (header && (cursor == null || cursor == Cursor.EMPTY)) {
             row(sb, response.columns(), ColumnInfo::name);
         }
 

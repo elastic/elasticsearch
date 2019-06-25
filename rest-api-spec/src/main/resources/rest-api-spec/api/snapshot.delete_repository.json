@@ -1,6 +1,7 @@
 {
   "snapshot.delete_repository": {
     "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/modules-snapshots.html",
+    "stability": "stable",
     "methods": ["DELETE"],
     "url": {
       "paths": ["/_snapshot/{repository}"],

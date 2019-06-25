@@ -1,6 +1,7 @@
 {
   "indices.exists_type": {
     "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/indices-types-exists.html",
+    "stability": "stable",
     "methods": ["HEAD"],
     "deprecated" : {
       "version" : "7.0.0",

@@ -30,9 +30,11 @@ import org.elasticsearch.xpack.core.security.action.token.CreateTokenAction;
 import org.elasticsearch.xpack.core.security.action.token.CreateTokenRequest;
 import org.elasticsearch.xpack.core.security.action.token.CreateTokenResponse;
 import org.elasticsearch.xpack.core.security.action.token.RefreshTokenAction;
+import org.elasticsearch.xpack.security.authc.kerberos.KerberosAuthenticationToken;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Locale;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
@@ -48,13 +50,17 @@ public final class RestGetTokenAction extends TokenBaseRestHandler {
 
     private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(RestGetTokenAction.class));
     static final ConstructingObjectParser<CreateTokenRequest, Void> PARSER = new ConstructingObjectParser<>("token_request",
-            a -> new CreateTokenRequest((String) a[0], (String) a[1], (SecureString) a[2], (String) a[3], (String) a[4]));
+            a -> new CreateTokenRequest((String) a[0], (String) a[1], (SecureString) a[2], (SecureString) a[3], (String) a[4],
+                    (String) a[5]));
     static {
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), new ParseField("grant_type"));
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), new ParseField("username"));
         PARSER.declareField(ConstructingObjectParser.optionalConstructorArg(), parser -> new SecureString(
                 Arrays.copyOfRange(parser.textCharacters(), parser.textOffset(), parser.textOffset() + parser.textLength())),
                 new ParseField("password"), ValueType.STRING);
+        PARSER.declareField(ConstructingObjectParser.optionalConstructorArg(), parser -> new SecureString(
+                Arrays.copyOfRange(parser.textCharacters(), parser.textOffset(), parser.textOffset() + parser.textLength())),
+                new ParseField("kerberos_ticket"), ValueType.STRING);
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), new ParseField("scope"));
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), new ParseField("refresh_token"));
     }
@@ -124,9 +130,26 @@ public final class RestGetTokenAction extends TokenBaseRestHandler {
                     ((ElasticsearchSecurityException) e).getHeader("error_description").size() == 1) {
                 sendTokenErrorResponse(TokenRequestError.INVALID_GRANT,
                         ((ElasticsearchSecurityException) e).getHeader("error_description").get(0), e);
+            } else if (e instanceof ElasticsearchSecurityException
+                    && "failed to authenticate user, gss context negotiation not complete".equals(e.getMessage())) {
+                sendTokenErrorResponse(TokenRequestError._UNAUTHORIZED, extractBase64EncodedToken((ElasticsearchSecurityException) e), e);
             } else {
                 sendFailure(e);
             }
+        }
+
+        private String extractBase64EncodedToken(ElasticsearchSecurityException e) {
+            String base64EncodedToken = null;
+            List<String> values = e.getHeader(KerberosAuthenticationToken.WWW_AUTHENTICATE);
+            if (values != null && values.size() == 1) {
+                final String wwwAuthenticateHeaderValue = values.get(0);
+                // it may contain base64 encoded token that needs to be sent to client if Spnego GSS context negotiation failed
+                if (wwwAuthenticateHeaderValue.startsWith(KerberosAuthenticationToken.NEGOTIATE_AUTH_HEADER_PREFIX)) {
+                    base64EncodedToken = wwwAuthenticateHeaderValue
+                            .substring(KerberosAuthenticationToken.NEGOTIATE_AUTH_HEADER_PREFIX.length()).trim();
+                }
+            }
+            return base64EncodedToken;
         }
 
         void sendTokenErrorResponse(TokenRequestError error, String description, Exception e) {
@@ -200,6 +223,17 @@ public final class RestGetTokenAction extends TokenBaseRestHandler {
          * The requested scope is invalid, unknown, malformed, or exceeds the
          * scope granted by the resource owner.
          */
-        INVALID_SCOPE
+        INVALID_SCOPE,
+
+        // Custom error code
+        /**
+         * When the request for authentication fails using custom grant type for given
+         * credentials.
+         * If the client attempted to authenticate via the "Authorization" request
+         * the authorization server MAY respond with an HTTP 401
+         * (Unauthorized) status code and include the "WWW-Authenticate"
+         * response header field
+         */
+        _UNAUTHORIZED,
     }
 }

@@ -1,6 +1,7 @@
 {
     "sql.query": {
       "documentation": "Execute SQL",
+      "stability" : "stable",
       "methods": [ "POST", "GET" ],
       "url": {
         "paths": [ "/_sql" ],

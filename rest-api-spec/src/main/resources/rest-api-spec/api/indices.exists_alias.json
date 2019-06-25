@@ -1,6 +1,7 @@
 {
   "indices.exists_alias": {
     "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/indices-aliases.html",
+    "stability": "stable",
     "methods": ["HEAD"],
     "url": {
       "paths": ["/_alias/{name}", "/{index}/_alias/{name}"],

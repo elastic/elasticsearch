@@ -19,8 +19,6 @@
 package org.elasticsearch.index.analysis;
 
 import org.elasticsearch.core.internal.io.IOUtils;
-import org.elasticsearch.index.AbstractIndexComponent;
-import org.elasticsearch.index.IndexSettings;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -40,14 +38,13 @@ import static org.elasticsearch.index.analysis.AnalysisRegistry.DEFAULT_SEARCH_Q
  *
  * @see AnalysisRegistry
  */
-public final class IndexAnalyzers extends AbstractIndexComponent implements Closeable {
+public final class IndexAnalyzers implements Closeable {
     private final Map<String, NamedAnalyzer> analyzers;
     private final Map<String, NamedAnalyzer> normalizers;
     private final Map<String, NamedAnalyzer> whitespaceNormalizers;
 
-    public IndexAnalyzers(IndexSettings indexSettings, Map<String, NamedAnalyzer> analyzers, Map<String, NamedAnalyzer> normalizers,
+    public IndexAnalyzers(Map<String, NamedAnalyzer> analyzers, Map<String, NamedAnalyzer> normalizers,
             Map<String, NamedAnalyzer> whitespaceNormalizers) {
-        super(indexSettings);
         Objects.requireNonNull(analyzers.get(DEFAULT_ANALYZER_NAME), "the default analyzer must be set");
         if (analyzers.get(DEFAULT_ANALYZER_NAME).name().equals(DEFAULT_ANALYZER_NAME) == false) {
             throw new IllegalStateException(

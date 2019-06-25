@@ -1,6 +1,7 @@
 {
   "cluster.stats": {
     "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/cluster-stats.html",
+    "stability": "stable",
     "methods": ["GET"],
     "url": {
       "paths": ["/_cluster/stats", "/_cluster/stats/nodes/{node_id}"],

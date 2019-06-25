@@ -63,6 +63,8 @@ include::rollup/index.asciidoc[]
 
 include::frozen-indices.asciidoc[]
 
+include::administering.asciidoc[]
+
 include::commands/index.asciidoc[]
 
 :edit_url:

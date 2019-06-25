@@ -47,6 +47,7 @@ import org.elasticsearch.snapshots.SnapshotMissingException;
 import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
@@ -98,8 +99,8 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
     protected void masterOperation(Task task, final GetSnapshotsRequest request, final ClusterState state,
                                    final ActionListener<GetSnapshotsResponse> listener) {
         final String[] repositories = request.repositories();
-        transportService.sendRequest(transportService.getLocalNode(), GetRepositoriesAction.NAME,
-                new GetRepositoriesRequest(repositories),
+        transportService.sendChildRequest(transportService.getLocalNode(), GetRepositoriesAction.NAME,
+                new GetRepositoriesRequest(repositories), task, TransportRequestOptions.EMPTY,
                 new ActionListenerResponseHandler<>(
                         ActionListener.wrap(
                                 response ->

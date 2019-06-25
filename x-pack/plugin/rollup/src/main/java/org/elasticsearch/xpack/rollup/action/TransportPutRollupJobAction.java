@@ -108,6 +108,7 @@ public class TransportPutRollupJobAction extends TransportMasterNodeAction<PutRo
         FieldCapabilitiesRequest fieldCapsRequest = new FieldCapabilitiesRequest()
             .indices(request.getConfig().getIndexPattern())
             .fields(request.getConfig().getAllFields().toArray(new String[0]));
+        fieldCapsRequest.setParentTask(clusterService.localNode().getId(), task.getId());
 
         client.fieldCaps(fieldCapsRequest, new ActionListener<FieldCapabilitiesResponse>() {
             @Override

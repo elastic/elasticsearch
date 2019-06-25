@@ -97,6 +97,7 @@ public class TransportCcrStatsAction extends TransportMasterNodeAction<CcrStatsA
             listener.onResponse(new CcrStatsAction.Response(stats, statsResponse));
         };
         FollowStatsAction.StatsRequest statsRequest = new FollowStatsAction.StatsRequest();
+        statsRequest.setParentTask(clusterService.localNode().getId(), task.getId());
         client.execute(FollowStatsAction.INSTANCE, statsRequest, ActionListener.wrap(handler, listener::onFailure));
     }
 

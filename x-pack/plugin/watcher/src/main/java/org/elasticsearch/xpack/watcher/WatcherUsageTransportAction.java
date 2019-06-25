@@ -59,6 +59,7 @@ public class WatcherUsageTransportAction extends XPackUsageFeatureTransportActio
                      client.threadPool().getThreadContext().stashWithOrigin(WATCHER_ORIGIN)) {
                 WatcherStatsRequest statsRequest = new WatcherStatsRequest();
                 statsRequest.includeStats(true);
+                statsRequest.setParentTask(clusterService.localNode().getId(), task.getId());
                 client.execute(WatcherStatsAction.INSTANCE, statsRequest, ActionListener.wrap(r -> {
                     List<Counters> countersPerNode = r.getNodes()
                         .stream()

@@ -378,7 +378,7 @@ public class SocketChannelContextTests extends ESTestCase {
 
         private TestSocketChannelContext(NioSocketChannel channel, NioSelector selector, Consumer<Exception> exceptionHandler,
                                          NioChannelHandler readWriteHandler, InboundChannelBuffer channelBuffer) {
-            super(channel, selector, exceptionHandler, readWriteHandler, channelBuffer);
+            super(channel, selector, null, exceptionHandler, readWriteHandler, channelBuffer);
         }
 
         @Override

@@ -23,6 +23,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.nio.channels.CancelledKeyException;
 import java.nio.channels.SelectionKey;
@@ -261,7 +262,7 @@ public class EventHandlerTests extends ESTestCase {
 
         DoNotRegisterSocketContext(NioSocketChannel channel, NioSelector selector, Consumer<Exception> exceptionHandler,
                                    NioChannelHandler handler) {
-            super(channel, selector, exceptionHandler, handler, InboundChannelBuffer.allocatingInstance());
+            super(channel, selector, getSocketConfig(), exceptionHandler, handler, InboundChannelBuffer.allocatingInstance());
         }
 
         @Override
@@ -275,12 +276,17 @@ public class EventHandlerTests extends ESTestCase {
 
         @SuppressWarnings("unchecked")
         DoNotRegisterServerContext(NioServerSocketChannel channel, NioSelector selector, Consumer<NioSocketChannel> acceptor) {
-            super(channel, channelFactory, selector, acceptor, mock(Consumer.class));
+            super(channel, channelFactory, selector, getSocketConfig(), acceptor, mock(Consumer.class));
         }
 
         @Override
         public void register() {
             setSelectionKey(new TestSelectionKey(0));
         }
+    }
+
+    private static SocketConfig getSocketConfig() {
+        return new SocketConfig(randomBoolean(), randomBoolean(), randomBoolean(), -1, -1,
+            randomFrom(null, mock(InetSocketAddress.class)), randomFrom(null, mock(InetSocketAddress.class)));
     }
 }

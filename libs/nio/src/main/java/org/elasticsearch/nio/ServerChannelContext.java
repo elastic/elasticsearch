@@ -37,7 +37,12 @@ public class ServerChannelContext extends ChannelContext<ServerSocketChannel> {
 
     public ServerChannelContext(NioServerSocketChannel channel, ChannelFactory<?, ?> channelFactory, NioSelector selector,
                                 Consumer<NioSocketChannel> acceptor, Consumer<Exception> exceptionHandler) {
-        super(channel.getRawChannel(), exceptionHandler);
+        this(channel, channelFactory, selector, null, acceptor, exceptionHandler);
+    }
+
+    public ServerChannelContext(NioServerSocketChannel channel, ChannelFactory<?, ?> channelFactory, NioSelector selector,
+                                SocketConfig config, Consumer<NioSocketChannel> acceptor, Consumer<Exception> exceptionHandler) {
+        super(channel.getRawChannel(), config, exceptionHandler);
         this.channel = channel;
         this.channelFactory = channelFactory;
         this.selector = selector;

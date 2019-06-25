@@ -57,9 +57,10 @@ public abstract class SocketChannelContext extends ChannelContext<SocketChannel>
     private boolean socketOptionsSet;
     private Exception connectException;
 
-    protected SocketChannelContext(NioSocketChannel channel, NioSelector selector, Consumer<Exception> exceptionHandler,
-                                   NioChannelHandler channelHandler, InboundChannelBuffer channelBuffer) {
-        super(channel.getRawChannel(), exceptionHandler);
+    protected SocketChannelContext(NioSocketChannel channel, NioSelector selector, SocketConfig socketConfig,
+                                   Consumer<Exception> exceptionHandler, NioChannelHandler channelHandler,
+                                   InboundChannelBuffer channelBuffer) {
+        super(channel.getRawChannel(), socketConfig, exceptionHandler);
         this.selector = selector;
         this.channel = channel;
         this.channelHandler = channelHandler;

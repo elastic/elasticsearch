@@ -23,6 +23,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.net.InetSocketAddress;
 import java.net.SocketAddress;
 import java.net.SocketOption;
 import java.nio.channels.ClosedChannelException;
@@ -103,10 +104,16 @@ public class ChannelContextTests extends ESTestCase {
         verify(exceptionHandler).accept(exception);
     }
 
+    private static SocketConfig getSocketConfig() {
+        return new SocketConfig(randomBoolean(), randomBoolean(), randomBoolean(), -1, -1,
+            randomFrom(null, mock(InetSocketAddress.class)), randomFrom(null, mock(InetSocketAddress.class)));
+    }
+
     private static class TestChannelContext extends ChannelContext<FakeRawChannel> {
 
+
         private TestChannelContext(FakeRawChannel channel, Consumer<Exception> exceptionHandler) {
-            super(channel, exceptionHandler);
+            super(channel, getSocketConfig(), exceptionHandler);
         }
 
         @Override
@@ -118,11 +125,11 @@ public class ChannelContextTests extends ESTestCase {
         public NioSelector getSelector() {
             throw new UnsupportedOperationException("not implemented");
         }
-
         @Override
         public NioChannel getChannel() {
             throw new UnsupportedOperationException("not implemented");
         }
+
     }
 
     private class FakeRawChannel extends SelectableChannel implements NetworkChannel {

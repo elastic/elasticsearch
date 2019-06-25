@@ -49,7 +49,7 @@ public final class SSLChannelContext extends SocketChannelContext {
 
     SSLChannelContext(NioSocketChannel channel, NioSelector selector, Consumer<Exception> exceptionHandler, SSLDriver sslDriver,
                       NioChannelHandler readWriteHandler, InboundChannelBuffer networkReadBuffer, InboundChannelBuffer channelBuffer) {
-        super(channel, selector, exceptionHandler, readWriteHandler, channelBuffer);
+        super(channel, selector, null, exceptionHandler, readWriteHandler, channelBuffer);
         this.sslDriver = sslDriver;
         this.networkReadBuffer = networkReadBuffer;
     }

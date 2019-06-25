@@ -37,13 +37,14 @@ import java.util.function.Consumer;
 public abstract class ChannelContext<S extends SelectableChannel & NetworkChannel> {
 
     protected final S rawChannel;
-    protected final SocketConfig socketConfig = null;
+    protected final SocketConfig socketConfig ;
     private final Consumer<Exception> exceptionHandler;
     private final CompletableContext<Void> closeContext = new CompletableContext<>();
     private volatile SelectionKey selectionKey;
 
-    ChannelContext(S rawChannel, Consumer<Exception> exceptionHandler) {
+    ChannelContext(S rawChannel, SocketConfig socketConfig, Consumer<Exception> exceptionHandler) {
         this.rawChannel = rawChannel;
+        this.socketConfig = socketConfig;
         this.exceptionHandler = exceptionHandler;
     }
 

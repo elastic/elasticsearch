@@ -45,7 +45,6 @@ testClusters.integTest {
     setting 'xpack.security.enabled', 'true'
     setting 'xpack.ml.enabled', 'true'
     setting 'xpack.watcher.enabled', 'false'
-    setting 'logger.org.elasticsearch.xpack.ml.datafeed', 'TRACE'
     setting 'xpack.monitoring.enabled', 'false'
     setting 'xpack.security.authc.token.enabled', 'true'
     setting 'xpack.security.transport.ssl.enabled', 'true'

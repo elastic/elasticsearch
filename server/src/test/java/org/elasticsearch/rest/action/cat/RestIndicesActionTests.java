@@ -151,7 +151,7 @@ public class RestIndicesActionTests extends ESTestCase {
         }
     }
 
-    private IndicesStatsResponse randomIndicesStatsResponse(final IndexMetaData[] indices) {
+    public static IndicesStatsResponse randomIndicesStatsResponse(final IndexMetaData[] indices) {
         List<ShardStats> shardStats = new ArrayList<>();
         for (final IndexMetaData index : indices) {
             int numShards = randomIntBetween(1, 3);

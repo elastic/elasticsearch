@@ -30,18 +30,21 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.isIn;
 import static org.hamcrest.Matchers.nullValue;
+import static org.junit.internal.matchers.ThrowableMessageMatcher.hasMessage;
 
 public class XContentParserTests extends ESTestCase {
 
@@ -326,6 +329,65 @@ public class XContentParserTests extends ESTestCase {
             assertEquals(
                     Arrays.asList(singletonMap("foo", "bar"), emptyMap()),
                     parser.list());
+        }
+    }
+
+    public void testGenericMap() throws IOException {
+        String content = "{" +
+            "\"c\": { \"i\": 3, \"d\": 0.3, \"s\": \"ccc\" }, " +
+            "\"a\": { \"i\": 1, \"d\": 0.1, \"s\": \"aaa\" }, " +
+            "\"b\": { \"i\": 2, \"d\": 0.2, \"s\": \"bbb\" }" +
+            "}";
+        SimpleStruct structA = new SimpleStruct(1, 0.1, "aaa");
+        SimpleStruct structB = new SimpleStruct(2, 0.2, "bbb");
+        SimpleStruct structC = new SimpleStruct(3, 0.3, "ccc");
+        Map<String, SimpleStruct> expectedMap = new HashMap<>();
+        expectedMap.put("a", structA);
+        expectedMap.put("b", structB);
+        expectedMap.put("c", structC);
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, content)) {
+            Map<String, SimpleStruct> actualMap = parser.map(HashMap::new, SimpleStruct::fromXContent);
+            // Verify map contents, ignore the iteration order.
+            assertThat(actualMap, equalTo(expectedMap));
+            assertThat(actualMap.values(), containsInAnyOrder(structA, structB, structC));
+            assertNull(parser.nextToken());
+        }
+    }
+
+    public void testGenericMapOrdered() throws IOException {
+        String content = "{" +
+            "\"c\": { \"i\": 3, \"d\": 0.3, \"s\": \"ccc\" }, " +
+            "\"a\": { \"i\": 1, \"d\": 0.1, \"s\": \"aaa\" }, " +
+            "\"b\": { \"i\": 2, \"d\": 0.2, \"s\": \"bbb\" }" +
+            "}";
+        SimpleStruct structA = new SimpleStruct(1, 0.1, "aaa");
+        SimpleStruct structB = new SimpleStruct(2, 0.2, "bbb");
+        SimpleStruct structC = new SimpleStruct(3, 0.3, "ccc");
+        Map<String, SimpleStruct> expectedMap = new HashMap<>();
+        expectedMap.put("a", structA);
+        expectedMap.put("b", structB);
+        expectedMap.put("c", structC);
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, content)) {
+            Map<String, SimpleStruct> actualMap = parser.map(LinkedHashMap::new, SimpleStruct::fromXContent);
+            // Verify map contents, ignore the iteration order.
+            assertThat(actualMap, equalTo(expectedMap));
+            // Verify that map's iteration order is the same as the order in which fields appear in JSON.
+            assertThat(actualMap.values(), contains(structC, structA, structB));
+            assertNull(parser.nextToken());
+        }
+    }
+
+    public void testGenericMap_Failure_MapContainingUnparsableValue() throws IOException {
+        String content = "{" +
+            "\"a\": { \"i\": 1, \"d\": 0.1, \"s\": \"aaa\" }, " +
+            "\"b\": { \"i\": 2, \"d\": 0.2, \"s\": 666 }, " +
+            "\"c\": { \"i\": 3, \"d\": 0.3, \"s\": \"ccc\" }" +
+            "}";
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, content)) {
+            XContentParseException exception = expectThrows(
+                XContentParseException.class,
+                () -> parser.map(HashMap::new, SimpleStruct::fromXContent));
+            assertThat(exception, hasMessage(containsString("s doesn't support values of type: VALUE_NUMBER")));
         }
     }
 

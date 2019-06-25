@@ -1,3 +1,5 @@
+[role="xpack"]
+[testenv="basic"]
 [[indices-reload-analyzers]]
 == Reload Search Analyzers
 
@@ -5,10 +7,9 @@ experimental[]
 
 Reloads search analyzers and its resources.
 
-The `_reload_search_analyzers` API can be run on one or more indices and will
-reload all search analyzers that contain components that were marked as
-updateable when they were created, such as 
-<<analysis-synonym-tokenfilter,synonym token filters>>:
+Synonym filters (both `synonym` and `synonym_graph`) can be declared as
+updateable if they are only used in <<search-analyzer,search analyzers>> 
+with the `updateable` flag:
 
 [source,js]
 --------------------------------------------------
@@ -49,8 +50,14 @@ PUT /my_index
 <1> Mark the synonym filter as updateable.
 <2> Synonym analyzer is usable as a search_analyzer.
 
-Calling the `_reload_search_analyzers` endpoint will now trigger reloading of the
-synonyms from the configured "synonym.txt" file.
+NOTE: Trying to use the above analyzer as an index analyzer will result in an error.
+
+Using the <<indices-reload-analyzers,analyzer reload API>>, you can trigger reloading of the
+synonym definition. The contents of the configured synonyms file will be reloaded and the
+synonyms definition the filter uses will be updated. 
+
+The `_reload_search_analyzers` API can be run on one or more indices and will trigger 
+reloading of the synonyms from the configured file.
 
 NOTE: Reloading will happen on every node the index has shards, so its important
 to update the synonym file contents on every data node (even the ones that don't currently

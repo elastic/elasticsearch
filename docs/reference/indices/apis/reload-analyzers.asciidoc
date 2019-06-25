@@ -13,7 +13,7 @@ with the `updateable` flag:
 
 [source,js]
 --------------------------------------------------
-PUT /test_index
+PUT /my_index
 {
     "settings": {
         "index" : {

@@ -51,7 +51,6 @@ import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
-import org.elasticsearch.action.admin.indices.reloadanalyzer.ReloadAnalyzersRequest;
 import org.elasticsearch.action.admin.indices.segments.IndicesSegmentsRequest;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.action.admin.indices.shards.IndicesShardStoresRequest;
@@ -523,15 +522,5 @@ public class Requests {
      */
     public static SnapshotsStatusRequest snapshotsStatusRequest(String repository) {
         return new SnapshotsStatusRequest(repository);
-    }
-
-    /**
-     * A request to reload search Analyzers indices settings.
-     *
-     * @param indices The indices to update the settings for. Use {@code null} or {@code _all} to executed against all indices.
-     * @return The request
-     */
-    public static ReloadAnalyzersRequest reloadAnalyzersRequest(String... indices) {
-        return new ReloadAnalyzersRequest(indices);
     }
 }

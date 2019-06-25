@@ -121,8 +121,6 @@ import org.elasticsearch.action.admin.indices.recovery.RecoveryAction;
 import org.elasticsearch.action.admin.indices.recovery.TransportRecoveryAction;
 import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
 import org.elasticsearch.action.admin.indices.refresh.TransportRefreshAction;
-import org.elasticsearch.action.admin.indices.reloadanalyzer.ReloadAnalyzerAction;
-import org.elasticsearch.action.admin.indices.reloadanalyzer.TransportReloadAnalyzersAction;
 import org.elasticsearch.action.admin.indices.rollover.RolloverAction;
 import org.elasticsearch.action.admin.indices.rollover.TransportRolloverAction;
 import org.elasticsearch.action.admin.indices.segments.IndicesSegmentsAction;
@@ -277,7 +275,6 @@ import org.elasticsearch.rest.action.admin.indices.RestPutIndexTemplateAction;
 import org.elasticsearch.rest.action.admin.indices.RestPutMappingAction;
 import org.elasticsearch.rest.action.admin.indices.RestRecoveryAction;
 import org.elasticsearch.rest.action.admin.indices.RestRefreshAction;
-import org.elasticsearch.rest.action.admin.indices.RestReloadAnalyzersAction;
 import org.elasticsearch.rest.action.admin.indices.RestResizeHandler;
 import org.elasticsearch.rest.action.admin.indices.RestRolloverIndexAction;
 import org.elasticsearch.rest.action.admin.indices.RestSyncedFlushAction;
@@ -502,7 +499,6 @@ public class ActionModule extends AbstractModule {
         actions.register(ClearScrollAction.INSTANCE, TransportClearScrollAction.class);
         actions.register(RecoveryAction.INSTANCE, TransportRecoveryAction.class);
         actions.register(NodesReloadSecureSettingsAction.INSTANCE, TransportNodesReloadSecureSettingsAction.class);
-        actions.register(ReloadAnalyzerAction.INSTANCE, TransportReloadAnalyzersAction.class);
 
         //Indexed scripts
         actions.register(PutStoredScriptAction.INSTANCE, TransportPutStoredScriptAction.class);
@@ -600,7 +596,6 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestGetFieldMappingAction(settings, restController));
 
         registerHandler.accept(new RestRefreshAction(settings, restController));
-        registerHandler.accept(new RestReloadAnalyzersAction(settings, restController));
         registerHandler.accept(new RestFlushAction(settings, restController));
         registerHandler.accept(new RestSyncedFlushAction(settings, restController));
         registerHandler.accept(new RestForceMergeAction(settings, restController));

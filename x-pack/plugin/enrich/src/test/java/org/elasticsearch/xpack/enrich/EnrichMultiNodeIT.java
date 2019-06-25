@@ -107,7 +107,6 @@ public class EnrichMultiNodeIT extends ESIntegTestCase {
         enrich(keys, randomFrom(nodes));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/43311")
     public void testEnrichDedicatedIngestNode() {
         internalCluster().startNode();
         Settings settings = Settings.builder()

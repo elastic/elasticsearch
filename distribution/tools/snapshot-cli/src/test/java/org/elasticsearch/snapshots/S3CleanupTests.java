@@ -95,7 +95,7 @@ public class S3CleanupTests extends ESSingleNodeTestCase {
                 "--safety_gap_millis", "0",
                 "--endpoint", getEndpoint(),
                 "--bucket", getBucket(),
-                "--basePath", getBasePath(),
+                "--base_path", getBasePath(),
                 "--access_key", getAccessKey(),
                 "--secret_key", getSecretKey());
         final MockTerminal terminal = new MockTerminal();

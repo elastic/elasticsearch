@@ -47,7 +47,7 @@ public class CleanupS3RepositoryCommand extends EnvironmentAwareCommand {
         bucketOption = parser.accepts("bucket", "Bucket name")
                 .withRequiredArg();
 
-        basePathOption = parser.accepts("basePath", "Base path")
+        basePathOption = parser.accepts("base_path", "Base path")
                 .withRequiredArg();
 
         accessKeyOption = parser.accepts("access_key", "Access key")

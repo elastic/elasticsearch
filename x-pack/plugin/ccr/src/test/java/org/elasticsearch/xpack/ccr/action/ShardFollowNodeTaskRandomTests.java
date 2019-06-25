@@ -139,13 +139,13 @@ public class ShardFollowNodeTaskRandomTests extends ESTestCase {
                 Consumer<BulkShardOperationsResponse> handler,
                 Consumer<Exception> errorHandler) {
                 for(Translog.Operation op : operations) {
-                    tracker.markSeqNoAsCompleted(op.seqNo());
+                    tracker.markSeqNoAsProcessed(op.seqNo());
                 }
                 receivedOperations.addAll(operations);
 
                 // Emulate network thread and avoid SO:
                 final BulkShardOperationsResponse response = new BulkShardOperationsResponse();
-                response.setGlobalCheckpoint(tracker.getCheckpoint());
+                response.setGlobalCheckpoint(tracker.getProcessedCheckpoint());
                 response.setMaxSeqNo(tracker.getMaxSeqNo());
                 threadPool.generic().execute(() -> handler.accept(response));
             }
@@ -180,7 +180,7 @@ public class ShardFollowNodeTaskRandomTests extends ESTestCase {
                         }
                     } else {
                         assert from >= testRun.finalExpectedGlobalCheckpoint;
-                        final long globalCheckpoint = tracker.getCheckpoint();
+                        final long globalCheckpoint = tracker.getProcessedCheckpoint();
                         final long maxSeqNo = tracker.getMaxSeqNo();
                         handler.accept(new ShardChangesAction.Response(
                                 0L,

@@ -37,7 +37,6 @@ import org.elasticsearch.snapshots.SnapshotMissingException;
 import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.disruption.NetworkDisruption;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 
 import java.util.Arrays;
@@ -54,7 +53,6 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 /**
  * Tests snapshot operations during disruptions.
  */
-@TestLogging("org.elasticsearch.snapshot:TRACE")
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class SnapshotDisruptionIT extends ESIntegTestCase {
 
@@ -179,7 +177,7 @@ public class SnapshotDisruptionIT extends ESIntegTestCase {
     private void assertSnapshotExists(String repository, String snapshot) {
         GetSnapshotsResponse snapshotsStatusResponse = dataNodeClient().admin().cluster().prepareGetSnapshots(repository)
                 .setSnapshots(snapshot).get();
-        SnapshotInfo snapshotInfo = snapshotsStatusResponse.getSnapshots().get(0);
+        SnapshotInfo snapshotInfo = snapshotsStatusResponse.getSnapshots(repository).get(0);
         assertEquals(SnapshotState.SUCCESS, snapshotInfo.state());
         assertEquals(snapshotInfo.totalShards(), snapshotInfo.successfulShards());
         assertEquals(0, snapshotInfo.failedShards());

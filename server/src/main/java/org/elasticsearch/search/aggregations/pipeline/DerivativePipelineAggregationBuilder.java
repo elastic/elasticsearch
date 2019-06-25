@@ -238,23 +238,19 @@ public class DerivativePipelineAggregationBuilder extends AbstractPipelineAggreg
     }
 
     @Override
-    protected boolean doEquals(Object obj) {
+    public boolean equals(Object obj) {
+        if (this == obj) return true;
+        if (obj == null || getClass() != obj.getClass()) return false;
+        if (super.equals(obj) == false) return false;
         DerivativePipelineAggregationBuilder other = (DerivativePipelineAggregationBuilder) obj;
-        if (!Objects.equals(format, other.format)) {
-            return false;
-        }
-        if (!Objects.equals(gapPolicy, other.gapPolicy)) {
-            return false;
-        }
-        if (!Objects.equals(units, other.units)) {
-            return false;
-        }
-        return true;
+        return Objects.equals(format, other.format) &&
+            gapPolicy == other.gapPolicy &&
+            Objects.equals(units, other.units);
     }
 
     @Override
-    protected int doHashCode() {
-        return Objects.hash(format, gapPolicy, units);
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), format, gapPolicy, units);
     }
 
     @Override

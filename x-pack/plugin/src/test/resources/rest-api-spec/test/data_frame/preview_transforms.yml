@@ -99,6 +99,49 @@ setup:
   - match: { preview.2.time.max: "2017-02-18T01:01:00.000Z" }
   - match: { preview.2.time.min: "2017-02-18T01:01:00.000Z" }
 
+  - do:
+      ingest.put_pipeline:
+        id: "data_frame_simple_pipeline"
+        body:  >
+          {
+            "processors": [
+             {
+               "set" : {
+                 "field" : "my_field",
+                 "value": 42
+               }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+  - do:
+      data_frame.preview_data_frame_transform:
+        body: >
+          {
+            "source": { "index": "airline-data" },
+            "dest": { "pipeline": "data_frame_simple_pipeline" },
+            "pivot": {
+              "group_by": {
+                "airline": {"terms": {"field": "airline"}},
+                "by-hour": {"date_histogram": {"fixed_interval": "1h", "field": "time", "format": "yyyy-MM-dd HH"}}},
+              "aggs": {
+                "avg_response": {"avg": {"field": "responsetime"}}
+              }
+            }
+          }
+  - match: { preview.0.airline: foo }
+  - match: { preview.0.by-hour: "2017-02-18 00" }
+  - match: { preview.0.avg_response: 1.0 }
+  - match: { preview.0.my_field: 42 }
+  - match: { preview.1.airline: bar }
+  - match: { preview.1.by-hour: "2017-02-18 01" }
+  - match: { preview.1.avg_response: 42.0 }
+  - match: { preview.1.my_field: 42 }
+  - match: { preview.2.airline: foo }
+  - match: { preview.2.by-hour: "2017-02-18 01" }
+  - match: { preview.2.avg_response: 42.0 }
+  - match: { preview.2.my_field: 42 }
+
 ---
 "Test preview transform with invalid config":
   - do:
@@ -127,7 +170,6 @@ setup:
               "aggs": {"avg_response": {"avg": {"field": "responsetime"}}}
             }
           }
-
 ---
 "Test preview returns bad request with invalid agg":
   - do:
@@ -161,4 +203,21 @@ setup:
               }
             }
           }
-
+---
+"Test preview with missing pipeline":
+  - do:
+      catch: bad_request
+      data_frame.preview_data_frame_transform:
+        body: >
+          {
+            "source": { "index": "airline-data" },
+            "dest": { "pipeline": "missing-pipeline" },
+            "pivot": {
+              "group_by": {
+                "time": {"date_histogram": {"fixed_interval": "1h", "field": "time", "format": "yyyy-MM-DD HH"}}},
+              "aggs": {
+                "avg_response": {"avg": {"field": "responsetime"}},
+                "time.min": {"min": {"field": "time"}}
+              }
+            }
+          }

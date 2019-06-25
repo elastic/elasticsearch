@@ -84,8 +84,14 @@ public class ReproduceInfoPrinter extends RunListener {
         b.append(failure.getDescription().getClassName());
         final String methodName = failure.getDescription().getMethodName();
         if (methodName != null) {
-            b.append(".");
-            b.append(failure.getDescription().getMethodName());
+            // fallback to system property filter when tests contain "."
+            if (methodName.contains(".")) {
+                b.append("\" -Dtests.method=\"");
+                b.append(methodName);
+            } else {
+                b.append(".");
+                b.append(methodName);
+            }
         }
         b.append("\"");
 

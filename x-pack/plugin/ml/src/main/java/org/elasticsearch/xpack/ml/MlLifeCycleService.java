@@ -41,7 +41,7 @@ public class MlLifeCycleService {
 
     public synchronized void stop() {
         try {
-            if (MachineLearningFeatureSet.isRunningOnMlPlatform(false)) {
+            if (MachineLearningInfoTransportAction.isRunningOnMlPlatform(false)) {
                 // This prevents datafeeds from sending data to autodetect processes WITHOUT stopping the
                 // datafeeds, so they get reallocated.  We have to do this first, otherwise the datafeeds
                 // could fail if they send data to a dead autodetect process.

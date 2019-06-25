@@ -86,7 +86,8 @@ file, are extra sensitive; they require restricted read access.
 To back up API-based configuration, which is stored inside the cluster, you use
 the <<modules-snapshots,standard {es} snapshot functionality>>. The snapshot API
 saves the settings, the type mapping, and the contents of nominated indices to a
-location on a cloud storage service or on a shared network file system. This is
+location on a cloud storage service or on a shared network file system.
+This API should be
 used to snapshot the `.security` index. The snapshot operation can also
 optionally capture the persistent settings from the global cluster metadata.
 

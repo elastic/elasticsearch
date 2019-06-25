@@ -84,13 +84,13 @@ public class MergingBucketsDeferringCollector extends BestBucketsDeferringCollec
 
         // if there are buckets that have been collected in the current segment
         // we need to update the bucket ordinals there too
-        if (buckets != null && buckets.size() > 0) {
-            PackedLongValues currentBuckets = buckets.build();
+        if (bucketsBuilder != null && bucketsBuilder.size() > 0) {
+            PackedLongValues currentBuckets = bucketsBuilder.build();
             PackedLongValues.Builder newBuckets = PackedLongValues.packedBuilder(PackedInts.DEFAULT);
             PackedLongValues.Builder newDocDeltas = PackedLongValues.packedBuilder(PackedInts.DEFAULT);
 
             // The current segment's deltas aren't built yet, so build to a temp object
-            PackedLongValues currentDeltas = docDeltas.build();
+            PackedLongValues currentDeltas = newDocDeltas.build();
             PackedLongValues.Iterator docDeltasItr = currentDeltas.iterator();
 
             long lastGoodDelta = 0;
@@ -113,8 +113,8 @@ public class MergingBucketsDeferringCollector extends BestBucketsDeferringCollec
                     lastGoodDelta += delta;
                 }
             }
-            docDeltas = newDocDeltas;
-            buckets = newBuckets;
+            docDeltasBuilder = newDocDeltas;
+            bucketsBuilder = newBuckets;
         }
     }
 }

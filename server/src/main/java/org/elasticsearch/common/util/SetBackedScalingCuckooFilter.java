@@ -187,7 +187,7 @@ public class SetBackedScalingCuckooFilter implements Writeable {
      * 100% accurate, while true values may be a false-positive.
      */
     public boolean mightContain(long value) {
-        long hash = CuckooFilter.murmur64(value);
+        long hash = MurmurHash3.murmur64(value);
         return mightContainHash(hash);
     }
 
@@ -240,7 +240,7 @@ public class SetBackedScalingCuckooFilter implements Writeable {
      * Add's the provided value to the set for tracking
      */
     public void add(long value) {
-        addHash(CuckooFilter.murmur64(value));
+        addHash(MurmurHash3.murmur64(value));
     }
 
     private void addHash(long hash) {
@@ -345,7 +345,6 @@ public class SetBackedScalingCuckooFilter implements Writeable {
             // Rather than converting the other to a cuckoo first, we can just
             // replay the values directly into our filter.
             other.hashes.forEach(this::add);
-            maybeConvert();
         } else {
             // Both are in cuckoo mode, merge raw fingerprints
 

@@ -19,6 +19,7 @@
 package org.elasticsearch.common.util;
 
 import org.elasticsearch.common.Randomness;
+import org.elasticsearch.common.hash.MurmurHash3;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
@@ -128,11 +129,7 @@ public class CuckooFilterTests extends AbstractWireSerializingTestCase<CuckooFil
         assertThat(fppRate, lessThanOrEqualTo(0.001));
     }
 
-    //private MurmurHash3.Hash128 hash(long i) {
-    //    return MurmurHash3.hash128(Numbers.longToBytes(i), 0, 8, 0, new MurmurHash3.Hash128());
-    //}
-
     private long hash(long i) {
-        return CuckooFilter.murmur64(i);
+        return MurmurHash3.murmur64(i);
     }
 }

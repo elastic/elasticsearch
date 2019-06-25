@@ -92,7 +92,7 @@ public abstract class AbstractRareTermsAggregator<T extends ValuesSource,
 
     @Override
     public DeferringBucketCollector getDeferringCollector() {
-        deferringCollector = new MergingBucketsDeferringCollector(context);
+        deferringCollector = new MergingBucketsDeferringCollector(context, descendsFromGlobalAggregator(parent()));
         return deferringCollector;
     }
 

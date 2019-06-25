@@ -160,17 +160,19 @@ public abstract class InternalMappedRareTerms<A extends InternalRareTerms<A, B>,
     }
 
     @Override
-    protected boolean doEquals(Object obj) {
+    public boolean equals(Object obj) {
+        if (this == obj) return true;
+        if (obj == null || getClass() != obj.getClass()) return false;
+        if (super.equals(obj) == false) return false;
         InternalMappedRareTerms<?,?> that = (InternalMappedRareTerms<?,?>) obj;
-        return super.doEquals(obj)
-            && Objects.equals(buckets, that.buckets)
+        return Objects.equals(buckets, that.buckets)
             && Objects.equals(format, that.format)
             && Objects.equals(filter, that.filter);
     }
 
     @Override
-    protected int doHashCode() {
-        return Objects.hash(super.doHashCode(), buckets, format, filter);
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), buckets, format, filter);
     }
 
     @Override

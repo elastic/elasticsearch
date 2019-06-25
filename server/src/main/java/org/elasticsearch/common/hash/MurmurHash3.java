@@ -180,4 +180,22 @@ public enum MurmurHash3 {
         return hash;
     }
 
+    /**
+     * A 64-bit variant which accepts a long to hash, and returns the 64bit long hash.
+     * This is useful if the input is already in long (or smaller) format and you don't
+     * need the full 128b width and flexibility of
+     * {@link MurmurHash3#hash128(byte[], int, int, long, Hash128)}
+     *
+     * Given the limited nature of this variant, it should be faster than the 128b version
+     * when you only need 128b (many fewer instructions)
+     */
+    public static long murmur64(long h) {
+        h ^= h >>> 33;
+        h *= 0xff51afd7ed558ccdL;
+        h ^= h >>> 33;
+        h *= 0xc4ceb9fe1a85ec53L;
+        h ^= h >>> 33;
+        return h;
+    }
+
 }

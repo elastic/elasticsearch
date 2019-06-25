@@ -177,7 +177,7 @@ This does, however, mean that  a large number of results can be returned if chos
 To limit the danger of this setting, the maximum `max_doc_count` is 100.
 
 [[search-aggregations-bucket-rare-terms-aggregation-max-buckets]]
-==== `search.max_buckets`
+==== Max Bucket Limit
 
 The Rare Terms aggregation is more liable to trip the `search.max_buckets` soft limit than other aggregations due
 to how it works.  The `max_bucket` soft-limit is evaluated on a per-shard basis while the aggregation is collecting

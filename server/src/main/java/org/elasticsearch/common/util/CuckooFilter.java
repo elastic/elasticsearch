@@ -51,8 +51,8 @@ import java.util.Random;
  * about inserts "overflowing" a bucket because the same item has been repeated repeatedly
  *
  * NOTE: this CuckooFilter exposes a number of Expert APIs which assume the caller has
- * intimate knowledge about how the algorithm works.  It is recommended to avoid these
- * APIs, or better yet, use {@link SetBackedScalingCuckooFilter} instead.
+ * intimate knowledge about how the algorithm works.  It is recommended to use
+ * {@link SetBackedScalingCuckooFilter} instead.
  *
  * Based on the paper:
  *
@@ -517,14 +517,5 @@ public class CuckooFilter implements Writeable {
             && Objects.equals(this.entriesPerBucket, that.entriesPerBucket)
             && Objects.equals(this.count, that.count)
             && Objects.equals(this.evictedFingerprint, that.evictedFingerprint);
-    }
-
-    static long murmur64(long h) {
-        h ^= h >>> 33;
-        h *= 0xff51afd7ed558ccdL;
-        h ^= h >>> 33;
-        h *= 0xc4ceb9fe1a85ec53L;
-        h ^= h >>> 33;
-        return h;
     }
 }

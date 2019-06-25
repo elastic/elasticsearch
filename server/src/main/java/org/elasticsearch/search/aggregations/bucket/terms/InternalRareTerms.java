@@ -179,15 +179,18 @@ public abstract class InternalRareTerms<A extends InternalRareTerms<A, B>, B ext
     protected abstract B[] createBucketsArray(int size);
 
     @Override
-    protected boolean doEquals(Object obj) {
+    public boolean equals(Object obj) {
+        if (this == obj) return true;
+        if (obj == null || getClass() != obj.getClass()) return false;
+        if (super.equals(obj) == false) return false;
         InternalRareTerms<?,?> that = (InternalRareTerms<?,?>) obj;
         return Objects.equals(maxDocCount, that.maxDocCount)
             && Objects.equals(order, that.order);
     }
 
     @Override
-    protected int doHashCode() {
-        return Objects.hash(maxDocCount, order);
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), maxDocCount, order);
     }
 
     protected static XContentBuilder doXContentCommon(XContentBuilder builder, Params params,

@@ -152,7 +152,7 @@ public class TransportVerifyShardBeforeCloseAction extends TransportReplicationA
         ShardRequest(StreamInput in) throws IOException {
             super(in);
             clusterBlock = new ClusterBlock(in);
-            if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+            if (in.getVersion().onOrAfter(Version.V_7_3_0)) {
                 phase1 = in.readBoolean();
             } else {
                 phase1 = false;
@@ -180,7 +180,7 @@ public class TransportVerifyShardBeforeCloseAction extends TransportReplicationA
         public void writeTo(final StreamOutput out) throws IOException {
             super.writeTo(out);
             clusterBlock.writeTo(out);
-            if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+            if (out.getVersion().onOrAfter(Version.V_7_3_0)) {
                 out.writeBoolean(phase1);
             }
         }

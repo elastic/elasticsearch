@@ -825,22 +825,6 @@ public class TermsAggregatorTests extends AggregatorTestCase {
     public void testUnmapped() throws Exception {
         try (Directory directory = newDirectory()) {
             try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
-                Document document = new Document();
-                document.add(new SortedDocValuesField("string", new BytesRef("a")));
-                document.add(new NumericDocValuesField("long", 0L));
-                document.add(new NumericDocValuesField("double", Double.doubleToRawLongBits(0L)));
-                indexWriter.addDocument(document);
-                MappedFieldType fieldType1 = new KeywordFieldMapper.KeywordFieldType();
-                fieldType1.setName("another_string");
-                fieldType1.setHasDocValues(true);
-
-                MappedFieldType fieldType2 = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG);
-                fieldType2.setName("another_long");
-                fieldType2.setHasDocValues(true);
-
-                MappedFieldType fieldType3 = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.DOUBLE);
-                fieldType3.setName("another_double");
-                fieldType3.setHasDocValues(true);
                 try (IndexReader indexReader = maybeWrapReaderEs(indexWriter.getReader())) {
                     IndexSearcher indexSearcher = newIndexSearcher(indexReader);
                     ValueType[] valueTypes = new ValueType[]{ValueType.STRING, ValueType.LONG, ValueType.DOUBLE};
@@ -848,13 +832,52 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                     for (int i = 0; i < fieldNames.length; i++) {
                         TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("_name", valueTypes[i])
                             .field(fieldNames[i]);
-                        Aggregator aggregator = createAggregator(aggregationBuilder, indexSearcher, fieldType1, fieldType2, fieldType3);
+                        Aggregator aggregator = createAggregator(aggregationBuilder, indexSearcher, (MappedFieldType) null);
                         aggregator.preCollection();
                         indexSearcher.search(new MatchAllDocsQuery(), aggregator);
                         aggregator.postCollection();
                         Terms result = (Terms) aggregator.buildAggregation(0L);
                         assertEquals("_name", result.getName());
                         assertEquals(0, result.getBuckets().size());
+                        assertFalse(AggregationInspectionHelper.hasValue((InternalTerms)result));
+                    }
+                }
+            }
+        }
+    }
+
+    public void testUnmappedWithMissing() throws Exception {
+        try (Directory directory = newDirectory()) {
+            try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
+
+                Document document = new Document();
+                document.add(new NumericDocValuesField("unrelated_value", 100));
+                indexWriter.addDocument(document);
+
+                try (IndexReader indexReader = maybeWrapReaderEs(indexWriter.getReader())) {
+
+                    MappedFieldType fieldType1 = new KeywordFieldMapper.KeywordFieldType();
+                    fieldType1.setName("unrelated_value");
+                    fieldType1.setHasDocValues(true);
+
+                    IndexSearcher indexSearcher = newIndexSearcher(indexReader);
+                    ValueType[] valueTypes = new ValueType[]{ValueType.STRING, ValueType.LONG, ValueType.DOUBLE};
+                    String[] fieldNames = new String[]{"string", "long", "double"};
+                    Object[] missingValues = new Object[]{"abc", 19L, 19.2};
+
+
+                    for (int i = 0; i < fieldNames.length; i++) {
+                        TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("_name", valueTypes[i])
+                            .field(fieldNames[i]).missing(missingValues[i]);
+                        Aggregator aggregator = createAggregator(aggregationBuilder, indexSearcher, fieldType1);
+                        aggregator.preCollection();
+                        indexSearcher.search(new MatchAllDocsQuery(), aggregator);
+                        aggregator.postCollection();
+                        Terms result = (Terms) aggregator.buildAggregation(0L);
+                        assertEquals("_name", result.getName());
+                        assertEquals(1, result.getBuckets().size());
+                        assertEquals(missingValues[i], result.getBuckets().get(0).getKey());
+                        assertEquals(1, result.getBuckets().get(0).getDocCount());
                     }
                 }
             }

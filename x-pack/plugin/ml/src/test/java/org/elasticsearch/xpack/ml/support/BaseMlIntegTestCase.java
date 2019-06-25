@@ -334,7 +334,7 @@ public abstract class BaseMlIntegTestCase extends ESIntegTestCase {
     protected String awaitJobOpenedAndAssigned(String jobId, String queryNode) throws Exception {
 
         PersistentTasksClusterService persistentTasksClusterService =
-            internalCluster().getInstance(PersistentTasksClusterService.class, internalCluster().getMasterName());
+            internalCluster().getInstance(PersistentTasksClusterService.class, internalCluster().getMasterName(queryNode));
         // Speed up rechecks to a rate that is quicker than what settings would allow.
         // The check would work eventually without doing this, but the assertBusy() below
         // would need to wait 30 seconds, which would make the test run very slowly.

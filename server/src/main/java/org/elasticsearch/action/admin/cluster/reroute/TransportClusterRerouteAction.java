@@ -46,9 +46,11 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenIntMap;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -80,7 +82,12 @@ public class TransportClusterRerouteAction extends TransportMasterNodeAction<Clu
 
     @Override
     protected ClusterRerouteResponse newResponse() {
-        return new ClusterRerouteResponse();
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
+    }
+
+    @Override
+    protected ClusterRerouteResponse read(StreamInput in) throws IOException {
+        return new ClusterRerouteResponse(in);
     }
 
     @Override

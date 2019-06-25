@@ -41,7 +41,8 @@ public class ServerChannelContext extends ChannelContext<ServerSocketChannel> {
     }
 
     public ServerChannelContext(NioServerSocketChannel channel, ChannelFactory<?, ?> channelFactory, NioSelector selector,
-                                SocketConfig config, Consumer<NioSocketChannel> acceptor, Consumer<Exception> exceptionHandler) {
+                                SocketConfig.ServerSocket config, Consumer<NioSocketChannel> acceptor,
+                                Consumer<Exception> exceptionHandler) {
         super(channel.getRawChannel(), config, exceptionHandler);
         this.channel = channel;
         this.channelFactory = channelFactory;
@@ -62,7 +63,7 @@ public class ServerChannelContext extends ChannelContext<ServerSocketChannel> {
 
         configureSocket(rawChannel.socket());
 
-        InetSocketAddress localAddress = socketConfig.getLocalAddress();
+        InetSocketAddress localAddress = ((SocketConfig.ServerSocket) socketConfig).getLocalAddress();
         try {
             rawChannel.bind(localAddress);
         } catch (IOException e) {

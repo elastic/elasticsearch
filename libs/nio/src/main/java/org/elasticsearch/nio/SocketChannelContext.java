@@ -57,7 +57,7 @@ public abstract class SocketChannelContext extends ChannelContext<SocketChannel>
     private boolean socketOptionsSet;
     private Exception connectException;
 
-    protected SocketChannelContext(NioSocketChannel channel, NioSelector selector, SocketConfig socketConfig,
+    protected SocketChannelContext(NioSocketChannel channel, NioSelector selector, SocketConfig.Socket socketConfig,
                                    Consumer<Exception> exceptionHandler, NioChannelHandler channelHandler,
                                    InboundChannelBuffer channelBuffer) {
         super(channel.getRawChannel(), socketConfig, exceptionHandler);
@@ -83,7 +83,7 @@ public abstract class SocketChannelContext extends ChannelContext<SocketChannel>
 
         configureSocket(rawChannel.socket(), false);
 
-        InetSocketAddress remoteAddress = socketConfig.getRemoteAddress();
+        InetSocketAddress remoteAddress = ((SocketConfig.Socket) socketConfig).getRemoteAddress();
         try {
             rawChannel.connect(remoteAddress);
         } catch (IOException e) {
@@ -320,6 +320,7 @@ public abstract class SocketChannelContext extends ChannelContext<SocketChannel>
             // Set reuse address first as it must be set before a bind call. Some implementations throw
             // exceptions on other socket options if the channel is not connected. But setting reuse first,
             // we ensure that it is properly set before any bind attempt.
+            SocketConfig.Socket socketConfig = (SocketConfig.Socket) this.socketConfig;
             socket.setReuseAddress(socketConfig.tcpReuseAddress());
             socket.setKeepAlive(socketConfig.tcpKeepAlive());
             socket.setTcpNoDelay(socketConfig.tcpNoDelay());

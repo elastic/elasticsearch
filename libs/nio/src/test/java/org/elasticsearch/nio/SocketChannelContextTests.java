@@ -25,6 +25,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.stubbing.Answer;
 
 import java.io.IOException;
+import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
 import java.nio.channels.ClosedChannelException;
 import java.nio.channels.SocketChannel;
@@ -374,11 +375,15 @@ public class SocketChannelContextTests extends ESTestCase {
         assertEquals(1, flushOperation.getBuffersToWrite()[0].position());
     }
 
+    private static SocketConfig.Socket getSocketConfig() {
+        return new SocketConfig.Socket(randomBoolean(), randomBoolean(), randomBoolean(), -1, -1, mock(InetSocketAddress.class));
+    }
+
     private static class TestSocketChannelContext extends SocketChannelContext {
 
         private TestSocketChannelContext(NioSocketChannel channel, NioSelector selector, Consumer<Exception> exceptionHandler,
                                          NioChannelHandler readWriteHandler, InboundChannelBuffer channelBuffer) {
-            super(channel, selector, null, exceptionHandler, readWriteHandler, channelBuffer);
+            super(channel, selector, getSocketConfig(), exceptionHandler, readWriteHandler, channelBuffer);
         }
 
         @Override

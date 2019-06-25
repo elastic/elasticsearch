@@ -21,52 +21,68 @@ package org.elasticsearch.nio;
 
 import java.net.InetSocketAddress;
 
-public class SocketConfig {
+public abstract class SocketConfig {
 
-    private final boolean tcpNoDelay;
-    private final boolean tcpKeepAlive;
     private final boolean tcpReuseAddress;
-    private final int tcpSendBufferSize;
-    private final int tcpReceiveBufferSize;
-    private final InetSocketAddress localAddress;
-    private final InetSocketAddress remoteAddress;
 
-    public SocketConfig(boolean tcpNoDelay, boolean tcpKeepAlive, boolean tcpReuseAddress, int tcpSendBufferSize,
-                        int tcpReceiveBufferSize, InetSocketAddress localAddress, InetSocketAddress remoteAddress) {
-        this.tcpNoDelay = tcpNoDelay;
-        this.tcpKeepAlive = tcpKeepAlive;
+    public SocketConfig(boolean tcpReuseAddress) {
         this.tcpReuseAddress = tcpReuseAddress;
-        this.tcpSendBufferSize = tcpSendBufferSize;
-        this.tcpReceiveBufferSize = tcpReceiveBufferSize;
-        this.localAddress = localAddress;
-        this.remoteAddress = remoteAddress;
-    }
-
-    public boolean tcpNoDelay() {
-        return tcpNoDelay;
-    }
-
-    public boolean tcpKeepAlive() {
-        return tcpKeepAlive;
     }
 
     public boolean tcpReuseAddress() {
         return tcpReuseAddress;
     }
 
-    public int tcpSendBufferSize() {
-        return tcpSendBufferSize;
+    public static class Socket extends SocketConfig {
+
+        private final boolean tcpNoDelay;
+        private final boolean tcpKeepAlive;
+        private final int tcpSendBufferSize;
+        private final int tcpReceiveBufferSize;
+        private final InetSocketAddress remoteAddress;
+
+        public Socket(boolean tcpNoDelay, boolean tcpKeepAlive, boolean tcpReuseAddress, int tcpSendBufferSize, int tcpReceiveBufferSize,
+                      InetSocketAddress remoteAddress) {
+            super(tcpReuseAddress);
+            this.tcpNoDelay = tcpNoDelay;
+            this.tcpKeepAlive = tcpKeepAlive;
+            this.tcpSendBufferSize = tcpSendBufferSize;
+            this.tcpReceiveBufferSize = tcpReceiveBufferSize;
+            this.remoteAddress = remoteAddress;
+        }
+
+        public boolean tcpNoDelay() {
+            return tcpNoDelay;
+        }
+
+        public boolean tcpKeepAlive() {
+            return tcpKeepAlive;
+        }
+
+        public int tcpSendBufferSize() {
+            return tcpSendBufferSize;
+        }
+
+        public int tcpReceiveBufferSize() {
+            return tcpReceiveBufferSize;
+        }
+
+        public InetSocketAddress getRemoteAddress() {
+            return remoteAddress;
+        }
     }
 
-    public int tcpReceiveBufferSize() {
-        return tcpReceiveBufferSize;
-    }
+    public static class ServerSocket extends SocketConfig {
 
-    public InetSocketAddress getLocalAddress() {
-        return localAddress;
-    }
+        private InetSocketAddress localAddress;
 
-    public InetSocketAddress getRemoteAddress() {
-        return remoteAddress;
+        public ServerSocket(boolean tcpReuseAddress, InetSocketAddress localAddress) {
+            super(tcpReuseAddress);
+            this.localAddress = localAddress;
+        }
+
+        public InetSocketAddress getLocalAddress() {
+            return localAddress;
+        }
     }
 }

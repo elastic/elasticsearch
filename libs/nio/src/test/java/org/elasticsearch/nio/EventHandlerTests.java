@@ -276,7 +276,7 @@ public class EventHandlerTests extends ESTestCase {
 
         @SuppressWarnings("unchecked")
         DoNotRegisterServerContext(NioServerSocketChannel channel, NioSelector selector, Consumer<NioSocketChannel> acceptor) {
-            super(channel, channelFactory, selector, getSocketConfig(), acceptor, mock(Consumer.class));
+            super(channel, channelFactory, selector, getServerSocketConfig(), acceptor, mock(Consumer.class));
         }
 
         @Override
@@ -285,8 +285,11 @@ public class EventHandlerTests extends ESTestCase {
         }
     }
 
-    private static SocketConfig getSocketConfig() {
-        return new SocketConfig(randomBoolean(), randomBoolean(), randomBoolean(), -1, -1,
-            randomFrom(null, mock(InetSocketAddress.class)), randomFrom(null, mock(InetSocketAddress.class)));
+    private static SocketConfig.ServerSocket getServerSocketConfig() {
+        return new SocketConfig.ServerSocket(randomBoolean(), mock(InetSocketAddress.class));
+    }
+
+    private static SocketConfig.Socket getSocketConfig() {
+        return new SocketConfig.Socket(randomBoolean(), randomBoolean(), randomBoolean(), -1, -1, mock(InetSocketAddress.class));
     }
 }

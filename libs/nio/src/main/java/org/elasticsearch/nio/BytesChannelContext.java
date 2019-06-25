@@ -26,10 +26,10 @@ public class BytesChannelContext extends SocketChannelContext {
 
     public BytesChannelContext(NioSocketChannel channel, NioSelector selector, Consumer<Exception> exceptionHandler,
                                NioChannelHandler handler, InboundChannelBuffer channelBuffer) {
-        super(channel, selector, null, exceptionHandler, handler, channelBuffer);
+        this(channel, selector, null, exceptionHandler, handler, channelBuffer);
     }
 
-    public BytesChannelContext(NioSocketChannel channel, NioSelector selector, SocketConfig socketConfig,
+    public BytesChannelContext(NioSocketChannel channel, NioSelector selector, SocketConfig.Socket socketConfig,
                                Consumer<Exception> exceptionHandler, NioChannelHandler handler, InboundChannelBuffer channelBuffer) {
         super(channel, selector, socketConfig, exceptionHandler, handler, channelBuffer);
     }

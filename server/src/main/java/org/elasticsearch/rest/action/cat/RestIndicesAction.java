@@ -132,6 +132,14 @@ public class RestIndicesAction extends AbstractCatAction {
         };
     }
 
+    /**
+     * We're using the Get Settings API here to resolve the authorized indices for the user.
+     * This is because the Cluster State and Cluster Health APIs do not filter output based
+     * on index privileges, so they can't be used to determine which indices are authorized
+     * or not. On top of this, the Indices Stats API cannot be used either to resolve indices
+     * as it does not provide information for all existing indices (for example recovering
+     * indices or non replicated closed indices are not reported in indices stats response).
+     */
     private void sendGetSettingsRequest(final String[] indices,
                                         final IndicesOptions indicesOptions,
                                         final boolean local,

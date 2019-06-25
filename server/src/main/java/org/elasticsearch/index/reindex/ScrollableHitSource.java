@@ -516,7 +516,6 @@ public abstract class ScrollableHitSource {
         }
     }
 
-    // todo: figure out if/when thread-context handling is necessary.
     private class RetryListener implements RejectAwareActionListener<Response> {
         private final Iterator<TimeValue> retries = backoffPolicy.iterator();
         private volatile int retryCount = 0;

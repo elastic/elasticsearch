@@ -110,6 +110,7 @@ import org.apache.lucene.analysis.tr.ApostropheFilter;
 import org.apache.lucene.analysis.tr.TurkishAnalyzer;
 import org.apache.lucene.analysis.util.ElisionFilter;
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.Version;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -475,8 +476,12 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
         tokenizers.add(PreConfiguredTokenizer.singleton("letter", LetterTokenizer::new));
         tokenizers.add(PreConfiguredTokenizer.singleton("whitespace", WhitespaceTokenizer::new));
         tokenizers.add(PreConfiguredTokenizer.singleton("ngram", NGramTokenizer::new));
-        tokenizers.add(PreConfiguredTokenizer.singleton("edge_ngram",
-            () -> new EdgeNGramTokenizer(EdgeNGramTokenizer.DEFAULT_MIN_GRAM_SIZE, EdgeNGramTokenizer.DEFAULT_MAX_GRAM_SIZE)));
+        tokenizers.add(PreConfiguredTokenizer.elasticsearchVersion("edge_ngram", (version) -> {
+            if (version.onOrAfter(Version.V_7_3_0)) {
+                return new EdgeNGramTokenizer(NGramTokenizer.DEFAULT_MIN_NGRAM_SIZE, NGramTokenizer.DEFAULT_MAX_NGRAM_SIZE);
+            }
+            return new EdgeNGramTokenizer(EdgeNGramTokenizer.DEFAULT_MIN_GRAM_SIZE, EdgeNGramTokenizer.DEFAULT_MAX_GRAM_SIZE);
+        }));
         tokenizers.add(PreConfiguredTokenizer.singleton("pattern", () -> new PatternTokenizer(Regex.compile("\\W+", null), -1)));
         tokenizers.add(PreConfiguredTokenizer.singleton("thai", ThaiTokenizer::new));
         // TODO deprecate and remove in API
@@ -485,8 +490,12 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
 
         // Temporary shim for aliases. TODO deprecate after they are moved
         tokenizers.add(PreConfiguredTokenizer.singleton("nGram", NGramTokenizer::new));
-        tokenizers.add(PreConfiguredTokenizer.singleton("edgeNGram",
-            () -> new EdgeNGramTokenizer(EdgeNGramTokenizer.DEFAULT_MIN_GRAM_SIZE, EdgeNGramTokenizer.DEFAULT_MAX_GRAM_SIZE)));
+        tokenizers.add(PreConfiguredTokenizer.elasticsearchVersion("edgeNGram", (version) -> {
+            if (version.onOrAfter(Version.V_7_3_0)) {
+                return new EdgeNGramTokenizer(NGramTokenizer.DEFAULT_MIN_NGRAM_SIZE, NGramTokenizer.DEFAULT_MAX_NGRAM_SIZE);
+            }
+            return new EdgeNGramTokenizer(EdgeNGramTokenizer.DEFAULT_MIN_GRAM_SIZE, EdgeNGramTokenizer.DEFAULT_MAX_GRAM_SIZE);
+        }));
         tokenizers.add(PreConfiguredTokenizer.singleton("PathHierarchy", PathHierarchyTokenizer::new));
 
         return tokenizers;

@@ -1,4 +1,4 @@
-[[painless-walkthrough]]
+[[painless-examples]]
 === A Brief Painless Walkthrough
 
 To illustrate how Painless works, let's load some hockey stats into an Elasticsearch index:

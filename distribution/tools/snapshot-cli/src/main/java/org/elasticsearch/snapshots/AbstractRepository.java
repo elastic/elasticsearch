@@ -13,9 +13,11 @@ import java.util.stream.Collectors;
 
 public abstract  class AbstractRepository implements Repository {
     protected final Terminal terminal;
+    private final Long safetyGapMillis;
 
-    protected AbstractRepository(Terminal terminal) {
+    protected AbstractRepository(Terminal terminal, Long safetyGapMillis) {
         this.terminal = terminal;
+        this.safetyGapMillis = safetyGapMillis == null ? 3600 * 1000 : safetyGapMillis;
     }
 
     public void cleanup() throws IOException {
@@ -37,19 +39,22 @@ public abstract  class AbstractRepository implements Repository {
         }
         terminal.println(Terminal.Verbosity.VERBOSE, "Reading latest index file creation timestamp");
         Date indexNTimestamp = getIndexNTimestamp(latestIndexId);
+        Date shiftedIndexNTimestamp = new Date(indexNTimestamp.getTime() - safetyGapMillis);
         terminal.println(Terminal.Verbosity.VERBOSE, "Latest index file creation timestamp is " + indexNTimestamp);
+        terminal.println(Terminal.Verbosity.VERBOSE, "Shifted by safety gap creation timestamp is " + shiftedIndexNTimestamp);
         Set<String> leakedIndexIds = new HashSet<>();
         for (String candidate : deletionCandidates) {
             terminal.println(Terminal.Verbosity.VERBOSE, "Reading index " + candidate + " last modification timestamp");
             Date indexTimestamp = getIndexTimestamp(candidate);
             terminal.println(Terminal.Verbosity.VERBOSE, "Index " + candidate + " last modification timestamp is " + indexTimestamp);
-            if (indexTimestamp.before(indexNTimestamp)) {
+
+            if (indexTimestamp.before(shiftedIndexNTimestamp)) {
                 leakedIndexIds.add(candidate);
                 terminal.println(Terminal.Verbosity.VERBOSE, "Index " + candidate + " has leaked because " + indexTimestamp + " is less " +
-                        "than " + indexNTimestamp);
+                        "than " + shiftedIndexNTimestamp);
             } else {
                 terminal.println(Terminal.Verbosity.VERBOSE, "Index  " + candidate + " might not be leaked because " + indexTimestamp +
-                        " is gte than " + indexNTimestamp);
+                        " is gte than " + shiftedIndexNTimestamp);
             }
         }
         terminal.println(Terminal.Verbosity.NORMAL, "Set of leaked indices is " + leakedIndexIds);

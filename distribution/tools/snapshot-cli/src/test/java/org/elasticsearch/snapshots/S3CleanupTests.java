@@ -92,6 +92,7 @@ public class S3CleanupTests extends ESSingleNodeTestCase {
             throws Exception {
         final CleanupS3RepositoryCommand command = new CleanupS3RepositoryCommand();
         final OptionSet options = command.getParser().parse(
+                "--safety_gap_millis", "0",
                 "--endpoint", getEndpoint(),
                 "--bucket", getBucket(),
                 "--basePath", getBasePath(),
@@ -216,17 +217,17 @@ public class S3CleanupTests extends ESSingleNodeTestCase {
        logger.info("--> verify that there is no inconsistencies");
        BlobStoreTestUtil.assertConsistency(repo, genericExec);
 
-
+       logger.info("--> perform cleanup by removing snapshots");
        assertTrue(client().admin()
                .cluster()
                .prepareDeleteSnapshot("test-repo", "snap1")
                .get()
                .isAcknowledged());
-        assertTrue(client().admin()
-                .cluster()
-                .prepareDeleteSnapshot("test-repo", "snap2")
-                .get()
-                .isAcknowledged());
+       assertTrue(client().admin()
+               .cluster()
+               .prepareDeleteSnapshot("test-repo", "snap2")
+               .get()
+               .isAcknowledged());
    }
 
 

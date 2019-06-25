@@ -33,6 +33,7 @@ public class CleanupS3RepositoryCommand extends EnvironmentAwareCommand {
     private final OptionSpec<String> basePathOption;
     private final OptionSpec<String> accessKeyOption;
     private final OptionSpec<String> secretKeyOption;
+    private final OptionSpec<Long> safetyGapMillisOption;
 
     public CleanupS3RepositoryCommand() {
         super("Command to cleanup leaked segment files from the S3 repository");
@@ -54,6 +55,9 @@ public class CleanupS3RepositoryCommand extends EnvironmentAwareCommand {
 
         secretKeyOption = parser.accepts("secret_key", "Secret key")
                 .withRequiredArg();
+
+        safetyGapMillisOption = parser.accepts("safety_gap_millis", "Safety gap to account for clock drift")
+                .withRequiredArg().ofType(Long.class);
     }
 
 
@@ -94,7 +98,9 @@ public class CleanupS3RepositoryCommand extends EnvironmentAwareCommand {
             return;
         }
 
-        Repository repository = new S3Repository(terminal, endpoint, region, accessKey, secretKey, bucket, basePath);
+        Long safetyGapMillis = safetyGapMillisOption.value(options);
+
+        Repository repository = new S3Repository(terminal, safetyGapMillis, endpoint, region, accessKey, secretKey, bucket, basePath);
         repository.cleanup();
     }
 

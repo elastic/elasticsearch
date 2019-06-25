@@ -212,21 +212,28 @@ public class TestClustersPlugin implements Plugin<Project> {
                                 " nodes, but this system only supports " + GlobalSemaphoreHolderExtension.maxPermits()
                             );
                         }
-                        logger.info(
-                            "Will acquire {} permits for {} on {}",
-                            totalNodesForTask, this, Thread.currentThread().getName()
-                        );
-                        Instant startedAt = Instant.now();
-                        GlobalSemaphoreHolderExtension.get(project).acquireUninterruptibly(totalNodesForTask);
-                        logger.info(
-                            "Acquired {} permits for {} took {} seconds",
-                            totalNodesForTask, this, Duration.between(startedAt, Instant.now())
-                        );
-                        clustersUsedByTasks
-                            .forEach(elasticsearchCluster -> {
-                                elasticsearchCluster.start();
-                                runningClusters.add(elasticsearchCluster);
-                            });
+                        // It seems that Gradle runs `beforeActions` and `afterExecute` in the same single worker so
+                        // blocking here would mean that all of these hooks are blocked and the permits are never
+                        // released. We add this to a task action instead because task actions have their own workers
+                        // Since we do it this late, our doFirst will come before any in the build script so tasks will
+                        // still be able to rely on the cluster being started when _their_ doFirst executes.
+                        task.doFirst(action -> {
+                            logger.info(
+                                "Will acquire {} permits for {} on {}",
+                                totalNodesForTask, task, Thread.currentThread().getName()
+                            );
+                            Instant startedAt = Instant.now();
+                            GlobalSemaphoreHolderExtension.get(project).acquireUninterruptibly(totalNodesForTask);
+                            logger.info(
+                                "Acquired {} permits for {} took {} seconds",
+                                totalNodesForTask, task, Duration.between(startedAt, Instant.now())
+                            );
+                            clustersUsedByTasks
+                                .forEach(elasticsearchCluster -> {
+                                    elasticsearchCluster.start();
+                                    runningClusters.add(elasticsearchCluster);
+                                });
+                        });
                     }
                 }
                 @Override
@@ -276,7 +283,7 @@ public class TestClustersPlugin implements Plugin<Project> {
                             .reduce(Integer::sum).orElse(0);
                     }
 
-                    logger.info("Will release {} permits for {}", permitsToRelease, this);
+                    logger.info("Will release {} permits for {}", permitsToRelease, task);
                     GlobalSemaphoreHolderExtension.get(project).release(permitsToRelease);
                 }
                 @Override

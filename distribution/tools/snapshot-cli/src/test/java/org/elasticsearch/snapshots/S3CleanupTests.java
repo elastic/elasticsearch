@@ -1,6 +1,7 @@
 package org.elasticsearch.snapshots;
 
 import joptsimple.OptionSet;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -27,8 +28,10 @@ import java.util.Collection;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.not;
 
 public class S3CleanupTests extends ESSingleNodeTestCase {
 
@@ -85,6 +88,41 @@ public class S3CleanupTests extends ESSingleNodeTestCase {
         return System.getProperty("test.s3.key");
     }
 
+    private MockTerminal executeCommand(Environment environment, boolean abort)
+            throws Exception {
+        final CleanupS3RepositoryCommand command = new CleanupS3RepositoryCommand();
+        final OptionSet options = command.getParser().parse(
+                "--endpoint", getEndpoint(),
+                "--bucket", getBucket(),
+                "--basePath", getBasePath(),
+                "--access_key", getAccessKey(),
+                "--secret_key", getSecretKey());
+        final MockTerminal terminal = new MockTerminal();
+        terminal.setVerbosity(Terminal.Verbosity.VERBOSE);
+        final String input;
+
+        if (abort) {
+            input = randomValueOtherThanMany(c -> c.equalsIgnoreCase("y"), () -> randomAlphaOfLength(1));
+        } else {
+            input = randomBoolean() ? "y" : "Y";
+        }
+
+        terminal.addTextInput(input);
+
+        try {
+            command.execute(terminal, options, environment);
+        } catch (ElasticsearchException e) {
+            if (abort && e.getMessage().contains("Aborted by user")) {
+                return terminal;
+            } else {
+                throw e;
+            }
+        } finally {
+            logger.info("Cleanup command output:\n" + terminal.getOutput());
+        }
+
+        return terminal;
+    }
 
     public void testCleanupS3() throws Exception {
        createRepository("test-repo");
@@ -125,17 +163,8 @@ public class S3CleanupTests extends ESSingleNodeTestCase {
 
        logger.info("--> execute cleanup tool, there is nothing to cleanup");
        final Environment environment = TestEnvironment.newEnvironment(node().settings());
-       final CleanupS3RepositoryCommand command = new CleanupS3RepositoryCommand();
-       MockTerminal terminal = new MockTerminal();
-       terminal.setVerbosity(Terminal.Verbosity.VERBOSE);
-       final OptionSet options = command.getParser().parse(
-               "--endpoint", getEndpoint(),
-               "--bucket", getBucket(),
-               "--basePath", getBasePath(),
-               "--access_key", getAccessKey(),
-               "--secret_key", getSecretKey());
-       command.execute(terminal, options, environment);
-       logger.info("Cleanup tool first run output:\n" + terminal.getOutput());
+       MockTerminal terminal = executeCommand(environment, false);
+       assertThat(terminal.getOutput(), containsString("Set of deletion candidates is empty. Exiting"));
 
        logger.info("--> check that there is no inconsistencies after running the tool");
        final BlobStoreRepository repo =
@@ -169,11 +198,20 @@ public class S3CleanupTests extends ESSingleNodeTestCase {
        assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(),
                 equalTo(createSnapshotResponse.getSnapshotInfo().totalShards()));
 
-       logger.info("--> execute cleanup tool again, indices/foo should go");
-       terminal = new MockTerminal();
-       terminal.setVerbosity(Terminal.Verbosity.VERBOSE);
-       command.execute(terminal, options, environment);
-       logger.info("Cleanup tool second run output:\n" + terminal.getOutput());
+       logger.info("--> execute cleanup tool again and abort");
+       terminal = executeCommand(environment, true);
+       assertThat(terminal.getOutput(), containsString("Set of deletion candidates is [foo]"));
+       assertThat(terminal.getOutput(), containsString("Set of leaked indices is [foo]"));
+       assertThat(terminal.getOutput(), containsString("This action is NOT REVERSIBLE"));
+       assertThat(terminal.getOutput(), not(containsString("Removing leaked index foo")));
+
+       logger.info("--> execute cleanup tool again and confirm, indices/foo should go");
+       terminal = executeCommand(environment, false);
+       assertThat(terminal.getOutput(), containsString("Set of deletion candidates is [foo]"));
+       assertThat(terminal.getOutput(), containsString("Set of leaked indices is [foo]"));
+       assertThat(terminal.getOutput(), containsString("This action is NOT REVERSIBLE"));
+       assertThat(terminal.getOutput(), containsString("Removing leaked index foo"));
+       assertThat(terminal.getOutput(), containsString("foo/bar"));
 
        logger.info("--> verify that there is no inconsistencies");
        BlobStoreTestUtil.assertConsistency(repo, genericExec);
@@ -207,6 +245,4 @@ public class S3CleanupTests extends ESSingleNodeTestCase {
         });
         return future.actionGet();
     }
-
-
 }

@@ -1,5 +1,6 @@
 package org.elasticsearch.snapshots;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.repositories.IndexId;
@@ -52,7 +53,16 @@ public abstract  class AbstractRepository implements Repository {
             }
         }
         terminal.println(Terminal.Verbosity.NORMAL, "Set of leaked indices is " + leakedIndexIds);
+        confirm(terminal, "Do you want to remove leaked indices files? This action is NOT REVERSIBLE");
         terminal.println(Terminal.Verbosity.NORMAL, "Removing leaked indices");
         deleteIndices(leakedIndexIds);
+    }
+
+    protected void confirm(Terminal terminal, String msg) {
+        terminal.println(Terminal.Verbosity.NORMAL, msg);
+        String text = terminal.readText("Confirm [y/N] ");
+        if (text.equalsIgnoreCase("y") == false) {
+            throw new ElasticsearchException("Aborted by user");
+        }
     }
 }

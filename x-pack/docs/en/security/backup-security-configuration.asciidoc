@@ -265,5 +265,12 @@ the `include_global_state` flag).
 
 Lastly, if your backup included configuration files copy these and overwrite
 the contents of `$ES_PATH_CONF` and restart the node. This needs to be done on
-*every node*. Usually rolling restarts won't work, a full cluster restart is
+*every node*. Depending on the extent of the differences between your current
+cluster configuration and the restored configuration, you may not be able to
+perform a rolling restart. 
+If you are performing a full restore of your configuration directory, we recommend
+a full cluster restart as the safest option.
+Alternatively, you may wish to restore you configuration files to a separate
+location on disk and use file comparison tools to review the differences between
+your existing configuration and the restored configuration.
 required. This is a conventional file configuration restore.

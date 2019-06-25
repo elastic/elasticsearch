@@ -32,6 +32,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.util.set.Sets;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -378,6 +379,17 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
                                 resolvedNodesIds.removeAll(getCoordinatingOnlyNodes().keys());
                             }
                         } else {
+                            for (DiscoveryNode node : this) {
+                                for (DiscoveryNodeRole role : Sets.difference(node.getRoles(), DiscoveryNodeRole.BUILT_IN_ROLES)) {
+                                    if (role.roleName().equals(matchAttrName)) {
+                                        if (Booleans.parseBoolean(matchAttrValue, true)) {
+                                            resolvedNodesIds.add(node.getId());
+                                        } else {
+                                            resolvedNodesIds.remove(node.getId());
+                                        }
+                                    }
+                                }
+                            }
                             for (DiscoveryNode node : this) {
                                 for (Map.Entry<String, String> entry : node.getAttributes().entrySet()) {
                                     String attrName = entry.getKey();

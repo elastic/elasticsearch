@@ -114,6 +114,11 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
 
     private void getMultipleReposSnapshotInfo(List<RepositoryMetaData> repos, String[] snapshots, boolean ignoreUnavailable,
                                               boolean verbose, ActionListener<GetSnapshotsResponse> listener) {
+        // short-circuit if there are no repos, because we can not create GroupedActionListener of size 0
+        if (repos.isEmpty()) {
+            listener.onResponse(new GetSnapshotsResponse(Collections.emptyList()));
+            return;
+        }
         final GroupedActionListener<GetSnapshotsResponse.Response> groupedActionListener =
                 new GroupedActionListener<>(
                         ActionListener.map(listener, responses -> {

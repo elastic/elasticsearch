@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.ml;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
@@ -102,21 +101,6 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
         return new MachineLearningUsageTransportAction(mock(TransportService.class), clusterService,
             null, mock(ActionFilters.class), mock(IndexNameExpressionResolver.class),
             TestEnvironment.newEnvironment(settings), client, licenseState, jobManagerHolder);
-    }
-
-    public void testIsRunningOnMlPlatform() {
-        assertTrue(MachineLearningInfoTransportAction.isRunningOnMlPlatform("Linux", "amd64", true));
-        assertTrue(MachineLearningInfoTransportAction.isRunningOnMlPlatform("Windows 10", "amd64", true));
-        assertTrue(MachineLearningInfoTransportAction.isRunningOnMlPlatform("Mac OS X", "x86_64", true));
-        assertFalse(MachineLearningInfoTransportAction.isRunningOnMlPlatform("Linux", "i386", false));
-        assertFalse(MachineLearningInfoTransportAction.isRunningOnMlPlatform("Windows 10", "i386", false));
-        assertFalse(MachineLearningInfoTransportAction.isRunningOnMlPlatform("SunOS", "amd64", false));
-        expectThrows(ElasticsearchException.class,
-                () -> MachineLearningInfoTransportAction.isRunningOnMlPlatform("Linux", "i386", true));
-        expectThrows(ElasticsearchException.class,
-                () -> MachineLearningInfoTransportAction.isRunningOnMlPlatform("Windows 10", "i386", true));
-        expectThrows(ElasticsearchException.class,
-                () -> MachineLearningInfoTransportAction.isRunningOnMlPlatform("SunOS", "amd64", true));
     }
 
     public void testAvailable() throws Exception {

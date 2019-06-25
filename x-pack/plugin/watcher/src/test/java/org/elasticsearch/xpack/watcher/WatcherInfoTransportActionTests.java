@@ -12,6 +12,7 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -19,6 +20,7 @@ import org.elasticsearch.common.xcontent.ObjectPath;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -111,11 +113,15 @@ public class WatcherInfoTransportActionTests extends ESTestCase {
                     nodes, Collections.emptyList()));
             return null;
         }).when(client).execute(eq(WatcherStatsAction.INSTANCE), any(), any());
+        ClusterService clusterService = mock(ClusterService.class);
+        final DiscoveryNode mockNode = mock(DiscoveryNode.class);
+        when(mockNode.getId()).thenReturn("mocknode");
+        when(clusterService.localNode()).thenReturn(mockNode);
 
-        var usageAction = new WatcherUsageTransportAction(mock(TransportService.class), null, null,
+        var usageAction = new WatcherUsageTransportAction(mock(TransportService.class), clusterService, null,
             mock(ActionFilters.class), null, Settings.EMPTY, licenseState, client);
         PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();
-        usageAction.masterOperation(null, null, null, future);
+        usageAction.masterOperation(mock(Task.class), null, null, future);
         WatcherFeatureSetUsage watcherUsage = (WatcherFeatureSetUsage) future.get().getUsage();
         assertThat(watcherUsage.stats().keySet(), containsInAnyOrder("foo", "spam"));
         long fooBarBaz = ObjectPath.eval("foo.bar.baz", watcherUsage.stats());

@@ -92,10 +92,13 @@ Matches documents with a range field value entirely within the query's range.
 `time_zone`::
 +
 --
-https://en.wikipedia.org/wiki/List_of_UTC_time_offsets[Coordinated Universal Time
-(UTC) offset] used to convert `date` values in the query to UTC. Optional.
+https://en.wikipedia.org/wiki/List_of_UTC_time_offsets[Coordinated Universal
+Time (UTC) offset] or
+https://en.wikipedia.org/wiki/List_of_tz_database_time_zones[IANA time zone]
+used to convert `date` values in the query to UTC. Optional.
 
-Valid values are ISO 8601 UTC offsets, such as `+01:00` or -`08:00`.
+Valid values are ISO 8601 UTC offsets, such as `+01:00` or -`08:00`, and IANA
+time zone IDs, such as `America/Los_Angeles`.
 
 For an example query using the `time_zone` parameter, see
 <<range-query-time-zone,Time zone in `range` queries>>.

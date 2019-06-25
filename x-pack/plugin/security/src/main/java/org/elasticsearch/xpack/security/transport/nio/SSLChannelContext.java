@@ -13,7 +13,7 @@ import org.elasticsearch.nio.NioChannelHandler;
 import org.elasticsearch.nio.NioSelector;
 import org.elasticsearch.nio.NioSocketChannel;
 import org.elasticsearch.nio.SocketChannelContext;
-import org.elasticsearch.nio.SocketConfig;
+import org.elasticsearch.nio.Config;
 import org.elasticsearch.nio.WriteOperation;
 
 import javax.net.ssl.SSLEngine;
@@ -42,7 +42,7 @@ public final class SSLChannelContext extends SocketChannelContext {
     private final LinkedList<FlushOperation> encryptedFlushes = new LinkedList<>();
     private Runnable closeTimeoutCanceller = DEFAULT_TIMEOUT_CANCELLER;
 
-    SSLChannelContext(NioSocketChannel channel, NioSelector selector, SocketConfig.Socket socketConfig,
+    SSLChannelContext(NioSocketChannel channel, NioSelector selector, Config.Socket socketConfig,
                       Consumer<Exception> exceptionHandler, SSLDriver sslDriver, NioChannelHandler readWriteHandler,
                       InboundChannelBuffer applicationBuffer) {
         this(channel, selector, socketConfig, exceptionHandler, sslDriver, readWriteHandler, InboundChannelBuffer.allocatingInstance(),
@@ -54,7 +54,7 @@ public final class SSLChannelContext extends SocketChannelContext {
         this(channel, selector, null, exceptionHandler, sslDriver, readWriteHandler, networkReadBuffer, channelBuffer);
     }
 
-    SSLChannelContext(NioSocketChannel channel, NioSelector selector, SocketConfig.Socket socketConfig,
+    SSLChannelContext(NioSocketChannel channel, NioSelector selector, Config.Socket socketConfig,
                       Consumer<Exception> exceptionHandler, SSLDriver sslDriver, NioChannelHandler readWriteHandler,
                       InboundChannelBuffer networkReadBuffer, InboundChannelBuffer channelBuffer) {
         super(channel, selector, socketConfig, exceptionHandler, readWriteHandler, channelBuffer);

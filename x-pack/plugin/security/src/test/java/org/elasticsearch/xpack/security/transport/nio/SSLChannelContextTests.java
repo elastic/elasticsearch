@@ -14,7 +14,7 @@ import org.elasticsearch.nio.InboundChannelBuffer;
 import org.elasticsearch.nio.NioSelector;
 import org.elasticsearch.nio.NioSocketChannel;
 import org.elasticsearch.nio.Page;
-import org.elasticsearch.nio.SocketConfig;
+import org.elasticsearch.nio.Config;
 import org.elasticsearch.nio.TaskScheduler;
 import org.elasticsearch.nio.WriteOperation;
 import org.elasticsearch.test.ESTestCase;
@@ -56,7 +56,7 @@ public class SSLChannelContextTests extends ESTestCase {
     private Consumer exceptionHandler;
     private SSLDriver sslDriver;
     private int messageLength;
-    private SocketConfig.Socket socketConfig;
+    private Config.Socket socketConfig;
 
     @Before
     @SuppressWarnings("unchecked")
@@ -75,7 +75,7 @@ public class SSLChannelContextTests extends ESTestCase {
         outboundBuffer = new SSLOutboundBuffer((n) -> new Page(ByteBuffer.allocate(n), () -> {}));
         when(channel.getRawChannel()).thenReturn(rawChannel);
         exceptionHandler = mock(Consumer.class);
-        socketConfig = new SocketConfig.Socket(randomBoolean(), randomBoolean(), randomBoolean(), -1, -1, mock(InetSocketAddress.class));
+        socketConfig = new Config.Socket(randomBoolean(), randomBoolean(), randomBoolean(), -1, -1, mock(InetSocketAddress.class));
         context = new SSLChannelContext(channel, selector, socketConfig, exceptionHandler, sslDriver, readWriteHandler, channelBuffer);
 
         when(selector.isOnCurrentThread()).thenReturn(true);

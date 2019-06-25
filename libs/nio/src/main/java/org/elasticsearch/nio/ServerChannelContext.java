@@ -31,6 +31,7 @@ public class ServerChannelContext extends ChannelContext<ServerSocketChannel> {
 
     private final NioServerSocketChannel channel;
     private final NioSelector selector;
+    private final Config.ServerSocket config;
     private final Consumer<NioSocketChannel> acceptor;
     private final AtomicBoolean isClosing = new AtomicBoolean(false);
     private final ChannelFactory<?, ?> channelFactory;
@@ -41,12 +42,13 @@ public class ServerChannelContext extends ChannelContext<ServerSocketChannel> {
     }
 
     public ServerChannelContext(NioServerSocketChannel channel, ChannelFactory<?, ?> channelFactory, NioSelector selector,
-                                SocketConfig.ServerSocket config, Consumer<NioSocketChannel> acceptor,
+                                Config.ServerSocket config, Consumer<NioSocketChannel> acceptor,
                                 Consumer<Exception> exceptionHandler) {
-        super(channel.getRawChannel(), config, exceptionHandler);
+        super(channel.getRawChannel(), exceptionHandler);
         this.channel = channel;
         this.channelFactory = channelFactory;
         this.selector = selector;
+        this.config = config;
         this.acceptor = acceptor;
     }
 
@@ -63,7 +65,7 @@ public class ServerChannelContext extends ChannelContext<ServerSocketChannel> {
 
         configureSocket(rawChannel.socket());
 
-        InetSocketAddress localAddress = ((SocketConfig.ServerSocket) socketConfig).getLocalAddress();
+        InetSocketAddress localAddress = config.getLocalAddress();
         try {
             rawChannel.bind(localAddress);
         } catch (IOException e) {
@@ -89,7 +91,7 @@ public class ServerChannelContext extends ChannelContext<ServerSocketChannel> {
     }
 
     private void configureSocket(ServerSocket socket) throws IOException {
-        socket.setReuseAddress(socketConfig.tcpReuseAddress());
+        socket.setReuseAddress(config.tcpReuseAddress());
     }
 
 }

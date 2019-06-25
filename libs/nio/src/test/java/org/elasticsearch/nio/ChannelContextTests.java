@@ -104,19 +104,10 @@ public class ChannelContextTests extends ESTestCase {
         verify(exceptionHandler).accept(exception);
     }
 
-    private static SocketConfig getSocketConfig() {
-        if (randomBoolean()) {
-            return new SocketConfig.Socket(randomBoolean(), randomBoolean(), randomBoolean(), -1, -1, mock(InetSocketAddress.class));
-        } else {
-            return new SocketConfig.ServerSocket(randomBoolean(), mock(InetSocketAddress.class));
-        }
-    }
-
     private static class TestChannelContext extends ChannelContext<FakeRawChannel> {
 
-
         private TestChannelContext(FakeRawChannel channel, Consumer<Exception> exceptionHandler) {
-            super(channel, getSocketConfig(), exceptionHandler);
+            super(channel, exceptionHandler);
         }
 
         @Override

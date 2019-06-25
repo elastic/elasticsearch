@@ -375,8 +375,8 @@ public class SocketChannelContextTests extends ESTestCase {
         assertEquals(1, flushOperation.getBuffersToWrite()[0].position());
     }
 
-    private static SocketConfig.Socket getSocketConfig() {
-        return new SocketConfig.Socket(randomBoolean(), randomBoolean(), randomBoolean(), -1, -1, mock(InetSocketAddress.class));
+    private static Config.Socket getSocketConfig() {
+        return new Config.Socket(randomBoolean(), randomBoolean(), randomBoolean(), -1, -1, mock(InetSocketAddress.class));
     }
 
     private static class TestSocketChannelContext extends SocketChannelContext {

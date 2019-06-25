@@ -285,11 +285,11 @@ public class EventHandlerTests extends ESTestCase {
         }
     }
 
-    private static SocketConfig.ServerSocket getServerSocketConfig() {
-        return new SocketConfig.ServerSocket(randomBoolean(), mock(InetSocketAddress.class));
+    private static Config.ServerSocket getServerSocketConfig() {
+        return new Config.ServerSocket(randomBoolean(), mock(InetSocketAddress.class));
     }
 
-    private static SocketConfig.Socket getSocketConfig() {
-        return new SocketConfig.Socket(randomBoolean(), randomBoolean(), randomBoolean(), -1, -1, mock(InetSocketAddress.class));
+    private static Config.Socket getSocketConfig() {
+        return new Config.Socket(randomBoolean(), randomBoolean(), randomBoolean(), -1, -1, mock(InetSocketAddress.class));
     }
 }

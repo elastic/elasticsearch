@@ -21,11 +21,11 @@ package org.elasticsearch.nio;
 
 import java.net.InetSocketAddress;
 
-public abstract class SocketConfig {
+public abstract class Config {
 
     private final boolean tcpReuseAddress;
 
-    public SocketConfig(boolean tcpReuseAddress) {
+    public Config(boolean tcpReuseAddress) {
         this.tcpReuseAddress = tcpReuseAddress;
     }
 
@@ -33,7 +33,7 @@ public abstract class SocketConfig {
         return tcpReuseAddress;
     }
 
-    public static class Socket extends SocketConfig {
+    public static class Socket extends Config {
 
         private final boolean tcpNoDelay;
         private final boolean tcpKeepAlive;
@@ -72,7 +72,7 @@ public abstract class SocketConfig {
         }
     }
 
-    public static class ServerSocket extends SocketConfig {
+    public static class ServerSocket extends Config {
 
         private InetSocketAddress localAddress;
 

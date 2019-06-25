@@ -51,18 +51,20 @@ public abstract class SocketChannelContext extends ChannelContext<SocketChannel>
     protected final AtomicBoolean isClosing = new AtomicBoolean(false);
     private final NioChannelHandler channelHandler;
     private final NioSelector selector;
+    private final Config.Socket socketConfig;
     private final CompletableContext<Void> connectContext = new CompletableContext<>();
     private final LinkedList<FlushOperation> pendingFlushes = new LinkedList<>();
     private boolean closeNow;
     private boolean socketOptionsSet;
     private Exception connectException;
 
-    protected SocketChannelContext(NioSocketChannel channel, NioSelector selector, SocketConfig.Socket socketConfig,
+    protected SocketChannelContext(NioSocketChannel channel, NioSelector selector, Config.Socket socketConfig,
                                    Consumer<Exception> exceptionHandler, NioChannelHandler channelHandler,
                                    InboundChannelBuffer channelBuffer) {
-        super(channel.getRawChannel(), socketConfig, exceptionHandler);
+        super(channel.getRawChannel(), exceptionHandler);
         this.selector = selector;
         this.channel = channel;
+        this.socketConfig = socketConfig;
         this.channelHandler = channelHandler;
         this.channelBuffer = channelBuffer;
     }
@@ -83,7 +85,7 @@ public abstract class SocketChannelContext extends ChannelContext<SocketChannel>
 
         configureSocket(rawChannel.socket(), false);
 
-        InetSocketAddress remoteAddress = ((SocketConfig.Socket) socketConfig).getRemoteAddress();
+        InetSocketAddress remoteAddress = socketConfig.getRemoteAddress();
         try {
             rawChannel.connect(remoteAddress);
         } catch (IOException e) {
@@ -320,7 +322,6 @@ public abstract class SocketChannelContext extends ChannelContext<SocketChannel>
             // Set reuse address first as it must be set before a bind call. Some implementations throw
             // exceptions on other socket options if the channel is not connected. But setting reuse first,
             // we ensure that it is properly set before any bind attempt.
-            SocketConfig.Socket socketConfig = (SocketConfig.Socket) this.socketConfig;
             socket.setReuseAddress(socketConfig.tcpReuseAddress());
             socket.setKeepAlive(socketConfig.tcpKeepAlive());
             socket.setTcpNoDelay(socketConfig.tcpNoDelay());

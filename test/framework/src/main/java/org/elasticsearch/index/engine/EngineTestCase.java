@@ -1187,4 +1187,11 @@ public abstract class EngineTestCase extends ESTestCase {
         }
         return maxSeqNo;
     }
+
+    /**
+     * Returns the number of times a version was looked up either from version map or from the index.
+     */
+    public static long getNumVersionLookups(Engine engine) {
+        return ((InternalEngine) engine).getNumVersionLookups();
+    }
 }

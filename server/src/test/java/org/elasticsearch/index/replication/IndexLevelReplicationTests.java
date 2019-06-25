@@ -39,6 +39,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineFactory;
+import org.elasticsearch.index.engine.EngineTestCase;
 import org.elasticsearch.index.engine.InternalEngine;
 import org.elasticsearch.index.engine.InternalEngineTests;
 import org.elasticsearch.index.engine.SegmentsStats;
@@ -59,8 +60,10 @@ import org.hamcrest.Matcher;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.Future;
@@ -643,6 +646,32 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
             deleteOnReplica(deleteRequest, shards, replica);
             indexOnReplica(indexRequest, shards, replica);
             shards.assertAllEqual(0);
+        }
+    }
+
+    public void testIndexingOptimizationUsingSequenceNumbers() throws Exception {
+        final Set<String> liveDocs = new HashSet<>();
+        try (ReplicationGroup group = createGroup(2)) {
+            boolean softDeleteEnabled = group.getPrimary().indexSettings().isSoftDeleteEnabled();
+            group.startAll();
+            int numDocs = randomIntBetween(1, 100);
+            long versionLookups = 0;
+            for (int i = 0; i < numDocs; i++) {
+                String id = Integer.toString(randomIntBetween(1, 100));
+                if (randomBoolean()) {
+                    group.index(new IndexRequest(index.getName(), "type", id).source("{}", XContentType.JSON));
+                    if (softDeleteEnabled == false || liveDocs.add(id) == false) {
+                        versionLookups++;
+                    }
+                } else {
+                    group.delete(new DeleteRequest(index.getName(), "type", id));
+                    liveDocs.remove(id);
+                    versionLookups++;
+                }
+            }
+            for (IndexShard replica : group.getReplicas()) {
+                assertThat(EngineTestCase.getNumVersionLookups(getEngine(replica)), equalTo(versionLookups));
+            }
         }
     }
 }

@@ -18,7 +18,6 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TopDocs;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.InternalEngine;
@@ -36,7 +35,6 @@ import java.util.OptionalLong;
  */
 public final class FollowingEngine extends InternalEngine {
 
-    private final CounterMetric numOfOptimizedIndexing = new CounterMetric();
 
     /**
      * Construct a new following engine with the specified engine configuration.
@@ -68,9 +66,6 @@ public final class FollowingEngine extends InternalEngine {
     @Override
     protected InternalEngine.IndexingStrategy indexingStrategyForOperation(final Index index) throws IOException {
         preFlight(index);
-        // NOTES: refer Engine#getMaxSeqNoOfUpdatesOrDeletes for the explanation of the optimization using sequence numbers.
-        final long maxSeqNoOfUpdatesOrDeletes = getMaxSeqNoOfUpdatesOrDeletes();
-        assert maxSeqNoOfUpdatesOrDeletes != SequenceNumbers.UNASSIGNED_SEQ_NO : "max_seq_no_of_updates is not initialized";
         if (hasBeenProcessedBefore(index)) {
             if (logger.isTraceEnabled()) {
                 logger.trace("index operation [id={} seq_no={} origin={}] was processed before", index.id(), index.seqNo(), index.origin());
@@ -90,10 +85,6 @@ public final class FollowingEngine extends InternalEngine {
             } else {
                 return IndexingStrategy.processButSkipLucene(false, index.version());
             }
-        } else if (maxSeqNoOfUpdatesOrDeletes <= getProcessedLocalCheckpoint()) {
-            assert maxSeqNoOfUpdatesOrDeletes < index.seqNo() : "seq_no[" + index.seqNo() + "] <= msu[" + maxSeqNoOfUpdatesOrDeletes + "]";
-            numOfOptimizedIndexing.inc();
-            return InternalEngine.IndexingStrategy.optimizedAppendOnly(index.version());
         } else {
             return planIndexingAsNonPrimary(index);
         }
@@ -200,14 +191,6 @@ public final class FollowingEngine extends InternalEngine {
             }
             throw e;
         }
-    }
-
-    /**
-     * Returns the number of indexing operations that have been optimized (bypass version lookup) using sequence numbers in this engine.
-     * This metric is not persisted, and started from 0 when the engine is opened.
-     */
-    public long getNumberOfOptimizedIndexing() {
-        return numOfOptimizedIndexing.count();
     }
 
     @Override

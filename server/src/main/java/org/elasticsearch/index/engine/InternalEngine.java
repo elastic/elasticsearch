@@ -963,11 +963,12 @@ public class InternalEngine extends Engine {
                 assert maxSeqNoOfNonAppendOnlyOperations.get() >= index.seqNo() : "max_seqno of non-append-only was not updated;" +
                     "max_seqno non-append-only [" + maxSeqNoOfNonAppendOnlyOperations.get() + "], seqno of index [" + index.seqNo() + "]";
             }
-            versionMap.enforceSafeAccess();
             // unlike the primary, replicas don't really care to about creation status of documents
             // this allows to ignore the case where a document was found in the live version maps in
             // a delete state and return false for the created flag in favor of code simplicity
-            if (index.seqNo() <= localCheckpointTracker.getProcessedCheckpoint()){
+            final long localCheckpoint = localCheckpointTracker.getProcessedCheckpoint();
+            final long maxSeqNoOfUpdatesOrDeletes = getMaxSeqNoOfUpdatesOrDeletes();
+            if (index.seqNo() <= localCheckpoint) {
                 // the operation seq# is lower then the current local checkpoint and thus was already put into lucene
                 // this can happen during recovery where older operations are sent from the translog that are already
                 // part of the lucene commit (either from a peer recovery or a local translog)
@@ -976,13 +977,18 @@ public class InternalEngine extends Engine {
                 // See testRecoverFromStoreWithOutOfOrderDelete for an example of local recovery
                 // See testRecoveryWithOutOfOrderDelete for an example of peer recovery
                 plan = IndexingStrategy.processButSkipLucene(false, index.version());
+
+            // See Engine#getMaxSeqNoOfUpdatesOrDeletes for the explanation of the optimization using sequence numbers
+            } else if (softDeleteEnabled && maxSeqNoOfUpdatesOrDeletes <= localCheckpoint && hasBeenProcessedBefore(index) == false) {
+                assert maxSeqNoOfUpdatesOrDeletes < index.seqNo() : index.seqNo() + ">=" + maxSeqNoOfUpdatesOrDeletes;
+                plan = IndexingStrategy.optimizedAppendOnly(index.version());
             } else {
+                versionMap.enforceSafeAccess();
                 final OpVsLuceneDocStatus opVsLucene = compareOpToLuceneDocBasedOnSeqNo(index);
                 if (opVsLucene == OpVsLuceneDocStatus.OP_STALE_OR_EQUAL) {
                     plan = IndexingStrategy.processAsStaleOp(softDeleteEnabled, index.version());
                 } else {
-                    plan = IndexingStrategy.processNormally(opVsLucene == OpVsLuceneDocStatus.LUCENE_DOC_NOT_FOUND,
-                        index.version());
+                    plan = IndexingStrategy.processNormally(opVsLucene == OpVsLuceneDocStatus.LUCENE_DOC_NOT_FOUND, index.version());
                 }
             }
         }
@@ -1166,7 +1172,7 @@ public class InternalEngine extends Engine {
                     Optional.of(earlyResultOnPreFlightError);
         }
 
-        public static IndexingStrategy optimizedAppendOnly(long versionForIndexing) {
+        static IndexingStrategy optimizedAppendOnly(long versionForIndexing) {
             return new IndexingStrategy(true, false, true, false, versionForIndexing, null);
         }
 

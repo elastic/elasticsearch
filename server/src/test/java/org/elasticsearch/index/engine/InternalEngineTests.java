@@ -3596,32 +3596,42 @@ public class InternalEngineTests extends EngineTestCase {
     public void testDoubleDeliveryReplica() throws IOException {
         final ParsedDocument doc = testParsedDocument("1", null, testDocumentWithTextField(),
             new BytesArray("{}".getBytes(Charset.defaultCharset())), null);
+        final boolean msuOptimization;
+        if (engine.config().getIndexSettings().isSoftDeleteEnabled() == false) {
+            msuOptimization = false;
+        } else if (randomBoolean()) {
+            engine.advanceMaxSeqNoOfUpdatesOrDeletes(randomLongBetween(20, Long.MAX_VALUE)); // disable MSU
+            msuOptimization = false;
+        } else {
+            msuOptimization = true;
+        }
+
         Engine.Index operation = replicaIndexForDoc(doc, 1, 20, false);
         Engine.Index duplicate = replicaIndexForDoc(doc, 1, 20, true);
         if (randomBoolean()) {
             Engine.IndexResult indexResult = engine.index(operation);
             assertLuceneOperations(engine, 1, 0, 0);
-            assertEquals(1, engine.getNumVersionLookups());
+            assertEquals(msuOptimization ? 0 : 1, engine.getNumVersionLookups());
             assertNotNull(indexResult.getTranslogLocation());
             if (randomBoolean()) {
                 engine.refresh("test");
             }
             Engine.IndexResult retryResult = engine.index(duplicate);
             assertLuceneOperations(engine, 1, 0, 0);
-            assertEquals(2, engine.getNumVersionLookups());
+            assertEquals(msuOptimization ? 1 : 2, engine.getNumVersionLookups());
             assertNotNull(retryResult.getTranslogLocation());
             assertTrue(retryResult.getTranslogLocation().compareTo(indexResult.getTranslogLocation()) > 0);
         } else {
             Engine.IndexResult retryResult = engine.index(duplicate);
             assertLuceneOperations(engine, 1, 0, 0);
-            assertEquals(1, engine.getNumVersionLookups());
+            assertEquals(msuOptimization ? 0 : 1, engine.getNumVersionLookups());
             assertNotNull(retryResult.getTranslogLocation());
             if (randomBoolean()) {
                 engine.refresh("test");
             }
             Engine.IndexResult indexResult = engine.index(operation);
             assertLuceneOperations(engine, 1, 0, 0);
-            assertEquals(2, engine.getNumVersionLookups());
+            assertEquals(msuOptimization ? 1 : 2, engine.getNumVersionLookups());
             assertNotNull(retryResult.getTranslogLocation());
             assertTrue(retryResult.getTranslogLocation().compareTo(indexResult.getTranslogLocation()) < 0);
         }
@@ -5275,6 +5285,7 @@ public class InternalEngineTests extends EngineTestCase {
     public void testSkipOptimizeForExposedAppendOnlyOperations() throws Exception {
         long lookupTimes = 0L;
         final int initDocs = between(0, 10);
+        boolean msuOptimization = engine.config().getIndexSettings().isSoftDeleteEnabled();
         for (int i = 0; i < initDocs; i++) {
             index(engine, i);
             lookupTimes++;
@@ -5282,20 +5293,30 @@ public class InternalEngineTests extends EngineTestCase {
         // doc1 is delayed and arrived after a non-append-only op.
         final long seqNoAppendOnly1 = generateNewSeqNo(engine);
         final long seqnoNormalOp = generateNewSeqNo(engine);
+        if (msuOptimization && randomBoolean()) {
+            msuOptimization = false;
+            engine.advanceMaxSeqNoOfUpdatesOrDeletes(randomLongBetween(seqnoNormalOp, Long.MAX_VALUE));
+        }
         if (randomBoolean()) {
             engine.index(replicaIndexForDoc(
                 testParsedDocument("d", null, testDocumentWithTextField(), SOURCE, null), 1, seqnoNormalOp, false));
+            if (msuOptimization == false) {
+                lookupTimes++;
+            }
         } else {
             engine.delete(replicaDeleteForDoc("d", 1, seqnoNormalOp, randomNonNegativeLong()));
+            msuOptimization = false;
+            lookupTimes++;
         }
-        lookupTimes++;
         assertThat(engine.getNumVersionLookups(), equalTo(lookupTimes));
         assertThat(engine.getMaxSeqNoOfNonAppendOnlyOperations(), equalTo(seqnoNormalOp));
 
         // should not optimize for doc1 and process as a regular doc (eg. look up in version map)
         engine.index(appendOnlyReplica(testParsedDocument("append-only-1", null, testDocumentWithTextField(), SOURCE, null),
             false, randomNonNegativeLong(), seqNoAppendOnly1));
-        lookupTimes++;
+        if (msuOptimization == false) {
+            lookupTimes++;
+        }
         assertThat(engine.getNumVersionLookups(), equalTo(lookupTimes));
 
         // optimize for other append-only 2 (its seqno > max_seqno of non-append-only) - do not look up in version map.

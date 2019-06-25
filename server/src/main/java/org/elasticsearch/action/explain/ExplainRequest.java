@@ -74,6 +74,19 @@ public class ExplainRequest extends SingleShardRequest<ExplainRequest> implement
         this.id = id;
     }
 
+    ExplainRequest(StreamInput in) throws IOException {
+        super(in);
+        type = in.readString();
+        id = in.readString();
+        routing = in.readOptionalString();
+        preference = in.readOptionalString();
+        query = in.readNamedWriteable(QueryBuilder.class);
+        filteringAlias = new AliasFilter(in);
+        storedFields = in.readOptionalStringArray();
+        fetchSourceContext = in.readOptionalWriteable(FetchSourceContext::new);
+        nowInMillis = in.readVLong();
+    }
+
     /**
      * @deprecated Types are in the process of being removed.
      */
@@ -182,20 +195,6 @@ public class ExplainRequest extends SingleShardRequest<ExplainRequest> implement
             validationException = ValidateActions.addValidationError("query is missing", validationException);
         }
         return validationException;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        type = in.readString();
-        id = in.readString();
-        routing = in.readOptionalString();
-        preference = in.readOptionalString();
-        query = in.readNamedWriteable(QueryBuilder.class);
-        filteringAlias = new AliasFilter(in);
-        storedFields = in.readOptionalStringArray();
-        fetchSourceContext = in.readOptionalWriteable(FetchSourceContext::new);
-        nowInMillis = in.readVLong();
     }
 
     @Override

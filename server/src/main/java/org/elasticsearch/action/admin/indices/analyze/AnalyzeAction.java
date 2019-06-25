@@ -83,6 +83,19 @@ public class AnalyzeAction extends Action<AnalyzeAction.Response> {
         public Request() {
         }
 
+        Request(StreamInput in) throws IOException {
+            super(in);
+            text = in.readStringArray();
+            analyzer = in.readOptionalString();
+            tokenizer = in.readOptionalWriteable(NameOrDefinition::new);
+            tokenFilters.addAll(in.readList(NameOrDefinition::new));
+            charFilters.addAll(in.readList(NameOrDefinition::new));
+            field = in.readOptionalString();
+            explain = in.readBoolean();
+            attributes = in.readStringArray();
+            normalizer = in.readOptionalString();
+        }
+
         /**
          * Constructs a new analyzer request for the provided index.
          *
@@ -238,20 +251,6 @@ public class AnalyzeAction extends Action<AnalyzeAction.Response> {
                     = addValidationError("cannot define extra components on a field-specific analyzer", validationException);
             }
             return validationException;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            text = in.readStringArray();
-            analyzer = in.readOptionalString();
-            tokenizer = in.readOptionalWriteable(NameOrDefinition::new);
-            tokenFilters.addAll(in.readList(NameOrDefinition::new));
-            charFilters.addAll(in.readList(NameOrDefinition::new));
-            field = in.readOptionalString();
-            explain = in.readBoolean();
-            attributes = in.readStringArray();
-            normalizer = in.readOptionalString();
         }
 
         @Override

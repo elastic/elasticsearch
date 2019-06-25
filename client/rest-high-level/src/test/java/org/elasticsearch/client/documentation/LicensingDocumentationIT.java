@@ -180,6 +180,7 @@ public class LicensingDocumentationIT extends ESRestHighLevelClientTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/43504")
     public void testGetLicense() throws Exception {
         RestHighLevelClient client = highLevelClient();
         {

@@ -30,27 +30,20 @@ public class GetSnapshotsRequestBuilder extends MasterNodeOperationRequestBuilde
         GetSnapshotsResponse, GetSnapshotsRequestBuilder> {
 
     /**
-     * Constructs the new get snapshot request
+     * Constructs the new get snapshot request with specified repositories
      */
-    public GetSnapshotsRequestBuilder(ElasticsearchClient client, GetSnapshotsAction action) {
-        super(client, action, new GetSnapshotsRequest());
+    public GetSnapshotsRequestBuilder(ElasticsearchClient client, GetSnapshotsAction action, String... repositories) {
+        super(client, action, new GetSnapshotsRequest(repositories));
     }
 
     /**
-     * Constructs the new get snapshot request with specified repository
-     */
-    public GetSnapshotsRequestBuilder(ElasticsearchClient client, GetSnapshotsAction action, String repository) {
-        super(client, action, new GetSnapshotsRequest(repository));
-    }
-
-    /**
-     * Sets the repository name
+     * Sets the repository names
      *
-     * @param repository repository name
+     * @param repositories repository names
      * @return this builder
      */
-    public GetSnapshotsRequestBuilder setRepository(String repository) {
-        request.repository(repository);
+    public GetSnapshotsRequestBuilder setRepositories(String... repositories) {
+        request.repositories(repositories);
         return this;
     }
 

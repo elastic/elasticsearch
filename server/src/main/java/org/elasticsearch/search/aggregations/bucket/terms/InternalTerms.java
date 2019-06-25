@@ -326,7 +326,11 @@ public abstract class InternalTerms<A extends InternalTerms<A, B>, B extends Int
     protected abstract B[] createBucketsArray(int size);
 
     @Override
-    protected boolean doEquals(Object obj) {
+    public boolean equals(Object obj) {
+        if (this == obj) return true;
+        if (obj == null || getClass() != obj.getClass()) return false;
+        if (super.equals(obj) == false) return false;
+
         InternalTerms<?,?> that = (InternalTerms<?,?>) obj;
         return Objects.equals(minDocCount, that.minDocCount)
                 && Objects.equals(order, that.order)
@@ -334,8 +338,8 @@ public abstract class InternalTerms<A extends InternalTerms<A, B>, B extends Int
     }
 
     @Override
-    protected int doHashCode() {
-        return Objects.hash(minDocCount, order, requiredSize);
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), minDocCount, order, requiredSize);
     }
 
     protected static XContentBuilder doXContentCommon(XContentBuilder builder, Params params,

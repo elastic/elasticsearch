@@ -184,6 +184,19 @@ public class TransportAnalyzeActionTests extends ESTestCase {
         assertEquals("brown", tokens.get(2).getTerm());
         assertEquals("foxfoo", tokens.get(3).getTerm());
 
+        // If the preconfigured filter doesn't exist, we use a global filter with no settings
+        request = new AnalyzeAction.Request();
+        request.text("the qu1ck brown fox");
+        request.tokenizer("standard");
+        request.addTokenFilter("mock");     // <-- not preconfigured, but a global one available
+        analyze
+            = TransportAnalyzeAction.analyze(request, registry, null, maxTokenCount);
+        tokens = analyze.getTokens();
+        assertEquals(3, tokens.size());
+        assertEquals("qu1ck", tokens.get(0).getTerm());
+        assertEquals("brown", tokens.get(1).getTerm());
+        assertEquals("fox", tokens.get(2).getTerm());
+
         // We can build a new char filter to get default values
         request = new AnalyzeAction.Request();
         request.text("the qu1ck brown fox");

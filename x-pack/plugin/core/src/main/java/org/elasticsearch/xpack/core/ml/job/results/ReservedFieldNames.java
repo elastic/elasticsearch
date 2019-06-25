@@ -9,6 +9,10 @@ import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.xpack.core.ml.datafeed.ChunkingConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DelayedDataCheckConfig;
+import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
+import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsDest;
+import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsSource;
+import org.elasticsearch.xpack.core.ml.dataframe.analyses.OutlierDetection;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisLimits;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
@@ -267,6 +271,20 @@ public final class ReservedFieldNames {
 
             ChunkingConfig.MODE_FIELD.getPreferredName(),
             ChunkingConfig.TIME_SPAN_FIELD.getPreferredName(),
+
+            DataFrameAnalyticsConfig.ID.getPreferredName(),
+            DataFrameAnalyticsConfig.SOURCE.getPreferredName(),
+            DataFrameAnalyticsConfig.DEST.getPreferredName(),
+            DataFrameAnalyticsConfig.ANALYSIS.getPreferredName(),
+            DataFrameAnalyticsConfig.ANALYZED_FIELDS.getPreferredName(),
+            DataFrameAnalyticsDest.INDEX.getPreferredName(),
+            DataFrameAnalyticsDest.RESULTS_FIELD.getPreferredName(),
+            DataFrameAnalyticsSource.INDEX.getPreferredName(),
+            DataFrameAnalyticsSource.QUERY.getPreferredName(),
+            OutlierDetection.NAME.getPreferredName(),
+            OutlierDetection.N_NEIGHBORS.getPreferredName(),
+            OutlierDetection.METHOD.getPreferredName(),
+            OutlierDetection.MINIMUM_SCORE_TO_WRITE_FEATURE_INFLUENCE.getPreferredName(),
 
             ElasticsearchMappings.CONFIG_TYPE,
 

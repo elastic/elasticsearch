@@ -31,15 +31,14 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-public class S3Repository implements Repository {
+public class S3Repository extends AbstractRepository {
 
-    private final Terminal terminal;
     private final AmazonS3 client;
     private final String bucket;
     private final String basePath;
 
     S3Repository(Terminal terminal, String endpoint, String region, String accessKey, String secretKey, String bucket, String basePath) {
-        this.terminal = terminal;
+        super(terminal);
         this.client = buildS3Client(endpoint, region, accessKey, secretKey);
         this.basePath = basePath;
         this.bucket = bucket;
@@ -67,7 +66,8 @@ public class S3Repository implements Repository {
         try (InputStream blob = client.getObject(bucket, fullPath(BlobStoreRepository.INDEX_LATEST_BLOB)).getObjectContent()) {
             BytesStreamOutput out = new BytesStreamOutput();
             Streams.copy(blob, out);
-            return Numbers.bytesToLong(out.bytes().toBytesRef());
+            long gen = Numbers.bytesToLong(out.bytes().toBytesRef());
+            return gen;
         } catch (IOException e) {
             terminal.println("Failed to read index.latest blob");
             throw e;
@@ -178,6 +178,7 @@ public class S3Repository implements Repository {
             deletePartitions.add(currentDeletePartition);
         }
         for (List<String> partition: deletePartitions) {
+            terminal.println(Terminal.Verbosity.VERBOSE, "Batch removing the following files " + partition);
             client.deleteObjects(new DeleteObjectsRequest(bucket).withKeys(Strings.toStringArray(partition)));
         }
     }
@@ -185,7 +186,10 @@ public class S3Repository implements Repository {
     @Override
     public void deleteIndices(Set<String> leakedIndexIds) {
         for (String indexId : leakedIndexIds) {
+            terminal.println(Terminal.Verbosity.NORMAL, "Removing leaked index " + indexId);
+            terminal.println(Terminal.Verbosity.VERBOSE, "Listing all files in index " + indexId + " directory");
             List<String> files = listAllFiles(fullPath("indices/" + indexId));
+            terminal.println(Terminal.Verbosity.VERBOSE, "List of leaked files for index " + indexId + " is " + files);
             deleteFiles(files);
         }
     }

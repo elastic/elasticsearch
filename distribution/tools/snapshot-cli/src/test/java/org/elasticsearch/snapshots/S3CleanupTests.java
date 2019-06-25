@@ -1,19 +1,31 @@
 package org.elasticsearch.snapshots;
 
 import joptsimple.OptionSet;
+import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cli.MockTerminal;
+import org.elasticsearch.cli.Terminal;
+import org.elasticsearch.common.blobstore.BlobPath;
+import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.SecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.repositories.RepositoriesService;
+import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
+import org.elasticsearch.repositories.blobstore.BlobStoreTestUtil;
 import org.elasticsearch.repositories.s3.S3RepositoryPlugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.threadpool.ThreadPool;
 
+import java.io.ByteArrayInputStream;
 import java.util.Collection;
+import java.util.concurrent.Executor;
+import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -32,7 +44,6 @@ public class S3CleanupTests extends ESSingleNodeTestCase {
     protected Collection<Class<? extends Plugin>> getPlugins() {
         return pluginList(S3RepositoryPlugin.class);
     }
-
 
     private SecureSettings credentials() {
         MockSecureSettings secureSettings = new MockSecureSettings();
@@ -75,7 +86,7 @@ public class S3CleanupTests extends ESSingleNodeTestCase {
     }
 
 
-    public void testSnapshot() throws Exception {
+    public void testCleanupS3() throws Exception {
        createRepository("test-repo");
        createIndex("test-idx-1");
        createIndex("test-idx-2");
@@ -90,12 +101,10 @@ public class S3CleanupTests extends ESSingleNodeTestCase {
        }
        client().admin().indices().prepareRefresh().get();
 
-       final String snapshotName = "test-snap-" + System.currentTimeMillis();
-
-       logger.info("--> snapshot");
+       logger.info("--> create first snapshot");
        CreateSnapshotResponse createSnapshotResponse = client().admin()
                .cluster()
-               .prepareCreateSnapshot("test-repo", snapshotName)
+               .prepareCreateSnapshot("test-repo", "snap1")
                .setWaitForCompletion(true)
                .setIndices("test-idx-*", "-test-idx-3")
                .get();
@@ -106,29 +115,98 @@ public class S3CleanupTests extends ESSingleNodeTestCase {
        assertThat(client().admin()
                        .cluster()
                        .prepareGetSnapshots("test-repo")
-                       .setSnapshots(snapshotName)
+                       .setSnapshots("snap1")
                        .get()
-                       .getSnapshots()
+                       .getSnapshots("test-repo")
                        .get(0)
                        .state(),
                equalTo(SnapshotState.SUCCESS));
 
+
+       logger.info("--> execute cleanup tool, there is nothing to cleanup");
        final Environment environment = TestEnvironment.newEnvironment(node().settings());
        final CleanupS3RepositoryCommand command = new CleanupS3RepositoryCommand();
-       final MockTerminal terminal = new MockTerminal();
+       MockTerminal terminal = new MockTerminal();
+       terminal.setVerbosity(Terminal.Verbosity.VERBOSE);
        final OptionSet options = command.getParser().parse(
                "--endpoint", getEndpoint(),
                "--bucket", getBucket(),
                "--basePath", getBasePath(),
                "--access_key", getAccessKey(),
                "--secret_key", getSecretKey());
-
        command.execute(terminal, options, environment);
+       logger.info("Cleanup tool first run output:\n" + terminal.getOutput());
+
+       logger.info("--> check that there is no inconsistencies after running the tool");
+       final BlobStoreRepository repo =
+                (BlobStoreRepository) getInstanceFromNode(RepositoriesService.class).repository("test-repo");
+       final Executor genericExec = repo.threadPool().executor(ThreadPool.Names.GENERIC);
+       BlobStoreTestUtil.assertConsistency(repo, genericExec);
+
+       logger.info("--> create dangling index folder indices/foo");
+       final PlainActionFuture<Void> future = PlainActionFuture.newFuture();
+       genericExec.execute(new ActionRunnable<>(future) {
+            @Override
+            protected void doRun() throws Exception {
+                final BlobStore blobStore = repo.blobStore();
+                blobStore.blobContainer(BlobPath.cleanPath().add(getBasePath()).add("indices").add("foo"))
+                        .writeBlob("bar", new ByteArrayInputStream(new byte[0]), 0, false);
+                future.onResponse(null);
+            }
+        });
+
+       logger.info("--> ensure dangling index folder is visible");
+       assertBusy(() -> assertCorruptionVisible(repo, genericExec), 10, TimeUnit.MINUTES);
+
+       logger.info("--> create second snapshot");
+       createSnapshotResponse = client().admin()
+                .cluster()
+                .prepareCreateSnapshot("test-repo", "snap2")
+                .setWaitForCompletion(true)
+                .setIndices("test-idx-*", "-test-idx-3")
+                .get();
+       assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), greaterThan(0));
+       assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(),
+                equalTo(createSnapshotResponse.getSnapshotInfo().totalShards()));
+
+       logger.info("--> execute cleanup tool again, indices/foo should go");
+       terminal = new MockTerminal();
+       terminal.setVerbosity(Terminal.Verbosity.VERBOSE);
+       command.execute(terminal, options, environment);
+       logger.info("Cleanup tool second run output:\n" + terminal.getOutput());
+
+       logger.info("--> verify that there is no inconsistencies");
+       BlobStoreTestUtil.assertConsistency(repo, genericExec);
+
 
        assertTrue(client().admin()
                .cluster()
-               .prepareDeleteSnapshot("test-repo", snapshotName)
+               .prepareDeleteSnapshot("test-repo", "snap1")
                .get()
                .isAcknowledged());
+        assertTrue(client().admin()
+                .cluster()
+                .prepareDeleteSnapshot("test-repo", "snap2")
+                .get()
+                .isAcknowledged());
    }
+
+
+    protected boolean assertCorruptionVisible(BlobStoreRepository repo, Executor executor) throws Exception {
+        final PlainActionFuture<Boolean> future = PlainActionFuture.newFuture();
+        executor.execute(new ActionRunnable<>(future) {
+            @Override
+            protected void doRun() throws Exception {
+                final BlobStore blobStore = repo.blobStore();
+                future.onResponse(
+                        blobStore.blobContainer(BlobPath.cleanPath().add(getBasePath()).add("indices")).children().containsKey("foo")
+                                && blobStore.blobContainer(BlobPath.cleanPath().add(getBasePath()).add("indices").add("foo")).blobExists(
+                                        "bar")
+                );
+            }
+        });
+        return future.actionGet();
+    }
+
+
 }

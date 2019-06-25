@@ -38,10 +38,11 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.emptyOrNullString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.isEmptyOrNullString;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.startsWith;
 
@@ -63,7 +64,7 @@ public class IndexingSlowLogTests extends ESTestCase {
         assertThat(p.getValueFor("doc_type"),equalTo("\"test\""));
         assertThat(p.getValueFor("id"),equalTo("\"id\""));
         assertThat(p.getValueFor("routing"),equalTo("\"routingValue\""));
-        assertThat((String)p.getValueFor("source"), isEmptyOrNullString());
+        assertThat(p.getValueFor("source"), is(emptyOrNullString()));
 
         // Turning on document logging logs the whole thing
         p = new IndexingSlowLogMessage(index, pd, 10, true, Integer.MAX_VALUE);

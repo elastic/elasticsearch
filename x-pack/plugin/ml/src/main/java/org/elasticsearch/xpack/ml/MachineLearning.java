@@ -281,6 +281,10 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
     public static final Setting<Integer> MAX_LAZY_ML_NODES =
             Setting.intSetting("xpack.ml.max_lazy_ml_nodes", 0, 0, 3, Property.Dynamic, Property.NodeScope);
 
+    public static final Setting<TimeValue> PROCESS_CONNECT_TIMEOUT =
+        Setting.timeSetting("xpack.ml.process_connect_timeout", TimeValue.timeValueSeconds(10),
+            TimeValue.timeValueSeconds(5), Setting.Property.Dynamic, Setting.Property.NodeScope);
+
     private static final Logger logger = LogManager.getLogger(XPackPlugin.class);
 
     private final Settings settings;
@@ -309,6 +313,7 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
     public List<Setting<?>> getSettings() {
         return Collections.unmodifiableList(
                 Arrays.asList(MachineLearningField.AUTODETECT_PROCESS,
+                        PROCESS_CONNECT_TIMEOUT,
                         ML_ENABLED,
                         CONCURRENT_JOB_ALLOCATIONS,
                         MachineLearningField.MAX_MODEL_MEMORY_LIMIT,
@@ -423,7 +428,7 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
                     nativeController,
                     client,
                     clusterService);
-                normalizerProcessFactory = new NativeNormalizerProcessFactory(environment, nativeController);
+                normalizerProcessFactory = new NativeNormalizerProcessFactory(environment, nativeController, clusterService);
             } catch (IOException e) {
                 // The low level cause of failure from the named pipe helper's perspective is almost never the real root cause, so
                 // only log this at the lowest level of detail.  It's almost always "file not found" on a named pipe we expect to be

@@ -129,10 +129,14 @@ public final class AnalysisRegistry implements Closeable {
             return factory.get(settings, environment, "__anonymous__" + type, nod.definition);
         }
         if (settings == null) {
-            // no index provided, so we use prebuilt analysis components only
+            // no index provided, so we use prebuilt analysis components
             AnalysisProvider<T> factory = prebuiltComponentProvider.apply(nod.name);
             if (factory == null) {
-                throw new IllegalArgumentException("failed to find global " + componentType + " under [" + nod.name + "]");
+                // if there's no prebuilt component, try loading a global one to build with no settings
+                factory = globalComponentProvider.apply(nod.name);
+                if (factory == null) {
+                    throw new IllegalArgumentException("failed to find global " + componentType + " under [" + nod.name + "]");
+                }
             }
             return factory.get(environment, nod.name);
         } else {

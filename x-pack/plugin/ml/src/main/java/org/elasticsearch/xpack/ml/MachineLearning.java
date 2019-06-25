@@ -485,8 +485,8 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
                 // only log this at the lowest level of detail.  It's almost always "file not found" on a named pipe we expect to be
                 // able to connect to, but the thing we really need to know is what stopped the native process creating the named pipe.
                 logger.trace("Failed to connect to ML native controller", e);
-                throw new ElasticsearchException("Failure running machine learning native code. This could be due to running"
-                    + "on an unsupported OS or distribution, missing OS libraries or a problem with the temp directory. To "
+                throw new ElasticsearchException("Failure running machine learning native code. This could be due to running "
+                    + "on an unsupported OS or distribution, missing OS libraries, or a problem with the temp directory. To "
                     + "bypass this problem by running Elasticsearch without machine learning functionality set ["
                     + XPackSettings.MACHINE_LEARNING_ENABLED.getKey() + ": false].");
             }

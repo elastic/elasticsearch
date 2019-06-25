@@ -75,7 +75,8 @@ rewritten.
 Fuzzy transpositions (`ab` -> `ba`) are allowed by default but can be disabled
 by setting `fuzzy_transpositions` to `false`.
 
-Note that fuzzy matching is not applied to terms with synonyms, as under the hood
+NOTE: Fuzzy matching is not applied to terms with synonyms or in cases where the
+analysis process produces multiple tokens at the same position. Under the hood
 these terms are expanded to a special synonym query that blends term frequencies,
 which does not support fuzzy expansion.
 

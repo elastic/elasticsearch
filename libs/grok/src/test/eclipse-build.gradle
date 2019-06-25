@@ -3,5 +3,5 @@
 apply from: '../../build.gradle'
 
 dependencies {
-  testCompile project(':libs:grok')
+  testCompile project(':libs:elasticsearch-grok')
 }

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.cluster.routing.allocation.decider;
 
+import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.ClusterState;
@@ -30,6 +31,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -51,6 +53,7 @@ public class MockDiskUsagesIT extends ESIntegTestCase {
         return Collections.singletonList(MockInternalClusterInfoService.TestPlugin.class);
     }
 
+    @TestLogging("org.elasticsearch.indices.recovery:TRACE,org.elasticsearch.cluster.service:TRACE")
     public void testRerouteOccursOnDiskPassingHighWatermark() throws Exception {
         List<String> nodes = internalCluster().startNodes(3);
 
@@ -98,9 +101,15 @@ public class MockDiskUsagesIT extends ESIntegTestCase {
         cis.setN2Usage(realNodeNames.get(1), new DiskUsage(nodes.get(1), "n2", "_na_", 100, 50));
         cis.setN3Usage(realNodeNames.get(2), new DiskUsage(nodes.get(2), "n3", "_na_", 100, 0)); // nothing free on node3
 
+        logger.info("--> waiting for shards to relocate off node [{}]", realNodeNames.get(2));
+
         assertBusy(() -> {
             final ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
             logger.info("--> {}", clusterState.routingTable());
+
+            final RecoveryResponse recoveryResponse = client().admin().indices()
+                .prepareRecoveries("test").setActiveOnly(true).setDetailed(true).get();
+            logger.info("--> recoveries: {}", recoveryResponse);
 
             final Map<String, Integer> nodesToShardCount = new HashMap<>();
             for (final RoutingNode node : clusterState.getRoutingNodes()) {
@@ -117,6 +126,8 @@ public class MockDiskUsagesIT extends ESIntegTestCase {
         cis.setN1Usage(realNodeNames.get(0), new DiskUsage(nodes.get(0), "n1", "_na_", 100, 50));
         cis.setN2Usage(realNodeNames.get(1), new DiskUsage(nodes.get(1), "n2", "_na_", 100, 50));
         cis.setN3Usage(realNodeNames.get(2), new DiskUsage(nodes.get(2), "n3", "_na_", 100, 50)); // node3 has free space now
+
+        logger.info("--> waiting for shards to rebalance back onto node [{}]", realNodeNames.get(2));
 
         assertBusy(() -> {
             final Map<String, Integer> nodesToShardCount = new HashMap<>();

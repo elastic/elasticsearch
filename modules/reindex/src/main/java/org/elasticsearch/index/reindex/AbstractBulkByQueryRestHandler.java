@@ -23,6 +23,7 @@ import org.elasticsearch.action.Action;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -52,7 +53,7 @@ public abstract class AbstractBulkByQueryRestHandler<
         SearchRequest searchRequest = internal.getSearchRequest();
 
         try (XContentParser parser = extractRequestSpecificFields(restRequest, bodyConsumers)) {
-            RestSearchAction.parseSearchRequest(searchRequest, restRequest, parser, internal::setSize);
+            RestSearchAction.parseSearchRequest(searchRequest, restRequest, parser, size -> setMaxDocsFromSearchSize(internal, size));
         }
 
         searchRequest.source().size(restRequest.paramAsInt("scroll_size", searchRequest.source().size()));
@@ -93,5 +94,10 @@ public abstract class AbstractBulkByQueryRestHandler<
             return parser.contentType().xContent().createParser(parser.getXContentRegistry(),
                 parser.getDeprecationHandler(), BytesReference.bytes(builder.map(body)).streamInput());
         }
+    }
+
+    private void setMaxDocsFromSearchSize(Request request, int size) {
+        LoggingDeprecationHandler.INSTANCE.usedDeprecatedName("size", "max_docs");
+        setMaxDocsValidateIdentical(request, size);
     }
 }

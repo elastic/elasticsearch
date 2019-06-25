@@ -67,10 +67,22 @@ public abstract class AbstractBulkByScrollRequestBuilder<
     }
 
     /**
-     * The maximum number of documents to attempt.
+     * Maximum number of processed documents. Defaults to processing all
+     * documents.
+     * @deprecated please use maxDocs(int) instead.
      */
+    @Deprecated
     public Self size(int size) {
-        request.setSize(size);
+        return maxDocs(size);
+    }
+
+
+    /**
+     * Maximum number of processed documents. Defaults to processing all
+     * documents.
+     */
+    public Self maxDocs(int maxDocs) {
+        request.setMaxDocs(maxDocs);
         return self();
     }
 

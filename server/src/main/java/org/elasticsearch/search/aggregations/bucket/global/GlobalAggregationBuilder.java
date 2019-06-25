@@ -79,16 +79,6 @@ public class GlobalAggregationBuilder extends AbstractAggregationBuilder<GlobalA
     }
 
     @Override
-    protected boolean doEquals(Object obj) {
-        return true;
-    }
-
-    @Override
-    protected int doHashCode() {
-        return 0;
-    }
-
-    @Override
     public String getType() {
         return NAME;
     }

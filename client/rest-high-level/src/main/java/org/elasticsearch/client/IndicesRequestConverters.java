@@ -447,7 +447,6 @@ final class IndicesRequestConverters {
      */
     @Deprecated
     static Request indicesExist(org.elasticsearch.action.admin.indices.get.GetIndexRequest getIndexRequest) {
-        // this can be called with no indices as argument by transport client, not via REST though
         if (getIndexRequest.indices() == null || getIndexRequest.indices().length == 0) {
             throw new IllegalArgumentException("indices are mandatory");
         }
@@ -465,7 +464,6 @@ final class IndicesRequestConverters {
     }
 
     static Request indicesExist(GetIndexRequest getIndexRequest) {
-        // this can be called with no indices as argument by transport client, not via REST though
         if (getIndexRequest.indices() == null || getIndexRequest.indices().length == 0) {
             throw new IllegalArgumentException("indices are mandatory");
         }

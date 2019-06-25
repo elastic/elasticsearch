@@ -56,7 +56,7 @@ public class WildflyIT extends LuceneTestCase {
 
     private Logger logger = LogManager.getLogger(WildflyIT.class);
 
-    public void testTransportClient() throws URISyntaxException, IOException {
+    public void testRestClient() throws URISyntaxException, IOException {
         try (CloseableHttpClient client = HttpClientBuilder.create().build()) {
             final String str = String.format(
                 Locale.ROOT,

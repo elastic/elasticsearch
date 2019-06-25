@@ -2,7 +2,6 @@
    "ids": ["1","2"],
    "parameters": {
       "_index": "testidx",
-      "_type": "test",
       "filter": {
          "max_num_terms": 20,
          "min_term_freq": 1,

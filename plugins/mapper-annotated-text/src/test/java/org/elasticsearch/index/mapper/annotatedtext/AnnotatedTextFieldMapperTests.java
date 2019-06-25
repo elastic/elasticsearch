@@ -226,7 +226,7 @@ public class AnnotatedTextFieldMapperTests extends ESSingleNodeTestCase {
         }
         bulk.get();
 
-        TermVectorsRequest request = new TermVectorsRequest("test", "type", "0").termStatistics(true);
+        TermVectorsRequest request = new TermVectorsRequest("test", "0").termStatistics(true);
 
         IndicesService indicesService = getInstanceFromNode(IndicesService.class);
         IndexService test = indicesService.indexService(resolveIndex("test"));

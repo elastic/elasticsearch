@@ -49,6 +49,7 @@ import org.elasticsearch.transport.TransportService;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
 import static org.mockito.Mockito.mock;
 
@@ -160,7 +161,7 @@ public class RepositoriesServiceTests extends ESTestCase {
         @Override
         public SnapshotInfo finalizeSnapshot(SnapshotId snapshotId, List<IndexId> indices, long startTime, String failure,
                                              int totalShards, List<SnapshotShardFailure> shardFailures, long repositoryStateId,
-                                             boolean includeGlobalState) {
+                                             boolean includeGlobalState, Map<String, Object> userMetadata) {
             return null;
         }
 

@@ -1,7 +1,7 @@
 [role="xpack"]
 [testenv="basic"]
 [[sql-lexical-structure]]
-== Lexical Structure
+=== Lexical Structure
 
 This section covers the major lexical structure of SQL, which for the most part, is going to resemble that of ANSI SQL itself hence why low-levels details are not discussed in depth.
 
@@ -10,8 +10,7 @@ This section covers the major lexical structure of SQL, which for the most part,
 A token can be a __key word__, an _identifier_ (_quoted_ or _unquoted_), a _literal_ (or constant) or a special character symbol (typically a delimiter). Tokens are typically separated by whitespace (be it space, tab) though in some cases, where there is no ambiguity (typically due to a character symbol) this is not needed - however for readability purposes this should be avoided.
 
 [[sql-syntax-keywords]]
-[float]
-=== Key Words
+==== Key Words
 
 Take the following example:
 
@@ -35,8 +34,7 @@ Identifiers however are not - as {es} is case sensitive, {es-sql} uses the recei
 To help differentiate between the two, through-out the documentation the SQL key words are upper-cased a convention we find increases readability and thus recommend to others.
 
 [[sql-syntax-identifiers]]
-[float]
-=== Identifiers
+==== Identifiers
 
 Identifiers can be of two types: __quoted__ and __unquoted__:
 
@@ -59,14 +57,13 @@ The first identifier from needs to quoted as otherwise it clashes with the `FROM
 Hence why in general, *especially* when dealing with user input it is *highly* recommended to use quotes for identifiers. It adds minimal increase to your queries and in return offers clarity and disambiguation.
 
 [[sql-syntax-literals]]
-[float]
-=== Literals (Constants)
+==== Literals (Constants)
 
 {es-sql} supports two kind of __implicitly-typed__ literals: strings and numbers.
 
 [[sql-syntax-string-literals]]
 [float]
-==== String Literals
+===== String Literals
 
 A string literal is an arbitrary number of characters bounded by single quotes `'`: `'Giant Robot'`. 
 To include a single quote in the string, escape it using another single quote: `'Captain EO''s Voyage'`. 
@@ -75,7 +72,7 @@ NOTE: An escaped single quote is *not* a double quote (`"`), but a single quote 
 
 [sql-syntax-numeric-literals]
 [float]
-==== Numeric Literals
+===== Numeric Literals
 
 Numeric literals are accepted both in decimal and scientific notation with exponent marker (`e` or `E`), starting either with a digit or decimal point `.`:
 
@@ -92,7 +89,7 @@ Numeric literals that contain a decimal point are always interpreted as being of
 
 [[sql-syntax-generic-literals]]
 [float]
-==== Generic Literals
+===== Generic Literals
 
 When dealing with arbitrary type literal, one creates the object by casting, typically, the string representation to the desired type. This can be achieved through the dedicated <<sql-operators-cast, cast operator>> and <<sql-functions-type-conversion, functions>>:
 
@@ -106,8 +103,7 @@ CONVERT('10.0.0.1', IP)                     -- cast '10.0.0.1' to an IP
 Do note that {es-sql} provides functions that out of the box return popular literals (like `E()`) or provide dedicated parsing for certain strings.
 
 [[sql-syntax-single-vs-double-quotes]]
-[float]
-=== Single vs Double Quotes
+==== Single vs Double Quotes
 
 It is worth pointing out that in SQL, single quotes `'` and double quotes `"` have different meaning and *cannot* be used interchangeably.
 Single quotes are used to declare a <<sql-syntax-string-literals, string literal>> while double quotes for <<sql-syntax-identifiers, identifiers>>.
@@ -126,8 +122,7 @@ SELECT "first_name" <1>
 <2> Single quotes `'` used for a string literal
 
 [[sql-syntax-special-chars]]
-[float]
-=== Special characters
+==== Special characters
 
 A few characters that are not alphanumeric have a dedicated meaning different from that of an operator. For completeness these are specified below:
 
@@ -146,8 +141,7 @@ s|Description
 |===
 
 [[sql-syntax-operators]]
-[float]
-=== Operators
+==== Operators
 
 Most operators in {es-sql} have the same precedence and are left-associative. As this is done at parsing time, parenthesis need to be used to enforce a different precedence.
 
@@ -205,8 +199,7 @@ s|Description
 
 
 [[sql-syntax-comments]]
-[float]
-=== Comments
+==== Comments
 
 {es-sql} allows comments which are sequence of characters ignored by the parsers.
 

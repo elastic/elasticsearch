@@ -20,7 +20,7 @@
 /**
  * <p>This package exposes the blobstore repository used by Elasticsearch Snapshots.</p>
  *
- * <h1>Preliminaries</h1>
+ * <h2>Preliminaries</h2>
  *
  * <p>The {@link org.elasticsearch.repositories.blobstore.BlobStoreRepository} forms the basis of implementations of
  * {@link org.elasticsearch.repositories.Repository} on top of a blob store. A blobstore can be used as the basis for an implementation
@@ -84,7 +84,7 @@
  * }
  * </pre>
  *
- * <h1>Getting the Repository's RepositoryData</h1>
+ * <h2>Getting the Repository's RepositoryData</h2>
  *
  * <p>Loading the {@link org.elasticsearch.repositories.RepositoryData} that holds the list of all snapshots as well as the mapping of
  * indices' names to their repository {@link org.elasticsearch.repositories.IndexId} is done by invoking
@@ -114,11 +114,11 @@
  * </ol>
  * </li>
  * </ol>
- * <h1>Creating a Snapshot</h1>
+ * <h2>Creating a Snapshot</h2>
  *
  * <p>Creating a snapshot in the repository happens in the three steps described in detail below.</p>
  *
- * <h2>Initializing a Snapshot in the Repository</h2>
+ * <h3>Initializing a Snapshot in the Repository</h3>
  *
  * <p>Creating a snapshot in the repository starts with a call to {@link org.elasticsearch.repositories.Repository#initializeSnapshot} which
  * the blob store repository implements via the following actions:</p>
@@ -130,7 +130,7 @@
  * </ol>
  * TODO: This behavior is problematic, adjust these docs once https://github.com/elastic/elasticsearch/issues/41581 is fixed
  *
- * <h2>Writing Shard Data (Segments)</h2>
+ * <h3>Writing Shard Data (Segments)</h3>
  *
  * <p>Once all the metadata has been written by the snapshot initialization, the snapshot process moves on to writing the actual shard data
  * to the repository by invoking {@link org.elasticsearch.repositories.Repository#snapshotShard} on the data-nodes that hold the primaries
@@ -158,7 +158,7 @@
  * {@code BlobStoreIndexShardSnapshots} blob is written to the shard's path with name {@code index-${N+1}}.</li>
  * </ol>
  *
- * <h2>Finalizing the Snapshot</h2>
+ * <h3>Finalizing the Snapshot</h3>
  *
  * <p>After all primaries have finished writing the necessary segment files to the blob store in the previous step, the master node moves on
  * to finalizing the snapshot by invoking {@link org.elasticsearch.repositories.Repository#finalizeSnapshot}. This method executes the
@@ -173,7 +173,7 @@
  * <li>Write the updated {@code /index.latest} blob containing the new repository generation {@code N + 1}.</li>
  * </ol>
  *
- * <h1>Deleting a Snapshot</h1>
+ * <h2>Deleting a Snapshot</h2>
  *
  * <p>Deleting a snapshot is an operation that is exclusively executed on the master node that runs through the following sequence of
  * action when {@link org.elasticsearch.repositories.blobstore.BlobStoreRepository#deleteSnapshot} is invoked:</p>

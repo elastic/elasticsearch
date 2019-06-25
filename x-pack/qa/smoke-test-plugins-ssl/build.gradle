@@ -2,6 +2,7 @@ import org.elasticsearch.gradle.MavenFilteringHack
 import org.elasticsearch.gradle.test.NodeInfo
 import org.elasticsearch.gradle.http.WaitForHttpResource
 
+apply plugin: 'elasticsearch.testclusters'
 apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
 
@@ -38,16 +39,11 @@ task copyKeyCerts(type: Copy) {
 sourceSets.test.resources.srcDir(keystoreDir)
 processTestResources.dependsOn(copyKeyCerts)
 
-integTestCluster.dependsOn(copyKeyCerts)
+integTest.runner.dependsOn(copyKeyCerts)
 
-ext.pluginsCount = 0
-project(':plugins').getChildProjects().each { pluginName, pluginProject ->
-  // need to get a non-decorated project object, so must re-lookup the project by path
-  integTestCluster.plugin(pluginProject.path)
-  pluginsCount += 1
-}
-
-integTestCluster {
+def pluginsCount = 0
+testClusters.integTest {
+  distribution = "DEFAULT"
   setting 'xpack.monitoring.collection.interval', '1s'
   setting 'xpack.monitoring.exporters._http.type', 'http'
   setting 'xpack.monitoring.exporters._http.enabled', 'false'
@@ -62,7 +58,7 @@ integTestCluster {
   setting 'xpack.security.http.ssl.key', 'testnode.pem'
   setting 'xpack.security.http.ssl.certificate', 'testnode.crt'
   setting 'xpack.security.http.ssl.certificate_authorities', 'testnode.crt'
-  keystoreSetting 'xpack.security.http.ssl.secure_key_passphrase', 'testnode'
+  keystore 'xpack.security.http.ssl.secure_key_passphrase', 'testnode'
 
   setting 'xpack.ilm.enabled', 'false'
   setting 'xpack.ml.enabled', 'false'
@@ -74,18 +70,13 @@ integTestCluster {
   extraConfigFile clientKey.name, clientKey
   extraConfigFile clientCert.name, clientCert
 
-  setupCommand 'setupTestUser',
-               'bin/elasticsearch-users', 'useradd', 'test_user', '-p', 'x-pack-test-password', '-r', 'superuser'
-  setupCommand 'setupMonitoringUser',
-               'bin/elasticsearch-users', 'useradd', 'monitoring_agent', '-p', 'x-pack-test-password', '-r', 'remote_monitoring_agent'
+  user username: "test_user", password: "x-pack-test-password"
+  user username: "monitoring_agent", password: "x-pack-test-password", role: "remote_monitoring_agent"
 
-  waitCondition = { NodeInfo node, AntBuilder ant ->
-    WaitForHttpResource http = new WaitForHttpResource("https", node.httpUri(), numNodes)
-    http.setTrustStoreFile(clientKeyStore)
-    http.setTrustStorePassword("testclient")
-    http.setUsername("test_user")
-    http.setPassword("x-pack-test-password")
-    return http.wait(5000)
+  project(':plugins').getChildProjects().each { pluginName, pluginProject ->
+    plugin file(pluginProject.tasks.bundlePlugin.archiveFile)
+    tasks.integTest.dependsOn pluginProject.tasks.bundlePlugin
+    pluginsCount += 1
   }
 }
 

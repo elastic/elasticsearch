@@ -124,7 +124,7 @@ setup:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       count:
         index: .ml-anomalies-shared
-  - match: {count: 6}
+  - match: {count: 8}
 
   - do:
       headers:
@@ -138,7 +138,7 @@ setup:
                 term:
                   job_id: index-layout-job
 
-  - match: {count: 3}
+  - match: {count: 4}
 
   - do:
       headers:
@@ -152,7 +152,7 @@ setup:
                 term:
                   job_id: index-layout-job
 
-  - match: {count: 3}
+  - match: {count: 4}
 
   - do:
       headers:
@@ -166,7 +166,7 @@ setup:
                 term:
                   job_id: index-layout-job2
 
-  - match: {count: 3}
+  - match: {count: 4}
 
   - do:
       headers:
@@ -179,7 +179,7 @@ setup:
               filter:
                 term:
                   job_id: index-layout-job2
-  - match: {count: 3}
+  - match: {count: 4}
 
   - do:
       headers:
@@ -236,7 +236,7 @@ setup:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       count:
         index: .ml-anomalies-shared
-  - match: {count: 3}
+  - match: {count: 4}
 
 
   - do:
@@ -251,7 +251,7 @@ setup:
                 term:
                   job_id: index-layout-job2
 
-  - match: {count: 3}
+  - match: {count: 4}
 
   - do:
       headers:
@@ -265,7 +265,7 @@ setup:
                 term:
                   job_id: index-layout-job2
 
-  - match: {count: 3}
+  - match: {count: 4}
 
   - do:
       ml.delete_job:

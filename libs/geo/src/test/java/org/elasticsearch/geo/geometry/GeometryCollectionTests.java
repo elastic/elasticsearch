@@ -35,7 +35,7 @@ public class GeometryCollectionTests extends BaseGeometryTestCase<GeometryCollec
 
 
     public void testBasicSerialization() throws IOException, ParseException {
-        WellKnownText wkt = new WellKnownText();
+        WellKnownText wkt = new WellKnownText(true, true);
         assertEquals("geometrycollection (point (20.0 10.0),point EMPTY)",
             wkt.toWKT(new GeometryCollection<Geometry>(Arrays.asList(new Point(10, 20), Point.EMPTY))));
 

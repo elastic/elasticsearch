@@ -26,7 +26,6 @@ import org.elasticsearch.action.support.AutoCreateIndex;
 import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.bootstrap.BootstrapSettings;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.InternalClusterInfoService;
@@ -176,11 +175,6 @@ public final class ClusterSettings extends AbstractScopedSettings {
 
     public static Set<Setting<?>> BUILT_IN_CLUSTER_SETTINGS = Set.of(
             AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING,
-            // TODO these transport client settings are kind of odd here and should only be valid if we are a transport client
-            TransportClient.CLIENT_TRANSPORT_NODES_SAMPLER_INTERVAL,
-            TransportClient.CLIENT_TRANSPORT_PING_TIMEOUT,
-            TransportClient.CLIENT_TRANSPORT_IGNORE_CLUSTER_NAME,
-            TransportClient.CLIENT_TRANSPORT_SNIFF,
             AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_FORCE_GROUP_SETTING,
             BalancedShardsAllocator.INDEX_BALANCE_FACTOR_SETTING,
             BalancedShardsAllocator.SHARD_BALANCE_FACTOR_SETTING,

@@ -124,6 +124,7 @@ public class EsExecutors {
      */
     public static Throwable rethrowErrors(Runnable runnable) {
         if (runnable instanceof RunnableFuture) {
+            assert ((RunnableFuture) runnable).isDone();
             try {
                 ((RunnableFuture) runnable).get();
             } catch (final Exception e) {

@@ -23,7 +23,6 @@ import com.carrotsearch.hppc.cursors.IntObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.elasticsearch.Version;
-import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.coordination.CoordinationMetaData;
@@ -114,12 +113,9 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
          * Tests whether or not the custom should be serialized. The criteria are:
          * <ul>
          * <li>the output stream must be at least the minimum supported version of the custom</li>
-         * <li>the output stream must have the feature required by the custom (if any) or not be a transport client</li>
          * </ul>
          * <p>
-         * That is, we only serialize customs to clients than can understand the custom based on the version of the client and the features
-         * that the client has. For transport clients we can be lenient in requiring a feature in which case we do not send the custom but
-         * for connected nodes we always require that the node has the required feature.
+         * That is, we only serialize customs to clients than can understand the custom based on the version of the client.
          *
          * @param out    the output stream
          * @param custom the custom to serialize
@@ -127,15 +123,7 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
          * @return true if the custom should be serialized and false otherwise
          */
         static <T extends VersionedNamedWriteable & FeatureAware> boolean shouldSerialize(final StreamOutput out, final T custom) {
-            if (out.getVersion().before(custom.getMinimalSupportedVersion())) {
-                return false;
-            }
-            if (custom.getRequiredFeature().isPresent()) {
-                final String requiredFeature = custom.getRequiredFeature().get();
-                // if it is a transport client we are lenient yet for a connected node it must have the required feature
-                return out.hasFeature(requiredFeature) || out.hasFeature(TransportClient.TRANSPORT_CLIENT_FEATURE) == false;
-            }
-            return true;
+            return out.getVersion().onOrAfter(custom.getMinimalSupportedVersion());
         }
 
     }

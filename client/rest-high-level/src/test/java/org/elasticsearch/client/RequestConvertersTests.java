@@ -427,7 +427,11 @@ public class RequestConvertersTests extends ESTestCase {
             reindexRequest.setDestRouting("=cat");
         }
         if (randomBoolean()) {
-            reindexRequest.setSize(randomIntBetween(100, 1000));
+            if (randomBoolean()) {
+                reindexRequest.setMaxDocs(randomIntBetween(100, 1000));
+            } else {
+                reindexRequest.setSize(randomIntBetween(100, 1000));
+            }
         }
         if (randomBoolean()) {
             reindexRequest.setAbortOnVersionConflict(false);
@@ -476,8 +480,12 @@ public class RequestConvertersTests extends ESTestCase {
         }
         if (randomBoolean()) {
             int size = randomIntBetween(100, 1000);
-            updateByQueryRequest.setSize(size);
-            expectedParams.put("size", Integer.toString(size));
+            if (randomBoolean()) {
+                updateByQueryRequest.setMaxDocs(size);
+            } else {
+                updateByQueryRequest.setSize(size);
+            }
+            expectedParams.put("max_docs", Integer.toString(size));
         }
         if (randomBoolean()) {
             updateByQueryRequest.setAbortOnVersionConflict(false);
@@ -521,8 +529,12 @@ public class RequestConvertersTests extends ESTestCase {
         }
         if (randomBoolean()) {
             int size = randomIntBetween(100, 1000);
-            deleteByQueryRequest.setSize(size);
-            expectedParams.put("size", Integer.toString(size));
+            if (randomBoolean()) {
+                deleteByQueryRequest.setMaxDocs(size);
+            } else {
+                deleteByQueryRequest.setSize(size);
+            }
+            expectedParams.put("max_docs", Integer.toString(size));
         }
         if (randomBoolean()) {
             deleteByQueryRequest.setAbortOnVersionConflict(false);

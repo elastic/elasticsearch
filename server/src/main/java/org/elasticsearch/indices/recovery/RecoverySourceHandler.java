@@ -175,7 +175,7 @@ public class RecoverySourceHandler {
                 startingSeqNo = 0;
                 try {
                     final int estimateNumOps = shard.estimateNumberOfHistoryOperations("peer-recovery", startingSeqNo);
-                    sendFileResult = phase1(phase1Snapshot.getIndexCommit(), shard.getGlobalCheckpoint(), () -> estimateNumOps);
+                    sendFileResult = phase1(phase1Snapshot.getIndexCommit(), shard.getLastKnownGlobalCheckpoint(), () -> estimateNumOps);
                 } catch (final Exception e) {
                     throw new RecoveryEngineException(shard.shardId(), 1, "phase1 failed", e);
                 } finally {
@@ -641,7 +641,7 @@ public class RecoverySourceHandler {
          */
         runUnderPrimaryPermit(() -> shard.markAllocationIdAsInSync(request.targetAllocationId(), targetLocalCheckpoint),
             shardId + " marking " + request.targetAllocationId() + " as in sync", shard, cancellableThreads, logger);
-        final long globalCheckpoint = shard.getGlobalCheckpoint();
+        final long globalCheckpoint = shard.getLastKnownGlobalCheckpoint(); // this global checkpoint is persisted in finalizeRecovery
         final StepListener<Void> finalizeListener = new StepListener<>();
         cancellableThreads.executeIO(() -> recoveryTarget.finalizeRecovery(globalCheckpoint, finalizeListener));
         finalizeListener.whenComplete(r -> {
@@ -709,7 +709,8 @@ public class RecoverySourceHandler {
                     final BytesArray content = new BytesArray(buffer, 0, bytesRead);
                     final boolean lastChunk = position + content.length() == md.length();
                     final long requestSeqId = requestSeqIdTracker.generateSeqNo();
-                    cancellableThreads.execute(() -> requestSeqIdTracker.waitForOpsToComplete(requestSeqId - maxConcurrentFileChunks));
+                    cancellableThreads.execute(
+                        () -> requestSeqIdTracker.waitForProcessedOpsToComplete(requestSeqId - maxConcurrentFileChunks));
                     cancellableThreads.checkForCancel();
                     if (error.get() != null) {
                         break;
@@ -718,10 +719,10 @@ public class RecoverySourceHandler {
                     cancellableThreads.executeIO(() ->
                         recoveryTarget.writeFileChunk(md, requestFilePosition, content, lastChunk, translogOps.get(),
                             ActionListener.wrap(
-                                r -> requestSeqIdTracker.markSeqNoAsCompleted(requestSeqId),
+                                r -> requestSeqIdTracker.markSeqNoAsProcessed(requestSeqId),
                                 e -> {
                                     error.compareAndSet(null, Tuple.tuple(md, e));
-                                    requestSeqIdTracker.markSeqNoAsCompleted(requestSeqId);
+                                    requestSeqIdTracker.markSeqNoAsProcessed(requestSeqId);
                                 }
                             )));
                     position += content.length();
@@ -734,7 +735,7 @@ public class RecoverySourceHandler {
         // When we terminate exceptionally, we don't wait for the outstanding requests as we don't use their results anyway.
         // This allows us to end quickly and eliminate the complexity of handling requestSeqIds in case of error.
         if (error.get() == null) {
-            cancellableThreads.execute(() -> requestSeqIdTracker.waitForOpsToComplete(requestSeqIdTracker.getMaxSeqNo()));
+            cancellableThreads.execute(() -> requestSeqIdTracker.waitForProcessedOpsToComplete(requestSeqIdTracker.getMaxSeqNo()));
         }
         if (error.get() != null) {
             handleErrorOnSendFiles(store, error.get().v1(), error.get().v2());

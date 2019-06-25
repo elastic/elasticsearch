@@ -30,8 +30,9 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.threadpool.ThreadPoolStats;
 import org.elasticsearch.xpack.core.watcher.WatcherState;
 import org.elasticsearch.xpack.core.watcher.client.WatchSourceBuilder;
-import org.elasticsearch.xpack.core.watcher.client.WatcherClient;
 import org.elasticsearch.xpack.core.watcher.history.HistoryStoreField;
+import org.elasticsearch.xpack.core.watcher.transport.actions.service.WatcherServiceRequestBuilder;
+import org.elasticsearch.xpack.core.watcher.transport.actions.stats.WatcherStatsRequestBuilder;
 import org.elasticsearch.xpack.core.watcher.watch.Watch;
 import org.elasticsearch.xpack.watcher.actions.ActionBuilders;
 import org.elasticsearch.xpack.watcher.actions.logging.LoggingLevel;
@@ -153,12 +154,11 @@ public class WatcherScheduleEngineBenchmark {
                     client.admin().cluster().prepareHealth(Watch.INDEX, "test").setWaitForYellowStatus().get();
 
                     Clock clock = node.injector().getInstance(Clock.class);
-                    WatcherClient watcherClient = node.injector().getInstance(WatcherClient.class);
-                    while (!watcherClient.prepareWatcherStats().get().getNodes().stream()
+                    while (!new WatcherStatsRequestBuilder(client).get().getNodes().stream()
                             .allMatch(r -> r.getWatcherState() == WatcherState.STARTED)) {
                         Thread.sleep(100);
                     }
-                    long actualLoadedWatches = watcherClient.prepareWatcherStats().get().getWatchesCount();
+                    long actualLoadedWatches = new WatcherStatsRequestBuilder(client).get().getWatchesCount();
                     if (actualLoadedWatches != numWatches) {
                         throw new IllegalStateException("Expected [" + numWatches + "] watched to be loaded, but only [" +
                                 actualLoadedWatches + "] watches were actually loaded");
@@ -228,7 +228,7 @@ public class WatcherScheduleEngineBenchmark {
                     Percentiles percentiles = searchResponse.getAggregations().get("percentile_delay");
                     stats.setDelayPercentiles(percentiles);
                     stats.setAvgJvmUsed(jvmUsedHeapSpace);
-                    watcherClient.prepareWatchService().stop().get();
+                    new WatcherServiceRequestBuilder(client).stop().get();
                 }
             }
         }

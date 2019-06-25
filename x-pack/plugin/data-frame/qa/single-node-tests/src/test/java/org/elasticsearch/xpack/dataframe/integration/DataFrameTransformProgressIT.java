@@ -6,7 +6,6 @@
 
 package org.elasticsearch.xpack.dataframe.integration;
 
-import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
@@ -44,7 +43,6 @@ import static org.elasticsearch.xpack.dataframe.integration.DataFrameRestTestCas
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
-@LuceneTestCase.AwaitsFix( bugUrl = "https://github.com/elastic/elasticsearch/issues/42344")
 public class DataFrameTransformProgressIT extends ESRestTestCase {
     protected void createReviewsIndex() throws Exception {
         final int numDocs = 1000;
@@ -121,7 +119,7 @@ public class DataFrameTransformProgressIT extends ESRestTestCase {
     public void testGetProgress() throws Exception {
         createReviewsIndex();
         SourceConfig sourceConfig = new SourceConfig(REVIEWS_INDEX_NAME);
-        DestConfig destConfig = new DestConfig("unnecessary");
+        DestConfig destConfig = new DestConfig("unnecessary", null);
         GroupConfig histgramGroupConfig = new GroupConfig(Collections.emptyMap(),
             Collections.singletonMap("every_50", new HistogramGroupSource("count", 50.0)));
         AggregatorFactories.Builder aggs = new AggregatorFactories.Builder();
@@ -131,6 +129,7 @@ public class DataFrameTransformProgressIT extends ESRestTestCase {
         DataFrameTransformConfig config = new DataFrameTransformConfig("get_progress_transform",
             sourceConfig,
             destConfig,
+            null,
             null,
             pivotConfig,
             null);
@@ -153,6 +152,7 @@ public class DataFrameTransformProgressIT extends ESRestTestCase {
             sourceConfig,
             destConfig,
             null,
+            null,
             pivotConfig,
             null);
 
@@ -162,6 +162,24 @@ public class DataFrameTransformProgressIT extends ESRestTestCase {
         assertThat(progress.getTotalDocs(), equalTo(35L));
         assertThat(progress.getRemainingDocs(), equalTo(35L));
         assertThat(progress.getPercentComplete(), equalTo(0.0));
+
+        histgramGroupConfig = new GroupConfig(Collections.emptyMap(),
+            Collections.singletonMap("every_50", new HistogramGroupSource("missing_field", 50.0)));
+        pivotConfig = new PivotConfig(histgramGroupConfig, aggregationConfig, null);
+        config = new DataFrameTransformConfig("get_progress_transform",
+            sourceConfig,
+            destConfig,
+            null,
+            null,
+            pivotConfig,
+            null);
+
+        response = restClient.search(TransformProgressGatherer.getSearchRequest(config), RequestOptions.DEFAULT);
+        progress = TransformProgressGatherer.searchResponseToDataFrameTransformProgressFunction().apply(response);
+
+        assertThat(progress.getTotalDocs(), equalTo(0L));
+        assertThat(progress.getRemainingDocs(), equalTo(0L));
+        assertThat(progress.getPercentComplete(), equalTo(100.0));
 
         deleteIndex(REVIEWS_INDEX_NAME);
     }

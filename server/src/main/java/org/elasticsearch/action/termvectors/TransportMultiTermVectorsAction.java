@@ -69,7 +69,7 @@ public class TransportMultiTermVectorsAction extends HandledTransportAction<Mult
                 termVectorsRequest.index()));
             if (!clusterState.metaData().hasConcreteIndex(termVectorsRequest.index())) {
                 responses.set(i, new MultiTermVectorsItemResponse(null,
-                    new MultiTermVectorsResponse.Failure(termVectorsRequest.index(), termVectorsRequest.type(), termVectorsRequest.id(),
+                        new MultiTermVectorsResponse.Failure(termVectorsRequest.index(), termVectorsRequest.id(),
                         new IndexNotFoundException(termVectorsRequest.index()))));
                 continue;
             }
@@ -77,8 +77,8 @@ public class TransportMultiTermVectorsAction extends HandledTransportAction<Mult
             if (termVectorsRequest.routing() == null &&
                 clusterState.getMetaData().routingRequired(concreteSingleIndex)) {
                 responses.set(i, new MultiTermVectorsItemResponse(null,
-                    new MultiTermVectorsResponse.Failure(concreteSingleIndex, termVectorsRequest.type(), termVectorsRequest.id(),
-                        new RoutingMissingException(concreteSingleIndex, termVectorsRequest.type(), termVectorsRequest.id()))));
+                        new MultiTermVectorsResponse.Failure(concreteSingleIndex, termVectorsRequest.id(),
+                                new RoutingMissingException(concreteSingleIndex, termVectorsRequest.id()))));
                 continue;
             }
             ShardId shardId = clusterService.operationRouting().shardId(clusterState, concreteSingleIndex,
@@ -124,8 +124,7 @@ public class TransportMultiTermVectorsAction extends HandledTransportAction<Mult
                     for (int i = 0; i < shardRequest.locations.size(); i++) {
                         TermVectorsRequest termVectorsRequest = shardRequest.requests.get(i);
                         responses.set(shardRequest.locations.get(i), new MultiTermVectorsItemResponse(null,
-                                new MultiTermVectorsResponse.Failure(shardRequest.index(), termVectorsRequest.type(),
-                                        termVectorsRequest.id(), e)));
+                                new MultiTermVectorsResponse.Failure(shardRequest.index(), termVectorsRequest.id(), e)));
                     }
                     if (counter.decrementAndGet() == 0) {
                         finishHim();

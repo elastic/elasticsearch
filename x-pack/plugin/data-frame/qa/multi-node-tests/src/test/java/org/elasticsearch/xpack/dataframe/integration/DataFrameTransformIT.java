@@ -6,10 +6,10 @@
 
 package org.elasticsearch.xpack.dataframe.integration;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.core.IndexerState;
 import org.elasticsearch.client.dataframe.transforms.DataFrameTransformConfig;
-import org.elasticsearch.client.dataframe.transforms.DataFrameTransformStateAndStats;
 import org.elasticsearch.client.dataframe.transforms.pivot.SingleGroupSource;
 import org.elasticsearch.client.dataframe.transforms.pivot.TermsGroupSource;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
@@ -18,6 +18,7 @@ import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInter
 import org.junit.After;
 
 import java.io.IOException;
+import java.time.Instant;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -31,7 +32,8 @@ public class DataFrameTransformIT extends DataFrameIntegTestCase {
     }
 
     public void testDataFrameTransformCrud() throws Exception {
-        createReviewsIndex();
+        String indexName = "basic-crud-reviews";
+        createReviewsIndex(indexName, 100);
 
         Map<String, SingleGroupSource> groups = new HashMap<>();
         groups.put("by-day", createDateHistogramGroupSourceWithCalendarInterval("timestamp", DateHistogramInterval.DAY, null, null));
@@ -46,17 +48,24 @@ public class DataFrameTransformIT extends DataFrameIntegTestCase {
             groups,
             aggs,
             "reviews-by-user-business-day",
-            REVIEWS_INDEX_NAME);
+            indexName);
 
         assertTrue(putDataFrameTransform(config, RequestOptions.DEFAULT).isAcknowledged());
         assertTrue(startDataFrameTransform(config.getId(), RequestOptions.DEFAULT).isAcknowledged());
 
         waitUntilCheckpoint(config.getId(), 1L);
 
-        DataFrameTransformStateAndStats stats = getDataFrameTransformStats(config.getId()).getTransformsStateAndStats().get(0);
+        // It will eventually be stopped
+        assertBusy(() ->
+            assertThat(getDataFrameTransformStats(config.getId()).getTransformsStateAndStats().get(0).getTransformState().getIndexerState(),
+                equalTo(IndexerState.STOPPED)));
+        stopDataFrameTransform(config.getId());
 
-        assertThat(stats.getTransformState().getIndexerState(), equalTo(IndexerState.STARTED));
+        DataFrameTransformConfig storedConfig = getDataFrameTransform(config.getId()).getTransformConfigurations().get(0);
+        assertThat(storedConfig.getVersion(), equalTo(Version.CURRENT));
+        Instant now = Instant.now();
+        assertTrue("[create_time] is not before current time", storedConfig.getCreateTime().isBefore(now));
+        deleteDataFrameTransform(config.getId());
     }
-
 
 }

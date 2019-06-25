@@ -24,6 +24,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.analysis.NameOrDefinition;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.test.ESTestCase;
@@ -52,7 +53,7 @@ public class RestAnalyzeActionTests extends ESTestCase {
             assertThat(analyzeRequest.text(), equalTo(new String[]{"THIS IS A TEST"}));
             assertThat(analyzeRequest.tokenizer().name, equalTo("keyword"));
             assertThat(analyzeRequest.tokenFilters().size(), equalTo(1));
-            for (AnalyzeAction.Request.NameOrDefinition filter : analyzeRequest.tokenFilters()) {
+            for (NameOrDefinition filter : analyzeRequest.tokenFilters()) {
                 assertThat(filter.name, equalTo("lowercase"));
             }
         }

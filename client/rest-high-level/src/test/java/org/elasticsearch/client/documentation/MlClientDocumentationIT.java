@@ -3103,7 +3103,8 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
     public void testStopDataFrameAnalytics() throws Exception {
         createIndex(DF_ANALYTICS_CONFIG.getSource().getIndex());
         highLevelClient().index(
-            new IndexRequest(DF_ANALYTICS_CONFIG.getSource().getIndex()).source(XContentType.JSON, "total", 10000), RequestOptions.DEFAULT);
+            new IndexRequest(DF_ANALYTICS_CONFIG.getSource().getIndex()).source(XContentType.JSON, "total", 10000)
+                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE), RequestOptions.DEFAULT);
         RestHighLevelClient client = highLevelClient();
         client.machineLearning().putDataFrameAnalytics(new PutDataFrameAnalyticsRequest(DF_ANALYTICS_CONFIG), RequestOptions.DEFAULT);
         {

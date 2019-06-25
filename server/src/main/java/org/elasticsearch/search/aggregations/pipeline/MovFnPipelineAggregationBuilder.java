@@ -224,12 +224,15 @@ public class MovFnPipelineAggregationBuilder extends AbstractPipelineAggregation
     }
 
     @Override
-    protected int doHashCode() {
-        return Objects.hash(bucketsPathString, script, format, gapPolicy, window);
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), bucketsPathString, script, format, gapPolicy, window);
     }
 
     @Override
-    protected boolean doEquals(Object obj) {
+    public boolean equals(Object obj) {
+        if (this == obj) return true;
+        if (obj == null || getClass() != obj.getClass()) return false;
+        if (super.equals(obj) == false) return false;
         MovFnPipelineAggregationBuilder other = (MovFnPipelineAggregationBuilder) obj;
         return Objects.equals(bucketsPathString, other.bucketsPathString)
             && Objects.equals(script, other.script)

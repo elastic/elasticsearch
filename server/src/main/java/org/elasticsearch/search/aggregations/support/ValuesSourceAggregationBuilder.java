@@ -344,34 +344,24 @@ public abstract class ValuesSourceAggregationBuilder<VS extends ValuesSource, AB
     protected abstract XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException;
 
     @Override
-    protected final int doHashCode() {
-        return Objects.hash(field, format, missing, script, targetValueType, timeZone, valueType, valuesSourceType,
-                innerHashCode());
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), field, format, missing, script,
+            targetValueType, timeZone, valueType, valuesSourceType);
     }
-
-    protected abstract int innerHashCode();
 
     @Override
-    protected final boolean doEquals(Object obj) {
+    public boolean equals(Object obj) {
+        if (this == obj) return true;
+        if (obj == null || getClass() != obj.getClass()) return false;
+        if (super.equals(obj) == false) return false;
         ValuesSourceAggregationBuilder<?, ?> other = (ValuesSourceAggregationBuilder<?, ?>) obj;
-        if (!Objects.equals(field, other.field))
-            return false;
-        if (!Objects.equals(format, other.format))
-            return false;
-        if (!Objects.equals(missing, other.missing))
-            return false;
-        if (!Objects.equals(script, other.script))
-            return false;
-        if (!Objects.equals(targetValueType, other.targetValueType))
-            return false;
-        if (!Objects.equals(timeZone, other.timeZone))
-            return false;
-        if (!Objects.equals(valueType, other.valueType))
-            return false;
-        if (!Objects.equals(valuesSourceType, other.valuesSourceType))
-            return false;
-        return innerEquals(obj);
+        return Objects.equals(valuesSourceType, other.valuesSourceType)
+            && Objects.equals(field, other.field)
+            && Objects.equals(format, other.format)
+            && Objects.equals(missing, other.missing)
+            && Objects.equals(script, other.script)
+            && Objects.equals(targetValueType, other.targetValueType)
+            && Objects.equals(timeZone, other.timeZone)
+            && Objects.equals(valueType, other.valueType);
     }
-
-    protected abstract boolean innerEquals(Object obj);
 }

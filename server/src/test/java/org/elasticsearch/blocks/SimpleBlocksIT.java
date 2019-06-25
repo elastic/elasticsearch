@@ -20,7 +20,6 @@
 package org.elasticsearch.blocks;
 
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
-import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsResponse;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequestBuilder;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.index.IndexResponse;
@@ -41,42 +40,42 @@ public class SimpleBlocksIT extends ESIntegTestCase {
         canCreateIndex("test1");
         canIndexDocument("test1");
         setIndexReadOnly("test1", "false");
-        canIndexExists("test1");
+        assertTrue(indexExists("test1"));
 
         // cluster.read_only = true: block write and metadata
         setClusterReadOnly(true);
         canNotCreateIndex("test2");
         // even if index has index.read_only = false
         canNotIndexDocument("test1");
-        canIndexExists("test1");
+        assertTrue(indexExists("test1"));
 
         // cluster.read_only = false: removes the block
         setClusterReadOnly(false);
         canCreateIndex("test2");
         canIndexDocument("test2");
         canIndexDocument("test1");
-        canIndexExists("test1");
+        assertTrue(indexExists("test1"));
 
 
         // newly created an index has no blocks
         canCreateIndex("ro");
         canIndexDocument("ro");
-        canIndexExists("ro");
+        assertTrue(indexExists("ro"));
 
         // adds index write and metadata block
         setIndexReadOnly( "ro", "true");
         canNotIndexDocument("ro");
-        canIndexExists("ro");
+        assertTrue(indexExists("ro"));
 
         // other indices not blocked
         canCreateIndex("rw");
         canIndexDocument("rw");
-        canIndexExists("rw");
+        assertTrue(indexExists("rw"));
 
         // blocks can be removed
         setIndexReadOnly("ro", "false");
         canIndexDocument("ro");
-        canIndexExists("ro");
+        assertTrue(indexExists("ro"));
     }
 
     public void testIndexReadWriteMetaDataBlocks() {
@@ -129,15 +128,6 @@ public class SimpleBlocksIT extends ESIntegTestCase {
             fail();
         } catch (ClusterBlockException e) {
             // all is well
-        }
-    }
-
-    private void canIndexExists(String index) {
-        try {
-            IndicesExistsResponse r = client().admin().indices().prepareExists(index).execute().actionGet();
-            assertThat(r, notNullValue());
-        } catch (ClusterBlockException e) {
-            fail();
         }
     }
 

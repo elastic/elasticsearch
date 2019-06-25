@@ -66,9 +66,9 @@ ZonedDateTime zdt = ZonedDateTime.ofInstant(instant, ZoneId.of('Z'));
 [source,Painless]
 ----
 String datetime = '1983-10-13T22:15:30Z';
-ZonedDateTime zdt = ZonedDateTime.parse(datetime);
+ZonedDateTime zdt = ZonedDateTime.parse(datetime); <1>
 ----
-Note the parse method uses ISO 8601 by default.
+<1> Note the parse method uses ISO 8601 by default.
 +
 * parse from RFC 1123
 +
@@ -76,9 +76,9 @@ Note the parse method uses ISO 8601 by default.
 ----
 String datetime = 'Thu, 13 Oct 1983 22:15:30 GMT';
 ZonedDateTime zdt = ZonedDateTime.parse(datetime,
-        DateTimeFormatter.RFC_1123_DATE_TIME);
+        DateTimeFormatter.RFC_1123_DATE_TIME); <1>
 ----
-Note the use of a built-in DateTimeFormatter.
+<1> Note the use of a built-in DateTimeFormatter.
 +
 * parse from a custom format
 +
@@ -87,9 +87,9 @@ Note the use of a built-in DateTimeFormatter.
 String datetime = 'custom y 1983 m 10 d 13 22:15:30 Z';
 DateTimeFormatter dtf = DateTimeFormatter.ofPattern(
         "'custom' 'y' yyyy 'm' MM 'd' dd HH:mm:ss VV");
-ZonedDateTime zdt = ZonedDateTime.parse(datetime, dtf);
+ZonedDateTime zdt = ZonedDateTime.parse(datetime, dtf); <1>
 ----
-Note the use of a custom DateTimeFormatter.
+<1> Note the use of a custom DateTimeFormatter.
 
 ===== Datetime Formatting Examples
 
@@ -99,9 +99,9 @@ Note the use of a custom DateTimeFormatter.
 ----
 ZonedDateTime zdt =
         ZonedDateTime.of(1983, 10, 13, 22, 15, 30, 0, ZoneId.of('Z'));
-String datetime = zdt.format(DateTimeFormatter.ISO_INSTANT);
+String datetime = zdt.format(DateTimeFormatter.ISO_INSTANT); <1>
 ----
-Note the use of a built-in DateTimeFormatter.
+<1> Note the use of a built-in DateTimeFormatter.
 +
 * format to a custom format
 +
@@ -111,9 +111,9 @@ ZonedDateTime zdt =
         ZonedDateTime.of(1983, 10, 13, 22, 15, 30, 0, ZoneId.of('Z'));
 DateTimeFormatter dtf = DateTimeFormatter.ofPattern(
         "'date:' yyyy/MM/dd 'time:' HH:mm:ss");
-String datetime = zdt.format(dtf);
+String datetime = zdt.format(dtf); <1>
 ----
-Note the use of a custom DateTimeFormatter.
+<1> Note the use of a custom DateTimeFormatter.
 
 ==== Datetime Conversion
 
@@ -238,7 +238,7 @@ complex datetimes there is often a method or another complex type
 <<painless-api-reference-shared-ChronoUnit, ChronoUnit>>
 to calculate the difference between two complex datetimes if supported.
 
-===== Elapsed Time Examples
+===== Datetime Difference Examples
 
 * Difference in milliseconds between two numeric datetimes
 +
@@ -334,3 +334,236 @@ if (zdt1.isAfter(zdt2)) {
     // handle condition
 }
 ----
+
+==== Datetime Input
+
+There are several common ways datetimes are used as input for a script
+determined by the <<painless-contexts, Painless context>>. Typically, datetime
+input will be accessed from parameters specified by the user, from an original
+source document, or from an indexed document.
+
+===== Datetime Input From User Parameters
+
+Use the {ref}/modules-scripting-using.html#_script_parameters[params section]
+during script specification to pass in a numeric datetime or string datetime as
+a script input. Access to user-defined parameters within a script is dependent
+on the Painless context, though, the parameters are most commonly accessible
+through an input called `params`.
+
+*Examples*
+
+* Parse a numeric datetime from user parameters to a complex datetime
++
+** Input:
++
+[source,JSON]
+----
+...
+"script": {
+    ...
+    "params": {
+        "input_datetime": 434931327000
+    }
+}
+...
+----
++
+** Script:
++
+[source,Painless]
+----
+long inputDatetime = params['input_datetime'];
+Instant instant = Instant.ofEpochMilli(inputDateTime);
+ZonedDateTime zdt = ZonedDateTime.ofInstant(instant, ZoneId.of('Z'));
+----
++
+* Parse a string datetime from user parameters to a complex datetime
++
+** Input:
++
+[source,JSON]
+----
+...
+"script": {
+    ...
+    "params": {
+        "input_datetime": "custom y 1983 m 10 d 13 22:15:30 Z"
+    }
+}
+...
+----
++
+** Script:
++
+[source,Painless]
+----
+String datetime = params['input_datetime'];
+DateTimeFormatter dtf = DateTimeFormatter.ofPattern(
+        "'custom' 'y' yyyy 'm' MM 'd' dd HH:mm:ss VV");
+ZonedDateTime zdt = ZonedDateTime.parse(datetime, dtf); <1>
+----
+<1> Note the use of a custom DateTimeFormatter.
+
+===== Datetime Input From a Source Document
+
+Use an original {ref}/mapping-source-field.html[source] document as a script
+input to access a numeric datetime or string datetime for a specific field
+within that document. Access to an original source document within a script is
+dependent on the Painless context and is not always available. An original
+source document is most commonly accessible through an input called
+`ctx['_source']` or `params['_source']`.
+
+*Examples*
+
+* Parse a numeric datetime from a sourced document to a complex datetime
++
+** Input:
++
+[source,JSON]
+----
+{
+    ...
+    "input_datetime": 434931327000
+    ...
+}
+----
++
+** Script:
++
+[source,Painless]
+----
+long inputDatetime = ctx['_source']['input_datetime']; <1>
+Instant instant = Instant.ofEpochMilli(inputDateTime);
+ZonedDateTime zdt = ZonedDateTime.ofInstant(instant, ZoneId.of('Z'));
+----
+<1> Note access to `_source` is dependent on the Painless context.
++
+* Parse a string datetime from a sourced document to a complex datetime
++
+** Input:
++
+[source,JSON]
+----
+{
+    ...
+    "input_datetime": "1983-10-13T22:15:30Z"
+    ...
+}
+----
++
+** Script:
++
+[source,Painless]
+----
+String datetime = params['_source']['input_datetime']; <1>
+ZonedDateTime zdt = ZonedDateTime.parse(datetime); <2>
+----
+<1> Note access to `_source` is dependent on the Painless context.
+<2> Note the parse method uses ISO 8601 by default.
+
+===== Datetime Input From an Indexed Document
+
+Use an indexed document as a script input to access a complex datetime for a
+specific field within that document where the field is mapped as a
+{ref}/date.html[standard date] or a {ref}/date_nanos.html[nanosecond date].
+Numeric datetime fields mapped as {ref}/number.html[numeric] and string
+datetime fields mapped as {ref}/keyword.html[keyword] are accessible through an
+indexed document as well. Access to an indexed document within a script is
+dependent on the Painless context and is not always available. An indexed
+document is most commonly accessible through an input called `doc`.
+
+*Examples*
+
+* Format a complex datetime from an indexed document to a string datetime
++
+** Assumptions:
++
+*** The field `input_datetime` exists in all indexes as part of the query
+*** All indexed documents contain the field `input_datetime`
++
+** Mappings:
++
+[source,JSON]
+----
+{
+    "mappings": {
+        ...
+        "properties": {
+            ...
+            "input_datetime": {
+                "type": "date"
+            }
+            ...
+        }
+        ...
+    }
+}
+----
++
+** Script:
++
+[source,Painless]
+----
+def input = doc['input_datetime'].value;
+String output = input.format(DateTimeFormatter.ISO_INSTANT); <1>
+----
+<1> Note the use of a built-in DateTimeFormatter.
++
+* Find the difference between two complex datetimes from an indexed document
++
+** Assumptions:
++
+*** The fields `start_datetime` and `end_datetime` may *not* exist in all
+indexes as part of the query
+*** The fields `start_datetime` and `end_datetime` may *not* have values in all
+indexed documents
++
+** Mappings:
++
+[source,JSON]
+----
+{
+    "mappings": {
+        ...
+        "properties": {
+            ...
+            "start_datetime": {
+                "type": "date"
+            },
+            "end_datetime": {
+                "type": "date"
+            }
+            ...
+        }
+        ...
+    }
+}
+----
++
+** Script:
++
+[source,Painless]
+----
+if (doc.containsKey('start_datetime') && doc.containsKey('end_datetime')) { <1>
+
+    if (doc['start_datetime'].size() > 0 && doc['end_datetime'].size() > 0) { <2>
+
+        def startDatetime = doc['start_datetime'].value;
+        def endDatetime = doc['end_datetime'].value;
+        long differenceInMillis =
+            ChronoUnit.MILLIS.between(startDateTime, endDateTime);
+
+        // handle difference in times
+    } else {
+        // handle fields without values
+    }
+} else {
+    // handle index with missing fields
+}
+----
+<1> When a query's results span multiple indexes, some indexes may not
+contain a specific field. Use the `containsKey` method call on the `doc` input
+to ensure a field exists as part of the index for the current document.
+<2> Some field's within a document may have no values. Use the `size` method
+call on a field within the `doc` input to ensure that field has at least one
+value for the current document.

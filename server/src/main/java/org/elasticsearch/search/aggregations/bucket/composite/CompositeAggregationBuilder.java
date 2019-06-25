@@ -256,12 +256,15 @@ public class CompositeAggregationBuilder extends AbstractAggregationBuilder<Comp
     }
 
     @Override
-    protected int doHashCode() {
-        return Objects.hash(sources, size, after);
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), sources, size, after);
     }
 
     @Override
-    protected boolean doEquals(Object obj) {
+    public boolean equals(Object obj) {
+        if (this == obj) return true;
+        if (obj == null || getClass() != obj.getClass()) return false;
+        if (super.equals(obj) == false) return false;
         CompositeAggregationBuilder other = (CompositeAggregationBuilder) obj;
         return size == other.size &&
             Objects.equals(sources, other.sources) &&

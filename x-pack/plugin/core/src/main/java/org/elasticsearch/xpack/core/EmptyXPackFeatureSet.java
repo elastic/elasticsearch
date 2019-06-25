@@ -5,9 +5,6 @@
  */
 package org.elasticsearch.xpack.core;
 
-import java.util.Collections;
-import java.util.Map;
-
 public class EmptyXPackFeatureSet implements XPackFeatureSet {
     @Override
     public String name() {
@@ -24,8 +21,4 @@ public class EmptyXPackFeatureSet implements XPackFeatureSet {
         return false;
     }
 
-    @Override
-    public Map<String, Object> nativeCodeInfo() {
-        return Collections.emptyMap();
-    }
 }

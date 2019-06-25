@@ -179,9 +179,9 @@ public final class SearchSlowLog implements SearchOperationListener {
                                                         .quoteAsUTF8(context.request().source().toString(FORMAT_PARAMS));
                 String source = new String(sourceEscaped, Charset.defaultCharset());
 
-                messageFields.put("source", source);
+                messageFields.put("source", inQuotes(source));
             } else {
-                messageFields.put("source", "{}");
+                messageFields.put("source", inQuotes("{}"));
             }
 
             messageFields.put("id", inQuotes(context.getTask().getHeader(Task.X_OPAQUE_ID)));

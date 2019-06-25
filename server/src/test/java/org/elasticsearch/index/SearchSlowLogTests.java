@@ -167,7 +167,7 @@ public class SearchSlowLogTests extends ESSingleNodeTestCase {
         assertThat(p.getValueFor("stats"), equalTo("[]"));
         assertThat(p.getValueFor("search_type"), equalTo("\"\""));
         assertThat(p.getValueFor("total_shards"), equalTo("\"1\""));
-        assertThat(p.getValueFor("source"), equalTo("{\\\"query\\\":{\\\"match_all\\\":{\\\"boost\\\":1.0}}}"));
+        assertThat(p.getValueFor("source"), equalTo("\"{\\\"query\\\":{\\\"match_all\\\":{\\\"boost\\\":1.0}}}\""));
     }
 
     public void testSlowLogSearchContextPrinterToLog() throws IOException {

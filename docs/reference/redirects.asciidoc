@@ -602,3 +602,7 @@ See <<faster-phrase-queries>>.
 [role="exclude",id="_faster_prefix_queries_with_literal_index_prefixes_literal.html"]
 
 See <<faster-prefix-queries>>.
+
+[role="exclude",id="painless-examples"]
+
+See <<painless-walkthrough>>.

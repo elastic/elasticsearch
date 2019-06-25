@@ -435,7 +435,7 @@ public class Node implements Closeable {
 
             final IngestService ingestService = new IngestService(clusterService, threadPool, this.environment,
                 scriptModule.getScriptService(), analysisModule.getAnalysisRegistry(),
-                pluginsService.filterPlugins(IngestPlugin.class), indicesService);
+                pluginsService.filterPlugins(IngestPlugin.class), client);
 
             final AliasValidator aliasValidator = new AliasValidator();
 

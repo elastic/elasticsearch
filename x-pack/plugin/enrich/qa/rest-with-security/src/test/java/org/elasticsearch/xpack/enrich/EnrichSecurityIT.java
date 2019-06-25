@@ -5,10 +5,14 @@
  */
 package org.elasticsearch.xpack.enrich;
 
+import org.elasticsearch.client.Request;
+import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.enrich.CommonEnrichRestTestCase;
+
+import java.io.IOException;
 
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 
@@ -28,5 +32,15 @@ public class EnrichSecurityIT extends CommonEnrichRestTestCase {
         return Settings.builder()
             .put(ThreadContext.PREFIX + ".Authorization", token)
             .build();
+    }
+
+    public void testImmutablePolicy() throws IOException {
+        Request putPolicyRequest = new Request("PUT", "/_enrich/policy/my_policy");
+        putPolicyRequest.setJsonEntity("{\"type\": \"exact_match\",\"indices\": [\"my-source-index\"], \"enrich_key\": \"host\", " +
+            "\"enrich_values\": [\"globalRank\", \"tldRank\", \"tld\"]}");
+        assertOK(client().performRequest(putPolicyRequest));
+
+        ResponseException exc = expectThrows(ResponseException.class, () -> client().performRequest(putPolicyRequest));
+        assertTrue(exc.getMessage().contains("policy [my_policy] already exists"));
     }
 }

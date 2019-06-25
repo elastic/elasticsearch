@@ -11,8 +11,6 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Module;
-import org.elasticsearch.common.inject.util.Providers;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
@@ -96,24 +94,12 @@ public class Monitoring extends Plugin implements ActionPlugin {
     }
 
     @Override
-    public Collection<Module> createGuiceModules() {
-        List<Module> modules = new ArrayList<>();
-        modules.add(b -> {
-            if (enabled == false) {
-                b.bind(MonitoringService.class).toProvider(Providers.of(null));
-                b.bind(Exporters.class).toProvider(Providers.of(null));
-            }
-        });
-        return modules;
-    }
-
-    @Override
     public Collection<Object> createComponents(Client client, ClusterService clusterService, ThreadPool threadPool,
                                                ResourceWatcherService resourceWatcherService, ScriptService scriptService,
                                                NamedXContentRegistry xContentRegistry, Environment environment,
                                                NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry) {
         if (enabled == false) {
-            return Collections.emptyList();
+            return Collections.singletonList(new MonitoringUsageServices(null, null));
         }
 
         final ClusterSettings clusterSettings = clusterService.getClusterSettings();
@@ -137,7 +123,8 @@ public class Monitoring extends Plugin implements ActionPlugin {
 
         final MonitoringService monitoringService = new MonitoringService(settings, clusterService, threadPool, collectors, exporters);
 
-        return Arrays.asList(monitoringService, exporters, cleanerService);
+        var usageServices = new MonitoringUsageServices(monitoringService, exporters);
+        return Arrays.asList(monitoringService, exporters, cleanerService, usageServices);
     }
 
     @Override

@@ -23,7 +23,6 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.inject.Binder;
-import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.inject.multibindings.Multibinder;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.logging.DeprecationLogger;
@@ -219,15 +218,6 @@ public class XPackPlugin extends XPackClientPlugin implements ExtensiblePlugin, 
             throw new IllegalArgumentException("Directly setting [" + xpackInstalledNodeAttrSetting + "] is not permitted");
         }
         return Settings.builder().put(super.additionalSettings()).put(xpackInstalledNodeAttrSetting, "true").build();
-    }
-
-    @Override
-    public Collection<Module> createGuiceModules() {
-        ArrayList<Module> modules = new ArrayList<>();
-        //modules.add(b -> b.bind(Clock.class).toInstance(getClock()));
-        // used to get core up and running, we do not bind the actual feature set here
-        modules.add(b -> XPackPlugin.createFeatureSetMultiBinder(b, EmptyXPackFeatureSet.class));
-        return modules;
     }
 
     @Override

@@ -55,18 +55,16 @@ public class SecurityUsageTransportAction extends XPackUsageFeatureTransportActi
     @Inject
     public SecurityUsageTransportAction(TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
                                         ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                                        Settings settings, XPackLicenseState licenseState, @Nullable Realms realms,
-                                        @Nullable CompositeRolesStore rolesStore, @Nullable NativeRoleMappingStore roleMappingStore,
-                                        @Nullable IPFilter ipFilter) {
+                                        Settings settings, XPackLicenseState licenseState, SecurityUsageServices securityServices) {
         super(XPackUsageFeatureAction.SECURITY.name(), transportService, clusterService, threadPool,
               actionFilters, indexNameExpressionResolver);
         this.enabledInSettings = XPackSettings.SECURITY_ENABLED.get(settings);
         this.settings = settings;
         this.licenseState = licenseState;
-        this.realms = realms;
-        this.rolesStore = rolesStore;
-        this.roleMappingStore = roleMappingStore;
-        this.ipFilter = ipFilter;
+        this.realms = securityServices.realms;
+        this.rolesStore = securityServices.rolesStore;
+        this.roleMappingStore = securityServices.roleMappingStore;
+        this.ipFilter = securityServices.ipFilter;
     }
 
     @Override

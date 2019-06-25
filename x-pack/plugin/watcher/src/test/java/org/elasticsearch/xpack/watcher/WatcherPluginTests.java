@@ -67,7 +67,6 @@ public class WatcherPluginTests extends ESTestCase {
 
         List<ExecutorBuilder<?>> executorBuilders = watcher.getExecutorBuilders(settings);
         assertThat(executorBuilders, hasSize(0));
-        assertThat(watcher.createGuiceModules(), hasSize(2));
         assertThat(watcher.getActions(), hasSize(2));
         assertThat(watcher.getRestHandlers(settings, null, null, null, null, null, null), hasSize(0));
 

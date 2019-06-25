@@ -21,8 +21,6 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.inject.Module;
-import org.elasticsearch.common.inject.util.Providers;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.regex.Regex;
@@ -410,7 +408,8 @@ public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin, Reloa
         listener = new WatcherIndexingListener(watchParser, getClock(), triggerService);
         clusterService.addListener(listener);
 
-        return Arrays.asList(registry, inputRegistry, historyStore, triggerService, triggeredWatchParser,
+        // note: clock is needed here until actions can be constructed directly instead of by guice
+        return Arrays.asList(new ClockHolder(getClock()), registry, inputRegistry, historyStore, triggerService, triggeredWatchParser,
                 watcherLifeCycleService, executionService, triggerEngineListener, watcherService, watchParser,
                 configuredTriggerEngine, triggeredWatchStore, watcherSearchTemplateService, slackService, pagerDutyService);
     }
@@ -425,19 +424,6 @@ public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin, Reloa
 
     protected Consumer<Iterable<TriggerEvent>> getTriggerEngineListener(ExecutionService executionService) {
         return new AsyncTriggerEventConsumer(executionService);
-    }
-
-    @Override
-    public Collection<Module> createGuiceModules() {
-        List<Module> modules = new ArrayList<>();
-        modules.add(b -> b.bind(Clock.class).toInstance(getClock())); //currently assuming the only place clock is bound
-        modules.add(b -> {
-            if (enabled == false) {
-                b.bind(WatcherService.class).toProvider(Providers.of(null));
-            }
-        });
-
-        return modules;
     }
 
     @Override

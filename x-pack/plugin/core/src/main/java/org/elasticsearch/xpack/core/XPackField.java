@@ -37,6 +37,8 @@ public final class XPackField {
     public static final String CCR = "ccr";
     /** Name constant for the data frame feature. */
     public static final String DATA_FRAME = "data_frame";
+    /** Name constant for the vectors feature. */
+    public static final String VECTORS = "vectors";
 
     private XPackField() {}
 

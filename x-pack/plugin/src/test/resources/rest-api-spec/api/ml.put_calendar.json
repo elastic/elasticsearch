@@ -1,5 +1,6 @@
 {
   "ml.put_calendar": {
+    "stability": "stable",
     "methods": [ "PUT" ],
     "url": {
       "paths": [ "/_ml/calendars/{calendar_id}" ],

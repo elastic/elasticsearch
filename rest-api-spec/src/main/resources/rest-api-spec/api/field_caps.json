@@ -1,6 +1,7 @@
 {
   "field_caps": {
     "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/search-field-caps.html",
+    "stability": "stable",
     "methods": ["GET", "POST"],
     "url": {
       "paths": [

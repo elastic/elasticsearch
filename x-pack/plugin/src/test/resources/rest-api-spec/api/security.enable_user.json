@@ -1,6 +1,7 @@
 {
   "security.enable_user": {
     "documentation": "https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-enable-user.html",
+    "stability": "stable",
     "methods": [ "PUT", "POST" ],
     "url": {
       "paths": [

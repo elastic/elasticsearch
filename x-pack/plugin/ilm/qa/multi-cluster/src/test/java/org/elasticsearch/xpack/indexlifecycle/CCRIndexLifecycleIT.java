@@ -11,7 +11,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
-import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
@@ -171,9 +170,6 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
                 // assert that snapshot succeeded
                 assertThat(getSnapshotState("snapshot"), equalTo("SUCCESS"));
                 assertOK(client().performRequest(new Request("DELETE", "/_snapshot/repo/snapshot")));
-                ResponseException e = expectThrows(ResponseException.class,
-                    () -> client().performRequest(new Request("GET", "/_snapshot/repo/snapshot")));
-                assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(404));
             }
         } else {
             fail("unexpected target cluster [" + targetCluster + "]");
@@ -775,13 +771,16 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
         assertOK(client().performRequest(changePolicyRequest));
     }
 
+    @SuppressWarnings("unchecked")
     private String getSnapshotState(String snapshot) throws IOException {
         Response response = client().performRequest(new Request("GET", "/_snapshot/repo/" + snapshot));
         Map<String, Object> responseMap;
         try (InputStream is = response.getEntity().getContent()) {
             responseMap = XContentHelper.convertToMap(XContentType.JSON.xContent(), is, true);
         }
-        @SuppressWarnings("unchecked") Map<String, Object> snapResponse = ((List<Map<String, Object>>) responseMap.get("snapshots")).get(0);
+
+        Map<String, Object> repoResponse = ((List<Map<String, Object>>) responseMap.get("responses")).get(0);
+        Map<String, Object> snapResponse = ((List<Map<String, Object>>) repoResponse.get("snapshots")).get(0);
         assertThat(snapResponse.get("snapshot"), equalTo(snapshot));
         return (String) snapResponse.get("state");
     }

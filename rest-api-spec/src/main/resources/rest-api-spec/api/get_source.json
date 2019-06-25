@@ -1,6 +1,7 @@
 {
   "get_source": {
     "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/docs-get.html",
+    "stability": "stable",
     "methods": ["GET"],
     "url": {
       "paths": ["/{index}/_source/{id}"],

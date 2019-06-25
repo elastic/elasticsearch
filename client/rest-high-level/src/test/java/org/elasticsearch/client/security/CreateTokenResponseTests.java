@@ -37,6 +37,7 @@ public class CreateTokenResponseTests extends ESTestCase {
         final String refreshToken = randomBoolean() ? null : randomAlphaOfLengthBetween(12, 24);
         final String scope = randomBoolean() ? null : randomAlphaOfLength(4);
         final String type = randomAlphaOfLength(6);
+        final String kerberosAuthenticationResponseToken = randomBoolean() ? null : randomAlphaOfLength(7);
 
         final XContentType xContentType = randomFrom(XContentType.values());
         final XContentBuilder builder = XContentFactory.contentBuilder(xContentType);
@@ -50,6 +51,9 @@ public class CreateTokenResponseTests extends ESTestCase {
         if (scope != null || randomBoolean()) {
             builder.field("scope", scope);
         }
+        if (kerberosAuthenticationResponseToken != null) {
+            builder.field("kerberos_authentication_response_token", kerberosAuthenticationResponseToken);
+        }
         builder.endObject();
         BytesReference xContent = BytesReference.bytes(builder);
 
@@ -59,5 +63,6 @@ public class CreateTokenResponseTests extends ESTestCase {
         assertThat(response.getScope(), equalTo(scope));
         assertThat(response.getType(), equalTo(type));
         assertThat(response.getExpiresIn(), equalTo(expiresIn));
+        assertThat(response.getKerberosAuthenticationResponseToken(), equalTo(kerberosAuthenticationResponseToken));
     }
 }

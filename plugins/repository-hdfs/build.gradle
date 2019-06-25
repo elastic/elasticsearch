@@ -87,7 +87,7 @@ for (String fixtureName : ['hdfsFixture', 'haHdfsFixture', 'secureHdfsFixture', 
       // the hdfs.MiniHDFS fixture writes the ports file when
       // it's ready, so we can just wait for the file to exist
       return fixture.portsFile.exists()
-    }    
+    }
 
     final List<String> miniHDFSArgs = []
 
@@ -116,20 +116,29 @@ for (String fixtureName : ['hdfsFixture', 'haHdfsFixture', 'secureHdfsFixture', 
   }
 }
 
+Set disabledIntegTestTaskNames = ['integTestSecure', 'integTestSecureHa']
+
 for (String integTestTaskName : ['integTestHa', 'integTestSecure', 'integTestSecureHa']) {
   task "${integTestTaskName}"(type: RestIntegTestTask) {
     description = "Runs rest tests against an elasticsearch cluster with HDFS."
     dependsOn(project.bundlePlugin)
+
+    if (disabledIntegTestTaskNames.contains(integTestTaskName)) {
+      enabled = false;
+    }
+
     runner {
       if (integTestTaskName.contains("Secure")) {
-        dependsOn secureHdfsFixture
-        systemProperty "test.krb5.principal.es", "elasticsearch@${realm}"
-        systemProperty "test.krb5.principal.hdfs", "hdfs/hdfs.build.elastic.co@${realm}"
-        jvmArgs "-Djava.security.krb5.conf=${krb5conf}"
-        systemProperty (
-                "test.krb5.keytab.hdfs",
-                project(':test:fixtures:krb5kdc-fixture').ext.krb5Keytabs("hdfs","hdfs_hdfs.build.elastic.co.keytab")
-        )
+        if (disabledIntegTestTaskNames.contains(integTestTaskName) == false) {
+            dependsOn secureHdfsFixture
+            nonInputProperties.systemProperty "test.krb5.principal.es", "elasticsearch@${realm}"
+            nonInputProperties.systemProperty "test.krb5.principal.hdfs", "hdfs/hdfs.build.elastic.co@${realm}"
+            jvmArgs "-Djava.security.krb5.conf=${krb5conf}"
+            nonInputProperties.systemProperty (
+                    "test.krb5.keytab.hdfs",
+                    project(':test:fixtures:krb5kdc-fixture').ext.krb5Keytabs("hdfs","hdfs_hdfs.build.elastic.co.keytab")
+            )
+        }
       }
     }
   }

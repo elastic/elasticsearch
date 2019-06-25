@@ -22,6 +22,7 @@ package org.elasticsearch;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.common.collect.ImmutableOpenIntMap;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
@@ -46,28 +47,52 @@ public class Version implements Comparable<Version>, ToXContentFragment {
      */
     public static final int V_EMPTY_ID = 0;
     public static final Version V_EMPTY = new Version(V_EMPTY_ID, org.apache.lucene.util.Version.LATEST);
-    public static final int V_7_0_0_ID = 7000099;
-    public static final Version V_7_0_0 = new Version(V_7_0_0_ID, org.apache.lucene.util.Version.LUCENE_8_0_0);
-    public static final int V_7_0_1_ID = 7000199;
-    public static final Version V_7_0_1 = new Version(V_7_0_1_ID, org.apache.lucene.util.Version.LUCENE_8_0_0);
-    public static final int V_7_1_0_ID = 7010099;
-    public static final Version V_7_1_0 = new Version(V_7_1_0_ID, org.apache.lucene.util.Version.LUCENE_8_0_0);
-    public static final int V_7_1_1_ID = 7010199;
-    public static final Version V_7_1_1 = new Version(V_7_1_1_ID, org.apache.lucene.util.Version.LUCENE_8_0_0);
-    public static final int V_7_1_2_ID = 7010299;
-    public static final Version V_7_1_2 = new Version(V_7_1_2_ID, org.apache.lucene.util.Version.LUCENE_8_0_0);
-    public static final int V_7_2_0_ID = 7020099;
-    public static final Version V_7_2_0 = new Version(V_7_2_0_ID, org.apache.lucene.util.Version.LUCENE_8_0_0);
-    public static final int V_7_3_0_ID = 7030099;
-    public static final Version V_7_3_0 = new Version(V_7_3_0_ID, org.apache.lucene.util.Version.LUCENE_8_1_0);
-    public static final int V_8_0_0_ID = 8000099;
-    public static final Version V_8_0_0 = new Version(V_8_0_0_ID, org.apache.lucene.util.Version.LUCENE_8_1_0);
+    public static final Version V_7_0_0 = new Version(7000099, org.apache.lucene.util.Version.LUCENE_8_0_0);
+    public static final Version V_7_0_1 = new Version(7000199, org.apache.lucene.util.Version.LUCENE_8_0_0);
+    public static final Version V_7_1_0 = new Version(7010099, org.apache.lucene.util.Version.LUCENE_8_0_0);
+    public static final Version V_7_1_1 = new Version(7010199, org.apache.lucene.util.Version.LUCENE_8_0_0);
+    public static final Version V_7_1_2 = new Version(7010299, org.apache.lucene.util.Version.LUCENE_8_0_0);
+    public static final Version V_7_2_0 = new Version(7020099, org.apache.lucene.util.Version.LUCENE_8_0_0);
+    public static final Version V_7_3_0 = new Version(7030099, org.apache.lucene.util.Version.LUCENE_8_1_0);
+    public static final Version V_8_0_0 = new Version(8000099, org.apache.lucene.util.Version.LUCENE_8_1_0);
     public static final Version CURRENT = V_8_0_0;
 
+    private static final ImmutableOpenIntMap<Version> idToVersion;
 
     static {
+        final ImmutableOpenIntMap.Builder<Version> builder = ImmutableOpenIntMap.builder();
+
+        for (final Field declaredField : Version.class.getFields()) {
+            if (declaredField.getType().equals(Version.class)) {
+                final String fieldName = declaredField.getName();
+                if (fieldName.equals("CURRENT") || fieldName.equals("V_EMPTY")) {
+                    continue;
+                }
+                assert fieldName.matches("V_\\d+_\\d+_\\d+")
+                        : "expected Version field [" + fieldName + "] to match V_\\d+_\\d+_\\d+";
+                try {
+                    final Version version = (Version) declaredField.get(null);
+                    if (Assertions.ENABLED) {
+                        final String[] fields = fieldName.split("_");
+                        final int major = Integer.valueOf(fields[1]) * 1000000;
+                        final int minor = Integer.valueOf(fields[2]) * 10000;
+                        final int revision = Integer.valueOf(fields[3]) * 100;
+                        final int expectedId = major + minor + revision + 99;
+                        assert version.id == expectedId :
+                                "expected version [" + fieldName + "] to have id [" + expectedId + "] but was [" + version.id + "]";
+                    }
+                    final Version maybePrevious = builder.put(version.id, version);
+                    assert maybePrevious == null :
+                            "expected [" + version.id + "] to be uniquely mapped but saw [" + maybePrevious + "] and [" + version + "]";
+                } catch (final IllegalAccessException e) {
+                    assert false : "Version field [" + fieldName + "] should be public";
+                }
+            }
+        }
         assert CURRENT.luceneVersion.equals(org.apache.lucene.util.Version.LATEST) : "Version must be upgraded to ["
                 + org.apache.lucene.util.Version.LATEST + "] is still set to [" + CURRENT.luceneVersion + "]";
+
+        idToVersion = builder.build();
     }
 
     public static Version readVersion(StreamInput in) throws IOException {
@@ -75,23 +100,10 @@ public class Version implements Comparable<Version>, ToXContentFragment {
     }
 
     public static Version fromId(int id) {
+        if (idToVersion.containsKey(id)) {
+            return idToVersion.get(id);
+        }
         switch (id) {
-            case V_8_0_0_ID:
-                return V_8_0_0;
-            case V_7_3_0_ID:
-                return V_7_3_0;
-            case V_7_2_0_ID:
-                return V_7_2_0;
-            case V_7_1_2_ID:
-                return V_7_1_2;
-            case V_7_1_1_ID:
-                return V_7_1_1;
-            case V_7_1_0_ID:
-                return V_7_1_0;
-            case V_7_0_1_ID:
-                return V_7_0_1;
-            case V_7_0_0_ID:
-                return V_7_0_0;
             case V_EMPTY_ID:
                 return V_EMPTY;
             default:

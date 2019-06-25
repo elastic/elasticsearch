@@ -21,11 +21,11 @@ package org.elasticsearch.action.admin.cluster.stats;
 
 import com.carrotsearch.hppc.ObjectIntHashMap;
 import com.carrotsearch.hppc.cursors.ObjectIntCursor;
-
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.network.NetworkModule;
@@ -49,6 +49,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class ClusterStatsNodes implements ToXContentFragment {
@@ -186,27 +187,27 @@ public class ClusterStatsNodes implements ToXContentFragment {
         private final int total;
         private final Map<String, Integer> roles;
 
-        private Counts(List<NodeInfo> nodeInfos) {
-            this.roles = new HashMap<>();
-            for (DiscoveryNode.Role role : DiscoveryNode.Role.values()) {
-                this.roles.put(role.getRoleName(), 0);
+        private Counts(final List<NodeInfo> nodeInfos) {
+            // TODO: do we need to report zeros?
+            final Map<String, Integer> roles = new HashMap<>(DiscoveryNode.getPossibleRoleNames().size());
+            roles.put(COORDINATING_ONLY, 0);
+            for (final String possibleRoleName : DiscoveryNode.getPossibleRoleNames()) {
+                roles.put(possibleRoleName, 0);
             }
-            this.roles.put(COORDINATING_ONLY, 0);
 
             int total = 0;
-            for (NodeInfo nodeInfo : nodeInfos) {
+            for (final NodeInfo nodeInfo : nodeInfos) {
                 total++;
                 if (nodeInfo.getNode().getRoles().isEmpty()) {
-                    Integer count = roles.get(COORDINATING_ONLY);
-                    roles.put(COORDINATING_ONLY, ++count);
+                    roles.merge(COORDINATING_ONLY, 1, Integer::sum);
                 } else {
-                    for (DiscoveryNode.Role role : nodeInfo.getNode().getRoles()) {
-                        Integer count = roles.get(role.getRoleName());
-                        roles.put(role.getRoleName(), ++count);
+                    for (DiscoveryNodeRole role : nodeInfo.getNode().getRoles()) {
+                        roles.merge(role.roleName(), 1, Integer::sum);
                     }
                 }
             }
             this.total = total;
+            this.roles = Map.copyOf(roles);
         }
 
         public int getTotal() {
@@ -225,7 +226,7 @@ public class ClusterStatsNodes implements ToXContentFragment {
         public XContentBuilder toXContent(XContentBuilder builder, Params params)
                 throws IOException {
             builder.field(Fields.TOTAL, total);
-            for (Map.Entry<String, Integer> entry : roles.entrySet()) {
+            for (Map.Entry<String, Integer> entry : new TreeMap<>(roles).entrySet()) {
                 builder.field(entry.getKey(), entry.getValue());
             }
             return builder;

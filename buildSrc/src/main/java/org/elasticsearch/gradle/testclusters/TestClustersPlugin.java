@@ -55,7 +55,7 @@ import java.util.stream.Collectors;
 public class TestClustersPlugin implements Plugin<Project> {
 
     private static final String LIST_TASK_NAME = "listTestClusters";
-    private static final String NODE_EXTENSION_NAME = "testClusters";
+    public static final String EXTENSION_NAME = "testClusters";
     private static final String HELPER_CONFIGURATION_PREFIX = "testclusters";
     private static final String SYNC_ARTIFACTS_TASK_NAME = "syncTestClustersArtifacts";
     private static final int EXECUTOR_SHUTDOWN_TIMEOUT = 1;
@@ -124,7 +124,7 @@ public class TestClustersPlugin implements Plugin<Project> {
                 new File(project.getBuildDir(), "testclusters")
             )
         );
-        project.getExtensions().add(NODE_EXTENSION_NAME, container);
+        project.getExtensions().add(EXTENSION_NAME, container);
         return container;
     }
 
@@ -274,7 +274,7 @@ public class TestClustersPlugin implements Plugin<Project> {
     @SuppressWarnings("unchecked")
     public static NamedDomainObjectContainer<ElasticsearchCluster> getNodeExtension(Project project) {
         return (NamedDomainObjectContainer<ElasticsearchCluster>)
-            project.getExtensions().getByName(NODE_EXTENSION_NAME);
+            project.getExtensions().getByName(EXTENSION_NAME);
     }
 
     private static void autoConfigureClusterDependencies(

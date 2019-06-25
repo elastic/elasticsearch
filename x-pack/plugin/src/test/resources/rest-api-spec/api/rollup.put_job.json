@@ -1,6 +1,7 @@
 {
   "rollup.put_job": {
     "documentation": "",
+    "stability" : "experimental",
     "methods": [ "PUT" ],
     "url": {
       "paths": [ "/_rollup/job/{id}" ],

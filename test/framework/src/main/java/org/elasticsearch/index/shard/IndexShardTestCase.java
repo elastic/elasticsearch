@@ -27,6 +27,7 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.replication.TransportReplicationAction;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -86,7 +87,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -562,7 +562,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
     }
 
     protected DiscoveryNode getFakeDiscoNode(String id) {
-        return new DiscoveryNode(id, id, buildNewFakeTransportAddress(), Collections.emptyMap(), EnumSet.allOf(DiscoveryNode.Role.class),
+        return new DiscoveryNode(id, id, buildNewFakeTransportAddress(), Collections.emptyMap(), DiscoveryNodeRole.BUILT_IN_ROLES,
             Version.CURRENT);
     }
 
@@ -753,12 +753,14 @@ public abstract class IndexShardTestCase extends ESTestCase {
                 result = shard.applyIndexOperationOnPrimary(Versions.MATCH_ANY, VersionType.INTERNAL, sourceToParse,
                     SequenceNumbers.UNASSIGNED_SEQ_NO, 0, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false);
             }
+            shard.sync(); // advance local checkpoint
             shard.updateLocalCheckpointForShard(shard.routingEntry().allocationId().getId(),
                 shard.getLocalCheckpoint());
         } else {
             final long seqNo = shard.seqNoStats().getMaxSeqNo() + 1;
             shard.advanceMaxSeqNoOfUpdatesOrDeletes(seqNo); // manually replicate max_seq_no_of_updates
             result = shard.applyIndexOperationOnReplica(seqNo, 0, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false, sourceToParse);
+            shard.sync(); // advance local checkpoint
             if (result.getResultType() == Engine.Result.Type.MAPPING_UPDATE_REQUIRED) {
                 throw new TransportReplicationAction.RetryOnReplicaException(shard.shardId,
                     "Mappings are not available on the replica yet, triggered update: " + result.getRequiredMappingUpdate());
@@ -777,11 +779,14 @@ public abstract class IndexShardTestCase extends ESTestCase {
         if (shard.routingEntry().primary()) {
             result = shard.applyDeleteOperationOnPrimary(
                 Versions.MATCH_ANY, type, id, VersionType.INTERNAL, SequenceNumbers.UNASSIGNED_SEQ_NO, 0);
-            shard.updateLocalCheckpointForShard(shard.routingEntry().allocationId().getId(), shard.getEngine().getLocalCheckpoint());
+            shard.sync(); // advance local checkpoint
+            shard.updateLocalCheckpointForShard(shard.routingEntry().allocationId().getId(),
+                shard.getLocalCheckpoint());
         } else {
             final long seqNo = shard.seqNoStats().getMaxSeqNo() + 1;
             shard.advanceMaxSeqNoOfUpdatesOrDeletes(seqNo); // manually replicate max_seq_no_of_updates
             result = shard.applyDeleteOperationOnReplica(seqNo, 0L, type, id);
+            shard.sync(); // advance local checkpoint
         }
         return result;
     }

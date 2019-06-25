@@ -79,6 +79,11 @@ final class HdfsBlobContainer extends AbstractBlobContainer {
     }
 
     @Override
+    public void delete() throws IOException {
+        store.execute(fileContext -> fileContext.delete(path, true));
+    }
+
+    @Override
     public InputStream readBlob(String blobName) throws IOException {
         // FSDataInputStream does buffering internally
         // FSDataInputStream can open connections on read() or skip() so we wrap in

@@ -220,8 +220,8 @@
 ---
 "Limit by size":
   - skip:
-      version: " - 7.1.99"
-      reason: "deprecation warnings only emitted on 7.2+"
+      version: " - 7.2.99"
+      reason: "deprecation warnings only emitted on 7.3+"
       features: warnings
 
   - do:
@@ -251,10 +251,10 @@
   - gte: { took: 0 }
 
 ---
-"Limit by size pre 7.2":
+"Limit by size pre 7.3":
   - skip:
-      version: "7.2.0 - "
-      reason: "7.2 should use max_docs or get deprecation warning"
+      version: "7.3.0 - "
+      reason: "7.3 should use max_docs or get deprecation warning"
 
   - do:
       index:
@@ -283,8 +283,8 @@
 ---
 "Limit by max_docs in URL":
   - skip:
-      version: " - 7.1.99"
-      reason: "max_docs introduced in 7.2.0"
+      version: " - 7.2.99"
+      reason: "max_docs introduced in 7.3.0"
 
   - do:
       index:
@@ -313,8 +313,8 @@
 ---
 "Limit by max_docs in body":
   - skip:
-      version: " - 7.1.99"
-      reason: "max_docs introduced in 7.2.0"
+      version: " - 7.2.99"
+      reason: "max_docs introduced in 7.3.0"
 
   - do:
       index:

@@ -1,6 +1,7 @@
 {
   "rank_eval": {
     "documentation": "https://www.elastic.co/guide/en/elasticsearch/reference/master/search-rank-eval.html",
+    "stability" : "experimental",
     "methods": ["GET", "POST"],
     "url": {
       "paths": ["/_rank_eval", "/{index}/_rank_eval"],

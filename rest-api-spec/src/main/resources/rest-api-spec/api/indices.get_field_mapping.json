@@ -1,6 +1,7 @@
 {
   "indices.get_field_mapping": {
     "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/indices-get-field-mapping.html",
+    "stability": "stable",
     "methods": ["GET"],
     "url": {
       "paths": ["/_mapping/field/{fields}", "/{index}/_mapping/field/{fields}"],

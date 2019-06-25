@@ -126,6 +126,8 @@ class java.util.List {
   int org.elasticsearch.painless.api.Augmentation getLength()
   void sort(Comparator)
   List subList(int,int)
+  Object org.elasticsearch.painless.api.Augmentation getByPath(String)
+  Object org.elasticsearch.painless.api.Augmentation getByPath(String, Object)
 }
 
 class java.util.ListIterator {
@@ -161,6 +163,8 @@ class java.util.Map {
   void replaceAll(BiFunction)
   int size()
   Collection values()
+  Object org.elasticsearch.painless.api.Augmentation getByPath(String)
+  Object org.elasticsearch.painless.api.Augmentation getByPath(String, Object)
 
   # some adaptations of groovy methods
   List org.elasticsearch.painless.api.Augmentation collect(BiFunction)

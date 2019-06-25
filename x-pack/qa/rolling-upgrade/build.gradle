@@ -121,7 +121,6 @@ for (Version version : bwcVersions.wireCompatible) {
         setting 'xpack.security.transport.ssl.enabled', 'true'
         setting 'xpack.security.authc.token.enabled', 'true'
         setting 'xpack.security.authc.token.timeout', '60m'
-        setting 'logger.org.elasticsearch.xpack.security.authc.TokenService', 'trace'
         setting 'xpack.security.audit.enabled', 'true'
         rootProject.globalInfo.ready {
             if (project.inFipsJvm) {
@@ -189,7 +188,6 @@ for (Version version : bwcVersions.wireCompatible) {
             setting 'xpack.security.enabled', 'true'
             setting 'xpack.security.transport.ssl.enabled', 'true'
             setting 'xpack.security.authc.token.timeout', '60m'
-            setting 'logger.org.elasticsearch.xpack.security.authc.TokenService', 'trace'
             rootProject.globalInfo.ready {
                 if (project.inFipsJvm) {
                     setting 'xpack.security.transport.ssl.key', 'testnode.pem'

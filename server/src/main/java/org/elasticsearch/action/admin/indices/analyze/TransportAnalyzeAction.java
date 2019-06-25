@@ -44,7 +44,6 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.analysis.CharFilterFactory;
 import org.elasticsearch.index.analysis.CustomAnalyzer;
-import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NameOrDefinition;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
@@ -124,11 +123,11 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeAc
     public static AnalyzeAction.Response analyze(AnalyzeAction.Request request, AnalysisRegistry analysisRegistry,
                                           IndexService indexService, int maxTokenCount) throws IOException {
 
-        IndexAnalyzers indexAnalyzers = indexService == null ? null : indexService.getIndexAnalyzers();
+        IndexSettings settings = indexService == null ? null : indexService.getIndexSettings();
 
         // First, we check to see if the request requires a custom analyzer.  If so, then we
         // need to build it and then close it after use.
-        try (Analyzer analyzer = buildCustomAnalyzer(request, analysisRegistry, indexAnalyzers)) {
+        try (Analyzer analyzer = buildCustomAnalyzer(request, analysisRegistry, settings)) {
             if (analyzer != null) {
                 return analyze(request, analyzer, maxTokenCount);
             }
@@ -194,8 +193,7 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeAc
     }
 
     private static Analyzer buildCustomAnalyzer(AnalyzeAction.Request request, AnalysisRegistry analysisRegistry,
-                                                IndexAnalyzers indexAnalyzers) throws IOException {
-        final IndexSettings indexSettings = indexAnalyzers == null ? null : indexAnalyzers.getIndexSettings();
+                                                IndexSettings indexSettings) throws IOException {
         if (request.tokenizer() != null) {
             return analysisRegistry.buildCustomAnalyzer(indexSettings, false,
                 request.tokenizer(), request.charFilters(), request.tokenFilters());

@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.core.dataframe.transforms.pivot.DateHistogramGrou
 import org.elasticsearch.xpack.core.dataframe.transforms.pivot.SingleGroupSource;
 
 import java.io.IOException;
+import java.time.Clock;
 import java.util.Map;
 import java.util.Map.Entry;
 
@@ -41,8 +42,11 @@ public final class DataframeIndex {
     private DataframeIndex() {
     }
 
-    public static void createDestinationIndex(Client client, DataFrameTransformConfig transformConfig, Map<String, String> mappings,
-            final ActionListener<Boolean> listener) {
+    public static void createDestinationIndex(Client client,
+                                              Clock clock,
+                                              DataFrameTransformConfig transformConfig,
+                                              Map<String, String> mappings,
+                                              final ActionListener<Boolean> listener) {
         CreateIndexRequest request = new CreateIndexRequest(transformConfig.getDestination().getIndex());
 
         // TODO: revisit number of shards, number of replicas
@@ -50,9 +54,9 @@ public final class DataframeIndex {
                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
                 .put(IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS, "0-1"));
 
-        request.mapping(SINGLE_MAPPING_NAME, createMappingXContent(mappings,
-            transformConfig.getPivotConfig().getGroupConfig().getGroups(),
-            transformConfig.getId()));
+        request.mapping(
+            SINGLE_MAPPING_NAME,
+            createMappingXContent(mappings, transformConfig.getPivotConfig().getGroupConfig().getGroups(), transformConfig.getId(), clock));
 
         client.execute(CreateIndexAction.INSTANCE, request, ActionListener.wrap(createIndexResponse -> {
             listener.onResponse(true);
@@ -66,11 +70,12 @@ public final class DataframeIndex {
 
     private static XContentBuilder createMappingXContent(Map<String, String> mappings,
                                                          Map<String, SingleGroupSource> groupSources,
-                                                         String id) {
+                                                         String id,
+                                                         Clock clock) {
         try {
             XContentBuilder builder = jsonBuilder().startObject();
             builder.startObject(SINGLE_MAPPING_NAME);
-            addMetaData(builder, id);
+            addMetaData(builder, id, clock);
             builder.startObject(PROPERTIES);
             for (Entry<String, String> field : mappings.entrySet()) {
                 String fieldName = field.getKey();
@@ -96,17 +101,16 @@ public final class DataframeIndex {
         }
     }
 
-    private static XContentBuilder addMetaData(XContentBuilder builder, String id) throws IOException {
-        builder.startObject(META);
-        builder.field(DataFrameField.CREATED_BY, DataFrameField.DATA_FRAME_SIGNATURE);
-        builder.startObject(DataFrameField.META_FIELDNAME);
-        builder.field(DataFrameField.CREATION_DATE_MILLIS, System.currentTimeMillis());
-        builder.startObject(DataFrameField.VERSION);
-        builder.field(DataFrameField.CREATED, Version.CURRENT);
-        builder.endObject();
-        builder.field(DataFrameField.TRANSFORM, id);
-        builder.endObject(); // META_FIELDNAME
-        builder.endObject(); // META
-        return builder;
+    private static XContentBuilder addMetaData(XContentBuilder builder, String id, Clock clock) throws IOException {
+        return builder.startObject(META)
+            .field(DataFrameField.CREATED_BY, DataFrameField.DATA_FRAME_SIGNATURE)
+            .startObject(DataFrameField.META_FIELDNAME)
+                .field(DataFrameField.CREATION_DATE_MILLIS, clock.millis())
+                .startObject(DataFrameField.VERSION)
+                    .field(DataFrameField.CREATED, Version.CURRENT)
+                .endObject()
+                .field(DataFrameField.TRANSFORM, id)
+            .endObject() // META_FIELDNAME
+        .endObject(); // META
     }
 }

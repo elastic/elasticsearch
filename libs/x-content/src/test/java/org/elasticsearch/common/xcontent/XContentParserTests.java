@@ -341,10 +341,14 @@ public class XContentParserTests extends ESTestCase {
         SimpleStruct structA = new SimpleStruct(1, 0.1, "aaa");
         SimpleStruct structB = new SimpleStruct(2, 0.2, "bbb");
         SimpleStruct structC = new SimpleStruct(3, 0.3, "ccc");
+        Map<String, SimpleStruct> expectedMap = new HashMap<>();
+        expectedMap.put("a", structA);
+        expectedMap.put("b", structB);
+        expectedMap.put("c", structC);
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, content)) {
             Map<String, SimpleStruct> actualMap = parser.map(HashMap::new, SimpleStruct::fromXContent);
             // Verify map contents, ignore the iteration order.
-            assertThat(actualMap, equalTo(Map.of("a", structA, "b", structB, "c", structC)));
+            assertThat(actualMap, equalTo(expectedMap));
             assertThat(actualMap.values(), containsInAnyOrder(structA, structB, structC));
             assertNull(parser.nextToken());
         }
@@ -359,10 +363,14 @@ public class XContentParserTests extends ESTestCase {
         SimpleStruct structA = new SimpleStruct(1, 0.1, "aaa");
         SimpleStruct structB = new SimpleStruct(2, 0.2, "bbb");
         SimpleStruct structC = new SimpleStruct(3, 0.3, "ccc");
+        Map<String, SimpleStruct> expectedMap = new HashMap<>();
+        expectedMap.put("a", structA);
+        expectedMap.put("b", structB);
+        expectedMap.put("c", structC);
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, content)) {
             Map<String, SimpleStruct> actualMap = parser.map(LinkedHashMap::new, SimpleStruct::fromXContent);
             // Verify map contents, ignore the iteration order.
-            assertThat(actualMap, equalTo(Map.of("a", structA, "b", structB, "c", structC)));
+            assertThat(actualMap, equalTo(expectedMap));
             // Verify that map's iteration order is the same as the order in which fields appear in JSON.
             assertThat(actualMap.values(), contains(structC, structA, structB));
             assertNull(parser.nextToken());

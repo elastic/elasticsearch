@@ -37,6 +37,7 @@ public class DataframeIndexTests extends ESTestCase {
 
     private static final String TRANSFORM_ID = "some-random-transform-id";
     private static final int CURRENT_TIME_MILLIS = 123456789;
+    private static final String CREATED_BY = "data-frame-transform";
 
     private Client client = mock(Client.class);
     private Clock clock = ClockMock.fixed(Instant.ofEpochMilli(CURRENT_TIME_MILLIS), ZoneId.systemDefault());
@@ -67,9 +68,9 @@ public class DataframeIndexTests extends ESTestCase {
         CreateIndexRequest createIndexRequest = createIndexRequestCaptor.getValue();
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, createIndexRequest.mappings().get("_doc"))) {
             Map<String, Object> map = parser.map();
-            assertThat(extractValue("_doc._meta.created_by", map), equalTo("data-frame-transform"));
-            assertThat(extractValue("_doc._meta._data_frame.creation_date_in_millis", map), equalTo(CURRENT_TIME_MILLIS));
             assertThat(extractValue("_doc._meta._data_frame.transform", map), equalTo(TRANSFORM_ID));
+            assertThat(extractValue("_doc._meta._data_frame.creation_date_in_millis", map), equalTo(CURRENT_TIME_MILLIS));
+            assertThat(extractValue("_doc._meta.created_by", map), equalTo(CREATED_BY));
         }
     }
 }

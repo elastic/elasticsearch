@@ -3,31 +3,41 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.ml.job.process.autodetect.output;
+package org.elasticsearch.xpack.ml.process;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.xpack.ml.job.results.AutodetectResult;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Iterator;
+import java.util.Objects;
 
 
 /**
- * Parses the JSON output of the autodetect program.
+ * Parses the JSON output of a process.
  * <p>
- * Expects an array of buckets so the first element will always be the
+ * Expects an array of objects so the first element will always be the
  * start array symbol and the data must be terminated with the end array symbol.
  */
-public class AutodetectResultsParser {
-    public Iterator<AutodetectResult> parseResults(InputStream in) throws ElasticsearchParseException {
+public class ProcessResultsParser<T> {
+
+    private static final Logger logger = LogManager.getLogger(ProcessResultsParser.class);
+
+    private final ConstructingObjectParser<T, Void> resultParser;
+
+    public ProcessResultsParser(ConstructingObjectParser<T, Void> resultParser) {
+        this.resultParser = Objects.requireNonNull(resultParser);
+    }
+
+    public Iterator<T> parseResults(InputStream in) throws ElasticsearchParseException {
         try {
             XContentParser parser = XContentFactory.xContent(XContentType.JSON)
                     .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, in);
@@ -36,21 +46,19 @@ public class AutodetectResultsParser {
             if (token != XContentParser.Token.START_ARRAY) {
                 throw new ElasticsearchParseException("unexpected token [" + token + "]");
             }
-            return new AutodetectResultIterator(in, parser);
+            return new ResultIterator(in, parser);
         } catch (IOException e) {
             throw new ElasticsearchParseException(e.getMessage(), e);
         }
     }
 
-    private static class AutodetectResultIterator implements Iterator<AutodetectResult> {
-
-        private static final Logger logger = LogManager.getLogger(AutodetectResultIterator.class);
+    private class ResultIterator implements Iterator<T> {
 
         private final InputStream in;
         private final XContentParser parser;
         private XContentParser.Token token;
 
-        private AutodetectResultIterator(InputStream in, XContentParser parser) {
+        private ResultIterator(InputStream in, XContentParser parser) {
             this.in = in;
             this.parser = parser;
             token = parser.currentToken();
@@ -74,8 +82,8 @@ public class AutodetectResultsParser {
         }
 
         @Override
-        public AutodetectResult next() {
-            return AutodetectResult.PARSER.apply(parser, null);
+        public T next() {
+            return resultParser.apply(parser, null);
         }
     }
 }

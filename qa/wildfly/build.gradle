@@ -26,6 +26,7 @@ import java.util.stream.Stream
  */
 
 apply plugin: 'war'
+apply plugin: 'elasticsearch.testclusters'
 apply plugin: 'elasticsearch.build'
 apply plugin: 'elasticsearch.rest-test'
 
@@ -88,13 +89,14 @@ task deploy(type: Copy) {
 
 task writeElasticsearchProperties {
     onlyIf { !Os.isFamily(Os.FAMILY_WINDOWS) }
-    dependsOn 'integTestCluster#wait', deploy
+    useCluster testClusters.integTest
+    dependsOn deploy
     doLast {
         final File elasticsearchProperties = file("${wildflyInstall}/standalone/configuration/elasticsearch.properties")
         elasticsearchProperties.write(
                 [
-                        "transport.uri=${-> integTest.getNodes().get(0).transportUri()}",
-                        "cluster.name=${-> integTest.getNodes().get(0).clusterName}"
+                        "transport.uri=${-> testClusters.integTest.getAllTransportPortURI().get(0)}",
+                        "cluster.name=integTest"
                 ].join("\n"))
     }
 }
@@ -211,6 +213,7 @@ if (!Os.isFamily(Os.FAMILY_WINDOWS)) {
     integTestRunner.finalizedBy(stopWildfly)
 } else {
     integTest.enabled = false
+    testingConventions.enabled = false
 }
 
 check.dependsOn(integTest)

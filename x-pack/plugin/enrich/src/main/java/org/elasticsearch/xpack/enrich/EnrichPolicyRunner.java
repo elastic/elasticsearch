@@ -228,7 +228,10 @@ public class EnrichPolicyRunner implements Runnable {
     private void prepareAndCreateEnrichIndex() {
         long nowTimestamp = nowSupplier.getAsLong();
         String enrichIndexName = EnrichPolicy.getBaseName(policyName) + "-" + nowTimestamp;
-        CreateIndexRequest createEnrichIndexRequest = new CreateIndexRequest(enrichIndexName);
+        Settings enrichIndexSettings = Settings.builder()
+            .put("index.number_of_replicas", 0)
+            .build();
+        CreateIndexRequest createEnrichIndexRequest = new CreateIndexRequest(enrichIndexName, enrichIndexSettings);
         createEnrichIndexRequest.mapping(MapperService.SINGLE_MAPPING_NAME, resolveEnrichMapping(policy));
         logger.debug("Policy [{}]: Creating new enrich index [{}]", policyName, enrichIndexName);
         client.admin().indices().create(createEnrichIndexRequest, new ActionListener<>() {

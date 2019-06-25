@@ -15,10 +15,13 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.enrich.action.DeleteEnrichPolicyAction;
 import org.elasticsearch.xpack.enrich.EnrichStore;
+
+import java.io.IOException;
 
 public class TransportDeleteEnrichPolicyAction extends TransportMasterNodeAction<DeleteEnrichPolicyAction.Request, AcknowledgedResponse> {
 
@@ -39,9 +42,12 @@ public class TransportDeleteEnrichPolicyAction extends TransportMasterNodeAction
 
     @Override
     protected AcknowledgedResponse newResponse() {
-        return new AcknowledgedResponse();
-        // TODO: Cut AcknowledgedResponse and subclasses over from streameble to writable
-//        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
+    }
+
+    @Override
+    protected AcknowledgedResponse read(StreamInput in) throws IOException {
+        return new AcknowledgedResponse(in);
     }
 
     @Override

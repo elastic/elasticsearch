@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.enrich;
 
 import org.apache.lucene.search.TotalHits;
-import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
@@ -55,9 +54,10 @@ public class EnrichMultiNodeIT extends ESIntegTestCase {
     }
 
     public void testEnrichAPIs() {
-        final int numPolicies = 4;
-        internalCluster().startNodes(3);
-        createSourceIndex(8);
+        final int numPolicies = randomIntBetween(2, 4);
+        internalCluster().startNodes(randomIntBetween(2, 3));
+        int numDocsInSourceIndex = randomIntBetween(8, 32);
+        createSourceIndex(numDocsInSourceIndex);
 
         for (int i = 0; i < numPolicies; i++) {
             String policyName = POLICY_NAME + i;
@@ -74,7 +74,7 @@ public class EnrichMultiNodeIT extends ESIntegTestCase {
             refresh(enrichIndexPrefix);
             SearchResponse searchResponse = client().search(new SearchRequest(enrichIndexPrefix)).actionGet();
             assertThat(searchResponse.getHits().getTotalHits().relation, equalTo(TotalHits.Relation.EQUAL_TO));
-            assertThat(searchResponse.getHits().getTotalHits().value, equalTo(8L));
+            assertThat(searchResponse.getHits().getTotalHits().value, equalTo((long) numDocsInSourceIndex));
         }
 
         ListEnrichPolicyAction.Response response =
@@ -135,7 +135,6 @@ public class EnrichMultiNodeIT extends ESIntegTestCase {
                 assertThat(source.get(field), notNullValue());
             }
         }
-        client().admin().indices().delete(new DeleteIndexRequest("my-index")).actionGet();
     }
 
     private static List<String> createSourceIndex(int numDocs) {

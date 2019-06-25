@@ -54,7 +54,7 @@ public final class ESMessageFieldConverter extends LogEventPatternConverter {
 
     @Override
     public void format(LogEvent event, StringBuilder toAppendTo) {
-        if (event.getMessage() instanceof ESLogMessage) {//TODO instanceof vs checking the value returned from getFormat method
+        if (event.getMessage() instanceof ESLogMessage) {
             ESLogMessage ESLogMessage = (ESLogMessage) event.getMessage();
             final String value = ESLogMessage.getValueFor(key);
             if (Strings.isNullOrEmpty(value) == false) {

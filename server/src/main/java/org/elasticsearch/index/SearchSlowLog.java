@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index;
 
+import com.fasterxml.jackson.core.io.JsonStringEncoder;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.Strings;
@@ -32,6 +33,7 @@ import org.elasticsearch.index.shard.SearchOperationListener;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.tasks.Task;
 
+import java.nio.charset.Charset;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
@@ -168,17 +170,20 @@ public final class SearchSlowLog implements SearchOperationListener {
             } else {
                 messageFields.put("total_hits", inQuotes("-1"));
             }
-//TODO add that in 7.x?
-//            String[] types = context.getQueryShardContext().getTypes();
-//            messageFields.put("types", asJsonArray(types != null ? Arrays.stream(types) : Stream.empty()));
             messageFields.put("stats", asJsonArray(context.groupStats() != null ? context.groupStats().stream() : Stream.empty()));
             messageFields.put("search_type", inQuotes(context.searchType()));
             messageFields.put("total_shards", inQuotes(context.numberOfShards()));
+
             if (context.request().source() != null) {
-                messageFields.put("source", context.request().source().toString(FORMAT_PARAMS));
+                byte[] sourceEscaped = JsonStringEncoder.getInstance()
+                                                        .quoteAsUTF8(context.request().source().toString(FORMAT_PARAMS));
+                String source = new String(sourceEscaped, Charset.defaultCharset());
+
+                messageFields.put("source", source);
             } else {
                 messageFields.put("source", "{}");
             }
+
             messageFields.put("id", inQuotes(context.getTask().getHeader(Task.X_OPAQUE_ID)));
             return messageFields;
         }

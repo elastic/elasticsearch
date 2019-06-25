@@ -166,6 +166,7 @@ public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTest
                     client.dataFrame().putDataFrameTransform(
                             request, RequestOptions.DEFAULT);
             // end::put-data-frame-transform-execute
+            transformsToClean.add(request.getConfig().getId());
 
             assertTrue(response.isAcknowledged());
         }
@@ -203,6 +204,7 @@ public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTest
             // end::put-data-frame-transform-execute-async
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
+            transformsToClean.add(request.getConfig().getId());
         }
     }
 
@@ -492,6 +494,7 @@ public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTest
             .setPivotConfig(pivotConfig)
             .build();
         client.dataFrame().putDataFrameTransform(new PutDataFrameTransformRequest(transformConfig), RequestOptions.DEFAULT);
+        transformsToClean.add(id);
 
         // tag::get-data-frame-transform-stats-request
         GetDataFrameTransformStatsRequest request =

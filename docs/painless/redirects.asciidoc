@@ -1,0 +1,8 @@
+["appendix",role="exclude",id="redirects"]
+= Deleted pages
+
+The following pages have moved or been deleted.
+
+[role="exclude",id="painless-examples"]
+
+See <<painless-walkthrough, Painless walkthrough>>.

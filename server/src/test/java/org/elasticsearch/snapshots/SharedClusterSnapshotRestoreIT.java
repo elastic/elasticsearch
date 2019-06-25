@@ -1328,6 +1328,18 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         assertThat(numberOfFiles(repo), equalTo(numberOfFiles[0] + 2));
     }
 
+    public void testGetSnapshotsNoRepos() {
+        ensureGreen();
+        GetSnapshotsResponse getSnapshotsResponse = client().admin().cluster()
+                .prepareGetSnapshots(new String[]{"_all"})
+                .setSnapshots(randomFrom("_all", "*"))
+                .get();
+
+        assertTrue(getSnapshotsResponse.getRepositories().isEmpty());
+        assertTrue(getSnapshotsResponse.getFailedResponses().isEmpty());
+        assertTrue(getSnapshotsResponse.getSuccessfulResponses().isEmpty());
+    }
+
     public void testGetSnapshotsMultipleRepos() {
         final Client client = client();
 

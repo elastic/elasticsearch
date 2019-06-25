@@ -116,9 +116,12 @@ public class RestIndicesAction extends AbstractCatAction {
                     //    fail on the deleted index (as we want to ignore wildcards that cannot be resolved).
                     // This behavior can be ensured by letting the cluster state, cluster health and indices stats requests re-resolve the
                     // index names with the same indices options that we used for the initial cluster state request (strictExpand).
-                    sendIndicesStatsRequest(indices, indicesOptions, includeUnloadedSegments, client, groupedListener);
-                    sendClusterStateRequest(indices, indicesOptions, local, masterNodeTimeout, client, groupedListener);
-                    sendClusterHealthRequest(indices, indicesOptions, local, masterNodeTimeout, client, groupedListener);
+                    sendIndicesStatsRequest(indices, indicesOptions, includeUnloadedSegments, client,
+                        ActionListener.wrap(groupedListener::onResponse, groupedListener::onFailure));
+                    sendClusterStateRequest(indices, indicesOptions, local, masterNodeTimeout, client,
+                        ActionListener.wrap(groupedListener::onResponse, groupedListener::onFailure));
+                    sendClusterHealthRequest(indices, indicesOptions, local, masterNodeTimeout, client,
+                        ActionListener.wrap(groupedListener::onResponse, groupedListener::onFailure));
                 }
 
                 @Override
@@ -150,7 +153,7 @@ public class RestIndicesAction extends AbstractCatAction {
                                          final boolean local,
                                          final TimeValue masterNodeTimeout,
                                          final NodeClient client,
-                                         final GroupedActionListener<ActionResponse> listener) {
+                                         final ActionListener<ClusterStateResponse> listener) {
 
         final ClusterStateRequest request = new ClusterStateRequest();
         request.indices(indices);
@@ -158,17 +161,7 @@ public class RestIndicesAction extends AbstractCatAction {
         request.local(local);
         request.masterNodeTimeout(masterNodeTimeout);
 
-        client.admin().cluster().state(request, new ActionListener<>() {
-            @Override
-            public void onResponse(final ClusterStateResponse response) {
-                listener.onResponse(response);
-            }
-
-            @Override
-            public void onFailure(final Exception e) {
-                listener.onFailure(e);
-            }
-        });
+        client.admin().cluster().state(request, listener);
     }
 
     private void sendClusterHealthRequest(final String[] indices,
@@ -176,7 +169,7 @@ public class RestIndicesAction extends AbstractCatAction {
                                           final boolean local,
                                           final TimeValue masterNodeTimeout,
                                           final NodeClient client,
-                                          final GroupedActionListener<ActionResponse> listener) {
+                                          final ActionListener<ClusterHealthResponse> listener) {
 
         final ClusterHealthRequest request = new ClusterHealthRequest();
         request.indices(indices);
@@ -184,24 +177,14 @@ public class RestIndicesAction extends AbstractCatAction {
         request.local(local);
         request.masterNodeTimeout(masterNodeTimeout);
 
-        client.admin().cluster().health(request, new ActionListener<>() {
-            @Override
-            public void onResponse(final ClusterHealthResponse response) {
-                listener.onResponse(response);
-            }
-
-            @Override
-            public void onFailure(final Exception e) {
-                listener.onFailure(e);
-            }
-        });
+        client.admin().cluster().health(request, listener);
     }
 
     private void sendIndicesStatsRequest(final String[] indices,
                                          final IndicesOptions indicesOptions,
                                          final boolean includeUnloadedSegments,
                                          final NodeClient client,
-                                         final GroupedActionListener<ActionResponse> listener) {
+                                         final ActionListener<IndicesStatsResponse> listener) {
 
         final IndicesStatsRequest request = new IndicesStatsRequest();
         request.indices(indices);
@@ -209,17 +192,7 @@ public class RestIndicesAction extends AbstractCatAction {
         request.all();
         request.includeUnloadedSegments(includeUnloadedSegments);
 
-        client.admin().indices().stats(request, new ActionListener<>() {
-            @Override
-            public void onResponse(final IndicesStatsResponse response) {
-                listener.onResponse(response);
-            }
-
-            @Override
-            public void onFailure(final Exception e) {
-                listener.onFailure(e);
-            }
-        });
+        client.admin().indices().stats(request, listener);
     }
 
     private GroupedActionListener<ActionResponse> createGroupedListener(final RestRequest request, final int size,

@@ -50,7 +50,7 @@ public class NativeAnalyticsProcessFactory implements AnalyticsProcessFactory {
 
         createNativeProcess(jobId, analyticsProcessConfig, filesToDelete, processPipes);
 
-        NativeAnalyticsProcess analyticsProcess = new NativeAnalyticsProcess(jobId, processPipes.getLogStream().get(),
+        NativeAnalyticsProcess analyticsProcess = new NativeAnalyticsProcess(jobId, nativeController, processPipes.getLogStream().get(),
                 processPipes.getProcessInStream().get(), processPipes.getProcessOutStream().get(), null, numberOfFields,
                 filesToDelete, reason -> {});
 

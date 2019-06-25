@@ -605,4 +605,4 @@ See <<faster-prefix-queries>>.
 
 [role="exclude",id="painless-examples"]
 
-See <<painless-walkthrough>>.
+See {painless}/painless-walkthrough.html[Painless walkthrough]>>.

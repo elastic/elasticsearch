@@ -537,7 +537,7 @@ public abstract class ScrollableHitSource {
                             delay,
                             response.getFailures()));
 
-                    threadPool.schedule(() -> restart(this), delay, ThreadPool.Names.SAME);
+                    schedule(() -> restart(this), delay);
                     return;
                 } // else respond to let action fail.
             }
@@ -550,8 +550,7 @@ public abstract class ScrollableHitSource {
             handleException(e,
                 delay -> {
                     logger.trace(() -> new ParameterizedMessage("retrying rejected search after [{}]", delay), e);
-                    threadPool.schedule(() -> restart(this), delay, ThreadPool.Names.SAME);
-
+                    schedule(() -> restart(this), delay);
                 });
         }
 
@@ -560,7 +559,7 @@ public abstract class ScrollableHitSource {
             handleException(e,
                 delay -> {
                     logger.trace(() -> new ParameterizedMessage("retrying rejected search after [{}]", delay), e);
-                    threadPool.schedule(()-> startNextScroll(extraKeepAlive, this), delay, ThreadPool.Names.SAME);
+                    schedule(()-> startNextScroll(extraKeepAlive, this), delay);
 
                 });
         }
@@ -576,6 +575,11 @@ public abstract class ScrollableHitSource {
                     "giving up on search because we retried [{}] times without success", retryCount), e);
                 fail.accept(e);
             }
+        }
+
+        private void schedule(Runnable runnable, TimeValue delay) {
+            // schedule does not preserve context so have to do this manually
+            threadPool.schedule(threadPool.preserveContext(runnable), delay, ThreadPool.Names.SAME);
         }
     }
 }

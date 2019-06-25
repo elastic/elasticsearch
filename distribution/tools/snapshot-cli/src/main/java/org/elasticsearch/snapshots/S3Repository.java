@@ -149,17 +149,20 @@ public class S3Repository extends AbstractRepository {
 
     private List<String> listAllFiles(String prefix) {
         List<String> files = new ArrayList<>();
+        long filesSize = 0L;
 
         ObjectListing listing = client.listObjects(bucket, prefix);
         while (true) {
             List<S3ObjectSummary> summaries = listing.getObjectSummaries();
             for (S3ObjectSummary obj : summaries) {
                 files.add(obj.getKey());
+                filesSize += obj.getSize();
             }
 
             if (listing.isTruncated()) {
                 listing = client.listNextBatchOfObjects(listing);
             } else {
+                terminal.println(Terminal.Verbosity.VERBOSE, "Total space to be freed is " + filesSize + " bytes");
                 return files;
             }
         }

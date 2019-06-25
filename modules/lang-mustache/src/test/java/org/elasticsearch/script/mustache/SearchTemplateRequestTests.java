@@ -53,8 +53,8 @@ public class SearchTemplateRequestTests extends AbstractWireSerializingTestCase<
         mutators.add(request -> request.setExplain(request.isExplain() == false));
         mutators.add(request -> request.setSimulate(request.isSimulate() == false));
 
-        mutators.add(request -> request.setRequest(
-            RandomSearchRequestGenerator.randomSearchRequest(SearchSourceBuilder::searchSource)));
+        mutators.add(request -> request.setRequest(randomValueOtherThan(request.getRequest(),
+                () -> RandomSearchRequestGenerator.randomSearchRequest(SearchSourceBuilder::searchSource))));
 
         SearchTemplateRequest mutatedInstance = copyInstance(instance);
         Consumer<SearchTemplateRequest> mutator = randomFrom(mutators);

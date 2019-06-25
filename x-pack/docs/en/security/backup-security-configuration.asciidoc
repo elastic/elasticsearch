@@ -31,7 +31,8 @@ The API calls act on configuration information that is stored in the global
 cluster metadata as well as inside a dedicated {es} index. This index is named
 `.security-6` in the 6.x versions and `.security-7` in the 7.x releases. The
 `.security` alias always points to the appropriate index. This index contains
-the data which is *not* part of an ordinary configuration backup. This data
+the data which is not available in configuration files and *cannot* be
+reliably backed up using standard filesystem tools. This data
 describes:
 
 * the definition of users in the native realm (including hashed passwords)

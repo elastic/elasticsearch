@@ -12,7 +12,7 @@ updateable when they were created, such as
 
 [source,js]
 --------------------------------------------------
-PUT /test_index
+PUT /my_index
 {
     "settings": {
         "index" : {

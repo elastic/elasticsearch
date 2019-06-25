@@ -236,7 +236,12 @@ bin/elasticsearch-users useradd jacknich -p password -r superuser
 curl -u jacknich -X DELETE "localhost:9200/.security-7"
 --------------------------------------------------
 
-WARNING: After this step authentication will not work; all API calls will fail.
+WARNING: After this step any authentication that relies on the `.security`
+index will not work. This means that all API calls that authenticate with
+native or reserved users will fail, as will any user that relies on a native role.
+The file-realm user we created in the step above will continue to work
+because it is not stored in the security index, and uses the builtin
+`superuser` role.
 
 --
 

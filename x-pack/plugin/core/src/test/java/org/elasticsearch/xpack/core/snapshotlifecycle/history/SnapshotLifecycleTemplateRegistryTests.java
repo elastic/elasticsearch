@@ -56,14 +56,18 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.mock.orig.Mockito.when;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.awaitLatch;
 import static org.elasticsearch.xpack.core.indexlifecycle.LifecycleSettings.SLM_HISTORY_INDEX_ENABLED_SETTING;
 import static org.elasticsearch.xpack.core.snapshotlifecycle.history.SnapshotLifecycleTemplateRegistry.SLM_POLICY_NAME;
 import static org.elasticsearch.xpack.core.snapshotlifecycle.history.SnapshotLifecycleTemplateRegistry.SLM_TEMPLATE_NAME;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.Mockito.mock;
@@ -111,16 +115,17 @@ public class SnapshotLifecycleTemplateRegistryTests extends ESTestCase {
 
         ClusterChangedEvent event = createClusterChangedEvent(Collections.emptyList(), nodes);
 
-        AtomicInteger calledTimes = new AtomicInteger(0);
+        AtomicReference<CountDownLatch> latch = new AtomicReference<>(new CountDownLatch(registry.getTemplateConfigs().size()));
         client.setVerifier((action, request, listener) -> {
             if (action instanceof PutIndexTemplateAction) {
-                calledTimes.incrementAndGet();
                 assertThat(action, instanceOf(PutIndexTemplateAction.class));
                 assertThat(request, instanceOf(PutIndexTemplateRequest.class));
                 final PutIndexTemplateRequest putRequest = (PutIndexTemplateRequest) request;
                 assertThat(putRequest.name(), equalTo(SLM_TEMPLATE_NAME));
                 assertThat(putRequest.settings().get("index.lifecycle.name"), equalTo(SLM_POLICY_NAME));
                 assertNotNull(listener);
+                assertThat("too many templates have been put", latch.get().getCount(), greaterThan(0L));
+                latch.get().countDown();
                 return new TestPutIndexTemplateResponse(true);
             } else if (action instanceof PutLifecycleAction) {
                 // Ignore this, it's verified in another test
@@ -131,28 +136,29 @@ public class SnapshotLifecycleTemplateRegistryTests extends ESTestCase {
             }
         });
         registry.clusterChanged(event);
-        assertBusy(() -> assertThat(calledTimes.get(), equalTo(registry.getTemplateConfigs().size())));
+        awaitLatch(latch.get(), 10, TimeUnit.SECONDS);
 
-        calledTimes.set(0);
         // now delete one template from the cluster state and lets retry
+        latch.set(new CountDownLatch(1));
         ClusterChangedEvent newEvent = createClusterChangedEvent(Collections.emptyList(), nodes);
         registry.clusterChanged(newEvent);
-        assertBusy(() -> assertThat(calledTimes.get(), equalTo(1)));
+        awaitLatch(latch.get(), 10, TimeUnit.SECONDS);
     }
 
     public void testThatNonExistingPoliciesAreAddedImmediately() throws Exception {
         DiscoveryNode node = new DiscoveryNode("node", ESTestCase.buildNewFakeTransportAddress(), Version.CURRENT);
         DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
 
-        AtomicInteger calledTimes = new AtomicInteger(0);
+        CountDownLatch latch = new CountDownLatch(1);
         client.setVerifier((action, request, listener) -> {
             if (action instanceof PutLifecycleAction) {
-                calledTimes.incrementAndGet();
                 assertThat(action, instanceOf(PutLifecycleAction.class));
                 assertThat(request, instanceOf(PutLifecycleAction.Request.class));
                 final PutLifecycleAction.Request putRequest = (PutLifecycleAction.Request) request;
                 assertThat(putRequest.getPolicy().getName(), equalTo(SLM_POLICY_NAME));
                 assertNotNull(listener);
+                assertThat("too many policies have been put", latch.getCount(), greaterThan(0L));
+                latch.countDown();
                 return new PutLifecycleAction.Response(true);
             } else if (action instanceof PutIndexTemplateAction) {
                 // Ignore this, it's verified in another test
@@ -165,7 +171,7 @@ public class SnapshotLifecycleTemplateRegistryTests extends ESTestCase {
 
         ClusterChangedEvent event = createClusterChangedEvent(Collections.emptyList(), nodes);
         registry.clusterChanged(event);
-        assertBusy(() -> assertThat(calledTimes.get(), equalTo(1)));
+        awaitLatch(latch, 10, TimeUnit.SECONDS);
     }
 
     public void testPolicyAlreadyExists() {

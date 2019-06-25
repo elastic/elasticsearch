@@ -18,10 +18,11 @@
  */
 package org.elasticsearch.client.license;
 
+import org.elasticsearch.client.AbstractHlrcWriteableXContentTestCase;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.license.PostStartBasicResponse;
-import org.elasticsearch.client.AbstractHlrcStreamableXContentTestCase;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -29,8 +30,8 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Predicate;
 
-public class StartBasicResponseTests extends
-        AbstractHlrcStreamableXContentTestCase<PostStartBasicResponse, org.elasticsearch.client.license.StartBasicResponse> {
+public class StartBasicResponseTests extends AbstractHlrcWriteableXContentTestCase<
+    PostStartBasicResponse, StartBasicResponse> {
 
     @Override
     public org.elasticsearch.client.license.StartBasicResponse doHlrcParseInstance(XContentParser parser) throws IOException {
@@ -44,8 +45,8 @@ public class StartBasicResponseTests extends
     }
 
     @Override
-    protected PostStartBasicResponse createBlankInstance() {
-        return new PostStartBasicResponse();
+    protected Writeable.Reader<PostStartBasicResponse> instanceReader() {
+        return PostStartBasicResponse::new;
     }
 
     @Override

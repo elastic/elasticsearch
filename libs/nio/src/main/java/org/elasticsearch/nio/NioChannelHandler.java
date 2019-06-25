@@ -24,9 +24,9 @@ import java.util.List;
 import java.util.function.BiConsumer;
 
 /**
- * Implements the application specific logic for handling inbound and outbound messages for a channel.
+ * Implements the application specific logic for handling channel operations.
  */
-public interface ReadWriteHandler {
+public interface NioChannelHandler {
 
     /**
      * This method is called when the channel is registered with its selector.
@@ -71,6 +71,13 @@ public interface ReadWriteHandler {
      * @throws IOException if an exception occurs
      */
     int consumeReads(InboundChannelBuffer channelBuffer) throws IOException;
+
+    /**
+     * This method indicates if the underlying channel should be closed.
+     *
+     * @return if the channel should be closed
+     */
+    boolean closeNow();
 
     void close() throws IOException;
 }

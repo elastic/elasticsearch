@@ -23,8 +23,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
@@ -223,17 +221,16 @@ public class TransportPutDataFrameTransformAction
         if (privilegesResponse.isCompleteMatch()) {
             putDataFrame(config, listener);
         } else {
-            XContentBuilder builder = JsonXContent.contentBuilder();
-            builder.startObject();
-            for (ResourcePrivileges index : privilegesResponse.getIndexPrivileges()) {
-                builder.field(index.getResource());
-                builder.map(index.getPrivileges());
-            }
-            builder.endObject();
+            List<String> indices = privilegesResponse.getIndexPrivileges()
+                .stream()
+                .map(ResourcePrivileges::getResource)
+                .collect(Collectors.toList());
 
-            listener.onFailure(Exceptions.authorizationError("Cannot create data frame transform [{}]" +
-                    " because user {} lacks permissions on the indices: {}",
-                config.getId(), username, Strings.toString(builder)));
+            listener.onFailure(Exceptions.authorizationError(
+                "Cannot create data frame transform [{}] because user {} lacks all the required permissions for indices: {}",
+                config.getId(),
+                username,
+                indices));
         }
     }
 

@@ -48,14 +48,11 @@ import org.elasticsearch.xpack.enrich.rest.RestGetEnrichPolicyAction;
 import org.elasticsearch.xpack.enrich.rest.RestListEnrichPolicyAction;
 import org.elasticsearch.xpack.enrich.rest.RestPutEnrichPolicyAction;
 
-import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
 
-import static java.util.Collections.emptyList;
 import static org.elasticsearch.xpack.core.XPackSettings.ENRICH_ENABLED_SETTING;
 
 public class EnrichPlugin extends Plugin implements ActionPlugin, IngestPlugin {
@@ -80,10 +77,10 @@ public class EnrichPlugin extends Plugin implements ActionPlugin, IngestPlugin {
 
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
         if (enabled == false) {
-            return emptyList();
+            return List.of();
         }
 
-        return Arrays.asList(
+        return List.of(
             new ActionHandler<>(GetEnrichPolicyAction.INSTANCE, TransportGetEnrichPolicyAction.class),
             new ActionHandler<>(DeleteEnrichPolicyAction.INSTANCE, TransportDeleteEnrichPolicyAction.class),
             new ActionHandler<>(ListEnrichPolicyAction.INSTANCE, TransportListEnrichPolicyAction.class),
@@ -97,10 +94,10 @@ public class EnrichPlugin extends Plugin implements ActionPlugin, IngestPlugin {
                                              IndexNameExpressionResolver indexNameExpressionResolver,
                                              Supplier<DiscoveryNodes> nodesInCluster) {
         if (enabled == false) {
-            return emptyList();
+            return List.of();
         }
 
-        return Arrays.asList(
+        return List.of(
             new RestGetEnrichPolicyAction(settings, restController),
             new RestDeleteEnrichPolicyAction(settings, restController),
             new RestListEnrichPolicyAction(settings, restController),
@@ -116,7 +113,7 @@ public class EnrichPlugin extends Plugin implements ActionPlugin, IngestPlugin {
                                                NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry) {
         EnrichPolicyExecutor enrichPolicyExecutor = new EnrichPolicyExecutor(settings, clusterService, client, threadPool,
             new IndexNameExpressionResolver(), System::currentTimeMillis);
-        return Collections.singleton(enrichPolicyExecutor);
+        return List.of(enrichPolicyExecutor);
     }
 
     @Override

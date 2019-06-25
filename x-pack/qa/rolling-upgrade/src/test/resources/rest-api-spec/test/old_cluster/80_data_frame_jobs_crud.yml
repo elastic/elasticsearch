@@ -16,7 +16,7 @@
                 type: integer
   - do:
       cluster.health:
-        index: "old-dataframe-transform-airline-data"
+        index: ".data-frame-internal-1,old-dataframe-transform-airline-data"
         wait_for_status: green
 
   - do:
@@ -162,7 +162,7 @@
                 type: integer
   - do:
       cluster.health:
-        index: "old-dataframe-transform-airline-data-cont"
+        index: ".data-frame-internal-1,old-dataframe-transform-airline-data-cont"
         wait_for_status: green
 
   - do:
@@ -175,6 +175,12 @@
             "pivot": {
               "group_by": { "airline": {"terms": {"field": "airline"}}},
               "aggs": {"avg_response": {"avg": {"field": "responsetime"}}}
+            },
+            "sync": {
+              "time": {
+                "field": "time",
+                "delay": "90m"
+              }
             }
           }
   - match: { acknowledged: true }
@@ -184,6 +190,8 @@
         transform_id: "old-simple-continuous-transform"
   - match: { count: 1 }
   - match: { transforms.0.id: "old-simple-continuous-transform" }
+  - match: { transforms.0.sync.time.field: "time" }
+  - match: { transforms.0.sync.time.delay: "90m" }
   - is_true: transforms.0.version
   - is_true: transforms.0.create_time
 
@@ -196,4 +204,4 @@
         transform_id: "old-simple-continuous-transform"
   - match: { count: 1 }
   - match: { transforms.0.id: "old-simple-continuous-transform" }
-  - match: { transforms.0.state.task_state: "/started/" }
+  - match: { transforms.0.state.task_state: "started" }

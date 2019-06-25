@@ -46,9 +46,10 @@ public final class ReloadableCustomAnalyzer extends Analyzer implements Analyzer
         @Override
         public TokenStreamComponents getReusableComponents(Analyzer analyzer, String fieldName) {
             ReloadableCustomAnalyzer custom = (ReloadableCustomAnalyzer) analyzer;
-            AnalyzerComponents components = custom.getStoredComponents();
-            if (components == null || custom.shouldReload(components)) {
-                custom.setStoredComponents(custom.getComponents());
+            AnalyzerComponents components = custom.getComponents();
+            AnalyzerComponents storedComponents = custom.getStoredComponents();
+            if (storedComponents == null || components != storedComponents) {
+                custom.setStoredComponents(components);
                 return null;
             }
             TokenStreamComponents tokenStream = (TokenStreamComponents) getStoredValue(analyzer);
@@ -114,10 +115,6 @@ public final class ReloadableCustomAnalyzer extends Analyzer implements Analyzer
         return result;
     }
 
-    private boolean shouldReload(AnalyzerComponents source) {
-        return this.components != source;
-    }
-
     public synchronized void reload(String name,
                                     Settings settings,
                                     final Map<String, TokenizerFactory> tokenizers,
@@ -129,6 +126,7 @@ public final class ReloadableCustomAnalyzer extends Analyzer implements Analyzer
 
     @Override
     public void close() {
+        super.close();
         storedComponents.close();
     }
 

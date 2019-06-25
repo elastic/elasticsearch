@@ -31,14 +31,15 @@ public class PointTests extends BaseGeometryTestCase<Point> {
     }
 
     public void testBasicSerialization() throws IOException, ParseException {
-        assertEquals("point (20.0 10.0)", WellKnownText.toWKT(new Point(10, 20)));
-        assertEquals(new Point(10, 20), WellKnownText.fromWKT("point (20.0 10.0)"));
+        WellKnownText wkt = new WellKnownText(true, true);
+        assertEquals("point (20.0 10.0)", wkt.toWKT(new Point(10, 20)));
+        assertEquals(new Point(10, 20), wkt.fromWKT("point (20.0 10.0)"));
 
-        assertEquals("point (20.0 10.0 100.0)", WellKnownText.toWKT(new Point(10, 20, 100)));
-        assertEquals(new Point(10, 20, 100), WellKnownText.fromWKT("point (20.0 10.0 100.0)"));
+        assertEquals("point (20.0 10.0 100.0)", wkt.toWKT(new Point(10, 20, 100)));
+        assertEquals(new Point(10, 20, 100), wkt.fromWKT("point (20.0 10.0 100.0)"));
 
-        assertEquals("point EMPTY", WellKnownText.toWKT(Point.EMPTY));
-        assertEquals(Point.EMPTY, WellKnownText.fromWKT("point EMPTY)"));
+        assertEquals("point EMPTY", wkt.toWKT(Point.EMPTY));
+        assertEquals(Point.EMPTY, wkt.fromWKT("point EMPTY)"));
     }
 
     public void testInitValidation() {
@@ -47,5 +48,11 @@ public class PointTests extends BaseGeometryTestCase<Point> {
 
         ex = expectThrows(IllegalArgumentException.class, () -> new Point(10, 500));
         assertEquals("invalid longitude 500.0; must be between -180.0 and 180.0", ex.getMessage());
+    }
+
+    public void testWKTValidation() {
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class,
+            () -> new WellKnownText(randomBoolean(), false).fromWKT("point (20.0 10.0 100.0)"));
+        assertEquals("found Z value [100.0] but [ignore_z_value] parameter is [false]", ex.getMessage());
     }
 }

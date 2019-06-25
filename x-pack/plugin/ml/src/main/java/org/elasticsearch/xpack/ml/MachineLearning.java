@@ -484,7 +484,7 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
                     client,
                     clusterService);
                 normalizerProcessFactory = new NativeNormalizerProcessFactory(environment, nativeController, clusterService);
-                analyticsProcessFactory = new NativeAnalyticsProcessFactory(environment, nativeController);
+                analyticsProcessFactory = new NativeAnalyticsProcessFactory(environment, nativeController, clusterService);
             } catch (IOException e) {
                 // This also should not happen in production, as the MachineLearningInfoTransportAction should have
                 // hit the same error first and brought down the node with a friendlier error message

@@ -7,10 +7,13 @@ package org.elasticsearch.xpack.ml.dataframe.process;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.process.NativeController;
 import org.elasticsearch.xpack.ml.process.ProcessPipes;
 import org.elasticsearch.xpack.ml.utils.NamedPipeHelper;
@@ -28,14 +31,21 @@ public class NativeAnalyticsProcessFactory implements AnalyticsProcessFactory {
     private static final Logger LOGGER = LogManager.getLogger(NativeAnalyticsProcessFactory.class);
 
     private static final NamedPipeHelper NAMED_PIPE_HELPER = new NamedPipeHelper();
-    public static final Duration PROCESS_STARTUP_TIMEOUT = Duration.ofSeconds(10);
 
     private final Environment env;
     private final NativeController nativeController;
+    private volatile Duration processConnectTimeout;
 
-    public NativeAnalyticsProcessFactory(Environment env, NativeController nativeController) {
+    public NativeAnalyticsProcessFactory(Environment env, NativeController nativeController, ClusterService clusterService) {
         this.env = Objects.requireNonNull(env);
         this.nativeController = Objects.requireNonNull(nativeController);
+        setProcessConnectTimeout(MachineLearning.PROCESS_CONNECT_TIMEOUT.get(env.settings()));
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(MachineLearning.PROCESS_CONNECT_TIMEOUT,
+            this::setProcessConnectTimeout);
+    }
+
+    void setProcessConnectTimeout(TimeValue processConnectTimeout) {
+        this.processConnectTimeout = Duration.ofMillis(processConnectTimeout.getMillis());
     }
 
     @Override
@@ -74,7 +84,7 @@ public class NativeAnalyticsProcessFactory implements AnalyticsProcessFactory {
                 filesToDelete);
         try {
             analyticsBuilder.build();
-            processPipes.connectStreams(PROCESS_STARTUP_TIMEOUT);
+            processPipes.connectStreams(processConnectTimeout);
         } catch (IOException e) {
             String msg = "Failed to launch data frame analytics process for job " + jobId;
             LOGGER.error(msg);

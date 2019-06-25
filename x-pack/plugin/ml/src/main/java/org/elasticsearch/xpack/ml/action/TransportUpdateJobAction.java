@@ -45,7 +45,8 @@ public class TransportUpdateJobAction extends TransportMasterNodeAction<UpdateJo
     }
 
     @Override
-    protected void masterOperation(Task task, UpdateJobAction.Request request, ClusterState state, ActionListener<PutJobAction.Response> listener) {
+    protected void masterOperation(Task task, UpdateJobAction.Request request, ClusterState state,
+                                   ActionListener<PutJobAction.Response> listener) {
         jobManager.updateJob(request, listener);
     }
 

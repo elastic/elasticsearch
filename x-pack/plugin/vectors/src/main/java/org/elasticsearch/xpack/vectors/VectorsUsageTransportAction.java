@@ -39,7 +39,8 @@ public class VectorsUsageTransportAction extends XPackUsageFeatureTransportActio
     }
 
     @Override
-    protected void masterOperation(Task task, XPackUsageRequest request, ClusterState state, ActionListener<XPackUsageFeatureResponse> listener) {
+    protected void masterOperation(Task task, XPackUsageRequest request, ClusterState state,
+                                   ActionListener<XPackUsageFeatureResponse> listener) {
         VectorsFeatureSetUsage usage =
             new VectorsFeatureSetUsage(licenseState.isVectorsAllowed(), XPackSettings.VECTORS_ENABLED.get(settings));
         listener.onResponse(new XPackUsageFeatureResponse(usage));

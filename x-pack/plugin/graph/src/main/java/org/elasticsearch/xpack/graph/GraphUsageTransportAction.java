@@ -39,7 +39,8 @@ public class GraphUsageTransportAction extends XPackUsageFeatureTransportAction 
     }
 
     @Override
-    protected void masterOperation(Task task, XPackUsageRequest request, ClusterState state, ActionListener<XPackUsageFeatureResponse> listener) {
+    protected void masterOperation(Task task, XPackUsageRequest request, ClusterState state,
+                                   ActionListener<XPackUsageFeatureResponse> listener) {
         GraphFeatureSetUsage usage =
             new GraphFeatureSetUsage(licenseState.isGraphAllowed(), XPackSettings.GRAPH_ENABLED.get(settings));
         listener.onResponse(new XPackUsageFeatureResponse(usage));

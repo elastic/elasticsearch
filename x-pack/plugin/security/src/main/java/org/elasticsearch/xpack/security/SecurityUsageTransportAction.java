@@ -71,7 +71,8 @@ public class SecurityUsageTransportAction extends XPackUsageFeatureTransportActi
     }
 
     @Override
-    protected void masterOperation(Task task, XPackUsageRequest request, ClusterState state, ActionListener<XPackUsageFeatureResponse> listener) {
+    protected void masterOperation(Task task, XPackUsageRequest request, ClusterState state,
+                                   ActionListener<XPackUsageFeatureResponse> listener) {
         Map<String, Object> sslUsage = sslUsage(settings);
         Map<String, Object> tokenServiceUsage = tokenServiceUsage(settings);
         Map<String, Object> apiKeyServiceUsage = apiKeyServiceUsage(settings);

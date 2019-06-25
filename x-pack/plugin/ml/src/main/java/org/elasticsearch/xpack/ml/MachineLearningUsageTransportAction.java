@@ -65,7 +65,8 @@ public class MachineLearningUsageTransportAction extends XPackUsageFeatureTransp
     }
 
     @Override
-    protected void masterOperation(Task task, XPackUsageRequest request, ClusterState state, ActionListener<XPackUsageFeatureResponse> listener) {
+    protected void masterOperation(Task task, XPackUsageRequest request, ClusterState state,
+                                   ActionListener<XPackUsageFeatureResponse> listener) {
         if (enabled == false) {
             MachineLearningFeatureSetUsage usage = new MachineLearningFeatureSetUsage(licenseState.isMachineLearningAllowed(), enabled,
                 Collections.emptyMap(), Collections.emptyMap(), 0);

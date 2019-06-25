@@ -23,6 +23,9 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesClusterStateUpdateRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexClusterStateUpdateRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
+import org.elasticsearch.action.admin.indices.stats.IndicesStatsAction;
+import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
+import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequestBuilder;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ActiveShardCount;
@@ -127,7 +130,11 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
         final String rolloverIndexName = indexNameExpressionResolver.resolveDateMathExpression(unresolvedName);
         MetaDataCreateIndexService.validateIndexName(rolloverIndexName, state); // will fail if the index already exists
         checkNoDuplicatedAliasInIndexTemplate(metaData, rolloverIndexName, rolloverRequest.getAlias());
-        client.admin().indices().prepareStats(rolloverRequest.getAlias()).clear().setDocs(true).execute(
+        IndicesStatsRequestBuilder statsRequestBuilder = client.admin().indices()
+            .prepareStats(rolloverRequest.getAlias()).clear().setDocs(true);
+        IndicesStatsRequest statsRequest = statsRequestBuilder.request();
+        statsRequest.setParentTask(clusterService.localNode().getId(), task.getId());
+        client.execute(IndicesStatsAction.INSTANCE, statsRequest,
             new ActionListener<IndicesStatsResponse>() {
                 @Override
                 public void onResponse(IndicesStatsResponse statsResponse) {

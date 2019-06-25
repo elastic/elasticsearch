@@ -91,8 +91,8 @@ public class TransportSetUpgradeModeAction extends TransportMasterNodeAction<Set
     }
 
     @Override
-    protected void masterOperation(Task task, SetUpgradeModeAction.Request request, ClusterState state, ActionListener<AcknowledgedResponse> listener)
-        throws Exception {
+    protected void masterOperation(Task task, SetUpgradeModeAction.Request request, ClusterState state,
+                                   ActionListener<AcknowledgedResponse> listener) throws Exception {
 
         // Don't want folks spamming this endpoint while it is in progress, only allow one request to be handled at a time
         if (isRunning.compareAndSet(false, true) == false) {

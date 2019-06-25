@@ -53,7 +53,8 @@ public class WatcherUsageTransportAction extends XPackUsageFeatureTransportActio
     }
 
     @Override
-    protected void masterOperation(Task task, XPackUsageRequest request, ClusterState state, ActionListener<XPackUsageFeatureResponse> listener) {
+    protected void masterOperation(Task task, XPackUsageRequest request, ClusterState state,
+                                   ActionListener<XPackUsageFeatureResponse> listener) {
         if (enabled) {
             try (ThreadContext.StoredContext ignore =
                      client.threadPool().getThreadContext().stashWithOrigin(WATCHER_ORIGIN)) {

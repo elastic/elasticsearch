@@ -43,7 +43,8 @@ public class CCRUsageTransportAction extends XPackUsageFeatureTransportAction {
     }
 
     @Override
-    protected void masterOperation(Task task, XPackUsageRequest request, ClusterState state, ActionListener<XPackUsageFeatureResponse> listener) {
+    protected void masterOperation(Task task, XPackUsageRequest request, ClusterState state,
+                                   ActionListener<XPackUsageFeatureResponse> listener) {
         MetaData metaData = state.metaData();
 
         int numberOfFollowerIndices = 0;

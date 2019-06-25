@@ -64,7 +64,8 @@ public class GetSettingsActionTests extends ESTestCase {
                 new Resolver(), IndexScopedSettings.DEFAULT_SCOPED_SETTINGS);
         }
         @Override
-        protected void masterOperation(Task task, GetSettingsRequest request, ClusterState state, ActionListener<GetSettingsResponse> listener) {
+        protected void masterOperation(Task task, GetSettingsRequest request, ClusterState state,
+                                       ActionListener<GetSettingsResponse> listener) {
             ClusterState stateWithIndex = ClusterStateCreationUtils.state(indexName, 1, 1);
             super.masterOperation(task, request, stateWithIndex, listener);
         }

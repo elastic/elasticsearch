@@ -26,8 +26,9 @@ import org.elasticsearch.cluster.ClusterState;
 public class TransportMasterNodeActionUtils {
 
     /**
-     * Allows to directly call {@link TransportMasterNodeAction#masterOperation(org.elasticsearch.tasks.Task, MasterNodeRequest, ClusterState, ActionListener)} which is
-     * a protected method.
+     * Allows to directly call
+     * {@link TransportMasterNodeAction#masterOperation(org.elasticsearch.tasks.Task, MasterNodeRequest, ClusterState, ActionListener)}
+     * which is a protected method.
      */
     public static <Request extends MasterNodeRequest<Request>, Response extends ActionResponse> void runMasterOperation(
         TransportMasterNodeAction<Request, Response> masterNodeAction, Request request, ClusterState clusterState,

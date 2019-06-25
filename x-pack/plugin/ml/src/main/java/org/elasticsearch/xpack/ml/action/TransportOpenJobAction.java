@@ -401,7 +401,8 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
     }
 
     @Override
-    protected void masterOperation(Task task, OpenJobAction.Request request, ClusterState state, ActionListener<AcknowledgedResponse> listener) {
+    protected void masterOperation(Task task, OpenJobAction.Request request, ClusterState state,
+                                   ActionListener<AcknowledgedResponse> listener) {
         if (migrationEligibilityCheck.jobIsEligibleForMigration(request.getJobParams().getJobId(), state)) {
             listener.onFailure(ExceptionsHelper.configHasNotBeenMigrated("open job", request.getJobParams().getJobId()));
             return;

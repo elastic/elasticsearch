@@ -118,7 +118,8 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
         return response;
     }
 
-    protected abstract void masterOperation(Task task, Request request, ClusterState state, ActionListener<Response> listener) throws Exception;
+    protected abstract void masterOperation(Task task, Request request, ClusterState state,
+                                            ActionListener<Response> listener) throws Exception;
 
     protected boolean localExecute(Request request) {
         return false;

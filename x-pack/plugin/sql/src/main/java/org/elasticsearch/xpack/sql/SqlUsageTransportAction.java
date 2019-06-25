@@ -50,7 +50,8 @@ public class SqlUsageTransportAction extends XPackUsageFeatureTransportAction {
     }
 
     @Override
-    protected void masterOperation(Task task, XPackUsageRequest request, ClusterState state, ActionListener<XPackUsageFeatureResponse> listener) {
+    protected void masterOperation(Task task, XPackUsageRequest request, ClusterState state,
+                                   ActionListener<XPackUsageFeatureResponse> listener) {
         boolean available = licenseState.isSqlAllowed();
         if (enabled) {
             SqlStatsRequest sqlRequest = new SqlStatsRequest();

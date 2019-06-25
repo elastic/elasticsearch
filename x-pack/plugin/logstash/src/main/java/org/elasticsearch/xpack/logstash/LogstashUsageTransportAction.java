@@ -39,7 +39,8 @@ public class LogstashUsageTransportAction extends XPackUsageFeatureTransportActi
     }
 
     @Override
-    protected void masterOperation(Task task, XPackUsageRequest request, ClusterState state, ActionListener<XPackUsageFeatureResponse> listener) {
+    protected void masterOperation(Task task, XPackUsageRequest request, ClusterState state,
+                                   ActionListener<XPackUsageFeatureResponse> listener) {
         boolean available = licenseState.isLogstashAllowed();
         LogstashFeatureSetUsage usage =
             new LogstashFeatureSetUsage(available, XPackSettings.LOGSTASH_ENABLED.get(settings));

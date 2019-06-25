@@ -61,7 +61,8 @@ public class DataFrameUsageTransportAction extends XPackUsageFeatureTransportAct
     }
 
     @Override
-    protected void masterOperation(Task task, XPackUsageRequest request, ClusterState state, ActionListener<XPackUsageFeatureResponse> listener) {
+    protected void masterOperation(Task task, XPackUsageRequest request, ClusterState state,
+                                   ActionListener<XPackUsageFeatureResponse> listener) {
         boolean available = licenseState.isDataFrameAllowed();
         if (enabled == false) {
             var usage = new DataFrameFeatureSetUsage(available, enabled, Collections.emptyMap(),

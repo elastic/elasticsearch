@@ -59,8 +59,8 @@ public class TransportDeleteLicenseAction extends TransportMasterNodeAction<Dele
     }
 
     @Override
-    protected void masterOperation(Task task, final DeleteLicenseRequest request, ClusterState state, final ActionListener<AcknowledgedResponse>
-        listener) throws ElasticsearchException {
+    protected void masterOperation(Task task, final DeleteLicenseRequest request, ClusterState state,
+                                   final ActionListener<AcknowledgedResponse> listener) throws ElasticsearchException {
         licenseService.removeLicense(request, new ActionListener<ClusterStateUpdateResponse>() {
             @Override
             public void onResponse(ClusterStateUpdateResponse clusterStateUpdateResponse) {

@@ -57,17 +57,17 @@ public class StopDataFrameTransformAction extends Action<StopDataFrameTransformA
         private final String id;
         private final boolean waitForCompletion;
         private final boolean force;
-        private final boolean allowNoResources;
+        private final boolean allowNoMatch;
         private Set<String> expandedIds;
 
-        public Request(String id, boolean waitForCompletion, boolean force, @Nullable TimeValue timeout, boolean allowNoResources) {
+        public Request(String id, boolean waitForCompletion, boolean force, @Nullable TimeValue timeout, boolean allowNoMatch) {
             this.id = ExceptionsHelper.requireNonNull(id, DataFrameField.ID.getPreferredName());
             this.waitForCompletion = waitForCompletion;
             this.force = force;
 
             // use the timeout value already present in BaseTasksRequest
             this.setTimeout(timeout == null ? DEFAULT_TIMEOUT : timeout);
-            this.allowNoResources = allowNoResources;
+            this.allowNoMatch = allowNoMatch;
         }
 
         public Request(StreamInput in) throws IOException {
@@ -79,9 +79,9 @@ public class StopDataFrameTransformAction extends Action<StopDataFrameTransformA
                 expandedIds = new HashSet<>(Arrays.asList(in.readStringArray()));
             }
             if (in.getVersion().onOrAfter(Version.V_7_3_0)) {
-                this.allowNoResources = in.readBoolean();
+                this.allowNoMatch = in.readBoolean();
             } else {
-                this.allowNoResources = true;
+                this.allowNoMatch = true;
             }
         }
 
@@ -105,8 +105,8 @@ public class StopDataFrameTransformAction extends Action<StopDataFrameTransformA
             this.expandedIds = expandedIds;
         }
 
-        public boolean isAllowNoResources() {
-            return allowNoResources;
+        public boolean isAllowNoMatch() {
+            return allowNoMatch;
         }
 
         @Override
@@ -121,7 +121,7 @@ public class StopDataFrameTransformAction extends Action<StopDataFrameTransformA
                 out.writeStringArray(expandedIds.toArray(new String[0]));
             }
             if (out.getVersion().onOrAfter(Version.V_7_3_0)) {
-                out.writeBoolean(allowNoResources);
+                out.writeBoolean(allowNoMatch);
             }
         }
 
@@ -133,7 +133,7 @@ public class StopDataFrameTransformAction extends Action<StopDataFrameTransformA
         @Override
         public int hashCode() {
             // the base class does not implement hashCode, therefore we need to hash timeout ourselves
-            return Objects.hash(id, waitForCompletion, force, expandedIds, this.getTimeout(), allowNoResources);
+            return Objects.hash(id, waitForCompletion, force, expandedIds, this.getTimeout(), allowNoMatch);
         }
 
         @Override
@@ -156,7 +156,7 @@ public class StopDataFrameTransformAction extends Action<StopDataFrameTransformA
                     Objects.equals(waitForCompletion, other.waitForCompletion) &&
                     Objects.equals(force, other.force) &&
                     Objects.equals(expandedIds, other.expandedIds) &&
-                    allowNoResources == other.allowNoResources;
+                    allowNoMatch == other.allowNoMatch;
         }
 
         @Override

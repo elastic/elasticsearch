@@ -41,7 +41,7 @@ public class GetDataFrameTransformRequest implements Validatable {
 
     private final List<String> ids;
     private PageParams pageParams;
-    private Boolean allowNoTransforms;
+    private Boolean allowNoMatch;
 
     public GetDataFrameTransformRequest(String... ids) {
         this.ids = Arrays.asList(ids);
@@ -60,11 +60,11 @@ public class GetDataFrameTransformRequest implements Validatable {
     }
 
     public Boolean getAllowNoMatch() {
-        return allowNoTransforms;
+        return allowNoMatch;
     }
 
-    public void setAllowNoMatch(Boolean allowNoTransforms) {
-        this.allowNoTransforms = allowNoTransforms;
+    public void setAllowNoMatch(Boolean allowNoMatch) {
+        this.allowNoMatch = allowNoMatch;
     }
 
     @Override
@@ -80,7 +80,7 @@ public class GetDataFrameTransformRequest implements Validatable {
 
     @Override
     public int hashCode() {
-        return Objects.hash(ids, pageParams, allowNoTransforms);
+        return Objects.hash(ids, pageParams, allowNoMatch);
     }
 
     @Override
@@ -95,6 +95,6 @@ public class GetDataFrameTransformRequest implements Validatable {
         GetDataFrameTransformRequest other = (GetDataFrameTransformRequest) obj;
         return Objects.equals(ids, other.ids)
             && Objects.equals(pageParams, other.pageParams)
-            && Objects.equals(allowNoTransforms, other.allowNoTransforms);
+            && Objects.equals(allowNoMatch, other.allowNoMatch);
     }
 }

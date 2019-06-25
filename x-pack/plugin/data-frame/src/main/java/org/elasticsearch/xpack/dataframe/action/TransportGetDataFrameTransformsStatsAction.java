@@ -107,7 +107,7 @@ public class TransportGetDataFrameTransformsStatsAction extends
     protected void doExecute(Task task, Request request, ActionListener<Response> finalListener) {
         dataFrameTransformsConfigManager.expandTransformIds(request.getId(),
             request.getPageParams(),
-            request.isAllowNoResources(),
+            request.isAllowNoMatch(),
             ActionListener.wrap(hitsAndIds -> {
                 request.setExpandedIds(hitsAndIds.v2());
                 request.setNodes(DataFrameNodes.dataFrameTaskNodes(hitsAndIds.v2(), clusterService.state()));

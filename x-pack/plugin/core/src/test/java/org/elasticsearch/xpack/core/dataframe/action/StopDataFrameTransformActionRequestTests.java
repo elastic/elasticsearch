@@ -40,10 +40,10 @@ public class StopDataFrameTransformActionRequestTests extends AbstractWireSerial
         String id = randomAlphaOfLengthBetween(1, 10);
         boolean waitForCompletion = randomBoolean();
         boolean force = randomBoolean();
-        boolean allowNoResources = randomBoolean();
+        boolean allowNoMatch = randomBoolean();
 
-        Request r1 = new Request(id, waitForCompletion, force, TimeValue.timeValueSeconds(10), allowNoResources);
-        Request r2 = new Request(id, waitForCompletion, force, TimeValue.timeValueSeconds(20), allowNoResources);
+        Request r1 = new Request(id, waitForCompletion, force, TimeValue.timeValueSeconds(10), allowNoMatch);
+        Request r2 = new Request(id, waitForCompletion, force, TimeValue.timeValueSeconds(20), allowNoMatch);
 
         assertNotEquals(r1,r2);
         assertNotEquals(r1.hashCode(),r2.hashCode());

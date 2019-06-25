@@ -55,7 +55,7 @@ public class GetDataFrameTransformsStatsAction extends Action<GetDataFrameTransf
     public static class Request extends BaseTasksRequest<Request> {
         private final String id;
         private PageParams pageParams = PageParams.defaultParams();
-        private boolean allowNoResources = true;
+        private boolean allowNoMatch = true;
 
         public static final int MAX_SIZE_RETURN = 1000;
         // used internally to expand the queried id expression
@@ -76,7 +76,7 @@ public class GetDataFrameTransformsStatsAction extends Action<GetDataFrameTransf
             expandedIds = Collections.unmodifiableList(in.readStringList());
             pageParams = new PageParams(in);
             if (in.getVersion().onOrAfter(Version.V_7_3_0)) {
-                allowNoResources = in.readBoolean();
+                allowNoMatch = in.readBoolean();
             }
         }
 
@@ -107,12 +107,12 @@ public class GetDataFrameTransformsStatsAction extends Action<GetDataFrameTransf
             return pageParams;
         }
 
-        public boolean isAllowNoResources() {
-            return allowNoResources;
+        public boolean isAllowNoMatch() {
+            return allowNoMatch;
         }
 
-        public void setAllowNoResources(boolean allowNoMatch) {
-            this.allowNoResources = allowNoMatch;
+        public void setAllowNoMatch(boolean allowNoMatch) {
+            this.allowNoMatch = allowNoMatch;
         }
 
         @Override
@@ -122,7 +122,7 @@ public class GetDataFrameTransformsStatsAction extends Action<GetDataFrameTransf
             out.writeStringCollection(expandedIds);
             pageParams.writeTo(out);
             if (out.getVersion().onOrAfter(Version.V_7_3_0)) {
-                out.writeBoolean(allowNoResources);
+                out.writeBoolean(allowNoMatch);
             }
         }
 
@@ -138,7 +138,7 @@ public class GetDataFrameTransformsStatsAction extends Action<GetDataFrameTransf
 
         @Override
         public int hashCode() {
-            return Objects.hash(id, pageParams, allowNoResources);
+            return Objects.hash(id, pageParams, allowNoMatch);
         }
 
         @Override
@@ -152,7 +152,7 @@ public class GetDataFrameTransformsStatsAction extends Action<GetDataFrameTransf
             Request other = (Request) obj;
             return Objects.equals(id, other.id)
                 && Objects.equals(pageParams, other.pageParams)
-                && allowNoResources == other.allowNoResources;
+                && allowNoMatch == other.allowNoMatch;
         }
     }
 

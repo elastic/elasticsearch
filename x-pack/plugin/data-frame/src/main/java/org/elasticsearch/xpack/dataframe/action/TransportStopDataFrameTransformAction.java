@@ -86,7 +86,7 @@ public class TransportStopDataFrameTransformAction extends
 
             dataFrameTransformsConfigManager.expandTransformIds(request.getId(),
                 new PageParams(0, 10_000),
-                request.isAllowNoResources(),
+                request.isAllowNoMatch(),
                 ActionListener.wrap(hitsAndIds -> {
                     request.setExpandedIds(new HashSet<>(hitsAndIds.v2()));
                     request.setNodes(DataFrameNodes.dataFrameTaskNodes(hitsAndIds.v2(), clusterService.state()));

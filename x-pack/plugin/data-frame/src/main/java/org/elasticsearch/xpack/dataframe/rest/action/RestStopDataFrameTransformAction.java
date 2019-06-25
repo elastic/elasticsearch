@@ -30,14 +30,14 @@ public class RestStopDataFrameTransformAction extends BaseRestHandler {
                 StopDataFrameTransformAction.DEFAULT_TIMEOUT);
         boolean waitForCompletion = restRequest.paramAsBoolean(DataFrameField.WAIT_FOR_COMPLETION.getPreferredName(), false);
         boolean force = restRequest.paramAsBoolean(DataFrameField.FORCE.getPreferredName(), false);
-        boolean allowNoResources = restRequest.paramAsBoolean(DataFrameField.ALLOW_NO_MATCH.getPreferredName(), false);
+        boolean allowNoMatch = restRequest.paramAsBoolean(DataFrameField.ALLOW_NO_MATCH.getPreferredName(), false);
 
 
         StopDataFrameTransformAction.Request request = new StopDataFrameTransformAction.Request(id,
             waitForCompletion,
             force,
             timeout,
-            allowNoResources);
+            allowNoMatch);
 
         return channel -> client.execute(StopDataFrameTransformAction.INSTANCE, request,
                 new BaseTasksResponseToXContentListener<>(channel));

@@ -284,7 +284,8 @@ public class NioSelector implements Closeable {
 
     /**
      * Queues a write operation to be handled by the event loop. This can be called by any thread and is the
-     * api available for non-selector threads to schedule writes.
+     * api available for non-selector threads to schedule writes. When invoked from the selector thread the write will be executed
+     * right away.
      *
      * @param writeOperation to be queued
      */
@@ -308,8 +309,8 @@ public class NioSelector implements Closeable {
         ChannelContext<?> context = channel.getContext();
         assert context.getSelector() == this : "Must schedule a channel for closure with its selector";
         if (isOnCurrentThread() == false) {
-            ensureSelectorOpenForEnqueuing();
             channelsToClose.offer(context);
+            ensureSelectorOpenForEnqueuing(channelsToClose, context);
             wakeup();
         } else {
             closeChannel(context);
@@ -325,8 +326,8 @@ public class NioSelector implements Closeable {
     public void scheduleForRegistration(NioChannel channel) {
         ChannelContext<?> context = channel.getContext();
         if (isOnCurrentThread() == false) {
-            ensureSelectorOpenForEnqueuing();
             channelsToRegister.add(context);
+            ensureSelectorOpenForEnqueuing(channelsToRegister, context);
             wakeup();
         } else {
             registerChannel(context);
@@ -341,7 +342,7 @@ public class NioSelector implements Closeable {
      *
      * @param writeOperation to be queued in a channel's buffer
      */
-    public void writeToChannel(WriteOperation writeOperation) {
+    private void writeToChannel(WriteOperation writeOperation) {
         assertOnSelectorThread();
         SocketChannelContext context = writeOperation.getChannel();
         // If the channel does not currently have anything that is ready to flush, we should flush after
@@ -477,9 +478,28 @@ public class NioSelector implements Closeable {
         }
     }
 
-    private void ensureSelectorOpenForEnqueuing() {
+    /**
+     * This is a convenience method to be called after some object (normally channels) are enqueued with this
+     * selector. This method will check if the selector is still open. If it is open, normal operation can
+     * proceed.
+     *
+     * If the selector is closed, then we attempt to remove the object from the queue. If the removal
+     * succeeds then we throw an {@link IllegalStateException} indicating that normal operation failed. If
+     * the object cannot be removed from the queue, then the object has already been handled by the selector
+     * and operation can proceed normally.
+     *
+     * If this method is called from the selector thread, we will not allow the queuing to occur as the
+     * selector thread can manipulate its queues internally even if it is no longer open.
+     *
+     * @param queue the queue to which the object was added
+     * @param objectAdded the objected added
+     * @param <O> the object type
+     */
+    private <O> void ensureSelectorOpenForEnqueuing(ConcurrentLinkedQueue<O> queue, O objectAdded) {
         if (isOpen() == false) {
+            if (queue.remove(objectAdded)) {
                 throw new IllegalStateException("selector is already closed");
+            }
         }
     }
 }

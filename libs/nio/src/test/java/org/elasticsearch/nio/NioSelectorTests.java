@@ -347,7 +347,7 @@ public class NioSelectorTests extends ESTestCase {
         assertEquals(0, (selectionKey.interestOps() & SelectionKey.OP_WRITE));
 
         when(channelContext.readyForFlush()).thenReturn(true);
-        selector.writeToChannel(writeOperation);
+        selector.queueWrite(writeOperation);
 
         verify(channelContext).queueWriteOperation(writeOperation);
         verify(eventHandler, times(0)).handleWrite(channelContext);
@@ -361,7 +361,7 @@ public class NioSelectorTests extends ESTestCase {
         assertEquals(0, (selectionKey.interestOps() & SelectionKey.OP_WRITE));
 
         when(channelContext.readyForFlush()).thenReturn(false);
-        selector.writeToChannel(writeOperation);
+        selector.queueWrite(writeOperation);
 
         verify(channelContext).queueWriteOperation(writeOperation);
         verify(eventHandler).handleWrite(channelContext);
@@ -378,7 +378,7 @@ public class NioSelectorTests extends ESTestCase {
         when(channelContext.getSelectionKey()).thenReturn(selectionKey);
         when(channelContext.readyForFlush()).thenReturn(false);
         when(selectionKey.interestOps(anyInt())).thenThrow(cancelledKeyException);
-        selector.writeToChannel(writeOperation);
+        selector.queueWrite(writeOperation);
 
         verify(channelContext, times(0)).queueWriteOperation(writeOperation);
         verify(eventHandler, times(0)).handleWrite(channelContext);

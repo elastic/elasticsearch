@@ -22,6 +22,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.MlTasks;
@@ -75,7 +76,7 @@ public class TransportDeleteDataFrameAnalyticsAction
     }
 
     @Override
-    protected void masterOperation(DeleteDataFrameAnalyticsAction.Request request, ClusterState state,
+    protected void masterOperation(Task task, DeleteDataFrameAnalyticsAction.Request request, ClusterState state,
                                    ActionListener<AcknowledgedResponse> listener) {
         String id = request.getId();
         PersistentTasksCustomMetaData tasks = state.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
@@ -92,6 +93,7 @@ public class TransportDeleteDataFrameAnalyticsAction
         DeleteRequest deleteRequest = new DeleteRequest(AnomalyDetectorsIndex.configIndexName());
         deleteRequest.id(DataFrameAnalyticsConfig.documentId(id));
         deleteRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+        deleteRequest.setParentTask(clusterService.localNode().getId(), task.getId());
         executeAsyncWithOrigin(client, ML_ORIGIN, DeleteAction.INSTANCE, deleteRequest, ActionListener.wrap(
             deleteResponse -> {
                 if (deleteResponse.getResult() == DocWriteResponse.Result.NOT_FOUND) {

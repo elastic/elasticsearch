@@ -405,6 +405,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     ZenDiscovery.MASTER_ELECTION_WAIT_FOR_JOINS_TIMEOUT_SETTING,
                     ZenDiscovery.MASTER_ELECTION_IGNORE_NON_MASTER_PINGS_SETTING,
                     ZenDiscovery.MAX_PENDING_CLUSTER_STATES_SETTING,
+                    DiscoveryModule.ELECTION_STRATEGY_SETTING,
                     SettingsBasedSeedHostsProvider.DISCOVERY_SEED_HOSTS_SETTING,
                     SettingsBasedSeedHostsProvider.LEGACY_DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING,
                     SeedHostsResolver.DISCOVERY_SEED_RESOLVER_MAX_CONCURRENT_RESOLVERS_SETTING,

@@ -34,9 +34,11 @@ public class XPackUsageFeatureAction extends Action<XPackUsageFeatureResponse> {
     public static final XPackUsageFeatureAction CCR = new XPackUsageFeatureAction(XPackField.CCR);
     public static final XPackUsageFeatureAction DATA_FRAME = new XPackUsageFeatureAction(XPackField.DATA_FRAME);
     public static final XPackUsageFeatureAction VECTORS = new XPackUsageFeatureAction(XPackField.VECTORS);
+    public static final XPackUsageFeatureAction VOTING_ONLY = new XPackUsageFeatureAction(XPackField.VOTING_ONLY);
 
     public static final List<XPackUsageFeatureAction> ALL = Arrays.asList(
-        SECURITY, MONITORING, WATCHER, GRAPH, MACHINE_LEARNING, LOGSTASH, SQL, ROLLUP, INDEX_LIFECYCLE, CCR, DATA_FRAME, VECTORS
+        SECURITY, MONITORING, WATCHER, GRAPH, MACHINE_LEARNING, LOGSTASH, SQL, ROLLUP, INDEX_LIFECYCLE, CCR, DATA_FRAME, VECTORS,
+        VOTING_ONLY
     );
 
     private XPackUsageFeatureAction(String name) {

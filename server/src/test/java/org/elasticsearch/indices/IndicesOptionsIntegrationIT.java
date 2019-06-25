@@ -47,7 +47,6 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -446,7 +445,6 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
         verify(search("t*"), false);
     }
 
-    @TestLogging("_root:DEBUG")
     public void testOpenCloseApiWildcards() throws Exception {
         createIndex("foo", "foobar", "bar", "barbaz");
         ensureGreen();

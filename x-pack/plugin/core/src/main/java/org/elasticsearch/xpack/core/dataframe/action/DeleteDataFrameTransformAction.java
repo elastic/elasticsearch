@@ -34,11 +34,7 @@ public class DeleteDataFrameTransformAction extends Action<AcknowledgedResponse>
 
     @Override
     public Writeable.Reader<AcknowledgedResponse> getResponseReader() {
-        return in -> {
-            AcknowledgedResponse response = new AcknowledgedResponse();
-            response.readFrom(in);
-            return response;
-        };
+        return AcknowledgedResponse::new;
     }
 
     public static class Request extends MasterNodeRequest<Request> {

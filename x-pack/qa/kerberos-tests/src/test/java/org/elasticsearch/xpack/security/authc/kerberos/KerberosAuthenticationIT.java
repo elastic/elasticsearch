@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.security.authc.kerberos;
 
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpHost;
-import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
@@ -53,7 +52,6 @@ import static org.hamcrest.Matchers.nullValue;
  * Demonstrates login by keytab and login by password for given user principal
  * name using rest client.
  */
-@AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/40678")
 public class KerberosAuthenticationIT extends ESRestTestCase {
     private static final String ENABLE_KERBEROS_DEBUG_LOGS_KEY = "test.krb.debug";
     private static final String TEST_USER_WITH_KEYTAB_KEY = "test.userkt";

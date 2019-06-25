@@ -255,7 +255,7 @@ WARNING: After this step authentication will not work; all API calls will fail.
 NOTE: The `include_global_state` is optional but it will help to make sure the
 configuration in the index is compatible with the rest of the configuration in
 the cluster, as was the case at the time of the snapshot. But be advised that
-this will also restore non-security persistent cluster seetting.
+this will also restore non-security persistent cluster settings.
 --
 
 . Optionally, cherry-pick and <<cluster-update-settings,apply the persistent

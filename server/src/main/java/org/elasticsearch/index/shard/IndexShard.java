@@ -23,6 +23,7 @@ import com.carrotsearch.hppc.ObjectLongMap;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.index.CheckIndex;
+import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.Term;
@@ -79,6 +80,7 @@ import org.elasticsearch.index.cache.IndexCache;
 import org.elasticsearch.index.cache.bitset.ShardBitsetFilterCache;
 import org.elasticsearch.index.cache.request.ShardRequestCache;
 import org.elasticsearch.index.codec.CodecService;
+import org.elasticsearch.index.engine.CombinedDeletionPolicy;
 import org.elasticsearch.index.engine.CommitStats;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.Engine.GetResult;
@@ -1413,6 +1415,31 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     public void openEngineAndSkipTranslogRecovery() throws IOException {
         innerOpenEngineAndTranslog();
         getEngine().skipTranslogRecovery();
+    }
+
+    public void prepareShardForPeerRecovery() throws IOException {
+        if (recoveryState.getRecoverySource() instanceof RecoverySource.PeerRecoverySource == false) {
+            throw new IllegalStateException("only peer recovery needs to recover locally up to the global checkpoint");
+        }
+        final String translogUUID = store.readLastCommittedSegmentsInfo().getUserData().get(Translog.TRANSLOG_UUID_KEY);
+        final long globalCheckpoint = Translog.readGlobalCheckpoint(translogConfig.getTranslogPath(), translogUUID);
+        final List<IndexCommit> commits = DirectoryReader.listCommits(store.directory());
+        final IndexCommit safeCommit = CombinedDeletionPolicy.findSafeCommitPoint(commits, globalCheckpoint);
+        final SequenceNumbers.CommitInfo commitInfo = SequenceNumbers.loadSeqNoInfoFromLuceneCommit(safeCommit.getUserData().entrySet());
+        final boolean shouldRecoverLocally = commitInfo.maxSeqNo <= globalCheckpoint && commitInfo.localCheckpoint < globalCheckpoint;
+        if (shouldRecoverLocally && indexSettings.getIndexMetaData().getState() == IndexMetaData.State.OPEN) {
+            try {
+                innerOpenEngineAndTranslog();
+                final Engine.TranslogRecoveryRunner translogRunner = (engine, snapshot) -> runTranslogRecovery(
+                    engine, snapshot, Engine.Operation.Origin.LOCAL_RESET, () -> { });
+                getEngine().recoverFromTranslog(translogRunner, globalCheckpoint);
+                getEngine().flush(true, true);
+            } finally {
+                synchronized (mutex) {
+                    IOUtils.close(currentEngineReference.getAndSet(null));
+                }
+            }
+        }
     }
 
     private void innerOpenEngineAndTranslog() throws IOException {

@@ -105,7 +105,7 @@ public class TransportBulkActionTookTests extends ESTestCase {
             @Override
             public <Request extends ActionRequest, Response extends ActionResponse>
             void doExecute(Action<Response> action, Request request, ActionListener<Response> listener) {
-                listener.onResponse((Response)new CreateIndexResponse());
+                listener.onResponse((Response)new CreateIndexResponse(false, false, null));
             }
         };
 

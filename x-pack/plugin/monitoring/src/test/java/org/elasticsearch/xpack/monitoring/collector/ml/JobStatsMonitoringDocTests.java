@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.monitoring.collector.ml;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
@@ -86,7 +87,7 @@ public class JobStatsMonitoringDocTests extends BaseMonitoringDocTestCase<JobSta
                                                              "_host_address",
                                                              new TransportAddress(TransportAddress.META_ADDRESS, 9300),
                                                              singletonMap("attr", "value"),
-                                                             singleton(DiscoveryNode.Role.MASTER),
+                                                             singleton(DiscoveryNodeRole.MASTER_ROLE),
                                                              Version.CURRENT);
 
         final ModelSizeStats modelStats = new ModelSizeStats.Builder("_model")
@@ -102,7 +103,7 @@ public class JobStatsMonitoringDocTests extends BaseMonitoringDocTestCase<JobSta
 
         final DataCounts dataCounts = new DataCounts("_job_id", 0L, 1L, 2L, 3L, 4L, 5L, 6L, 7L, 8L, 9L, date3, date4, date5, date6, date7);
         final ForecastStats forecastStats = new ForecastStats();
-        final TimingStats timingStats = new TimingStats("_job_id", 100, 10.0, 30.0, 20.0);
+        final TimingStats timingStats = new TimingStats("_job_id", 100, 10.0, 30.0, 20.0, 25.0);
         final JobStats jobStats = new JobStats(
             "_job", dataCounts, modelStats, forecastStats, JobState.OPENED, discoveryNode, "_explanation", time, timingStats);
         final MonitoringDoc.Node node = new MonitoringDoc.Node("_uuid", "_host", "_addr", "_ip", "_name", 1504169190855L);
@@ -176,7 +177,8 @@ public class JobStatsMonitoringDocTests extends BaseMonitoringDocTestCase<JobSta
                         + "\"bucket_count\":100,"
                         + "\"minimum_bucket_processing_time_ms\":10.0,"
                         + "\"maximum_bucket_processing_time_ms\":30.0,"
-                        + "\"average_bucket_processing_time_ms\":20.0"
+                        + "\"average_bucket_processing_time_ms\":20.0,"
+                        + "\"exponential_average_bucket_processing_time_ms\":25.0"
                        + "}"
                      + "}"
                     + "}", xContent.utf8ToString());

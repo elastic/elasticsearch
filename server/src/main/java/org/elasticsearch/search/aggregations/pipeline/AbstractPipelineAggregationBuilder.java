@@ -171,31 +171,19 @@ public abstract class AbstractPipelineAggregationBuilder<PAB extends AbstractPip
 
     @Override
     public int hashCode() {
-        return Objects.hash(Arrays.hashCode(bucketsPaths), metaData, name, type, doHashCode());
+        return Objects.hash(Arrays.hashCode(bucketsPaths), metaData, name, type);
     }
-
-    protected abstract int doHashCode();
 
     @Override
     public boolean equals(Object obj) {
-        if (obj == null)
-            return false;
-        if (getClass() != obj.getClass())
-            return false;
-        @SuppressWarnings("unchecked")
+        if (this == obj) return true;
+        if (obj == null || getClass() != obj.getClass()) return false;
         AbstractPipelineAggregationBuilder<PAB> other = (AbstractPipelineAggregationBuilder<PAB>) obj;
-        if (!Objects.equals(name, other.name))
-            return false;
-        if (!Objects.equals(type, other.type))
-            return false;
-        if (!Objects.deepEquals(bucketsPaths, other.bucketsPaths))
-            return false;
-        if (!Objects.equals(metaData, other.metaData))
-            return false;
-        return doEquals(obj);
+        return Objects.equals(type, other.type)
+            && Objects.equals(name, other.name)
+            && Objects.equals(metaData, other.metaData)
+            && Objects.deepEquals(bucketsPaths, other.bucketsPaths);
     }
-
-    protected abstract boolean doEquals(Object obj);
 
     @Override
     public String getType() {

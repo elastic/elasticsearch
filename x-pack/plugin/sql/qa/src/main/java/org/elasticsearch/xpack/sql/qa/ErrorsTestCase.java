@@ -21,4 +21,5 @@ public interface ErrorsTestCase {
     void testSelectGroupByScore() throws Exception;
     void testSelectScoreSubField() throws Exception;
     void testSelectScoreInScalar() throws Exception;
+    void testHardLimitForSortOnAggregate() throws Exception;
 }

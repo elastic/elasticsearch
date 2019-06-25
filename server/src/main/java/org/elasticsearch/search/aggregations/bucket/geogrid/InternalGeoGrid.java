@@ -133,15 +133,19 @@ public abstract class InternalGeoGrid<B extends InternalGeoGridBucket>
     }
 
     @Override
-    protected int doHashCode() {
-        return Objects.hash(requiredSize, buckets);
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), requiredSize, buckets);
     }
 
     @Override
-    protected boolean doEquals(Object obj) {
+    public boolean equals(Object obj) {
+        if (this == obj) return true;
+        if (obj == null || getClass() != obj.getClass()) return false;
+        if (super.equals(obj) == false) return false;
+
         InternalGeoGrid other = (InternalGeoGrid) obj;
-        return Objects.equals(requiredSize, other.requiredSize) &&
-            Objects.equals(buckets, other.buckets);
+        return Objects.equals(requiredSize, other.requiredSize)
+            && Objects.equals(buckets, other.buckets);
     }
 
 }

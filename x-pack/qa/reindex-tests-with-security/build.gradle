@@ -1,5 +1,4 @@
-import org.elasticsearch.gradle.http.WaitForHttpResource
-
+apply plugin: 'elasticsearch.testclusters'
 apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
 
@@ -22,10 +21,11 @@ forbiddenPatterns {
 
 File caFile = project.file('src/test/resources/ssl/ca.p12')
 
-integTestCluster {
+testClusters.integTest {
+  distribution = "DEFAULT"
   // Whitelist reindexing from the local node so we can test it.
-  extraConfigFile 'http.key', project.projectDir.toPath().resolve('src/test/resources/ssl/http.key')
-  extraConfigFile 'http.crt', project.projectDir.toPath().resolve('src/test/resources/ssl/http.crt')
+  extraConfigFile 'http.key', file('src/test/resources/ssl/http.key')
+  extraConfigFile 'http.crt', file('src/test/resources/ssl/http.crt')
   extraConfigFile 'ca.p12', caFile
   setting 'reindex.remote.whitelist', '127.0.0.1:*'
   setting 'xpack.ilm.enabled', 'false'
@@ -46,26 +46,13 @@ integTestCluster {
     }
   }
 
-  extraConfigFile 'roles.yml', 'roles.yml'
-  [
-    test_admin: 'superuser',
-    powerful_user: 'superuser',
-    minimal_user: 'minimal',
-    minimal_with_task_user: 'minimal_with_task',
-    readonly_user: 'readonly',
-    dest_only_user: 'dest_only',
-    can_not_see_hidden_docs_user: 'can_not_see_hidden_docs',
-    can_not_see_hidden_fields_user: 'can_not_see_hidden_fields',
-  ].each { String user, String role ->
-    setupCommand 'setupUser#' + user,
-                 'bin/elasticsearch-users', 'useradd', user, '-p', 'x-pack-test-password', '-r', role
-  }
-  waitCondition = { node, ant ->
-    WaitForHttpResource http = new WaitForHttpResource("https", node.httpUri(), numNodes)
-    http.setTrustStoreFile(caFile)
-    http.setTrustStorePassword("password")
-    http.setUsername("test_admin")
-    http.setPassword("x-pack-test-password")
-    return http.wait(5000)
-  }
+  extraConfigFile 'roles.yml', file('roles.yml')
+  user username: "test_admin", password: 'x-pack-test-password', role: "superuser"
+  user username: "powerful_user", password: 'x-pack-test-password', role: "superuser"
+  user username: "minimal_user", password: 'x-pack-test-password', role: "minimal"
+  user username: "minimal_with_task_user", password: 'x-pack-test-password', role: "minimal_with_task"
+  user username: "readonly_user", password: 'x-pack-test-password', role: "readonly"
+  user username: "dest_only_user", password: 'x-pack-test-password', role: "dest_only"
+  user username: "can_not_see_hidden_docs_user", password: 'x-pack-test-password', role: "can_not_see_hidden_docs"
+  user username: "can_not_see_hidden_fields_user", password: 'x-pack-test-password', role: "can_not_see_hidden_fields"
 }

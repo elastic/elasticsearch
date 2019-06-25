@@ -105,7 +105,14 @@ The API returns the following results:
         "log_time": 1491948163000,
         "timestamp": 1455234600000
       },
-      "state": "closed"
+      "state": "closed",
+      "timing_stats": {
+        "job_id": "farequote",
+        "minimum_bucket_processing_time_ms": 0.0,
+        "maximum_bucket_processing_time_ms": 15.0,
+        "average_bucket_processing_time_ms": 8.75,
+        "exponential_average_bucket_processing_time_ms": 6.1435899
+      }
     }
   ]
 }

@@ -97,12 +97,15 @@ public class ExtendedStatsBucketPipelineAggregationBuilder
     }
 
     @Override
-    protected int innerHashCode() {
-        return Objects.hash(sigma);
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), sigma);
     }
 
     @Override
-    protected boolean innerEquals(BucketMetricsPipelineAggregationBuilder<ExtendedStatsBucketPipelineAggregationBuilder> obj) {
+    public boolean equals(Object obj) {
+        if (this == obj) return true;
+        if (obj == null || getClass() != obj.getClass()) return false;
+        if (super.equals(obj) == false) return false;
         ExtendedStatsBucketPipelineAggregationBuilder other = (ExtendedStatsBucketPipelineAggregationBuilder) obj;
         return Objects.equals(sigma, other.sigma);
     }

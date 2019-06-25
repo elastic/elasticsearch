@@ -224,7 +224,7 @@ follows a tilde `"~"` is negated.  For instance, `"ab~cd" means:
 
 * Starts with `a`
 * Followed by `b`
-* Followed by a string of any length that it anything but `c`
+* Followed by a string of any length that is anything but `c`
 * Ends with `d`
 
 For the string `"abcdef"`:

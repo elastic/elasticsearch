@@ -23,9 +23,11 @@ import com.carrotsearch.hppc.cursors.IntObjectCursor;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteRequestBuilder;
 import org.elasticsearch.action.admin.indices.shards.IndicesShardStoresResponse;
+import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.ActiveShardCount;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -51,7 +53,6 @@ import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.disruption.NetworkDisruption;
 import org.elasticsearch.test.disruption.NetworkDisruption.NetworkDisconnect;
 import org.elasticsearch.test.disruption.NetworkDisruption.TwoPartitions;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 
 import java.util.ArrayList;
@@ -65,6 +66,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
@@ -231,7 +233,9 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
         Set<String> historyUUIDs = Arrays.stream(client().admin().indices().prepareStats("test").clear().get().getShards())
             .map(shard -> shard.getCommitStats().getUserData().get(Engine.HISTORY_UUID_KEY)).collect(Collectors.toSet());
         createStaleReplicaScenario(master);
-
+        if (randomBoolean()) {
+            assertAcked(client().admin().indices().prepareClose("test").setWaitForActiveShards(0));
+        }
         boolean useStaleReplica = randomBoolean(); // if true, use stale replica, otherwise a completely empty copy
         logger.info("--> explicitly promote old primary shard");
         final String idxName = "test";
@@ -281,15 +285,18 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
             assertBusy(() -> assertTrue(client().admin().cluster().prepareState().get()
                                             .getState().routingTable().index(idxName).allPrimaryShardsActive()));
         }
-        assertHitCount(client().prepareSearch(idxName).setSize(0).setQuery(matchAllQuery()).get(), useStaleReplica ? 1L : 0L);
-
+        ShardStats[] shardStats = client().admin().indices().prepareStats("test")
+            .setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED).get().getShards();
+        for (ShardStats shardStat : shardStats) {
+            assertThat(shardStat.getCommitStats().getNumDocs(), equalTo(useStaleReplica ? 1 : 0));
+        }
         // allocation id of old primary was cleaned from the in-sync set
         final ClusterState state = client().admin().cluster().prepareState().get().getState();
 
         assertEquals(Collections.singleton(state.routingTable().index(idxName).shard(0).primary.allocationId().getId()),
             state.metaData().index(idxName).inSyncAllocationIds(0));
 
-        Set<String> newHistoryUUIds = Arrays.stream(client().admin().indices().prepareStats("test").clear().get().getShards())
+        Set<String> newHistoryUUIds = Stream.of(shardStats)
             .map(shard -> shard.getCommitStats().getUserData().get(Engine.HISTORY_UUID_KEY)).collect(Collectors.toSet());
         assertThat(newHistoryUUIds, everyItem(not(isIn(historyUUIDs))));
         assertThat(newHistoryUUIds, hasSize(1));
@@ -483,8 +490,6 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
     /**
      * This test asserts that replicas failed to execute resync operations will be failed but not marked as stale.
      */
-    @TestLogging("_root:DEBUG, org.elasticsearch.cluster.routing.allocation:TRACE, org.elasticsearch.cluster.action.shard:TRACE," +
-        "org.elasticsearch.indices.recovery:TRACE, org.elasticsearch.cluster.routing.allocation.allocator:TRACE")
     public void testPrimaryReplicaResyncFailed() throws Exception {
         String master = internalCluster().startMasterOnlyNode(Settings.EMPTY);
         final int numberOfReplicas = between(2, 3);

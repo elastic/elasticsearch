@@ -52,12 +52,14 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.stream.Collectors;
 
 public class MockRepository extends FsRepository {
     private static final Logger logger = LogManager.getLogger(MockRepository.class);
@@ -333,9 +335,29 @@ public class MockRepository extends FsRepository {
             }
 
             @Override
+            public void delete() throws IOException {
+                for (BlobContainer child : children().values()) {
+                    child.delete();
+                }
+                for (String blob : listBlobs().values().stream().map(BlobMetaData::name).collect(Collectors.toList())) {
+                    deleteBlobIgnoringIfNotExists(blob);
+                }
+                blobStore().blobContainer(path().parent()).deleteBlob(path().toArray()[path().toArray().length - 1]);
+            }
+
+            @Override
             public Map<String, BlobMetaData> listBlobs() throws IOException {
                 maybeIOExceptionOrBlock("");
                 return super.listBlobs();
+            }
+
+            @Override
+            public Map<String, BlobContainer> children() throws IOException {
+                final Map<String, BlobContainer> res = new HashMap<>();
+                for (Map.Entry<String, BlobContainer> entry : super.children().entrySet()) {
+                    res.put(entry.getKey(), new MockBlobContainer(entry.getValue()));
+                }
+                return res;
             }
 
             @Override

@@ -21,7 +21,6 @@ package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.search.sort.SortOrder;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -34,14 +33,13 @@ import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.hasSize;
 
-@TestLogging("org.elasticsearch.index.reindex:TRACE,org.elasticsearch.action.bulk:TRACE,org.elasticsearch.search.SearchService:TRACE")
 public class UpdateByQueryBasicTests extends ReindexTestCase {
     public void testBasics() throws Exception {
         indexRandom(true, client().prepareIndex("test", "test", "1").setSource("foo", "a"),
                 client().prepareIndex("test", "test", "2").setSource("foo", "a"),
                 client().prepareIndex("test", "test", "3").setSource("foo", "b"),
                 client().prepareIndex("test", "test", "4").setSource("foo", "c"));
-        assertHitCount(client().prepareSearch("test").setTypes("test").setSize(0).get(), 4);
+        assertHitCount(client().prepareSearch("test").setSize(0).get(), 4);
         assertEquals(1, client().prepareGet("test", "test", "1").get().getVersion());
         assertEquals(1, client().prepareGet("test", "test", "4").get().getVersion());
 
@@ -79,7 +77,7 @@ public class UpdateByQueryBasicTests extends ReindexTestCase {
             client().prepareIndex("test", "test", "2").setSource("foo", "a"),
             client().prepareIndex("test", "test", "3").setSource("foo", "b"),
             client().prepareIndex("test", "test", "4").setSource("foo", "c"));
-        assertHitCount(client().prepareSearch("test").setTypes("test").setSize(0).get(), 4);
+        assertHitCount(client().prepareSearch("test").setSize(0).get(), 4);
         assertEquals(1, client().prepareGet("test", "test", "1").get().getVersion());
         assertEquals(1, client().prepareGet("test", "test", "4").get().getVersion());
 
@@ -159,5 +157,14 @@ public class UpdateByQueryBasicTests extends ReindexTestCase {
             int randomDoc = between(0, indexDocs.size() - 1);
             assertEquals(2, client().prepareGet(index, "test", Integer.toString(randomDoc)).get().getVersion());
         }
+    }
+
+    public void testMissingSources() {
+        BulkByScrollResponse response = updateByQuery()
+            .source("missing-index-*")
+            .refresh(true)
+            .setSlices(AbstractBulkByScrollRequest.AUTO_SLICES)
+            .get();
+        assertThat(response, matcher().updated(0).slices(hasSize(0)));
     }
 }

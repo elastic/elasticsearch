@@ -6,7 +6,6 @@
 package org.elasticsearch.smoketest;
 
 import org.apache.http.util.EntityUtils;
-import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.Strings;
@@ -32,7 +31,6 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.is;
 
-@AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/35361")
 public class SmokeTestWatcherWithSecurityIT extends ESRestTestCase {
 
     private static final String TEST_ADMIN_USERNAME = "test_admin";
@@ -91,7 +89,6 @@ public class SmokeTestWatcherWithSecurityIT extends ESRestTestCase {
 
     @After
     public void stopWatcher() throws Exception {
-        adminClient().performRequest(new Request("DELETE", "/my_test_index"));
 
         assertBusy(() -> {
             try {
@@ -119,6 +116,8 @@ public class SmokeTestWatcherWithSecurityIT extends ESRestTestCase {
                 throw new AssertionError(e);
             }
         });
+
+        adminClient().performRequest(new Request("DELETE", "/my_test_index"));
     }
 
     @Override
@@ -165,7 +164,7 @@ public class SmokeTestWatcherWithSecurityIT extends ESRestTestCase {
         String indexName = "index_not_allowed_to_read";
         try (XContentBuilder builder = jsonBuilder()) {
             builder.startObject();
-            builder.startObject("trigger").startObject("schedule").field("interval", "1s").endObject().endObject();
+            builder.startObject("trigger").startObject("schedule").field("interval", "4s").endObject().endObject();
             builder.startObject("input").startObject("search").startObject("request")
                     .startArray("indices").value(indexName).endArray()
                     .startObject("body").startObject("query").startObject("match_all").endObject().endObject().endObject()
@@ -181,8 +180,10 @@ public class SmokeTestWatcherWithSecurityIT extends ESRestTestCase {
 
         // check history, after watch has fired
         ObjectPath objectPath = getWatchHistoryEntry(watchId);
-        String state = objectPath.evaluate("hits.hits.0._source.state");
-        assertThat(state, is("execution_not_needed"));
+        assertBusy(() -> {
+            String state = objectPath.evaluate("hits.hits.0._source.state");
+            assertThat(state, is("execution_not_needed"));
+        });
         boolean conditionMet = objectPath.evaluate("hits.hits.0._source.result.condition.met");
         assertThat(conditionMet, is(false));
     }

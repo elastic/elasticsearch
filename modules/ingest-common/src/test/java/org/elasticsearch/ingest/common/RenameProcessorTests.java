@@ -132,7 +132,11 @@ public class RenameProcessorTests extends ESTestCase {
         String newFieldName = randomValueOtherThanMany(ingestDocument::hasField, () -> RandomDocumentPicks.randomFieldName(random()));
         Processor processor = createRenameProcessor(fieldName, newFieldName, false);
         processor.execute(ingestDocument);
-        assertThat(ingestDocument.hasField(fieldName), equalTo(false));
+        if (newFieldName.startsWith(fieldName + '.')) {
+            assertThat(ingestDocument.getFieldValue(fieldName, Object.class), instanceOf(Map.class));
+        } else {
+            assertThat(ingestDocument.hasField(fieldName), equalTo(false));
+        }
         assertThat(ingestDocument.hasField(newFieldName), equalTo(true));
         assertThat(ingestDocument.getFieldValue(newFieldName, Object.class), nullValue());
     }

@@ -29,7 +29,7 @@ import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-@ClusterScope(scope = TEST, numDataNodes = 1, transportClientRatio = 0.0)
+@ClusterScope(scope = TEST, numDataNodes = 1)
 public class AuditTrailSettingsUpdateTests extends SecurityIntegTestCase {
 
     private static Settings startupFilterSettings;

@@ -15,14 +15,12 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
-import org.elasticsearch.xpack.core.XPackClientPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
 
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.concurrent.CountDownLatch;
 
-@ESIntegTestCase.ClusterScope(transportClientRatio = 0.0)
 public abstract class AbstractLicensesIntegrationTestCase extends ESIntegTestCase {
 
     @Override
@@ -33,17 +31,6 @@ public abstract class AbstractLicensesIntegrationTestCase extends ESIntegTestCas
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Arrays.asList(LocalStateCompositeXPackPlugin.class, CommonAnalysisPlugin.class);
-    }
-
-    @Override
-    protected Collection<Class<? extends Plugin>> transportClientPlugins() {
-        return Arrays.asList(XPackClientPlugin.class, CommonAnalysisPlugin.class);
-    }
-
-    @Override
-    protected Settings transportClientSettings() {
-        // Plugin should be loaded on the transport client as well
-        return nodeSettings(0);
     }
 
     protected void putLicense(final License license) throws InterruptedException {

@@ -51,7 +51,7 @@ public class RoundTripTests extends ESTestCase {
         reindex.getDestination().index("test");
         if (randomBoolean()) {
             int port = between(1, Integer.MAX_VALUE);
-            BytesReference query = new BytesArray(randomAlphaOfLength(5));
+            BytesReference query = new BytesArray("{\"match_all\":{}}");
             String username = randomBoolean() ? randomAlphaOfLength(5) : null;
             String password = username != null && randomBoolean() ? randomAlphaOfLength(5) : null;
             int headersCount = randomBoolean() ? 0 : between(1, 10);
@@ -107,7 +107,11 @@ public class RoundTripTests extends ESTestCase {
         request.getSearchRequest().indices("test");
         request.getSearchRequest().source().size(between(1, 1000));
         if (randomBoolean()) {
-            request.setSize(between(1, Integer.MAX_VALUE));
+            if (randomBoolean()) {
+                request.setMaxDocs(between(1, Integer.MAX_VALUE));
+            } else {
+                request.setSize(between(1, Integer.MAX_VALUE));
+            }
         }
         request.setAbortOnVersionConflict(random().nextBoolean());
         request.setRefresh(rarely());

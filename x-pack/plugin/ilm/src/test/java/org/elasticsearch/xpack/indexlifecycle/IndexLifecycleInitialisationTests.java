@@ -77,7 +77,7 @@ import static org.hamcrest.core.CombinableMatcher.both;
 import static org.hamcrest.core.Is.is;
 import static org.hamcrest.core.IsNull.nullValue;
 
-@ESIntegTestCase.ClusterScope(scope = Scope.TEST, numDataNodes = 0, transportClientRatio = 0.0)
+@ESIntegTestCase.ClusterScope(scope = Scope.TEST, numDataNodes = 0)
 public class IndexLifecycleInitialisationTests extends ESIntegTestCase {
     private Settings settings;
     private LifecyclePolicy lifecyclePolicy;
@@ -168,7 +168,7 @@ public class IndexLifecycleInitialisationTests extends ESIntegTestCase {
         RoutingNode routingNodeEntry1 = clusterState.getRoutingNodes().node(node1);
         assertThat(routingNodeEntry1.numberOfShardsWithState(STARTED), equalTo(1));
         assertBusy(() -> {
-            assertEquals(true, client().admin().indices().prepareExists("test").get().isExists());
+            assertTrue(indexExists("test"));
         });
         IndexLifecycleService indexLifecycleService = internalCluster().getInstance(IndexLifecycleService.class, server_1);
         assertThat(indexLifecycleService.getScheduler().jobCount(), equalTo(1));
@@ -267,9 +267,7 @@ public class IndexLifecycleInitialisationTests extends ESIntegTestCase {
         RoutingNode routingNodeEntry1 = clusterState.getRoutingNodes().node(node2);
         assertThat(routingNodeEntry1.numberOfShardsWithState(STARTED), equalTo(1));
 
-        assertBusy(() -> {
-            assertEquals(true, client().admin().indices().prepareExists("test").get().isExists());
-        });
+        assertBusy(() -> assertTrue(indexExists("test")));
         assertBusy(() -> {
             LifecycleExecutionState lifecycleState = LifecycleExecutionState.fromIndexMetadata(client().admin().cluster()
                 .prepareState().execute().actionGet().getState().getMetaData().index("test"));

@@ -58,6 +58,8 @@ import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
+import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.core.watcher.WatcherField;
 import org.elasticsearch.xpack.core.watcher.actions.ActionFactory;
@@ -430,7 +432,6 @@ public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin, Reloa
         List<Module> modules = new ArrayList<>();
         modules.add(b -> b.bind(Clock.class).toInstance(getClock())); //currently assuming the only place clock is bound
         modules.add(b -> {
-            XPackPlugin.bindFeatureSet(b, WatcherFeatureSet.class);
             if (enabled == false) {
                 b.bind(WatcherService.class).toProvider(Providers.of(null));
             }
@@ -532,8 +533,10 @@ public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin, Reloa
 
     @Override
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
+        var usageAction = new ActionHandler<>(XPackUsageFeatureAction.WATCHER, WatcherUsageTransportAction.class);
+        var infoAction = new ActionHandler<>(XPackInfoFeatureAction.WATCHER, WatcherInfoTransportAction.class);
         if (false == enabled) {
-            return emptyList();
+            return Arrays.asList(usageAction, infoAction);
         }
         return Arrays.asList(new ActionHandler<>(PutWatchAction.INSTANCE, TransportPutWatchAction.class),
                 new ActionHandler<>(DeleteWatchAction.INSTANCE, TransportDeleteWatchAction.class),
@@ -542,7 +545,9 @@ public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin, Reloa
                 new ActionHandler<>(AckWatchAction.INSTANCE, TransportAckWatchAction.class),
                 new ActionHandler<>(ActivateWatchAction.INSTANCE, TransportActivateWatchAction.class),
                 new ActionHandler<>(WatcherServiceAction.INSTANCE, TransportWatcherServiceAction.class),
-                new ActionHandler<>(ExecuteWatchAction.INSTANCE, TransportExecuteWatchAction.class));
+                new ActionHandler<>(ExecuteWatchAction.INSTANCE, TransportExecuteWatchAction.class),
+                usageAction,
+                infoAction);
     }
 
     @Override

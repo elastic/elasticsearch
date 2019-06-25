@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ClientHelper;
@@ -27,6 +28,7 @@ import org.elasticsearch.xpack.core.indexlifecycle.action.PutLifecycleAction;
 import org.elasticsearch.xpack.core.indexlifecycle.action.PutLifecycleAction.Request;
 import org.elasticsearch.xpack.core.indexlifecycle.action.PutLifecycleAction.Response;
 
+import java.io.IOException;
 import java.time.Instant;
 import java.util.Map;
 import java.util.SortedMap;
@@ -53,7 +55,12 @@ public class TransportPutLifecycleAction extends TransportMasterNodeAction<Reque
 
     @Override
     protected Response newResponse() {
-        return new Response();
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
+    }
+
+    @Override
+    protected Response read(StreamInput in) throws IOException {
+        return new Response(in);
     }
 
     @Override

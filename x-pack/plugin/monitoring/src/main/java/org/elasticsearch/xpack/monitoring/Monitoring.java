@@ -33,6 +33,8 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
+import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 import org.elasticsearch.xpack.core.monitoring.MonitoringField;
 import org.elasticsearch.xpack.core.monitoring.action.MonitoringBulkAction;
 import org.elasticsearch.xpack.core.ssl.SSLService;
@@ -67,11 +69,6 @@ import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.common.settings.Setting.boolSetting;
 
-/**
- * This class activates/deactivates the monitoring modules depending if we're running a node client, transport client:
- * - node clients: all modules are bound
- * - transport clients: only action/transport actions are bound
- */
 public class Monitoring extends Plugin implements ActionPlugin {
 
     /**
@@ -102,7 +99,6 @@ public class Monitoring extends Plugin implements ActionPlugin {
     public Collection<Module> createGuiceModules() {
         List<Module> modules = new ArrayList<>();
         modules.add(b -> {
-            XPackPlugin.bindFeatureSet(b, MonitoringFeatureSet.class);
             if (enabled == false) {
                 b.bind(MonitoringService.class).toProvider(Providers.of(null));
                 b.bind(Exporters.class).toProvider(Providers.of(null));
@@ -146,10 +142,15 @@ public class Monitoring extends Plugin implements ActionPlugin {
 
     @Override
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
+        var usageAction = new ActionHandler<>(XPackUsageFeatureAction.MONITORING, MonitoringUsageTransportAction.class);
+        var infoAction = new ActionHandler<>(XPackInfoFeatureAction.MONITORING, MonitoringInfoTransportAction.class);
         if (false == enabled) {
-            return emptyList();
+            return Arrays.asList(usageAction, infoAction);
         }
-        return singletonList(new ActionHandler<>(MonitoringBulkAction.INSTANCE, TransportMonitoringBulkAction.class));
+        return Arrays.asList(
+            new ActionHandler<>(MonitoringBulkAction.INSTANCE, TransportMonitoringBulkAction.class),
+            usageAction,
+            infoAction);
     }
 
     @Override

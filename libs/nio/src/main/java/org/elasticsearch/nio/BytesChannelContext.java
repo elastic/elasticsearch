@@ -21,19 +21,12 @@ package org.elasticsearch.nio;
 
 import java.io.IOException;
 import java.util.function.Consumer;
-import java.util.function.Predicate;
 
 public class BytesChannelContext extends SocketChannelContext {
 
     public BytesChannelContext(NioSocketChannel channel, NioSelector selector, Consumer<Exception> exceptionHandler,
-                               ReadWriteHandler handler, InboundChannelBuffer channelBuffer) {
-        this(channel, selector, exceptionHandler, handler, channelBuffer, ALWAYS_ALLOW_CHANNEL);
-    }
-
-    public BytesChannelContext(NioSocketChannel channel, NioSelector selector, Consumer<Exception> exceptionHandler,
-                               ReadWriteHandler handler, InboundChannelBuffer channelBuffer,
-                               Predicate<NioSocketChannel> allowChannelPredicate) {
-        super(channel, selector, exceptionHandler, handler, channelBuffer, allowChannelPredicate);
+                               NioChannelHandler handler, InboundChannelBuffer channelBuffer) {
+        super(channel, selector, exceptionHandler, handler, channelBuffer);
     }
 
     @Override

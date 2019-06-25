@@ -24,31 +24,31 @@
 
 #### Primitive types
 
-class void no_import {
+class void @no_import {
 }
 
-class boolean no_import {
+class boolean @no_import {
 }
 
-class byte no_import {
+class byte @no_import {
 }
 
-class short no_import {
+class short @no_import {
 }
 
-class char no_import {
+class char @no_import {
 }
 
-class int no_import {
+class int @no_import {
 }
 
-class long no_import {
+class long @no_import {
 }
 
-class float no_import {
+class float @no_import {
 }
 
-class double no_import {
+class double @no_import {
 }
 
 #### Painless debugging API

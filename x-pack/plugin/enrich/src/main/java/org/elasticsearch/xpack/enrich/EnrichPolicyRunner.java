@@ -17,6 +17,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
@@ -226,10 +228,7 @@ public class EnrichPolicyRunner implements Runnable {
     private void prepareAndCreateEnrichIndex() {
         long nowTimestamp = nowSupplier.getAsLong();
         String enrichIndexName = EnrichPolicy.getBaseName(policyName) + "-" + nowTimestamp;
-        Settings enrichIndexSettings = Settings.builder()
-            .put("index.auto_expand_replicas", "0-all")
-            .build();
-        CreateIndexRequest createEnrichIndexRequest = new CreateIndexRequest(enrichIndexName, enrichIndexSettings);
+        CreateIndexRequest createEnrichIndexRequest = new CreateIndexRequest(enrichIndexName);
         createEnrichIndexRequest.mapping(MapperService.SINGLE_MAPPING_NAME, resolveEnrichMapping(policy));
         logger.debug("Policy [{}]: Creating new enrich index [{}]", policyName, enrichIndexName);
         client.admin().indices().create(createEnrichIndexRequest, new ActionListener<>() {
@@ -318,10 +317,27 @@ public class EnrichPolicyRunner implements Runnable {
         logger.debug("Policy [{}]: Setting new enrich index [{}] to be read only", policyName, destinationIndexName);
         UpdateSettingsRequest request = new UpdateSettingsRequest(destinationIndexName)
             .setPreserveExisting(true)
-            .settings(Settings.builder().put("index.blocks.write", "true"));
+            .settings(Settings.builder()
+                .put("index.auto_expand_replicas", "0-all")
+                .put("index.blocks.write", "true"));
         client.admin().indices().updateSettings(request, new ActionListener<>() {
             @Override
             public void onResponse(AcknowledgedResponse acknowledgedResponse) {
+                waitForIndexGreen(destinationIndexName);
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                listener.onFailure(e);
+            }
+        });
+    }
+
+    private void waitForIndexGreen(final String destinationIndexName) {
+        ClusterHealthRequest request = new ClusterHealthRequest(destinationIndexName).waitForGreenStatus();
+        client.admin().cluster().health(request, new ActionListener<>() {
+            @Override
+            public void onResponse(ClusterHealthResponse clusterHealthResponse) {
                 updateEnrichPolicyAlias(destinationIndexName);
             }
 

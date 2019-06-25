@@ -296,6 +296,10 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
     public static final Setting<Integer> MAX_OPEN_JOBS_PER_NODE =
             Setting.intSetting("xpack.ml.max_open_jobs", 20, 1, MAX_MAX_OPEN_JOBS_PER_NODE, Property.Dynamic, Property.NodeScope);
 
+    public static final Setting<TimeValue> PROCESS_CONNECT_TIMEOUT =
+        Setting.timeSetting("xpack.ml.process_connect_timeout", TimeValue.timeValueSeconds(10),
+            TimeValue.timeValueSeconds(5), Setting.Property.Dynamic, Setting.Property.NodeScope);
+
     // Undocumented setting for integration test purposes
     public static final Setting<ByteSizeValue> MIN_DISK_SPACE_OFF_HEAP =
         Setting.byteSizeSetting("xpack.ml.min_disk_space_off_heap", new ByteSizeValue(5, ByteSizeUnit.GB), Setting.Property.NodeScope);
@@ -332,6 +336,7 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
     public List<Setting<?>> getSettings() {
         return Collections.unmodifiableList(
                 Arrays.asList(MachineLearningField.AUTODETECT_PROCESS,
+                        PROCESS_CONNECT_TIMEOUT,
                         ML_ENABLED,
                         CONCURRENT_JOB_ALLOCATIONS,
                         MachineLearningField.MAX_MODEL_MEMORY_LIMIT,
@@ -448,7 +453,7 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
                     nativeController,
                     client,
                     clusterService);
-                normalizerProcessFactory = new NativeNormalizerProcessFactory(environment, nativeController);
+                normalizerProcessFactory = new NativeNormalizerProcessFactory(environment, nativeController, clusterService);
             } catch (IOException e) {
                 // The low level cause of failure from the named pipe helper's perspective is almost never the real root cause, so
                 // only log this at the lowest level of detail.  It's almost always "file not found" on a named pipe we expect to be

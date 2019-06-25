@@ -32,6 +32,11 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.net.InetAddress;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.BrokenBarrierException;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -116,6 +121,77 @@ public class ConnectionManagerTests extends ESTestCase {
         assertEquals(0, connectionManager.size());
         assertEquals(1, nodeConnectedCount.get());
         assertEquals(1, nodeDisconnectedCount.get());
+    }
+
+    public void testConcurrentConnectsAndDisconnects() throws BrokenBarrierException, InterruptedException {
+        DiscoveryNode node = new DiscoveryNode("", new TransportAddress(InetAddress.getLoopbackAddress(), 0), Version.CURRENT);
+        Transport.Connection connection = new TestConnect(node);
+        doAnswer(invocationOnMock -> {
+            ActionListener<Transport.Connection> listener = (ActionListener<Transport.Connection>) invocationOnMock.getArguments()[2];
+            if (rarely()) {
+                listener.onResponse(connection);
+            } if (frequently()) {
+                threadPool.generic().execute(() -> listener.onResponse(connection));
+            } else {
+                threadPool.generic().execute(() -> listener.onFailure(new IllegalStateException("dummy exception")));
+            }
+            return null;
+        }).when(transport).openConnection(eq(node), eq(connectionProfile), any(ActionListener.class));
+
+        assertFalse(connectionManager.nodeConnected(node));
+
+        ConnectionManager.ConnectionValidator validator = (c, p, l) -> {
+            if (rarely()) {
+                l.onResponse(null);
+            } if (frequently()) {
+                threadPool.generic().execute(() -> l.onResponse(null));
+            } else {
+                threadPool.generic().execute(() -> l.onFailure(new IllegalStateException("dummy exception")));
+            }
+        };
+
+        CyclicBarrier barrier = new CyclicBarrier(11);
+        List<Thread> threads = new ArrayList<>();
+        AtomicInteger nodeConnectedCount = new AtomicInteger();
+        AtomicInteger nodeFailureCount = new AtomicInteger();
+        for (int i = 0; i < 10; i++) {
+            Thread thread = new Thread(() -> {
+                try {
+                    barrier.await();
+                } catch (InterruptedException | BrokenBarrierException e) {
+                    throw new RuntimeException(e);
+                }
+                CountDownLatch latch = new CountDownLatch(1);
+                connectionManager.connectToNode(node, connectionProfile, validator,
+                    ActionListener.wrap(c -> {
+                        nodeConnectedCount.incrementAndGet();
+                        assert latch.getCount() == 1;
+                        latch.countDown();
+                    }, e -> {
+                        nodeFailureCount.incrementAndGet();
+                        assert latch.getCount() == 1;
+                        latch.countDown();
+                    }));
+                try {
+                    latch.await();
+                } catch (InterruptedException e) {
+                    throw new IllegalStateException(e);
+                }
+            });
+            threads.add(thread);
+            thread.start();
+        }
+
+        barrier.await();
+        threads.forEach(t -> {
+            try {
+                t.join();
+            } catch (InterruptedException e) {
+                throw new IllegalStateException(e);
+            }
+        });
+
+        assertEquals(10, nodeConnectedCount.get() + nodeFailureCount.get());
     }
 
     public void testConnectFailsDuringValidation() {

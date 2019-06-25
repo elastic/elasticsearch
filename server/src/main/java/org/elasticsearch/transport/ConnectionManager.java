@@ -135,7 +135,7 @@ public class ConnectionManager implements Closeable {
         internalOpenConnection(node, resolvedProfile, ActionListener.wrap(conn -> {
             connectionValidator.validate(conn, resolvedProfile, ActionListener.wrap(
                 ignored -> {
-                    assert Transports.assertNotTransportThread("Closing ConnectionManager");
+                    assert Transports.assertNotTransportThread("connection validator success");
                     boolean success = false;
                     List<ActionListener<Void>> listeners = null;
                     try {
@@ -175,7 +175,7 @@ public class ConnectionManager implements Closeable {
                         }
                     }
                 }, e -> {
-                    assert Transports.assertNotTransportThread("Closing ConnectionManager");
+                    assert Transports.assertNotTransportThread("connection validator failure");
                     IOUtils.closeWhileHandlingException(conn);
                     final List<ActionListener<Void>> listeners;
                     try (Releasable ignored = connectionLock.acquire(node.getId())) {
@@ -185,7 +185,7 @@ public class ConnectionManager implements Closeable {
                     ActionListener.onFailure(listeners, e);
                 }));
         }, e -> {
-            assert Transports.assertNotTransportThread("Method contract");
+            assert Transports.assertNotTransportThread("internalOpenConnection failure");
             final List<ActionListener<Void>> listeners;
             try (Releasable ignored = connectionLock.acquire(node.getId())) {
                 listeners = connectingNodes.remove(node);
@@ -264,6 +264,7 @@ public class ConnectionManager implements Closeable {
     private void internalOpenConnection(DiscoveryNode node, ConnectionProfile connectionProfile,
                                         ActionListener<Transport.Connection> listener) {
         transport.openConnection(node, connectionProfile, ActionListener.map(listener, connection -> {
+            assert Transports.assertNotTransportThread("internalOpenConnection success");
             try {
                 connectionListener.onConnectionOpened(connection);
             } finally {

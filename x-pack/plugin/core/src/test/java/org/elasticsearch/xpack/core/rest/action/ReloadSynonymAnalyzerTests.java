@@ -14,7 +14,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
-import org.elasticsearch.xpack.core.XPackPlugin;
+import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -37,7 +37,7 @@ public class ReloadSynonymAnalyzerTests extends ESSingleNodeTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return Arrays.asList(XPackPlugin.class, CommonAnalysisPlugin.class);
+        return Arrays.asList(LocalStateCompositeXPackPlugin.class, CommonAnalysisPlugin.class);
     }
 
     public void testSynonymsUpdateable() throws FileNotFoundException, IOException {

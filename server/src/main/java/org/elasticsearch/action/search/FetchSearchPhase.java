@@ -22,8 +22,8 @@ import com.carrotsearch.hppc.IntArrayList;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.search.ScoreDoc;
-import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.OriginalIndices;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
@@ -76,10 +76,10 @@ final class FetchSearchPhase extends SearchPhase {
     }
 
     @Override
-    public void run() throws IOException {
-        context.execute(new ActionRunnable<SearchResponse>(context) {
+    public void run() {
+        context.execute(new AbstractRunnable() {
             @Override
-            public void doRun() throws IOException {
+            protected void doRun() throws Exception {
                 // we do the heavy lifting in this inner run method where we reduce aggs etc. that's why we fork this phase
                 // off immediately instead of forking when we send back the response to the user since there we only need
                 // to merge together the fetched results which is a linear operation.
@@ -209,8 +209,8 @@ final class FetchSearchPhase extends SearchPhase {
     private static SearchPhase sendResponsePhase(InternalSearchResponse response, String scrollId, SearchPhaseContext context) {
         return new SearchPhase("response") {
             @Override
-            public void run() throws IOException {
-                context.onResponse(context.buildSearchResponse(response, scrollId));
+            public void run() {
+                context.sendSearchResponse(response, scrollId);
             }
         };
     }

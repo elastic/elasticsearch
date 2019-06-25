@@ -32,7 +32,6 @@ import java.util.LinkedList;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
-import java.util.function.Predicate;
 
 /**
  * This context should implement the specific logic for a channel. When a channel receives a notification
@@ -45,13 +44,10 @@ import java.util.function.Predicate;
  */
 public abstract class SocketChannelContext extends ChannelContext<SocketChannel> {
 
-    protected static final Predicate<NioSocketChannel> ALWAYS_ALLOW_CHANNEL = (c) -> true;
-
     protected final NioSocketChannel channel;
     protected final InboundChannelBuffer channelBuffer;
     protected final AtomicBoolean isClosing = new AtomicBoolean(false);
-    private final ReadWriteHandler readWriteHandler;
-    private final Predicate<NioSocketChannel> allowChannelPredicate;
+    private final NioChannelHandler readWriteHandler;
     private final NioSelector selector;
     private final CompletableContext<Void> connectContext = new CompletableContext<>();
     private final LinkedList<FlushOperation> pendingFlushes = new LinkedList<>();
@@ -59,14 +55,12 @@ public abstract class SocketChannelContext extends ChannelContext<SocketChannel>
     private Exception connectException;
 
     protected SocketChannelContext(NioSocketChannel channel, NioSelector selector, Consumer<Exception> exceptionHandler,
-                                   ReadWriteHandler readWriteHandler, InboundChannelBuffer channelBuffer,
-                                   Predicate<NioSocketChannel> allowChannelPredicate) {
+                                   NioChannelHandler readWriteHandler, InboundChannelBuffer channelBuffer) {
         super(channel.getRawChannel(), exceptionHandler);
         this.selector = selector;
         this.channel = channel;
         this.readWriteHandler = readWriteHandler;
         this.channelBuffer = channelBuffer;
-        this.allowChannelPredicate = allowChannelPredicate;
     }
 
     @Override
@@ -171,9 +165,6 @@ public abstract class SocketChannelContext extends ChannelContext<SocketChannel>
     protected void register() throws IOException {
         super.register();
         readWriteHandler.channelRegistered();
-        if (allowChannelPredicate.test(channel) == false) {
-            closeNow = true;
-        }
     }
 
     @Override
@@ -233,7 +224,7 @@ public abstract class SocketChannelContext extends ChannelContext<SocketChannel>
     public abstract boolean selectorShouldClose();
 
     protected boolean closeNow() {
-        return closeNow;
+        return closeNow || readWriteHandler.closeNow();
     }
 
     protected void setCloseNow() {

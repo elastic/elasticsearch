@@ -117,8 +117,6 @@ public class PutSnapshotLifecycleAction extends Action<PutSnapshotLifecycleActio
 
     public static class Response extends AcknowledgedResponse implements ToXContentObject {
 
-        public Response() { }
-
         public Response(boolean acknowledged) {
             super(acknowledged);
         }

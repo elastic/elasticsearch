@@ -966,25 +966,23 @@ public class ILMDocumentationIT extends ESRestHighLevelClientTestCase {
 
     private void assertSnapshotExists(final RestHighLevelClient client, final String repo, final String snapshotName) throws Exception {
         assertBusy(() -> {
-            GetSnapshotsRequest getSnapshotsRequest = new GetSnapshotsRequest(repo, new String[]{snapshotName});
-            final GetSnapshotsResponse snaps;
+            GetSnapshotsRequest getSnapshotsRequest = new GetSnapshotsRequest(new String[]{repo}, new String[]{snapshotName});
             try {
-                snaps = client.snapshot().get(getSnapshotsRequest, RequestOptions.DEFAULT);
+                final GetSnapshotsResponse snaps = client.snapshot().get(getSnapshotsRequest, RequestOptions.DEFAULT);
+                Optional<SnapshotInfo> info = snaps.getSnapshots(repo).stream().findFirst();
+                if (info.isPresent()) {
+                    info.ifPresent(si -> {
+                        assertThat(si.snapshotId().getName(), equalTo(snapshotName));
+                        assertThat(si.state(), equalTo(SnapshotState.SUCCESS));
+                    });
+                } else {
+                    fail("unable to find snapshot; " + snapshotName);
+                }
             } catch (Exception e) {
                 if (e.getMessage().contains("snapshot_missing_exception")) {
                     fail("snapshot does not exist: " + snapshotName);
                 }
                 throw e;
-            }
-            Optional<SnapshotInfo> info = snaps.getSnapshots().stream().findFirst();
-
-            if (info.isPresent()) {
-                info.ifPresent(si -> {
-                    assertThat(si.snapshotId().getName(), equalTo(snapshotName));
-                    assertThat(si.state(), equalTo(SnapshotState.SUCCESS));
-                });
-            } else {
-                fail("unable to find snapshot; " + snapshotName);
             }
         });
     }

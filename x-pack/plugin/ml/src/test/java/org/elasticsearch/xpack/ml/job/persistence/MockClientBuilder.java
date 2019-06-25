@@ -17,8 +17,6 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexAction;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
-import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsRequest;
-import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsResponse;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsRequestBuilder;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequestBuilder;
@@ -119,21 +117,6 @@ public class MockClientBuilder {
         when(clusterHealthRequestBuilder.setWaitForYellowStatus()).thenReturn(clusterHealthRequestBuilder);
         when(clusterHealthRequestBuilder.execute()).thenReturn(actionFuture);
         when(actionFuture.actionGet()).thenReturn(mock(ClusterHealthResponse.class));
-        return this;
-    }
-
-    @SuppressWarnings({ "rawtypes", "unchecked" })
-    public MockClientBuilder addIndicesExistsResponse(String index, boolean exists) throws InterruptedException, ExecutionException {
-        ActionFuture actionFuture = mock(ActionFuture.class);
-        ArgumentCaptor<IndicesExistsRequest> requestCaptor = ArgumentCaptor.forClass(IndicesExistsRequest.class);
-
-        when(indicesAdminClient.exists(requestCaptor.capture())).thenReturn(actionFuture);
-        doAnswer(invocation -> {
-            IndicesExistsRequest request = (IndicesExistsRequest) invocation.getArguments()[0];
-            return request.indices()[0].equals(index) ? actionFuture : null;
-        }).when(indicesAdminClient).exists(any(IndicesExistsRequest.class));
-        when(actionFuture.get()).thenReturn(new IndicesExistsResponse(exists));
-        when(actionFuture.actionGet()).thenReturn(new IndicesExistsResponse(exists));
         return this;
     }
 

@@ -12,6 +12,7 @@ import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 
 import java.io.IOException;
@@ -27,7 +28,12 @@ public class DeleteSnapshotLifecycleAction extends Action<DeleteSnapshotLifecycl
 
     @Override
     public Response newResponse() {
-        return new Response();
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public Writeable.Reader<Response> getResponseReader() {
+        return Response::new;
     }
 
     public static class Request extends AcknowledgedRequest<Request> {
@@ -81,11 +87,12 @@ public class DeleteSnapshotLifecycleAction extends Action<DeleteSnapshotLifecycl
 
     public static class Response extends AcknowledgedResponse implements ToXContentObject {
 
-        public Response() {
-        }
-
         public Response(boolean acknowledged) {
             super(acknowledged);
+        }
+
+        public Response(StreamInput streamInput) throws IOException {
+            this(streamInput.readBoolean());
         }
     }
 }

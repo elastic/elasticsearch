@@ -365,7 +365,9 @@ public class MockNioTransport extends TcpTransport {
                 final long elapsedTimeInNanos = threadPool.relativeTimeInNanos() - entry.getValue();
                 if (elapsedTimeInNanos > warnThreshold) {
                     final Thread thread = entry.getKey();
-                    logger.warn("Potentially blocked execution on network thread [{}] [{} milliseconds]: \n{}", thread.getName(),
+                    logger.warn("Potentially blocked execution on network thread [{}] [{}] [{} milliseconds]: \n{}",
+                        thread.getName(),
+                        thread.getState(),
                         TimeUnit.NANOSECONDS.toMillis(elapsedTimeInNanos),
                         Arrays.stream(thread.getStackTrace()).map(Object::toString).collect(Collectors.joining("\n")));
                 }

@@ -481,9 +481,14 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
                 normalizerProcessFactory = new NativeNormalizerProcessFactory(environment, nativeController);
                 analyticsProcessFactory = new NativeAnalyticsProcessFactory(environment, nativeController);
             } catch (IOException e) {
-                // This also should not happen in production, as the MachineLearningInfoTransportAction should have
-                // hit the same error first and brought down the node with a friendlier error message
-                throw new ElasticsearchException("Failed to create native process factories for Machine Learning", e);
+                // The low level cause of failure from the named pipe helper's perspective is almost never the real root cause, so
+                // only log this at the lowest level of detail.  It's almost always "file not found" on a named pipe we expect to be
+                // able to connect to, but the thing we really need to know is what stopped the native process creating the named pipe.
+                logger.trace("Failed to connect to ML native controller", e);
+                throw new ElasticsearchException("Failure running machine learning native code. This could be due to running"
+                    + "on an unsupported OS or distribution, missing OS libraries or a problem with the temp directory. To "
+                    + "bypass this problem by running Elasticsearch without machine learning functionality set ["
+                    + XPackSettings.MACHINE_LEARNING_ENABLED.getKey() + ": false].");
             }
         } else {
             autodetectProcessFactory = (job, autodetectParams, executorService, onProcessCrash) ->

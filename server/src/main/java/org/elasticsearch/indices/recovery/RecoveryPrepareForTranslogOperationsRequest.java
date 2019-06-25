@@ -19,43 +19,33 @@
 
 package org.elasticsearch.indices.recovery;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.transport.TransportRequest;
 
 import java.io.IOException;
 
-final class RecoveryPrepareForTranslogRequest extends TransportRequest {
+class RecoveryPrepareForTranslogOperationsRequest extends TransportRequest {
 
     private final long recoveryId;
     private final ShardId shardId;
     private final int totalTranslogOps;
     private final boolean fileBasedRecovery;
-    private final long recoverUpToSeqNo;
 
-    RecoveryPrepareForTranslogRequest(long recoveryId, ShardId shardId, int totalTranslogOps,
-                                      boolean fileBasedRecovery, long recoverUpToSeqNo) {
+    RecoveryPrepareForTranslogOperationsRequest(long recoveryId, ShardId shardId, int totalTranslogOps, boolean fileBasedRecovery) {
         this.recoveryId = recoveryId;
         this.shardId = shardId;
         this.totalTranslogOps = totalTranslogOps;
         this.fileBasedRecovery = fileBasedRecovery;
-        this.recoverUpToSeqNo = recoverUpToSeqNo;
     }
 
-    RecoveryPrepareForTranslogRequest(StreamInput in) throws IOException {
+    RecoveryPrepareForTranslogOperationsRequest(StreamInput in) throws IOException {
         super.readFrom(in);
         recoveryId = in.readLong();
         shardId = new ShardId(in);
         totalTranslogOps = in.readVInt();
         fileBasedRecovery = in.readBoolean();
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
-            recoverUpToSeqNo = in.readZLong();
-        } else {
-            recoverUpToSeqNo = SequenceNumbers.UNASSIGNED_SEQ_NO;
-        }
     }
 
     public long recoveryId() {
@@ -77,10 +67,6 @@ final class RecoveryPrepareForTranslogRequest extends TransportRequest {
         return fileBasedRecovery;
     }
 
-    public long recoverUpToSeqNo() {
-        return recoverUpToSeqNo;
-    }
-
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
@@ -88,8 +74,5 @@ final class RecoveryPrepareForTranslogRequest extends TransportRequest {
         shardId.writeTo(out);
         out.writeVInt(totalTranslogOps);
         out.writeBoolean(fileBasedRecovery);
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
-            out.writeZLong(recoverUpToSeqNo);
-        }
     }
 }

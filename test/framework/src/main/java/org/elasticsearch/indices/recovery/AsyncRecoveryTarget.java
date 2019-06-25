@@ -31,7 +31,6 @@ import org.elasticsearch.index.translog.Translog;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.Optional;
 import java.util.concurrent.Executor;
 
 /**
@@ -47,9 +46,8 @@ public class AsyncRecoveryTarget implements RecoveryTargetHandler {
     }
 
     @Override
-    public void prepareForTranslogOperations(boolean fileBasedRecovery, int totalTranslogOps,
-                                             long recoverUpToSeqNo, ActionListener<Optional<Store.MetadataSnapshot>> listener) {
-        executor.execute(() -> target.prepareForTranslogOperations(fileBasedRecovery, totalTranslogOps, recoverUpToSeqNo, listener));
+    public void prepareForTranslogOperations(boolean fileBasedRecovery, int totalTranslogOps, ActionListener<Void> listener) {
+        executor.execute(() -> target.prepareForTranslogOperations(fileBasedRecovery, totalTranslogOps, listener));
     }
 
     @Override

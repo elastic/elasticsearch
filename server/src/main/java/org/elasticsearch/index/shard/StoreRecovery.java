@@ -422,7 +422,7 @@ final class StoreRecovery {
                 store.associateIndexWithNewTranslog(translogUUID);
                 writeEmptyRetentionLeasesFile(indexShard);
             }
-            indexShard.openEngineAndRecoverFromTranslog(Long.MAX_VALUE);
+            indexShard.openEngineAndRecoverFromTranslog();
             indexShard.getEngine().fillSeqNoGaps(indexShard.getPendingPrimaryTerm());
             indexShard.finalizeRecovery();
             indexShard.postRecovery("post recovery from shard_store");
@@ -480,7 +480,7 @@ final class StoreRecovery {
             store.associateIndexWithNewTranslog(translogUUID);
             assert indexShard.shardRouting.primary() : "only primary shards can recover from store";
             writeEmptyRetentionLeasesFile(indexShard);
-            indexShard.openEngineAndRecoverFromTranslog(Long.MAX_VALUE);
+            indexShard.openEngineAndRecoverFromTranslog();
             indexShard.getEngine().fillSeqNoGaps(indexShard.getPendingPrimaryTerm());
             indexShard.finalizeRecovery();
             indexShard.postRecovery("restore done");

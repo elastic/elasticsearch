@@ -50,6 +50,7 @@ import org.elasticsearch.common.lucene.store.IndexOutputOutputStream;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.CancellableThreads;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.core.internal.io.IOUtils;
@@ -91,7 +92,6 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -203,8 +203,6 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         Store.MetadataSnapshot metadataSnapshot = randomBoolean() ? Store.MetadataSnapshot.EMPTY :
             new Store.MetadataSnapshot(Collections.emptyMap(),
                 Collections.singletonMap(Engine.HISTORY_UUID_KEY, UUIDs.randomBase64UUID()), randomIntBetween(0, 100));
-        final long startingSeqNo = randomBoolean() || metadataSnapshot.getHistoryUUID() == null ?
-            SequenceNumbers.UNASSIGNED_SEQ_NO : randomNonNegativeLong();
         return new StartRecoveryRequest(
             shardId,
             null,
@@ -213,8 +211,8 @@ public class RecoverySourceHandlerTests extends ESTestCase {
             metadataSnapshot,
             randomBoolean(),
             randomNonNegativeLong(),
-            startingSeqNo,
-            startingSeqNo == SequenceNumbers.UNASSIGNED_SEQ_NO ? startingSeqNo : randomLongBetween(startingSeqNo, Long.MAX_VALUE));
+            randomBoolean() || metadataSnapshot.getHistoryUUID() == null ?
+                SequenceNumbers.UNASSIGNED_SEQ_NO : randomNonNegativeLong());
     }
 
     public void testSendSnapshotSendsOps() throws IOException {
@@ -480,17 +478,15 @@ public class RecoverySourceHandlerTests extends ESTestCase {
                 between(1, 8)) {
 
             @Override
-            SendFileResult phase1(IndexCommit snapshot, long globalCheckpoint, Supplier<Integer> translogOps,
-                                  Store.MetadataSnapshot recoveryTargetMetadata) {
+            public SendFileResult phase1(final IndexCommit snapshot, final long globalCheckpoint, final Supplier<Integer> translogOps) {
                 phase1Called.set(true);
-                return super.phase1(snapshot, globalCheckpoint, translogOps, recoveryTargetMetadata);
+                return super.phase1(snapshot, globalCheckpoint, translogOps);
             }
 
             @Override
-            void startEngineOnTarget(boolean fileBasedRecovery, int totalTranslogOps, long recoverUpToSeqNo,
-                                     ActionListener<StartEngineResult> listener) {
+            void prepareTargetForTranslog(boolean fileBasedRecovery, int totalTranslogOps, ActionListener<TimeValue> listener) {
                 prepareTargetForTranslogCalled.set(true);
-                super.startEngineOnTarget(fileBasedRecovery, totalTranslogOps, recoverUpToSeqNo, listener);
+                super.prepareTargetForTranslog(fileBasedRecovery, totalTranslogOps, listener);
             }
 
             @Override
@@ -733,11 +729,8 @@ public class RecoverySourceHandlerTests extends ESTestCase {
     }
 
     class TestRecoveryTargetHandler implements RecoveryTargetHandler {
-
         @Override
-        public void prepareForTranslogOperations(boolean fileBasedRecovery, int totalTranslogOps,
-                                                 long recoverUpToSeqNo, ActionListener<Optional<Store.MetadataSnapshot>> listener) {
-
+        public void prepareForTranslogOperations(boolean fileBasedRecovery, int totalTranslogOps, ActionListener<Void> listener) {
         }
 
         @Override

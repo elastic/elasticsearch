@@ -47,11 +47,10 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetaData;
 import org.elasticsearch.index.translog.Translog;
-import org.elasticsearch.index.translog.TranslogCorruptedException;
 
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.List;
-import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
@@ -285,21 +284,11 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
     /*** Implementation of {@link RecoveryTargetHandler } */
 
     @Override
-    public void prepareForTranslogOperations(boolean fileBasedRecovery, int totalTranslogOps, long recoverUpToSeqNo,
-                                             ActionListener<Optional<Store.MetadataSnapshot>> listener) {
+    public void prepareForTranslogOperations(boolean fileBasedRecovery, int totalTranslogOps, ActionListener<Void> listener) {
         ActionListener.completeWith(listener, () -> {
-            if (Assertions.ENABLED && recoverUpToSeqNo != SequenceNumbers.UNASSIGNED_SEQ_NO) {
-                final long gcp = readGlobalCheckpointFromTranslog();
-                assert recoverUpToSeqNo == gcp : recoverUpToSeqNo + " != " + gcp;
-            }
-            indexShard().openEngineAndRecoverFromTranslog(recoverUpToSeqNo);
-            if (indexShard.getLocalCheckpoint() < recoverUpToSeqNo) {
-                // This can happen if the previous recovery was aborted after copying segments, then the target does not have all translog.
-                indexShard.closeEngine();
-                return Optional.of(indexShard.snapshotStoreMetadata());
-            }
-            state().getTranslog().totalOperations(state().getTranslog().totalOperations() + totalTranslogOps);
-            return Optional.empty();
+            state().getTranslog().totalOperations(totalTranslogOps);
+            indexShard().openEngineAndSkipTranslogRecovery();
+            return null;
         });
     }
 
@@ -469,17 +458,7 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
         return multiFileWriter.getTempNameForFile(origFile);
     }
 
-    long readGlobalCheckpointFromTranslog() {
-        try {
-            final String translogUUID = store.readLastCommittedSegmentsInfo().getUserData().get(Translog.TRANSLOG_UUID_KEY);
-            return Translog.readGlobalCheckpoint(indexShard.shardPath().resolveTranslog(), translogUUID);
-        } catch (final TranslogCorruptedException | IOException e) {
-            /*
-             * This can happen, for example, if a phase one of the recovery completed successfully, a network partition happens before the
-             * translog on the recovery target is opened, the recovery enters a retry loop seeing now that the index files are on disk and
-             * proceeds to attempt a sequence-number-based recovery.
-             */
-            return SequenceNumbers.UNASSIGNED_SEQ_NO;
-        }
+    Path translogLocation() {
+        return indexShard().shardPath().resolveTranslog();
     }
 }

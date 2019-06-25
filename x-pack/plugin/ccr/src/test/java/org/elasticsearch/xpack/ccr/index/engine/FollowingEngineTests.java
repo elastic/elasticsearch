@@ -494,8 +494,7 @@ public class FollowingEngineTests extends ESTestCase {
             leaderStore.associateIndexWithNewTranslog(Translog.createEmptyTranslog(
                 leaderConfig.getTranslogConfig().getTranslogPath(), SequenceNumbers.NO_OPS_PERFORMED, shardId, 1L));
             try (InternalEngine leaderEngine = new InternalEngine(leaderConfig)) {
-                var translogHandler = new TranslogHandler(xContentRegistry(), leaderConfig.getIndexSettings());
-                leaderEngine.recoverFromTranslog(translogHandler, SequenceNumbers.UNASSIGNED_SEQ_NO);
+                leaderEngine.skipTranslogRecovery();
                 Settings followerSettings = Settings.builder()
                     .put("index.number_of_shards", 1).put("index.number_of_replicas", 0)
                     .put("index.version.created", Version.CURRENT).put("index.xpack.ccr.following_index", true).build();

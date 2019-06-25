@@ -445,6 +445,10 @@ public class ReadOnlyEngine extends Engine {
     }
 
     @Override
+    public void skipTranslogRecovery() {
+    }
+
+    @Override
     public void trimOperationsFromTranslog(long belowTerm, long aboveSeqNo) {
     }
 

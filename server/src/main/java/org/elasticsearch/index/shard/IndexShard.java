@@ -1393,10 +1393,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     /**
      * opens the engine on top of the existing lucene engine and translog.
      * Operations from the translog will be replayed to bring lucene up to date.
-     *
-     * @param recoverUpToSeqNo the upper bound of sequence number to be recovered (inclusive)
      **/
-    public void openEngineAndRecoverFromTranslog(long recoverUpToSeqNo) throws IOException {
+    public void openEngineAndRecoverFromTranslog() throws IOException {
         final RecoveryState.Translog translogRecoveryStats = recoveryState.getTranslog();
         final Engine.TranslogRecoveryRunner translogRecoveryRunner = (engine, snapshot) -> {
             translogRecoveryStats.totalOperations(snapshot.totalOperations());
@@ -1405,7 +1403,16 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 translogRecoveryStats::incrementRecoveredOperations);
         };
         innerOpenEngineAndTranslog();
-        getEngine().recoverFromTranslog(translogRecoveryRunner, recoverUpToSeqNo);
+        getEngine().recoverFromTranslog(translogRecoveryRunner, Long.MAX_VALUE);
+    }
+
+    /**
+     * Opens the engine on top of the existing lucene engine and translog.
+     * The translog is kept but its operations won't be replayed.
+     */
+    public void openEngineAndSkipTranslogRecovery() throws IOException {
+        innerOpenEngineAndTranslog();
+        getEngine().skipTranslogRecovery();
     }
 
     private void innerOpenEngineAndTranslog() throws IOException {
@@ -1781,10 +1788,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return getEngine().segments(verbose);
     }
 
-    public void closeEngine() throws IOException {
-        synchronized (mutex) {
-            IOUtils.close(this.currentEngineReference.getAndSet(null));
-        }
+    public void flushAndCloseEngine() throws IOException {
+        getEngine().flushAndClose();
     }
 
     public String getHistoryUUID() {

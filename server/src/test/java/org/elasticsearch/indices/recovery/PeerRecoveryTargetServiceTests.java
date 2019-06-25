@@ -57,13 +57,12 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
 
     public void testGetStartingSeqNo() throws Exception {
         final IndexShard replica = newShard(false);
-        long globalCheckpoint = SequenceNumbers.NO_OPS_PERFORMED;
         try {
             // Empty store
             {
                 recoveryEmptyReplica(replica, true);
                 final RecoveryTarget recoveryTarget = new RecoveryTarget(replica, null, null);
-                assertThat(PeerRecoveryTargetService.getStartingSeqNo(logger, recoveryTarget, globalCheckpoint), equalTo(0L));
+                assertThat(PeerRecoveryTargetService.getStartingSeqNo(logger, recoveryTarget), equalTo(0L));
                 recoveryTarget.decRef();
             }
             // Last commit is good - use it.
@@ -76,11 +75,10 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
                     }
                 }
                 flushShard(replica);
-                globalCheckpoint = initDocs - 1;
-                replica.updateGlobalCheckpointOnReplica(globalCheckpoint, "test");
+                replica.updateGlobalCheckpointOnReplica(initDocs - 1, "test");
                 replica.sync();
                 final RecoveryTarget recoveryTarget = new RecoveryTarget(replica, null, null);
-                assertThat(PeerRecoveryTargetService.getStartingSeqNo(logger, recoveryTarget, globalCheckpoint), equalTo(initDocs));
+                assertThat(PeerRecoveryTargetService.getStartingSeqNo(logger, recoveryTarget), equalTo(initDocs));
                 recoveryTarget.decRef();
             }
             // Global checkpoint does not advance, last commit is not good - use the previous commit
@@ -94,17 +92,15 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
                 }
                 flushShard(replica);
                 final RecoveryTarget recoveryTarget = new RecoveryTarget(replica, null, null);
-                assertThat(PeerRecoveryTargetService.getStartingSeqNo(logger, recoveryTarget, globalCheckpoint), equalTo(initDocs));
+                assertThat(PeerRecoveryTargetService.getStartingSeqNo(logger, recoveryTarget), equalTo(initDocs));
                 recoveryTarget.decRef();
             }
             // Advances the global checkpoint, a safe commit also advances
             {
-                globalCheckpoint = initDocs + moreDocs - 1;
-                replica.updateGlobalCheckpointOnReplica(globalCheckpoint, "test");
+                replica.updateGlobalCheckpointOnReplica(initDocs + moreDocs - 1, "test");
                 replica.sync();
                 final RecoveryTarget recoveryTarget = new RecoveryTarget(replica, null, null);
-                assertThat(PeerRecoveryTargetService.getStartingSeqNo(logger, recoveryTarget, globalCheckpoint),
-                    equalTo(initDocs + moreDocs));
+                assertThat(PeerRecoveryTargetService.getStartingSeqNo(logger, recoveryTarget), equalTo(initDocs + moreDocs));
                 recoveryTarget.decRef();
             }
             // Different translogUUID, fallback to file-based
@@ -123,9 +119,7 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
                     writer.commit();
                 }
                 final RecoveryTarget recoveryTarget = new RecoveryTarget(replica, null, null);
-                assertThat(recoveryTarget.readGlobalCheckpointFromTranslog(), equalTo(SequenceNumbers.UNASSIGNED_SEQ_NO));
-                assertThat(PeerRecoveryTargetService.getStartingSeqNo(logger, recoveryTarget, SequenceNumbers.NO_OPS_PERFORMED),
-                    equalTo(SequenceNumbers.UNASSIGNED_SEQ_NO));
+                assertThat(PeerRecoveryTargetService.getStartingSeqNo(logger, recoveryTarget), equalTo(SequenceNumbers.UNASSIGNED_SEQ_NO));
                 recoveryTarget.decRef();
             }
         } finally {

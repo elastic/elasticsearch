@@ -3022,7 +3022,7 @@ public class InternalEngineTests extends EngineTestCase {
         assertVisibleCount(engine, numDocs);
         engine.close();
         try (InternalEngine engine = new InternalEngine(config)) {
-            engine.recoverFromTranslog(translogHandler, UNASSIGNED_SEQ_NO);
+            engine.skipTranslogRecovery();
             try (Engine.Searcher searcher = engine.acquireSearcher("test")) {
                 TopDocs topDocs = searcher.searcher().search(new MatchAllDocsQuery(), randomIntBetween(numDocs, numDocs + 10));
                 assertThat(topDocs.totalHits.value, equalTo(0L));

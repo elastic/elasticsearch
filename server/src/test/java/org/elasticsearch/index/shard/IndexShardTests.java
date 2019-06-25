@@ -144,7 +144,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CountDownLatch;
@@ -2656,7 +2655,7 @@ public class IndexShardTests extends IndexShardTestCase {
         shard.prepareForIndexRecovery();
         // Shard is still inactive since we haven't started recovering yet
         assertFalse(shard.isActive());
-        shard.openEngineAndRecoverFromTranslog(Long.MAX_VALUE);
+        shard.openEngineAndRecoverFromTranslog();
         // Shard should now be active since we did recover:
         assertTrue(shard.isActive());
         closeShards(shard);
@@ -2740,9 +2739,8 @@ public class IndexShardTests extends IndexShardTestCase {
             new RecoveryTarget(shard, discoveryNode, recoveryListener) {
             // we're only checking that listeners are called when the engine is open, before there is no point
                 @Override
-                public void prepareForTranslogOperations(boolean fileBasedRecovery, int totalTranslogOps, long recoverUpToSeqNo,
-                                                         ActionListener<Optional<Store.MetadataSnapshot>> listener) {
-                    super.prepareForTranslogOperations(fileBasedRecovery, totalTranslogOps, recoverUpToSeqNo,
+                public void prepareForTranslogOperations(boolean fileBasedRecovery, int totalTranslogOps, ActionListener<Void> listener) {
+                    super.prepareForTranslogOperations(fileBasedRecovery, totalTranslogOps,
                         ActionListener.wrap(
                             r -> {
                                 assertListenerCalled.accept(replica);
@@ -3814,13 +3812,11 @@ public class IndexShardTests extends IndexShardTestCase {
             @Override
             public InternalEngine recoverFromTranslog(TranslogRecoveryRunner translogRecoveryRunner,
                                                       long recoverUpToSeqNo) throws IOException {
-                if (recoverUpToSeqNo != UNASSIGNED_SEQ_NO) {
-                    readyToCloseLatch.countDown();
-                    try {
-                        closeDoneLatch.await();
-                    } catch (InterruptedException e) {
-                        throw new AssertionError(e);
-                    }
+                readyToCloseLatch.countDown();
+                try {
+                    closeDoneLatch.await();
+                } catch (InterruptedException e) {
+                    throw new AssertionError(e);
                 }
                 return super.recoverFromTranslog(translogRecoveryRunner, recoverUpToSeqNo);
             }
@@ -3871,13 +3867,11 @@ public class IndexShardTests extends IndexShardTestCase {
             public InternalEngine recoverFromTranslog(TranslogRecoveryRunner translogRecoveryRunner,
                                                       long recoverUpToSeqNo) throws IOException {
                 InternalEngine internalEngine = super.recoverFromTranslog(translogRecoveryRunner, recoverUpToSeqNo);
-                if (recoverUpToSeqNo != UNASSIGNED_SEQ_NO) {
-                    readyToSnapshotLatch.countDown();
-                    try {
-                        snapshotDoneLatch.await();
-                    } catch (InterruptedException e) {
-                        throw new AssertionError(e);
-                    }
+                readyToSnapshotLatch.countDown();
+                try {
+                    snapshotDoneLatch.await();
+                } catch (InterruptedException e) {
+                    throw new AssertionError(e);
                 }
                 return internalEngine;
             }

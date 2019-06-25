@@ -28,24 +28,16 @@ import org.elasticsearch.index.translog.Translog;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.Optional;
 
 public interface RecoveryTargetHandler {
 
     /**
-     * Starts an engine an target and recovers locally up to the given sequence number (inclusive). If the target can't recover up to
-     * {@code recoverUpToSeqNo}, it has to close the engine and send back the latest index commit; otherwise it leaves the engine open.
+     * Prepares the target to receive translog operations, after all file have been copied
      *
      * @param fileBasedRecovery whether or not this call is part of an file based recovery
      * @param totalTranslogOps  total translog operations expected to be sent
-     * @param recoverUpToSeqNo  the upper bound sequence number (inclusive) that the recovery target should
-     *                          recover locally after opening its engine.
-     * @param listener          if the engine is started and recovered properly up to @{code recoverUpToSeqNo}, this listener contains
-     *                          a null value; otherwise it's the latest metadata snapshot on the target. The recovery source needs to
-     *                          use this latest value for a file-based recovery.
      */
-    void prepareForTranslogOperations(boolean fileBasedRecovery, int totalTranslogOps, long recoverUpToSeqNo,
-                                      ActionListener<Optional<Store.MetadataSnapshot>> listener);
+    void prepareForTranslogOperations(boolean fileBasedRecovery, int totalTranslogOps, ActionListener<Void> listener);
 
     /**
      * The finalize request refreshes the engine now that new segments are available, enables garbage collection of tombstone files, updates

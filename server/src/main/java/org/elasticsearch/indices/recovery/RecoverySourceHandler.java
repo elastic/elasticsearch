@@ -69,7 +69,6 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
-import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -156,55 +155,45 @@ public class RecoverySourceHandler {
                 shard, cancellableThreads, logger);
             final Closeable retentionLock = shard.acquireRetentionLock();
             resources.add(retentionLock);
-
-            final StepListener<PrepareTargetResult> prepareTargetStep = new StepListener<>();
-            prepareTargetForSequenceBasedRecovery(prepareTargetStep);
-
-            final StepListener<SendFileResult> phase1Step = new StepListener<>();
-            prepareTargetStep.whenComplete(r -> ActionListener.completeWith(phase1Step, () -> {
-                if (r.isSequenceNumberRecovery) {
-                    logger.trace("performing sequence numbers based recovery. starting at [{}]", r.startingSeqNo);
-                    return SendFileResult.EMPTY;
-                } else {
-                    final Engine.IndexCommitRef phase1Snapshot;
+            final long startingSeqNo;
+            final boolean isSequenceNumberBasedRecovery = request.startingSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO &&
+                isTargetSameHistory() && shard.hasCompleteHistoryOperations("peer-recovery", request.startingSeqNo());
+            final SendFileResult sendFileResult;
+            if (isSequenceNumberBasedRecovery) {
+                logger.trace("performing sequence numbers based recovery. starting at [{}]", request.startingSeqNo());
+                startingSeqNo = request.startingSeqNo();
+                sendFileResult = SendFileResult.EMPTY;
+            } else {
+                final Engine.IndexCommitRef phase1Snapshot;
+                try {
+                    phase1Snapshot = shard.acquireSafeIndexCommit();
+                } catch (final Exception e) {
+                    throw new RecoveryEngineException(shard.shardId(), 1, "snapshot failed", e);
+                }
+                // We need to set this to 0 to create a translog roughly according to the retention policy on the target. Note that it will
+                // still filter out legacy operations without seqNo.
+                startingSeqNo = 0;
+                try {
+                    final int estimateNumOps = shard.estimateNumberOfHistoryOperations("peer-recovery", startingSeqNo);
+                    sendFileResult = phase1(phase1Snapshot.getIndexCommit(), shard.getLastKnownGlobalCheckpoint(), () -> estimateNumOps);
+                } catch (final Exception e) {
+                    throw new RecoveryEngineException(shard.shardId(), 1, "phase1 failed", e);
+                } finally {
                     try {
-                        phase1Snapshot = shard.acquireSafeIndexCommit();
-                    } catch (final Exception e) {
-                        throw new RecoveryEngineException(shard.shardId(), 1, "snapshot failed", e);
-                    }
-                    try {
-                        final int estimateNumOps = shard.estimateNumberOfHistoryOperations("peer-recovery", r.startingSeqNo);
-                        return phase1(phase1Snapshot.getIndexCommit(), shard.getLastKnownGlobalCheckpoint(),
-                            () -> estimateNumOps, r.recoveryTargetMetadata);
-                    } catch (final Exception e) {
-                        throw new RecoveryEngineException(shard.shardId(), 1, "phase1 failed", e);
-                    } finally {
-                        try {
-                            IOUtils.close(phase1Snapshot);
-                        } catch (final IOException ex) {
-                            logger.warn("releasing snapshot caused exception", ex);
-                        }
+                        IOUtils.close(phase1Snapshot);
+                    } catch (final IOException ex) {
+                        logger.warn("releasing snapshot caused exception", ex);
                     }
                 }
-            }), onFailure);
+            }
+            assert startingSeqNo >= 0 : "startingSeqNo must be non negative. got: " + startingSeqNo;
 
-            final StepListener<TimeValue> startEngineStep = new StepListener<>();
-            phase1Step.whenComplete(r -> {
-                if (prepareTargetStep.result().openEngineTime != null) {
-                    // engine is started already since we have asked it to recover up to the global checkpoint
-                    startEngineStep.onResponse(prepareTargetStep.result().openEngineTime);
-                } else {
-                    startEngineOnTarget(
-                        prepareTargetStep.result().isSequenceNumberRecovery == false,
-                        shard.estimateNumberOfHistoryOperations("peer-recovery", prepareTargetStep.result().startingSeqNo),
-                        SequenceNumbers.UNASSIGNED_SEQ_NO,
-                        ActionListener.map(startEngineStep, v -> v.tookTime));
-                }
-            }, onFailure);
-
+            final StepListener<TimeValue> prepareEngineStep = new StepListener<>();
+            // For a sequence based recovery, the target can keep its local translog
+            prepareTargetForTranslog(isSequenceNumberBasedRecovery == false,
+                shard.estimateNumberOfHistoryOperations("peer-recovery", startingSeqNo), prepareEngineStep);
             final StepListener<SendSnapshotResult> sendSnapshotStep = new StepListener<>();
-            startEngineStep.whenComplete(r -> {
-                final long startingSeqNo = prepareTargetStep.result().startingSeqNo;
+            prepareEngineStep.whenComplete(prepareEngineTime -> {
                 /*
                  * add shard to replication group (shard will receive replication requests from this point on) now that engine is open.
                  * This means that any document indexed into the primary after this will be replicated to this replica as well
@@ -232,24 +221,24 @@ public class RecoverySourceHandler {
                 phase2(startingSeqNo, endingSeqNo, phase2Snapshot, maxSeenAutoIdTimestamp, maxSeqNoOfUpdatesOrDeletes,
                     retentionLeases, mappingVersionOnPrimary, sendSnapshotStep);
                 sendSnapshotStep.whenComplete(
-                    v -> IOUtils.close(phase2Snapshot),
+                    r -> IOUtils.close(phase2Snapshot),
                     e -> {
                         IOUtils.closeWhileHandlingException(phase2Snapshot);
                         onFailure.accept(new RecoveryEngineException(shard.shardId(), 2, "phase2 failed", e));
                     });
+
             }, onFailure);
 
             final StepListener<Void> finalizeStep = new StepListener<>();
             sendSnapshotStep.whenComplete(r -> finalizeRecovery(r.targetLocalCheckpoint, finalizeStep), onFailure);
 
             finalizeStep.whenComplete(r -> {
-                final SendFileResult sendFileResult = phase1Step.result();
                 final long phase1ThrottlingWaitTime = 0L; // TODO: return the actual throttle time
                 final SendSnapshotResult sendSnapshotResult = sendSnapshotStep.result();
                 final RecoveryResponse response = new RecoveryResponse(sendFileResult.phase1FileNames, sendFileResult.phase1FileSizes,
                     sendFileResult.phase1ExistingFileNames, sendFileResult.phase1ExistingFileSizes, sendFileResult.totalSize,
                     sendFileResult.existingTotalSize, sendFileResult.took.millis(), phase1ThrottlingWaitTime,
-                    startEngineStep.result().millis(), sendSnapshotResult.totalOperations, sendSnapshotResult.tookTime.millis());
+                    prepareEngineStep.result().millis(), sendSnapshotResult.totalOperations, sendSnapshotResult.tookTime.millis());
                 try {
                     wrappedListener.onResponse(response);
                 } finally {
@@ -306,57 +295,6 @@ public class RecoverySourceHandler {
         });
     }
 
-    static final class PrepareTargetResult {
-        final boolean isSequenceNumberRecovery;
-        final long startingSeqNo;
-        final TimeValue openEngineTime;
-        final Store.MetadataSnapshot recoveryTargetMetadata;
-
-        PrepareTargetResult(boolean isSequenceNumberRecovery, long startingSeqNo,
-                            TimeValue openEngineTime, Store.MetadataSnapshot recoveryTargetMetadata) {
-            this.isSequenceNumberRecovery = isSequenceNumberRecovery;
-            this.startingSeqNo = startingSeqNo;
-            this.openEngineTime = openEngineTime;
-            this.recoveryTargetMetadata = recoveryTargetMetadata;
-        }
-    }
-
-    /**
-     * Prepares the recovery target for sequence number based recovery if possible. If the recovery source has all required operations
-     * up to the {@link StartRecoveryRequest#startingSeqNo()}, then it can perform sequence number based recovery without coordinating
-     * with the recovery target. However, if its history is only up to the global checkpoint on the target, it needs to ask the target
-     * to locally recover up to the global checkpoint then perform a sequence number based recovery. If the target can recover properly,
-     * then it will leave its engine open for a sequence number recovery; otherwise it needs to close its engine, capture and send back
-     * the latest metadata to the recovery source for a file-based recovery.
-     */
-    void prepareTargetForSequenceBasedRecovery(ActionListener<PrepareTargetResult> listener) throws IOException {
-        if (request.startingSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO && isTargetSameHistory()) {
-            if (shard.hasCompleteHistoryOperations("peer-recovery", request.startingSeqNo())) {
-                listener.onResponse(new PrepareTargetResult(true, request.startingSeqNo(), null, request.metadataSnapshot()));
-            } else {
-                final long startingSeqNo = request.globalCheckpoint() + 1;
-                if (request.startingSeqNo() < startingSeqNo && shard.hasCompleteHistoryOperations("peer-recovery", startingSeqNo)) {
-                    startEngineOnTarget(
-                        false,
-                        shard.estimateNumberOfHistoryOperations("peer-recovery", request.globalCheckpoint()),
-                        request.globalCheckpoint(),
-                        ActionListener.map(listener, r -> {
-                            if (r.newSnapshot == null) {
-                                return new PrepareTargetResult(true, startingSeqNo, r.tookTime, request.metadataSnapshot());
-                            } else {
-                                // the target does not have the required translog - fallback to file-based recovery with the new snapshot
-                                return new PrepareTargetResult(false, 0, null, r.newSnapshot);
-                            }
-                        }));
-                } else {
-                    listener.onResponse(new PrepareTargetResult(false, 0, null, request.metadataSnapshot()));
-                }
-            }
-        } else {
-            listener.onResponse(new PrepareTargetResult(false, 0, null, request.metadataSnapshot()));
-        }
-    }
-
     static final class SendFileResult {
         final List<String> phase1FileNames;
         final List<Long> phase1FileSizes;
@@ -392,9 +330,7 @@ public class RecoverySourceHandler {
      * segments that are missing. Only segments that have the same size and
      * checksum can be reused
      */
-    SendFileResult phase1(final IndexCommit snapshot, final long globalCheckpoint,
-                          final Supplier<Integer> translogOps, final Store.MetadataSnapshot recoveryTargetMetadata) {
-        // TODO: pass new metadata
+    public SendFileResult phase1(final IndexCommit snapshot, final long globalCheckpoint, final Supplier<Integer> translogOps) {
         cancellableThreads.checkForCancel();
         // Total size of segment files that are recovered
         long totalSize = 0;
@@ -423,11 +359,11 @@ public class RecoverySourceHandler {
                             recoverySourceMetadata.asMap().size() + " files", name);
                 }
             }
-            if (canSkipPhase1(recoverySourceMetadata, recoveryTargetMetadata) == false) {
+            if (canSkipPhase1(recoverySourceMetadata, request.metadataSnapshot()) == false) {
                 // Generate a "diff" of all the identical, different, and missing
                 // segment files on the target node, using the existing files on
                 // the source node
-                final Store.RecoveryDiff diff = recoverySourceMetadata.recoveryDiff(recoveryTargetMetadata);
+                final Store.RecoveryDiff diff = recoverySourceMetadata.recoveryDiff(request.metadataSnapshot());
                 for (StoreFileMetaData md : diff.identical) {
                     phase1ExistingFileNames.add(md.name());
                     phase1ExistingFileSizes.add(md.length());
@@ -442,9 +378,9 @@ public class RecoverySourceHandler {
                 phase1Files.addAll(diff.different);
                 phase1Files.addAll(diff.missing);
                 for (StoreFileMetaData md : phase1Files) {
-                    if (recoveryTargetMetadata.asMap().containsKey(md.name())) {
+                    if (request.metadataSnapshot().asMap().containsKey(md.name())) {
                         logger.trace("recovery [phase1]: recovering [{}], exists in local store, but is different: remote [{}], local [{}]",
-                            md.name(), recoveryTargetMetadata.asMap().get(md.name()), md);
+                            md.name(), request.metadataSnapshot().asMap().get(md.name()), md);
                     } else {
                         logger.trace("recovery [phase1]: recovering [{}], does not exist in remote", md.name());
                     }
@@ -542,32 +478,21 @@ public class RecoverySourceHandler {
         return true;
     }
 
-    static final class StartEngineResult {
-        final TimeValue tookTime;
-        final Store.MetadataSnapshot newSnapshot;
-
-        StartEngineResult(TimeValue tookTime, Store.MetadataSnapshot newSnapshot) {
-            this.tookTime = tookTime;
-            this.newSnapshot = newSnapshot;
-        }
-    }
-
-    void startEngineOnTarget(boolean fileBasedRecovery, int totalTranslogOps,
-                             long recoverUpToSeqNo, ActionListener<StartEngineResult> listener) {
+    void prepareTargetForTranslog(boolean fileBasedRecovery, int totalTranslogOps, ActionListener<TimeValue> listener) {
         StopWatch stopWatch = new StopWatch().start();
-        final ActionListener<Optional<Store.MetadataSnapshot>> wrappedListener = ActionListener.wrap(
-            r -> {
+        final ActionListener<Void> wrappedListener = ActionListener.wrap(
+            nullVal -> {
                 stopWatch.stop();
                 final TimeValue tookTime = stopWatch.totalTime();
                 logger.trace("recovery [phase1]: remote engine start took [{}]", tookTime);
-                listener.onResponse(new StartEngineResult(tookTime, r.orElse(null)));
+                listener.onResponse(tookTime);
             },
             e -> listener.onFailure(new RecoveryEngineException(shard.shardId(), 1, "prepare target for translog failed", e)));
         // Send a request preparing the new shard's translog to receive operations. This ensures the shard engine is started and disables
         // garbage collection (not the JVM's GC!) of tombstone deletes.
         logger.trace("recovery [phase1]: prepare remote engine for translog");
         cancellableThreads.execute(() ->
-            recoveryTarget.prepareForTranslogOperations(fileBasedRecovery, totalTranslogOps, recoverUpToSeqNo, wrappedListener));
+            recoveryTarget.prepareForTranslogOperations(fileBasedRecovery, totalTranslogOps, wrappedListener));
     }
 
     /**

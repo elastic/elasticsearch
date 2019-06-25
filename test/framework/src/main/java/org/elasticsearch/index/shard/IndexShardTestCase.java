@@ -620,18 +620,15 @@ public abstract class IndexShardTestCase extends ESTestCase {
         final String targetAllocationId = recoveryTarget.indexShard().routingEntry().allocationId().getId();
 
         final Store.MetadataSnapshot snapshot = getMetadataSnapshotOrEmpty(replica);
-        final long globalCheckpoint;
         final long startingSeqNo;
         if (snapshot.size() > 0) {
-            final String translogUUID = replica.store().readLastCommittedSegmentsInfo().getUserData().get(Translog.TRANSLOG_UUID_KEY);
-            globalCheckpoint = Translog.readGlobalCheckpoint(replica.shardPath().resolveTranslog(), translogUUID);
-            startingSeqNo = PeerRecoveryTargetService.getStartingSeqNo(logger, recoveryTarget, globalCheckpoint);
+            startingSeqNo = PeerRecoveryTargetService.getStartingSeqNo(logger, recoveryTarget);
         } else {
-            globalCheckpoint = SequenceNumbers.NO_OPS_PERFORMED;
             startingSeqNo = SequenceNumbers.UNASSIGNED_SEQ_NO;
         }
+
         final StartRecoveryRequest request = new StartRecoveryRequest(replica.shardId(), targetAllocationId,
-            pNode, rNode, snapshot, replica.routingEntry().primary(), 0, startingSeqNo, globalCheckpoint);
+            pNode, rNode, snapshot, replica.routingEntry().primary(), 0, startingSeqNo);
         final RecoverySourceHandler recovery = new RecoverySourceHandler(primary,
             new AsyncRecoveryTarget(recoveryTarget, threadPool.generic()),
             request, Math.toIntExact(ByteSizeUnit.MB.toBytes(1)), between(1, 8));

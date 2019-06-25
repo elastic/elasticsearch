@@ -447,6 +447,12 @@ public class InternalEngine extends Engine {
         return this;
     }
 
+    @Override
+    public void skipTranslogRecovery() {
+        assert pendingTranslogRecovery.get() : "translogRecovery is not pending but should be";
+        pendingTranslogRecovery.set(false); // we are good - now we can commit
+    }
+
     private void recoverFromTranslogInternal(TranslogRecoveryRunner translogRecoveryRunner, long recoverUpToSeqNo) throws IOException {
         Translog.TranslogGeneration translogGeneration = translog.getGeneration();
         final int opsRecovered;

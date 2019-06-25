@@ -39,7 +39,6 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.Optional;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 
@@ -78,13 +77,12 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
     }
 
     @Override
-    public void prepareForTranslogOperations(boolean fileBasedRecovery, int totalTranslogOps, long recoverUpToSeqNo,
-                                             ActionListener<Optional<Store.MetadataSnapshot>> listener) {
+    public void prepareForTranslogOperations(boolean fileBasedRecovery, int totalTranslogOps, ActionListener<Void> listener) {
         transportService.submitRequest(targetNode, PeerRecoveryTargetService.Actions.PREPARE_TRANSLOG,
-            new RecoveryPrepareForTranslogRequest(recoveryId, shardId, totalTranslogOps, fileBasedRecovery, recoverUpToSeqNo),
+            new RecoveryPrepareForTranslogOperationsRequest(recoveryId, shardId, totalTranslogOps, fileBasedRecovery),
             TransportRequestOptions.builder().withTimeout(recoverySettings.internalActionTimeout()).build(),
-            new ActionListenerResponseHandler<>(ActionListener.map(listener, r -> r.targetMetadata),
-                RecoveryPrepareForTranslogOperationsResponse::new, ThreadPool.Names.GENERIC));
+            new ActionListenerResponseHandler<>(ActionListener.map(listener, r -> null),
+                in -> TransportResponse.Empty.INSTANCE, ThreadPool.Names.GENERIC));
     }
 
     @Override

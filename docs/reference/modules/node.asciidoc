@@ -84,8 +84,9 @@ creating or deleting an index, tracking which nodes are part of the cluster,
 and deciding which shards to allocate to which nodes. It is important for
 cluster health to have a stable master node.
 
-Any master-eligible node (all nodes by default) may be elected to become the
-master node by the <<modules-discovery,master election process>>.
+Any master-eligible node that is not a <<voting-only-node,voting-only node>> may
+be elected to become the master node by the <<modules-discovery,master election
+process>>.
 
 IMPORTANT: Master nodes must have access to the `data/` directory (just like
 `data` nodes) as this is where the cluster state is persisted between node restarts.
@@ -138,36 +139,41 @@ cluster.remote.connect: false <4>
 [[voting-only-node]]
 ==== Voting-only master-eligible node
 
-A voting-only master-eligible node is a node that can participate in master
-elections but will not act as a master in the cluster. In particular, a
-voting-only node can help elect another master-eligible node as master, and
-can serve as a tiebreaker in elections. To mark a master-eligible node as
-voting-only, set:
+A voting-only master-eligible node is a node that participates in
+<<modules-discovery,master elections>> but which will not act as the cluster's
+elected master node. In particular, a voting-only node can serve as a tiebreaker
+in elections.
+
+It may seem confusing to use the term "master-eligible" to describe a
+voting-only node since such a node is not actually eligible to become the master
+at all. This terminology is an unfortunate consequence of history:
+master-eligible nodes are those nodes that participate in elections and perform
+certain tasks during cluster state publications, and voting-only nodes have the
+same responsibilities even if they can never become the elected master.
+
+To configure a master-eligible node as a voting-only node, set the following
+setting:
 
 [source,yaml]
 -------------------
 node.voting_only: true <1>
 -------------------
-<1> The `node.voting_only` role is disabled by default.
+<1> The default for `node.voting_only` is `false`.
 
-IMPORTANT: If you use the {oss-dist}, do not set `node.voting_only`. Otherwise,
-the node fails to start. Also note that only master-eligible nodes can be
-marked as voting-only.
+IMPORTANT: The `voting_only` role requires the {default-dist} of Elasticsearch
+and is not supported in the {oss-dist}. If you use the {oss-dist} and set
+`node.voting_only` then the node will fail to start.  Also note that only
+master-eligible nodes can be marked as voting-only.
 
-High availability (HA) clusters require at least three master-eligible nodes,
-so that if one of the three nodes is down, then the remaining two can still
-elect a master amongst them-selves. This only requires one of the two remaining
-nodes to have the capability to act as master, but both need to have voting
-powers. This means that one of the three master-eligible nodes can be made as
-voting-only. If this voting-only node is a dedicated master, a machine with
-a less powerful CPU and a smaller heap-size can be chosen for this node.
-Alternatively, a voting-only non-dedicated master node can play the role of the
-third master-eligible node, which allows running an HA cluster with only two
-dedicated master nodes.
+High availability (HA) clusters require at least three master-eligible nodes, at
+least two of which are not voting-only nodes. Such a cluster will be able to
+elect a master node even if one of the nodes fails.
 
-As any master-eligible node, voting-only nodes should have fast disks and a
-reliable low-latency connection to the other nodes in the cluster, as they
-are on the critical path for
+Since voting-only nodes never act as the cluster's elected master, they may
+require require less heap and a less powerful CPU than the true master nodes.
+However all master-eligible nodes, including voting-only nodes, require
+reasonably fast persistent storage and a reliable and low-latency network
+connection to the rest of the cluster, since they are on the critical path for
 <<cluster-state-publishing,publishing cluster state updates>>.
 
 [float]

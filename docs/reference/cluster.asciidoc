@@ -48,8 +48,8 @@ means that filters such as `master:false` which remove nodes from the chosen
 subset are only useful if they come after some other filters. When used on its
 own, `master:false` selects no nodes.
 
-NOTE: Designating nodes as `voting_only` and using `voting_only` in node
-filters requires the default distribution of Elasticsearch.
+NOTE: The `voting_only` role requires the {default-dist} of Elasticsearch and
+is not supported in the {oss-dist}.
 
 Here are some examples of the use of node filters with the
 <<cluster-nodes-info,Nodes Info>> APIs.
@@ -74,6 +74,7 @@ GET /_nodes/10.0.0.*
 GET /_nodes/_all,master:false
 GET /_nodes/data:true,ingest:true
 GET /_nodes/coordinating_only:true
+GET /_nodes/master:true,voting_only:false
 # Select nodes by custom attribute (e.g. with something like `node.attr.rack: 2` in the configuration file)
 GET /_nodes/rack:2
 GET /_nodes/ra*:2

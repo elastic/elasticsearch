@@ -13,6 +13,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -63,12 +64,14 @@ import org.elasticsearch.xpack.core.ml.MlMetaIndex;
 import org.elasticsearch.xpack.core.ml.action.CloseJobAction;
 import org.elasticsearch.xpack.core.ml.action.DeleteCalendarAction;
 import org.elasticsearch.xpack.core.ml.action.DeleteCalendarEventAction;
+import org.elasticsearch.xpack.core.ml.action.DeleteDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.action.DeleteDatafeedAction;
 import org.elasticsearch.xpack.core.ml.action.DeleteExpiredDataAction;
 import org.elasticsearch.xpack.core.ml.action.DeleteFilterAction;
 import org.elasticsearch.xpack.core.ml.action.DeleteForecastAction;
 import org.elasticsearch.xpack.core.ml.action.DeleteJobAction;
 import org.elasticsearch.xpack.core.ml.action.DeleteModelSnapshotAction;
+import org.elasticsearch.xpack.core.ml.action.EvaluateDataFrameAction;
 import org.elasticsearch.xpack.core.ml.action.FinalizeJobExecutionAction;
 import org.elasticsearch.xpack.core.ml.action.FindFileStructureAction;
 import org.elasticsearch.xpack.core.ml.action.FlushJobAction;
@@ -77,6 +80,8 @@ import org.elasticsearch.xpack.core.ml.action.GetBucketsAction;
 import org.elasticsearch.xpack.core.ml.action.GetCalendarEventsAction;
 import org.elasticsearch.xpack.core.ml.action.GetCalendarsAction;
 import org.elasticsearch.xpack.core.ml.action.GetCategoriesAction;
+import org.elasticsearch.xpack.core.ml.action.GetDataFrameAnalyticsAction;
+import org.elasticsearch.xpack.core.ml.action.GetDataFrameAnalyticsStatsAction;
 import org.elasticsearch.xpack.core.ml.action.GetDatafeedsAction;
 import org.elasticsearch.xpack.core.ml.action.GetDatafeedsStatsAction;
 import org.elasticsearch.xpack.core.ml.action.GetFiltersAction;
@@ -95,12 +100,15 @@ import org.elasticsearch.xpack.core.ml.action.PostCalendarEventsAction;
 import org.elasticsearch.xpack.core.ml.action.PostDataAction;
 import org.elasticsearch.xpack.core.ml.action.PreviewDatafeedAction;
 import org.elasticsearch.xpack.core.ml.action.PutCalendarAction;
+import org.elasticsearch.xpack.core.ml.action.PutDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.action.PutDatafeedAction;
 import org.elasticsearch.xpack.core.ml.action.PutFilterAction;
 import org.elasticsearch.xpack.core.ml.action.PutJobAction;
 import org.elasticsearch.xpack.core.ml.action.RevertModelSnapshotAction;
 import org.elasticsearch.xpack.core.ml.action.SetUpgradeModeAction;
+import org.elasticsearch.xpack.core.ml.action.StartDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.action.StartDatafeedAction;
+import org.elasticsearch.xpack.core.ml.action.StopDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.action.StopDatafeedAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateCalendarJobAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateDatafeedAction;
@@ -110,6 +118,8 @@ import org.elasticsearch.xpack.core.ml.action.UpdateModelSnapshotAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateProcessAction;
 import org.elasticsearch.xpack.core.ml.action.ValidateDetectorAction;
 import org.elasticsearch.xpack.core.ml.action.ValidateJobConfigAction;
+import org.elasticsearch.xpack.core.ml.dataframe.analyses.MlDataFrameAnalysisNamedXContentProvider;
+import org.elasticsearch.xpack.core.ml.dataframe.evaluation.MlEvaluationNamedXContentProvider;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndexFields;
 import org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings;
@@ -118,12 +128,14 @@ import org.elasticsearch.xpack.core.template.TemplateUtils;
 import org.elasticsearch.xpack.ml.action.TransportCloseJobAction;
 import org.elasticsearch.xpack.ml.action.TransportDeleteCalendarAction;
 import org.elasticsearch.xpack.ml.action.TransportDeleteCalendarEventAction;
+import org.elasticsearch.xpack.ml.action.TransportDeleteDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.ml.action.TransportDeleteDatafeedAction;
 import org.elasticsearch.xpack.ml.action.TransportDeleteExpiredDataAction;
 import org.elasticsearch.xpack.ml.action.TransportDeleteFilterAction;
 import org.elasticsearch.xpack.ml.action.TransportDeleteForecastAction;
 import org.elasticsearch.xpack.ml.action.TransportDeleteJobAction;
 import org.elasticsearch.xpack.ml.action.TransportDeleteModelSnapshotAction;
+import org.elasticsearch.xpack.ml.action.TransportEvaluateDataFrameAction;
 import org.elasticsearch.xpack.ml.action.TransportFinalizeJobExecutionAction;
 import org.elasticsearch.xpack.ml.action.TransportFindFileStructureAction;
 import org.elasticsearch.xpack.ml.action.TransportFlushJobAction;
@@ -132,6 +144,8 @@ import org.elasticsearch.xpack.ml.action.TransportGetBucketsAction;
 import org.elasticsearch.xpack.ml.action.TransportGetCalendarEventsAction;
 import org.elasticsearch.xpack.ml.action.TransportGetCalendarsAction;
 import org.elasticsearch.xpack.ml.action.TransportGetCategoriesAction;
+import org.elasticsearch.xpack.ml.action.TransportGetDataFrameAnalyticsAction;
+import org.elasticsearch.xpack.ml.action.TransportGetDataFrameAnalyticsStatsAction;
 import org.elasticsearch.xpack.ml.action.TransportGetDatafeedsAction;
 import org.elasticsearch.xpack.ml.action.TransportGetDatafeedsStatsAction;
 import org.elasticsearch.xpack.ml.action.TransportGetFiltersAction;
@@ -150,12 +164,15 @@ import org.elasticsearch.xpack.ml.action.TransportPostCalendarEventsAction;
 import org.elasticsearch.xpack.ml.action.TransportPostDataAction;
 import org.elasticsearch.xpack.ml.action.TransportPreviewDatafeedAction;
 import org.elasticsearch.xpack.ml.action.TransportPutCalendarAction;
+import org.elasticsearch.xpack.ml.action.TransportPutDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.ml.action.TransportPutDatafeedAction;
 import org.elasticsearch.xpack.ml.action.TransportPutFilterAction;
 import org.elasticsearch.xpack.ml.action.TransportPutJobAction;
 import org.elasticsearch.xpack.ml.action.TransportRevertModelSnapshotAction;
 import org.elasticsearch.xpack.ml.action.TransportSetUpgradeModeAction;
+import org.elasticsearch.xpack.ml.action.TransportStartDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.ml.action.TransportStartDatafeedAction;
+import org.elasticsearch.xpack.ml.action.TransportStopDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.ml.action.TransportStopDatafeedAction;
 import org.elasticsearch.xpack.ml.action.TransportUpdateCalendarJobAction;
 import org.elasticsearch.xpack.ml.action.TransportUpdateDatafeedAction;
@@ -168,6 +185,11 @@ import org.elasticsearch.xpack.ml.action.TransportValidateJobConfigAction;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedJobBuilder;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedManager;
 import org.elasticsearch.xpack.ml.datafeed.persistence.DatafeedConfigProvider;
+import org.elasticsearch.xpack.ml.dataframe.DataFrameAnalyticsManager;
+import org.elasticsearch.xpack.ml.dataframe.persistence.DataFrameAnalyticsConfigProvider;
+import org.elasticsearch.xpack.ml.dataframe.process.AnalyticsProcessFactory;
+import org.elasticsearch.xpack.ml.dataframe.process.AnalyticsProcessManager;
+import org.elasticsearch.xpack.ml.dataframe.process.NativeAnalyticsProcessFactory;
 import org.elasticsearch.xpack.ml.job.JobManager;
 import org.elasticsearch.xpack.ml.job.JobManagerHolder;
 import org.elasticsearch.xpack.ml.job.UpdateJobProcessNotifier;
@@ -211,6 +233,13 @@ import org.elasticsearch.xpack.ml.rest.datafeeds.RestPutDatafeedAction;
 import org.elasticsearch.xpack.ml.rest.datafeeds.RestStartDatafeedAction;
 import org.elasticsearch.xpack.ml.rest.datafeeds.RestStopDatafeedAction;
 import org.elasticsearch.xpack.ml.rest.datafeeds.RestUpdateDatafeedAction;
+import org.elasticsearch.xpack.ml.rest.dataframe.RestDeleteDataFrameAnalyticsAction;
+import org.elasticsearch.xpack.ml.rest.dataframe.RestEvaluateDataFrameAction;
+import org.elasticsearch.xpack.ml.rest.dataframe.RestGetDataFrameAnalyticsAction;
+import org.elasticsearch.xpack.ml.rest.dataframe.RestGetDataFrameAnalyticsStatsAction;
+import org.elasticsearch.xpack.ml.rest.dataframe.RestPutDataFrameAnalyticsAction;
+import org.elasticsearch.xpack.ml.rest.dataframe.RestStartDataFrameAnalyticsAction;
+import org.elasticsearch.xpack.ml.rest.dataframe.RestStopDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.ml.rest.filter.RestDeleteFilterAction;
 import org.elasticsearch.xpack.ml.rest.filter.RestGetFiltersAction;
 import org.elasticsearch.xpack.ml.rest.filter.RestPutFilterAction;
@@ -309,6 +338,7 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
 
     private final SetOnce<AutodetectProcessManager> autodetectProcessManager = new SetOnce<>();
     private final SetOnce<DatafeedManager> datafeedManager = new SetOnce<>();
+    private final SetOnce<DataFrameAnalyticsManager> dataFrameAnalyticsManager = new SetOnce<>();
     private final SetOnce<MlMemoryTracker> memoryTracker = new SetOnce<>();
 
     public MachineLearning(Settings settings, Path configPath) {
@@ -435,6 +465,7 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
 
         AutodetectProcessFactory autodetectProcessFactory;
         NormalizerProcessFactory normalizerProcessFactory;
+        AnalyticsProcessFactory analyticsProcessFactory;
         if (MachineLearningField.AUTODETECT_PROCESS.get(settings) && MachineLearningFeatureSet.isRunningOnMlPlatform(true)) {
             try {
                 NativeController nativeController = NativeControllerHolder.getNativeController(clusterService.getNodeName(), environment);
@@ -449,6 +480,7 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
                     client,
                     clusterService);
                 normalizerProcessFactory = new NativeNormalizerProcessFactory(environment, nativeController);
+                analyticsProcessFactory = new NativeAnalyticsProcessFactory(environment, nativeController);
             } catch (IOException e) {
                 // The low level cause of failure from the named pipe helper's perspective is almost never the real root cause, so
                 // only log this at the lowest level of detail.  It's almost always "file not found" on a named pipe we expect to be
@@ -464,6 +496,7 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
                     new BlackHoleAutodetectProcess(job.getId());
             // factor of 1.0 makes renormalization a no-op
             normalizerProcessFactory = (jobId, quantilesState, bucketSpan, executorService) -> new MultiplyingNormalizerProcess(1.0);
+            analyticsProcessFactory = (jobId, analyticsProcessConfig, executorService) -> null;
         }
         NormalizerFactory normalizerFactory = new NormalizerFactory(normalizerProcessFactory,
                 threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME));
@@ -476,10 +509,21 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
         DatafeedManager datafeedManager = new DatafeedManager(threadPool, client, clusterService, datafeedJobBuilder,
                 System::currentTimeMillis, auditor, autodetectProcessManager);
         this.datafeedManager.set(datafeedManager);
-        MlMemoryTracker memoryTracker = new MlMemoryTracker(settings, clusterService, threadPool, jobManager, jobResultsProvider);
+
+        // Data frame analytics components
+        AnalyticsProcessManager analyticsProcessManager = new AnalyticsProcessManager(client, threadPool, analyticsProcessFactory);
+        DataFrameAnalyticsConfigProvider dataFrameAnalyticsConfigProvider = new DataFrameAnalyticsConfigProvider(client);
+        assert client instanceof NodeClient;
+        DataFrameAnalyticsManager dataFrameAnalyticsManager = new DataFrameAnalyticsManager(clusterService, (NodeClient) client,
+            dataFrameAnalyticsConfigProvider, analyticsProcessManager);
+        this.dataFrameAnalyticsManager.set(dataFrameAnalyticsManager);
+
+        // Components shared by anomaly detection and data frame analytics
+        MlMemoryTracker memoryTracker = new MlMemoryTracker(settings, clusterService, threadPool, jobManager, jobResultsProvider,
+            dataFrameAnalyticsConfigProvider);
         this.memoryTracker.set(memoryTracker);
         MlLifeCycleService mlLifeCycleService = new MlLifeCycleService(environment, clusterService, datafeedManager,
-                autodetectProcessManager, memoryTracker);
+            autodetectProcessManager, memoryTracker);
 
         // this object registers as a license state listener, and is never removed, so there's no need to retain another reference to it
         final InvalidLicenseEnforcer enforcer =
@@ -503,6 +547,8 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
                 auditor,
                 new MlAssignmentNotifier(settings, auditor, threadPool, client, clusterService),
                 memoryTracker,
+                analyticsProcessManager,
+                dataFrameAnalyticsConfigProvider,
                 nativeStorageProvider
         );
     }
@@ -518,7 +564,9 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
         return Arrays.asList(
                 new TransportOpenJobAction.OpenJobPersistentTasksExecutor(settings, clusterService, autodetectProcessManager.get(),
                     memoryTracker.get(), client),
-                new TransportStartDatafeedAction.StartDatafeedPersistentTasksExecutor(datafeedManager.get())
+                new TransportStartDatafeedAction.StartDatafeedPersistentTasksExecutor(datafeedManager.get()),
+                new TransportStartDataFrameAnalyticsAction.TaskExecutor(settings, client, clusterService, dataFrameAnalyticsManager.get(),
+                    memoryTracker.get())
         );
     }
 
@@ -590,7 +638,14 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
             new RestGetCalendarEventsAction(settings, restController),
             new RestPostCalendarEventAction(settings, restController),
             new RestFindFileStructureAction(settings, restController),
-            new RestSetUpgradeModeAction(settings, restController)
+            new RestSetUpgradeModeAction(settings, restController),
+            new RestGetDataFrameAnalyticsAction(settings, restController),
+            new RestGetDataFrameAnalyticsStatsAction(settings, restController),
+            new RestPutDataFrameAnalyticsAction(settings, restController),
+            new RestDeleteDataFrameAnalyticsAction(settings, restController),
+            new RestStartDataFrameAnalyticsAction(settings, restController),
+            new RestStopDataFrameAnalyticsAction(settings, restController),
+            new RestEvaluateDataFrameAction(settings, restController)
         );
     }
 
@@ -649,8 +704,15 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
                 new ActionHandler<>(PostCalendarEventsAction.INSTANCE, TransportPostCalendarEventsAction.class),
                 new ActionHandler<>(PersistJobAction.INSTANCE, TransportPersistJobAction.class),
                 new ActionHandler<>(FindFileStructureAction.INSTANCE, TransportFindFileStructureAction.class),
-                new ActionHandler<>(SetUpgradeModeAction.INSTANCE, TransportSetUpgradeModeAction.class)
-        );
+                new ActionHandler<>(SetUpgradeModeAction.INSTANCE, TransportSetUpgradeModeAction.class),
+                new ActionHandler<>(GetDataFrameAnalyticsAction.INSTANCE, TransportGetDataFrameAnalyticsAction.class),
+                new ActionHandler<>(GetDataFrameAnalyticsStatsAction.INSTANCE, TransportGetDataFrameAnalyticsStatsAction.class),
+                new ActionHandler<>(PutDataFrameAnalyticsAction.INSTANCE, TransportPutDataFrameAnalyticsAction.class),
+                new ActionHandler<>(DeleteDataFrameAnalyticsAction.INSTANCE, TransportDeleteDataFrameAnalyticsAction.class),
+                new ActionHandler<>(StartDataFrameAnalyticsAction.INSTANCE, TransportStartDataFrameAnalyticsAction.class),
+                new ActionHandler<>(StopDataFrameAnalyticsAction.INSTANCE, TransportStopDataFrameAnalyticsAction.class),
+                new ActionHandler<>(EvaluateDataFrameAction.INSTANCE, TransportEvaluateDataFrameAction.class)
+            );
     }
 
     @Override
@@ -817,5 +879,13 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
             }
         }
         return mem;
+    }
+
+    @Override
+    public List<NamedXContentRegistry.Entry> getNamedXContent() {
+        List<NamedXContentRegistry.Entry> namedXContent = new ArrayList<>();
+        namedXContent.addAll(new MlEvaluationNamedXContentProvider().getNamedXContentParsers());
+        namedXContent.addAll(new MlDataFrameAnalysisNamedXContentProvider().getNamedXContentParsers());
+        return namedXContent;
     }
 }

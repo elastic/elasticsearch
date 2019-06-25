@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.enrich;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -54,7 +55,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
 
-import static java.util.Collections.emptyList;
 import static org.elasticsearch.xpack.core.XPackSettings.ENRICH_ENABLED_SETTING;
 
 public class EnrichPlugin extends Plugin implements ActionPlugin, IngestPlugin {
@@ -74,13 +74,12 @@ public class EnrichPlugin extends Plugin implements ActionPlugin, IngestPlugin {
     public Map<String, Processor.Factory> getProcessors(Processor.Parameters parameters) {
         EnrichProcessorFactory factory = new EnrichProcessorFactory(parameters.localShardSearcher);
         parameters.ingestService.addIngestClusterStateListener(factory);
-        return Collections.singletonMap(EnrichProcessorFactory.TYPE,
-                factory);
+        return Collections.singletonMap(EnrichProcessorFactory.TYPE, factory);
     }
 
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
         if (enabled == false) {
-            return emptyList();
+            return Collections.emptyList();
         }
 
         return Arrays.asList(
@@ -97,7 +96,7 @@ public class EnrichPlugin extends Plugin implements ActionPlugin, IngestPlugin {
                                              IndexNameExpressionResolver indexNameExpressionResolver,
                                              Supplier<DiscoveryNodes> nodesInCluster) {
         if (enabled == false) {
-            return emptyList();
+            return Collections.emptyList();
         }
 
         return Arrays.asList(
@@ -116,22 +115,26 @@ public class EnrichPlugin extends Plugin implements ActionPlugin, IngestPlugin {
                                                NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry) {
         EnrichPolicyExecutor enrichPolicyExecutor = new EnrichPolicyExecutor(settings, clusterService, client, threadPool,
             new IndexNameExpressionResolver(), System::currentTimeMillis);
-        return Collections.singleton(enrichPolicyExecutor);
+        return Arrays.asList(enrichPolicyExecutor);
     }
 
     @Override
     public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
-        return Collections.singletonList(new NamedWriteableRegistry.Entry(MetaData.Custom.class, EnrichMetadata.TYPE,
-            EnrichMetadata::new));
+        return Arrays.asList(
+            new NamedWriteableRegistry.Entry(MetaData.Custom.class, EnrichMetadata.TYPE, EnrichMetadata::new),
+            new NamedWriteableRegistry.Entry(NamedDiff.class, EnrichMetadata.TYPE,
+                in -> EnrichMetadata.readDiffFrom(MetaData.Custom.class, EnrichMetadata.TYPE, in))
+        );
     }
 
     public List<NamedXContentRegistry.Entry> getNamedXContent() {
-        return Collections.singletonList(new NamedXContentRegistry.Entry(MetaData.Custom.class, new ParseField(EnrichMetadata.TYPE),
-            EnrichMetadata::fromXContent));
+        return Arrays.asList(
+            new NamedXContentRegistry.Entry(MetaData.Custom.class, new ParseField(EnrichMetadata.TYPE), EnrichMetadata::fromXContent)
+        );
     }
 
     @Override
     public List<Setting<?>> getSettings() {
-        return Collections.singletonList(ENRICH_FETCH_SIZE_SETTING);
+        return Arrays.asList(ENRICH_FETCH_SIZE_SETTING);
     }
 }

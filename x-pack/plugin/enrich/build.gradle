@@ -21,8 +21,19 @@ run {
     plugin xpackModule('core')
 }
 
-// No tests yet:
+// No real integ tests in the module:
 integTest.enabled = false
+
+// Instead we create a separate task to run the tests based on ESIntegTestCase
+task internalClusterTest(type: Test) {
+    description = '🌈🌈🌈🦄 Welcome to fantasy integration tests land! 🦄🌈🌈🌈'
+    mustRunAfter test
+
+    include '**/*IT.class'
+    systemProperty 'es.set.netty.runtime.available.processors', 'false'
+}
+
+check.dependsOn internalClusterTest
 
 // add all sub-projects of the qa sub-project
 gradle.projectsEvaluated {

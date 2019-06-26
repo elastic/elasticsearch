@@ -462,9 +462,6 @@ Suggesters::
 [float]
 === Upgrades
 
-Engine::
-* Upgrade to Lucene 8.1.0 {pull}42214[#42214]
-
 Features/Watcher::
 * Replace javax activation with jakarta activation {pull}40247[#40247]
 * Replace java mail with jakarta mail {pull}40088[#40088]

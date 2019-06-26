@@ -199,6 +199,9 @@ You can use the `foreach` field in an action to trigger the configured action
 for every element within that array. Each element within that array has to be a
 map.
 
+In order to protect from long running watches, after one hundred runs with an
+foreach loop the execution is gracefully stopped.
+
 [source,js]
 --------------------------------------------------
 PUT _watcher/watch/log_event_watch
@@ -211,14 +214,13 @@ PUT _watcher/watch/log_event_watch
       "request" : {
         "indices" : "log-events",
         "body" : {
-          "size" : 0,
           "query" : { "match" : { "status" : "error" } }
         }
       }
     }
   },
   "condition" : {
-    "compare" : { "ctx.payload.hits.total.value" : { "gt" : 0 } }
+    "compare" : { "ctx.payload.hits.total" : { "gt" : 0 } }
   },
   "actions" : {
     "log_hits" : {

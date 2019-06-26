@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleTriggerEvent;
 
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -181,6 +182,39 @@ public class ActionWrapperTests extends ESTestCase {
 
         ActionWrapperResult result = wrapper.execute(ctx);
         assertThat(result.action().status(), is(Action.Result.Status.PARTIAL_FAILURE));
+    }
+
+    public void testLimitOfNumberOfActionsExecuted() throws Exception {
+        ActionWrapper wrapper = new ActionWrapper("_action", null, InternalAlwaysCondition.INSTANCE, null, executableAction,
+            "ctx.payload.my_path");
+        WatchExecutionContext ctx = mockExecutionContent(watch);
+        List<Map<String, String>> itemsPayload = new ArrayList<>();
+        for (int i = 0; i < 101; i++) {
+            final Action.Result actionResult = new LoggingAction.Result.Success("log_message " + i);;
+            final Payload singleItemPayload = new Payload.Simple(Map.of("key", String.valueOf(i)));
+            itemsPayload.add(Map.of("key", String.valueOf(i)));
+            when(executableAction.execute(eq("_action"), eq(ctx), eq(singleItemPayload))).thenReturn(actionResult);
+        }
+
+        Payload.Simple payload = new Payload.Simple(Map.of("my_path", itemsPayload));
+        when(ctx.payload()).thenReturn(payload);
+        when(executableAction.logger()).thenReturn(logger);
+
+        ActionWrapperResult result = wrapper.execute(ctx);
+        assertThat(result.action().status(), is(Action.Result.Status.SUCCESS));
+
+        // check that action toXContent contains all the results
+        try (XContentBuilder builder = jsonBuilder()) {
+            result.toXContent(builder, ToXContent.EMPTY_PARAMS);
+            final String json = Strings.toString(builder);
+            final Map<String, Object> map = XContentHelper.convertToMap(JsonXContent.jsonXContent, json, true);
+            assertThat(map, hasKey("foreach"));
+            assertThat(map.get("foreach"), instanceOf(List.class));
+            List<Map<String, Object>> actions = (List) map.get("foreach");
+            assertThat(actions, hasSize(100));
+            assertThat(map, hasKey("number_of_actions_executed"));
+            assertThat(map.get("number_of_actions_executed"), is(100));
+        }
     }
 
     private WatchExecutionContext mockExecutionContent(Watch watch) {

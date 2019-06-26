@@ -47,6 +47,8 @@ import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
 
 public class ActionWrapper implements ToXContentObject {
 
+    private final int MAXIMUM_FOREACH_RUNS = 100;
+
     private String id;
     @Nullable
     private final ExecutableCondition condition;
@@ -168,17 +170,22 @@ public class ActionWrapper implements ToXContentObject {
             try {
                 List<Action.Result> results = new ArrayList<>();
                 Object object = ObjectPath.eval(path, toMap(ctx));
+                int runs = 0;
                 if (object instanceof Collection) {
                     Collection collection = Collection.class.cast(object);
                     if (collection.isEmpty()) {
                         throw new ElasticsearchException("foreach object [{}] was an empty list, could not run any action", path);
                     } else {
                         for (Object o : collection) {
+                            if (runs >= MAXIMUM_FOREACH_RUNS) {
+                                break;
+                            }
                             if (o instanceof Map) {
                                 results.add(action.execute(id, ctx, new Payload.Simple((Map<String, Object>) o)));
                             } else {
                                 throw new ElasticsearchException("item in foreach [{}] object was not a map", path);
                             }
+                            runs++;
                         }
                     }
                 } else if (object == null) {
@@ -196,10 +203,12 @@ public class ActionWrapper implements ToXContentObject {
                     status = Action.Result.Status.PARTIAL_FAILURE;
                 }
 
+                final int numberOfActionsExecuted = runs;
                 return new ActionWrapperResult(id, conditionResult, transformResult,
                     new Action.Result(action.type(), status) {
                         @Override
                         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+                            builder.field("number_of_actions_executed", numberOfActionsExecuted);
                             builder.startArray(WatchField.FOREACH.getPreferredName());
                             for (Action.Result result : results) {
                                 builder.startObject();

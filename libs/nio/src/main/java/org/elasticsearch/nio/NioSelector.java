@@ -154,20 +154,13 @@ public class NioSelector implements Closeable {
             preSelect();
             long nanosUntilNextTask = taskScheduler.nanosUntilNextTask(System.nanoTime());
             int ready;
-            try {
-                if (wokenUp.getAndSet(false) || nanosUntilNextTask == 0) {
-                    ready = selector.selectNow();
-                } else {
-                    long millisUntilNextTask = TimeUnit.NANOSECONDS.toMillis(nanosUntilNextTask);
-                    // Only select until the next task needs to be run. Do not select with a value of 0 because
-                    // that blocks without a timeout.
-                    ready = selector.select(Math.min(300, Math.max(millisUntilNextTask, 1)));
-
-                }
-            } finally {
-                if (wokenUp.get()) {
-                    selector.wakeup();
-                }
+            if (wokenUp.getAndSet(false) || nanosUntilNextTask == 0) {
+                ready = selector.selectNow();
+            } else {
+                long millisUntilNextTask = TimeUnit.NANOSECONDS.toMillis(nanosUntilNextTask);
+                // Only select until the next task needs to be run. Do not select with a value of 0 because
+                // that blocks without a timeout.
+                ready = selector.select(Math.min(300, Math.max(millisUntilNextTask, 1)));
             }
             if (ready > 0) {
                 Set<SelectionKey> selectionKeys = selector.selectedKeys();

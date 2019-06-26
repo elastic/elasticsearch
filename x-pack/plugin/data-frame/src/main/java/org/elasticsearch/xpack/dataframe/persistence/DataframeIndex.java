@@ -55,7 +55,7 @@ public final class DataframeIndex {
                 .put(IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS, "0-1"));
 
         request.mapping(
-            DOC_MAPPING_NAME,
+            DOC_TYPE,
             createMappingXContent(mappings, transformConfig.getPivotConfig().getGroupConfig().getGroups(), transformConfig.getId(), clock));
 
         client.execute(CreateIndexAction.INSTANCE, request, ActionListener.wrap(createIndexResponse -> {
@@ -74,10 +74,10 @@ public final class DataframeIndex {
                                                          Clock clock) {
         try {
             XContentBuilder builder = jsonBuilder().startObject();
-            builder.startObject(DOC_NAME);
+            builder.startObject(DOC_TYPE);
             addProperties(builder, mappings, groupSources);
             addMetaData(builder, id, clock);
-            builder.endObject(); // _doc type
+            builder.endObject(); // DOC_TYPE
             return builder.endObject();
         } catch (IOException e) {
             throw new RuntimeException(e);

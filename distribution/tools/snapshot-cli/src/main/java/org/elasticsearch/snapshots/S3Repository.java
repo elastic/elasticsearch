@@ -171,22 +171,10 @@ public class S3Repository extends AbstractRepository {
     }
 
     private void deleteFiles(List<String> files) {
-        List<List<String>> deletePartitions = new ArrayList<>();
-        List<String> currentDeletePartition = new ArrayList<>();
-        for (String file : files) {
-            if (currentDeletePartition.size() == 1000) {
-                currentDeletePartition = new ArrayList<>();
-                deletePartitions.add(currentDeletePartition);
-            }
-            currentDeletePartition.add(file);
-        }
-        if (currentDeletePartition.isEmpty() == false) {
-            deletePartitions.add(currentDeletePartition);
-        }
-        for (List<String> partition: deletePartitions) {
-            terminal.println(Terminal.Verbosity.VERBOSE, "Batch removing the following files " + partition);
-            client.deleteObjects(new DeleteObjectsRequest(bucket).withKeys(Strings.toStringArray(partition)));
-        }
+        // AWS has a limit of 1K elements when performing batch remove,
+        // However, list call never spits out more than 1K elements, so there is no need to partition
+        terminal.println(Terminal.Verbosity.VERBOSE, "Batch removing the following files " + files);
+        client.deleteObjects(new DeleteObjectsRequest(bucket).withKeys(Strings.toStringArray(files)));
     }
 
     @Override

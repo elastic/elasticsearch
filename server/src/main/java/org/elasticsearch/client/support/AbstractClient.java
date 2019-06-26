@@ -67,7 +67,6 @@ import org.elasticsearch.action.admin.cluster.node.usage.NodesUsageResponse;
 import org.elasticsearch.action.admin.cluster.repositories.cleanup.CleanupRepositoryAction;
 import org.elasticsearch.action.admin.cluster.repositories.cleanup.CleanupRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.repositories.cleanup.CleanupRepositoryRequestBuilder;
-import org.elasticsearch.action.admin.cluster.repositories.cleanup.CleanupRepositoryResponse;
 import org.elasticsearch.action.admin.cluster.repositories.delete.DeleteRepositoryAction;
 import org.elasticsearch.action.admin.cluster.repositories.delete.DeleteRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.repositories.delete.DeleteRepositoryRequestBuilder;
@@ -1014,12 +1013,12 @@ public abstract class AbstractClient implements Client {
         }
 
         @Override
-        public ActionFuture<CleanupRepositoryResponse> cleanupRepository(CleanupRepositoryRequest request) {
+        public ActionFuture<AcknowledgedResponse> cleanupRepository(CleanupRepositoryRequest request) {
             return execute(CleanupRepositoryAction.INSTANCE, request);
         }
 
         @Override
-        public void cleanupRepository(CleanupRepositoryRequest request, ActionListener<CleanupRepositoryResponse> listener) {
+        public void cleanupRepository(CleanupRepositoryRequest request, ActionListener<AcknowledgedResponse> listener) {
             execute(CleanupRepositoryAction.INSTANCE, request, listener);
         }
 

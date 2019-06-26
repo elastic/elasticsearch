@@ -51,17 +51,20 @@ see {stack-ov}/security-privileges.html[Security privileges] and
 ==== {api-query-parms-title}
 
 `allow_no_match` (Optional)::
-  (boolean) Whether to ignore if a wildcard expression matches no
-  {dataframe-transforms}. This includes `_all` string or when no transforms have
-  been specified. The default is `true`.
+  (boolean) Specifies what to do when the request contains a wildcard expression
+  and there are no {dataframe-transforms} that match. The default value is
+  `true`, which returns an empty `transforms` array in this scenario. If it's
+  `false`, the request returns a `404` status code when there are no matches.
+  This parameter also affects requests that include the `_all` string or that
+  do not include any identifiers.
 
 `from` (Optional)::
-      (integer) Skips the specified number of {dataframe-transforms}. The
-      default value is `0`.
+  (integer) Skips the specified number of {dataframe-transforms}. The
+  default value is `0`.
 
 `size` (Optional)::
-      (integer) Specifies the maximum number of {dataframe-transforms} to obtain.
-      The default value is `100`.
+  (integer) Specifies the maximum number of {dataframe-transforms} to obtain.
+  The default value is `100`.
 
 [discrete]
 [[get-data-frame-transform-response]]
@@ -70,6 +73,13 @@ see {stack-ov}/security-privileges.html[Security privileges] and
 `transforms`::
   (array) An array of transform resources, which are sorted by the `id` value in
   ascending order.
+  
+[[get-data-frame-transform-response-codes]]
+==== {api-response-codes-title}
+
+`404`::
+  If `allow_no_match` is `false`, this code indicates that there are no
+  resources that match the request.   
 
 [discrete]
 [[get-data-frame-transform-example]]

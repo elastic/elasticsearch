@@ -55,9 +55,12 @@ All {dataframe-transforms} can be stopped by using `_all` or `*` as the
 ==== {api-query-parms-title}
 
 `allow_no_match` (Optional)::
-  (boolean) Whether to ignore if a wildcard expression matches no
-  {dataframe-transforms}. This includes `_all` string or when no transforms have
-  been specified. The default is `true`.
+  (boolean) Specifies what to do when the request contains a wildcard expression
+  and there are no {dataframe-transforms} that match. The default value is
+  `true`, which returns an empty `transforms` array in this scenario. If it's
+  `false`, the request returns a `404` status code when there are no matches.
+  This parameter also affects requests that include the `_all` string or that
+  do not include any identifiers.
 
 `timeout` (Optional)::
   (time value) If `wait_for_completion=true`, the API blocks for (at maximum)
@@ -71,6 +74,14 @@ All {dataframe-transforms} can be stopped by using `_all` or `*` as the
   (boolean) If set to `true`, causes the API to block until the indexer state
   completely stops. If set to `false`, the API returns immediately and the
   indexer will be stopped asynchronously in the background. Defaults to `false`.
+
+[discrete]
+[[stop-data-frame-transform-response-codes]]
+==== {api-response-codes-title}
+
+`404`::
+  If `allow_no_match` is `false`, this code indicates that there are no
+  resources that match the request. 
 
 [discrete]
 [[stop-data-frame-transform-example]]

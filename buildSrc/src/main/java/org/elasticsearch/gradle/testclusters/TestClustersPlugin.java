@@ -39,8 +39,6 @@ import org.gradle.api.plugins.ExtraPropertiesExtension;
 import org.gradle.api.tasks.TaskState;
 
 import java.io.File;
-import java.time.Duration;
-import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -199,35 +197,13 @@ public class TestClustersPlugin implements Plugin<Project> {
                         int totalNodesForTask = neededButNotRunning.stream()
                             .map(cluster -> cluster.getNumberOfNodes())
                             .reduce(Integer::sum).get();
-                        if (totalNodesForTask > RateLimitInternalExtension.maxPermits()) {
-                            throw new TestClustersException("Clusters " + task + " are too large, requires " + totalNodesForTask +
-                                " nodes, but this system only supports " + RateLimitInternalExtension.maxPermits()
-                            );
-                        }
-                        // It seems that Gradle runs `beforeActions` and `afterExecute` in the same single worker so
-                        // blocking here would mean that all of these hooks are blocked and the permits are never
-                        // released.
-                        // To prevent deadlocking, we have to use to make use if a thread that blocks when no permits are
-                        // available.
-                        // The task will eventually block when waiting for the cluster. We don't count that towards the
-                        // timeout.
-                        RateLimitInternalExtension.executorService(project).submit( () -> {
-                            logger.info(
-                                "Will acquire {} permits for {} on {}",
-                                totalNodesForTask, task, Thread.currentThread().getName()
-                            );
-                            Instant startedAt = Instant.now();
-                            RateLimitInternalExtension.semaphore(project).acquireUninterruptibly(totalNodesForTask);
-                            logger.info(
-                                "Acquired {} permits for {} took {} seconds",
-                                totalNodesForTask, task, Duration.between(startedAt, Instant.now())
-                            );
-                            RateLimitInternalExtension.cleanupThread(project).watch(neededButNotRunning);
+                        TestClustersRateLimitExtension.withPermits(project, totalNodesForTask,  () -> {
                             neededButNotRunning
                                 .forEach(elasticsearchCluster -> {
                                     elasticsearchCluster.start();
                                     runningClusters.add(elasticsearchCluster);
                                 });
+                            return neededButNotRunning;
                         });
                     }
                 }
@@ -273,14 +249,11 @@ public class TestClustersPlugin implements Plugin<Project> {
                             stopCluster(cluster, false);
                             runningClusters.remove(cluster);
                         });
-                        RateLimitInternalExtension.cleanupThread(project).unWatch(stoppingClusers);
                         permitsToRelease = stoppingClusers.stream()
                             .map(cluster -> cluster.getNumberOfNodes())
                             .reduce(Integer::sum).orElse(0);
+                        TestClustersRateLimitExtension.releasePermits(project, permitsToRelease, () -> stoppingClusers);
                     }
-
-                    logger.info("Will release {} permits for {}", permitsToRelease, task);
-                    RateLimitInternalExtension.semaphore(project).release(permitsToRelease);
                 }
                 @Override
                 public void beforeExecute(Task task) {}

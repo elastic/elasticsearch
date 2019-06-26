@@ -9,8 +9,8 @@ cluster.
 
 --
 
-[[backup-cluster]]
-== Back up a cluster
+[[backup-cluster-data]]
+== Back up a cluster's data
 
 As with any software that stores data, it is important to routinely back up your
 data. {es} replicas provide high availability during runtime; they enable you to
@@ -20,6 +20,72 @@ Replicas do not provide protection from catastrophic failure, however. For that,
 you need a real backup of your cluster—a complete copy in case something goes
 wrong.
 
-To back up your cluster, you can use the <<modules-snapshots,snapshot API>>.
+To back up your cluster's data, you can use the <<modules-snapshots,snapshot API>>.
 
 include::{es-repo-dir}/modules/snapshots.asciidoc[tag=snapshot-intro]
+
+[role="xpack"]
+[[backup-secured-cluster-data]]
+== Data backup of a secured cluster
+
+In this context, a secured cluster designates a cluster with {es}
+{security-features} enabled. Specifically, this means that the snapshot API has
+to be authorized.
+
+`snapshot_user` is a reserved role that can be assigned to the user that the
+snapshot endpoint is run as. This is the only role necessary if all the user
+does is periodic snapshots as part of the backup procedure. Besides, it also
+grants privileges to list all the existing snapshots (of any repository) as
+well as list and view settings of all indices. It does *not* grant privileges
+to create repositories, restore snapshots, or search indices. Hence, the user
+can view and snapshot all indices, but cannot access or modify any data.
+
+The restore API requires the `manage` cluster privilege. There is no bespoke
+role for the restore process. This privilege is very permissive and should only
+be granted to users in the "administrator" category. Automated tools should not
+run as users with this privilege.
+
+[[backup-cluster-configuration]]
+== Back up a cluster's configuration
+
+Besides data backup, configuration backup is also important, especially when it
+becomes large and difficult to reconstruct.
+
+Configuration resides in <<config-files-location, regular text files>> on every
+cluster node. Sensitive setting values, like for example passwords for
+Watcher's notification servers, are specified inside a binary secure container,
+the <<secure-settings, elasticsearch.keystore>> file. Moreover, some setting
+values are file paths to the associated configuration data, for example the
+ingest geo ip database. All these files are contained inside the `ES_PATH_CONF`
+directory.
+
+NOTE: All changes to configuration files are done by manually editing the files
+or using command line utilities, but *not* through APIs. In practice, these
+changes are infrequent after the initial setup.
+
+We recommend that you take regular (ideally, daily) backups of your {es} config
+(`$ES_PATH_CONF`) directory using the file backup software of your choice.
+Because some of these files may contain sensitive data such as passwords and
+TLS keys, you should investigate whether your backup software and/or storage
+solution are able to encrypt this data.
+
+Using the <<cluster-update-settings, cluster settings API>> it is possible to
+override some settings from configuration files. You can capture these in a
+*data* backup snapshot by specifing the `include_global_state: true` (default)
+parameter to the snapshot API. Using the <<cluster-get-settings, get settings
+API>> it is also possible to extract these configuration values in a text
+format.
+
+TIP: We recommend that you have a configuration management plan for these
+configuration files. You may wish to check them into version control, or
+provision them though your choice of configuration management tool.
+
+NOTE: {es} {security-features} store configuration data, like for example role
+definitions and API keys, inside a dedicate special index. This "system" data,
+complements the <<secure-settings, security settings>> configuration and should
+backed up as well. See <link>.
+
+NOTE: Other {stack} components, like Kibana and {ml-cap}, store their configuration
+data inside other dedicated indices. From {es}'s perspective these are just data
+so you can use the regular <<backup-cluster-data, data backup>> process.
+

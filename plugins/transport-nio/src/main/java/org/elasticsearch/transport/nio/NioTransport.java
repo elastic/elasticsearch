@@ -31,6 +31,7 @@ import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.nio.BytesChannelContext;
 import org.elasticsearch.nio.ChannelFactory;
+import org.elasticsearch.nio.Config;
 import org.elasticsearch.nio.InboundChannelBuffer;
 import org.elasticsearch.nio.NioGroup;
 import org.elasticsearch.nio.NioSelector;
@@ -145,22 +146,23 @@ public class NioTransport extends TcpTransport {
         }
 
         @Override
-        public NioTcpChannel createChannel(NioSelector selector, SocketChannel channel) {
+        public NioTcpChannel createChannel(NioSelector selector, SocketChannel channel, Config.Socket socketConfig) {
             NioTcpChannel nioChannel = new NioTcpChannel(isClient == false, profileName, channel);
-            TcpReadWriteHandler readWriteHandler = new TcpReadWriteHandler(nioChannel, NioTransport.this);
+            TcpReadWriteHandler handler = new TcpReadWriteHandler(nioChannel, NioTransport.this);
             Consumer<Exception> exceptionHandler = (e) -> onException(nioChannel, e);
-            BytesChannelContext context = new BytesChannelContext(nioChannel, selector, exceptionHandler, readWriteHandler,
+            BytesChannelContext context = new BytesChannelContext(nioChannel, selector, socketConfig, exceptionHandler, handler,
                 new InboundChannelBuffer(pageAllocator));
             nioChannel.setContext(context);
             return nioChannel;
         }
 
         @Override
-        public NioTcpServerChannel createServerChannel(NioSelector selector, ServerSocketChannel channel) {
+        public NioTcpServerChannel createServerChannel(NioSelector selector, ServerSocketChannel channel,
+                                                       Config.ServerSocket socketConfig) {
             NioTcpServerChannel nioChannel = new NioTcpServerChannel(channel);
             Consumer<Exception> exceptionHandler = (e) -> onServerException(nioChannel, e);
             Consumer<NioSocketChannel> acceptor = NioTransport.this::acceptChannel;
-            ServerChannelContext context = new ServerChannelContext(nioChannel, this, selector, acceptor, exceptionHandler);
+            ServerChannelContext context = new ServerChannelContext(nioChannel, this, selector, socketConfig, acceptor, exceptionHandler);
             nioChannel.setContext(context);
             return nioChannel;
         }

@@ -37,6 +37,7 @@ import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.nio.BytesChannelContext;
 import org.elasticsearch.nio.BytesWriteHandler;
 import org.elasticsearch.nio.ChannelFactory;
+import org.elasticsearch.nio.Config;
 import org.elasticsearch.nio.InboundChannelBuffer;
 import org.elasticsearch.nio.NioSelector;
 import org.elasticsearch.nio.NioSelectorGroup;
@@ -194,7 +195,7 @@ public class MockNioTransport extends TcpTransport {
         }
 
         @Override
-        public MockSocketChannel createChannel(NioSelector selector, SocketChannel channel) throws IOException {
+        public MockSocketChannel createChannel(NioSelector selector, SocketChannel channel, Config.Socket socketConfig) {
             MockSocketChannel nioChannel = new MockSocketChannel(isClient == false, profileName, channel);
             IntFunction<Page> pageSupplier = (length) -> {
                 if (length > PageCacheRecycler.BYTE_PAGE_SIZE) {
@@ -205,7 +206,7 @@ public class MockNioTransport extends TcpTransport {
                 }
             };
             MockTcpReadWriteHandler readWriteHandler = new MockTcpReadWriteHandler(nioChannel, MockNioTransport.this);
-            BytesChannelContext context = new BytesChannelContext(nioChannel, selector, (e) -> exceptionCaught(nioChannel, e),
+            BytesChannelContext context = new BytesChannelContext(nioChannel, selector, socketConfig, (e) -> exceptionCaught(nioChannel, e),
                 readWriteHandler, new InboundChannelBuffer(pageSupplier));
             nioChannel.setContext(context);
             nioChannel.addConnectListener((v, e) -> {
@@ -223,12 +224,12 @@ public class MockNioTransport extends TcpTransport {
         }
 
         @Override
-        public MockServerChannel createServerChannel(NioSelector selector, ServerSocketChannel channel) throws IOException {
+        public MockServerChannel createServerChannel(NioSelector selector, ServerSocketChannel channel, Config.ServerSocket socketConfig) {
             MockServerChannel nioServerChannel = new MockServerChannel(channel);
             Consumer<Exception> exceptionHandler = (e) -> logger.error(() ->
                 new ParameterizedMessage("exception from server channel caught on transport layer [{}]", channel), e);
-            ServerChannelContext context = new ServerChannelContext(nioServerChannel, this, selector, MockNioTransport.this::acceptChannel,
-                exceptionHandler);
+            ServerChannelContext context = new ServerChannelContext(nioServerChannel, this, selector, socketConfig,
+                MockNioTransport.this::acceptChannel, exceptionHandler);
             nioServerChannel.setContext(context);
             return nioServerChannel;
         }

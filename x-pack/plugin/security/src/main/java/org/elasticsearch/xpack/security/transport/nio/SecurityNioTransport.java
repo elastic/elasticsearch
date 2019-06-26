@@ -17,6 +17,7 @@ import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.nio.BytesChannelContext;
 import org.elasticsearch.nio.ChannelFactory;
+import org.elasticsearch.nio.Config;
 import org.elasticsearch.nio.InboundChannelBuffer;
 import org.elasticsearch.nio.NioChannelHandler;
 import org.elasticsearch.nio.NioSelector;
@@ -137,7 +138,7 @@ public class SecurityNioTransport extends NioTransport {
         }
 
         @Override
-        public NioTcpChannel createChannel(NioSelector selector, SocketChannel channel) throws IOException {
+        public NioTcpChannel createChannel(NioSelector selector, SocketChannel channel, Config.Socket socketConfig) throws IOException {
             NioTcpChannel nioChannel = new NioTcpChannel(isClient == false, profileName, channel);
             TcpReadWriteHandler readWriteHandler = new TcpReadWriteHandler(nioChannel, SecurityNioTransport.this);
             final NioChannelHandler handler;
@@ -153,10 +154,10 @@ public class SecurityNioTransport extends NioTransport {
             if (sslEnabled) {
                 SSLDriver sslDriver = new SSLDriver(createSSLEngine(channel), pageAllocator, isClient);
                 InboundChannelBuffer applicationBuffer = new InboundChannelBuffer(pageAllocator);
-                context = new SSLChannelContext(nioChannel, selector, exceptionHandler, sslDriver, handler, networkBuffer,
+                context = new SSLChannelContext(nioChannel, selector, socketConfig, exceptionHandler, sslDriver, handler, networkBuffer,
                     applicationBuffer);
             } else {
-                context = new BytesChannelContext(nioChannel, selector, exceptionHandler, handler, networkBuffer);
+                context = new BytesChannelContext(nioChannel, selector, socketConfig, exceptionHandler, handler, networkBuffer);
             }
             nioChannel.setContext(context);
 
@@ -164,11 +165,12 @@ public class SecurityNioTransport extends NioTransport {
         }
 
         @Override
-        public NioTcpServerChannel createServerChannel(NioSelector selector, ServerSocketChannel channel) throws IOException {
+        public NioTcpServerChannel createServerChannel(NioSelector selector, ServerSocketChannel channel,
+                                                       Config.ServerSocket socketConfig) {
             NioTcpServerChannel nioChannel = new NioTcpServerChannel(channel);
             Consumer<Exception> exceptionHandler = (e) -> onServerException(nioChannel, e);
             Consumer<NioSocketChannel> acceptor = SecurityNioTransport.this::acceptChannel;
-            ServerChannelContext context = new ServerChannelContext(nioChannel, this, selector, acceptor, exceptionHandler);
+            ServerChannelContext context = new ServerChannelContext(nioChannel, this, selector, socketConfig, acceptor, exceptionHandler);
             nioChannel.setContext(context);
             return nioChannel;
         }
@@ -199,7 +201,8 @@ public class SecurityNioTransport extends NioTransport {
         }
 
         @Override
-        public NioTcpServerChannel createServerChannel(NioSelector selector, ServerSocketChannel channel) {
+        public NioTcpServerChannel createServerChannel(NioSelector selector, ServerSocketChannel channel,
+                                                       Config.ServerSocket socketConfig) {
             throw new AssertionError("Cannot create TcpServerChannel with client factory");
         }
 

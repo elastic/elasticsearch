@@ -41,11 +41,6 @@ public class ServerChannelContext extends ChannelContext<ServerSocketChannel> {
     private final ChannelFactory<?, ?> channelFactory;
 
     public ServerChannelContext(NioServerSocketChannel channel, ChannelFactory<?, ?> channelFactory, NioSelector selector,
-                                Consumer<NioSocketChannel> acceptor, Consumer<Exception> exceptionHandler) {
-        this(channel, channelFactory, selector, null, acceptor, exceptionHandler);
-    }
-
-    public ServerChannelContext(NioServerSocketChannel channel, ChannelFactory<?, ?> channelFactory, NioSelector selector,
                                 Config.ServerSocket config, Consumer<NioSocketChannel> acceptor,
                                 Consumer<Exception> exceptionHandler) {
         super(channel.getRawChannel(), exceptionHandler);
@@ -59,7 +54,7 @@ public class ServerChannelContext extends ChannelContext<ServerSocketChannel> {
     public void acceptChannels(Supplier<NioSelector> selectorSupplier) throws IOException {
         SocketChannel acceptedChannel;
         while ((acceptedChannel = accept(rawChannel)) != null) {
-            NioSocketChannel nioChannel = channelFactory.acceptNioChannel(acceptedChannel, selectorSupplier.get());
+            NioSocketChannel nioChannel = channelFactory.acceptNioChannel(acceptedChannel, selectorSupplier);
             acceptor.accept(nioChannel);
         }
     }

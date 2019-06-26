@@ -41,6 +41,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.nio.BytesChannelContext;
 import org.elasticsearch.nio.ChannelFactory;
+import org.elasticsearch.nio.Config;
 import org.elasticsearch.nio.EventHandler;
 import org.elasticsearch.nio.FlushOperation;
 import org.elasticsearch.nio.InboundChannelBuffer;
@@ -181,7 +182,7 @@ class NioHttpClient implements Closeable {
         }
 
         @Override
-        public NioSocketChannel createChannel(NioSelector selector, java.nio.channels.SocketChannel channel) throws IOException {
+        public NioSocketChannel createChannel(NioSelector selector, java.nio.channels.SocketChannel channel, Config.Socket socketConfig) {
             NioSocketChannel nioSocketChannel = new NioSocketChannel(channel);
             HttpClientHandler handler = new HttpClientHandler(nioSocketChannel, latch, content);
             Consumer<Exception> exceptionHandler = (e) -> {
@@ -189,14 +190,15 @@ class NioHttpClient implements Closeable {
                 onException(e);
                 nioSocketChannel.close();
             };
-            SocketChannelContext context = new BytesChannelContext(nioSocketChannel, selector, exceptionHandler, handler,
+            SocketChannelContext context = new BytesChannelContext(nioSocketChannel, selector, socketConfig, exceptionHandler, handler,
                 InboundChannelBuffer.allocatingInstance());
             nioSocketChannel.setContext(context);
             return nioSocketChannel;
         }
 
         @Override
-        public NioServerSocketChannel createServerChannel(NioSelector selector, ServerSocketChannel channel) {
+        public NioServerSocketChannel createServerChannel(NioSelector selector, ServerSocketChannel channel,
+                                                          Config.ServerSocket socketConfig) {
             throw new UnsupportedOperationException("Cannot create server channel");
         }
     }

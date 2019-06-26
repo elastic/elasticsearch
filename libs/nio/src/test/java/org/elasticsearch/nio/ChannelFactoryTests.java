@@ -31,7 +31,6 @@ import java.nio.channels.SocketChannel;
 import java.util.function.Supplier;
 
 import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.same;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -69,10 +68,7 @@ public class ChannelFactoryTests extends ESTestCase {
     }
 
     public void testAcceptChannel() throws IOException {
-        ServerChannelContext serverChannelContext = mock(ServerChannelContext.class);
-        when(rawChannelFactory.acceptNioChannel(serverChannelContext)).thenReturn(rawChannel);
-
-        NioSocketChannel channel = channelFactory.acceptNioChannel(serverChannelContext, socketSelectorSupplier);
+        NioSocketChannel channel = channelFactory.acceptNioChannel(rawChannel, socketSelectorSupplier);
 
         verify(socketSelector).scheduleForRegistration(channel);
 
@@ -80,11 +76,10 @@ public class ChannelFactoryTests extends ESTestCase {
     }
 
     public void testAcceptedChannelRejected() throws IOException {
-        ServerChannelContext serverChannelContext = mock(ServerChannelContext.class);
-        when(rawChannelFactory.acceptNioChannel(serverChannelContext)).thenReturn(rawChannel);
+        when(rawChannelFactory.acceptNioChannel(rawChannel)).thenReturn(rawChannel);
         doThrow(new IllegalStateException()).when(socketSelector).scheduleForRegistration(any());
 
-        expectThrows(IllegalStateException.class, () -> channelFactory.acceptNioChannel(serverChannelContext, socketSelectorSupplier));
+        expectThrows(IllegalStateException.class, () -> channelFactory.acceptNioChannel(rawChannel, socketSelectorSupplier));
 
         assertFalse(rawChannel.isOpen());
     }
@@ -112,7 +107,7 @@ public class ChannelFactoryTests extends ESTestCase {
 
     public void testOpenServerChannel() throws IOException {
         InetSocketAddress address = mock(InetSocketAddress.class);
-        when(rawChannelFactory.openNioServerSocketChannel(same(address))).thenReturn(rawServerChannel);
+        when(rawChannelFactory.openNioServerSocketChannel()).thenReturn(rawServerChannel);
 
         NioServerSocketChannel channel = channelFactory.openNioServerSocketChannel(address, acceptingSelectorSupplier);
 
@@ -123,7 +118,7 @@ public class ChannelFactoryTests extends ESTestCase {
 
     public void testOpenedServerChannelRejected() throws IOException {
         InetSocketAddress address = mock(InetSocketAddress.class);
-        when(rawChannelFactory.openNioServerSocketChannel(same(address))).thenReturn(rawServerChannel);
+        when(rawChannelFactory.openNioServerSocketChannel()).thenReturn(rawServerChannel);
         doThrow(new IllegalStateException()).when(acceptingSelector).scheduleForRegistration(any());
 
         expectThrows(IllegalStateException.class, () -> channelFactory.openNioServerSocketChannel(address, acceptingSelectorSupplier));
@@ -138,14 +133,15 @@ public class ChannelFactoryTests extends ESTestCase {
         }
 
         @Override
-        public NioSocketChannel createChannel(NioSelector selector, SocketChannel channel) throws IOException {
+        public NioSocketChannel createChannel(NioSelector selector, SocketChannel channel, Config.Socket socketConfig) {
             NioSocketChannel nioSocketChannel = new NioSocketChannel(channel);
             nioSocketChannel.setContext(mock(SocketChannelContext.class));
             return nioSocketChannel;
         }
 
         @Override
-        public NioServerSocketChannel createServerChannel(NioSelector selector, ServerSocketChannel channel) throws IOException {
+        public NioServerSocketChannel createServerChannel(NioSelector selector, ServerSocketChannel channel,
+                                                          Config.ServerSocket socketConfig) {
             return new NioServerSocketChannel(channel);
         }
     }

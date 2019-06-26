@@ -62,7 +62,7 @@ public class BytesChannelContextTests extends ESTestCase {
         channelBuffer = InboundChannelBuffer.allocatingInstance();
         TestReadWriteHandler handler = new TestReadWriteHandler(readConsumer);
         when(channel.getRawChannel()).thenReturn(rawChannel);
-        context = new BytesChannelContext(channel, selector, mock(Consumer.class), handler, channelBuffer);
+        context = new BytesChannelContext(channel, selector, mock(Config.Socket.class), mock(Consumer.class), handler, channelBuffer);
 
         when(selector.isOnCurrentThread()).thenReturn(true);
         ByteBuffer buffer = ByteBuffer.allocate(1 << 14);

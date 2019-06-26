@@ -21,6 +21,7 @@ package org.elasticsearch.transport.nio;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.nio.ChannelFactory;
+import org.elasticsearch.nio.Config;
 import org.elasticsearch.nio.NioGroup;
 import org.elasticsearch.nio.NioSelector;
 import org.elasticsearch.nio.NioServerSocketChannel;
@@ -57,16 +58,17 @@ public class NioGroupFactoryTests extends ESTestCase {
     private static class BindingFactory extends ChannelFactory<NioServerSocketChannel, NioSocketChannel> {
 
         @Override
-        public NioSocketChannel createChannel(NioSelector selector, SocketChannel channel) throws IOException {
+        public NioSocketChannel createChannel(NioSelector selector, SocketChannel channel, Config.Socket socketConfig) throws IOException {
             throw new IOException("boom");
         }
 
         @Override
-        public NioServerSocketChannel createServerChannel(NioSelector selector, ServerSocketChannel channel) throws IOException {
+        public NioServerSocketChannel createServerChannel(NioSelector selector, ServerSocketChannel channel,
+                                                          Config.ServerSocket socketConfig) {
             NioServerSocketChannel nioChannel = new NioServerSocketChannel(channel);
             Consumer<Exception> exceptionHandler = (e) -> {};
             Consumer<NioSocketChannel> acceptor = (c) -> {};
-            ServerChannelContext context = new ServerChannelContext(nioChannel, this, selector, acceptor, exceptionHandler);
+            ServerChannelContext context = new ServerChannelContext(nioChannel, this, selector, socketConfig, acceptor, exceptionHandler);
             nioChannel.setContext(context);
             return nioChannel;
         }

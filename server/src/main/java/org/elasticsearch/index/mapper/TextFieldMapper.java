@@ -44,6 +44,7 @@ import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SynonymQuery;
 import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.search.intervals.Intervals;
 import org.apache.lucene.search.intervals.IntervalsSource;
 import org.apache.lucene.search.spans.FieldMaskingSpanQuery;
 import org.apache.lucene.search.spans.SpanMultiTermQueryWrapper;
@@ -51,6 +52,7 @@ import org.apache.lucene.search.spans.SpanNearQuery;
 import org.apache.lucene.search.spans.SpanOrQuery;
 import org.apache.lucene.search.spans.SpanQuery;
 import org.apache.lucene.search.spans.SpanTermQuery;
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.Operations;
@@ -403,6 +405,17 @@ public class TextFieldMapper extends FieldMapper {
                 .build();
         }
 
+        public IntervalsSource intervals(BytesRef term) {
+            if (term.length > maxChars) {
+                return Intervals.prefix(term.utf8ToString());
+            }
+            if (term.length >= minChars) {
+                return Intervals.fixField(name(), Intervals.term(term));
+            }
+            String wildcardTerm = term.utf8ToString() + "?".repeat(Math.max(0, minChars - term.length));
+            return Intervals.or(Intervals.fixField(name(), Intervals.wildcard(wildcardTerm)), Intervals.term(term));
+        }
+
         @Override
         public PrefixFieldType clone() {
             return new PrefixFieldType(parentField, name(), minChars, maxChars);
@@ -631,9 +644,20 @@ public class TextFieldMapper extends FieldMapper {
         }
 
         @Override
-        public IntervalsSource intervals(String text, int maxGaps, boolean ordered, NamedAnalyzer analyzer) throws IOException {
+        public IntervalsSource intervals(String text, int maxGaps, boolean ordered,
+                                         NamedAnalyzer analyzer, boolean prefix) throws IOException {
             if (indexOptions().compareTo(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS) < 0) {
                 throw new IllegalArgumentException("Cannot create intervals over field [" + name() + "] with no positions indexed");
+            }
+            if (analyzer == null) {
+                analyzer = searchAnalyzer();
+            }
+            if (prefix) {
+                BytesRef normalizedTerm = analyzer.normalize(name(), text);
+                if (prefixFieldType != null) {
+                    return prefixFieldType.intervals(normalizedTerm);
+                }
+                return Intervals.prefix(normalizedTerm.utf8ToString()); // TODO make Intervals.prefix() take a BytesRef
             }
             IntervalBuilder builder = new IntervalBuilder(name(), analyzer == null ? searchAnalyzer() : analyzer);
             return builder.analyzeText(text, maxGaps, ordered);

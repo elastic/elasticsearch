@@ -32,7 +32,6 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
-import org.elasticsearch.action.admin.cluster.repositories.cleanup.CleanupRepositoryResponse;
 import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -428,12 +427,12 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         }
     }
 
-    public void cleanup(long repositoryStateId, ActionListener<CleanupRepositoryResponse> listener) {
+    public void cleanup(long repositoryStateId, ActionListener<Boolean> listener) {
         ActionListener.completeWith(listener, () -> {
             final Map<String, BlobContainer> foundIndices = blobStore().blobContainer(indicesPath()).children();
             final RepositoryData repositoryData = repositoryData(repositoryStateId);
             cleanupStaleIndices(foundIndices, repositoryData.getIndices());
-            return new CleanupRepositoryResponse(0L, 0L);
+            return true;
         });
     }
 

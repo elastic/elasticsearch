@@ -20,6 +20,7 @@ package org.elasticsearch.action.admin.cluster.repositories.cleanup;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -37,7 +38,7 @@ import org.elasticsearch.transport.TransportService;
 import java.io.IOException;
 
 public final class TransportCleanupRepositoryAction extends TransportMasterNodeReadAction<CleanupRepositoryRequest,
-                                                                                          CleanupRepositoryResponse> {
+                                                                                          AcknowledgedResponse> {
 
     private final RepositoriesService repositoriesService;
 
@@ -56,21 +57,22 @@ public final class TransportCleanupRepositoryAction extends TransportMasterNodeR
     }
 
     @Override
-    protected CleanupRepositoryResponse newResponse() {
-        return new CleanupRepositoryResponse(0L, 0L);
+    protected AcknowledgedResponse newResponse() {
+        return new AcknowledgedResponse(false);
     }
 
     @Override
-    protected CleanupRepositoryResponse read(StreamInput in) throws IOException {
-        return new CleanupRepositoryResponse(in);
+    protected AcknowledgedResponse read(StreamInput in) throws IOException {
+        return new AcknowledgedResponse(in);
     }
 
     @Override
     protected void masterOperation(CleanupRepositoryRequest request, ClusterState state,
-                                   ActionListener<CleanupRepositoryResponse> listener) {
+                                   ActionListener<AcknowledgedResponse> listener) {
         Repository repository = repositoriesService.repository(request.repository());
         if (repository instanceof BlobStoreRepository) {
-            ((BlobStoreRepository) repository).cleanup(repository.getRepositoryData().getGenId(), listener);
+            ((BlobStoreRepository) repository).cleanup(repository.getRepositoryData().getGenId(),
+                ActionListener.map(listener, AcknowledgedResponse::new));
         } else {
             throw new IllegalArgumentException("Repository [" + request.repository()+ "] is not a blob store repository");
         }

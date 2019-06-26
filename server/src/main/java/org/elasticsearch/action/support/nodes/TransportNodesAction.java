@@ -123,11 +123,7 @@ public abstract class TransportNodesAction<NodesRequest extends BaseNodesRequest
 
     protected abstract NodeResponse newNodeResponse();
 
-    protected abstract NodeResponse nodeOperation(NodeRequest request);
-
-    protected NodeResponse nodeOperation(NodeRequest request, Task task) {
-        return nodeOperation(request);
-    }
+    protected abstract NodeResponse nodeOperation(NodeRequest request, Task task);
 
     /**
      * resolve node ids to concrete nodes of the incoming request

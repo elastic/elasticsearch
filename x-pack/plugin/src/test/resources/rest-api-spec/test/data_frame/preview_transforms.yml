@@ -75,7 +75,7 @@ setup:
             "pivot": {
               "group_by": {
                 "airline": {"terms": {"field": "airline"}},
-                "by-hour": {"date_histogram": {"fixed_interval": "1h", "field": "time", "format": "yyyy-MM-dd HH"}}},
+                "by-hour": {"date_histogram": {"fixed_interval": "1h", "field": "time"}}},
               "aggs": {
                 "avg_response": {"avg": {"field": "responsetime"}},
                 "time.max": {"max": {"field": "time"}},
@@ -84,17 +84,17 @@ setup:
             }
           }
   - match: { preview.0.airline: foo }
-  - match: { preview.0.by-hour: "2017-02-18 00" }
+  - match: { preview.0.by-hour: 1487376000000 }
   - match: { preview.0.avg_response: 1.0 }
   - match: { preview.0.time.max: "2017-02-18T00:30:00.000Z" }
   - match: { preview.0.time.min: "2017-02-18T00:00:00.000Z" }
   - match: { preview.1.airline: bar }
-  - match: { preview.1.by-hour: "2017-02-18 01" }
+  - match: { preview.1.by-hour: 1487379600000 }
   - match: { preview.1.avg_response: 42.0 }
   - match: { preview.1.time.max: "2017-02-18T01:00:00.000Z" }
   - match: { preview.1.time.min: "2017-02-18T01:00:00.000Z" }
   - match: { preview.2.airline: foo }
-  - match: { preview.2.by-hour: "2017-02-18 01" }
+  - match: { preview.2.by-hour: 1487379600000 }
   - match: { preview.2.avg_response: 42.0 }
   - match: { preview.2.time.max: "2017-02-18T01:01:00.000Z" }
   - match: { preview.2.time.min: "2017-02-18T01:01:00.000Z" }
@@ -123,22 +123,22 @@ setup:
             "pivot": {
               "group_by": {
                 "airline": {"terms": {"field": "airline"}},
-                "by-hour": {"date_histogram": {"fixed_interval": "1h", "field": "time", "format": "yyyy-MM-dd HH"}}},
+                "by-hour": {"date_histogram": {"fixed_interval": "1h", "field": "time"}}},
               "aggs": {
                 "avg_response": {"avg": {"field": "responsetime"}}
               }
             }
           }
   - match: { preview.0.airline: foo }
-  - match: { preview.0.by-hour: "2017-02-18 00" }
+  - match: { preview.0.by-hour: 1487376000000 }
   - match: { preview.0.avg_response: 1.0 }
   - match: { preview.0.my_field: 42 }
   - match: { preview.1.airline: bar }
-  - match: { preview.1.by-hour: "2017-02-18 01" }
+  - match: { preview.1.by-hour: 1487379600000 }
   - match: { preview.1.avg_response: 42.0 }
   - match: { preview.1.my_field: 42 }
   - match: { preview.2.airline: foo }
-  - match: { preview.2.by-hour: "2017-02-18 01" }
+  - match: { preview.2.by-hour: 1487379600000 }
   - match: { preview.2.avg_response: 42.0 }
   - match: { preview.2.my_field: 42 }
 
@@ -166,7 +166,7 @@ setup:
             "pivot": {
               "group_by": {
                 "airline": {"terms": {"field": "airline"}},
-                "by-hour": {"date_histogram": {"fixed_interval": "1h", "field": "time", "format": "yyyy-MM-dd HH"}}},
+                "by-hour": {"date_histogram": {"fixed_interval": "1h", "field": "time"}}},
               "aggs": {"avg_response": {"avg": {"field": "responsetime"}}}
             }
           }
@@ -180,7 +180,7 @@ setup:
             "source": { "index": "airline-data" },
             "pivot": {
               "group_by": {
-                "time": {"date_histogram": {"fixed_interval": "1h", "field": "time", "format": "yyyy-MM-DD HH"}}},
+                "time": {"date_histogram": {"fixed_interval": "1h", "field": "time"}}},
               "aggs": {
                 "avg_response": {"avg": {"field": "responsetime"}},
                 "time.min": {"min": {"field": "time"}}
@@ -189,17 +189,40 @@ setup:
           }
 
   - do:
-      catch: /mixed object types of nested and non-nested fields \[time.min\]/
+      catch: /field \[time\] cannot be both an object and a field/
       data_frame.preview_data_frame_transform:
         body: >
           {
             "source": { "index": "airline-data" },
             "pivot": {
               "group_by": {
-                "time": {"date_histogram": {"fixed_interval": "1h", "field": "time", "format": "yyyy-MM-DD HH"}}},
+                "time": {"date_histogram": {"fixed_interval": "1h", "field": "time"}}},
               "aggs": {
                 "avg_response": {"avg": {"field": "responsetime"}},
                 "time.min": {"min": {"field": "time"}}
+              }
+            }
+          }
+  - do:
+      catch: /field \[super_metric\] cannot be both an object and a field/
+      data_frame.preview_data_frame_transform:
+        body: >
+          {
+            "source": { "index": "airline-data" },
+            "pivot": {
+              "group_by": {
+                "time": {"date_histogram": {"fixed_interval": "1h", "field": "time"}}},
+              "aggs": {
+                "avg_response": {"avg": {"field": "responsetime"}},
+                "super_metric.time": {"min": {"field": "time"}},
+                "super_metric": {
+                  "scripted_metric": {
+                     "init_script": "",
+                     "map_script": "",
+                     "combine_script": "",
+                     "reduce_script": "return ['value1': 1, 'value2':2]"
+                  }
+                }
               }
             }
           }
@@ -214,7 +237,7 @@ setup:
             "dest": { "pipeline": "missing-pipeline" },
             "pivot": {
               "group_by": {
-                "time": {"date_histogram": {"fixed_interval": "1h", "field": "time", "format": "yyyy-MM-DD HH"}}},
+                "time": {"date_histogram": {"fixed_interval": "1h", "field": "time"}}},
               "aggs": {
                 "avg_response": {"avg": {"field": "responsetime"}},
                 "time.min": {"min": {"field": "time"}}

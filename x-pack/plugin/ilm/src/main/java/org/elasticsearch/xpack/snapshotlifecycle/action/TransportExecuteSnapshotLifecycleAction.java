@@ -20,6 +20,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.snapshotlifecycle.SnapshotLifecycleMetadata;
@@ -65,7 +66,7 @@ public class TransportExecuteSnapshotLifecycleAction
     }
 
     @Override
-    protected void masterOperation(final ExecuteSnapshotLifecycleAction.Request request,
+    protected void masterOperation(final Task task, final ExecuteSnapshotLifecycleAction.Request request,
                                    final ClusterState state,
                                    final ActionListener<ExecuteSnapshotLifecycleAction.Response> listener) {
         try {

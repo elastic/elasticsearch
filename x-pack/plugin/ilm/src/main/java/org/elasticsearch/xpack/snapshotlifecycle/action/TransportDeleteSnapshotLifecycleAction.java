@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.snapshotlifecycle.SnapshotLifecycleMetadata;
@@ -56,7 +57,7 @@ public class TransportDeleteSnapshotLifecycleAction extends
     }
 
     @Override
-    protected void masterOperation(DeleteSnapshotLifecycleAction.Request request,
+    protected void masterOperation(Task task, DeleteSnapshotLifecycleAction.Request request,
                                    ClusterState state,
                                    ActionListener<DeleteSnapshotLifecycleAction.Response> listener) throws Exception {
         clusterService.submitStateUpdateTask("delete-snapshot-lifecycle-" + request.getLifecycleId(),

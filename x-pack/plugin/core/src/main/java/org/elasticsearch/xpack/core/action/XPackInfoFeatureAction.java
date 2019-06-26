@@ -34,9 +34,11 @@ public class XPackInfoFeatureAction extends Action<XPackInfoFeatureResponse> {
     public static final XPackInfoFeatureAction CCR = new XPackInfoFeatureAction(XPackField.CCR);
     public static final XPackInfoFeatureAction DATA_FRAME = new XPackInfoFeatureAction(XPackField.DATA_FRAME);
     public static final XPackInfoFeatureAction VECTORS = new XPackInfoFeatureAction(XPackField.VECTORS);
+    public static final XPackInfoFeatureAction VOTING_ONLY = new XPackInfoFeatureAction(XPackField.VOTING_ONLY);
 
     public static final List<XPackInfoFeatureAction> ALL = Arrays.asList(
-        SECURITY, MONITORING, WATCHER, GRAPH, MACHINE_LEARNING, LOGSTASH, SQL, ROLLUP, INDEX_LIFECYCLE, CCR, DATA_FRAME, VECTORS
+        SECURITY, MONITORING, WATCHER, GRAPH, MACHINE_LEARNING, LOGSTASH, SQL, ROLLUP, INDEX_LIFECYCLE, CCR, DATA_FRAME, VECTORS,
+        VOTING_ONLY
     );
 
     private XPackInfoFeatureAction(String name) {

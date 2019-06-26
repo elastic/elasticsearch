@@ -11,7 +11,9 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
+import org.elasticsearch.action.search.MultiSearchAction;
 import org.elasticsearch.action.search.MultiSearchRequest;
+import org.elasticsearch.action.search.MultiSearchRequestBuilder;
 import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
@@ -64,12 +66,12 @@ import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.xpack.core.ml.job.config.JobTests.buildJobBuilder;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.doAnswer;
@@ -882,33 +884,57 @@ public class JobResultsProviderTests extends ESTestCase {
     }
 
     public void testDatafeedTimingStats_MultipleDocumentsAtOnce() throws IOException {
-        String indexName = AnomalyDetectorsIndex.jobResultsIndexName();
-        List<Map<String, Object>> source =
+        List<Map<String, Object>> sourceFoo =
             Arrays.asList(
                 Map.of(
                     Job.ID.getPreferredName(), "foo",
-                    DatafeedTimingStats.TOTAL_SEARCH_TIME_MS.getPreferredName(), 666.0),
+                    DatafeedTimingStats.TOTAL_SEARCH_TIME_MS.getPreferredName(), 666.0));
+        List<Map<String, Object>> sourceBar =
+            Arrays.asList(
                 Map.of(
                     Job.ID.getPreferredName(), "bar",
                     DatafeedTimingStats.TOTAL_SEARCH_TIME_MS.getPreferredName(), 777.0));
-        SearchResponse response = createSearchResponse(source);
-        Client client = getMockedClient(
-            queryBuilder -> assertThat(queryBuilder.getName(), equalTo("ids")),
-            response);
+        SearchResponse responseFoo = createSearchResponse(sourceFoo);
+        SearchResponse responseBar = createSearchResponse(sourceBar);
+        MultiSearchResponse multiSearchResponse = new MultiSearchResponse(
+            new MultiSearchResponse.Item[]{
+                new MultiSearchResponse.Item(responseFoo, null),
+                new MultiSearchResponse.Item(responseBar, null)},
+            randomNonNegativeLong());
 
-        when(client.prepareSearch(indexName)).thenReturn(new SearchRequestBuilder(client, SearchAction.INSTANCE).setIndices(indexName));
+        Client client = getBasicMockedClient();
+        when(client.prepareMultiSearch()).thenReturn(new MultiSearchRequestBuilder(client, MultiSearchAction.INSTANCE));
+        doAnswer(invocationOnMock -> {
+            MultiSearchRequest multiSearchRequest = (MultiSearchRequest) invocationOnMock.getArguments()[0];
+            assertThat(multiSearchRequest.requests(), hasSize(2));
+            assertThat(multiSearchRequest.requests().get(0).source().query().getName(), equalTo("ids"));
+            assertThat(multiSearchRequest.requests().get(1).source().query().getName(), equalTo("ids"));
+            @SuppressWarnings("unchecked")
+            ActionListener<MultiSearchResponse> actionListener = (ActionListener<MultiSearchResponse>) invocationOnMock.getArguments()[1];
+            actionListener.onResponse(multiSearchResponse);
+            return null;
+        }).when(client).multiSearch(any(), any());
+        when(client.prepareSearch(AnomalyDetectorsIndex.jobResultsAliasedName("foo")))
+            .thenReturn(
+                new SearchRequestBuilder(client, SearchAction.INSTANCE).setIndices(AnomalyDetectorsIndex.jobResultsAliasedName("foo")));
+        when(client.prepareSearch(AnomalyDetectorsIndex.jobResultsAliasedName("bar")))
+            .thenReturn(
+                new SearchRequestBuilder(client, SearchAction.INSTANCE).setIndices(AnomalyDetectorsIndex.jobResultsAliasedName("bar")));
+
         JobResultsProvider provider = createProvider(client);
         provider.datafeedTimingStats(
-            Set.of("foo", "bar"),
+            List.of("foo", "bar"),
             statsByJobId ->
                 assertThat(
                     statsByJobId,
                     equalTo(Map.of("foo", new DatafeedTimingStats("foo", 666.0), "bar", new DatafeedTimingStats("bar", 777.0)))),
             e -> { throw new AssertionError(); });
 
-        verify(client).prepareSearch(indexName);
         verify(client).threadPool();
-        verify(client).search(any(SearchRequest.class), any(ActionListener.class));
+        verify(client).prepareMultiSearch();
+        verify(client).multiSearch(any(MultiSearchRequest.class), any(ActionListener.class));
+        verify(client).prepareSearch(AnomalyDetectorsIndex.jobResultsAliasedName("foo"));
+        verify(client).prepareSearch(AnomalyDetectorsIndex.jobResultsAliasedName("bar"));
         verifyNoMoreInteractions(client);
     }
 
@@ -988,11 +1014,16 @@ public class JobResultsProviderTests extends ESTestCase {
         return response;
     }
 
-    private Client getMockedClient(Consumer<QueryBuilder> queryBuilderConsumer, SearchResponse response) {
+    private Client getBasicMockedClient() {
         Client client = mock(Client.class);
         ThreadPool threadPool = mock(ThreadPool.class);
         when(client.threadPool()).thenReturn(threadPool);
         when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
+        return client;
+    }
+
+    private Client getMockedClient(Consumer<QueryBuilder> queryBuilderConsumer, SearchResponse response) {
+        Client client = getBasicMockedClient();
         doAnswer(invocationOnMock -> {
             MultiSearchRequest multiSearchRequest = (MultiSearchRequest) invocationOnMock.getArguments()[0];
             queryBuilderConsumer.accept(multiSearchRequest.requests().get(0).source().query());

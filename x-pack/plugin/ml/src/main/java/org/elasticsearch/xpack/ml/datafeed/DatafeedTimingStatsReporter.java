@@ -67,7 +67,9 @@ public class DatafeedTimingStatsReporter {
      * This can be interpreted as values { value1, value2 } differing significantly from each other.
      */
     private static boolean differSignificantly(double value1, double value2) {
-        return (value2 / value1 < MIN_VALID_RATIO) || (value1 / value2 < MIN_VALID_RATIO);
+        return (value2 / value1 < MIN_VALID_RATIO)
+            || (value1 / value2 < MIN_VALID_RATIO)
+            || Math.abs(value1 - value2) > MAX_VALID_ABS_DIFFERENCE_MS;
     }
 
     /**
@@ -75,4 +77,10 @@ public class DatafeedTimingStatsReporter {
      * If the values ratio is less than MIN_VALID_RATIO, the values are interpreted as significantly different.
      */
     private static final double MIN_VALID_RATIO = 0.9;
+
+    /**
+     * Maximum absolute difference of values that is interpreted as values being similar.
+     * If the values absolute difference is greater than MAX_VALID_ABS_DIFFERENCE, the values are interpreted as significantly different.
+     */
+    private static final double MAX_VALID_ABS_DIFFERENCE_MS = 10000.0;
 }

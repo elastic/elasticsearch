@@ -28,7 +28,6 @@ final class ExactMatchProcessor extends AbstractProcessor {
     static final String ENRICH_KEY_FIELD_NAME = "enrich_key_field";
 
     private final BiConsumer<SearchRequest, BiConsumer<SearchResponse, Exception>> searchRunner;
-
     private final String policyName;
     private final String enrichKey;
     private final boolean ignoreMissing;
@@ -42,7 +41,7 @@ final class ExactMatchProcessor extends AbstractProcessor {
                         List<EnrichSpecification> specifications) {
         this(
             tag,
-            (req, handler) -> client.search(req, ActionListener.wrap(resp -> handler.accept(resp, null), e -> handler.accept(null, e))),
+            createSearchRunner(client),
             policyName,
             enrichKey,
             ignoreMissing,
@@ -51,7 +50,7 @@ final class ExactMatchProcessor extends AbstractProcessor {
     }
 
     ExactMatchProcessor(String tag,
-                        BiConsumer<SearchRequest, BiConsumer<SearchResponse, Exception>>  searchRunner,
+                        BiConsumer<SearchRequest, BiConsumer<SearchResponse, Exception>> searchRunner,
                         String policyName,
                         String enrichKey,
                         boolean ignoreMissing,
@@ -102,7 +101,8 @@ final class ExactMatchProcessor extends AbstractProcessor {
                     handler.accept(ingestDocument, null);
                     return;
                 } else if (searchHits.length > 1) {
-                    throw new IllegalStateException("more than one doc id matching for [" + enrichKey + "]");
+                    handler.accept(null, new IllegalStateException("more than one doc id matching for [" + enrichKey + "]"));
+                    return;
                 }
 
                 // If a document is returned, add its fields to the document
@@ -143,5 +143,9 @@ final class ExactMatchProcessor extends AbstractProcessor {
 
     List<EnrichSpecification> getSpecifications() {
         return specifications;
+    }
+
+    private static BiConsumer<SearchRequest, BiConsumer<SearchResponse, Exception>> createSearchRunner(Client client) {
+        return (req, handler) -> client.search(req, ActionListener.wrap(resp -> handler.accept(resp, null), e -> handler.accept(null, e)));
     }
 }

@@ -17,7 +17,7 @@
   - do:
       cluster.health:
         index: "mixed-dataframe-transform-airline-data"
-        wait_for_status: green
+        wait_for_status: yellow
 
   - do:
       data_frame.put_data_frame_transform:
@@ -119,10 +119,6 @@
   - match: { transforms.0.state.indexer_state: "stopped" }
   - match: { transforms.0.state.task_state: "stopped" }
 
-  - do:
-      cluster.health:
-        index: ".data-frame-internal-1"
-        wait_for_status: green
 ---
 "Test put continuous data frame transform on mixed cluster":
   - do:
@@ -142,7 +138,7 @@
   - do:
       cluster.health:
         index: "mixed-dataframe-transform-airline-data-cont"
-        wait_for_status: green
+        wait_for_status: yellow
 
   - do:
       data_frame.put_data_frame_transform:
@@ -184,16 +180,26 @@
   - match: { count: 1 }
   - match: { transforms.0.id: "mixed-simple-continuous-transform" }
   - match: { transforms.0.state.task_state: "started" }
+
   - do:
-      cluster.health:
-        index: ".data-frame-internal-1"
-        wait_for_status: green
+      data_frame.stop_data_frame_transform:
+        transform_id: "mixed-simple-continuous-transform"
+  - match: { acknowledged: true }
+
+  - do:
+      data_frame.get_data_frame_transform_stats:
+        transform_id: "mixed-simple-continuous-transform"
+  - match: { count: 1 }
+  - match: { transforms.0.id: "mixed-simple-continuous-transform" }
+  - match: { transforms.0.state.indexer_state: "stopped" }
+  - match: { transforms.0.state.task_state: "stopped" }
+
 ---
 "Test GET, start, and stop old cluster batch transforms":
   - do:
       cluster.health:
         index: ".data-frame-internal-1,old-dataframe-transform-airline-data"
-        wait_for_status: green
+        wait_for_status: yellow
 
   - do:
       data_frame.get_data_frame_transform:
@@ -270,7 +276,8 @@
 "Test GET, stop, start, old continuous transforms":
   - do:
       cluster.health:
-        wait_for_status: green
+        index: ".data-frame-internal-1,old-dataframe-transform-airline-data-cont"
+        wait_for_status: yellow
 
   - do:
       data_frame.get_data_frame_transform:
@@ -282,6 +289,10 @@
   - is_true: transforms.0.version
   - is_true: transforms.0.create_time
 
+  - do:
+      data_frame.start_data_frame_transform:
+        transform_id: "old-simple-continuous-transform"
+  - match: { acknowledged: true }
   - do:
       data_frame.get_data_frame_transform_stats:
         transform_id: "old-simple-continuous-transform"
@@ -302,14 +313,3 @@
   - match: { transforms.0.id: "old-simple-continuous-transform" }
   - match: { transforms.0.state.indexer_state: "stopped" }
   - match: { transforms.0.state.task_state: "stopped" }
-
-  - do:
-      data_frame.start_data_frame_transform:
-        transform_id: "old-simple-continuous-transform"
-  - match: { acknowledged: true }
-  - do:
-      data_frame.get_data_frame_transform_stats:
-        transform_id: "old-simple-continuous-transform"
-  - match: { count: 1 }
-  - match: { transforms.0.id: "old-simple-continuous-transform" }
-  - match: { transforms.0.state.task_state: "started" }

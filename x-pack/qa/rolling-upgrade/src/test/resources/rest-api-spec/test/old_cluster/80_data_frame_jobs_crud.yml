@@ -17,7 +17,7 @@
   - do:
       cluster.health:
         index: "old-dataframe-transform-airline-data"
-        wait_for_status: green
+        wait_for_status: yellow
 
   - do:
       ingest.put_pipeline:
@@ -139,11 +139,6 @@
   - match: { transforms.0.state.indexer_state: "stopped" }
   - match: { transforms.0.state.task_state: "stopped" }
 
-  - do:
-      cluster.health:
-        index: ".data-frame-internal-1"
-        wait_for_status: green
-
 ---
 "Test put continuous data frame transform on old cluster":
   - do:
@@ -162,8 +157,8 @@
                 type: integer
   - do:
       cluster.health:
-        index: ".data-frame-internal-1,old-dataframe-transform-airline-data-cont"
-        wait_for_status: green
+        index: "old-dataframe-transform-airline-data-cont"
+        wait_for_status: yellow
 
   - do:
       data_frame.put_data_frame_transform:
@@ -205,7 +200,17 @@
   - match: { count: 1 }
   - match: { transforms.0.id: "old-simple-continuous-transform" }
   - match: { transforms.0.state.task_state: "started" }
+
   - do:
-      cluster.health:
-        index: ".data-frame-internal-1"
-        wait_for_status: green
+      data_frame.stop_data_frame_transform:
+        transform_id: "old-simple-continuous-transform"
+        wait_for_completion: true
+  - match: { acknowledged: true }
+
+  - do:
+      data_frame.get_data_frame_transform_stats:
+        transform_id: "old-simple-continuous-transform"
+  - match: { count: 1 }
+  - match: { transforms.0.id: "old-simple-continuous-transform" }
+  - match: { transforms.0.state.indexer_state: "stopped" }
+  - match: { transforms.0.state.task_state: "stopped" }

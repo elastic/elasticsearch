@@ -89,6 +89,7 @@ public class TestFixturesPlugin implements Plugin<Project> {
                 );
 
                 buildFixture.dependsOn(tasks.getByName("composeUp"));
+                tasks.getByName("clean").dependsOn(tasks.getByName("composeDown"));
                 pullFixture.dependsOn(tasks.getByName("composePull"));
                 tasks.getByName("composeUp").mustRunAfter(preProcessFixture);
                 tasks.getByName("composePull").mustRunAfter(preProcessFixture);

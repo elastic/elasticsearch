@@ -328,3 +328,9 @@ thirdPartyAudit.ignoreMissingClasses (
 )
 
 thirdPartyAudit.ignoreMissingClasses 'javax.activation.DataHandler'
+
+tasks.matching { it.name == "composeDown" }.all {
+    doFirst {
+        file("$buildDir/minio-docker").mkdirs()
+    }
+}

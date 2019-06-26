@@ -608,7 +608,32 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                         // (this will happen if pre-processing all items in the bulk failed)
                         actionListener.onResponse(new BulkResponse(new BulkItemResponse[0], 0));
                     } else {
-                        doExecute(task, bulkRequest, actionListener);
+                        // If a processor went async and returned a response on a different thread then
+                        // before we continue the bulk request we should fork back on a write thread:
+                        if (Thread.currentThread().getName().contains(ThreadPool.Names.WRITE)) {
+                            doExecute(task, bulkRequest, actionListener);
+                        } else {
+                            threadPool.executor(ThreadPool.Names.WRITE).execute(new AbstractRunnable() {
+                                @Override
+                                public void onFailure(Exception e) {
+                                    listener.onFailure(e);
+                                }
+
+                                @Override
+                                protected void doRun() throws Exception {
+                                    doExecute(task, bulkRequest, actionListener);
+                                }
+
+                                @Override
+                                public boolean isForceExecution() {
+                                    // If we fork back to a write thread we should fail, because tp queue is full.
+                                    // (Otherwise the work done during ingest will be lost)
+                                    // It is okay to force execution here. Throttling of write requests happens prior to
+                                    // ingest when a node receives a bulk request.
+                                    return true;
+                                }
+                            });
+                        }
                     }
                 }
             },

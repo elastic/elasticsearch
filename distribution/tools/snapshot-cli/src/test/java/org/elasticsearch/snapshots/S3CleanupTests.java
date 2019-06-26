@@ -193,97 +193,102 @@ public class S3CleanupTests extends ESSingleNodeTestCase {
        }
        client().admin().indices().prepareRefresh().get();
 
-       logger.info("--> create first snapshot");
-       CreateSnapshotResponse createSnapshotResponse = client().admin()
-               .cluster()
-               .prepareCreateSnapshot("test-repo", "snap1")
-               .setWaitForCompletion(true)
-               .setIndices("test-idx-*", "-test-idx-3")
-               .get();
-       assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), greaterThan(0));
-       assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(),
-               equalTo(createSnapshotResponse.getSnapshotInfo().totalShards()));
+       // We run multiple iterations of snapshot -> corrupt -> cleanup -> verify -> delete snapshot
+       // to make sure cleanup tool works correctly regardless of index.latest value
+       for (int i = 1; i <= randomIntBetween(1, 3); i++) {
+           logger.info("Iteration number {}", i);
+           logger.info("--> create first snapshot");
+           CreateSnapshotResponse createSnapshotResponse = client().admin()
+                   .cluster()
+                   .prepareCreateSnapshot("test-repo", "snap1")
+                   .setWaitForCompletion(true)
+                   .setIndices("test-idx-*", "-test-idx-3")
+                   .get();
+           assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), greaterThan(0));
+           assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(),
+                   equalTo(createSnapshotResponse.getSnapshotInfo().totalShards()));
 
-       assertThat(client().admin()
-                       .cluster()
-                       .prepareGetSnapshots("test-repo")
-                       .setSnapshots("snap1")
-                       .get()
-                       .getSnapshots("test-repo")
-                       .get(0)
-                       .state(),
-               equalTo(SnapshotState.SUCCESS));
+           assertThat(client().admin()
+                           .cluster()
+                           .prepareGetSnapshots("test-repo")
+                           .setSnapshots("snap1")
+                           .get()
+                           .getSnapshots("test-repo")
+                           .get(0)
+                           .state(),
+                   equalTo(SnapshotState.SUCCESS));
 
 
-       logger.info("--> execute cleanup tool, there is nothing to cleanup");
-       MockTerminal terminal = executeCommand(false);
-       assertThat(terminal.getOutput(), containsString("Set of deletion candidates is empty. Exiting"));
+           logger.info("--> execute cleanup tool, there is nothing to cleanup");
+           MockTerminal terminal = executeCommand(false);
+           assertThat(terminal.getOutput(), containsString("Set of deletion candidates is empty. Exiting"));
 
-       logger.info("--> check that there is no inconsistencies after running the tool");
-       final BlobStoreRepository repo =
-                (BlobStoreRepository) getInstanceFromNode(RepositoriesService.class).repository("test-repo");
-       final Executor genericExec = repo.threadPool().executor(ThreadPool.Names.GENERIC);
-       BlobStoreTestUtil.assertConsistency(repo, genericExec);
+           logger.info("--> check that there is no inconsistencies after running the tool");
+           final BlobStoreRepository repo =
+                   (BlobStoreRepository) getInstanceFromNode(RepositoriesService.class).repository("test-repo");
+           final Executor genericExec = repo.threadPool().executor(ThreadPool.Names.GENERIC);
+           BlobStoreTestUtil.assertConsistency(repo, genericExec);
 
-       logger.info("--> create dangling index folder indices/foo");
-       final PlainActionFuture<Void> future = PlainActionFuture.newFuture();
-       genericExec.execute(new ActionRunnable<>(future) {
-            @Override
-            protected void doRun() throws Exception {
-                final BlobStore blobStore = repo.blobStore();
-                blobStore.blobContainer(BlobPath.cleanPath().add(getBasePath()).add("indices").add("foo"))
-                        .writeBlob("bar", new ByteArrayInputStream(new byte[0]), 0, false);
-                future.onResponse(null);
-            }
-        });
+           logger.info("--> create dangling index folder indices/foo");
+           final PlainActionFuture<Void> future = PlainActionFuture.newFuture();
+           genericExec.execute(new ActionRunnable<>(future) {
+               @Override
+               protected void doRun() throws Exception {
+                   final BlobStore blobStore = repo.blobStore();
+                   blobStore.blobContainer(BlobPath.cleanPath().add(getBasePath()).add("indices").add("foo"))
+                           .writeBlob("bar", new ByteArrayInputStream(new byte[0]), 0, false);
+                   future.onResponse(null);
+               }
+           });
 
-       logger.info("--> ensure dangling index folder is visible");
-       assertBusy(() -> assertCorruptionVisible(repo, genericExec), 10, TimeUnit.MINUTES);
+           logger.info("--> ensure dangling index folder is visible");
+           assertBusy(() -> assertCorruptionVisible(repo, genericExec), 10, TimeUnit.MINUTES);
 
-       logger.info("--> create second snapshot");
-       createSnapshotResponse = client().admin()
-                .cluster()
-                .prepareCreateSnapshot("test-repo", "snap2")
-                .setWaitForCompletion(true)
-                .setIndices("test-idx-*", "-test-idx-3")
-                .get();
-       assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), greaterThan(0));
-       assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(),
-                equalTo(createSnapshotResponse.getSnapshotInfo().totalShards()));
+           logger.info("--> create second snapshot");
+           createSnapshotResponse = client().admin()
+                   .cluster()
+                   .prepareCreateSnapshot("test-repo", "snap2")
+                   .setWaitForCompletion(true)
+                   .setIndices("test-idx-*", "-test-idx-3")
+                   .get();
+           assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), greaterThan(0));
+           assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(),
+                   equalTo(createSnapshotResponse.getSnapshotInfo().totalShards()));
 
-       logger.info("--> execute cleanup tool again and abort");
-       terminal = executeCommand(true);
-       assertThat(terminal.getOutput(), containsString("Set of deletion candidates is [foo]"));
-       assertThat(terminal.getOutput(), containsString("Set of leaked indices is [foo]"));
-       assertThat(terminal.getOutput(), containsString("This action is NOT REVERSIBLE"));
-       assertThat(terminal.getOutput(), not(containsString("Removing leaked index foo")));
+           logger.info("--> execute cleanup tool again and abort");
+           terminal = executeCommand(true);
+           assertThat(terminal.getOutput(), containsString("Set of deletion candidates is [foo]"));
+           assertThat(terminal.getOutput(), containsString("Set of leaked indices is [foo]"));
+           assertThat(terminal.getOutput(), containsString("This action is NOT REVERSIBLE"));
+           assertThat(terminal.getOutput(), not(containsString("Removing leaked index foo")));
 
-       logger.info("--> execute cleanup tool again and confirm, indices/foo should go");
-       terminal = executeCommand(false);
-       assertThat(terminal.getOutput(), containsString("Set of deletion candidates is [foo]"));
-       assertThat(terminal.getOutput(), containsString("Set of leaked indices is [foo]"));
-       assertThat(terminal.getOutput(), containsString("This action is NOT REVERSIBLE"));
-       assertThat(terminal.getOutput(), containsString("Removing leaked index foo"));
-       assertThat(terminal.getOutput(), containsString("foo/bar"));
+           logger.info("--> execute cleanup tool again and confirm, indices/foo should go");
+           terminal = executeCommand(false);
+           assertThat(terminal.getOutput(), containsString("Set of deletion candidates is [foo]"));
+           assertThat(terminal.getOutput(), containsString("Set of leaked indices is [foo]"));
+           assertThat(terminal.getOutput(), containsString("This action is NOT REVERSIBLE"));
+           assertThat(terminal.getOutput(), containsString("Removing leaked index foo"));
+           assertThat(terminal.getOutput(), containsString("foo/bar"));
 
-       logger.info("--> verify that there is no inconsistencies");
-       BlobStoreTestUtil.assertConsistency(repo, genericExec);
+           logger.info("--> verify that there is no inconsistencies");
+           BlobStoreTestUtil.assertConsistency(repo, genericExec);
 
-       logger.info("--> perform cleanup by removing snapshots");
-       assertTrue(client().admin()
-               .cluster()
-               .prepareDeleteSnapshot("test-repo", "snap1")
-               .get()
-               .isAcknowledged());
-       assertTrue(client().admin()
-               .cluster()
-               .prepareDeleteSnapshot("test-repo", "snap2")
-               .get()
-               .isAcknowledged());
+           logger.info("--> perform cleanup by removing snapshots");
+           assertTrue(client().admin()
+                   .cluster()
+                   .prepareDeleteSnapshot("test-repo", "snap1")
+                   .get()
+                   .isAcknowledged());
+           assertTrue(client().admin()
+                   .cluster()
+                   .prepareDeleteSnapshot("test-repo", "snap2")
+                   .get()
+                   .isAcknowledged());
+       }
    }
 
 
-    protected boolean assertCorruptionVisible(BlobStoreRepository repo, Executor executor) throws Exception {
+    private boolean assertCorruptionVisible(BlobStoreRepository repo, Executor executor) throws Exception {
         final PlainActionFuture<Boolean> future = PlainActionFuture.newFuture();
         executor.execute(new ActionRunnable<>(future) {
             @Override

@@ -79,6 +79,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
+import static org.mockito.Mockito.verifyZeroInteractions;
 import static org.mockito.Mockito.when;
 
 public class JobResultsProviderTests extends ESTestCase {
@@ -881,6 +882,18 @@ public class JobResultsProviderTests extends ESTestCase {
         verify(client).threadPool();
         verify(client).search(any(SearchRequest.class), any(ActionListener.class));
         verifyNoMoreInteractions(client);
+    }
+
+    public void testDatafeedTimingStats_EmptyJobList() throws IOException {
+        Client client = getBasicMockedClient();
+
+        JobResultsProvider provider = createProvider(client);
+        provider.datafeedTimingStats(
+            List.of(),
+            statsByJobId -> assertThat(statsByJobId, equalTo(Map.of())),
+            e -> { throw new AssertionError(); });
+
+        verifyZeroInteractions(client);
     }
 
     public void testDatafeedTimingStats_MultipleDocumentsAtOnce() throws IOException {

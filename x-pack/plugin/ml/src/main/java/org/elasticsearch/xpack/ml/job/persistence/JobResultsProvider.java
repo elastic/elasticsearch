@@ -448,6 +448,10 @@ public class JobResultsProvider {
 
     public void datafeedTimingStats(List<String> jobIds, Consumer<Map<String, DatafeedTimingStats>> handler,
                                     Consumer<Exception> errorHandler) {
+        if (jobIds.isEmpty()) {
+            handler.accept(Map.of());
+            return;
+        }
         MultiSearchRequestBuilder msearchRequestBuilder = client.prepareMultiSearch();
         for (String jobId : jobIds) {
             String indexName = AnomalyDetectorsIndex.jobResultsAliasedName(jobId);

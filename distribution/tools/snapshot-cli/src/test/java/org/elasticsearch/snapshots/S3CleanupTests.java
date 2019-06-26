@@ -25,6 +25,8 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.ByteArrayInputStream;
 import java.util.Collection;
+import java.util.Collections;
+import java.util.Map;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 
@@ -72,6 +74,10 @@ public class S3CleanupTests extends ESSingleNodeTestCase {
         return System.getProperty("test.s3.endpoint");
     }
 
+    private String getRegion() {
+        return "";
+    }
+
     private String getBucket() {
         return System.getProperty("test.s3.bucket");
     }
@@ -88,16 +94,22 @@ public class S3CleanupTests extends ESSingleNodeTestCase {
         return System.getProperty("test.s3.key");
     }
 
-    private MockTerminal executeCommand(Environment environment, boolean abort)
+    private MockTerminal executeCommand(boolean abort) throws Exception {
+        return executeCommand(abort, Collections.emptyMap());
+    }
+
+    private MockTerminal executeCommand(boolean abort, Map<String, String> nonDefaultArguments)
             throws Exception {
+        final Environment environment = TestEnvironment.newEnvironment(node().settings());
         final CleanupS3RepositoryCommand command = new CleanupS3RepositoryCommand();
         final OptionSet options = command.getParser().parse(
-                "--safety_gap_millis", "0",
-                "--endpoint", getEndpoint(),
-                "--bucket", getBucket(),
-                "--base_path", getBasePath(),
-                "--access_key", getAccessKey(),
-                "--secret_key", getSecretKey());
+                "--safety_gap_millis", nonDefaultArguments.getOrDefault("safety_gap_millis", "0"),
+                "--endpoint", nonDefaultArguments.getOrDefault("endpoint", getEndpoint()),
+                "--region", nonDefaultArguments.getOrDefault("region", getRegion()),
+                "--bucket", nonDefaultArguments.getOrDefault("bucket", getBucket()),
+                "--base_path", nonDefaultArguments.getOrDefault("base_path", getBasePath()),
+                "--access_key", nonDefaultArguments.getOrDefault("access_key", getAccessKey()),
+                "--secret_key", nonDefaultArguments.getOrDefault("secret_key", getSecretKey()));
         final MockTerminal terminal = new MockTerminal();
         terminal.setVerbosity(Terminal.Verbosity.VERBOSE);
         final String input;
@@ -123,6 +135,47 @@ public class S3CleanupTests extends ESSingleNodeTestCase {
         }
 
         return terminal;
+    }
+
+    private void expectThrows(ThrowingRunnable runnable, String message) {
+        ElasticsearchException ex = expectThrows(ElasticsearchException.class, runnable);
+        assertThat(ex.getMessage(), containsString(message));
+    }
+
+    public void testNoRegionNoEndpoint() {
+        expectThrows(() ->
+                        executeCommand(false, Map.of("region", "", "endpoint", "")),
+                "region or endpoint option is required for cleaning up S3 repository");
+    }
+
+    public void testRegionAndEndpointSpecified() {
+        expectThrows(() ->
+                        executeCommand(false, Map.of("region", "test_region", "endpoint", "test_endpoint")),
+                "you must not specify both region and endpoint");
+    }
+
+    public void testNoBucket()  {
+        expectThrows(() ->
+                executeCommand(false, Map.of("bucket", "")),
+                "bucket option is required for cleaning up S3 repository");
+    }
+
+    public void testNoAccessKey() {
+        expectThrows(() ->
+                executeCommand(false, Map.of("access_key", "")),
+                "access_key option is required for cleaning up S3 repository");
+    }
+
+    public void testNoSecretKey() {
+        expectThrows(() ->
+                        executeCommand(false, Map.of("secret_key", "")),
+                "secret_key option is required for cleaning up S3 repository");
+    }
+
+    public void testNegativeSafetyGap() {
+        expectThrows(() ->
+                        executeCommand(false, Map.of("safety_gap_millis", "-10")),
+                "safety_gap_millis should be non-negative");
     }
 
     public void testCleanupS3() throws Exception {
@@ -163,8 +216,7 @@ public class S3CleanupTests extends ESSingleNodeTestCase {
 
 
        logger.info("--> execute cleanup tool, there is nothing to cleanup");
-       final Environment environment = TestEnvironment.newEnvironment(node().settings());
-       MockTerminal terminal = executeCommand(environment, false);
+       MockTerminal terminal = executeCommand(false);
        assertThat(terminal.getOutput(), containsString("Set of deletion candidates is empty. Exiting"));
 
        logger.info("--> check that there is no inconsistencies after running the tool");
@@ -200,14 +252,14 @@ public class S3CleanupTests extends ESSingleNodeTestCase {
                 equalTo(createSnapshotResponse.getSnapshotInfo().totalShards()));
 
        logger.info("--> execute cleanup tool again and abort");
-       terminal = executeCommand(environment, true);
+       terminal = executeCommand(true);
        assertThat(terminal.getOutput(), containsString("Set of deletion candidates is [foo]"));
        assertThat(terminal.getOutput(), containsString("Set of leaked indices is [foo]"));
        assertThat(terminal.getOutput(), containsString("This action is NOT REVERSIBLE"));
        assertThat(terminal.getOutput(), not(containsString("Removing leaked index foo")));
 
        logger.info("--> execute cleanup tool again and confirm, indices/foo should go");
-       terminal = executeCommand(environment, false);
+       terminal = executeCommand(false);
        assertThat(terminal.getOutput(), containsString("Set of deletion candidates is [foo]"));
        assertThat(terminal.getOutput(), containsString("Set of leaked indices is [foo]"));
        assertThat(terminal.getOutput(), containsString("This action is NOT REVERSIBLE"));

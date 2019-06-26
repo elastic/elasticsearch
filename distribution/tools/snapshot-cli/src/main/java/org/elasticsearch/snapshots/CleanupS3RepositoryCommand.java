@@ -21,8 +21,10 @@ package org.elasticsearch.snapshots;
 import joptsimple.OptionParser;
 import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cli.EnvironmentAwareCommand;
 import org.elasticsearch.cli.Terminal;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.env.Environment;
 
 public class CleanupS3RepositoryCommand extends EnvironmentAwareCommand {
@@ -68,37 +70,36 @@ public class CleanupS3RepositoryCommand extends EnvironmentAwareCommand {
         String region = regionOption.value(options);
         String endpoint  = endpointOption.value(options);
 
-        if (region == null && endpoint == null) {
-            terminal.println("region or endpoint option is required for cleaning up S3 repository");
-            return;
+        if (Strings.isNullOrEmpty(region) && Strings.isNullOrEmpty(endpoint)) {
+            throw new ElasticsearchException("region or endpoint option is required for cleaning up S3 repository");
         }
 
-        if (region != null && endpoint != null) {
-            terminal.println("You should choose either region or endpoint");
-            return;
+        if (Strings.isNullOrEmpty(region) == false && Strings.isNullOrEmpty(endpoint) == false) {
+            throw new ElasticsearchException("you must not specify both region and endpoint");
         }
 
         String bucket = bucketOption.value(options);
-        if (bucket == null) {
-            terminal.println("bucket option is required for cleaning up S3 repository");
-            return;
+        if (Strings.isNullOrEmpty(bucket)) {
+            throw new ElasticsearchException("bucket option is required for cleaning up S3 repository");
         }
 
         String basePath = basePathOption.value(options);
 
         String accessKey = accessKeyOption.value(options);
-        if (accessKey == null) {
-            terminal.println("access_key option is required for cleaning up S3 repository");
-            return;
+        if (Strings.isNullOrEmpty(accessKey)) {
+            throw new ElasticsearchException("access_key option is required for cleaning up S3 repository");
         }
 
         String secretKey = secretKeyOption.value(options);
-        if (secretKey == null) {
-            terminal.println("secret_key option is required for cleaning up S3 repository");
-            return;
+        if (Strings.isNullOrEmpty(secretKey)) {
+            throw new ElasticsearchException("secret_key option is required for cleaning up S3 repository");
         }
 
         Long safetyGapMillis = safetyGapMillisOption.value(options);
+
+        if (safetyGapMillis != null && safetyGapMillis < 0L) {
+            throw new ElasticsearchException("safety_gap_millis should be non-negative");
+        }
 
         Repository repository = new S3Repository(terminal, safetyGapMillis, endpoint, region, accessKey, secretKey, bucket, basePath);
         repository.cleanup();

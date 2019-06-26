@@ -48,7 +48,7 @@ public class S3Repository extends AbstractRepository {
     private static AmazonS3 buildS3Client(String endpoint, String region, String accessKey, String secretKey) {
         final AmazonS3ClientBuilder builder = AmazonS3ClientBuilder.standard();
         builder.withCredentials(new AWSStaticCredentialsProvider(new BasicAWSCredentials(accessKey, secretKey)));
-        if (Strings.hasLength(endpoint)) {
+        if (Strings.isNullOrEmpty(region)) {
             builder.withEndpointConfiguration(new AwsClientBuilder.EndpointConfiguration(endpoint, null))
                     .enablePathStyleAccess();
         } else {

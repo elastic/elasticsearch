@@ -82,6 +82,24 @@ to search across multiple fields as if they were all the same field; for example
 you could index the same text into stemmed and unstemmed fields, and search for
 stemmed tokens near unstemmed ones.
 
+[[intervals-prefix]]
+==== `prefix`
+
+The `prefix` rule finds terms that start with a specified prefix.  This rule can
+use term-matching shortcuts if the field being matched against was indexed with the
+<<index-prefixes,`index_prefixes`>> option.  It takes the following parameters:
+
+[horizontal]
+`prefix`::
+Match terms starting with this prefix
+`analyzer`::
+Which analyzer should be used to normalize the `prefix`.  By default, the
+search analyzer of the top-level field will be used.
+`use_field`::
+If specified, then match intervals from this field rather than the top-level field.
+The `prefix` will be normalized using the search analyzer from this field, unless
+`analyzer` is specified separately.
+
 [[intervals-all_of]]
 ==== `all_of`
 

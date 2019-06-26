@@ -15,9 +15,12 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.protocol.xpack.license.PutLicenseResponse;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+
+import java.io.IOException;
 
 public class TransportPutLicenseAction extends TransportMasterNodeAction<PutLicenseRequest, PutLicenseResponse> {
 
@@ -39,7 +42,12 @@ public class TransportPutLicenseAction extends TransportMasterNodeAction<PutLice
 
     @Override
     protected PutLicenseResponse newResponse() {
-        return new PutLicenseResponse();
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
+    }
+
+    @Override
+    protected PutLicenseResponse read(StreamInput in) throws IOException {
+        return new PutLicenseResponse(in);
     }
 
     @Override

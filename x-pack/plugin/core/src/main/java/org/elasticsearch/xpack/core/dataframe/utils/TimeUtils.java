@@ -12,6 +12,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 
 import java.io.IOException;
+import java.time.Instant;
 import java.util.Date;
 import java.util.concurrent.TimeUnit;
 
@@ -29,6 +30,16 @@ public final class TimeUtils {
         }
         throw new IllegalArgumentException(
                 "unexpected token [" + parser.currentToken() + "] for [" + fieldName + "]");
+    }
+
+    public static Instant parseTimeFieldToInstant(XContentParser parser, String fieldName) throws IOException {
+        if (parser.currentToken() == XContentParser.Token.VALUE_NUMBER) {
+            return Instant.ofEpochMilli(parser.longValue());
+        } else if (parser.currentToken() == XContentParser.Token.VALUE_STRING) {
+            return Instant.ofEpochMilli(TimeUtils.dateStringToEpoch(parser.text()));
+        }
+        throw new IllegalArgumentException(
+            "unexpected token [" + parser.currentToken() + "] for [" + fieldName + "]");
     }
 
     /**

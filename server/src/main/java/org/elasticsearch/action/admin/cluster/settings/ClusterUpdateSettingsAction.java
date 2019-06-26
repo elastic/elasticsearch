@@ -20,6 +20,7 @@
 package org.elasticsearch.action.admin.cluster.settings;
 
 import org.elasticsearch.action.Action;
+import org.elasticsearch.common.io.stream.Writeable;
 
 public class ClusterUpdateSettingsAction extends Action<ClusterUpdateSettingsResponse> {
 
@@ -32,6 +33,11 @@ public class ClusterUpdateSettingsAction extends Action<ClusterUpdateSettingsRes
 
     @Override
     public ClusterUpdateSettingsResponse newResponse() {
-        return new ClusterUpdateSettingsResponse();
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
+    }
+
+    @Override
+    public Writeable.Reader<ClusterUpdateSettingsResponse> getResponseReader() {
+        return ClusterUpdateSettingsResponse::new;
     }
 }

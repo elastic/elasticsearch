@@ -159,6 +159,7 @@ public class DataFrameTransformsConfigManagerTests extends DataFrameSingleNodeTe
         assertAsync(listener ->
                 transformsConfigManager.expandTransformIds(transformConfig1.getId(),
                     PageParams.defaultParams(),
+                    true,
                     listener),
             new Tuple<>(1L, Collections.singletonList("transform1_expand")),
             null,
@@ -168,6 +169,7 @@ public class DataFrameTransformsConfigManagerTests extends DataFrameSingleNodeTe
         assertAsync(listener ->
                 transformsConfigManager.expandTransformIds("transform1_expand,transform2_expand",
                     PageParams.defaultParams(),
+                    true,
                     listener),
             new Tuple<>(2L, Arrays.asList("transform1_expand", "transform2_expand")),
             null,
@@ -177,6 +179,7 @@ public class DataFrameTransformsConfigManagerTests extends DataFrameSingleNodeTe
         assertAsync(listener ->
                 transformsConfigManager.expandTransformIds("transform1*,transform2_expand,transform3_expand",
                     PageParams.defaultParams(),
+                    true,
                     listener),
             new Tuple<>(3L, Arrays.asList("transform1_expand", "transform2_expand", "transform3_expand")),
             null,
@@ -186,6 +189,7 @@ public class DataFrameTransformsConfigManagerTests extends DataFrameSingleNodeTe
         assertAsync(listener ->
                 transformsConfigManager.expandTransformIds("_all",
                     PageParams.defaultParams(),
+                    true,
                     listener),
             new Tuple<>(3L, Arrays.asList("transform1_expand", "transform2_expand", "transform3_expand")),
             null,
@@ -195,6 +199,7 @@ public class DataFrameTransformsConfigManagerTests extends DataFrameSingleNodeTe
         assertAsync(listener ->
                 transformsConfigManager.expandTransformIds("_all",
                     new PageParams(0, 1),
+                    true,
                     listener),
             new Tuple<>(3L, Collections.singletonList("transform1_expand")),
             null,
@@ -204,6 +209,7 @@ public class DataFrameTransformsConfigManagerTests extends DataFrameSingleNodeTe
         assertAsync(listener ->
                 transformsConfigManager.expandTransformIds("_all",
                     new PageParams(1, 2),
+                    true,
                     listener),
             new Tuple<>(3L, Arrays.asList("transform2_expand", "transform3_expand")),
             null,
@@ -213,6 +219,7 @@ public class DataFrameTransformsConfigManagerTests extends DataFrameSingleNodeTe
         assertAsync(listener ->
                 transformsConfigManager.expandTransformIds("unknown,unknown2",
                     new PageParams(1, 2),
+                    true,
                     listener),
             (Tuple<Long, List<String>>)null,
             null,
@@ -220,6 +227,20 @@ public class DataFrameTransformsConfigManagerTests extends DataFrameSingleNodeTe
                 assertThat(e, instanceOf(ResourceNotFoundException.class));
                 assertThat(e.getMessage(),
                     equalTo(DataFrameMessages.getMessage(DataFrameMessages.REST_DATA_FRAME_UNKNOWN_TRANSFORM, "unknown,unknown2")));
+            });
+
+        // expand 1 id implicitly that does not exist
+        assertAsync(listener ->
+                transformsConfigManager.expandTransformIds("unknown*",
+                    new PageParams(1, 2),
+                    false,
+                    listener),
+            (Tuple<Long, List<String>>)null,
+            null,
+            e -> {
+                assertThat(e, instanceOf(ResourceNotFoundException.class));
+                assertThat(e.getMessage(),
+                    equalTo(DataFrameMessages.getMessage(DataFrameMessages.REST_DATA_FRAME_UNKNOWN_TRANSFORM, "unknown*")));
             });
 
     }

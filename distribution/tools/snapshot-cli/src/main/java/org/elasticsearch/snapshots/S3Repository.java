@@ -10,6 +10,7 @@ import com.amazonaws.services.s3.model.DeleteObjectsRequest;
 import com.amazonaws.services.s3.model.ListObjectsRequest;
 import com.amazonaws.services.s3.model.ObjectListing;
 import com.amazonaws.services.s3.model.S3ObjectSummary;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.Strings;
@@ -29,6 +30,9 @@ import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.stream.Collectors;
 
 public class S3Repository extends AbstractRepository {
@@ -147,23 +151,21 @@ public class S3Repository extends AbstractRepository {
         }
     }
 
-    private List<String> listAllFiles(String prefix) {
-        List<String> files = new ArrayList<>();
+    private long deleteFiles(String prefix) {
+        terminal.println(Terminal.Verbosity.VERBOSE, Thread.currentThread().getName());
         long filesSize = 0L;
 
         ObjectListing listing = client.listObjects(bucket, prefix);
         while (true) {
-            List<S3ObjectSummary> summaries = listing.getObjectSummaries();
-            for (S3ObjectSummary obj : summaries) {
-                files.add(obj.getKey());
-                filesSize += obj.getSize();
-            }
+            List<String> files = listing.getObjectSummaries().stream().map(S3ObjectSummary::getKey).collect(Collectors.toList());
+            deleteFiles(files);
 
             if (listing.isTruncated()) {
                 listing = client.listNextBatchOfObjects(listing);
             } else {
-                terminal.println(Terminal.Verbosity.VERBOSE, "Total space to be freed is " + filesSize + " bytes");
-                return files;
+                terminal.println(Terminal.Verbosity.VERBOSE,
+                        "Space freed by deleting files starting with " + prefix + " is " + filesSize + " bytes");
+                return filesSize;
             }
         }
     }
@@ -189,12 +191,28 @@ public class S3Repository extends AbstractRepository {
 
     @Override
     public void deleteIndices(Set<String> leakedIndexIds) {
-        for (String indexId : leakedIndexIds) {
-            terminal.println(Terminal.Verbosity.NORMAL, "Removing leaked index " + indexId);
-            terminal.println(Terminal.Verbosity.VERBOSE, "Listing all files in index " + indexId + " directory");
-            List<String> files = listAllFiles(fullPath("indices/" + indexId));
-            terminal.println(Terminal.Verbosity.VERBOSE, "List of leaked files for index " + indexId + " is " + files);
-            deleteFiles(files);
+        List<Future<Long>> futures = new ArrayList<>();
+        ExecutorService executor = Executors.newFixedThreadPool(10);
+        try {
+            for (String indexId : leakedIndexIds) {
+                futures.add(executor.submit(() -> {
+                    terminal.println(Terminal.Verbosity.NORMAL, "Removing leaked index " + indexId);
+                    return deleteFiles(fullPath("indices/" + indexId));
+                }));
+            }
+
+            long totalSpaceFreed = 0;
+            for (Future<Long> future : futures) {
+                try {
+                    totalSpaceFreed += future.get();
+                } catch (Exception e) {
+                    throw new ElasticsearchException(e);
+                }
+            }
+
+            terminal.println(Terminal.Verbosity.NORMAL, "Total space freed after removing leaked indices is " + totalSpaceFreed + " bytes");
+        } finally {
+            executor.shutdownNow();
         }
     }
 }

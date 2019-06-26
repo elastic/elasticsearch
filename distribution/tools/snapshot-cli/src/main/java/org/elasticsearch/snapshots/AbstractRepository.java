@@ -61,6 +61,7 @@ public abstract  class AbstractRepository implements Repository {
         confirm(terminal, "Do you want to remove leaked indices files? This action is NOT REVERSIBLE");
         terminal.println(Terminal.Verbosity.NORMAL, "Removing leaked indices");
         deleteIndices(leakedIndexIds);
+        terminal.println(Terminal.Verbosity.NORMAL, "Finished removing leaked indices");
     }
 
     protected void confirm(Terminal terminal, String msg) {

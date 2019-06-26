@@ -762,7 +762,10 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     }
 
     private void createConfiguration()  {
-        defaultConfig.put("node.name", nameCustomization.apply(safeName(name)));
+        String nodeName = nameCustomization.apply(safeName(name));
+        if (nodeName != null) {
+            defaultConfig.put("node.name", nodeName);
+        }
         defaultConfig.put("path.repo", confPathRepo.toAbsolutePath().toString());
         defaultConfig.put("path.data", confPathData.toAbsolutePath().toString());
         defaultConfig.put("path.logs", confPathLogs.toAbsolutePath().toString());

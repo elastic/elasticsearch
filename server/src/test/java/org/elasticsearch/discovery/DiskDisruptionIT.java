@@ -30,7 +30,6 @@ import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.test.BackgroundIndexer;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
@@ -49,7 +48,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
-@TestLogging("_root:DEBUG,org.elasticsearch.cluster.service:TRACE")
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class DiskDisruptionIT extends AbstractDisruptionTestCase {
 
@@ -100,6 +98,7 @@ public class DiskDisruptionIT extends AbstractDisruptionTestCase {
      * It simulates a full power outage by preventing translog checkpoint files to be written and restart the cluster. This means that
      * all un-fsynced data will be lost.
      */
+    @AwaitsFix( bugUrl = "https://github.com/elastic/elasticsearch/issues/43626")
     public void testGlobalCheckpointIsSafe() throws Exception {
         startCluster(rarely() ? 5 : 3);
 

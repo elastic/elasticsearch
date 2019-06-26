@@ -619,10 +619,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      *
      * @param consumer a {@link Runnable} that is executed after operations are blocked
      * @throws IllegalIndexShardStateException if the shard is not relocating due to concurrent cancellation
+     * @throws IllegalStateException           if the relocation target is no longer part of the replication group
      * @throws InterruptedException            if blocking operations is interrupted
      */
-    public void relocated(final Consumer<ReplicationTracker.PrimaryContext> consumer)
-                                            throws IllegalIndexShardStateException, InterruptedException {
+    public void relocated(final String targetAllocationId, final Consumer<ReplicationTracker.PrimaryContext> consumer)
+        throws IllegalIndexShardStateException, IllegalStateException, InterruptedException {
         assert shardRouting.primary() : "only primaries can be marked as relocated: " + shardRouting;
         final Releasable forceRefreshes = refreshListeners.forceRefreshes();
         try {
@@ -636,7 +637,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                  * network operation. Doing this under the mutex can implicitly block the cluster state update thread on network operations.
                  */
                 verifyRelocatingState();
-                final ReplicationTracker.PrimaryContext primaryContext = replicationTracker.startRelocationHandoff();
+                final ReplicationTracker.PrimaryContext primaryContext = replicationTracker.startRelocationHandoff(targetAllocationId);
                 try {
                     consumer.accept(primaryContext);
                     synchronized (mutex) {
@@ -2134,9 +2135,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             final long globalCheckpoint = replicationTracker.getGlobalCheckpoint();
             // async durability means that the local checkpoint might lag (as it is only advanced on fsync)
             // periodically ask for the newest local checkpoint by syncing the global checkpoint, so that ultimately the global
-            // checkpoint can be synced
+            // checkpoint can be synced. Also take into account that a shard might be pending sync, which means that it isn't
+            // in the in-sync set just yet but might be blocked on waiting for its persisted local checkpoint to catch up to
+            // the global checkpoint.
             final boolean syncNeeded =
-                (asyncDurability && stats.getGlobalCheckpoint() < stats.getMaxSeqNo())
+                (asyncDurability && (stats.getGlobalCheckpoint() < stats.getMaxSeqNo() || replicationTracker.pendingInSync()))
                     // check if the persisted global checkpoint
                     || StreamSupport
                             .stream(globalCheckpoints.values().spliterator(), false)
@@ -2198,7 +2201,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             "only primary relocation target can update allocation IDs from primary context: " + shardRouting;
         assert primaryContext.getCheckpointStates().containsKey(routingEntry().allocationId().getId()) &&
             getLocalCheckpoint() == primaryContext.getCheckpointStates().get(routingEntry().allocationId().getId())
-                .getLocalCheckpoint();
+                .getLocalCheckpoint() || indexSettings().getTranslogDurability() == Translog.Durability.ASYNC;
         synchronized (mutex) {
             replicationTracker.activateWithPrimaryContext(primaryContext); // make changes to primaryMode flag only under mutex
         }

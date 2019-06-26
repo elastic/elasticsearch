@@ -138,6 +138,19 @@ teardown:
         transform_id: "missing-transform"
 
 ---
+"Test stop missing transform by expression":
+  - do:
+      data_frame.stop_data_frame_transform:
+        allow_no_match: true
+        transform_id: "missing-transform*"
+
+  - do:
+      catch: missing
+      data_frame.stop_data_frame_transform:
+        allow_no_match: false
+        transform_id: "missing-transform*"
+
+---
 "Test stop already stopped transform":
   - do:
       data_frame.stop_data_frame_transform:

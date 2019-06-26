@@ -1492,7 +1492,6 @@ public class InternalEngine extends Engine {
         try (Releasable ignored = noOpKeyedLock.acquire(seqNo)) {
             final NoOpResult noOpResult;
             final Optional<Exception> preFlightError = preFlightCheckForNoOp(noOp);
-            Exception failure = null;
             if (preFlightError.isPresent()) {
                 noOpResult = new NoOpResult(getPrimaryTerm(), SequenceNumbers.UNASSIGNED_SEQ_NO, preFlightError.get());
             } else {
@@ -1512,17 +1511,13 @@ public class InternalEngine extends Engine {
                         doc.add(softDeletesField);
                         indexWriter.addDocument(doc);
                     } catch (Exception ex) {
-                        if (maybeFailEngine("noop", ex)) {
-                            throw ex;
+                        if (indexWriter.getTragicException() == null) {
+                            throw new AssertionError("noop operation should never fail at document level", ex);
                         }
-                        failure = ex;
+                        throw ex;
                     }
                 }
-                if (failure == null) {
-                    noOpResult = new NoOpResult(getPrimaryTerm(), noOp.seqNo());
-                } else {
-                    noOpResult = new NoOpResult(getPrimaryTerm(), noOp.seqNo(), failure);
-                }
+                noOpResult = new NoOpResult(getPrimaryTerm(), noOp.seqNo());
                 if (noOp.origin().isFromTranslog() == false && noOpResult.getResultType() == Result.Type.SUCCESS) {
                     final Translog.Location location = translog.add(new Translog.NoOp(noOp.seqNo(), noOp.primaryTerm(), noOp.reason()));
                     noOpResult.setTranslogLocation(location);
@@ -1530,10 +1525,8 @@ public class InternalEngine extends Engine {
             }
             localCheckpointTracker.markSeqNoAsProcessed(noOpResult.getSeqNo());
             if (noOpResult.getTranslogLocation() == null) {
-                // the op is coming from the translog (and is hence persisted already) or it does not have a sequence number, or we failed
-                // to add a tombstone doc to Lucene with a non-fatal error, which would be very surprising
-                // TODO: always fail the engine in the last case, as this creates gaps in the history
-                assert noOp.origin().isFromTranslog() || noOpResult.getSeqNo() == SequenceNumbers.UNASSIGNED_SEQ_NO || failure != null;
+                // the op is coming from the translog (and is hence persisted already) or it does not have a sequence number
+                assert noOp.origin().isFromTranslog() || noOpResult.getSeqNo() == SequenceNumbers.UNASSIGNED_SEQ_NO;
                 localCheckpointTracker.markSeqNoAsPersisted(noOpResult.getSeqNo());
             }
             noOpResult.setTook(System.nanoTime() - noOp.startTime());

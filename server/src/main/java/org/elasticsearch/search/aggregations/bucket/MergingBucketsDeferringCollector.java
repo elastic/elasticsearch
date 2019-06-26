@@ -78,7 +78,11 @@ public class MergingBucketsDeferringCollector extends BestBucketsDeferringCollec
                     lastGoodDelta += delta;
                 }
             }
-            newEntries.add(new Entry(sourceEntry.context, newDocDeltas.build(), newBuckets.build()));
+            // Only create an entry if this segment has buckets after merging
+            if (newBuckets.size() > 0) {
+                assert newDocDeltas.size() > 0 : "docDeltas was empty but we had buckets";
+                newEntries.add(new Entry(sourceEntry.context, newDocDeltas.build(), newBuckets.build()));
+            }
         }
         entries = newEntries;
 
@@ -90,7 +94,7 @@ public class MergingBucketsDeferringCollector extends BestBucketsDeferringCollec
             PackedLongValues.Builder newDocDeltas = PackedLongValues.packedBuilder(PackedInts.DEFAULT);
 
             // The current segment's deltas aren't built yet, so build to a temp object
-            PackedLongValues currentDeltas = newDocDeltas.build();
+            PackedLongValues currentDeltas = docDeltasBuilder.build();
             PackedLongValues.Iterator docDeltasItr = currentDeltas.iterator();
 
             long lastGoodDelta = 0;

@@ -111,6 +111,8 @@ public class DiskThresholdMonitor {
 
     public void onNewInfo(ClusterInfo info) {
 
+        assert rerouteAction.get() != null;
+
         if (checkInProgress.compareAndSet(false, true) == false) {
             logger.info("skipping monitor as a check is already in progress");
             return;

@@ -56,10 +56,6 @@ public class NioGroupFactoryTests extends ESTestCase {
 
     private static class BindingFactory extends ChannelFactory<NioServerSocketChannel, NioSocketChannel> {
 
-        private BindingFactory() {
-            super(new ChannelFactory.RawChannelFactory(false, false, false, -1, -1));
-        }
-
         @Override
         public NioSocketChannel createChannel(NioSelector selector, SocketChannel channel) throws IOException {
             throw new IOException("boom");

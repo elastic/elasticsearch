@@ -91,7 +91,7 @@ public class ChannelFactoryTests extends ESTestCase {
 
     public void testOpenChannel() throws IOException {
         InetSocketAddress address = mock(InetSocketAddress.class);
-        when(rawChannelFactory.openNioChannel(same(address))).thenReturn(rawChannel);
+        when(rawChannelFactory.openNioChannel()).thenReturn(rawChannel);
 
         NioSocketChannel channel = channelFactory.openNioChannel(address, socketSelectorSupplier);
 
@@ -102,7 +102,7 @@ public class ChannelFactoryTests extends ESTestCase {
 
     public void testOpenedChannelRejected() throws IOException {
         InetSocketAddress address = mock(InetSocketAddress.class);
-        when(rawChannelFactory.openNioChannel(same(address))).thenReturn(rawChannel);
+        when(rawChannelFactory.openNioChannel()).thenReturn(rawChannel);
         doThrow(new IllegalStateException()).when(socketSelector).scheduleForRegistration(any());
 
         expectThrows(IllegalStateException.class, () -> channelFactory.openNioChannel(address, socketSelectorSupplier));

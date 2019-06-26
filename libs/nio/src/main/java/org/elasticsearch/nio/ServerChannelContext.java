@@ -23,6 +23,10 @@ import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.nio.channels.ServerSocketChannel;
+import java.nio.channels.SocketChannel;
+import java.security.AccessController;
+import java.security.PrivilegedActionException;
+import java.security.PrivilegedExceptionAction;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
@@ -53,9 +57,10 @@ public class ServerChannelContext extends ChannelContext<ServerSocketChannel> {
     }
 
     public void acceptChannels(Supplier<NioSelector> selectorSupplier) throws IOException {
-        NioSocketChannel acceptedChannel;
-        while ((acceptedChannel = channelFactory.acceptNioChannel(this, selectorSupplier)) != null) {
-            acceptor.accept(acceptedChannel);
+        SocketChannel acceptedChannel;
+        while ((acceptedChannel = accept(rawChannel)) != null) {
+            NioSocketChannel nioChannel = channelFactory.acceptNioChannel(acceptedChannel, selectorSupplier.get());
+            acceptor.accept(nioChannel);
         }
     }
 
@@ -94,4 +99,14 @@ public class ServerChannelContext extends ChannelContext<ServerSocketChannel> {
         socket.setReuseAddress(config.tcpReuseAddress());
     }
 
+    private static SocketChannel accept(ServerSocketChannel serverSocketChannel) throws IOException {
+        try {
+            assert serverSocketChannel.isBlocking() == false;
+            SocketChannel channel = AccessController.doPrivileged((PrivilegedExceptionAction<SocketChannel>) serverSocketChannel::accept);
+            assert serverSocketChannel.isBlocking() == false;
+            return channel;
+        } catch (PrivilegedActionException e) {
+            throw (IOException) e.getCause();
+        }
+    }
 }

@@ -132,10 +132,6 @@ public class NioTransport extends TcpTransport {
     }
 
     protected abstract class TcpChannelFactory extends ChannelFactory<NioTcpServerChannel, NioTcpChannel> {
-
-        protected TcpChannelFactory(RawChannelFactory rawChannelFactory) {
-            super(rawChannelFactory);
-        }
     }
 
     private class TcpChannelFactoryImpl extends TcpChannelFactory {
@@ -144,11 +140,6 @@ public class NioTransport extends TcpTransport {
         private final String profileName;
 
         private TcpChannelFactoryImpl(ProfileSettings profileSettings, boolean isClient) {
-            super(new RawChannelFactory(profileSettings.tcpNoDelay,
-                profileSettings.tcpKeepAlive,
-                profileSettings.reuseAddress,
-                Math.toIntExact(profileSettings.sendBufferSize.getBytes()),
-                Math.toIntExact(profileSettings.receiveBufferSize.getBytes())));
             this.isClient = isClient;
             this.profileName = profileSettings.profileName;
         }

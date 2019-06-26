@@ -23,7 +23,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
 import java.io.IOException;
-import java.net.InetSocketAddress;
 import java.net.SocketAddress;
 import java.net.SocketOption;
 import java.nio.channels.ClosedChannelException;

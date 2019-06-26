@@ -36,6 +36,13 @@ public abstract class ChannelFactory<ServerSocket extends NioServerSocketChannel
 
     /**
      * This will create a {@link ChannelFactory} using the raw channel factory passed to the constructor.
+     */
+    protected ChannelFactory() {
+        this(new RawChannelFactory());
+    }
+
+    /**
+     * This will create a {@link ChannelFactory} using the raw channel factory passed to the constructor.
      *
      * @param rawChannelFactory a factory that will construct the raw socket channels
      */
@@ -44,7 +51,7 @@ public abstract class ChannelFactory<ServerSocket extends NioServerSocketChannel
     }
 
     public Socket openNioChannel(InetSocketAddress remoteAddress, Supplier<NioSelector> supplier) throws IOException {
-        SocketChannel rawChannel = rawChannelFactory.openNioChannel(remoteAddress);
+        SocketChannel rawChannel = rawChannelFactory.openNioChannel();
         NioSelector selector = supplier.get();
         Socket channel = internalCreateChannel(selector, rawChannel);
         scheduleChannel(channel, selector);
@@ -64,6 +71,13 @@ public abstract class ChannelFactory<ServerSocket extends NioServerSocketChannel
         }
     }
 
+    public Socket acceptNioChannel(SocketChannel acceptedChannel, NioSelector selector) throws IOException {
+        SocketChannel rawChannel = rawChannelFactory.acceptNioChannel(acceptedChannel);
+        Socket channel = internalCreateChannel(selector, rawChannel);
+        scheduleChannel(channel, selector);
+        return channel;
+    }
+
     public ServerSocket openNioServerSocketChannel(InetSocketAddress address, Supplier<NioSelector> supplier) throws IOException {
         ServerSocketChannel rawChannel = rawChannelFactory.openNioServerSocketChannel(address);
         NioSelector selector = supplier.get();
@@ -78,7 +92,7 @@ public abstract class ChannelFactory<ServerSocket extends NioServerSocketChannel
      * exception handler should have been set.
      *
      * @param selector the channel will be registered with
-     * @param channel the raw channel
+     * @param channel  the raw channel
      * @return the channel
      * @throws IOException related to the creation of the channel
      */
@@ -89,7 +103,7 @@ public abstract class ChannelFactory<ServerSocket extends NioServerSocketChannel
      * returned, the channel should be fully created and setup.
      *
      * @param selector the channel will be registered with
-     * @param channel the raw channel
+     * @param channel  the raw channel
      * @return the server channel
      * @throws IOException related to the creation of the channel
      */
@@ -148,26 +162,17 @@ public abstract class ChannelFactory<ServerSocket extends NioServerSocketChannel
 
     public static class RawChannelFactory {
 
-        private final boolean tcpNoDelay;
-        private final boolean tcpKeepAlive;
-        private final boolean tcpReusedAddress;
-        private final int tcpSendBufferSize;
-        private final int tcpReceiveBufferSize;
+        public RawChannelFactory() {
+        }
 
         public RawChannelFactory(boolean tcpNoDelay, boolean tcpKeepAlive, boolean tcpReusedAddress, int tcpSendBufferSize,
                                  int tcpReceiveBufferSize) {
-            this.tcpNoDelay = tcpNoDelay;
-            this.tcpKeepAlive = tcpKeepAlive;
-            this.tcpReusedAddress = tcpReusedAddress;
-            this.tcpSendBufferSize = tcpSendBufferSize;
-            this.tcpReceiveBufferSize = tcpReceiveBufferSize;
         }
 
-        SocketChannel openNioChannel(InetSocketAddress remoteAddress) throws IOException {
+        SocketChannel openNioChannel() throws IOException {
             SocketChannel socketChannel = SocketChannel.open();
             try {
-                configureSocketChannel(socketChannel);
-                connect(socketChannel, remoteAddress);
+                socketChannel.configureBlocking(false);
             } catch (IOException e) {
                 closeRawChannel(socketChannel, e);
                 throw e;
@@ -176,29 +181,38 @@ public abstract class ChannelFactory<ServerSocket extends NioServerSocketChannel
         }
 
         SocketChannel acceptNioChannel(ServerChannelContext serverContext) throws IOException {
-            ServerSocketChannel rawChannel = serverContext.getChannel().getRawChannel();
-            assert rawChannel.isBlocking() == false;
-            SocketChannel socketChannel = accept(rawChannel);
-            assert rawChannel.isBlocking() == false;
-            if (socketChannel == null) {
-                return null;
-            }
+//            ServerSocketChannel rawChannel = serverContext.getChannel().getRawChannel();
+//            assert rawChannel.isBlocking() == false;
+//            SocketChannel socketChannel = accept(rawChannel);
+//            assert rawChannel.isBlocking() == false;
+//            if (socketChannel == null) {
+//                return null;
+//            }
+//            try {
+//                socketChannel.configureBlocking(false);
+//            } catch (IOException e) {
+//                closeRawChannel(socketChannel, e);
+//                throw e;
+//            }
+//            return socketChannel;
+            return null;
+        }
+
+        SocketChannel acceptNioChannel(SocketChannel socketChannel) throws IOException {
             try {
-                configureSocketChannel(socketChannel);
+                socketChannel.configureBlocking(false);
+                return socketChannel;
             } catch (IOException e) {
                 closeRawChannel(socketChannel, e);
                 throw e;
             }
-            return socketChannel;
         }
 
-        ServerSocketChannel openNioServerSocketChannel(InetSocketAddress address) throws IOException {
+        ServerSocketChannel openNioServerSocketChannel(InetSocketAddress localAddress) throws IOException {
             ServerSocketChannel serverSocketChannel = ServerSocketChannel.open();
-            serverSocketChannel.configureBlocking(false);
-            java.net.ServerSocket socket = serverSocketChannel.socket();
             try {
-                socket.setReuseAddress(tcpReusedAddress);
-                serverSocketChannel.bind(address);
+                serverSocketChannel.configureBlocking(false);
+//                serverSocketChannel.bind(localAddress);
             } catch (IOException e) {
                 closeRawChannel(serverSocketChannel, e);
                 throw e;
@@ -206,31 +220,9 @@ public abstract class ChannelFactory<ServerSocket extends NioServerSocketChannel
             return serverSocketChannel;
         }
 
-        private void configureSocketChannel(SocketChannel channel) throws IOException {
-            channel.configureBlocking(false);
-            java.net.Socket socket = channel.socket();
-            socket.setTcpNoDelay(tcpNoDelay);
-            socket.setKeepAlive(tcpKeepAlive);
-            socket.setReuseAddress(tcpReusedAddress);
-            if (tcpSendBufferSize > 0) {
-                socket.setSendBufferSize(tcpSendBufferSize);
-            }
-            if (tcpReceiveBufferSize > 0) {
-                socket.setSendBufferSize(tcpReceiveBufferSize);
-            }
-        }
-
         public static SocketChannel accept(ServerSocketChannel serverSocketChannel) throws IOException {
             try {
                 return AccessController.doPrivileged((PrivilegedExceptionAction<SocketChannel>) serverSocketChannel::accept);
-            } catch (PrivilegedActionException e) {
-                throw (IOException) e.getCause();
-            }
-        }
-
-        private static void connect(SocketChannel socketChannel, InetSocketAddress remoteAddress) throws IOException {
-            try {
-                AccessController.doPrivileged((PrivilegedExceptionAction<Boolean>) () -> socketChannel.connect(remoteAddress));
             } catch (PrivilegedActionException e) {
                 throw (IOException) e.getCause();
             }

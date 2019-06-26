@@ -29,6 +29,9 @@ import java.net.Socket;
 import java.nio.ByteBuffer;
 import java.nio.channels.ClosedChannelException;
 import java.nio.channels.SocketChannel;
+import java.security.AccessController;
+import java.security.PrivilegedActionException;
+import java.security.PrivilegedExceptionAction;
 import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -87,7 +90,7 @@ public abstract class SocketChannelContext extends ChannelContext<SocketChannel>
 
         InetSocketAddress remoteAddress = socketConfig.getRemoteAddress();
         try {
-            rawChannel.connect(remoteAddress);
+            connect(rawChannel, remoteAddress);
         } catch (IOException e) {
             throw new IOException("Failed to connect socket channel {remoteAddress=" + remoteAddress + "}.", e);
         }
@@ -334,6 +337,14 @@ public abstract class SocketChannelContext extends ChannelContext<SocketChannel>
             }
             // Ignore if not connect complete. Some implementations fail on setting socket options if the
             // socket is not connected. We will try again after connection.
+        }
+    }
+
+    private static void connect(SocketChannel socketChannel, InetSocketAddress remoteAddress) throws IOException {
+        try {
+            AccessController.doPrivileged((PrivilegedExceptionAction<Boolean>) () -> socketChannel.connect(remoteAddress));
+        } catch (PrivilegedActionException e) {
+            throw (IOException) e.getCause();
         }
     }
 }

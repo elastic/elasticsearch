@@ -105,15 +105,12 @@ public class SecurityNioTransport extends NioTransport {
 
     @Override
     protected TcpChannelFactory serverChannelFactory(ProfileSettings profileSettings) {
-        return new SecurityTcpChannelFactory(profileSettings, false);
+        return new SecurityTcpChannelFactory(profileSettings.profileName, false);
     }
 
     @Override
     protected Function<DiscoveryNode, TcpChannelFactory> clientChannelFactoryFunction(ProfileSettings profileSettings) {
         return (node) -> {
-            final ChannelFactory.RawChannelFactory rawChannelFactory = new ChannelFactory.RawChannelFactory(profileSettings.tcpNoDelay,
-                profileSettings.tcpKeepAlive, profileSettings.reuseAddress, Math.toIntExact(profileSettings.sendBufferSize.getBytes()),
-                Math.toIntExact(profileSettings.receiveBufferSize.getBytes()));
             SNIHostName serverName;
             String configuredServerName = node.getAttributes().get("server_name");
             if (configuredServerName != null) {
@@ -125,7 +122,7 @@ public class SecurityNioTransport extends NioTransport {
             } else {
                 serverName = null;
             }
-            return new SecurityClientTcpChannelFactory(rawChannelFactory, serverName);
+            return new SecurityClientTcpChannelFactory(new ChannelFactory.RawChannelFactory(), serverName);
         };
     }
 
@@ -134,16 +131,7 @@ public class SecurityNioTransport extends NioTransport {
         private final String profileName;
         private final boolean isClient;
 
-        private SecurityTcpChannelFactory(ProfileSettings profileSettings, boolean isClient) {
-            this(new RawChannelFactory(profileSettings.tcpNoDelay,
-                profileSettings.tcpKeepAlive,
-                profileSettings.reuseAddress,
-                Math.toIntExact(profileSettings.sendBufferSize.getBytes()),
-                Math.toIntExact(profileSettings.receiveBufferSize.getBytes())), profileSettings.profileName, isClient);
-        }
-
-        private SecurityTcpChannelFactory(RawChannelFactory rawChannelFactory, String profileName, boolean isClient) {
-            super(rawChannelFactory);
+        private SecurityTcpChannelFactory(String profileName, boolean isClient) {
             this.profileName = profileName;
             this.isClient = isClient;
         }
@@ -206,7 +194,7 @@ public class SecurityNioTransport extends NioTransport {
         private final SNIHostName serverName;
 
         private SecurityClientTcpChannelFactory(RawChannelFactory rawChannelFactory, SNIHostName serverName) {
-            super(rawChannelFactory, TransportSettings.DEFAULT_PROFILE, true);
+            super(TransportSettings.DEFAULT_PROFILE, true);
             this.serverName = serverName;
         }
 

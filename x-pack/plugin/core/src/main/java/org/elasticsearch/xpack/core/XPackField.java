@@ -41,6 +41,8 @@ public final class XPackField {
     public static final String VECTORS = "vectors";
     /** Name constant for the voting-only-node feature. */
     public static final String VOTING_ONLY = "voting_only";
+    /** Name constant for the data science plugin. */
+    public static final String DATA_SCIENCE = "data_science";
 
     private XPackField() {}
 

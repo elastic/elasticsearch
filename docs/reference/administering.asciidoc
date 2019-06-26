@@ -46,6 +46,9 @@ be granted to users in the "administrator" category. Specifically, it allows
 users to exfiltrate data to a location of their choosing. Automated tools
 should not run as users with this privilege.
 
+For more information, see {stack-ov}/security-privileges.html[Security privileges]
+and {stack-ov}/built-in-roles.html[Built-in roles].
+
 [[backup-cluster-configuration]]
 == Back up a cluster's configuration
 
@@ -75,7 +78,19 @@ override some settings from configuration files. You can capture these in a
 *data* backup snapshot by specifing the `include_global_state: true` (default)
 parameter to the snapshot API. Using the <<cluster-get-settings, get settings
 API>> it is also possible to extract these configuration values in a text
-format.
+format:
+
+[source,js]
+--------------------------------------------------
+GET _cluster/settings?pretty&flat_settings&filter_path=persistent
+--------------------------------------------------
+//CONSOLE
+//TEST
+
+You can store the output of this as a file together with the rest of
+configuration files.
+
+NOTE: Transient settings are not considered for backup.
 
 TIP: We recommend that you have a configuration management plan for these
 configuration files. You may wish to check them into version control, or
@@ -84,9 +99,255 @@ provision them though your choice of configuration management tool.
 NOTE: {es} {security-features} store configuration data, like for example role
 definitions and API keys, inside a dedicate special index. This "system" data,
 complements the <<secure-settings, security settings>> configuration and should
-backed up as well. See <link>.
+<<backup-security-index-configuration, backed up as well>>.
 
 NOTE: Other {stack} components, like Kibana and {ml-cap}, store their configuration
 data inside other dedicated indices. From {es}'s perspective these are just data
 so you can use the regular <<backup-cluster-data, data backup>> process.
 
+[role="xpack"]
+[[security-backup]]
+== Backup security configuration
+
+[role="xpack"]
+[[backup-security-file-based-configuration]]
+=== Backup file-based security configuration
+
+{es} {security-features} are configured using the <<security-settings,
+`xpack.security` namespace>> inside the `elasticsearch.yml` and
+`elasticsearch.keystore` files. In addition there are several other
+<<security-files, extra configuration files>> inside the same `ES_PATH_CONF`
+directory. These files define roles and role mappings as well as
+<<configuring-file-realm, configure the file realm>>. More, some of the
+settings specify file paths to security sensitive data, such as TLS keys and
+certificates for the HTTP client and inter-node communication and private key files for
+<<ref-saml-settings, SAML>>, <<ref-oidc-settings, OIDC>> and the
+<<ref-kerberos-settings, Kerberos>> realms. All these are also stored inside
+`ES_PATH_CONF` (the path settings are relative).
+
+To back up all this configuration you can use a <<backup-cluster-configuration,
+conventional file-based backup>>.
+
+NOTE: File backups must run on every cluster node.
+
+NOTE: File backups will store non-security configuration as well. Backing-up
+only {security-features} configurations is not supported. A backup is a
+point in time record of state of the complete configuration.
+
+IMPORTANT: The `elasticsearch.keystore`, TLS keys and SAML, OIDC, and Kerberos
+realms private key files require confidentiality. This is crucial when files
+are copied to the backup location, as this increases the surface for malicious
+snooping.
+
+[float]
+[[backup-security-index-configuration]]
+=== Backup security configuration data
+
+{es} {security-features} store configuration or "system" data inside a
+dedicated index. This index is named `.security-6` in the {es} 6.x versions and
+`.security-7` in the 7.x releases. The `.security` alias always points to the
+appropriate index. This index contains the data which is not available in
+configuration files and *cannot* be reliably backed up using standard
+filesystem tools. This data describes:
+
+* the definition of users in the native realm (including hashed passwords)
+* role definitions (defined via the <<security-api-put-role, API>>)
+* role mappings (defined via the <<security-api-put-role-mapping, API>>)
+* application privileges
+* API keys
+
+Hence, `.security` contains resources and definitions more than configurations,
+but all of which are required in a complete {security-features} backup.
+
+Use the <<modules-snapshots, standard {es} snapshot functionality>> to backup
+`.security`, as you would for any <<backup-cluster-data, other data index>>.
+
+NOTE: The index format is only compatible within a single major version,
+and cannot be restored onto a version earlier that the version from which
+it originated.
+e.g. You can restore a security snapshot from 6.6.0 into  6.7.0 cluster, but
+you cannot restore it to a cluster running {es} 6.5.0 or 7.0.0.
+
+[float]
+==== Snapshot .security steps
+
+. Create a repository that you can use to backup the `.security` index.
+Ideally this repository is dedicated only to this index.
++
+--
+[source,js]
+-----------------------------------
+PUT /_snapshot/my_backup
+{
+  "type": "fs",
+  "settings": {
+    "location": "my_backup_location"
+  }
+}
+-----------------------------------
+// CONSOLE
+// TESTSETUP
+
+You must have the elevated `manage` cluster privilege to create it, yet it's a
+relatively infrequent operation. The elevated privileges are required to prevent
+regular users from exfiltrating data to locations of their choosing.
+
+Afterwards, users with the limited `snapshot_user` built-in role can create
+snapshots inside that repository. This role grants privileges to create
+snapshots in any existing repositories. It also grants privileges to list and
+read settings for all indices (but not to read data).
+
+--
+
+. Create users that have the `snapshot_user` built-in role.
++
+--
+The following example creates a new user `snapshot_user` in the native realm:
+
+[source,js]
+--------------------------------------------------
+POST /_security/user/snapshot_user
+{
+  "password" : "secret",
+  "roles" : [ "snapshot_user" ]
+}
+--------------------------------------------------
+// CONSOLE
+--
+
+. Create a snapshot.
++
+--
+The following example shows how to use the create snapshot API to backup
+the security index to the `my_backup` repository.
+`my_backup` repository:
+
+[source,js]
+--------------------------------------------------
+PUT /_snapshot/my_backup/snapshot_1
+{
+  "indices": ".security",
+  "include_global_state": true <1>
+}
+--------------------------------------------------
+// CONSOLE
+
+<1> A few security settings are stored in the global cluster metadata as
+persistent settings. These are included in the snapshot by default, but for
+facilitating change reviews as well as restore convenience, we can pull them
+out to stand in their own file.
+
+used to snapshot the `.security` index. The snapshot operation can also
+optionally capture the persistent settings from the global cluster metadata.
+--
+
+[float]
+[[backup-security-repos]]
+===== Controlling access to the backup repository
+
+If a third party reads the snapshot and exposes the contents of the `.security`
+index, it does not mean you have compromised cluster security. An attacker
+would still need to brute force cryptographic hashes before they can
+impersonate users or use API keys. However, every document in the security
+index is sensitive to changes. Modifications to that index have the potential
+to compromise the integrity of all the data in the cluster. To prevent this
+situation:
+
+* Snapshot the `.security` index in a dedicated repository, where read and write
+access is strictly restricted and audited.
+* If there are indications that the snapshot has been read, change the passwords
+of the users in the native realm and revoke API keys.
+* If there are indications that the snapshot has been tampered with, do not
+restore it. There is currently no option for the restore process to detect
+malicious tampering.
+
+The same recommendations apply to storing backups for configuration files.
+However, use special caution when you store the `elasticsearch.keystore` and
+private key file backups. Currently, the secure store is *not* password
+protected and any read access can compromise the passwords of external systems
+and private keys.
+
+[float]
+[[restore-security-configuration]]
+==== Restoring security configuration
+
+NOTE: You can restore a snapshot of the `.security` index only if it was created
+in the same major release version. The last minor version of every major release
+can convert and read both versions of the index.
+
+To restore your security configuration from a backup, log in to one of the node
+hosts, navigate to {es} installation directory, and follow these steps:
+
+. Make sure the repository holding the `.security` snapshot is installed.
++
+--
+[source,js]
+--------------------------------------------------
+GET /_snapshot/my_backup
+--------------------------------------------------
+// CONSOLE
+--
+
+. Add a new user with the `superuser` built-in role to the file based realm.
++
+--
+For example, create a user named `jacknich`:
+[source,shell]
+--------------------------------------------------
+bin/elasticsearch-users useradd jacknich -p password -r superuser
+--------------------------------------------------
+--
+
+. Using the previously created user, delete the existing `.security-6` or
+`.security-7` index.
++
+--
+[source,shell]
+--------------------------------------------------
+curl -u jacknich -X DELETE "localhost:9200/.security-7"
+--------------------------------------------------
+
+WARNING: After this step any authentication that relies on the `.security`
+index will not work. This means that all API calls that authenticate with
+native or reserved users will fail, as will any user that relies on a native role.
+The file-realm user we created in the step above will continue to work
+because it is not stored in the security index, and uses the builtin
+`superuser` role.
+
+--
+
+. Using the same user, restore the `.security` index from the snapshot.
++
+--
+[source,shell]
+--------------------------------------------------
+ curl -u jacknich -X POST "localhost:9200/_snapshot/my_backup/snapshot_1/_restore" -H 'Content-Type: application/json' -d'
+ {
+    "indices": ".security-7",
+    "include_global_state": true
+ }
+ '
+--------------------------------------------------
+
+NOTE: The `include_global_state` is optional but it will help to make sure the
+configuration in the index is compatible with the rest of the configuration in
+the cluster, as was the case at the time of the snapshot. But be advised that
+this will also restore non-security persistent cluster settings.
+--
+
+. Optionally, cherry-pick and <<cluster-update-settings,apply the persistent
+settings>> that you have extracted with the `GET _cluster/settings` API, if you
+need to review and override the settings that were included in the snapshot (by
+the `include_global_state` flag).
+
+Lastly, if your backup included configuration files copy these and overwrite
+the contents of `$ES_PATH_CONF` and restart the node. This needs to be done on
+*every node*. Depending on the extent of the differences between your current
+cluster configuration and the restored configuration, you may not be able to
+perform a rolling restart.
+If you are performing a full restore of your configuration directory, we recommend
+a full cluster restart as the safest option.
+Alternatively, you may wish to restore you configuration files to a separate
+location on disk and use file comparison tools to review the differences between
+your existing configuration and the restored configuration.
+required. This is a conventional file configuration restore.

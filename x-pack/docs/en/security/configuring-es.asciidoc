@@ -163,7 +163,6 @@ include::authentication/configuring-saml-realm.asciidoc[]
 include::authentication/configuring-kerberos-realm.asciidoc[]
 
 :edit_url:
-include::backup-security-configuration.asciidoc[]
 include::{es-repo-dir}/security/reference/files.asciidoc[]
 include::fips-140-compliance.asciidoc[]
 

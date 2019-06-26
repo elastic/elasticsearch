@@ -978,8 +978,8 @@ public class InternalEngine extends Engine {
                 // See testRecoveryWithOutOfOrderDelete for an example of peer recovery
                 plan = IndexingStrategy.processButSkipLucene(false, index.version());
 
-            // See Engine#getMaxSeqNoOfUpdatesOrDeletes for the explanation of the optimization using sequence numbers
-            } else if (softDeleteEnabled && maxSeqNoOfUpdatesOrDeletes <= localCheckpoint && hasBeenProcessedBefore(index) == false) {
+            } else if (maxSeqNoOfUpdatesOrDeletes <= localCheckpoint && hasBeenProcessedBefore(index) == false) {
+                // see Engine#getMaxSeqNoOfUpdatesOrDeletes for the explanation of the optimization using sequence numbers
                 assert maxSeqNoOfUpdatesOrDeletes < index.seqNo() : index.seqNo() + ">=" + maxSeqNoOfUpdatesOrDeletes;
                 plan = IndexingStrategy.optimizedAppendOnly(index.version());
             } else {

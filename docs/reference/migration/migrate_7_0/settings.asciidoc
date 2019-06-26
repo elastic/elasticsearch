@@ -121,9 +121,10 @@ Must be migrated to:
 [source,yaml]
 --------------------------------------------------
 xpack.security.authc.realms:
-  ldap.ldap1:
-    order: 1
-    url: "ldaps://ldap.example.com/"
+  ldap:
+    ldap1:
+      order: 1
+      url: "ldaps://ldap.example.com/"
 --------------------------------------------------
 
 Any realm specific secure settings that have been stored in the elasticsearch

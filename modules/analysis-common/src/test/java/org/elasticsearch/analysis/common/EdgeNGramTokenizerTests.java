@@ -37,87 +37,53 @@ import java.util.Collections;
 
 public class EdgeNGramTokenizerTests extends ESTokenStreamTestCase {
 
+    private IndexAnalyzers buildAnalyzers(Version version, String tokenizer) throws IOException {
+        Settings settings = Settings.builder()
+            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
+            .build();
+        Settings indexSettings = Settings.builder()
+            .put(IndexMetaData.SETTING_VERSION_CREATED, version)
+            .put("index.analysis.analyzer.my_analyzer.tokenizer", tokenizer)
+            .build();
+        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", indexSettings);
+        return new AnalysisModule(TestEnvironment.newEnvironment(settings),
+            Collections.singletonList(new CommonAnalysisPlugin())).getAnalysisRegistry().build(idxSettings);
+    }
+
     public void testPreConfiguredTokenizer() throws IOException {
 
         // Before 7.3 we return ngrams of length 1 only
         {
-            Settings settings = Settings.builder()
-                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
-                .build();
-            Settings indexSettings = Settings.builder()
-                .put(IndexMetaData.SETTING_VERSION_CREATED,
-                    VersionUtils.randomVersionBetween(random(), Version.V_7_0_0, VersionUtils.getPreviousVersion(Version.V_7_3_0)))
-                .put("index.analysis.analyzer.my_analyzer.tokenizer", "edge_ngram")
-                .build();
-            IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", indexSettings);
-
-            try (IndexAnalyzers indexAnalyzers = new AnalysisModule(TestEnvironment.newEnvironment(settings),
-                Collections.singletonList(new CommonAnalysisPlugin())).getAnalysisRegistry().build(idxSettings)) {
-
+            Version version = VersionUtils.randomVersionBetween(random(), Version.V_7_0_0, VersionUtils.getPreviousVersion(Version.V_7_3_0));
+            try (IndexAnalyzers indexAnalyzers = buildAnalyzers(version, "edge_ngram")) {
                 NamedAnalyzer analyzer = indexAnalyzers.get("my_analyzer");
                 assertNotNull(analyzer);
                 assertAnalyzesTo(analyzer, "test", new String[]{"t"});
-
             }
         }
 
         // Check deprecated name as well
         {
-            Settings settings = Settings.builder()
-                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
-                .build();
-            Settings indexSettings = Settings.builder()
-                .put(IndexMetaData.SETTING_VERSION_CREATED,
-                    VersionUtils.randomVersionBetween(random(), Version.V_7_0_0, VersionUtils.getPreviousVersion(Version.V_7_3_0)))
-                .put("index.analysis.analyzer.my_analyzer.tokenizer", "edgeNGram")
-                .build();
-            IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", indexSettings);
-
-            try (IndexAnalyzers indexAnalyzers = new AnalysisModule(TestEnvironment.newEnvironment(settings),
-                Collections.singletonList(new CommonAnalysisPlugin())).getAnalysisRegistry().build(idxSettings)) {
-
+            Version version = VersionUtils.randomVersionBetween(random(), Version.V_7_0_0, VersionUtils.getPreviousVersion(Version.V_7_3_0));
+            try (IndexAnalyzers indexAnalyzers = buildAnalyzers(version, "edgeNGram")) {
                 NamedAnalyzer analyzer = indexAnalyzers.get("my_analyzer");
                 assertNotNull(analyzer);
                 assertAnalyzesTo(analyzer, "test", new String[]{"t"});
-
             }
         }
 
         // Afterwards, we return ngrams of length 1 and 2, to match the default factory settings
         {
-            Settings settings = Settings.builder()
-                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
-                .build();
-            Settings indexSettings = Settings.builder()
-                .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
-                .put("index.analysis.analyzer.my_analyzer.tokenizer", "edge_ngram")
-                .build();
-            IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", indexSettings);
-
-            try (IndexAnalyzers indexAnalyzers = new AnalysisModule(TestEnvironment.newEnvironment(settings),
-                Collections.singletonList(new CommonAnalysisPlugin())).getAnalysisRegistry().build(idxSettings)) {
-
+            try (IndexAnalyzers indexAnalyzers = buildAnalyzers(Version.CURRENT, "edge_ngram")) {
                 NamedAnalyzer analyzer = indexAnalyzers.get("my_analyzer");
                 assertNotNull(analyzer);
                 assertAnalyzesTo(analyzer, "test", new String[]{"t", "te"});
-
             }
         }
 
         // Check deprecated name as well
         {
-            Settings settings = Settings.builder()
-                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
-                .build();
-            Settings indexSettings = Settings.builder()
-                .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
-                .put("index.analysis.analyzer.my_analyzer.tokenizer", "edgeNGram")
-                .build();
-            IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", indexSettings);
-
-            try (IndexAnalyzers indexAnalyzers = new AnalysisModule(TestEnvironment.newEnvironment(settings),
-                Collections.singletonList(new CommonAnalysisPlugin())).getAnalysisRegistry().build(idxSettings)) {
-
+            try (IndexAnalyzers indexAnalyzers = buildAnalyzers(Version.CURRENT, "edgeNGram")) {
                 NamedAnalyzer analyzer = indexAnalyzers.get("my_analyzer");
                 assertNotNull(analyzer);
                 assertAnalyzesTo(analyzer, "test", new String[]{"t", "te"});

@@ -66,25 +66,18 @@ public final class FollowingEngine extends InternalEngine {
     @Override
     protected InternalEngine.IndexingStrategy indexingStrategyForOperation(final Index index) throws IOException {
         preFlight(index);
-        if (hasBeenProcessedBefore(index)) {
-            if (logger.isTraceEnabled()) {
-                logger.trace("index operation [id={} seq_no={} origin={}] was processed before", index.id(), index.seqNo(), index.origin());
-            }
-            if (index.origin() == Operation.Origin.PRIMARY) {
-                /*
-                 * The existing operation in this engine was probably assigned the term of the previous primary shard which is different
-                 * from the term of the current operation. If the current operation arrives on replicas before the previous operation,
-                 * then the Lucene content between the primary and replicas are not identical (primary terms are different). We can safely
-                 * skip the existing operations below the global checkpoint, however must replicate the ones above the global checkpoint
-                 * but with the previous primary term (not the current term of the operation) in order to guarantee the consistency
-                 * between the primary and replicas (see TransportBulkShardOperationsAction#shardOperationOnPrimary).
-                 */
-                final AlreadyProcessedFollowingEngineException error = new AlreadyProcessedFollowingEngineException(
-                    shardId, index.seqNo(), lookupPrimaryTerm(index.seqNo()));
-                return IndexingStrategy.skipDueToVersionConflict(error, false, index.version(), index.primaryTerm());
-            } else {
-                return IndexingStrategy.processButSkipLucene(false, index.version());
-            }
+        if (index.origin() == Operation.Origin.PRIMARY && hasBeenProcessedBefore(index)) {
+            /*
+             * The existing operation in this engine was probably assigned the term of the previous primary shard which is different
+             * from the term of the current operation. If the current operation arrives on replicas before the previous operation,
+             * then the Lucene content between the primary and replicas are not identical (primary terms are different). We can safely
+             * skip the existing operations below the global checkpoint, however must replicate the ones above the global checkpoint
+             * but with the previous primary term (not the current term of the operation) in order to guarantee the consistency
+             * between the primary and replicas (see TransportBulkShardOperationsAction#shardOperationOnPrimary).
+             */
+            final AlreadyProcessedFollowingEngineException error = new AlreadyProcessedFollowingEngineException(
+                shardId, index.seqNo(), lookupPrimaryTerm(index.seqNo()));
+            return IndexingStrategy.skipDueToVersionConflict(error, false, index.version(), index.primaryTerm());
         } else {
             return planIndexingAsNonPrimary(index);
         }

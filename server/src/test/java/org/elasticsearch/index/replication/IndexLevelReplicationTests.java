@@ -89,6 +89,9 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
             final int docCount = randomInt(50);
             shards.indexDocs(docCount);
             shards.assertAllEqual(docCount);
+            for (IndexShard replica : shards.getReplicas()) {
+                assertThat(EngineTestCase.getNumVersionLookups(getEngine(replica)), equalTo(0L));
+            }
         }
     }
 
@@ -98,6 +101,9 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
             final int docCount = randomInt(50);
             shards.appendDocs(docCount);
             shards.assertAllEqual(docCount);
+            for (IndexShard replica : shards.getReplicas()) {
+                assertThat(EngineTestCase.getNumVersionLookups(getEngine(replica)), equalTo(0L));
+            }
         }
     }
 
@@ -652,7 +658,6 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
     public void testIndexingOptimizationUsingSequenceNumbers() throws Exception {
         final Set<String> liveDocs = new HashSet<>();
         try (ReplicationGroup group = createGroup(2)) {
-            boolean softDeleteEnabled = group.getPrimary().indexSettings().isSoftDeleteEnabled();
             group.startAll();
             int numDocs = randomIntBetween(1, 100);
             long versionLookups = 0;
@@ -660,7 +665,7 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
                 String id = Integer.toString(randomIntBetween(1, 100));
                 if (randomBoolean()) {
                     group.index(new IndexRequest(index.getName(), "type", id).source("{}", XContentType.JSON));
-                    if (softDeleteEnabled == false || liveDocs.add(id) == false) {
+                    if (liveDocs.add(id) == false) {
                         versionLookups++;
                     }
                 } else {

@@ -69,8 +69,8 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     private static final TimeUnit ES_DESTROY_TIMEOUT_UNIT = TimeUnit.SECONDS;
     private static final int NODE_UP_TIMEOUT = 60;
     private static final TimeUnit NODE_UP_TIMEOUT_UNIT = TimeUnit.SECONDS;
-    private static final int PLUGIN_CONFIG_TIMEOUT = 15;
-    private static final TimeUnit PLUGIN_CONFIG_TIMEOUT_UNIT = TimeUnit.SECONDS;
+    private static final int ADDITIONAL_CONFIG_TIMEOUT = 15;
+    private static final TimeUnit ADDITIONAL_CONFIG_TIMEOUT_UNIT = TimeUnit.SECONDS;
     private static final List<String> OVERRIDABLE_SETTINGS = Arrays.asList(
         "path.repo",
         "discovery.seed_providers"
@@ -876,7 +876,14 @@ public class ElasticsearchNode implements TestClusterConfiguration {
             NODE_UP_TIMEOUT_UNIT.toMillis(NODE_UP_TIMEOUT) +
                 // Installing plugins at config time and loading them when nods start requires additional time we need to
                 // account for
-                PLUGIN_CONFIG_TIMEOUT_UNIT.toMillis(PLUGIN_CONFIG_TIMEOUT * plugins.size()),
+                ADDITIONAL_CONFIG_TIMEOUT_UNIT.toMillis(ADDITIONAL_CONFIG_TIMEOUT *
+                    (
+                        plugins.size() +
+                        keystoreFiles.size() +
+                        keystoreSettings.size() +
+                        credentials.size()
+                    )
+                ),
             TimeUnit.MILLISECONDS,
             this
         );

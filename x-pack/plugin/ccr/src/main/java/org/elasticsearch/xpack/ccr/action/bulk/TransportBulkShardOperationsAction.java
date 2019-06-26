@@ -144,10 +144,11 @@ public class TransportBulkShardOperationsAction
                     assert failure.getSeqNo() == targetOp.seqNo() : targetOp.seqNo() + " != " + failure.getSeqNo();
                     if (failure.getExistingPrimaryTerm().isPresent()) {
                         appliedOperations.add(rewriteOperationWithPrimaryTerm(sourceOp, failure.getExistingPrimaryTerm().getAsLong()));
-                    } else if (targetOp.seqNo() > primary.getGlobalCheckpoint()) {
-                        assert false : "can't find primary_term for existing op=" + targetOp + " gcp=" + primary.getGlobalCheckpoint();
+                    } else if (targetOp.seqNo() > primary.getLastKnownGlobalCheckpoint()) {
+                        assert false :
+                            "can't find primary_term for existing op=" + targetOp + " gcp=" + primary.getLastKnownGlobalCheckpoint();
                         throw new IllegalStateException("can't find primary_term for existing op=" + targetOp +
-                            " global_checkpoint=" + primary.getGlobalCheckpoint(), failure);
+                            " global_checkpoint=" + primary.getLastKnownGlobalCheckpoint(), failure);
                     }
                 } else {
                     assert false : "Only already-processed error should happen; op=[" + targetOp + "] error=[" + result.getFailure() + "]";

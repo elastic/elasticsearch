@@ -20,6 +20,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.indexlifecycle.IndexLifecycleMetadata;
@@ -28,6 +29,7 @@ import org.elasticsearch.xpack.core.indexlifecycle.action.DeleteLifecycleAction;
 import org.elasticsearch.xpack.core.indexlifecycle.action.DeleteLifecycleAction.Request;
 import org.elasticsearch.xpack.core.indexlifecycle.action.DeleteLifecycleAction.Response;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.SortedMap;
 import java.util.Spliterator;
@@ -53,7 +55,12 @@ public class TransportDeleteLifecycleAction extends TransportMasterNodeAction<Re
 
     @Override
     protected Response newResponse() {
-        return new Response();
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
+    }
+
+    @Override
+    protected Response read(StreamInput in) throws IOException {
+        return new Response(in);
     }
 
     @Override

@@ -1,0 +1,28 @@
+--
+:api: delete-data-frame-analytics
+:request: DeleteDataFrameAnalyticsRequest
+:response: AcknowledgedResponse
+--
+[id="{upid}-{api}"]
+=== Delete Data Frame Analytics API
+
+The Delete Data Frame Analytics API is used to delete an existing {dataframe-analytics-config}.
+The API accepts a +{request}+ object as a request and returns a +{response}+.
+
+[id="{upid}-{api}-request"]
+==== Delete Data Frame Analytics Request
+
+A +{request}+ object requires a {dataframe-analytics-config} id.
+
+["source","java",subs="attributes,callouts,macros"]
+---------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request]
+---------------------------------------------------
+<1> Constructing a new request referencing an existing {dataframe-analytics-config}
+
+include::../execution.asciidoc[]
+
+[id="{upid}-{api}-response"]
+==== Response
+
+The returned +{response}+ object acknowledges the {dataframe-analytics-config} deletion.

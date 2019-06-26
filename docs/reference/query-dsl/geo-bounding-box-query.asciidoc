@@ -39,7 +39,7 @@ Then the following simple query can be executed with a
 
 [source,js]
 --------------------------------------------------
-GET /_search
+GET my_locations/_search
 {
     "query": {
         "bool" : {
@@ -94,7 +94,7 @@ representations of the geo point, the filter can accept it as well:
 
 [source,js]
 --------------------------------------------------
-GET /_search
+GET my_locations/_search
 {
     "query": {
         "bool" : {
@@ -129,7 +129,7 @@ conform with http://geojson.org/[GeoJSON].
 
 [source,js]
 --------------------------------------------------
-GET /_search
+GET my_locations/_search
 {
     "query": {
         "bool" : {
@@ -157,7 +157,7 @@ Format in `lat,lon`.
 
 [source,js]
 --------------------------------------------------
-GET /_search
+GET my_locations/_search
 {
     "query": {
         "bool" : {
@@ -183,7 +183,7 @@ GET /_search
 
 [source,js]
 --------------------------------------------------
-GET /_search
+GET my_locations/_search
 {
     "query": {
         "bool" : {
@@ -208,7 +208,7 @@ GET /_search
 
 [source,js]
 --------------------------------------------------
-GET /_search
+GET my_locations/_search
 {
     "query": {
         "bool" : {
@@ -243,7 +243,7 @@ geohash the geohash can be specified in both `top_left` and
 
 [source,js]
 --------------------------------------------------
-GET /_search
+GET my_locations/_search
 {
     "query": {
         "geo_bounding_box" : {
@@ -273,7 +273,7 @@ values separately.
 
 [source,js]
 --------------------------------------------------
-GET /_search
+GET my_locations/_search
 {
     "query": {
         "bool" : {
@@ -323,7 +323,7 @@ are not supported. Here is an example:
 
 [source,js]
 --------------------------------------------------
-GET /_search
+GET my_locations/_search
 {
     "query": {
         "bool" : {

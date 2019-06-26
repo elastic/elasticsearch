@@ -49,13 +49,13 @@ public class RoutingServiceTests extends ESTestCase {
     private ClusterService clusterService;
 
     @Before
-    public void createTestHarness() {
+    public void beforeTest() {
         threadPool = new TestThreadPool("test");
         clusterService = ClusterServiceUtils.createClusterService(threadPool);
     }
 
     @After
-    public void shutdownThreadPool() {
+    public void afterTest() {
         clusterService.stop();
         threadPool.shutdown();
     }

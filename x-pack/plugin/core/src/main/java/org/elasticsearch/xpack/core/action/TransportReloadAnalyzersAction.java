@@ -93,7 +93,7 @@ public class TransportReloadAnalyzersAction
         logger.info("reloading analyzers for index shard " + shardRouting);
         IndexService indexService = indicesService.indexService(shardRouting.index());
         indexService.mapperService().reloadSearchAnalyzers(indicesService.getAnalysis());
-        return new ReloadResult(shardRouting.index().getName(), "sdfhsjkd");
+        return new ReloadResult(shardRouting.index().getName(), shardRouting.currentNodeId());
     }
 
     public static final class ReloadResult implements Streamable {

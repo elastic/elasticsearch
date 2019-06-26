@@ -1,4 +1,7 @@
 setup:
+  - skip:
+      version: " - 8.0.0" # TODO change this after backport
+      reason: RareTerms added in 7.3.0
   - do:
       indices.create:
           index: test_1

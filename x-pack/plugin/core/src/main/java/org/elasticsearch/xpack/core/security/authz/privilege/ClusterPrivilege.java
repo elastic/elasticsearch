@@ -60,6 +60,7 @@ public final class ClusterPrivilege extends Privilege {
     private static final Automaton READ_CCR_AUTOMATON = patterns(ClusterStateAction.NAME, HasPrivilegesAction.NAME);
     private static final Automaton MANAGE_ILM_AUTOMATON = patterns("cluster:admin/ilm/*");
     private static final Automaton READ_ILM_AUTOMATON = patterns(GetLifecycleAction.NAME, GetStatusAction.NAME);
+    private static final Automaton MANAGE_ENRICH_AUTOMATON = patterns("cluster:admin/xpack/enrich/*");
 
     public static final ClusterPrivilege NONE =                  new ClusterPrivilege("none",                Automatons.EMPTY);
     public static final ClusterPrivilege ALL =                   new ClusterPrivilege("all",                 ALL_CLUSTER_AUTOMATON);
@@ -90,6 +91,7 @@ public final class ClusterPrivilege extends Privilege {
     public static final ClusterPrivilege CREATE_SNAPSHOT =       new ClusterPrivilege("create_snapshot", CREATE_SNAPSHOT_AUTOMATON);
     public static final ClusterPrivilege MANAGE_ILM =            new ClusterPrivilege("manage_ilm", MANAGE_ILM_AUTOMATON);
     public static final ClusterPrivilege READ_ILM =              new ClusterPrivilege("read_ilm", READ_ILM_AUTOMATON);
+    public static final ClusterPrivilege MANAGE_ENRICH =         new ClusterPrivilege("manage_enrich", MANAGE_ENRICH_AUTOMATON);
 
     public static final Predicate<String> ACTION_MATCHER = ClusterPrivilege.ALL.predicate();
 
@@ -118,7 +120,8 @@ public final class ClusterPrivilege extends Privilege {
             entry("read_ccr", READ_CCR),
             entry("create_snapshot", CREATE_SNAPSHOT),
             entry("manage_ilm", MANAGE_ILM),
-            entry("read_ilm", READ_ILM));
+            entry("read_ilm", READ_ILM),
+            entry("manage_enrich", MANAGE_ENRICH));
 
     private static final ConcurrentHashMap<Set<String>, ClusterPrivilege> CACHE = new ConcurrentHashMap<>();
 

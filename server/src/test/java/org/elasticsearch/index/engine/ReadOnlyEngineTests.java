@@ -62,15 +62,16 @@ public class ReadOnlyEngineTests extends EngineTestCase {
                     if (rarely()) {
                         engine.flush();
                     }
-                    globalCheckpoint.set(randomLongBetween(globalCheckpoint.get(), engine.getLocalCheckpoint()));
+                    globalCheckpoint.set(randomLongBetween(globalCheckpoint.get(), engine.getPersistedLocalCheckpoint()));
                 }
                 engine.syncTranslog();
+                globalCheckpoint.set(randomLongBetween(globalCheckpoint.get(), engine.getPersistedLocalCheckpoint()));
                 engine.flush();
                 readOnlyEngine = new ReadOnlyEngine(engine.engineConfig, engine.getSeqNoStats(globalCheckpoint.get()),
                     engine.getTranslogStats(), false, Function.identity());
                 lastSeqNoStats = engine.getSeqNoStats(globalCheckpoint.get());
                 lastDocIds = getDocIds(engine, true);
-                assertThat(readOnlyEngine.getLocalCheckpoint(), equalTo(lastSeqNoStats.getLocalCheckpoint()));
+                assertThat(readOnlyEngine.getPersistedLocalCheckpoint(), equalTo(lastSeqNoStats.getLocalCheckpoint()));
                 assertThat(readOnlyEngine.getSeqNoStats(globalCheckpoint.get()).getMaxSeqNo(), equalTo(lastSeqNoStats.getMaxSeqNo()));
                 assertThat(getDocIds(readOnlyEngine, false), equalTo(lastDocIds));
                 for (int i = 0; i < numDocs; i++) {
@@ -94,7 +95,7 @@ public class ReadOnlyEngineTests extends EngineTestCase {
 
                 IOUtils.close(external, internal);
                 // the locked down engine should still point to the previous commit
-                assertThat(readOnlyEngine.getLocalCheckpoint(), equalTo(lastSeqNoStats.getLocalCheckpoint()));
+                assertThat(readOnlyEngine.getPersistedLocalCheckpoint(), equalTo(lastSeqNoStats.getLocalCheckpoint()));
                 assertThat(readOnlyEngine.getSeqNoStats(globalCheckpoint.get()).getMaxSeqNo(), equalTo(lastSeqNoStats.getMaxSeqNo()));
                 assertThat(getDocIds(readOnlyEngine, false), equalTo(lastDocIds));
                 try (Engine.GetResult getResult = readOnlyEngine.get(get, readOnlyEngine::acquireSearcher)) {
@@ -105,7 +106,7 @@ public class ReadOnlyEngineTests extends EngineTestCase {
             try (InternalEngine recoveringEngine = new InternalEngine(config)) {
                 recoveringEngine.recoverFromTranslog(translogHandler, Long.MAX_VALUE);
                 // the locked down engine should still point to the previous commit
-                assertThat(readOnlyEngine.getLocalCheckpoint(), equalTo(lastSeqNoStats.getLocalCheckpoint()));
+                assertThat(readOnlyEngine.getPersistedLocalCheckpoint(), equalTo(lastSeqNoStats.getLocalCheckpoint()));
                 assertThat(readOnlyEngine.getSeqNoStats(globalCheckpoint.get()).getMaxSeqNo(), equalTo(lastSeqNoStats.getMaxSeqNo()));
                 assertThat(getDocIds(readOnlyEngine, false), equalTo(lastDocIds));
             }
@@ -129,9 +130,10 @@ public class ReadOnlyEngineTests extends EngineTestCase {
                     if (rarely()) {
                         engine.flush();
                     }
-                    globalCheckpoint.set(engine.getLocalCheckpoint());
+                    engine.syncTranslog(); // advance persisted local checkpoint
+                    globalCheckpoint.set(engine.getPersistedLocalCheckpoint());
                 }
-                globalCheckpoint.set(engine.getLocalCheckpoint());
+                globalCheckpoint.set(engine.getPersistedLocalCheckpoint());
                 engine.syncTranslog();
                 engine.flushAndClose();
                 readOnlyEngine = new ReadOnlyEngine(engine.engineConfig, null , null, true, Function.identity());
@@ -155,10 +157,10 @@ public class ReadOnlyEngineTests extends EngineTestCase {
                     ParsedDocument doc = testParsedDocument(Integer.toString(i), null, testDocument(), new BytesArray("{}"), null);
                     engine.index(new Engine.Index(newUid(doc), doc, i, primaryTerm.get(), 1, null, Engine.Operation.Origin.REPLICA,
                         System.nanoTime(), -1, false, SequenceNumbers.UNASSIGNED_SEQ_NO, 0));
-                    maxSeqNo = engine.getLocalCheckpoint();
+                    maxSeqNo = engine.getProcessedLocalCheckpoint();
                 }
-                globalCheckpoint.set(engine.getLocalCheckpoint() - 1);
                 engine.syncTranslog();
+                globalCheckpoint.set(engine.getPersistedLocalCheckpoint() - 1);
                 engine.flushAndClose();
 
                 IllegalStateException exception = expectThrows(IllegalStateException.class,

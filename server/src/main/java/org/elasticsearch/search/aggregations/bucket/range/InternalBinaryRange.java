@@ -275,16 +275,20 @@ public final class InternalBinaryRange
         return builder;
     }
 
+
     @Override
-    public boolean doEquals(Object obj) {
+    public boolean equals(Object obj) {
+        if (this == obj) return true;
+        if (obj == null || getClass() != obj.getClass()) return false;
+        if (super.equals(obj) == false) return false;
+
         InternalBinaryRange that = (InternalBinaryRange) obj;
         return Objects.equals(buckets, that.buckets)
             && Objects.equals(format, that.format)
             && Objects.equals(keyed, that.keyed);
     }
 
-    @Override
-    public int doHashCode() {
-        return Objects.hash(buckets, format, keyed);
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), buckets, format, keyed);
     }
 }

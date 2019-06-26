@@ -30,14 +30,12 @@ import org.elasticsearch.action.bulk.TransportBulkAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.ingest.DeletePipelineRequest;
 import org.elasticsearch.action.ingest.PutPipelineRequest;
-import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateApplier;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -48,12 +46,8 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.gateway.GatewayService;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
-import org.elasticsearch.index.shard.IndexShard;
-import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -97,10 +91,9 @@ public class IngestService implements ClusterStateApplier {
 
     public IngestService(ClusterService clusterService, ThreadPool threadPool,
                          Environment env, ScriptService scriptService, AnalysisRegistry analysisRegistry,
-                         List<IngestPlugin> ingestPlugins, IndicesService indicesService) {
+                         List<IngestPlugin> ingestPlugins, Client client) {
         this.clusterService = clusterService;
         this.scriptService = scriptService;
-        final IndexNameExpressionResolver resolver = new IndexNameExpressionResolver();
         this.processorFactories = processorFactories(
             ingestPlugins,
             new Processor.Parameters(
@@ -108,35 +101,7 @@ public class IngestService implements ClusterStateApplier {
                 threadPool.getThreadContext(), threadPool::relativeTimeInMillis,
                 (delay, command) -> threadPool.schedule(
                     command, TimeValue.timeValueMillis(delay), ThreadPool.Names.GENERIC
-                ), this, indexExpression -> {
-                    ClusterState state = clusterService.state();
-                    Index[] resolvedIndices = resolver.concreteIndices(state, IndicesOptions.STRICT_EXPAND_OPEN, indexExpression);
-                    if (resolvedIndices.length != 1) {
-                        throw new IllegalStateException("expression [" + indexExpression + "] can only point to a single concrete index");
-                    }
-                    Index index = resolvedIndices[0];
-
-                    // check if indexExpression matches with an alias that has a filter
-                    // There is no guarantee that alias filters are applied, so fail if this is the case.
-                    Set<String> indicesAndAliases = resolver.resolveExpressions(state, indexExpression);
-                    String[] aliasesWithFilter = resolver.filteringAliases(state, index.getName(), indicesAndAliases);
-                    if (aliasesWithFilter != null && aliasesWithFilter.length > 0) {
-                        throw new IllegalStateException("expression [" + indexExpression + "] points an alias with a filter");
-                    }
-
-                    IndexService indexService = indicesService.indexServiceSafe(index);
-                    int numShards = indexService.getMetaData().getNumberOfShards();
-                    if (numShards != 1) {
-                        throw new IllegalStateException("index [" + index.getName() + "] must have 1 shard, but has " + numShards +
-                            " shards");
-                    }
-
-                    IndexShard indexShard = indexService.getShard(0);
-                    IndexMetaData imd = state.metaData().index(index);
-                    return new Tuple<>(imd, indexShard.acquireSearcher("ingest"));
-                }
-            )
-        );
+                ), this, client));
         this.threadPool = threadPool;
     }
 

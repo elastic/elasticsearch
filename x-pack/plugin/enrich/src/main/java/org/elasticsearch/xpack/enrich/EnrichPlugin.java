@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.enrich;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -47,14 +48,11 @@ import org.elasticsearch.xpack.enrich.rest.RestGetEnrichPolicyAction;
 import org.elasticsearch.xpack.enrich.rest.RestListEnrichPolicyAction;
 import org.elasticsearch.xpack.enrich.rest.RestPutEnrichPolicyAction;
 
-import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
 
-import static java.util.Collections.emptyList;
 import static org.elasticsearch.xpack.core.XPackSettings.ENRICH_ENABLED_SETTING;
 
 public class EnrichPlugin extends Plugin implements ActionPlugin, IngestPlugin {
@@ -72,17 +70,17 @@ public class EnrichPlugin extends Plugin implements ActionPlugin, IngestPlugin {
 
     @Override
     public Map<String, Processor.Factory> getProcessors(Processor.Parameters parameters) {
-        EnrichProcessorFactory factory = new EnrichProcessorFactory(parameters.localShardSearcher);
+        EnrichProcessorFactory factory = new EnrichProcessorFactory(parameters.client);
         parameters.ingestService.addIngestClusterStateListener(factory);
         return Map.of(EnrichProcessorFactory.TYPE, factory);
     }
 
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
         if (enabled == false) {
-            return emptyList();
+            return List.of();
         }
 
-        return Arrays.asList(
+        return List.of(
             new ActionHandler<>(GetEnrichPolicyAction.INSTANCE, TransportGetEnrichPolicyAction.class),
             new ActionHandler<>(DeleteEnrichPolicyAction.INSTANCE, TransportDeleteEnrichPolicyAction.class),
             new ActionHandler<>(ListEnrichPolicyAction.INSTANCE, TransportListEnrichPolicyAction.class),
@@ -96,10 +94,10 @@ public class EnrichPlugin extends Plugin implements ActionPlugin, IngestPlugin {
                                              IndexNameExpressionResolver indexNameExpressionResolver,
                                              Supplier<DiscoveryNodes> nodesInCluster) {
         if (enabled == false) {
-            return emptyList();
+            return List.of();
         }
 
-        return Arrays.asList(
+        return List.of(
             new RestGetEnrichPolicyAction(settings, restController),
             new RestDeleteEnrichPolicyAction(settings, restController),
             new RestListEnrichPolicyAction(settings, restController),
@@ -115,18 +113,22 @@ public class EnrichPlugin extends Plugin implements ActionPlugin, IngestPlugin {
                                                NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry) {
         EnrichPolicyExecutor enrichPolicyExecutor = new EnrichPolicyExecutor(settings, clusterService, client, threadPool,
             new IndexNameExpressionResolver(), System::currentTimeMillis);
-        return Collections.singleton(enrichPolicyExecutor);
+        return List.of(enrichPolicyExecutor);
     }
 
     @Override
     public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
-        return Collections.singletonList(new NamedWriteableRegistry.Entry(MetaData.Custom.class, EnrichMetadata.TYPE,
-            EnrichMetadata::new));
+        return List.of(
+            new NamedWriteableRegistry.Entry(MetaData.Custom.class, EnrichMetadata.TYPE, EnrichMetadata::new),
+            new NamedWriteableRegistry.Entry(NamedDiff.class, EnrichMetadata.TYPE,
+                in -> EnrichMetadata.readDiffFrom(MetaData.Custom.class, EnrichMetadata.TYPE, in))
+        );
     }
 
     public List<NamedXContentRegistry.Entry> getNamedXContent() {
-        return Collections.singletonList(new NamedXContentRegistry.Entry(MetaData.Custom.class, new ParseField(EnrichMetadata.TYPE),
-            EnrichMetadata::fromXContent));
+        return List.of(
+            new NamedXContentRegistry.Entry(MetaData.Custom.class, new ParseField(EnrichMetadata.TYPE), EnrichMetadata::fromXContent)
+        );
     }
 
     @Override

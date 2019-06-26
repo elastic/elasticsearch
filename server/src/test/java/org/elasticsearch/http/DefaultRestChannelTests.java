@@ -22,10 +22,13 @@ package org.elasticsearch.http;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.bytes.ReleasablePagedBytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.ByteArray;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -53,6 +56,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
@@ -303,6 +307,72 @@ public class DefaultRestChannelTests extends ESTestCase {
         }
     }
 
+    public void testUnsupportedHttpMethod() {
+        final boolean close = randomBoolean();
+        final HttpRequest.HttpVersion httpVersion = close ? HttpRequest.HttpVersion.HTTP_1_0 : HttpRequest.HttpVersion.HTTP_1_1;
+        final String httpConnectionHeaderValue = close ? DefaultRestChannel.CLOSE : DefaultRestChannel.KEEP_ALIVE;
+        final RestRequest request = RestRequest.request(xContentRegistry(), new TestRequest(httpVersion, null, "/") {
+            @Override
+            public RestRequest.Method method() {
+                throw new IllegalArgumentException("test");
+            }
+        }, httpChannel);
+        request.getHttpRequest().getHeaders().put(DefaultRestChannel.CONNECTION, Collections.singletonList(httpConnectionHeaderValue));
+
+        DefaultRestChannel channel = new DefaultRestChannel(httpChannel, request.getHttpRequest(), request, bigArrays,
+            HttpHandlingSettings.fromSettings(Settings.EMPTY), threadPool.getThreadContext());
+
+        // ESTestCase#after will invoke ensureAllArraysAreReleased which will fail if the response content was not released
+        final BigArrays bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
+        final ByteArray byteArray = bigArrays.newByteArray(0, false);
+        final BytesReference content = new ReleasablePagedBytesReference(byteArray, 0 , byteArray);
+        channel.sendResponse(new TestRestResponse(RestStatus.METHOD_NOT_ALLOWED, content));
+
+        Class<ActionListener<Void>> listenerClass = (Class<ActionListener<Void>>) (Class) ActionListener.class;
+        ArgumentCaptor<ActionListener<Void>> listenerCaptor = ArgumentCaptor.forClass(listenerClass);
+        verify(httpChannel).sendResponse(any(), listenerCaptor.capture());
+        ActionListener<Void> listener = listenerCaptor.getValue();
+        if (randomBoolean()) {
+            listener.onResponse(null);
+        } else {
+            listener.onFailure(new ClosedChannelException());
+        }
+        if (close) {
+            verify(httpChannel, times(1)).close();
+        } else {
+            verify(httpChannel, times(0)).close();
+        }
+    }
+
+    public void testCloseOnException() {
+        final boolean close = randomBoolean();
+        final HttpRequest.HttpVersion httpVersion = close ? HttpRequest.HttpVersion.HTTP_1_0 : HttpRequest.HttpVersion.HTTP_1_1;
+        final String httpConnectionHeaderValue = close ? DefaultRestChannel.CLOSE : DefaultRestChannel.KEEP_ALIVE;
+        final RestRequest request = RestRequest.request(xContentRegistry(), new TestRequest(httpVersion, null, "/") {
+            @Override
+            public HttpResponse createResponse(RestStatus status, BytesReference content) {
+                throw new IllegalArgumentException("test");
+            }
+        }, httpChannel);
+        request.getHttpRequest().getHeaders().put(DefaultRestChannel.CONNECTION, Collections.singletonList(httpConnectionHeaderValue));
+
+        DefaultRestChannel channel = new DefaultRestChannel(httpChannel, request.getHttpRequest(), request, bigArrays,
+            HttpHandlingSettings.fromSettings(Settings.EMPTY), threadPool.getThreadContext());
+
+        // ESTestCase#after will invoke ensureAllArraysAreReleased which will fail if the response content was not released
+        final BigArrays bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
+        final ByteArray byteArray = bigArrays.newByteArray(0, false);
+        final BytesReference content = new ReleasablePagedBytesReference(byteArray, 0 , byteArray);
+
+        expectThrows(IllegalArgumentException.class, () -> channel.sendResponse(new TestRestResponse(RestStatus.OK, content)));
+
+        if (close) {
+            verify(httpChannel, times(1)).close();
+        } else {
+            verify(httpChannel, times(0)).close();
+        }
+    }
+
     private TestResponse executeRequest(final Settings settings, final String host) {
         return executeRequest(settings, null, host);
     }
@@ -424,10 +494,16 @@ public class DefaultRestChannelTests extends ESTestCase {
 
     private static class TestRestResponse extends RestResponse {
 
+        private final RestStatus status;
         private final BytesReference content;
 
+        TestRestResponse(final RestStatus status, final BytesReference content) {
+            this.status = Objects.requireNonNull(status);
+            this.content = Objects.requireNonNull(content);
+        }
+
         TestRestResponse() {
-            content = new BytesArray("content".getBytes(StandardCharsets.UTF_8));
+            this(RestStatus.OK, new BytesArray("content".getBytes(StandardCharsets.UTF_8)));
         }
 
         public String contentType() {
@@ -439,7 +515,7 @@ public class DefaultRestChannelTests extends ESTestCase {
         }
 
         public RestStatus status() {
-            return RestStatus.OK;
+            return status;
         }
     }
 }

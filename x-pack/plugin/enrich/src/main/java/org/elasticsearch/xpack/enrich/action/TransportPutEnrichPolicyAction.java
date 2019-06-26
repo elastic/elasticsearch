@@ -15,10 +15,13 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.enrich.action.PutEnrichPolicyAction;
 import org.elasticsearch.xpack.enrich.EnrichStore;
+
+import java.io.IOException;
 
 public class TransportPutEnrichPolicyAction extends TransportMasterNodeAction<PutEnrichPolicyAction.Request, AcknowledgedResponse> {
 
@@ -37,9 +40,13 @@ public class TransportPutEnrichPolicyAction extends TransportMasterNodeAction<Pu
         return ThreadPool.Names.SAME;
     }
 
-    @Override
     protected AcknowledgedResponse newResponse() {
         throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
+    }
+
+    @Override
+    protected AcknowledgedResponse read(StreamInput in) throws IOException {
+        return new AcknowledgedResponse(in);
     }
 
     @Override

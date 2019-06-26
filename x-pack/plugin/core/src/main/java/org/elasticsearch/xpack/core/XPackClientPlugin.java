@@ -35,7 +35,7 @@ import org.elasticsearch.xpack.core.action.XPackInfoAction;
 import org.elasticsearch.xpack.core.action.XPackUsageAction;
 import org.elasticsearch.xpack.core.beats.BeatsFeatureSetUsage;
 import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata;
-import org.elasticsearch.xpack.ccr.CCRFeatureSet;
+import org.elasticsearch.xpack.ccr.CCRInfoTransportAction;
 import org.elasticsearch.xpack.core.dataframe.DataFrameFeatureSetUsage;
 import org.elasticsearch.xpack.core.dataframe.DataFrameField;
 import org.elasticsearch.xpack.core.dataframe.action.DeleteDataFrameTransformAction;
@@ -174,6 +174,7 @@ import org.elasticsearch.xpack.core.sql.SqlFeatureSetUsage;
 import org.elasticsearch.xpack.core.ssl.action.GetCertificateInfoAction;
 import org.elasticsearch.xpack.core.upgrade.actions.IndexUpgradeAction;
 import org.elasticsearch.xpack.core.upgrade.actions.IndexUpgradeInfoAction;
+import org.elasticsearch.xpack.core.vectors.VectorsFeatureSetUsage;
 import org.elasticsearch.xpack.core.watcher.WatcherFeatureSetUsage;
 import org.elasticsearch.xpack.core.watcher.WatcherMetaData;
 import org.elasticsearch.xpack.core.watcher.transport.actions.ack.AckWatchAction;
@@ -412,7 +413,7 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
                 new NamedWriteableRegistry.Entry(MetaData.Custom.class, AutoFollowMetadata.TYPE, AutoFollowMetadata::new),
                 new NamedWriteableRegistry.Entry(NamedDiff.class, AutoFollowMetadata.TYPE,
                     in -> AutoFollowMetadata.readDiffFrom(MetaData.Custom.class, AutoFollowMetadata.TYPE, in)),
-                new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.CCR, CCRFeatureSet.Usage::new),
+                new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.CCR, CCRInfoTransportAction.Usage::new),
                 // ILM
                 new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.INDEX_LIFECYCLE,
                     IndexLifecycleFeatureSetUsage::new),
@@ -437,7 +438,9 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
                 new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.DATA_FRAME, DataFrameFeatureSetUsage::new),
                 new NamedWriteableRegistry.Entry(PersistentTaskParams.class, DataFrameField.TASK_NAME, DataFrameTransform::new),
                 new NamedWriteableRegistry.Entry(Task.Status.class, DataFrameField.TASK_NAME, DataFrameTransformState::new),
-                new NamedWriteableRegistry.Entry(PersistentTaskState.class, DataFrameField.TASK_NAME, DataFrameTransformState::new)
+                new NamedWriteableRegistry.Entry(PersistentTaskState.class, DataFrameField.TASK_NAME, DataFrameTransformState::new),
+                // Vectors
+                new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.VECTORS, VectorsFeatureSetUsage::new)
         );
     }
 

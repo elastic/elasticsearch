@@ -23,8 +23,8 @@ testClusters."leader-cluster" {
     setting 'xpack.license.self_generated.type', 'trial'
 }
 
+File policyFile = file("${buildDir}/tmp/java.policy")
 task writeJavaPolicy {
-    ext.policyFile = file("${buildDir}/tmp/java.policy")
     doLast {
         if (policyFile.parentFile.exists() == false && policyFile.parentFile.mkdirs() == false) {
             throw new GradleException("failed to create temporary directory [${tmp}]")
@@ -40,10 +40,10 @@ task writeJavaPolicy {
 }
 
 task "follow-cluster"(type: RestIntegTestTask) {
-    dependsOn writeJavaPolicy, "leader-cluster"
+    dependsOn 'writeJavaPolicy', "leader-cluster"
     useCluster testClusters."leader-cluster"
     runner {
-        systemProperty 'java.security.policy', "file://${writeJavaPolicy.policyFile}"
+        systemProperty 'java.security.policy', "file://${policyFile}"
         systemProperty 'tests.target_cluster', 'follow'
         nonInputProperties.systemProperty 'tests.leader_host', "${-> testClusters."leader-cluster".getAllHttpSocketURI().get(0)}"
         nonInputProperties.systemProperty 'log', "${-> testClusters."follow-cluster".getFirstNode().getServerLog()}"

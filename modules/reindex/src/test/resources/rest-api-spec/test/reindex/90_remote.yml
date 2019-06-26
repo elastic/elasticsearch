@@ -220,8 +220,8 @@
 ---
 "Reindex from remote with size":
   - skip:
-      version: "7.2.0 - "
-      reason: "7.2 should use max_docs or get deprecation warning"
+      version: "7.3.0 - "
+      reason: "7.3 should use max_docs or get deprecation warning"
 
   - do:
       index:
@@ -286,8 +286,8 @@
 ---
 "Reindex from remote with max_docs":
   - skip:
-      version: " - 7.1.99"
-      reason: "max_docs introduced in 7.2.0"
+      version: " - 7.2.99"
+      reason: "max_docs introduced in 7.3.0"
 
   - do:
       index:

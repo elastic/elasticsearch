@@ -10,6 +10,7 @@ import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
 import org.elasticsearch.action.admin.indices.shards.IndicesShardStoresResponse;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
@@ -78,7 +79,7 @@ public class IndexRecoveryMonitoringDocTests extends BaseMonitoringDocTestCase<I
                                                                     "_host_address_0",
                                                                     new TransportAddress(TransportAddress.META_ADDRESS, 9300),
                                                                     singletonMap("attr", "value_0"),
-                                                                    singleton(DiscoveryNode.Role.MASTER),
+                                                                    singleton(DiscoveryNodeRole.MASTER_ROLE),
                                                                     Version.CURRENT);
 
         final DiscoveryNode discoveryNodeOne = new DiscoveryNode("_node_1",
@@ -88,7 +89,7 @@ public class IndexRecoveryMonitoringDocTests extends BaseMonitoringDocTestCase<I
                                                                     "_host_address_1",
                                                                     new TransportAddress(TransportAddress.META_ADDRESS, 9301),
                                                                     singletonMap("attr", "value_1"),
-                                                                    singleton(DiscoveryNode.Role.DATA),
+                                                                    singleton(DiscoveryNodeRole.DATA_ROLE),
                                                                     Version.CURRENT.minimumIndexCompatibilityVersion());
 
         final ShardId shardId = new ShardId("_index_a", "_uuid_a", 0);

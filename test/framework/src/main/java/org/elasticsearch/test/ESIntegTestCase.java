@@ -38,7 +38,6 @@ import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.cluster.tasks.PendingClusterTasksResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
-import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsResponse;
 import org.elasticsearch.action.admin.indices.flush.FlushResponse;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeResponse;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
@@ -1318,9 +1317,17 @@ public abstract class ESIntegTestCase extends ESTestCase {
     /**
      * Returns <code>true</code> iff the given index exists otherwise <code>false</code>
      */
-    protected boolean indexExists(String index) {
-        IndicesExistsResponse actionGet = client().admin().indices().prepareExists(index).execute().actionGet();
-        return actionGet.isExists();
+    protected static boolean indexExists(String index) {
+        return indexExists(index, client());
+    }
+
+    /**
+     * Returns <code>true</code> iff the given index exists otherwise <code>false</code>
+     */
+    public static boolean indexExists(String index, Client client) {
+        GetIndexResponse getIndexResponse = client.admin().indices().prepareGetIndex().setIndices(index)
+            .setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED).execute().actionGet();
+        return getIndexResponse.getIndices().length > 0;
     }
 
     /**

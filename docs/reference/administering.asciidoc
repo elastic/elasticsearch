@@ -29,8 +29,8 @@ include::{es-repo-dir}/modules/snapshots.asciidoc[tag=snapshot-intro]
 == Data backup of a secured cluster
 
 In this context, a secured cluster designates a cluster with {es}
-{security-features} enabled. Specifically, this means that the snapshot API has
-to be authorized.
+{security-features} enabled. Specifically, this means that the snapshot API
+call needs to be authorized.
 
 `snapshot_user` is a reserved role that can be assigned to the user that the
 snapshot endpoint is run as. This is the only role necessary if all the user
@@ -42,8 +42,9 @@ can view and snapshot all indices, but cannot access or modify any data.
 
 The restore API requires the `manage` cluster privilege. There is no bespoke
 role for the restore process. This privilege is very permissive and should only
-be granted to users in the "administrator" category. Automated tools should not
-run as users with this privilege.
+be granted to users in the "administrator" category. Specifically, it allows
+users to exfiltrate data to a location of their choosing. Automated tools
+should not run as users with this privilege.
 
 [[backup-cluster-configuration]]
 == Back up a cluster's configuration

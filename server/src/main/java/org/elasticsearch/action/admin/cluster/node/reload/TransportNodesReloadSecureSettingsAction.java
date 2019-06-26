@@ -21,6 +21,7 @@ package org.elasticsearch.action.admin.cluster.node.reload;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
@@ -85,11 +86,18 @@ public class TransportNodesReloadSecureSettingsAction extends TransportNodesActi
     protected void doExecute(Task task, NodesReloadSecureSettingsRequest request,
                              ActionListener<NodesReloadSecureSettingsResponse> listener) {
         if (request.hasPassword() && isNodeLocal(request) == false && isNodeTransportTLSEnabled() == false) {
+            request.closePassword();
             listener.onFailure(
-                new IllegalStateException("Secure settings cannot be updated cluster wide when TLS for the transport layer" +
+                new ElasticsearchException("Secure settings cannot be updated cluster wide when TLS for the transport layer" +
                 " is not enabled. Enable TLS or use the API with a `_local` filter on each node."));
         } else {
-            super.doExecute(task, request, listener);
+            super.doExecute(task, request, ActionListener.wrap(response -> {
+                request.closePassword();
+                listener.onResponse(response);
+            }, e -> {
+                request.closePassword();
+                listener.onFailure(e);
+            }));
         }
     }
 
@@ -127,6 +135,8 @@ public class TransportNodesReloadSecureSettingsAction extends TransportNodesActi
             return new NodesReloadSecureSettingsResponse.NodeResponse(clusterService.localNode(), null);
         } catch (final Exception e) {
             return new NodesReloadSecureSettingsResponse.NodeResponse(clusterService.localNode(), e);
+        } finally {
+            secureSettingsPassword.close();
         }
     }
 

@@ -1093,7 +1093,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
      * @param snapshotName    snapshotName
      * @param listener        listener
      */
-    public void deleteSnapshot(final String repositoryName, final String snapshotName, final ActionListener<Void> listener,
+    public void deleteSnapshot(final String repositoryName, @Nullable String snapshotName, final ActionListener<Void> listener,
                                final boolean immediatePriority) {
         // First, look for the snapshot in the repository
         final Repository repository = repositoriesService.repository(repositoryName);

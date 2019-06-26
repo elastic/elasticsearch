@@ -70,6 +70,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.xpack.core.ml.job.config.JobTests.buildJobBuilder;
+import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.mockito.Matchers.any;
@@ -884,13 +885,13 @@ public class JobResultsProviderTests extends ESTestCase {
         verifyNoMoreInteractions(client);
     }
 
-    public void testDatafeedTimingStats_EmptyJobList() throws IOException {
+    public void testDatafeedTimingStats_EmptyJobList() {
         Client client = getBasicMockedClient();
 
         JobResultsProvider provider = createProvider(client);
         provider.datafeedTimingStats(
             List.of(),
-            statsByJobId -> assertThat(statsByJobId, equalTo(Map.of())),
+            statsByJobId -> assertThat(statsByJobId, anEmptyMap()),
             e -> { throw new AssertionError(); });
 
         verifyZeroInteractions(client);

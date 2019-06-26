@@ -148,8 +148,8 @@ setup:
 
   - do:
       ml.start_datafeed:
-        "datafeed_id": "datafeed-1"
-        "start": 0
+        datafeed_id: "datafeed-1"
+        start: 0
 
   - do:
       ml.get_datafeed_stats:
@@ -169,8 +169,8 @@ setup:
 
   - do:
       ml.start_datafeed:
-        "datafeed_id": "datafeed-1"
-        "start": 0
+        datafeed_id: "datafeed-1"
+        start: 0
 
   - do:
       ml.get_datafeed_stats:
@@ -183,7 +183,7 @@ setup:
 
   - do:
       ml.stop_datafeed:
-        "datafeed_id": "datafeed-1"
+        datafeed_id: "datafeed-1"
 
   - do:
       ml.get_datafeed_stats:
@@ -203,8 +203,8 @@ setup:
 
   - do:
       ml.start_datafeed:
-        "datafeed_id": "datafeed-1"
-        "start": 0
+        datafeed_id: "datafeed-1"
+        start: 0
 
   - do:
       ml.open_job:
@@ -212,8 +212,8 @@ setup:
 
   - do:
       ml.start_datafeed:
-        "datafeed_id": "datafeed-2"
-        "start": 0
+        datafeed_id: "datafeed-2"
+        start: 0
 
   - do:
       ml.get_datafeed_stats: {}

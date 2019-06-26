@@ -21,6 +21,7 @@ package org.elasticsearch.cluster;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState.Custom;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -165,7 +166,7 @@ public class SnapshotDeletionsInProgress extends AbstractNamedDiffable<Custom> i
      * A class representing a snapshot deletion request entry in the cluster state.
      */
     public static final class Entry implements Writeable {
-        private final Snapshot snapshot;
+        @Nullable private final Snapshot snapshot;
         private final long startTime;
         private final long repositoryStateId;
 
@@ -211,7 +212,7 @@ public class SnapshotDeletionsInProgress extends AbstractNamedDiffable<Custom> i
                 return false;
             }
             Entry that = (Entry) o;
-            return snapshot.equals(that.snapshot)
+            return Objects.equals(snapshot, that.snapshot)
                        && startTime == that.startTime
                        && repositoryStateId == that.repositoryStateId;
         }
@@ -223,7 +224,11 @@ public class SnapshotDeletionsInProgress extends AbstractNamedDiffable<Custom> i
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            snapshot.writeTo(out);
+            if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+                out.writeOptionalWriteable(snapshot);
+            } else {
+                snapshot.writeTo(out);
+            }
             out.writeVLong(startTime);
             out.writeLong(repositoryStateId);
         }

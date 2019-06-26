@@ -12,8 +12,9 @@ beta[]
 
 Retrieves usage information for {dataframe-transforms}.
 
-
-==== Request
+[discrete]
+[[get-data-frame-transform-stats-request]]
+==== {api-request-title}
 
 
 `GET _data_frame/transforms/<data_frame_transform_id>/_stats`
@@ -26,38 +27,9 @@ Retrieves usage information for {dataframe-transforms}.
 
 `GET _data_frame/transforms/*/_stats` +
 
-//===== Description
-
-==== Path Parameters
-
-`data_frame_transform_id`::
-  (string) Identifier for the {dataframe-transform}. It can be a
-  {dataframe-transform} identifier or a wildcard expression. If you do not
-  specify one of these options, the API returns information for all
-  {dataframe-transforms}.
-
-==== Query Parameters
-
-`from`::
-    (integer) Skips the specified number of {dataframe-transforms}. The
-    default value is `0`.
-
-`size`::
-    (integer) Specifies the maximum number of {dataframe-transforms} to obtain. The default value is `100`.
-
-`allow_no_match`::
-  (boolean) Whether to ignore if a wildcard expression matches no data frame transforms.
-  This includes `_all` string or when no transforms have been specified. The default is `true`.
-
-==== Results
-
-The API returns the following information:
-
-`transforms`::
-  (array) An array of statistics objects for {dataframe-transforms}, which are
-  sorted by the `id` value in ascending order.
-
-==== Authorization
+[discrete]
+[[get-data-frame-transform-stats-prereqs]]
+==== {api-prereq-title}
 
 If the {es} {security-features} are enabled, you must have
 `monitor_data_frame_transforms` cluster privileges to use this API. The built-in
@@ -65,6 +37,47 @@ If the {es} {security-features} are enabled, you must have
 see {stack-ov}/security-privileges.html[Security privileges] and
 {stack-ov}/built-in-roles.html[Built-in roles].
 
+//[discrete]
+//[[get-data-frame-transform-stats-desc]]
+//===== {api-description-title}
+
+[discrete]
+[[get-data-frame-transform-stats-path-parms]]
+==== {api-path-parms-title}
+
+`<data_frame_transform_id>` (Optional)::
+  (string) Identifier for the {dataframe-transform}. It can be a
+  {dataframe-transform} identifier or a wildcard expression. If you do not
+  specify one of these options, the API returns information for all
+  {dataframe-transforms}.
+  
+[discrete]
+[[get-data-frame-transform-stats-query-parms]]
+==== {api-query-parms-title}
+
+`allow_no_match` (Optional)::
+  (boolean) Whether to ignore if a wildcard expression matches no
+  {dataframe-transforms}. This includes `_all` string or when no transforms have
+  been specified. The default is `true`.
+
+`from` (Optional)::
+    (integer) Skips the specified number of {dataframe-transforms}. The
+    default value is `0`.
+
+`size` (Optional)::
+    (integer) Specifies the maximum number of {dataframe-transforms} to obtain.
+    The default value is `100`.
+
+[discrete]
+[[get-data-frame-transform-stats-response]]
+==== {api-response-body-title}
+
+`transforms`::
+  (array) An array of statistics objects for {dataframe-transforms}, which are
+  sorted by the `id` value in ascending order.
+
+[discrete]
+[[get-data-frame-transform-stats-example]]
 ==== Examples
 
 The following example skips for the first five {dataframe-transforms} and

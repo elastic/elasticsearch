@@ -22,6 +22,11 @@
           "type": "int",
           "required": false,
           "description": "specifies a max number of transforms to get, defaults to 100"
+        },
+        "allow_no_match": {
+          "type": "boolean",
+          "required": false,
+          "description": "Whether to ignore if a wildcard expression matches no data frame transforms. (This includes `_all` string or when no data frame transforms have been specified)"
         }
       }
     },

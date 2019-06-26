@@ -42,6 +42,7 @@ import org.elasticsearch.indices.IndicesRequestCache;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.persistent.PersistentTasksService;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.ccr.Ccr;
@@ -117,7 +118,7 @@ public class TransportResumeFollowAction extends TransportMasterNodeAction<Resum
     }
 
     @Override
-    protected void masterOperation(final ResumeFollowAction.Request request,
+    protected void masterOperation(Task task, final ResumeFollowAction.Request request,
                                    ClusterState state,
                                    final ActionListener<AcknowledgedResponse> listener) throws Exception {
         if (ccrLicenseChecker.isCcrAllowed() == false) {

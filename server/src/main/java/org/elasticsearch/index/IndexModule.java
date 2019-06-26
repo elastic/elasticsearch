@@ -41,7 +41,7 @@ import org.elasticsearch.index.cache.query.QueryCache;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.shard.IndexEventListener;
-import org.elasticsearch.index.shard.IndexSearcherWrapper;
+import org.elasticsearch.index.shard.IndexReaderWrapper;
 import org.elasticsearch.index.shard.IndexingOperationListener;
 import org.elasticsearch.index.shard.SearchOperationListener;
 import org.elasticsearch.index.similarity.SimilarityService;
@@ -112,7 +112,7 @@ public final class IndexModule {
     private final IndexSettings indexSettings;
     private final AnalysisRegistry analysisRegistry;
     private final EngineFactory engineFactory;
-    private SetOnce<IndexSearcherWrapperFactory> indexSearcherWrapper = new SetOnce<>();
+    private SetOnce<IndexReaderWrapperFactory> indexReaderWrapper = new SetOnce<>();
     private final Set<IndexEventListener> indexEventListeners = new HashSet<>();
     private final Map<String, TriFunction<Settings, Version, ScriptService, Similarity>> similarities = new HashMap<>();
     private final Map<String, IndexStorePlugin.DirectoryFactory> directoryFactories;
@@ -277,13 +277,13 @@ public final class IndexModule {
     }
 
     /**
-     * Sets a {@link org.elasticsearch.index.IndexModule.IndexSearcherWrapperFactory} that is called once the IndexService
+     * Sets a {@link IndexReaderWrapperFactory} that is called once the IndexService
      * is fully constructed.
      * Note: this method can only be called once per index. Multiple wrappers are not supported.
      */
-    public void setSearcherWrapper(IndexSearcherWrapperFactory indexSearcherWrapperFactory) {
+    public void setReaderWrapper(IndexReaderWrapperFactory indexReaderWrapperFactory) {
         ensureNotFrozen();
-        this.indexSearcherWrapper.set(indexSearcherWrapperFactory);
+        this.indexReaderWrapper.set(indexReaderWrapperFactory);
     }
 
     IndexEventListener freeze() { // pkg private for testing
@@ -349,13 +349,13 @@ public final class IndexModule {
     }
 
     /**
-     * Factory for creating new {@link IndexSearcherWrapper} instances
+     * Factory for creating new {@link IndexReaderWrapper} instances
      */
-    public interface IndexSearcherWrapperFactory {
+    public interface IndexReaderWrapperFactory {
         /**
-         * Returns a new IndexSearcherWrapper. This method is called once per index per node
+         * Returns a new IndexReaderWrapper. This method is called once per index per node
          */
-        IndexSearcherWrapper newWrapper(IndexService indexService);
+        IndexReaderWrapper newWrapper(IndexService indexService);
     }
 
     public static Type defaultStoreType(final boolean allowMmap) {
@@ -384,8 +384,8 @@ public final class IndexModule {
             NamedWriteableRegistry namedWriteableRegistry)
         throws IOException {
         final IndexEventListener eventListener = freeze();
-        IndexSearcherWrapperFactory searcherWrapperFactory = indexSearcherWrapper.get() == null
-            ? (shard) -> null : indexSearcherWrapper.get();
+        IndexReaderWrapperFactory searcherWrapperFactory = indexReaderWrapper.get() == null
+            ? (shard) -> null : indexReaderWrapper.get();
         eventListener.beforeIndexCreated(indexSettings.getIndex(), indexSettings.getSettings());
         final IndexStorePlugin.DirectoryFactory directoryFactory = getDirectoryFactory(indexSettings, directoryFactories);
         final QueryCache queryCache;

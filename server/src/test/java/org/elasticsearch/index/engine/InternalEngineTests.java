@@ -128,7 +128,7 @@ import org.elasticsearch.index.seqno.RetentionLease;
 import org.elasticsearch.index.seqno.RetentionLeases;
 import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.seqno.SequenceNumbers;
-import org.elasticsearch.index.shard.IndexSearcherWrapper;
+import org.elasticsearch.index.shard.IndexReaderWrapper;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.index.shard.ShardUtils;
@@ -723,20 +723,14 @@ public class InternalEngineTests extends EngineTestCase {
         }
     }
 
-    public void testIndexSearcherWrapper() throws Exception {
+    public void testIndexReaderWrapper() throws Exception {
         final AtomicInteger counter = new AtomicInteger();
-        IndexSearcherWrapper wrapper = new IndexSearcherWrapper() {
+        IndexReaderWrapper wrapper = new IndexReaderWrapper() {
 
             @Override
             public DirectoryReader wrap(DirectoryReader reader) {
                 counter.incrementAndGet();
                 return reader;
-            }
-
-            @Override
-            public IndexSearcher wrap(IndexSearcher searcher) throws EngineException {
-                counter.incrementAndGet();
-                return searcher;
             }
         };
         Store store = createStore();
@@ -748,7 +742,7 @@ public class InternalEngineTests extends EngineTestCase {
         assertTrue(engine.isRecovering());
         engine.recoverFromTranslog(translogHandler, Long.MAX_VALUE);
         Engine.Searcher searcher = wrapper.wrap(engine.acquireSearcher("test"));
-        assertThat(counter.get(), equalTo(2));
+        assertThat(counter.get(), equalTo(1));
         searcher.close();
         IOUtils.close(store, engine);
     }

@@ -278,7 +278,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
      *                (ready to recover from another shard)
      */
     protected IndexShard newShard(ShardId shardId, boolean primary, String nodeId, IndexMetaData indexMetaData,
-                                  @Nullable IndexSearcherWrapper searcherWrapper) throws IOException {
+                                  @Nullable IndexReaderWrapper searcherWrapper) throws IOException {
         return newShard(shardId, primary, nodeId, indexMetaData, searcherWrapper, () -> {});
     }
 
@@ -291,7 +291,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
      *                (ready to recover from another shard)
      */
     protected IndexShard newShard(ShardId shardId, boolean primary, String nodeId, IndexMetaData indexMetaData,
-                                  @Nullable IndexSearcherWrapper searcherWrapper, Runnable globalCheckpointSyncer) throws IOException {
+                                  @Nullable IndexReaderWrapper searcherWrapper, Runnable globalCheckpointSyncer) throws IOException {
         ShardRouting shardRouting = TestShardRouting.newShardRouting(shardId, nodeId, primary, ShardRoutingState.INITIALIZING,
             primary ? RecoverySource.EmptyStoreRecoverySource.INSTANCE : RecoverySource.PeerRecoverySource.INSTANCE);
         return newShard(
@@ -317,12 +317,12 @@ public abstract class IndexShardTestCase extends ESTestCase {
      * current node id the shard is assigned to.
      * @param routing                shard routing to use
      * @param indexMetaData          indexMetaData for the shard, including any mapping
-     * @param indexSearcherWrapper   an optional wrapper to be used during searchers
+     * @param indexReaderWrapper     an optional wrapper to be used during search
      * @param globalCheckpointSyncer callback for syncing global checkpoints
      * @param listeners              an optional set of listeners to add to the shard
      */
     protected IndexShard newShard(ShardRouting routing, IndexMetaData indexMetaData,
-                                  @Nullable IndexSearcherWrapper indexSearcherWrapper,
+                                  @Nullable IndexReaderWrapper indexReaderWrapper,
                                   @Nullable EngineFactory engineFactory,
                                   Runnable globalCheckpointSyncer,
                                   RetentionLeaseSyncer retentionLeaseSyncer,
@@ -332,7 +332,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
         final ShardId shardId = routing.shardId();
         final NodeEnvironment.NodePath nodePath = new NodeEnvironment.NodePath(createTempDir());
         ShardPath shardPath = new ShardPath(false, nodePath.resolve(shardId), nodePath.resolve(shardId), shardId);
-        return newShard(routing, shardPath, indexMetaData, null, indexSearcherWrapper, engineFactory, globalCheckpointSyncer,
+        return newShard(routing, shardPath, indexMetaData, null, indexReaderWrapper, engineFactory, globalCheckpointSyncer,
             retentionLeaseSyncer, EMPTY_EVENT_LISTENER, listeners);
     }
 
@@ -342,14 +342,14 @@ public abstract class IndexShardTestCase extends ESTestCase {
      * @param shardPath                     path to use for shard data
      * @param indexMetaData                 indexMetaData for the shard, including any mapping
      * @param storeProvider                 an optional custom store provider to use. If null a default file based store will be created
-     * @param indexSearcherWrapper          an optional wrapper to be used during searchers
+     * @param indexReaderWrapper            an optional wrapper to be used during search
      * @param globalCheckpointSyncer        callback for syncing global checkpoints
      * @param indexEventListener            index event listener
      * @param listeners                     an optional set of listeners to add to the shard
      */
     protected IndexShard newShard(ShardRouting routing, ShardPath shardPath, IndexMetaData indexMetaData,
                                   @Nullable CheckedFunction<IndexSettings, Store, IOException> storeProvider,
-                                  @Nullable IndexSearcherWrapper indexSearcherWrapper,
+                                  @Nullable IndexReaderWrapper indexReaderWrapper,
                                   @Nullable EngineFactory engineFactory,
                                   Runnable globalCheckpointSyncer, RetentionLeaseSyncer retentionLeaseSyncer,
                                   IndexEventListener indexEventListener, IndexingOperationListener... listeners) throws IOException {
@@ -382,7 +382,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
                     similarityService,
                     engineFactory,
                     indexEventListener,
-                    indexSearcherWrapper,
+                    indexReaderWrapper,
                     threadPool,
                     BigArrays.NON_RECYCLING_INSTANCE,
                     warmer,

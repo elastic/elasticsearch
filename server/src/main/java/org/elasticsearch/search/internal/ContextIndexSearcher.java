@@ -20,14 +20,19 @@
 package org.elasticsearch.search.internal;
 
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.TermStates;
 import org.apache.lucene.search.BulkScorer;
 import org.apache.lucene.search.CollectionStatistics;
+import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.search.Collector;
+import org.apache.lucene.search.ConjunctionDISI;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryCache;
 import org.apache.lucene.search.QueryCachingPolicy;
@@ -35,9 +40,13 @@ import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.TermStatistics;
 import org.apache.lucene.search.Weight;
-import org.apache.lucene.search.XIndexSearcher;
+import org.apache.lucene.search.similarities.Similarity;
+import org.apache.lucene.util.BitSet;
+import org.apache.lucene.util.BitSetIterator;
+import org.apache.lucene.util.Bits;
+import org.apache.lucene.util.CombinedBitSet;
+import org.apache.lucene.util.SparseFixedBitSet;
 import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.search.dfs.AggregatedDfs;
 import org.elasticsearch.search.profile.Timer;
 import org.elasticsearch.search.profile.query.ProfileWeight;
@@ -46,6 +55,7 @@ import org.elasticsearch.search.profile.query.QueryProfiler;
 import org.elasticsearch.search.profile.query.QueryTimingType;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
 
@@ -53,26 +63,20 @@ import java.util.Set;
  * Context-aware extension of {@link IndexSearcher}.
  */
 public class ContextIndexSearcher extends IndexSearcher implements Releasable {
-
-    /** The wrapped {@link IndexSearcher}. The reason why we sometimes prefer delegating to this searcher instead of {@code super} is that
-     *  this instance may have more assertions, for example if it comes from MockInternalEngine which wraps the IndexSearcher into an
-     *  AssertingIndexSearcher. */
-    private final XIndexSearcher in;
-
     private AggregatedDfs aggregatedDfs;
-
-    private final Engine.Searcher engineSearcher;
 
     // TODO revisit moving the profiler to inheritance or wrapping model in the future
     private QueryProfiler profiler;
 
     private Runnable checkCancelled;
 
-    public ContextIndexSearcher(Engine.Searcher searcher, QueryCache queryCache, QueryCachingPolicy queryCachingPolicy) {
-        super(searcher.reader());
-        engineSearcher = searcher;
-        in = new XIndexSearcher(searcher.searcher());
-        setSimilarity(searcher.searcher().getSimilarity());
+    public ContextIndexSearcher(IndexReader reader) {
+        super(reader);
+    }
+
+    public ContextIndexSearcher(IndexReader reader, Similarity similarity, QueryCache queryCache, QueryCachingPolicy queryCachingPolicy) {
+        super(reader);
+        setSimilarity(similarity);
         setQueryCache(queryCache);
         setQueryCachingPolicy(queryCachingPolicy);
     }
@@ -104,7 +108,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         }
 
         try {
-            return in.rewrite(original);
+            return super.rewrite(original);
         } finally {
             if (profiler != null) {
                 profiler.stopAndAddRewriteTime();
@@ -130,7 +134,6 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
             }
             return new ProfileWeight(query, weight, profile);
         } else {
-            // needs to be 'super', not 'in' in order to use aggregated DFS
             return super.createWeight(query, scoreMode, boost);
         }
     }
@@ -174,17 +177,69 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         } else {
             cancellableWeight = weight;
         }
-        in.search(leaves, cancellableWeight, collector);
+        searchInternal(leaves, cancellableWeight, collector);
     }
 
-    @Override
-    public Explanation explain(Query query, int doc) throws IOException {
-        if (aggregatedDfs != null) {
-            // dfs data is needed to explain the score
-            return super.explain(createWeight(rewrite(query), ScoreMode.COMPLETE, 1f), doc);
+    private void searchInternal(List<LeafReaderContext> leaves, Weight weight, Collector collector) throws IOException {
+        for (LeafReaderContext ctx : leaves) { // search each subreader
+            final LeafCollector leafCollector;
+            try {
+                leafCollector = collector.getLeafCollector(ctx);
+            } catch (CollectionTerminatedException e) {
+                // there is no doc of interest in this reader context
+                // continue with the following leaf
+                continue;
+            }
+            Bits liveDocs = ctx.reader().getLiveDocs();
+            BitSet liveDocsBitSet = getSparseBitSetOrNull(ctx.reader().getLiveDocs());
+            if (liveDocsBitSet == null) {
+                BulkScorer bulkScorer = weight.bulkScorer(ctx);
+                if (bulkScorer != null) {
+                    try {
+                        bulkScorer.score(leafCollector, liveDocs);
+                    } catch (CollectionTerminatedException e) {
+                        // collection was terminated prematurely
+                        // continue with the following leaf
+                    }
+                }
+            } else {
+                // if the role query result set is sparse then we should use the SparseFixedBitSet for advancing:
+                Scorer scorer = weight.scorer(ctx);
+                if (scorer != null) {
+                    try {
+                        intersectScorerAndBitSet(scorer, liveDocsBitSet, leafCollector);
+                    } catch (CollectionTerminatedException e) {
+                        // collection was terminated prematurely
+                        // continue with the following leaf
+                    }
+                }
+            }
         }
-        return in.explain(query, doc);
     }
+
+    private static BitSet getSparseBitSetOrNull(Bits liveDocs) {
+        if (liveDocs instanceof SparseFixedBitSet) {
+            return (BitSet) liveDocs;
+        } else if (liveDocs instanceof CombinedBitSet
+                        // if the underlying role bitset is sparse
+                        && ((CombinedBitSet) liveDocs).getFirst() instanceof SparseFixedBitSet) {
+            return (BitSet) liveDocs;
+        } else {
+            return null;
+        }
+
+    }
+
+    static void intersectScorerAndBitSet(Scorer scorer, BitSet acceptDocs, LeafCollector collector) throws IOException {
+        // ConjunctionDISI uses the DocIdSetIterator#cost() to order the iterators, so if roleBits has the lowest cardinality it should
+        // be used first:
+        DocIdSetIterator iterator = ConjunctionDISI.intersectIterators(Arrays.asList(new BitSetIterator(acceptDocs,
+            acceptDocs.approximateCardinality()), scorer.iterator()));
+        for (int docId = iterator.nextDoc(); docId < DocIdSetIterator.NO_MORE_DOCS; docId = iterator.nextDoc()) {
+            collector.collect(docId);
+        }
+    }
+
 
     @Override
     public TermStatistics termStatistics(Term term, TermStates context) throws IOException {
@@ -215,10 +270,10 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     }
 
     public DirectoryReader getDirectoryReader() {
-        return engineSearcher.getDirectoryReader();
-    }
-
-    public Engine.Searcher getEngineSearcher() {
-        return engineSearcher;
+        final IndexReader reader = getIndexReader();
+        if (reader instanceof DirectoryReader) {
+            return (DirectoryReader) reader;
+        }
+        throw new IllegalStateException("Can't use " + reader.getClass() + " as a directory reader");
     }
 }

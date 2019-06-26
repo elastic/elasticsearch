@@ -59,7 +59,7 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.seqno.RetentionLeaseSyncer;
 import org.elasticsearch.index.shard.IndexEventListener;
-import org.elasticsearch.index.shard.IndexSearcherWrapper;
+import org.elasticsearch.index.shard.IndexReaderWrapper;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardClosedException;
 import org.elasticsearch.index.shard.IndexingOperationListener;
@@ -105,7 +105,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     private final NodeEnvironment nodeEnv;
     private final ShardStoreDeleter shardStoreDeleter;
     private final IndexStorePlugin.DirectoryFactory directoryFactory;
-    private final IndexSearcherWrapper searcherWrapper;
+    private final IndexReaderWrapper searcherWrapper;
     private final IndexCache indexCache;
     private final MapperService mapperService;
     private final NamedXContentRegistry xContentRegistry;
@@ -152,7 +152,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             QueryCache queryCache,
             IndexStorePlugin.DirectoryFactory directoryFactory,
             IndexEventListener eventListener,
-            IndexModule.IndexSearcherWrapperFactory wrapperFactory,
+            IndexModule.IndexReaderWrapperFactory wrapperFactory,
             MapperRegistry mapperRegistry,
             IndicesFieldDataCache indicesFieldDataCache,
             List<SearchOperationListener> searchOperationListeners,
@@ -754,7 +754,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         return engineFactory;
     }
 
-    final IndexSearcherWrapper getSearcherWrapper() {
+    final IndexReaderWrapper getSearcherWrapper() {
         return searcherWrapper;
     } // pkg private for testing
 

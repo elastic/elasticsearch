@@ -528,7 +528,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         client().prepareIndex("test", "test", "1").setSource("{\"foo\" : \"bar\"}", XContentType.JSON)
             .setRefreshPolicy(IMMEDIATE).get();
 
-        IndexSearcherWrapper wrapper = new IndexSearcherWrapper() {};
+        IndexReaderWrapper wrapper = new IndexReaderWrapper() {};
         shard.close("simon says", false);
         AtomicReference<IndexShard> shardRef = new AtomicReference<>();
         List<Exception> failures = new ArrayList<>();
@@ -646,10 +646,10 @@ public class IndexShardIT extends ESSingleNodeTestCase {
     }
 
     public static final IndexShard newIndexShard(
-            final IndexService indexService,
-            final IndexShard shard,IndexSearcherWrapper wrapper,
-            final CircuitBreakerService cbs,
-            final IndexingOperationListener... listeners) throws IOException {
+        final IndexService indexService,
+        final IndexShard shard, IndexReaderWrapper wrapper,
+        final CircuitBreakerService cbs,
+        final IndexingOperationListener... listeners) throws IOException {
         ShardRouting initializingShardRouting = getInitializingShardRouting(shard.routingEntry());
         return new IndexShard(
                 initializingShardRouting,

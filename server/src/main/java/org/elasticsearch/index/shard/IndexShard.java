@@ -243,7 +243,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private static final EnumSet<IndexShardState> writeAllowedStates = EnumSet.of(IndexShardState.RECOVERING,
         IndexShardState.POST_RECOVERY, IndexShardState.STARTED);
 
-    private final IndexSearcherWrapper searcherWrapper;
+    private final IndexReaderWrapper searcherWrapper;
 
     /**
      * True if this shard is still indexing (recently) and false if we've been idle for long enough (as periodically checked by {@link
@@ -269,7 +269,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             final SimilarityService similarityService,
             final @Nullable EngineFactory engineFactory,
             final IndexEventListener indexEventListener,
-            final IndexSearcherWrapper indexSearcherWrapper,
+            final IndexReaderWrapper indexReaderWrapper,
             final ThreadPool threadPool,
             final BigArrays bigArrays,
             final Engine.Warmer warmer,
@@ -349,7 +349,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             cachingPolicy = new UsageTrackingQueryCachingPolicy();
         }
         indexShardOperationPermits = new IndexShardOperationPermits(shardId, threadPool);
-        searcherWrapper = indexSearcherWrapper;
+        searcherWrapper = indexReaderWrapper;
         refreshListeners = buildRefreshListeners();
         lastSearcherAccess.set(threadPool.relativeTimeInMillis());
         persistMetadata(path, indexSettings, shardRouting, null, logger);

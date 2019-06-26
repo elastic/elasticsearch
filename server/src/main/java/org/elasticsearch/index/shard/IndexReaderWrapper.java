@@ -31,10 +31,9 @@ import org.elasticsearch.index.engine.Engine;
 import java.io.IOException;
 
 /**
- * Extension point to add custom functionality at request time to the {@link DirectoryReader}
- * and {@link IndexSearcher} managed by the {@link IndexShard}.
+ * Extension point to add custom functionality at request time to the {@link DirectoryReader} managed by the {@link IndexShard}.
  */
-public class IndexSearcherWrapper {
+public class IndexReaderWrapper {
 
     /**
      * Wraps the given {@link DirectoryReader}. The wrapped reader can filter out document just like delete documents etc. but
@@ -54,15 +53,7 @@ public class IndexSearcherWrapper {
     }
 
     /**
-     * @param searcher      The provided index searcher to be wrapped to add custom functionality
-     * @return a new index searcher wrapping the provided index searcher or if no wrapping was performed
-     *         the provided index searcher
-     */
-    protected IndexSearcher wrap(IndexSearcher searcher) throws IOException {
-        return searcher;
-    }
-    /**
-     * If there are configured {@link IndexSearcherWrapper} instances, the {@link IndexSearcher} of the provided engine searcher
+     * If there are configured {@link IndexReaderWrapper} instances, the {@link IndexReader} of the provided engine searcher
      * gets wrapped and a new {@link Engine.Searcher} instances is returned, otherwise the provided {@link Engine.Searcher} is returned.
      *
      * This is invoked each time a {@link Engine.Searcher} is requested to do an operation. (for example search)
@@ -87,22 +78,18 @@ public class IndexSearcherWrapper {
             }
         }
 
-        final IndexSearcher origIndexSearcher = engineSearcher.searcher();
-        final IndexSearcher innerIndexSearcher = new IndexSearcher(reader);
-        innerIndexSearcher.setQueryCache(origIndexSearcher.getQueryCache());
-        innerIndexSearcher.setQueryCachingPolicy(origIndexSearcher.getQueryCachingPolicy());
-        innerIndexSearcher.setSimilarity(origIndexSearcher.getSimilarity());
-        // TODO: Right now IndexSearcher isn't wrapper friendly, when it becomes wrapper friendly we should revise this extension point
-        // For example if IndexSearcher#rewrite() is overwritten than also IndexSearcher#createNormalizedWeight needs to be overwritten
-        // This needs to be fixed before we can allow the IndexSearcher from Engine to be wrapped multiple times
-        final IndexSearcher indexSearcher = wrap(innerIndexSearcher);
-        if (reader == nonClosingReaderWrapper && indexSearcher == innerIndexSearcher) {
+        if (reader == nonClosingReaderWrapper) {
             return engineSearcher;
         } else {
+            final IndexSearcher origIndexSearcher = engineSearcher.searcher();
+            final IndexSearcher newIndexSearcher = new IndexSearcher(reader);
+            newIndexSearcher.setQueryCache(origIndexSearcher.getQueryCache());
+            newIndexSearcher.setQueryCachingPolicy(origIndexSearcher.getQueryCachingPolicy());
+            newIndexSearcher.setSimilarity(origIndexSearcher.getSimilarity());
             // we close the reader to make sure wrappers can release resources if needed....
             // our NonClosingReaderWrapper makes sure that our reader is not closed
-            return new Engine.Searcher(engineSearcher.source(), indexSearcher, () ->
-                IOUtils.close(indexSearcher.getIndexReader(), // this will close the wrappers excluding the NonClosingReaderWrapper
+            return new Engine.Searcher(engineSearcher.source(), newIndexSearcher, () ->
+                IOUtils.close(newIndexSearcher.getIndexReader(), // this will close the wrappers excluding the NonClosingReaderWrapper
                 engineSearcher)); // this will run the closeable on the wrapped engine searcher
         }
     }

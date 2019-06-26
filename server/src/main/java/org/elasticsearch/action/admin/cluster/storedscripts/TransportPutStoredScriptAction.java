@@ -31,6 +31,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -65,7 +66,7 @@ public class TransportPutStoredScriptAction extends TransportMasterNodeAction<Pu
     }
 
     @Override
-    protected void masterOperation(PutStoredScriptRequest request, ClusterState state,
+    protected void masterOperation(Task task, PutStoredScriptRequest request, ClusterState state,
                                    ActionListener<AcknowledgedResponse> listener) throws Exception {
         scriptService.putStoredScript(clusterService, request, listener);
     }

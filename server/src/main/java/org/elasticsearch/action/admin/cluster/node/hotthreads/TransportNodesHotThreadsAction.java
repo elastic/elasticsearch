@@ -29,6 +29,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.monitor.jvm.HotThreads;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -64,7 +65,7 @@ public class TransportNodesHotThreadsAction extends TransportNodesAction<NodesHo
     }
 
     @Override
-    protected NodeHotThreads nodeOperation(NodeRequest request) {
+    protected NodeHotThreads nodeOperation(NodeRequest request, Task task) {
         HotThreads hotThreads = new HotThreads()
                 .busiestThreads(request.request.threads)
                 .type(request.request.type)

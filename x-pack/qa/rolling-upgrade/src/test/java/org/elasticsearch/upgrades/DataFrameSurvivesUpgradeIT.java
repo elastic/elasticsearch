@@ -20,6 +20,7 @@ import org.elasticsearch.client.dataframe.transforms.TimeSyncConfig;
 import org.elasticsearch.client.dataframe.transforms.pivot.GroupConfig;
 import org.elasticsearch.client.dataframe.transforms.pivot.PivotConfig;
 import org.elasticsearch.client.dataframe.transforms.pivot.TermsGroupSource;
+import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
@@ -42,6 +43,8 @@ import java.util.stream.Stream;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 
 public class DataFrameSurvivesUpgradeIT extends AbstractUpgradeTestCase {
@@ -84,11 +87,15 @@ public class DataFrameSurvivesUpgradeIT extends AbstractUpgradeTestCase {
                 break;
             case MIXED:
                 client().performRequest(waitForYellow);
-                verifyContinuousDataFrameHandlesData();
+                long lastCheckpoint = 1;
+                if (Booleans.parseBoolean(System.getProperty("tests.first_round")) == false) {
+                    lastCheckpoint = 2;
+                }
+                verifyContinuousDataFrameHandlesData(lastCheckpoint);
                 break;
             case UPGRADED:
                 client().performRequest(waitForYellow);
-                verifyContinuousDataFrameHandlesData();
+                verifyContinuousDataFrameHandlesData(3);
                 cleanUpTransforms();
                 break;
             default:
@@ -124,7 +131,7 @@ public class DataFrameSurvivesUpgradeIT extends AbstractUpgradeTestCase {
         putTransform(CONTINUOUS_DATA_FRAME_ID, config);
 
         startTransform(CONTINUOUS_DATA_FRAME_ID);
-        waitUntilCheckpoint(CONTINUOUS_DATA_FRAME_ID, 1);
+        waitUntilAfterCheckpoint(CONTINUOUS_DATA_FRAME_ID, 0L);
 
         DataFrameTransformStateAndStats stateAndStats = getTransformStats(CONTINUOUS_DATA_FRAME_ID);
 
@@ -133,7 +140,7 @@ public class DataFrameSurvivesUpgradeIT extends AbstractUpgradeTestCase {
         assertThat(stateAndStats.getTransformState().getTaskState(), equalTo(DataFrameTransformTaskState.STARTED));
     }
 
-    private void verifyContinuousDataFrameHandlesData() throws Exception {
+    private void verifyContinuousDataFrameHandlesData(long expectedLastCheckpoint) throws Exception {
 
         // A continuous data frame should automatically become started when it gets assigned to a node
         // if it was assigned to the node that was removed from the cluster
@@ -149,19 +156,24 @@ public class DataFrameSurvivesUpgradeIT extends AbstractUpgradeTestCase {
         // Add a new user and write data to it and all the old users
         List<String> entities = new ArrayList<>(ENTITIES);
         entities.add("user_" + ENTITIES.size() + 1);
-        int docs = randomIntBetween(1, 25);
+        int docs = 5;
         putData(CONTINUOUS_DATA_FRAME_SOURCE, docs, TimeValue.timeValueSeconds(1), entities);
         long totalDocsWritten = docs * entities.size();
 
-        waitUntilCheckpoint(CONTINUOUS_DATA_FRAME_ID, 2);
+        waitUntilAfterCheckpoint(CONTINUOUS_DATA_FRAME_ID, expectedLastCheckpoint);
 
+        assertBusy(() ->assertThat(
+            getTransformStats(CONTINUOUS_DATA_FRAME_ID).getTransformStats().getNumDocuments(),
+            greaterThanOrEqualTo(totalDocsWritten + previousStateAndStats.getTransformStats().getNumDocuments()))
+        );
         DataFrameTransformStateAndStats stateAndStats = getTransformStats(CONTINUOUS_DATA_FRAME_ID);
 
-        assertThat(stateAndStats.getTransformStats().getOutputDocuments(), equalTo((long)entities.size()));
-        assertThat(stateAndStats.getTransformStats().getNumDocuments(),
-            equalTo(totalDocsWritten + previousStateAndStats.getTransformStats().getNumDocuments()));
         assertThat(stateAndStats.getTransformState().getTaskState(),
             equalTo(DataFrameTransformTaskState.STARTED));
+        assertThat(stateAndStats.getTransformStats().getOutputDocuments(),
+            greaterThan(previousStateAndStats.getTransformStats().getOutputDocuments()));
+        assertThat(stateAndStats.getTransformStats().getNumDocuments(),
+            greaterThanOrEqualTo(totalDocsWritten + previousStateAndStats.getTransformStats().getNumDocuments()));
     }
 
     private void putTransform(String id, DataFrameTransformConfig config) throws IOException {
@@ -203,8 +215,8 @@ public class DataFrameSurvivesUpgradeIT extends AbstractUpgradeTestCase {
         }
     }
 
-    private void waitUntilCheckpoint(String id, long checkpoint) throws Exception {
-        assertBusy(() -> assertThat(getTransformStats(id).getTransformState().getCheckpoint(), equalTo(checkpoint)),
+    private void waitUntilAfterCheckpoint(String id, long currentCheckpoint) throws Exception {
+        assertBusy(() -> assertThat(getTransformStats(id).getTransformState().getCheckpoint(), greaterThan(currentCheckpoint)),
             60, TimeUnit.SECONDS);
     }
 

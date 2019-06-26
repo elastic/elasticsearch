@@ -72,10 +72,11 @@ public class SnapshotRetentionService implements LocalNodeMasterListener, Closea
     }
 
     private void rescheduleRetentionJob() {
-        if (Strings.hasText(this.slmRetentionSchedule)) {
+        final String schedule = this.slmRetentionSchedule;
+        if (Strings.hasText(schedule)) {
             final SchedulerEngine.Job retentionJob = new SchedulerEngine.Job(SLM_RETENTION_JOB_ID,
-                new CronSchedule(this.slmRetentionSchedule));
-            logger.debug("scheduling SLM retention job for [{}]", this.slmRetentionSchedule);
+                new CronSchedule(schedule));
+            logger.debug("scheduling SLM retention job for [{}]", schedule);
             this.scheduler.add(retentionJob);
         } else {
             // The schedule has been unset, so cancel the scheduled retention job

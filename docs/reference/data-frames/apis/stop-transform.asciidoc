@@ -12,7 +12,9 @@ beta[]
 
 Stops one or more {dataframe-transforms}.
 
-==== Request
+[discrete]
+[[stop-data-frame-transform-request]]
+==== {api-request-title}
 
 `POST _data_frame/transforms/<data_frame_transform_id>/_stop` +
 
@@ -20,34 +22,9 @@ Stops one or more {dataframe-transforms}.
 
 `POST _data_frame/transforms/_all/_stop`
 
-
-==== Description
-You can stop multiple {dataframe-transforms} in a single API request by using a
-comma-separated list of {dataframe-transforms} or a wildcard expression.
-All {dataframe-transforms} can be stopped by using `_all` or `*` as the `<data_frame_transform_id>`.
-
-==== Path Parameters
-
-`data_frame_transform_id` (required)::
-  (string) Identifier for the {dataframe-transform}. This identifier can contain
-  lowercase alphanumeric characters (a-z and 0-9), hyphens, and underscores. It
-  must start and end with alphanumeric characters.
-
-==== Query Parameters
-
-`wait_for_completion`::
-  (boolean) If set to true, causes the API to block until the indexer state completely stops. If set to false, the API returns immediately and the indexer will be stopped asynchronously in the background. Defaults to `false`.
-
- `timeout`::
-   (time value) If `wait_for_completion=true`, the API blocks for (at maximum)
-   the specified duration while waiting for the transform to stop. If more than
-   `timeout` time has passed, the API throws a timeout exception. Even if a
-   timeout exception is thrown, the stop request is still processing and
-   eventually moves the transform to `STOPPED`. The timeout simply means the API
-   call itself timed out while waiting for the status change. Defaults to `30s`
-    
-//==== Request Body
-==== Authorization
+[discrete]
+[[stop-data-frame-transform-prereq]]
+==== {api-prereq-title}
 
 If the {es} {security-features} are enabled, you must have
 `manage_data_frame_transforms` cluster privileges to use this API. The built-in
@@ -55,9 +32,45 @@ If the {es} {security-features} are enabled, you must have
 see {stack-ov}/security-privileges.html[Security privileges] and
 {stack-ov}/built-in-roles.html[Built-in roles].
 
-==== Examples
 
-The following example stops the `ecommerce_transform` {dataframe-transform}:
+[discrete]
+[[stop-data-frame-transform-desc]]
+==== {api-description-title}
+
+You can stop multiple {dataframe-transforms} in a single API request by using a
+comma-separated list of {dataframe-transforms} or a wildcard expression.
+All {dataframe-transforms} can be stopped by using `_all` or `*` as the
+`<data_frame_transform_id>`.
+
+[discrete]
+[[stop-data-frame-transform-path-parms]]
+==== {api-path-parms-title}
+
+`<data_frame_transform_id>` (Required)::
+  (string) Identifier for the {dataframe-transform}. This identifier can contain
+  lowercase alphanumeric characters (a-z and 0-9), hyphens, and underscores. It
+  must start and end with alphanumeric characters.
+
+[discrete]
+[[stop-data-frame-transform-query-parms]]
+==== {api-query-parms-title}
+
+`timeout` (Optional)::
+  (time value) If `wait_for_completion=true`, the API blocks for (at maximum)
+  the specified duration while waiting for the transform to stop. If more than
+  `timeout` time has passed, the API throws a timeout exception. Even if a
+  timeout exception is thrown, the stop request is still processing and
+  eventually moves the transform to `STOPPED`. The timeout simply means the API
+  call itself timed out while waiting for the status change. Defaults to `30s`.
+
+`wait_for_completion` (Optional)::
+  (boolean) If set to `true`, causes the API to block until the indexer state
+  completely stops. If set to `false`, the API returns immediately and the
+  indexer will be stopped asynchronously in the background. Defaults to `false`.
+
+[discrete]
+[[stop-data-frame-transform-example]]
+==== {api-example-title}
 
 [source,js]
 --------------------------------------------------

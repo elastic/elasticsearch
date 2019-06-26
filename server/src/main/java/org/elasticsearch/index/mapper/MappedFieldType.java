@@ -390,7 +390,8 @@ public abstract class MappedFieldType extends FieldType {
     /**
      * Create an {@link IntervalsSource} to be used for proximity queries
      */
-    public IntervalsSource intervals(String query, int max_gaps, boolean ordered, NamedAnalyzer analyzer, boolean prefix) throws IOException {
+    public IntervalsSource intervals(String query, int max_gaps, boolean ordered,
+                                     NamedAnalyzer analyzer, boolean prefix) throws IOException {
         throw new IllegalArgumentException("Can only use interval queries on text fields - not on [" + name
             + "] which is of type [" + typeName() + "]");
     }

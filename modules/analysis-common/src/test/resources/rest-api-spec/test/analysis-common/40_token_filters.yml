@@ -599,7 +599,7 @@
                     type: elision
     - match: { status: 400 }
     - match: { error.type: illegal_argument_exception }
-    - match: { error.reason: "elision filter requires [articles] setting" }
+    - match: { error.reason: "elision filter requires [articles] or [articles_path] setting" }
 
 ---
 "stemmer":

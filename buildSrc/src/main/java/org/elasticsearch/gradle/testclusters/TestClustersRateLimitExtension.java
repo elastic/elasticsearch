@@ -23,7 +23,7 @@ import java.util.function.Supplier;
  *
  * Also auto configures cleanup of executors to make sure we don't leak threads in the daemon.
  */
-class TestClustersRateLimitExtension {
+public class TestClustersRateLimitExtension {
 
     private static final int EXECUTOR_SHUTDOWN_TIMEOUT = 1;
     private static final TimeUnit EXECUTOR_SHUTDOWN_TIMEOUT_UNIT = TimeUnit.MINUTES;
@@ -34,7 +34,7 @@ class TestClustersRateLimitExtension {
     private final ExecutorService executorService;
     private final TestClusterCleanupOnShutdown cleanupThread;
 
-    TestClustersRateLimitExtension() {
+    public TestClustersRateLimitExtension() {
         globalSemaphore = new Semaphore(maxPermits());
         executorService = Executors.newCachedThreadPool();
         cleanupThread = new TestClusterCleanupOnShutdown();

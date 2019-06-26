@@ -91,14 +91,18 @@ final class DataFrameAnalyticsIndex {
 
     private static void addProperties(Map<String, Object> mappingsAsMap) {
         Map<String, Object> properties = getOrPutDefault(mappingsAsMap, PROPERTIES, HashMap::new);
-        properties.put(DataFrameAnalyticsFields.ID, Map.of("type", "keyword"));
+        Map<String, String> idCopyMapping = new HashMap<>();
+        idCopyMapping.put("type", "keyword");
+        properties.put(DataFrameAnalyticsFields.ID, idCopyMapping);
     }
 
     private static void addMetaData(Map<String, Object> mappingsAsMap, String analyticsId, Clock clock) {
         Map<String, Object> metadata = getOrPutDefault(mappingsAsMap, META, HashMap::new);
         metadata.put(DataFrameAnalyticsFields.CREATION_DATE_MILLIS, clock.millis());
         metadata.put(DataFrameAnalyticsFields.CREATED_BY, "data-frame-analytics");
-        metadata.put(DataFrameAnalyticsFields.VERSION, Map.of(DataFrameAnalyticsFields.CREATED, Version.CURRENT));
+        Map<String, Version> versionMapping = new HashMap<>();
+        versionMapping.put(DataFrameAnalyticsFields.CREATED, Version.CURRENT);
+        metadata.put(DataFrameAnalyticsFields.VERSION, versionMapping);
         metadata.put(DataFrameAnalyticsFields.ANALYTICS, analyticsId);
     }
 

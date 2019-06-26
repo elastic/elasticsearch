@@ -33,6 +33,7 @@ import java.io.IOException;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneId;
+import java.util.HashMap;
 import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.extractValue;
@@ -79,6 +80,8 @@ public class DataFrameAnalyticsIndexTests extends ESTestCase {
             })
             .when(client).execute(any(), any(), any());
 
+        Map<String, Object> propertiesMapping = new HashMap<>();
+        propertiesMapping.put("properties", new HashMap<>());
         ClusterState clusterState =
             ClusterState.builder(new ClusterName(CLUSTER_NAME))
                 .metaData(MetaData.builder()
@@ -87,7 +90,7 @@ public class DataFrameAnalyticsIndexTests extends ESTestCase {
                             .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
                             .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
                             .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0))
-                        .putMapping(new MappingMetaData("_doc", Map.of("properties", Map.of())))))
+                        .putMapping(new MappingMetaData("_doc", propertiesMapping))))
                 .build();
         DataFrameAnalyticsIndex.createDestinationIndex(
             client,

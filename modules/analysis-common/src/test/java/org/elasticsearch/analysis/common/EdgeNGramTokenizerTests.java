@@ -54,7 +54,8 @@ public class EdgeNGramTokenizerTests extends ESTokenStreamTestCase {
 
         // Before 7.3 we return ngrams of length 1 only
         {
-            Version version = VersionUtils.randomVersionBetween(random(), Version.V_7_0_0, VersionUtils.getPreviousVersion(Version.V_7_3_0));
+            Version version = VersionUtils.randomVersionBetween(random(), Version.V_7_0_0,
+                VersionUtils.getPreviousVersion(Version.V_7_3_0));
             try (IndexAnalyzers indexAnalyzers = buildAnalyzers(version, "edge_ngram")) {
                 NamedAnalyzer analyzer = indexAnalyzers.get("my_analyzer");
                 assertNotNull(analyzer);
@@ -64,7 +65,8 @@ public class EdgeNGramTokenizerTests extends ESTokenStreamTestCase {
 
         // Check deprecated name as well
         {
-            Version version = VersionUtils.randomVersionBetween(random(), Version.V_7_0_0, VersionUtils.getPreviousVersion(Version.V_7_3_0));
+            Version version = VersionUtils.randomVersionBetween(random(), Version.V_7_0_0,
+                VersionUtils.getPreviousVersion(Version.V_7_3_0));
             try (IndexAnalyzers indexAnalyzers = buildAnalyzers(version, "edgeNGram")) {
                 NamedAnalyzer analyzer = indexAnalyzers.get("my_analyzer");
                 assertNotNull(analyzer);

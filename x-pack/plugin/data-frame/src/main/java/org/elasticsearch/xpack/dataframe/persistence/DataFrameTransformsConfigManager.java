@@ -335,6 +335,7 @@ public class DataFrameTransformsConfigManager {
         SearchRequest searchRequest = client.prepareSearch(DataFrameInternalIndex.INDEX_NAME)
                 .addSort(DataFrameField.ID.getPreferredName(), SortOrder.ASC)
                 .setQuery(builder)
+                .setSize(Math.min(transformIds.size(), 10_000))
                 .request();
 
         executeAsyncWithOrigin(client.threadPool().getThreadContext(), DATA_FRAME_ORIGIN, searchRequest,

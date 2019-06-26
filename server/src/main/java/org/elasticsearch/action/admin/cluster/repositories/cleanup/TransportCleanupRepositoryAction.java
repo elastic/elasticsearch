@@ -29,9 +29,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.repositories.RepositoriesService;
-import org.elasticsearch.repositories.Repository;
-import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
+import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -40,7 +38,7 @@ import java.io.IOException;
 public final class TransportCleanupRepositoryAction extends TransportMasterNodeReadAction<CleanupRepositoryRequest,
                                                                                           AcknowledgedResponse> {
 
-    private final RepositoriesService repositoriesService;
+    private final SnapshotsService snapshotsService;
 
     @Override
     protected String executor() {
@@ -49,11 +47,11 @@ public final class TransportCleanupRepositoryAction extends TransportMasterNodeR
 
     @Inject
     public TransportCleanupRepositoryAction(TransportService transportService, ClusterService clusterService,
-        RepositoriesService repositoriesService, ThreadPool threadPool, ActionFilters actionFilters,
+        SnapshotsService snapshotsService, ThreadPool threadPool, ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver) {
         super(CleanupRepositoryAction.NAME, transportService, clusterService, threadPool, actionFilters,
             CleanupRepositoryRequest::new, indexNameExpressionResolver);
-        this.repositoriesService = repositoriesService;
+        this.snapshotsService = snapshotsService;
     }
 
     @Override
@@ -69,13 +67,8 @@ public final class TransportCleanupRepositoryAction extends TransportMasterNodeR
     @Override
     protected void masterOperation(CleanupRepositoryRequest request, ClusterState state,
                                    ActionListener<AcknowledgedResponse> listener) {
-        Repository repository = repositoriesService.repository(request.repository());
-        if (repository instanceof BlobStoreRepository) {
-            ((BlobStoreRepository) repository).cleanup(repository.getRepositoryData().getGenId(),
-                ActionListener.map(listener, AcknowledgedResponse::new));
-        } else {
-            throw new IllegalArgumentException("Repository [" + request.repository()+ "] is not a blob store repository");
-        }
+        snapshotsService.deleteSnapshot(request.repository(), null,
+            ActionListener.map(listener, v -> new AcknowledgedResponse(true)), false);
     }
 
     @Override

@@ -80,6 +80,40 @@ public class TestClustersRateLimitExtension {
         selfAsExtension.globalSemaphore.release(permitsToRelease);
     }
 
+    public static void createExtension(Project project) {
+        if (getSelfAsExtension(project) != null) {
+            return;
+        }
+        // Configure the extension on the root project so we have a single instance per run
+        TestClustersRateLimitExtension newExt = project.getRootProject().getExtensions().create(
+            "__testclusters_rate_limit",
+            TestClustersRateLimitExtension.class
+        );
+        Thread shutdownHook = new Thread(newExt.cleanupThread::run);
+        Runtime.getRuntime().addShutdownHook(shutdownHook);
+        project.getGradle().buildFinished(buildResult -> {
+            newExt.executorService.shutdownNow();
+            try {
+                if (newExt.executorService.awaitTermination(EXECUTOR_SHUTDOWN_TIMEOUT, EXECUTOR_SHUTDOWN_TIMEOUT_UNIT) == false) {
+                    throw new IllegalStateException(
+                        "Failed to shut down executor service after " +
+                            EXECUTOR_SHUTDOWN_TIMEOUT + " " + EXECUTOR_SHUTDOWN_TIMEOUT_UNIT
+                    );
+                }
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+            try {
+                if (false == Runtime.getRuntime().removeShutdownHook(shutdownHook)) {
+                    logger.warn("Trying to deregister shutdown hook when it was not registered.");
+                }
+            } catch (IllegalStateException ese) {
+                // Thrown when shutdown is in progress
+                logger.warn("Can't remove shutdown hook", ese);
+            }
+        });
+    }
+
     private static int maxPermits() {
         return Optional.ofNullable(System.getProperty("testclusters.max-nodes"))
             .map(Integer::valueOf)
@@ -87,38 +121,7 @@ public class TestClustersRateLimitExtension {
     }
 
     private static TestClustersRateLimitExtension getSelfAsExtension(Project project) {
-        TestClustersRateLimitExtension ext = project.getRootProject().getExtensions().findByType(TestClustersRateLimitExtension.class);
-        if (ext == null) {
-            // Configure the extension on the root project so we have a single instance per run
-            TestClustersRateLimitExtension newExt = project.getRootProject().getExtensions().create(
-                "__testclusters_rate_limit",
-                TestClustersRateLimitExtension.class
-            );
-            Thread shutdownHook = new Thread(newExt.cleanupThread::run);
-            Runtime.getRuntime().addShutdownHook(shutdownHook);
-            project.getGradle().buildFinished(buildResult -> {
-                newExt.executorService.shutdownNow();
-                try {
-                    if (newExt.executorService.awaitTermination(EXECUTOR_SHUTDOWN_TIMEOUT, EXECUTOR_SHUTDOWN_TIMEOUT_UNIT) == false) {
-                        throw new IllegalStateException(
-                            "Failed to shut down executor service after " +
-                                EXECUTOR_SHUTDOWN_TIMEOUT + " " + EXECUTOR_SHUTDOWN_TIMEOUT_UNIT
-                        );
-                    }
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                }
-                try {
-                    if (false == Runtime.getRuntime().removeShutdownHook(shutdownHook)) {
-                        logger.warn("Trying to deregister shutdown hook when it was not registered.");
-                    }
-                } catch (IllegalStateException ese) {
-                    // Thrown when shutdown is in progress
-                    logger.warn("Can't remove shutdown hook", ese);
-                }
-            });
-            return newExt;
-        }
-        return ext;
+        return project.getRootProject().getExtensions().findByType(TestClustersRateLimitExtension.class);
     }
+
 }

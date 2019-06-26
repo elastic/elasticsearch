@@ -26,6 +26,7 @@ import org.elasticsearch.gradle.SystemPropertyCommandLineArgumentProvider;
 import org.elasticsearch.gradle.precommit.JarHellTask;
 import org.elasticsearch.gradle.precommit.TestingConventionsTasks;
 import org.elasticsearch.gradle.precommit.ThirdPartyAuditTask;
+import org.elasticsearch.gradle.testclusters.TestClustersRateLimitExtension;
 import org.gradle.api.Action;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.Plugin;
@@ -51,6 +52,8 @@ public class TestFixturesPlugin implements Plugin<Project> {
         TestFixtureExtension extension = project.getExtensions().create(
             "testFixtures", TestFixtureExtension.class, project
         );
+
+        TestClustersRateLimitExtension.createExtension(project);
 
         if (project.file(DOCKER_COMPOSE_YML).exists()) {
             // convenience boilerplate with build plugin

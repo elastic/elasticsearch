@@ -27,6 +27,7 @@ import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.joda.time.format.ISODateTimeFormat;
 
+import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
@@ -35,8 +36,23 @@ import java.util.Locale;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.core.IsEqual.equalTo;
 
 public class JavaJodaTimeDuellingTests extends ESTestCase {
+    @Override
+    protected boolean enableWarningsCheck() {
+        return false;
+    }
+
+    public void testStartOfWeek() {
+        //2019-21 (ok joda) vs 2019-22 (java)
+        ZonedDateTime now = LocalDateTime.of(2019,5,26,1,32,8,328402)
+                                         .atZone(ZoneOffset.UTC);
+        DateFormatter jodaFormatter = Joda.forPattern("xxxx-ww").withLocale(Locale.ROOT).withZone(ZoneOffset.UTC);
+        Locale customROOT = new Locale.Builder().setLocale(Locale.ROOT).setUnicodeLocaleKeyword("fw","mon").build();
+        DateFormatter javaFormatter = DateFormatter.forPattern("8YYYY-ww").withLocale(customROOT).withZone(ZoneOffset.UTC);
+        assertThat(jodaFormatter.format(now), equalTo(javaFormatter.format(now)));
+    }
 
     public void testTimeZoneFormatting() {
         assertSameDate("2001-01-01T00:00:00Z", "date_time_no_millis");

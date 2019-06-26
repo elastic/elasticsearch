@@ -196,8 +196,7 @@ image::images/action-throttling.jpg[align="center"]
 === Running an action for each element in an array
 
 You can use the `foreach` field in an action to trigger the configured action
-for every element within that array. Each element within that array has to be a
-map.
+for every element within that array.
 
 In order to protect from long running watches, after one hundred runs with an
 foreach loop the execution is gracefully stopped.

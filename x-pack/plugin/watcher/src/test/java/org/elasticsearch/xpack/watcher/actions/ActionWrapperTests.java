@@ -109,25 +109,6 @@ public class ActionWrapperTests extends ESTestCase {
         }
     }
 
-    public void testThatPathElementIsntInstanceOfMap() throws Exception {
-        ActionWrapper wrapper = new ActionWrapper("_action", null, InternalAlwaysCondition.INSTANCE, null, executableAction, "" +
-            "ctx.payload.my_path");
-        WatchExecutionContext ctx = mockExecutionContent(watch);
-        Payload.Simple payload = new Payload.Simple(Map.of("my_path", List.of("first", "second", "third")));
-        when(ctx.payload()).thenReturn(payload);
-        when(executableAction.logger()).thenReturn(logger);
-
-        final Action.Result actionResult = new Action.Result.Failure("MY_TYPE", "first reason");
-        final Payload actionPayload = new Payload.Simple(Map.of("key", "first"));
-        when(executableAction.execute(eq("_action"), eq(ctx), eq(actionPayload))).thenReturn(actionResult);
-
-        ActionWrapperResult result = wrapper.execute(ctx);
-        assertThat(result.action().status(), is(Action.Result.Status.FAILURE));
-        assertThat(result.action(), instanceOf(Action.Result.FailureWithException.class));
-        Action.Result.FailureWithException failureWithException = (Action.Result.FailureWithException) result.action();
-        assertThat(failureWithException.getException().getMessage(), is("item in foreach [ctx.payload.my_path] object was not a map"));
-    }
-
     public void testThatSpecifiedPathIsNotCollection() {
         ActionWrapper wrapper = new ActionWrapper("_action", null, InternalAlwaysCondition.INSTANCE, null, executableAction,
             "ctx.payload.my_path");

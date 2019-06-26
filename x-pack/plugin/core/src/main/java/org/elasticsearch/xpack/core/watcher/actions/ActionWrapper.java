@@ -183,7 +183,7 @@ public class ActionWrapper implements ToXContentObject {
                             if (o instanceof Map) {
                                 results.add(action.execute(id, ctx, new Payload.Simple((Map<String, Object>) o)));
                             } else {
-                                throw new ElasticsearchException("item in foreach [{}] object was not a map", path);
+                                results.add(action.execute(id, ctx, new Payload.Simple("_value", o)));
                             }
                             runs++;
                         }

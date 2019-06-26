@@ -12,8 +12,8 @@ import com.amazonaws.services.s3.model.ObjectListing;
 import com.amazonaws.services.s3.model.S3ObjectSummary;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cli.Terminal;
-import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -67,16 +67,26 @@ public class S3Repository extends AbstractRepository {
     }
 
     @Override
-    public Long readLatestIndexId() throws IOException {
-        try (InputStream blob = client.getObject(bucket, fullPath(BlobStoreRepository.INDEX_LATEST_BLOB)).getObjectContent()) {
-            BytesStreamOutput out = new BytesStreamOutput();
-            Streams.copy(blob, out);
-            long gen = Numbers.bytesToLong(out.bytes().toBytesRef());
-            return gen;
-        } catch (IOException e) {
-            terminal.println("Failed to read index.latest blob");
-            throw e;
+    public Tuple<Long, Date> getLatestIndexIdAndTimestamp() {
+        ObjectListing listing = client.listObjects(bucket, fullPath(BlobStoreRepository.INDEX_FILE_PREFIX));
+        int prefixLength = fullPath(BlobStoreRepository.INDEX_FILE_PREFIX).length();
+        long maxGeneration = -1;
+        Date timestamp = null;
+        for (S3ObjectSummary objectSummary : listing.getObjectSummaries()) {
+            String generationStr = objectSummary.getKey().substring(prefixLength);
+            try {
+                long generation = Long.parseLong(generationStr);
+                if (generation > maxGeneration) {
+                    maxGeneration = generation;
+                    timestamp = objectSummary.getLastModified();
+                }
+            } catch (NumberFormatException e) {
+                terminal.println(Terminal.Verbosity.VERBOSE,
+                        "Ignoring index file with unexpected name format " + objectSummary.getKey());
+            }
         }
+
+        return Tuple.tuple(maxGeneration, timestamp);
     }
 
     @Override
@@ -118,20 +128,6 @@ public class S3Repository extends AbstractRepository {
         } catch (AmazonServiceException e) {
             terminal.println("Failed to list indices");
             throw e;
-        }
-    }
-
-    @Override
-    public Date getIndexNTimestamp(Long indexFileGeneration) {
-        final String snapshotsIndexBlobName = BlobStoreRepository.INDEX_FILE_PREFIX + indexFileGeneration;
-        ObjectListing listing = client.listObjects(bucket, fullPath(snapshotsIndexBlobName));
-        List<S3ObjectSummary> summaries = listing.getObjectSummaries();
-        if (summaries.size() != 1) {
-            terminal.println("Unexpected size");
-            return null;
-        } else {
-            S3ObjectSummary any = summaries.get(0);
-            return any.getLastModified();
         }
     }
 

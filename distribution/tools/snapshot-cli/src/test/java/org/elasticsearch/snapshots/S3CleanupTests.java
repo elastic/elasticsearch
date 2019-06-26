@@ -180,6 +180,10 @@ public class S3CleanupTests extends ESSingleNodeTestCase {
 
     public void testCleanupS3() throws Exception {
        createRepository("test-repo");
+       logger.info("--> execute cleanup tool on empty repo, there is nothing to cleanup");
+       MockTerminal terminal = executeCommand(false);
+       assertThat(terminal.getOutput(), containsString("No index-N files found. Repository is empty or corrupted? Exiting"));
+
        createIndex("test-idx-1");
        createIndex("test-idx-2");
        createIndex("test-idx-3");
@@ -220,7 +224,7 @@ public class S3CleanupTests extends ESSingleNodeTestCase {
 
 
            logger.info("--> execute cleanup tool, there is nothing to cleanup");
-           MockTerminal terminal = executeCommand(false);
+           terminal = executeCommand(false);
            assertThat(terminal.getOutput(), containsString("Set of deletion candidates is empty. Exiting"));
 
            logger.info("--> check that there is no inconsistencies after running the tool");

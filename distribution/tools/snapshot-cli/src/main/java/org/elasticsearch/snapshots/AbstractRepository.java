@@ -2,6 +2,7 @@ package org.elasticsearch.snapshots;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cli.Terminal;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.repositories.IndexId;
 
@@ -21,9 +22,18 @@ public abstract  class AbstractRepository implements Repository {
     }
 
     public void cleanup() throws IOException {
-        terminal.println(Terminal.Verbosity.VERBOSE, "Reading index.latest blob");
-        Long latestIndexId = readLatestIndexId();
+        terminal.println(Terminal.Verbosity.VERBOSE, "Obtaining latest index file generation and creation timestamp");
+        Tuple<Long, Date> latestIndexIdAndTimestamp = getLatestIndexIdAndTimestamp();
+        if (latestIndexIdAndTimestamp.v1() == -1) {
+            terminal.println(Terminal.Verbosity.NORMAL, "No index-N files found. Repository is empty or corrupted? Exiting");
+            return;
+        }
+        long latestIndexId = latestIndexIdAndTimestamp.v1();
         terminal.println(Terminal.Verbosity.VERBOSE, "Latest index file generation is " + latestIndexId);
+        Date indexNTimestamp = latestIndexIdAndTimestamp.v2();
+        Date shiftedIndexNTimestamp = new Date(indexNTimestamp.getTime() - safetyGapMillis);
+        terminal.println(Terminal.Verbosity.VERBOSE, "Latest index file creation timestamp is " + indexNTimestamp);
+        terminal.println(Terminal.Verbosity.VERBOSE, "Shifted by safety gap creation timestamp is " + shiftedIndexNTimestamp);
         terminal.println(Terminal.Verbosity.VERBOSE, "Reading latest index file");
         Set<String> referencedIndexIds = getRepositoryData(latestIndexId)
                 .getIndices().values().stream().map(IndexId::getId).collect(Collectors.toSet());
@@ -37,11 +47,8 @@ public abstract  class AbstractRepository implements Repository {
             terminal.println(Terminal.Verbosity.NORMAL, "Set of deletion candidates is empty. Exiting");
             return;
         }
-        terminal.println(Terminal.Verbosity.VERBOSE, "Reading latest index file creation timestamp");
-        Date indexNTimestamp = getIndexNTimestamp(latestIndexId);
-        Date shiftedIndexNTimestamp = new Date(indexNTimestamp.getTime() - safetyGapMillis);
-        terminal.println(Terminal.Verbosity.VERBOSE, "Latest index file creation timestamp is " + indexNTimestamp);
-        terminal.println(Terminal.Verbosity.VERBOSE, "Shifted by safety gap creation timestamp is " + shiftedIndexNTimestamp);
+        terminal.println(Terminal.Verbosity.VERBOSE, "Obtaining latest index file creation timestamp");
+
         Set<String> leakedIndexIds = new HashSet<>();
         for (String candidate : deletionCandidates) {
             terminal.println(Terminal.Verbosity.VERBOSE, "Reading index " + candidate + " last modification timestamp");

@@ -342,7 +342,6 @@ public class NioSelector implements Closeable {
         // the write operation is queued.
         boolean shouldFlushAfterQueuing = context.readyForFlush() == false;
         try {
-            SelectionKeyUtils.setWriteInterested(context.getSelectionKey());
             context.queueWriteOperation(writeOperation);
         } catch (Exception e) {
             shouldFlushAfterQueuing = false;

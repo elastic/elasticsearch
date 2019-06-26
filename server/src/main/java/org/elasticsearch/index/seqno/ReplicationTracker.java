@@ -1042,12 +1042,6 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
     public synchronized void activateWithPrimaryContext(PrimaryContext primaryContext) {
         assert invariant();
         assert primaryMode == false;
-        // TODO: remove this check after backporting to 7.x
-        if (primaryContext.checkpoints.containsKey(shardAllocationId) == false) {
-            // can happen if the old primary was on an old version
-            assert indexSettings.getIndexVersionCreated().before(Version.V_8_0_0);
-            throw new IllegalStateException("primary context [" + primaryContext + "] does not contain " + shardAllocationId);
-        }
         final Runnable runAfter = getMasterUpdateOperationFromCurrentState();
         primaryMode = true;
         // capture current state to possibly replay missed cluster state update

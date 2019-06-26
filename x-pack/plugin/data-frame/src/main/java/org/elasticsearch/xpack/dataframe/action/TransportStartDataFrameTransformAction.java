@@ -46,6 +46,7 @@ import org.elasticsearch.xpack.dataframe.persistence.DataframeIndex;
 import org.elasticsearch.xpack.dataframe.transforms.pivot.Pivot;
 
 import java.io.IOException;
+import java.time.Clock;
 import java.util.Collection;
 import java.util.Map;
 import java.util.function.Consumer;
@@ -226,7 +227,9 @@ public class TransportStartDataFrameTransformAction extends
         final Pivot pivot = new Pivot(config.getPivotConfig());
 
         ActionListener<Map<String, String>> deduceMappingsListener = ActionListener.wrap(
-            mappings -> DataframeIndex.createDestinationIndex(client,
+            mappings -> DataframeIndex.createDestinationIndex(
+                client,
+                Clock.systemUTC(),
                 config,
                 mappings,
                 ActionListener.wrap(r -> listener.onResponse(null), listener::onFailure)),

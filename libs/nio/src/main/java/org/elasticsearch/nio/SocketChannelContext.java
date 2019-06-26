@@ -152,13 +152,7 @@ public abstract class SocketChannelContext extends ChannelContext<SocketChannel>
 
         WriteOperation writeOperation = channelHandler.createWriteOperation(this, message, listener);
 
-        NioSelector selector = getSelector();
-        if (selector.isOnCurrentThread() == false) {
-            selector.queueWrite(writeOperation);
-            return;
-        }
-
-        selector.writeToChannel(writeOperation);
+        getSelector().queueWrite(writeOperation);
     }
 
     public void queueWriteOperation(WriteOperation writeOperation) {
@@ -286,7 +280,7 @@ public abstract class SocketChannelContext extends ChannelContext<SocketChannel>
 
     // Currently we limit to 64KB. This is a trade-off which means more syscalls, in exchange for less
     // copying.
-    private final int WRITE_LIMIT = 1 << 16;
+    private static final int WRITE_LIMIT = 1 << 16;
 
     protected int flushToChannel(FlushOperation flushOperation) throws IOException {
         ByteBuffer ioBuffer = getSelector().getIoBuffer();

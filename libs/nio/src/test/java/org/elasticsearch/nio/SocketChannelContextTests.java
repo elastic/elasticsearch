@@ -176,7 +176,7 @@ public class SocketChannelContextTests extends ESTestCase {
         when(readWriteHandler.createWriteOperation(context, buffers, listener)).thenReturn(writeOperation);
         context.sendMessage(buffers, listener);
 
-        verify(selector).writeToChannel(writeOpCaptor.capture());
+        verify(selector).queueWrite(writeOpCaptor.capture());
         WriteOperation writeOp = writeOpCaptor.getValue();
 
         assertSame(writeOperation, writeOp);

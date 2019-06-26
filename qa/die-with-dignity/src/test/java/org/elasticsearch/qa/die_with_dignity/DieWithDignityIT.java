@@ -38,7 +38,6 @@ import java.util.List;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
@@ -46,12 +45,7 @@ import static org.hamcrest.Matchers.not;
 public class DieWithDignityIT extends ESRestTestCase {
 
     public void testDieWithDignity() throws Exception {
-        // deleting the PID file prevents stopping the cluster from failing since it occurs if and only if the PID file exists
-        final Path pidFile = PathUtils.get(System.getProperty("pidfile"));
-        final List<String> pidFileLines = Files.readAllLines(pidFile);
-        assertThat(pidFileLines, hasSize(1));
-        final int pid = Integer.parseInt(pidFileLines.get(0));
-        Files.delete(pidFile);
+
         IOException e = expectThrows(IOException.class,
             () -> client().performRequest(new Request("GET", "/_die_with_dignity")));
         Matcher<IOException> failureMatcher = instanceOf(ConnectionClosedException.class);
@@ -73,14 +67,14 @@ public class DieWithDignityIT extends ESRestTestCase {
         // the Elasticsearch process should die and disappear from the output of jps
         assertBusy(() -> {
             final String jpsPath = PathUtils.get(System.getProperty("runtime.java.home"), "bin/jps").toString();
-            final Process process = new ProcessBuilder().command(jpsPath).start();
+            final Process process = new ProcessBuilder().command(jpsPath, "-v").start();
             assertThat(process.waitFor(), equalTo(0));
+
             try (InputStream is = process.getInputStream();
                  BufferedReader in = new BufferedReader(new InputStreamReader(is, "UTF-8"))) {
                 String line;
                 while ((line = in.readLine()) != null) {
-                    final int currentPid = Integer.parseInt(line.split("\\s+")[0]);
-                    assertThat(line, pid, not(equalTo(currentPid)));
+                    assertThat(line, line, not(containsString("-Ddie.with.dignity.test")));
                 }
             }
         });
@@ -95,9 +89,9 @@ public class DieWithDignityIT extends ESRestTestCase {
         try {
             while (it.hasNext() && (fatalError == false || fatalErrorInThreadExiting == false)) {
                 final String line = it.next();
-                if (line.matches(".*ERROR.*o\\.e\\.ExceptionsHelper.*node-0.*fatal error.*")) {
+                if (line.matches(".*ERROR.*o\\.e\\.ExceptionsHelper.*integTest-0.*fatal error.*")) {
                     fatalError = true;
-                } else if (line.matches(".*ERROR.*o\\.e\\.b\\.ElasticsearchUncaughtExceptionHandler.*node-0.*"
+                } else if (line.matches(".*ERROR.*o\\.e\\.b\\.ElasticsearchUncaughtExceptionHandler.*integTest-0.*"
                     + "fatal error in thread \\[Thread-\\d+\\], exiting.*")) {
                     fatalErrorInThreadExiting = true;
                     assertTrue(it.hasNext());

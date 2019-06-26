@@ -34,6 +34,7 @@ import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -49,11 +50,13 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.analysis.AbstractTokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.recovery.RecoveryStats;
 import org.elasticsearch.index.seqno.SequenceNumbers;
+import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.IndicesService;
@@ -70,6 +73,7 @@ import org.elasticsearch.test.BackgroundIndexer;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
+import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.store.MockFSIndexStore;
@@ -98,6 +102,7 @@ import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
 
 import static java.util.Collections.singletonMap;
 import static java.util.stream.Collectors.toList;
@@ -128,7 +133,7 @@ public class IndexRecoveryIT extends ESIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Arrays.asList(MockTransportService.TestPlugin.class, MockFSIndexStore.TestPlugin.class,
-                RecoverySettingsChunkSizePlugin.class, TestAnalysisPlugin.class);
+                RecoverySettingsChunkSizePlugin.class, TestAnalysisPlugin.class, InternalSettingsPlugin.class);
     }
 
     @After
@@ -997,6 +1002,51 @@ public class IndexRecoveryIT extends ESIntegTestCase {
             .map(shardStats -> shardStats.getCommitStats().syncId())
             .collect(Collectors.toSet());
         assertThat(syncIds, hasSize(1));
+    }
+
+    public void testRecoverLocallyUpToGlobalCheckpoint() throws Exception {
+        internalCluster().ensureAtLeastNumDataNodes(2);
+        List<String> nodes = randomSubsetOf(2, StreamSupport.stream(clusterService().state().nodes().getDataNodes().spliterator(), false)
+            .map(node -> node.value.getName()).collect(Collectors.toSet()));
+        String indexName = "test-index";
+        createIndex(indexName, Settings.builder()
+            .put("index.number_of_shards", 1)
+            .put("index.number_of_replicas", 1)
+            // disable global checkpoint background sync so we can verify the start recovery request
+            .put(IndexService.GLOBAL_CHECKPOINT_SYNC_INTERVAL_SETTING.getKey(), "12h")
+            .put("index.routing.allocation.include._name", String.join(",", nodes))
+            .build());
+        ensureGreen(indexName);
+        int numDocs = randomIntBetween(0, 100);
+        indexRandom(randomBoolean(), false, randomBoolean(), IntStream.range(0, numDocs)
+            .mapToObj(n -> client().prepareIndex(indexName, "_doc").setSource("num", n)).collect(toList()));
+        client().admin().indices().prepareRefresh(indexName).get(); // avoid refresh when we are failing a shard
+        String failingNode = randomFrom(nodes);
+        PlainActionFuture<StartRecoveryRequest> startRecoveryRequestFuture = new PlainActionFuture<>();
+        for (String node : nodes) {
+            MockTransportService transportService = (MockTransportService) internalCluster().getInstance(TransportService.class, node);
+            transportService.addSendBehavior((connection, requestId, action, request, options) -> {
+                if (action.equals(PeerRecoverySourceService.Actions.START_RECOVERY)) {
+                    startRecoveryRequestFuture.onResponse((StartRecoveryRequest) request);
+                }
+                connection.sendRequest(requestId, action, request, options);
+            });
+        }
+        IndexShard shard = internalCluster().getInstance(IndicesService.class, failingNode)
+            .getShardOrNull(new ShardId(resolveIndex(indexName), 0));
+        final long lastSyncedGlobalCheckpoint = shard.getLastSyncedGlobalCheckpoint();
+        shard.failShard("test", new IOException("simulated"));
+        StartRecoveryRequest startRecoveryRequest = startRecoveryRequestFuture.actionGet();
+        SequenceNumbers.CommitInfo commitInfo = SequenceNumbers.loadSeqNoInfoFromLuceneCommit(
+            startRecoveryRequest.metadataSnapshot().getCommitUserData().entrySet());
+        assertThat(commitInfo.localCheckpoint, equalTo(lastSyncedGlobalCheckpoint));
+        assertThat(commitInfo.maxSeqNo, equalTo(lastSyncedGlobalCheckpoint));
+        assertThat(startRecoveryRequest.startingSeqNo(), equalTo(lastSyncedGlobalCheckpoint + 1));
+        ensureGreen(indexName);
+        for (String node : nodes) {
+            MockTransportService transportService = (MockTransportService) internalCluster().getInstance(TransportService.class, node);
+            transportService.clearAllRules();
+        }
     }
 
     public static final class TestAnalysisPlugin extends Plugin implements AnalysisPlugin {

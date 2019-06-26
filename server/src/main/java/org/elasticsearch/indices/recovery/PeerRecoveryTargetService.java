@@ -178,15 +178,10 @@ public class PeerRecoveryTargetService implements IndexEventListener {
             cancellableThreads = recoveryTarget.cancellableThreads();
             try {
                 assert recoveryTarget.sourceNode() != null : "can not do a recovery without a source node";
-                request = getStartRecoveryRequest(recoveryTarget);
                 logger.trace("{} preparing shard for peer recovery", recoveryTarget.shardId());
-                try {
-                    recoveryTarget.indexShard().prepareShardForPeerRecovery();
-                } catch (Exception ignored) {
-                    // We might hit exception here if the store is empty or corrupted.
-                    // We don't have to handle error here as we will use whatever outcome correctly in the later phase of recovery.
-                }
                 recoveryTarget.indexShard().prepareForIndexRecovery();
+                recoveryTarget.indexShard().prepareShardForPeerRecovery();
+                request = getStartRecoveryRequest(recoveryTarget);
             } catch (final Exception e) {
                 // this will be logged as warning later on...
                 logger.trace("unexpected error while preparing shard for peer recovery, failing recovery", e);

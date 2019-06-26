@@ -621,6 +621,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
             assertEquals(replica.state(), IndexShardState.RECOVERING);
         }
         replica.prepareForIndexRecovery();
+        replica.prepareShardForPeerRecovery();
         final RecoveryTarget recoveryTarget = targetSupplier.apply(replica, pNode);
         final String targetAllocationId = recoveryTarget.indexShard().routingEntry().allocationId().getId();
 

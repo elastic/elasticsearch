@@ -1417,32 +1417,57 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         getEngine().skipTranslogRecovery();
     }
 
-    public void prepareShardForPeerRecovery() throws IOException {
+    /**
+     * Recovers a replica locally up to the global checkpoint before starting a peer recovery.
+     */
+    public void prepareShardForPeerRecovery() {
+        if (state != IndexShardState.RECOVERING) {
+            throw new IndexShardNotRecoveringException(shardId, state);
+        }
         if (recoveryState.getRecoverySource() instanceof RecoverySource.PeerRecoverySource == false) {
+            assert false : "only peer recovery needs to recover locally up to the global checkpoint";
             throw new IllegalStateException("only peer recovery needs to recover locally up to the global checkpoint");
         }
-        final String translogUUID = store.readLastCommittedSegmentsInfo().getUserData().get(Translog.TRANSLOG_UUID_KEY);
-        final long globalCheckpoint = Translog.readGlobalCheckpoint(translogConfig.getTranslogPath(), translogUUID);
-        final List<IndexCommit> commits = DirectoryReader.listCommits(store.directory());
-        final IndexCommit safeCommit = CombinedDeletionPolicy.findSafeCommitPoint(commits, globalCheckpoint);
-        final SequenceNumbers.CommitInfo commitInfo = SequenceNumbers.loadSeqNoInfoFromLuceneCommit(safeCommit.getUserData().entrySet());
-        final boolean shouldRecoverLocally = commitInfo.maxSeqNo <= globalCheckpoint && commitInfo.localCheckpoint < globalCheckpoint;
-        if (shouldRecoverLocally && indexSettings.getIndexMetaData().getState() == IndexMetaData.State.OPEN) {
-            try {
-                innerOpenEngineAndTranslog();
-                final Engine.TranslogRecoveryRunner translogRunner = (engine, snapshot) -> runTranslogRecovery(
-                    engine, snapshot, Engine.Operation.Origin.LOCAL_RESET, () -> { });
-                getEngine().recoverFromTranslog(translogRunner, globalCheckpoint);
-                getEngine().flush(true, true);
-            } finally {
-                synchronized (mutex) {
-                    IOUtils.close(currentEngineReference.getAndSet(null));
+        try {
+            final long globalCheckpoint;
+            final Engine engine;
+            synchronized (mutex) {
+                String translogUUID = store.readLastCommittedSegmentsInfo().getUserData().get(Translog.TRANSLOG_UUID_KEY);
+                globalCheckpoint = Translog.readGlobalCheckpoint(translogConfig.getTranslogPath(), translogUUID);
+                List<IndexCommit> commits = DirectoryReader.listCommits(store.directory());
+                IndexCommit safeCommit = CombinedDeletionPolicy.findSafeCommitPoint(commits, globalCheckpoint);
+                SequenceNumbers.CommitInfo commitInfo = SequenceNumbers.loadSeqNoInfoFromLuceneCommit(safeCommit.getUserData().entrySet());
+                boolean shouldRecoverLocally = commitInfo.maxSeqNo <= globalCheckpoint && commitInfo.localCheckpoint < globalCheckpoint;
+                if (shouldRecoverLocally && indexSettings.getIndexMetaData().getState() == IndexMetaData.State.OPEN) {
+                    engine = innerOpenEngineAndTranslog();
+                } else {
+                    engine = null;
                 }
             }
+            if (engine != null) {
+                try {
+                    indexShardOperationPermits.blockOperations(-1, TimeUnit.SECONDS, () -> {
+                        final Engine.TranslogRecoveryRunner translogRecoveryRunner =
+                            (e, snapshot) -> runTranslogRecovery(e, snapshot, Engine.Operation.Origin.LOCAL_RESET, () -> { });
+                        engine.recoverFromTranslog(translogRecoveryRunner, globalCheckpoint);
+                    });
+                    engine.flush(true, true);
+                } finally {
+                    synchronized (mutex) {
+                        currentEngineReference.compareAndSet(engine, null);
+                        IOUtils.close(engine);
+                    }
+                    recoveryState.setStage(RecoveryState.Stage.INIT);
+                    recoveryState.setStage(RecoveryState.Stage.INDEX);
+                }
+            }
+        } catch (Exception ignored) {
+            // We can hit exception if the store is empty or corrupted or incomplete (due to the abort of the previous peer recovery).
+            // It's fine if this step failed as the peer recovery can use whatever outcome correctly. We can safely ignore exception here.
         }
     }
 
-    private void innerOpenEngineAndTranslog() throws IOException {
+    private Engine innerOpenEngineAndTranslog() throws IOException {
         if (state != IndexShardState.RECOVERING) {
             throw new IndexShardNotRecoveringException(shardId, state);
         }
@@ -1472,11 +1497,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         assert recoveryState.getRecoverySource().expectEmptyRetentionLeases() == false || getRetentionLeases().leases().isEmpty()
             : "expected empty set of retention leases with recovery source [" + recoveryState.getRecoverySource()
             + "] but got " + getRetentionLeases();
+        final Engine newEngine;
         synchronized (mutex) {
             verifyNotClosed();
             assert currentEngineReference.get() == null : "engine is running";
             // we must create a new engine under mutex (see IndexShard#snapshotStoreMetadata).
-            final Engine newEngine = engineFactory.newReadWriteEngine(config);
+            newEngine = engineFactory.newReadWriteEngine(config);
             onNewEngine(newEngine);
             currentEngineReference.set(newEngine);
             // We set active because we are now writing operations to the engine; this way,
@@ -1488,6 +1514,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         onSettingsChanged();
         assertSequenceNumbersInCommit();
         assert recoveryState.getStage() == RecoveryState.Stage.TRANSLOG : "TRANSLOG stage expected but was: " + recoveryState.getStage();
+        return newEngine;
     }
 
     private boolean assertSequenceNumbersInCommit() throws IOException {

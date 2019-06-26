@@ -174,7 +174,7 @@ public class NodeJoinTests extends ESTestCase {
             () -> new InMemoryPersistedState(term, initialState), r -> emptyList(),
             new NoOpClusterApplier(),
             Collections.emptyList(),
-            random, s -> {});
+            random, s -> {}, ElectionStrategy.DEFAULT_INSTANCE);
         transportService.start();
         transportService.acceptIncomingRequests();
         transport = capturingTransport;

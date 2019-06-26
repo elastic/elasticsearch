@@ -606,8 +606,9 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
 
             DataFrameTransformTaskState taskState = transformTask.taskState.get();
 
-            // TODO: check whether continuous data frames is enabled when available
-            if (indexerState.equals(IndexerState.STARTED) && transformTask.currentCheckpoint.get() == 1) {
+            if (indexerState.equals(IndexerState.STARTED)
+                && transformTask.currentCheckpoint.get() == 1
+                && this.isContinuous() == false) {
                 // set both to stopped so they are persisted as such
                 taskState = DataFrameTransformTaskState.STOPPED;
                 indexerState = IndexerState.STOPPED;

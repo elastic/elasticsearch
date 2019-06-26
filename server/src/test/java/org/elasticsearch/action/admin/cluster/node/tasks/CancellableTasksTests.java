@@ -193,11 +193,6 @@ public class CancellableTasksTests extends TaskManagerTestCase {
 
             return new NodeResponse(clusterService.localNode());
         }
-
-        @Override
-        protected NodeResponse nodeOperation(CancellableNodeRequest request) {
-            throw new UnsupportedOperationException("the task parameter is required");
-        }
     }
 
     private Task startCancellableTestNodesAction(boolean waitForActionToStart, int blockedNodesCount, ActionListener<NodesResponse>

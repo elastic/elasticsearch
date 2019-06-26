@@ -112,7 +112,7 @@ public class IndexLifecycleInfoTransportActionTests extends ESTestCase {
         var usageAction = new IndexLifecycleUsageTransportAction(mock(TransportService.class), null, null,
             mock(ActionFilters.class), null, Settings.EMPTY, licenseState);
         PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();
-        usageAction.masterOperation(null, clusterState, future);
+        usageAction.masterOperation(null, null, clusterState, future);
         IndexLifecycleFeatureSetUsage ilmUsage = (IndexLifecycleFeatureSetUsage) future.get().getUsage();
         assertThat(ilmUsage.enabled(), equalTo(true));
         assertThat(ilmUsage.available(), equalTo(false));

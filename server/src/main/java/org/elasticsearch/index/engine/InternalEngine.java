@@ -1408,7 +1408,7 @@ public class InternalEngine extends Engine {
             return new DeleteResult(
                 plan.versionOfDeletion, getPrimaryTerm(), delete.seqNo(), plan.currentlyDeleted == false);
         } catch (Exception ex) {
-            if (indexWriter.getTragicException() == null) {
+            if (ex instanceof AlreadyClosedException == false && indexWriter.getTragicException() == null) {
                 throw new AssertionError("delete operation should never fail at document level", ex);
             }
             throw ex;
@@ -1511,7 +1511,7 @@ public class InternalEngine extends Engine {
                         doc.add(softDeletesField);
                         indexWriter.addDocument(doc);
                     } catch (Exception ex) {
-                        if (indexWriter.getTragicException() == null) {
+                        if (ex instanceof AlreadyClosedException == false && indexWriter.getTragicException() == null) {
                             throw new AssertionError("noop operation should never fail at document level", ex);
                         }
                         throw ex;

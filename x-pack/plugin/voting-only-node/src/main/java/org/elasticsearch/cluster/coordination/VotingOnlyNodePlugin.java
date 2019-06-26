@@ -16,7 +16,6 @@ import org.elasticsearch.cluster.coordination.VotingOnlyNodeFeatureSet.UsageTran
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Setting;
@@ -41,19 +40,17 @@ import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.watcher.ResourceWatcherService;
-import org.elasticsearch.xpack.core.XPackPlugin;
+import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 
 import java.io.IOException;
-import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Supplier;
-
-import static java.util.Collections.singletonList;
 
 public class VotingOnlyNodePlugin extends Plugin implements DiscoveryPlugin, NetworkPlugin, ActionPlugin {
 
@@ -112,14 +109,8 @@ public class VotingOnlyNodePlugin extends Plugin implements DiscoveryPlugin, Net
 
     @Override
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
-        return singletonList(new ActionHandler<>(XPackUsageFeatureAction.VOTING_ONLY_NODE, UsageTransportAction.class));
-    }
-
-    @Override
-    public Collection<Module> createGuiceModules() {
-        List<Module> modules = new ArrayList<>();
-        modules.add(b -> XPackPlugin.bindFeatureSet(b, VotingOnlyNodeFeatureSet.class));
-        return modules;
+        return Arrays.asList(new ActionHandler<>(XPackUsageFeatureAction.VOTING_ONLY, UsageTransportAction.class),
+            new ActionHandler<>(XPackInfoFeatureAction.VOTING_ONLY, VotingOnlyNodeFeatureSet.UsageInfoAction.class));
     }
 
     @Override

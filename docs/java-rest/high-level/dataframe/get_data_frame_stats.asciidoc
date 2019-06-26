@@ -22,6 +22,19 @@ include-tagged::{doc-tests-file}[{api}-request]
 --------------------------------------------------
 <1> Constructing a new GET Stats request referencing an existing {dataframe-transform}
 
+==== Optional Arguments
+
+The following arguments are optional.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-options]
+--------------------------------------------------
+<1> The page parameters `from` and `size`. `from` specifies the number of data frame transform stats to skip.
+`size` specifies the maximum number of data frame transform stats to get.
+Defaults to `0` and `100` respectively.
+<2> Whether to ignore if a wildcard expression matches no transforms.
+
 
 include::../execution.asciidoc[]
 

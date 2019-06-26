@@ -32,6 +32,7 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
+import org.elasticsearch.action.admin.cluster.repositories.cleanup.CleanupRepositoryResponse;
 import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -399,7 +400,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 updatedRepositoryData = repositoryData.removeSnapshot(snapshotId);
                 // Cache the indices that were found before writing out the new index-N blob so that a stuck master will never
                 // delete an index that was created by another master node after writing this index-N blob.
-                foundIndices = blobStore().blobContainer(basePath().add("indices")).children();
+                foundIndices = blobStore().blobContainer(indicesPath()).children();
                 writeIndexGen(updatedRepositoryData, repositoryStateId);
             } catch (Exception ex) {
                 listener.onFailure(new RepositoryException(metadata.name(), "failed to delete snapshot [" + snapshotId + "]", ex));
@@ -425,6 +426,15 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 })
             );
         }
+    }
+
+    public void cleanup(long repositoryStateId, ActionListener<CleanupRepositoryResponse> listener) {
+        ActionListener.completeWith(listener, () -> {
+            final Map<String, BlobContainer> foundIndices = blobStore().blobContainer(indicesPath()).children();
+            final RepositoryData repositoryData = repositoryData(repositoryStateId);
+            cleanupStaleIndices(foundIndices, repositoryData.getIndices());
+            return new CleanupRepositoryResponse(0L, 0L);
+        });
     }
 
     private void cleanupStaleIndices(Map<String, BlobContainer> foundIndices, Map<String, IndexId> survivingIndices) {
@@ -641,7 +651,16 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     @Override
     public RepositoryData getRepositoryData() {
         try {
-            final long indexGen = latestIndexBlobId();
+            return repositoryData(latestIndexBlobId());
+        } catch (NoSuchFileException ex) {
+            // repository doesn't have an index blob, its a new blank repo
+            return RepositoryData.EMPTY;
+        } catch (IOException ioe) {
+            throw new RepositoryException(metadata.name(), "could not read repository data from index blob", ioe);
+        }
+    }
+
+    private RepositoryData repositoryData(long indexGen) throws IOException {
             final String snapshotsIndexBlobName = INDEX_FILE_PREFIX + Long.toString(indexGen);
 
             RepositoryData repositoryData;
@@ -669,8 +688,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             } catch (NoSuchFileException e) {
                 if (isReadOnly()) {
                     logger.debug("[{}] Incompatible snapshots blob [{}] does not exist, the likely " +
-                                 "reason is that there are no incompatible snapshots in the repository",
-                                 metadata.name(), INCOMPATIBLE_SNAPSHOTS_BLOB);
+                            "reason is that there are no incompatible snapshots in the repository",
+                        metadata.name(), INCOMPATIBLE_SNAPSHOTS_BLOB);
                 } else {
                     // write an empty incompatible-snapshots blob - we do this so that there
                     // is a blob present, which helps speed up some cloud-based repositories
@@ -680,12 +699,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 }
             }
             return repositoryData;
-        } catch (NoSuchFileException ex) {
-            // repository doesn't have an index blob, its a new blank repo
-            return RepositoryData.EMPTY;
-        } catch (IOException ioe) {
-            throw new RepositoryException(metadata.name(), "could not read repository data from index blob", ioe);
-        }
     }
 
     private static String testBlobPrefix(String seed) {

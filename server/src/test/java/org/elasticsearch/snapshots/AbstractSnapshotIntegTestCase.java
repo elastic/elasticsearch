@@ -76,11 +76,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
                 .stream()
                 .map(RepositoryMetaData::name)
                 .forEach(name -> {
-                    final List<SnapshotInfo> snapshots = client().admin().cluster().prepareGetSnapshots(name).get().getSnapshots(name);
-                    // Delete one random snapshot to trigger repository cleanup.
-                    if (snapshots.isEmpty() == false) {
-                        client().admin().cluster().prepareDeleteSnapshot(name, randomFrom(snapshots).snapshotId().getName()).get();
-                    }
+                    client().admin().cluster().prepareCleanupRepository(name).get();
                     BlobStoreTestUtil.assertRepoConsistency(internalCluster(), name);
                 });
         } else {

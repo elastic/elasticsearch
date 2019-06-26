@@ -19,6 +19,7 @@
 package org.elasticsearch.action.admin.cluster.repositories.cleanup;
 
 import org.elasticsearch.action.Action;
+import org.elasticsearch.common.io.stream.Writeable;
 
 public final class CleanupRepositoryAction extends Action<CleanupRepositoryResponse> {
 
@@ -31,6 +32,11 @@ public final class CleanupRepositoryAction extends Action<CleanupRepositoryRespo
 
     @Override
     public CleanupRepositoryResponse newResponse() {
-        return null;
+        return new CleanupRepositoryResponse(0L, 0L);
+    }
+
+    @Override
+    public Writeable.Reader<CleanupRepositoryResponse> getResponseReader() {
+        return CleanupRepositoryResponse::new;
     }
 }

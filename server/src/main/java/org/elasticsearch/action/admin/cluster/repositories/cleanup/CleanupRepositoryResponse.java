@@ -19,12 +19,42 @@
 package org.elasticsearch.action.admin.cluster.repositories.cleanup;
 
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
+import java.io.IOException;
+
 public final class CleanupRepositoryResponse extends ActionResponse implements ToXContentObject {
+
+    private final long bytes;
+
+    private final long blobs;
+
+    public CleanupRepositoryResponse(long bytes, long blobs) {
+        this.bytes = bytes;
+        this.blobs = blobs;
+    }
+
+    public CleanupRepositoryResponse(StreamInput in) throws IOException {
+        bytes = in.readLong();
+        blobs = in.readLong();
+    }
+
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) {
-        return null;
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeLong(bytes);
+        out.writeLong(blobs);
+    }
+
+    @Override
+    public void readFrom(StreamInput in) {
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        return builder.startObject().field("bytes", bytes).field("blobs", blobs).endObject();
     }
 }

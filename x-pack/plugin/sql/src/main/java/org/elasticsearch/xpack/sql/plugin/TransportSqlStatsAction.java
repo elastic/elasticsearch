@@ -42,7 +42,7 @@ public class TransportSqlStatsAction extends TransportNodesAction<SqlStatsReques
     }
 
     @Override
-    protected SqlStatsRequest.NodeStatsRequest newNodeRequest(String nodeId, SqlStatsRequest request) {
+    protected SqlStatsRequest.NodeStatsRequest newNodeRequest(SqlStatsRequest request) {
         return new SqlStatsRequest.NodeStatsRequest(request, nodeId);
     }
 

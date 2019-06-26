@@ -85,9 +85,10 @@ stemmed tokens near unstemmed ones.
 [[intervals-prefix]]
 ==== `prefix`
 
-The `prefix` rule finds terms that start with a specified prefix.  This rule can
-use term-matching shortcuts if the field being matched against was indexed with the
-<<index-prefixes,`index_prefixes`>> option.  It takes the following parameters:
+The `prefix` rule finds terms that start with a specified prefix.  The prefix will
+expand to match at most 128 terms; if there are more matching terms in the index,
+then an error will be returned.  To avoid this limit, enable the
+<<index-prefixes,`index-prefixes`>> option on the field being searched.
 
 [horizontal]
 `prefix`::

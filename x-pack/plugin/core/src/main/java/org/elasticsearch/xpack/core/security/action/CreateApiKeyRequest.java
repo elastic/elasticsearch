@@ -43,13 +43,13 @@ public final class CreateApiKeyRequest extends ActionRequest {
      * @param roleDescriptors list of {@link RoleDescriptor}s
      * @param expiration to specify expiration for the API key
      */
-    public CreateApiKeyRequest(String name, List<RoleDescriptor> roleDescriptors, @Nullable TimeValue expiration) {
+    public CreateApiKeyRequest(String name, @Nullable List<RoleDescriptor> roleDescriptors, @Nullable TimeValue expiration) {
         if (Strings.hasText(name)) {
             this.name = name;
         } else {
             throw new IllegalArgumentException("name must not be null or empty");
         }
-        this.roleDescriptors = Objects.requireNonNull(roleDescriptors, "role descriptors may not be null");
+        this.roleDescriptors = (roleDescriptors == null) ? Collections.emptyList() : Collections.unmodifiableList(roleDescriptors);
         this.expiration = expiration;
     }
 
@@ -77,7 +77,7 @@ public final class CreateApiKeyRequest extends ActionRequest {
         return expiration;
     }
 
-    public void setExpiration(TimeValue expiration) {
+    public void setExpiration(@Nullable TimeValue expiration) {
         this.expiration = expiration;
     }
 
@@ -85,8 +85,8 @@ public final class CreateApiKeyRequest extends ActionRequest {
         return roleDescriptors;
     }
 
-    public void setRoleDescriptors(List<RoleDescriptor> roleDescriptors) {
-        this.roleDescriptors = Collections.unmodifiableList(Objects.requireNonNull(roleDescriptors, "role descriptors may not be null"));
+    public void setRoleDescriptors(@Nullable List<RoleDescriptor> roleDescriptors) {
+        this.roleDescriptors = (roleDescriptors == null) ? Collections.emptyList() : Collections.unmodifiableList(roleDescriptors);
     }
 
     public WriteRequest.RefreshPolicy getRefreshPolicy() {

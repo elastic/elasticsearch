@@ -83,6 +83,7 @@ import org.apache.lucene.analysis.miscellaneous.TrimFilter;
 import org.apache.lucene.analysis.miscellaneous.TruncateTokenFilter;
 import org.apache.lucene.analysis.miscellaneous.WordDelimiterFilter;
 import org.apache.lucene.analysis.miscellaneous.WordDelimiterGraphFilter;
+import org.apache.lucene.analysis.miscellaneous.WordDelimiterIterator;
 import org.apache.lucene.analysis.ngram.EdgeNGramTokenFilter;
 import org.apache.lucene.analysis.ngram.EdgeNGramTokenizer;
 import org.apache.lucene.analysis.ngram.NGramTokenFilter;
@@ -456,13 +457,15 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
                       | WordDelimiterFilter.SPLIT_ON_CASE_CHANGE
                       | WordDelimiterFilter.SPLIT_ON_NUMERICS
                       | WordDelimiterFilter.STEM_ENGLISH_POSSESSIVE, null)));
-        filters.add(PreConfiguredTokenFilter.singleton("word_delimiter_graph", false, false, input ->
-                new WordDelimiterGraphFilter(input,
+        filters.add(PreConfiguredTokenFilter.singletonWithVersion("word_delimiter_graph", false, false, (input, version) -> {
+            boolean adjustOffsets = version.onOrAfter(Version.V_7_3_0);
+            return new WordDelimiterGraphFilter(input, adjustOffsets, WordDelimiterIterator.DEFAULT_WORD_DELIM_TABLE,
                         WordDelimiterGraphFilter.GENERATE_WORD_PARTS
                       | WordDelimiterGraphFilter.GENERATE_NUMBER_PARTS
                       | WordDelimiterGraphFilter.SPLIT_ON_CASE_CHANGE
                       | WordDelimiterGraphFilter.SPLIT_ON_NUMERICS
-                      | WordDelimiterGraphFilter.STEM_ENGLISH_POSSESSIVE, null)));
+                      | WordDelimiterGraphFilter.STEM_ENGLISH_POSSESSIVE, null);
+        }));
         return filters;
     }
 

@@ -37,7 +37,7 @@ public class ElisionFilterFactoryTests extends ESTokenStreamTestCase {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
             () -> AnalysisTestsHelper.createTestAnalysisFromSettings(settings, new CommonAnalysisPlugin()));
 
-        assertEquals("elision filter requires [articles] setting", e.getMessage());
+        assertEquals("elision filter requires [articles] or [articles_path] setting", e.getMessage());
     }
 
 }

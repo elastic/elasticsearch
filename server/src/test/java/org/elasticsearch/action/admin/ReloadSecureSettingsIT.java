@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.admin;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.reload.NodesReloadSecureSettingsResponse;
 import org.elasticsearch.common.Strings;
@@ -173,7 +174,7 @@ public class ReloadSecureSettingsIT extends ESIntegTestCase {
 
                 @Override
                 public void onFailure(Exception e) {
-                    assertThat(e, instanceOf(IllegalStateException.class));
+                    assertThat(e, instanceOf(ElasticsearchException.class));
                     assertThat(e.getMessage(),
                         containsString("Secure settings cannot be updated cluster wide when TLS for the transport layer is not enabled"));
                     latch.countDown();

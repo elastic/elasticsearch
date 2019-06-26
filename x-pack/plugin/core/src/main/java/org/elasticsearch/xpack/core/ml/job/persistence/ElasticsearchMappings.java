@@ -25,6 +25,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.xpack.core.ml.datafeed.ChunkingConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
+import org.elasticsearch.xpack.core.ml.datafeed.DatafeedTimingStats;
 import org.elasticsearch.xpack.core.ml.datafeed.DelayedDataCheckConfig;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsDest;
@@ -510,6 +511,7 @@ public class ElasticsearchMappings {
         addCategoryDefinitionMapping(builder);
         addDataCountsMapping(builder);
         addTimingStatsExceptBucketCountMapping(builder);
+        addDatafeedTimingStats(builder);
         addModelSnapshotMapping(builder);
 
         addTermFields(builder, extraTermFields);
@@ -924,6 +926,18 @@ public class ElasticsearchMappings {
                 .field(TYPE, DOUBLE)
             .endObject()
             .startObject(TimingStats.EXPONENTIAL_AVG_BUCKET_PROCESSING_TIME_MS.getPreferredName())
+                .field(TYPE, DOUBLE)
+            .endObject();
+    }
+
+    /**
+     * {@link DatafeedTimingStats} mapping.
+     *
+     * @throws IOException On builder write error
+     */
+    private static void addDatafeedTimingStats(XContentBuilder builder) throws IOException {
+        builder
+            .startObject(DatafeedTimingStats.TOTAL_SEARCH_TIME_MS.getPreferredName())
                 .field(TYPE, DOUBLE)
             .endObject();
     }

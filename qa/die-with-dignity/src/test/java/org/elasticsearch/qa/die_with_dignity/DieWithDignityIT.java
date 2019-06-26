@@ -62,6 +62,9 @@ public class DieWithDignityIT extends ESRestTestCase {
             failureMatcher = either(failureMatcher)
                 .or(hasToString(containsString("An existing connection was forcibly closed by the remote host")));
         }
+        failureMatcher = either(failureMatcher).or(
+            hasToString(containsString("Connection reset by peer"))
+        );
         assertThat(e, failureMatcher);
 
         // the Elasticsearch process should die and disappear from the output of jps

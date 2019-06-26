@@ -173,7 +173,7 @@ final class DefaultSearchContext extends SearchContext {
         this.indexShard = indexShard;
         this.indexService = indexService;
         this.clusterService = clusterService;
-        this.searcher = new ContextIndexSearcher(engineSearcher.reader(), indexService.similarityService().similarity(mapperService()),
+        this.searcher = new ContextIndexSearcher(engineSearcher.reader(), engineSearcher.searcher().getSimilarity(),
             indexService.cache().query(), indexShard.getQueryCachingPolicy());
         this.relativeTimeSupplier = relativeTimeSupplier;
         this.timeout = timeout;

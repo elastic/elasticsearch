@@ -411,7 +411,7 @@ public abstract class EngineTestCase extends ESTestCase {
         String translogUUID = Translog.createEmptyTranslog(translogPath, SequenceNumbers.NO_OPS_PERFORMED, shardId,
             primaryTermSupplier.getAsLong());
         return new Translog(translogConfig, translogUUID, createTranslogDeletionPolicy(INDEX_SETTINGS),
-            () -> SequenceNumbers.NO_OPS_PERFORMED, primaryTermSupplier);
+            () -> SequenceNumbers.NO_OPS_PERFORMED, primaryTermSupplier, seqNo -> {});
     }
 
     protected TranslogHandler createTranslogHandler(IndexSettings indexSettings) {
@@ -1147,7 +1147,7 @@ public abstract class EngineTestCase extends ESTestCase {
      * @throws InterruptedException if the thread was interrupted while blocking on the condition
      */
     public static void waitForOpsToComplete(InternalEngine engine, long seqNo) throws InterruptedException {
-        engine.getLocalCheckpointTracker().waitForOpsToComplete(seqNo);
+        engine.getLocalCheckpointTracker().waitForProcessedOpsToComplete(seqNo);
     }
 
     public static boolean hasSnapshottedCommits(Engine engine) {

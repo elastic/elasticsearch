@@ -47,6 +47,8 @@ import org.elasticsearch.persistent.PersistentTaskParams;
 import org.elasticsearch.plugins.EnginePlugin;
 import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.RepositoryPlugin;
+import org.elasticsearch.protocol.xpack.XPackInfoRequest;
+import org.elasticsearch.protocol.xpack.XPackInfoResponse;
 import org.elasticsearch.protocol.xpack.XPackUsageRequest;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.rest.RestController;
@@ -252,7 +254,7 @@ public class XPackPlugin extends XPackClientPlugin implements ExtensiblePlugin, 
     @Override
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
         List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> actions = new ArrayList<>();
-        actions.add(new ActionHandler<>(XPackInfoAction.INSTANCE, TransportXPackInfoAction.class));
+        actions.add(new ActionHandler<>(XPackInfoAction.INSTANCE, getInfoAction()));
         actions.add(new ActionHandler<>(XPackUsageAction.INSTANCE, getUsageAction()));
         actions.add(new ActionHandler<>(TransportFreezeIndexAction.FreezeIndexAction.INSTANCE,
             TransportFreezeIndexAction.class));
@@ -263,6 +265,11 @@ public class XPackPlugin extends XPackClientPlugin implements ExtensiblePlugin, 
     // overridable for tests
     protected Class<? extends TransportAction<XPackUsageRequest, XPackUsageResponse>> getUsageAction() {
         return TransportXPackUsageAction.class;
+    }
+
+    // overridable for tests
+    protected Class<? extends TransportAction<XPackInfoRequest, XPackInfoResponse>> getInfoAction() {
+        return TransportXPackInfoAction.class;
     }
 
     @Override

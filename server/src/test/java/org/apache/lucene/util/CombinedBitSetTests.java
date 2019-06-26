@@ -45,7 +45,8 @@ public class CombinedBitSetTests extends ESTestCase {
     }
 
     public void testRandom() {
-        for (int i = 0; i < 10; i++) {
+        int iterations = atLeast(10);
+        for (int i = 0; i < iterations; i++) {
             testCase(randomIntBetween(1, 10000), randomFloat(), randomFloat());
         }
     }

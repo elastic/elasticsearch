@@ -241,7 +241,8 @@ for (Version version : bwcVersions.wireCompatible) {
                 'mixed_cluster/40_ml_datafeed_crud/Put job and datafeed in mixed cluster',
                 'mixed_cluster/40_ml_datafeed_crud/Put job and datafeed without aggs in mixed cluster',
                 'mixed_cluster/40_ml_datafeed_crud/Put job and datafeed with aggs in mixed cluster',
-                'mixed_cluster/80_data_frame_jobs_crud/Test put mixed cluser data frame transform'
+                'mixed_cluster/80_data_frame_jobs_crud/Test put batch data frame transforms on mixed cluster',
+                'mixed_cluster/80_data_frame_jobs_crud/Test put continuous data frame transform on mixed cluster'
         ].join(',')
         finalizedBy "${baseName}#oldClusterTestCluster#node1.stop"
     }

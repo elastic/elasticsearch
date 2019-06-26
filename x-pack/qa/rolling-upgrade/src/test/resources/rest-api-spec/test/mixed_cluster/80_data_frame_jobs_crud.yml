@@ -184,6 +184,7 @@
   - do:
       data_frame.stop_data_frame_transform:
         transform_id: "mixed-simple-continuous-transform"
+        wait_for_completion: true
   - match: { acknowledged: true }
 
   - do:

@@ -19,6 +19,7 @@ import static java.util.Collections.emptySet;
 
 public class VotingOnlyNodeCoordinatorTests extends AbstractCoordinatorTestCase {
 
+    @AwaitsFix( bugUrl = "https://github.com/elastic/elasticsearch/issues/43631")
     public void testDoesNotElectVotingOnlyMasterNode() {
         final Cluster cluster = new Cluster(randomIntBetween(1, 5), false, Settings.EMPTY);
         cluster.runRandomly();

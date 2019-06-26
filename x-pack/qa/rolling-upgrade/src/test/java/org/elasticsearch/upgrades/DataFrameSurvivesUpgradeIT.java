@@ -7,6 +7,7 @@ package org.elasticsearch.upgrades;
 
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
+import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.dataframe.GetDataFrameTransformStatsResponse;
@@ -45,6 +46,7 @@ import static org.hamcrest.Matchers.hasSize;
 
 public class DataFrameSurvivesUpgradeIT extends AbstractUpgradeTestCase {
 
+    private static final Version UPGRADE_FROM_VERSION = Version.fromString(System.getProperty("tests.upgrade_from_version"));
     private static final String DATAFRAME_ENDPOINT = "/_data_frame/transforms/";
     private static final String CONTINUOUS_DATA_FRAME_ID = "continuous-data-frame-upgrade-job";
     private static final String CONTINUOUS_DATA_FRAME_SOURCE = "data-frame-upgrade-continuous-source";
@@ -54,7 +56,7 @@ public class DataFrameSurvivesUpgradeIT extends AbstractUpgradeTestCase {
         .collect(Collectors.toList());
     private static final List<TimeValue> BUCKETS = Stream.iterate(1, n -> n + 1)
         .limit(5)
-        .map(TimeValue::timeValueSeconds)
+        .map(TimeValue::timeValueMinutes)
         .collect(Collectors.toList());
 
     @Override
@@ -72,15 +74,20 @@ public class DataFrameSurvivesUpgradeIT extends AbstractUpgradeTestCase {
      * index mappings when it is assigned to an upgraded node even if no other ML endpoint is called after the upgrade
      */
     public void testDataFramesRollingUpgrade() throws Exception {
-
+        assumeTrue("Continuous data frames not supported until 7.3", UPGRADE_FROM_VERSION.onOrAfter(Version.V_7_3_0));
+        Request waitForYellow = new Request("GET", "/_cluster/health");
+        waitForYellow.addParameter("wait_for_nodes", "3");
+        waitForYellow.addParameter("wait_for_status", "yellow");
         switch (CLUSTER_TYPE) {
             case OLD:
                 createAndStartContinuousDataFrame();
                 break;
             case MIXED:
+                client().performRequest(waitForYellow);
                 verifyContinuousDataFrameHandlesData();
                 break;
             case UPGRADED:
+                client().performRequest(waitForYellow);
                 verifyContinuousDataFrameHandlesData();
                 cleanUpTransforms();
                 break;
@@ -121,18 +128,21 @@ public class DataFrameSurvivesUpgradeIT extends AbstractUpgradeTestCase {
 
         DataFrameTransformStateAndStats stateAndStats = getTransformStats(CONTINUOUS_DATA_FRAME_ID);
 
-        assertThat(stateAndStats.getTransformStats().getOutputDocuments(), equalTo(ENTITIES.size()));
+        assertThat(stateAndStats.getTransformStats().getOutputDocuments(), equalTo((long)ENTITIES.size()));
         assertThat(stateAndStats.getTransformStats().getNumDocuments(), equalTo(totalDocsWritten));
         assertThat(stateAndStats.getTransformState().getTaskState(), equalTo(DataFrameTransformTaskState.STARTED));
     }
 
     private void verifyContinuousDataFrameHandlesData() throws Exception {
+
         // A continuous data frame should automatically become started when it gets assigned to a node
         // if it was assigned to the node that was removed from the cluster
-        assertBusy(() -> assertThat(getTransformStats(CONTINUOUS_DATA_FRAME_ID).getTransformState().getTaskState(),
-            equalTo(DataFrameTransformTaskState.STARTED)),
-            60,
-            TimeUnit.SECONDS);
+        assertBusy(() -> {
+            DataFrameTransformStateAndStats stateAndStats = getTransformStats(CONTINUOUS_DATA_FRAME_ID);
+            assertThat(stateAndStats.getTransformState().getTaskState(), equalTo(DataFrameTransformTaskState.STARTED));
+        },
+        60,
+        TimeUnit.SECONDS);
 
         DataFrameTransformStateAndStats previousStateAndStats = getTransformStats(CONTINUOUS_DATA_FRAME_ID);
 
@@ -147,7 +157,7 @@ public class DataFrameSurvivesUpgradeIT extends AbstractUpgradeTestCase {
 
         DataFrameTransformStateAndStats stateAndStats = getTransformStats(CONTINUOUS_DATA_FRAME_ID);
 
-        assertThat(stateAndStats.getTransformStats().getOutputDocuments(), equalTo(entities.size()));
+        assertThat(stateAndStats.getTransformStats().getOutputDocuments(), equalTo((long)entities.size()));
         assertThat(stateAndStats.getTransformStats().getNumDocuments(),
             equalTo(totalDocsWritten + previousStateAndStats.getTransformStats().getNumDocuments()));
         assertThat(stateAndStats.getTransformState().getTaskState(),
@@ -180,7 +190,7 @@ public class DataFrameSurvivesUpgradeIT extends AbstractUpgradeTestCase {
     }
 
     private DataFrameTransformStateAndStats getTransformStats(String id) throws IOException {
-        final Request getStats = new Request("GET", DATAFRAME_ENDPOINT + id + "/stats");
+        final Request getStats = new Request("GET", DATAFRAME_ENDPOINT + id + "/_stats");
         Response response = client().performRequest(getStats);
         assertEquals(200, response.getStatusLine().getStatusCode());
         XContentType xContentType = XContentType.fromMediaTypeOrFormat(response.getEntity().getContentType().getValue());
@@ -237,15 +247,15 @@ public class DataFrameSurvivesUpgradeIT extends AbstractUpgradeTestCase {
                     .append(entity)
                     .append("\",\"stars\":")
                     .append(randomLongBetween(0, 5))
-                    .append("\",\"timestamp\":\"")
+                    .append(",\"timestamp\":")
                     .append(timeStamp)
-                    .append("\"}\n");
+                    .append("}\n");
             }
         }
         bulk.append("\r\n");
         final Request bulkRequest = new Request("POST", "/_bulk");
         bulkRequest.addParameter("refresh", "true");
         bulkRequest.setJsonEntity(bulk.toString());
-        client().performRequest(bulkRequest);
+        entityAsMap(client().performRequest(bulkRequest));
     }
 }

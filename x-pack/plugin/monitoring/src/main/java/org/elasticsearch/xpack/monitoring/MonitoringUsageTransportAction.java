@@ -10,7 +10,6 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackLicenseState;
@@ -30,26 +29,25 @@ import java.util.Map;
 
 public class MonitoringUsageTransportAction extends XPackUsageFeatureTransportAction {
     private final boolean enabled;
-    private final MonitoringService monitoring;
+    private final MonitoringService monitoringService;
     private final XPackLicenseState licenseState;
     private final Exporters exporters;
 
     @Inject
     public MonitoringUsageTransportAction(TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
                                           ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                                          Settings settings, XPackLicenseState licenseState, @Nullable MonitoringService monitoring,
-                                          @Nullable Exporters exporters) {
+                                          Settings settings, XPackLicenseState licenseState, MonitoringUsageServices monitoringServices) {
         super(XPackUsageFeatureAction.MONITORING.name(), transportService, clusterService, threadPool,
             actionFilters, indexNameExpressionResolver);
         this.enabled = XPackSettings.MONITORING_ENABLED.get(settings);
         this.licenseState = licenseState;
-        this.monitoring = monitoring;
-        this.exporters = exporters;
+        this.monitoringService = monitoringServices.monitoringService;
+        this.exporters = monitoringServices.exporters;
     }
 
     @Override
     protected void masterOperation(XPackUsageRequest request, ClusterState state, ActionListener<XPackUsageFeatureResponse> listener) {
-        final boolean collectionEnabled = monitoring != null && monitoring.isMonitoringActive();
+        final boolean collectionEnabled = monitoringService != null && monitoringService.isMonitoringActive();
         var usage =
             new MonitoringFeatureSetUsage(licenseState.isMonitoringAllowed(), enabled, collectionEnabled, exportersUsage(exporters));
         listener.onResponse(new XPackUsageFeatureResponse(usage));

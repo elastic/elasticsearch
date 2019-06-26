@@ -98,7 +98,6 @@ public class DiskDisruptionIT extends AbstractDisruptionTestCase {
      * It simulates a full power outage by preventing translog checkpoint files to be written and restart the cluster. This means that
      * all un-fsynced data will be lost.
      */
-    @AwaitsFix( bugUrl = "https://github.com/elastic/elasticsearch/issues/43626")
     public void testGlobalCheckpointIsSafe() throws Exception {
         startCluster(rarely() ? 5 : 3);
 

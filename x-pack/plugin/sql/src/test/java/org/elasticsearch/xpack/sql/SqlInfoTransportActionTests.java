@@ -12,10 +12,12 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.ObjectPath;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -102,11 +104,15 @@ public class SqlInfoTransportActionTests extends ESTestCase {
             listener.onResponse(new SqlStatsResponse(new ClusterName("whatever"), nodes, Collections.emptyList()));
             return null;
         }).when(client).execute(eq(SqlStatsAction.INSTANCE), any(), any());
+        ClusterService clusterService = mock(ClusterService.class);
+        final DiscoveryNode mockNode = mock(DiscoveryNode.class);
+        when(mockNode.getId()).thenReturn("mocknode");
+        when(clusterService.localNode()).thenReturn(mockNode);
 
-        var usageAction = new SqlUsageTransportAction(mock(TransportService.class), null, null,
+        var usageAction = new SqlUsageTransportAction(mock(TransportService.class), clusterService, null,
             mock(ActionFilters.class), null, Settings.EMPTY, licenseState, client);
         PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();
-        usageAction.masterOperation(null, null, null, future);
+        usageAction.masterOperation(mock(Task.class), null, null, future);
         SqlFeatureSetUsage sqlUsage = (SqlFeatureSetUsage) future.get().getUsage();
         
         long fooBarBaz = ObjectPath.eval("foo.bar.baz", sqlUsage.stats());

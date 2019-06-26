@@ -1,0 +1,217 @@
+[role="xpack"]
+[testenv="basic"]
+[[ilm-with-existing-indices]]
+== Using {ilm-init} with existing indices
+
+While it is recommended to use {ilm-init} to manage the index lifecycle from
+start to finish, it may be useful to use {ilm-init} with existing indices,
+particularly when transitioning from an alternative method of managing the index
+lifecycle such as Curator, or when migrating from daily indices to
+rollover-based indices. Such use cases are fully supported, but there are some
+configuration differences from when {ilm-init} can manage the complete index
+lifecycle.
+
+This section describes strategies to leverage {ilm-init} for existing time-based
+indices when migrating to fully {ilm-init}-manged indices, which can be done in
+a few different ways, each providing different tradeoffs. As an example, we'll
+use an example use case of a very simple logging index with just a field for the
+log message and a timestamp:
+
+[source,js]
+-----------------------
+PUT _template/mylogs_template
+{
+  "index_patterns": [
+    "mylogs-*"
+  ],
+  "settings": {
+    "number_of_shards": 1,
+    "number_of_replicas": 1
+  },
+  "mappings": {
+    "properties": {
+      "message": {
+        "type": "text"
+      },
+      "@timestamp": {
+        "type": "date"
+      }
+    }
+  }
+}
+-----------------------
+// CONSOLE
+// TEST
+
+And we'll ingest a few documents to create a few daily indices:
+
+[source,js]
+-----------------------
+POST mylogs-pre-ilm-2019.06.24/_doc
+{
+  "@timestamp": "2019-06-24T10:34:00",
+  "message": "this is one log message"
+}
+-----------------------
+// CONSOLE
+// TEST[continued]
+
+[source,js]
+-----------------------
+POST mylogs-pre-ilm-2019.06.25/_doc
+{
+  "@timestamp": "2019-06-25T17:42:00",
+  "message": "this is another log message"
+}
+-----------------------
+// CONSOLE
+// TEST[continued]
+
+
+
+=== Managing existing periodic indices with {ilm-init}
+
+The simplest way to manage existing indices while transitioning to fully
+{ilm-init}-managed indices is to allow all new indices to be fully managed by
+{ilm-init} and attach an {ilm-init} policy to existing indices. Before
+configuring {ilm-init} for existing indices, it is best to direct all new
+documents to {ilm-init}-managed indices - if you are using Beats or Logstash
+data shippers, upgrading all of those shippers to version 7.0.0 or higher will
+take care of that part for you. If you are not using Beats or Logstash, you may
+need to set up ILM for new indices yourself as demonstrated in the
+<<getting-started-index-lifecycle-management,getting started guide>>.
+
+NOTE: If you are using Beats through Logstash, you may need to change your
+Logstash output configuration and invoke the Beats setup to use ILM for new
+data.
+// TODO: As soon as there's docs for Beats+LS to link to here, link to them.
+
+Once all new data is being written to fully {ilm-init}-managed indices, it is
+easy to add an {ilm-init} policy to existing indices. However, there are two
+things to keep in mind when doing this, and a trick that makes those two things
+much easier to handle.
+
+The two biggest things to keep in mind are:
+
+1. Historical indices shouldn't use policies with rollover, because rollover is
+used to manage where new data goes. Historical indices are already complete, so
+there's no point.
+2. {ilm-init} policies attached to existing indices will compare the `min_age`
+for each phase to the original creation date of the index, and so might proceed
+through multiple phases immediately.
+
+The first one is the biggest, because it makes it difficult to use the same
+policy for new and historical indices.  But that's easy to solve with one simple
+trick: Create a second policy for historical indices, in addition to the one for
+new indices. {ilm-init} policies are cheap to create, so don't be afraid to have
+more than one. Modifying a policy designed for new indices to be used on
+historical indices is generally very simple: just remove the `rollover` action.
+
+For example, if you created a policy for your existing indices with each phase
+like so:
+[source,js]
+-----------------------
+PUT _ilm/policy/mylogs_policy
+{
+  "policy": {
+    "phases": {
+      "hot": {
+        "actions": {
+          "rollover": {
+            "max_size": "25GB"
+          }
+        }
+      },
+      "warm": {
+        "min_age": "1d",
+        "actions": {
+          "forcemerge": {
+            "max_num_segments": 1
+          }
+        }
+      },
+      "cold": {
+        "min_age": "7d",
+        "actions": {
+          "freeze": {}
+        }
+      },
+      "delete": {
+        "min_age": "30d",
+        "actions": {
+          "delete": {}
+        }
+      }
+    }
+  }
+}
+-----------------------
+// CONSOLE
+// TEST[continued]
+
+You can create a policy for existing indices by removing the `rollover` action, and in this case, the `hot` phase is now empty so we can remove that too:
+[source,js]
+-----------------------
+PUT _ilm/policy/mylogs_policy_existing
+{
+  "policy": {
+    "phases": {
+      "warm": {
+        "min_age": "1d",
+        "actions": {
+          "forcemerge": {
+            "max_num_segments": 1
+          }
+        }
+      },
+      "cold": {
+        "min_age": "7d",
+        "actions": {
+          "freeze": {}
+        }
+      },
+      "delete": {
+        "min_age": "30d",
+        "actions": {
+          "delete": {}
+        }
+      }
+    }
+  }
+}
+-----------------------
+// CONSOLE
+// TEST[continued]
+
+Creating a separate policy for historical indices will also allow using
+different `min_age` values, to use higher values and prevent many indices from
+running through the policy at once, which many be important if you policy
+includes potentially resource-intesive operations like force merge.
+
+You can configure the lifecycle for many policies at once by using wildcards in
+the index name, but be careful that you don't include any indices that you don't
+want to change the policy for:
+
+[source,js]
+-----------------------
+PUT mylogs-pre-ilm*/_settings <1>
+{
+  "index": {
+    "lifecycle": {
+      "name": "mylogs_policy_existing"
+    }
+  }
+}
+-----------------------
+// CONSOLE
+// TEST[continued]
+
+<1> This pattern will match all indices with names that start with
+`mylogs-pre-ilm`
+
+Once all pre-{ilm-init} indices have aged out and been deleted, the policy for
+historical indices can be deleted.
+
+=== Reindexing via {ilm-init}
+
+TODO

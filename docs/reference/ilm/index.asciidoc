@@ -73,3 +73,5 @@ include::error-handling.asciidoc[]
 include::ilm-and-snapshots.asciidoc[]
 
 include::start-stop-ilm.asciidoc[]
+
+include::ilm-with-existing-indices.asciidoc[]

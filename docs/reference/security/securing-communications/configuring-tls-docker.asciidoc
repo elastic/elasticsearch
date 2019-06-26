@@ -69,6 +69,7 @@ services:
     image: {docker-image}
     command: >
       bash -c '
+        yum install unzip -y
         if [[ ! -d config/certificates/certs ]]; then
           mkdir config/certificates/certs;
         fi;

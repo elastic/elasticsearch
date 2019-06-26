@@ -112,8 +112,8 @@ public class AzureStorageService extends AbstractComponent {
         return client;
     }
 
-    protected CloudBlobClient createClient(AzureStorageSettings azureStorageSettings) throws InvalidKeyException, URISyntaxException {
-        final String connectionString = azureStorageSettings.buildConnectionString();
+    private static CloudBlobClient createClient(AzureStorageSettings azureStorageSettings) throws InvalidKeyException, URISyntaxException {
+        final String connectionString = azureStorageSettings.getConnectString();
         return CloudStorageAccount.parse(connectionString).createCloudBlobClient();
     }
 

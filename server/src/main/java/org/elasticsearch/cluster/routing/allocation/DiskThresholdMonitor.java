@@ -23,6 +23,8 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 
@@ -30,6 +32,7 @@ import com.carrotsearch.hppc.ObjectLookupContainer;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.client.Client;
@@ -62,6 +65,7 @@ public class DiskThresholdMonitor {
     private final LongSupplier currentTimeMillisSupplier;
     private final AtomicLong lastRunTimeMillis = new AtomicLong(Long.MIN_VALUE);
     private final AtomicBoolean checkInProgress = new AtomicBoolean();
+    private final SetOnce<Consumer<ActionListener<Void>>> rerouteAction = new SetOnce<>();
 
     public DiskThresholdMonitor(Settings settings, Supplier<ClusterState> clusterStateSupplier, ClusterSettings clusterSettings,
                                 Client client, LongSupplier currentTimeMillisSupplier) {
@@ -186,7 +190,7 @@ public class DiskThresholdMonitor {
 
         if (reroute) {
             logger.info("rerouting shards: [{}]", explanation);
-            reroute(timeUpdatingListener);
+            rerouteAction.get().accept(timeUpdatingListener);
         } else {
             listener.onResponse(null);
         }
@@ -205,8 +209,7 @@ public class DiskThresholdMonitor {
             .execute(ActionListener.map(listener, r -> null));
     }
 
-    protected void reroute(ActionListener<Void> listener) {
-        // Execute an empty reroute, but don't block on the response
-        client.admin().cluster().prepareReroute().execute(ActionListener.map(listener, r -> null));
+    public void setRerouteAction(BiConsumer<String, ActionListener<Void>> rerouteAction) {
+        this.rerouteAction.set(listener -> rerouteAction.accept("disk threshold monitor", listener));
     }
 }

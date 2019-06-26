@@ -79,17 +79,17 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
         DiskThresholdMonitor monitor = new DiskThresholdMonitor(settings, () -> finalState,
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), null, currentTime::get) {
             @Override
-            protected void reroute(ActionListener<Void> listener) {
-                assertTrue(reroute.compareAndSet(false, true));
-                listener.onResponse(null);
-            }
-
-            @Override
             protected void markIndicesReadOnly(Set<String> indicesToMarkReadOnly, ActionListener<Void> listener) {
                 assertTrue(indices.compareAndSet(null, indicesToMarkReadOnly));
                 listener.onResponse(null);
             }
         };
+
+        monitor.setRerouteAction((reason, listener) -> {
+            assertTrue(reroute.compareAndSet(false, true));
+            listener.onResponse(null);
+        });
+
         ImmutableOpenMap.Builder<String, DiskUsage> builder = ImmutableOpenMap.builder();
         builder.put("node1", new DiskUsage("node1","node1", "/foo/bar", 100, 4));
         builder.put("node2", new DiskUsage("node2","node2", "/foo/bar", 100, 30));
@@ -121,17 +121,15 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
         monitor = new DiskThresholdMonitor(settings, () -> anotherFinalClusterState,
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), null, currentTime::get) {
             @Override
-            protected void reroute(ActionListener<Void> listener) {
-                assertTrue(reroute.compareAndSet(false, true));
-                listener.onResponse(null);
-            }
-
-            @Override
             protected void markIndicesReadOnly(Set<String> indicesToMarkReadOnly, ActionListener<Void> listener) {
                 assertTrue(indices.compareAndSet(null, indicesToMarkReadOnly));
                 listener.onResponse(null);
             }
         };
+        monitor.setRerouteAction((reason, listener) -> {
+            assertTrue(reroute.compareAndSet(false, true));
+            listener.onResponse(null);
+        });
 
         indices.set(null);
         reroute.set(false);
@@ -143,7 +141,7 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
         assertEquals(Collections.singleton("test_1"), indices.get());
     }
 
-    public void testDoesNotSubmitConcurrentReroutes() {
+    public void testDoesNotSubmitRerouteTaskTooFrequently() {
         final ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
             .nodes(DiscoveryNodes.builder().add(newNode("node1")).add(newNode("node2"))).build();
         AtomicLong currentTime = new AtomicLong();
@@ -151,16 +149,15 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
         DiskThresholdMonitor monitor = new DiskThresholdMonitor(Settings.EMPTY, () -> clusterState,
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), null, currentTime::get) {
             @Override
-            protected void reroute(ActionListener<Void> listener) {
-                assertNotNull(listener);
-                assertTrue(listenerReference.compareAndSet(null, listener));
-            }
-
-            @Override
             protected void markIndicesReadOnly(Set<String> indicesToMarkReadOnly, ActionListener<Void> listener) {
                 throw new AssertionError("unexpected");
             }
         };
+
+        monitor.setRerouteAction((reason, listener) -> {
+            assertNotNull(listener);
+            assertTrue(listenerReference.compareAndSet(null, listener));
+        });
 
         final ImmutableOpenMap.Builder<String, DiskUsage> allDisksOkBuilder;
         allDisksOkBuilder = ImmutableOpenMap.builder();

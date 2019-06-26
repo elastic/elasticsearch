@@ -409,6 +409,11 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
         sb.append('{').append(ephemeralId).append('}');
         sb.append('{').append(hostName).append('}');
         sb.append('{').append(address).append('}');
+        if (roles.isEmpty() == false) {
+            sb.append('{');
+            roles.stream().map(DiscoveryNodeRole::roleNameAbbreviation).sorted().forEach(sb::append);
+            sb.append('}');
+        }
         if (!attributes.isEmpty()) {
             sb.append(attributes);
         }

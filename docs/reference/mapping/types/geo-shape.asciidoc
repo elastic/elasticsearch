@@ -108,6 +108,8 @@ geo-points containing any more than latitude and longitude (two dimensions) valu
 and reject the whole document.
 | `true`
 
+|`coerce` |If `true` unclosed linear rings in polygons will be automatically closed.
+| `false`
 
 |=======================================================================
 

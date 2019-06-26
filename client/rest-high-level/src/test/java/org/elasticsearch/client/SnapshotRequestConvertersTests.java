@@ -78,7 +78,8 @@ public class SnapshotRequestConvertersTests extends ESTestCase {
         Path repositoryLocation = PathUtils.get(".");
         PutRepositoryRequest putRepositoryRequest = new PutRepositoryRequest(repository);
         putRepositoryRequest.type(FsRepository.TYPE);
-        putRepositoryRequest.verify(randomBoolean());
+        final boolean verify = randomBoolean();
+        putRepositoryRequest.verify(verify);
 
         putRepositoryRequest.settings(
             Settings.builder()
@@ -90,6 +91,11 @@ public class SnapshotRequestConvertersTests extends ESTestCase {
         Request request = SnapshotRequestConverters.createRepository(putRepositoryRequest);
         assertThat(request.getEndpoint(), equalTo(endpoint));
         assertThat(request.getMethod(), equalTo(HttpPut.METHOD_NAME));
+        if (verify) {
+            assertThat(request.getParameters().get("verify"), nullValue());
+        } else {
+            assertThat(request.getParameters().get("verify"), equalTo("false"));
+        }
         RequestConvertersTests.assertToXContentBody(putRepositoryRequest, request.getEntity());
     }
 

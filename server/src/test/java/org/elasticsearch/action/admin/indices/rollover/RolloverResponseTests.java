@@ -19,12 +19,12 @@
 
 package org.elasticsearch.action.admin.indices.rollover;
 
-
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.test.AbstractStreamableXContentTestCase;
+import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.test.VersionUtils;
 
 import java.io.IOException;
@@ -35,7 +35,7 @@ import java.util.Map;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
-public class RolloverResponseTests extends AbstractStreamableXContentTestCase<RolloverResponse> {
+public class RolloverResponseTests extends AbstractSerializingTestCase<RolloverResponse> {
 
     @Override
     protected RolloverResponse createTestInstance() {
@@ -64,8 +64,8 @@ public class RolloverResponseTests extends AbstractStreamableXContentTestCase<Ro
     }
 
     @Override
-    protected RolloverResponse createBlankInstance() {
-        return new RolloverResponse();
+    protected Writeable.Reader<RolloverResponse> instanceReader() {
+        return RolloverResponse::new;
     }
 
     @Override

@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 import static org.hamcrest.Matchers.containsString;
@@ -82,10 +83,16 @@ public class CreateApiKeyRequestTests extends ESTestCase {
         final TimeValue expiration = randomBoolean() ? null :
             TimeValue.parseTimeValue(randomTimeValue(), "test serialization of create api key");
         final WriteRequest.RefreshPolicy refreshPolicy = randomFrom(WriteRequest.RefreshPolicy.values());
-        final int numDescriptors = randomIntBetween(0, 4);
-        final List<RoleDescriptor> descriptorList = new ArrayList<>();
-        for (int i = 0; i < numDescriptors; i++) {
-            descriptorList.add(new RoleDescriptor("role_" + i, new String[] { "all" }, null, null));
+        boolean nullOrEmptyRoleDescriptors = randomBoolean();
+        final List<RoleDescriptor> descriptorList;
+        if (nullOrEmptyRoleDescriptors) {
+            descriptorList = randomBoolean() ? null : Collections.emptyList();
+        } else {
+            final int numDescriptors = randomIntBetween(1, 4);
+            descriptorList = new ArrayList<>();
+            for (int i = 0; i < numDescriptors; i++) {
+                descriptorList.add(new RoleDescriptor("role_" + i, new String[] { "all" }, null, null));
+            }
         }
 
         final CreateApiKeyRequest request = new CreateApiKeyRequest();
@@ -95,9 +102,7 @@ public class CreateApiKeyRequestTests extends ESTestCase {
         if (refreshPolicy != request.getRefreshPolicy() || randomBoolean()) {
             request.setRefreshPolicy(refreshPolicy);
         }
-        if (descriptorList.isEmpty() == false || randomBoolean()) {
-            request.setRoleDescriptors(descriptorList);
-        }
+        request.setRoleDescriptors(descriptorList);
 
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             request.writeTo(out);
@@ -106,7 +111,11 @@ public class CreateApiKeyRequestTests extends ESTestCase {
                 assertEquals(name, serialized.getName());
                 assertEquals(expiration, serialized.getExpiration());
                 assertEquals(refreshPolicy, serialized.getRefreshPolicy());
-                assertEquals(descriptorList, serialized.getRoleDescriptors());
+                if (nullOrEmptyRoleDescriptors) {
+                    assertThat(serialized.getRoleDescriptors().isEmpty(), is(true));
+                } else {
+                    assertEquals(descriptorList, serialized.getRoleDescriptors());
+                }
             }
         }
     }

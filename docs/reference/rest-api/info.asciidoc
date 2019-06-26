@@ -111,6 +111,10 @@ Example response:
          "available" : true,
          "enabled" : true
       },
+      "voting_only" : {
+         "available" : true,
+         "enabled" : true
+      },
       "watcher" : {
          "available" : true,
          "enabled" : true

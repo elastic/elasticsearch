@@ -38,6 +38,7 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.index.Index;
@@ -86,7 +87,12 @@ public final class TransportFreezeIndexAction extends
 
     @Override
     protected FreezeResponse newResponse() {
-        return new FreezeResponse();
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
+    }
+
+    @Override
+    protected FreezeResponse read(StreamInput in) throws IOException {
+        return new FreezeResponse(in);
     }
 
     private Index[] resolveIndices(FreezeRequest request, ClusterState state) {
@@ -217,8 +223,8 @@ public final class TransportFreezeIndexAction extends
     }
 
     public static class FreezeResponse extends OpenIndexResponse {
-        public FreezeResponse() {
-            super();
+        FreezeResponse(StreamInput in) throws IOException {
+            super(in);
         }
 
         public FreezeResponse(boolean acknowledged, boolean shardsAcknowledged) {
@@ -237,7 +243,12 @@ public final class TransportFreezeIndexAction extends
 
         @Override
         public FreezeResponse newResponse() {
-            return new FreezeResponse();
+            throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
+        }
+
+        @Override
+        public Writeable.Reader<FreezeResponse> getResponseReader() {
+            return FreezeResponse::new;
         }
     }
 

@@ -21,3 +21,27 @@ summarize your data and store it in a new index. Alternatively, you can use
 the transforms.
 
 // end::notable-highlights[]
+
+// tag::notable-highlights[]
+[float]
+==== Closed indices are now replicated
+
+Elasticsearch 7.2.0 brings better support for closed indices by allowing
+shards of closed indices to be replicated. As soon as an index is closed,
+Elasticsearch takes care of safely tearing down the "opened" shards before
+reinitializing them as "closed" shards, which require much less resources
+while still providing the ability for shards to be promoted as primaries or
+to be recovered from peer. The data is also automatically replicated by the
+cluster to ensure that enough shard copies are safely kept around at all
+times (configurable with `index.number_of_replicas`).
+
+In addition to that, it is now possible to snapshot closed indices using
+the {ref}/modules-snapshots.html[Snapshot/Restore API]. To include a closed index
+when creating a snapshot on Elasticsearch 7.2+, the `expand_wildcards`
+parameter must be explicitly set to either `all` or `closed` .
+
+Note that only indices closed in Elasticsearch 7.2+ are automatically
+replicated. Indices closed on previous versions of Elasticsearch will
+remain non replicated unless they are opened and closed again in 7.2+.
+
+// end::notable-highlights[]

@@ -19,13 +19,14 @@
 
 package org.elasticsearch.action.admin.cluster.settings;
 
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.Settings.Builder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.test.AbstractStreamableXContentTestCase;
+import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.test.VersionUtils;
 
 import java.io.IOException;
@@ -33,7 +34,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.function.Predicate;
 
-public class ClusterUpdateSettingsResponseTests extends AbstractStreamableXContentTestCase<ClusterUpdateSettingsResponse> {
+public class ClusterUpdateSettingsResponseTests extends AbstractSerializingTestCase<ClusterUpdateSettingsResponse> {
 
     @Override
     protected ClusterUpdateSettingsResponse doParseInstance(XContentParser parser) {
@@ -96,8 +97,8 @@ public class ClusterUpdateSettingsResponseTests extends AbstractStreamableXConte
     }
 
     @Override
-    protected ClusterUpdateSettingsResponse createBlankInstance() {
-        return new ClusterUpdateSettingsResponse();
+    protected Writeable.Reader<ClusterUpdateSettingsResponse> instanceReader() {
+        return ClusterUpdateSettingsResponse::new;
     }
 
     public void testOldSerialisation() throws IOException {

@@ -379,7 +379,9 @@ public class ShardStateAction {
                 if (logger.isTraceEnabled()) {
                     logger.trace("{}, scheduling a reroute", reason);
                 }
-                routingService.reroute(reason, ActionListener.wrap(() -> logger.trace("{}, reroute completed", reason)));
+                routingService.reroute(reason, ActionListener.wrap(
+                    r -> logger.trace("{}, reroute completed", reason),
+                    e -> logger.debug(new ParameterizedMessage("{}, reroute failed", reason), e)));
             }
         }
     }

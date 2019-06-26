@@ -185,23 +185,38 @@ public class DiskThresholdMonitor {
         }
 
         final ActionListener<Void> listener = new GroupedActionListener<>(ActionListener.wrap(this::checkFinished), 2);
-        final ActionListener<Void> timeUpdatingListener = ActionListener.wrap(r -> {
-            lastRunTimeMillis.getAndUpdate(l -> Math.max(l, currentTimeMillisSupplier.getAsLong()));
-            listener.onResponse(r);
-        }, listener::onFailure);
 
         if (reroute) {
             logger.info("rerouting shards: [{}]", explanation);
-            rerouteAction.get().accept(timeUpdatingListener);
+            rerouteAction.get().accept(ActionListener.wrap(r -> {
+                setLastRunTimeMillis();
+                listener.onResponse(r);
+            }, e -> {
+                logger.debug("reroute failed", e);
+                setLastRunTimeMillis();
+                listener.onFailure(e);
+            }));
         } else {
             listener.onResponse(null);
         }
+
         indicesToMarkReadOnly.removeIf(index -> state.getBlocks().indexBlocked(ClusterBlockLevel.WRITE, index));
         if (indicesToMarkReadOnly.isEmpty() == false) {
-            markIndicesReadOnly(indicesToMarkReadOnly, timeUpdatingListener);
+            markIndicesReadOnly(indicesToMarkReadOnly, ActionListener.wrap(r -> {
+                setLastRunTimeMillis();
+                listener.onResponse(r);
+            }, e -> {
+                logger.debug("marking indices readonly failed", e);
+                setLastRunTimeMillis();
+                listener.onFailure(e);
+            }));
         } else {
             listener.onResponse(null);
         }
+    }
+
+    private void setLastRunTimeMillis() {
+        lastRunTimeMillis.getAndUpdate(l -> Math.max(l, currentTimeMillisSupplier.getAsLong()));
     }
 
     protected void markIndicesReadOnly(Set<String> indicesToMarkReadOnly, ActionListener<Void> listener) {

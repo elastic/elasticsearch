@@ -64,10 +64,7 @@ import java.util.Set;
  */
 public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     private AggregatedDfs aggregatedDfs;
-
-    // TODO revisit moving the profiler to inheritance or wrapping model in the future
     private QueryProfiler profiler;
-
     private Runnable checkCancelled;
 
     public ContextIndexSearcher(IndexReader reader) {

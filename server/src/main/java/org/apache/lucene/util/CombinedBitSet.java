@@ -25,32 +25,19 @@ import org.apache.lucene.search.DocIdSetIterator;
  * A {@link BitSet} implementation that combines two instances of {@link BitSet} and {@link Bits}
  * to provide a single merged view.
  */
-public class CombinedBitSet extends BitSet implements Bits {
+public final class CombinedBitSet extends BitSet implements Bits {
     private final BitSet first;
     private final Bits second;
+    private final int length;
 
     public CombinedBitSet(BitSet first, Bits second) {
         this.first = first;
         this.second = second;
+        this.length = first.length();
     }
 
     public BitSet getFirst() {
         return first;
-    }
-
-    @Override
-    public void set(int i) {
-        first.set(i);
-    }
-
-    @Override
-    public void clear(int i) {
-        first.clear(i);
-    }
-
-    @Override
-    public void clear(int startIndex, int endIndex) {
-        first.clear(startIndex, endIndex);
     }
 
     /**
@@ -61,7 +48,7 @@ public class CombinedBitSet extends BitSet implements Bits {
     @Override
     public int cardinality() {
         int card = 0;
-        for (int i = 0; i < length(); i++) {
+        for (int i = 0; i < length; i++) {
             card += get(i) ? 1 : 0;
         }
         return card;
@@ -74,7 +61,7 @@ public class CombinedBitSet extends BitSet implements Bits {
 
     @Override
     public int prevSetBit(int index) {
-        assert index >= 0 && index < length() : "index=" + index + ", numBits=" + length();
+        assert index >= 0 && index < length : "index=" + index + ", numBits=" + length();
         int prev = first.prevSetBit(index);
         while (prev != -1 && second.get(prev) == false) {
             if (prev == 0) {
@@ -87,7 +74,7 @@ public class CombinedBitSet extends BitSet implements Bits {
 
     @Override
     public int nextSetBit(int index) {
-        assert index >= 0 && index < length() : "index=" + index + " numBits=" + length();
+        assert index >= 0 && index < length : "index=" + index + " numBits=" + length();
         int next = first.nextSetBit(index);
         while (next != DocIdSetIterator.NO_MORE_DOCS && second.get(next) == false) {
             if (next == length() - 1) {
@@ -110,6 +97,21 @@ public class CombinedBitSet extends BitSet implements Bits {
 
     @Override
     public int length() {
-        return first.length();
+        return length;
+    }
+
+    @Override
+    public void set(int i) {
+        throw new UnsupportedOperationException("not implemented");
+    }
+
+    @Override
+    public void clear(int i) {
+        throw new UnsupportedOperationException("not implemented");
+    }
+
+    @Override
+    public void clear(int startIndex, int endIndex) {
+        throw new UnsupportedOperationException("not implemented");
     }
 }

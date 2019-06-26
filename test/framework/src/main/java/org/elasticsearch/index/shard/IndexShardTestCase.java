@@ -278,8 +278,8 @@ public abstract class IndexShardTestCase extends ESTestCase {
      *                (ready to recover from another shard)
      */
     protected IndexShard newShard(ShardId shardId, boolean primary, String nodeId, IndexMetaData indexMetaData,
-                                  @Nullable IndexReaderWrapper searcherWrapper) throws IOException {
-        return newShard(shardId, primary, nodeId, indexMetaData, searcherWrapper, () -> {});
+                                  @Nullable IndexReaderWrapper readerWrapper) throws IOException {
+        return newShard(shardId, primary, nodeId, indexMetaData, readerWrapper, () -> {});
     }
 
     /**
@@ -291,11 +291,11 @@ public abstract class IndexShardTestCase extends ESTestCase {
      *                (ready to recover from another shard)
      */
     protected IndexShard newShard(ShardId shardId, boolean primary, String nodeId, IndexMetaData indexMetaData,
-                                  @Nullable IndexReaderWrapper searcherWrapper, Runnable globalCheckpointSyncer) throws IOException {
+                                  @Nullable IndexReaderWrapper readerrWrapper, Runnable globalCheckpointSyncer) throws IOException {
         ShardRouting shardRouting = TestShardRouting.newShardRouting(shardId, nodeId, primary, ShardRoutingState.INITIALIZING,
             primary ? RecoverySource.EmptyStoreRecoverySource.INSTANCE : RecoverySource.PeerRecoverySource.INSTANCE);
         return newShard(
-            shardRouting, indexMetaData, searcherWrapper, new InternalEngineFactory(), globalCheckpointSyncer, RetentionLeaseSyncer.EMPTY);
+            shardRouting, indexMetaData, readerrWrapper, new InternalEngineFactory(), globalCheckpointSyncer, RetentionLeaseSyncer.EMPTY);
     }
 
     /**

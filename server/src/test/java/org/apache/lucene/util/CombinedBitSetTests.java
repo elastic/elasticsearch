@@ -19,52 +19,92 @@
 
 package org.apache.lucene.util;
 
-public class CombinedBitSetTests extends BaseBitSetTestCase {
-    @Override
-    public BitSet copyOf(BitSet bs, int length) {
-        final Bits bits = new Bits() {
-            @Override
-            public boolean get(int index) {
-                if (bs.get(index)) {
-                    return true;
-                }
-                return random().nextBoolean();
-            }
+import org.apache.lucene.search.DocIdSetIterator;
+import org.elasticsearch.test.ESTestCase;
 
-            @Override
-            public int length() {
-                return bs.length();
-            }
-        };
-        return new CombinedBitSet(bs, bits);
+public class CombinedBitSetTests extends ESTestCase {
+    public void testEmpty() {
+        for (float percent : new float[] {0f, 0.1f, 0.5f, 0.9f, 1f}) {
+            testCase(randomIntBetween(1, 10000), 0f, percent);
+            testCase(randomIntBetween(1, 10000), percent, 0f);
+        }
     }
 
-    public void testCombinedSparse() {
-        int numDocs = random().nextInt(1000) + 1;
-        SparseFixedBitSet bitSet = new SparseFixedBitSet(numDocs);
-        FixedBitSet bits = new FixedBitSet(numDocs);
-        FixedBitSet expected = new FixedBitSet(numDocs);
-        for (int i = 0; i < numDocs; i++) {
-            boolean isSet = false;
-            if (random().nextFloat() <= 0.1f) {
-                bitSet.set(i);
-                isSet = true;
+    public void testSparse() {
+        for (float percent : new float[] {0f, 0.1f, 0.5f, 0.9f, 1f}) {
+            testCase(randomIntBetween(1, 10000), 0.1f, percent);
+            testCase(randomIntBetween(1, 10000), percent, 0.1f);
+        }
+    }
+
+    public void testDense() {
+        for (float percent : new float[] {0f, 0.1f, 0.5f, 0.9f, 1f}) {
+            testCase(randomIntBetween(1, 10000), 0.9f, percent);
+            testCase(randomIntBetween(1, 10000), percent, 0.9f);
+        }
+    }
+
+    public void testRandom() {
+        for (int i = 0; i < 10; i++) {
+            testCase(randomIntBetween(1, 10000), randomFloat(), randomFloat());
+        }
+    }
+
+    private void testCase(int numBits, float percent1, float percent2) {
+        BitSet first = randomSet(numBits, percent1);
+        BitSet second = randomSet(numBits, percent2);
+        CombinedBitSet actual = new CombinedBitSet(first, second);
+        FixedBitSet expected = new FixedBitSet(numBits);
+        or(expected, first);
+        and(expected, second);
+        assertEquals(expected.cardinality(), actual.cardinality());
+        assertEquals(expected, actual, numBits);
+        for (int i = 0; i < numBits; ++i) {
+            assertEquals(expected.nextSetBit(i), actual.nextSetBit(i));
+            assertEquals(Integer.toString(i), expected.prevSetBit(i), actual.prevSetBit(i));
+        }
+    }
+
+    private void or(BitSet set1, BitSet set2) {
+        int next = 0;
+        while (next < set2.length() && (next = set2.nextSetBit(next)) != DocIdSetIterator.NO_MORE_DOCS) {
+            set1.set(next);
+            next += 1;
+        }
+    }
+
+    private void and(BitSet set1, BitSet set2) {
+        int next = 0;
+        while (next < set1.length() && (next = set1.nextSetBit(next)) != DocIdSetIterator.NO_MORE_DOCS) {
+            if (set2.get(next) == false) {
+                set1.clear(next);
             }
-            if (random().nextFloat() >= 0.1f) {
-                bits.set(i);
-            } else {
-                isSet = false;
-            }
-            if (isSet) {
-                expected.set(i);
+            next += 1;
+        }
+    }
+
+    private void assertEquals(BitSet set1, BitSet set2, int maxDoc) {
+        for (int i = 0; i < maxDoc; ++i) {
+            assertEquals("Different at " + i, set1.get(i), set2.get(i));
+        }
+    }
+
+    private BitSet randomSet(int numBits, float percentSet) {
+        return randomSet(numBits, (int) (percentSet * numBits));
+    }
+
+    private BitSet randomSet(int numBits, int numBitsSet) {
+        assert numBitsSet <= numBits;
+        final BitSet set = randomBoolean() ? new SparseFixedBitSet(numBits) : new FixedBitSet(numBits);
+        for (int i = 0; i < numBitsSet; ++i) {
+            while (true) {
+                final int o = random().nextInt(numBits);
+                if (set.get(o) == false) {
+                    set.set(o);
+                    break;
+                }
             }
         }
-        CombinedBitSet combined = new CombinedBitSet(bitSet, bits);
-        for (int i = 0; i < numDocs; i++) {
-            assertEquals(expected.nextSetBit(i), combined.nextSetBit(i));
-            assertEquals(expected.prevSetBit(i), combined.prevSetBit(i));
-        }
-        assertEquals(expected.length(), combined.length());
-        assertEquals(expected.cardinality(), combined.cardinality());
+        return set;
     }
 }

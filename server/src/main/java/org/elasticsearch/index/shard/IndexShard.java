@@ -23,9 +23,13 @@ import com.carrotsearch.hppc.ObjectLongMap;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.index.CheckIndex;
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.IndexCommit;
+import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.ReferenceManager;
@@ -243,7 +247,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private static final EnumSet<IndexShardState> writeAllowedStates = EnumSet.of(IndexShardState.RECOVERING,
         IndexShardState.POST_RECOVERY, IndexShardState.STARTED);
 
-    private final IndexReaderWrapper searcherWrapper;
+    private final IndexReaderWrapper readerWrapper;
 
     /**
      * True if this shard is still indexing (recently) and false if we've been idle for long enough (as periodically checked by {@link
@@ -349,7 +353,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             cachingPolicy = new UsageTrackingQueryCachingPolicy();
         }
         indexShardOperationPermits = new IndexShardOperationPermits(shardId, threadPool);
-        searcherWrapper = indexReaderWrapper;
+        readerWrapper = indexReaderWrapper;
         refreshListeners = buildRefreshListeners();
         lastSearcherAccess.set(threadPool.relativeTimeInMillis());
         persistMetadata(path, indexSettings, shardRouting, null, logger);
@@ -1230,7 +1234,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             != null : "DirectoryReader must be an instance or ElasticsearchDirectoryReader";
         boolean success = false;
         try {
-            final Engine.Searcher wrappedSearcher = searcherWrapper == null ? searcher : searcherWrapper.wrap(searcher);
+            final Engine.Searcher wrappedSearcher = readerWrapper == null ? searcher : wrapSearcher(searcher, readerWrapper);
             assert wrappedSearcher != null;
             success = true;
             return wrappedSearcher;
@@ -1241,6 +1245,71 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 Releasables.close(success, searcher);
             }
         }
+    }
+
+    static Engine.Searcher wrapSearcher(Engine.Searcher engineSearcher, IndexReaderWrapper readerWrapper) throws IOException {
+        assert readerWrapper != null;
+        final ElasticsearchDirectoryReader elasticsearchDirectoryReader =
+            ElasticsearchDirectoryReader.getElasticsearchDirectoryReader(engineSearcher.getDirectoryReader());
+        if (elasticsearchDirectoryReader == null) {
+            throw new IllegalStateException("Can't wrap non elasticsearch directory reader");
+        }
+        NonClosingReaderWrapper nonClosingReaderWrapper = new NonClosingReaderWrapper(engineSearcher.getDirectoryReader());
+        DirectoryReader reader = readerWrapper.wrap(nonClosingReaderWrapper);
+        if (reader != nonClosingReaderWrapper) {
+            if (reader.getReaderCacheHelper() != elasticsearchDirectoryReader.getReaderCacheHelper()) {
+                throw new IllegalStateException("wrapped directory reader doesn't delegate IndexReader#getCoreCacheKey," +
+                    " wrappers must override this method and delegate to the original readers core cache key. Wrapped readers can't be " +
+                    "used as cache keys since their are used only per request which would lead to subtle bugs");
+            }
+            if (ElasticsearchDirectoryReader.getElasticsearchDirectoryReader(reader) != elasticsearchDirectoryReader) {
+                // prevent that somebody wraps with a non-filter reader
+                throw new IllegalStateException("wrapped directory reader hides actual ElasticsearchDirectoryReader but shouldn't");
+            }
+        }
+
+        if (reader == nonClosingReaderWrapper) {
+            return engineSearcher;
+        } else {
+            final IndexSearcher origIndexSearcher = engineSearcher.searcher();
+            final IndexSearcher newIndexSearcher = new IndexSearcher(reader);
+            newIndexSearcher.setQueryCache(origIndexSearcher.getQueryCache());
+            newIndexSearcher.setQueryCachingPolicy(origIndexSearcher.getQueryCachingPolicy());
+            newIndexSearcher.setSimilarity(origIndexSearcher.getSimilarity());
+            // we close the reader to make sure wrappers can release resources if needed....
+            // our NonClosingReaderWrapper makes sure that our reader is not closed
+            return new Engine.Searcher(engineSearcher.source(), newIndexSearcher, () ->
+                IOUtils.close(newIndexSearcher.getIndexReader(), // this will close the wrappers excluding the NonClosingReaderWrapper
+                    engineSearcher)); // this will run the closeable on the wrapped engine searcher
+        }
+    }
+
+    private static final class NonClosingReaderWrapper extends FilterDirectoryReader {
+
+        private NonClosingReaderWrapper(DirectoryReader in) throws IOException {
+            super(in, new SubReaderWrapper() {
+                @Override
+                public LeafReader wrap(LeafReader reader) {
+                    return reader;
+                }
+            });
+        }
+
+        @Override
+        protected DirectoryReader doWrapDirectoryReader(DirectoryReader in) throws IOException {
+            return new NonClosingReaderWrapper(in);
+        }
+
+        @Override
+        protected void doClose() throws IOException {
+            // don't close here - mimic the MultiReader#doClose = false behavior that FilterDirectoryReader doesn't have
+        }
+
+        @Override
+        public CacheHelper getReaderCacheHelper() {
+            return in.getReaderCacheHelper();
+        }
+
     }
 
     public void close(String reason, boolean flushEngine) throws IOException {

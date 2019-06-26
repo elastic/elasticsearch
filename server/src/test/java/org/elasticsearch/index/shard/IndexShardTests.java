@@ -2359,7 +2359,7 @@ public class IndexShardTests extends IndexShardTestCase {
         closeShards(target);
     }
 
-    public void testSearcherWrapperIsUsed() throws IOException {
+    public void testReaderWrapperIsUsed() throws IOException {
         IndexShard shard = newStartedShard(true);
         indexDoc(shard, "_doc", "0", "{\"foo\" : \"bar\"}");
         indexDoc(shard, "_doc", "1", "{\"foobar\" : \"bar\"}");
@@ -2414,7 +2414,7 @@ public class IndexShardTests extends IndexShardTestCase {
         closeShards(newShard);
     }
 
-    public void testSearcherWrapperWorksWithGlobalOrdinals() throws IOException {
+    public void testReaderWrapperWorksWithGlobalOrdinals() throws IOException {
         IndexReaderWrapper wrapper = new IndexReaderWrapper() {
             @Override
             public DirectoryReader wrap(DirectoryReader reader) throws IOException {

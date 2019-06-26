@@ -160,7 +160,7 @@ public class IndexModuleTests extends ESTestCase {
         module.setReaderWrapper((s) -> new Wrapper());
 
         IndexService indexService = newIndexService(module);
-        assertTrue(indexService.getSearcherWrapper() instanceof Wrapper);
+        assertTrue(indexService.getReaderWrapper() instanceof Wrapper);
         assertSame(indexService.getEngineFactory(), module.getEngineFactory());
         indexService.close("simon says", false);
     }

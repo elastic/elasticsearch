@@ -27,6 +27,7 @@ import java.io.ByteArrayInputStream;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 
@@ -234,16 +235,7 @@ public class S3CleanupTests extends ESSingleNodeTestCase {
            BlobStoreTestUtil.assertConsistency(repo, genericExec);
 
            logger.info("--> create dangling index folder indices/foo");
-           final PlainActionFuture<Void> future = PlainActionFuture.newFuture();
-           genericExec.execute(new ActionRunnable<>(future) {
-               @Override
-               protected void doRun() throws Exception {
-                   final BlobStore blobStore = repo.blobStore();
-                   blobStore.blobContainer(BlobPath.cleanPath().add(getBasePath()).add("indices").add("foo"))
-                           .writeBlob("bar", new ByteArrayInputStream(new byte[0]), 0, false);
-                   future.onResponse(null);
-               }
-           });
+           int size = createDanglingIndex(repo, genericExec);
 
            logger.info("--> ensure dangling index folder is visible");
            assertBusy(() -> assertCorruptionVisible(repo, genericExec), 10, TimeUnit.MINUTES);
@@ -273,6 +265,8 @@ public class S3CleanupTests extends ESSingleNodeTestCase {
            assertThat(terminal.getOutput(), containsString("This action is NOT REVERSIBLE"));
            assertThat(terminal.getOutput(), containsString("Removing leaked index foo"));
            assertThat(terminal.getOutput(), containsString("foo/bar"));
+           assertThat(terminal.getOutput(),
+                   containsString("Total space freed after removing leaked indices is " + size + " bytes"));
 
            logger.info("--> verify that there is no inconsistencies");
            BlobStoreTestUtil.assertConsistency(repo, genericExec);
@@ -290,6 +284,22 @@ public class S3CleanupTests extends ESSingleNodeTestCase {
                    .isAcknowledged());
        }
    }
+
+    int createDanglingIndex(BlobStoreRepository repo, Executor executor) throws InterruptedException, ExecutionException {
+        final PlainActionFuture<Void> future = PlainActionFuture.newFuture();
+        final int size = randomIntBetween(0, 10);
+        executor.execute(new ActionRunnable<>(future) {
+            @Override
+            protected void doRun() throws Exception {
+                final BlobStore blobStore = repo.blobStore();
+                blobStore.blobContainer(BlobPath.cleanPath().add(getBasePath()).add("indices").add("foo"))
+                        .writeBlob("bar", new ByteArrayInputStream(new byte[size]), size, false);
+                future.onResponse(null);
+            }
+        });
+        future.get();
+        return size;
+    }
 
 
     private boolean assertCorruptionVisible(BlobStoreRepository repo, Executor executor) throws Exception {

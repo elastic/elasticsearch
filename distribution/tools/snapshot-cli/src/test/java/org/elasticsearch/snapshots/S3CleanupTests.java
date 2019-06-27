@@ -309,7 +309,7 @@ public class S3CleanupTests extends ESSingleNodeTestCase {
                    .get()
                    .isAcknowledged());
        }
-   }
+    }
 
     long createDanglingIndex(String name, Set<String> files, BlobStoreRepository repo, Executor executor) throws InterruptedException,
             ExecutionException {
@@ -331,7 +331,6 @@ public class S3CleanupTests extends ESSingleNodeTestCase {
         future.get();
         return totalSize.get();
     }
-
 
     private boolean assertCorruptionVisible(Map<String, Set<String>> indexToFiles, BlobStoreRepository repo, Executor executor) throws Exception {
         final PlainActionFuture<Boolean> future = PlainActionFuture.newFuture();

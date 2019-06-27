@@ -67,7 +67,7 @@ when there are no matches. When there are only partial matches, the API stops
 the appropriate {dataframe-transforms}. For example, if the request contains
 `test-id1*,test-id2*` as the identifiers and there are no {dataframe-transforms}
 that match `test-id2*`, the API nonetheless stops the {dataframe-transforms}
-that match `test-id1`.
+that match `test-id1*`.
 
 If this parameter is `false`, the request returns a `404` status code when there
 are no matches or only partial matches.

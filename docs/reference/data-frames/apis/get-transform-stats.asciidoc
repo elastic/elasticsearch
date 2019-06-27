@@ -39,7 +39,7 @@ see {stack-ov}/security-privileges.html[Security privileges] and
 
 [discrete]
 [[get-data-frame-transform-stats-desc]]
-===== {api-description-title}
+==== {api-description-title}
 
 You can get statistics for multiple {dataframe-transforms} in a single API
 request by using a comma-separated list of identifiers or a wildcard expression.

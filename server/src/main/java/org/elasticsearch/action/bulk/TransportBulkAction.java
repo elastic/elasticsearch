@@ -593,7 +593,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             original.numberOfActions(),
             () -> bulkRequestModifier,
             bulkRequestModifier::markItemAsFailed,
-            (exception) -> {
+            (originalThread, exception) -> {
                 if (exception != null) {
                     logger.error("failed to execute pipeline for a bulk request", exception);
                     listener.onFailure(exception);
@@ -610,7 +610,8 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                     } else {
                         // If a processor went async and returned a response on a different thread then
                         // before we continue the bulk request we should fork back on a write thread:
-                        if (Thread.currentThread().getName().contains(ThreadPool.Names.WRITE)) {
+                        if (originalThread == Thread.currentThread()) {
+                            assert Thread.currentThread().getName().contains(ThreadPool.Names.WRITE);
                             doExecute(task, bulkRequest, actionListener);
                         } else {
                             threadPool.executor(ThreadPool.Names.WRITE).execute(new AbstractRunnable() {

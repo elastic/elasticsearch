@@ -63,7 +63,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ExecutorService;
 import java.util.function.BiConsumer;
-import java.util.function.Consumer;
 import java.util.function.IntConsumer;
 
 import static java.util.Collections.emptyMap;
@@ -131,12 +130,12 @@ public class IngestServiceTests extends ESTestCase {
         };
 
         @SuppressWarnings("unchecked")
-        final Consumer<Exception> completionHandler = mock(Consumer.class);
+        final BiConsumer<Thread, Exception> completionHandler = mock(BiConsumer.class);
 
         ingestService.executeBulkRequest(1, Collections.singletonList(indexRequest), failureHandler, completionHandler, indexReq -> {});
 
         assertTrue(failure.get());
-        verify(completionHandler, times(1)).accept(null);
+        verify(completionHandler, times(1)).accept(Thread.currentThread(), null);
     }
 
     public void testUpdatePipelines() {
@@ -531,12 +530,12 @@ public class IngestServiceTests extends ESTestCase {
         };
 
         @SuppressWarnings("unchecked")
-        final Consumer<Exception> completionHandler = mock(Consumer.class);
+        final BiConsumer<Thread, Exception> completionHandler = mock(BiConsumer.class);
 
         ingestService.executeBulkRequest(1, Collections.singletonList(indexRequest), failureHandler, completionHandler, indexReq -> {});
 
         assertTrue(failure.get());
-        verify(completionHandler, times(1)).accept(null);
+        verify(completionHandler, times(1)).accept(Thread.currentThread(), null);
     }
 
     public void testExecuteBulkPipelineDoesNotExist() {
@@ -560,7 +559,7 @@ public class IngestServiceTests extends ESTestCase {
         @SuppressWarnings("unchecked")
         BiConsumer<Integer, Exception> failureHandler = mock(BiConsumer.class);
         @SuppressWarnings("unchecked")
-        Consumer<Exception> completionHandler = mock(Consumer.class);
+        final BiConsumer<Thread, Exception> completionHandler = mock(BiConsumer.class);
         ingestService.executeBulkRequest(bulkRequest.numberOfActions(), bulkRequest.requests(), failureHandler,
             completionHandler, indexReq -> {});
         verify(failureHandler, times(1)).accept(
@@ -578,7 +577,7 @@ public class IngestServiceTests extends ESTestCase {
                 }
             })
         );
-        verify(completionHandler, times(1)).accept(null);
+        verify(completionHandler, times(1)).accept(Thread.currentThread(), null);
     }
 
     public void testExecuteSuccess() {
@@ -594,10 +593,10 @@ public class IngestServiceTests extends ESTestCase {
         @SuppressWarnings("unchecked")
         final BiConsumer<Integer, Exception> failureHandler = mock(BiConsumer.class);
         @SuppressWarnings("unchecked")
-        final Consumer<Exception> completionHandler = mock(Consumer.class);
+        final BiConsumer<Thread, Exception> completionHandler = mock(BiConsumer.class);
         ingestService.executeBulkRequest(1, Collections.singletonList(indexRequest), failureHandler, completionHandler, indexReq -> {});
         verify(failureHandler, never()).accept(any(), any());
-        verify(completionHandler, times(1)).accept(null);
+        verify(completionHandler, times(1)).accept(Thread.currentThread(), null);
     }
 
     public void testExecuteEmptyPipeline() throws Exception {
@@ -612,10 +611,10 @@ public class IngestServiceTests extends ESTestCase {
         @SuppressWarnings("unchecked")
         final BiConsumer<Integer, Exception> failureHandler = mock(BiConsumer.class);
         @SuppressWarnings("unchecked")
-        final Consumer<Exception> completionHandler = mock(Consumer.class);
+        final BiConsumer<Thread, Exception> completionHandler = mock(BiConsumer.class);
         ingestService.executeBulkRequest(1, Collections.singletonList(indexRequest), failureHandler, completionHandler, indexReq -> {});
         verify(failureHandler, never()).accept(any(), any());
-        verify(completionHandler, times(1)).accept(null);
+        verify(completionHandler, times(1)).accept(Thread.currentThread(), null);
     }
 
     public void testExecutePropagateAllMetaDataUpdates() throws Exception {
@@ -651,11 +650,11 @@ public class IngestServiceTests extends ESTestCase {
         @SuppressWarnings("unchecked")
         final BiConsumer<Integer, Exception> failureHandler = mock(BiConsumer.class);
         @SuppressWarnings("unchecked")
-        final Consumer<Exception> completionHandler = mock(Consumer.class);
+        final BiConsumer<Thread, Exception> completionHandler = mock(BiConsumer.class);
         ingestService.executeBulkRequest(1, Collections.singletonList(indexRequest), failureHandler, completionHandler, indexReq -> {});
         verify(processor).execute(any(), any());
         verify(failureHandler, never()).accept(any(), any());
-        verify(completionHandler, times(1)).accept(null);
+        verify(completionHandler, times(1)).accept(Thread.currentThread(), null);
         assertThat(indexRequest.index(), equalTo("update_index"));
         assertThat(indexRequest.type(), equalTo("update_type"));
         assertThat(indexRequest.id(), equalTo("update_id"));
@@ -681,11 +680,11 @@ public class IngestServiceTests extends ESTestCase {
         @SuppressWarnings("unchecked")
         final BiConsumer<Integer, Exception> failureHandler = mock(BiConsumer.class);
         @SuppressWarnings("unchecked")
-        final Consumer<Exception> completionHandler = mock(Consumer.class);
+        final BiConsumer<Thread, Exception> completionHandler = mock(BiConsumer.class);
         ingestService.executeBulkRequest(1, Collections.singletonList(indexRequest), failureHandler, completionHandler, indexReq -> {});
         verify(processor).execute(eqIndexTypeId(indexRequest.version(), indexRequest.versionType(), emptyMap()), any());
         verify(failureHandler, times(1)).accept(eq(0), any(RuntimeException.class));
-        verify(completionHandler, times(1)).accept(null);
+        verify(completionHandler, times(1)).accept(Thread.currentThread(), null);
     }
 
     public void testExecuteSuccessWithOnFailure() throws Exception {
@@ -722,10 +721,10 @@ public class IngestServiceTests extends ESTestCase {
         @SuppressWarnings("unchecked")
         final BiConsumer<Integer, Exception> failureHandler = mock(BiConsumer.class);
         @SuppressWarnings("unchecked")
-        final Consumer<Exception> completionHandler = mock(Consumer.class);
+        final BiConsumer<Thread, Exception> completionHandler = mock(BiConsumer.class);
         ingestService.executeBulkRequest(1, Collections.singletonList(indexRequest), failureHandler, completionHandler, indexReq -> {});
         verify(failureHandler, never()).accept(eq(0), any(ElasticsearchException.class));
-        verify(completionHandler, times(1)).accept(null);
+        verify(completionHandler, times(1)).accept(Thread.currentThread(), null);
     }
 
     public void testExecuteFailureWithNestedOnFailure() throws Exception {
@@ -759,11 +758,11 @@ public class IngestServiceTests extends ESTestCase {
         @SuppressWarnings("unchecked")
         final BiConsumer<Integer, Exception> failureHandler = mock(BiConsumer.class);
         @SuppressWarnings("unchecked")
-        final Consumer<Exception> completionHandler = mock(Consumer.class);
+        final BiConsumer<Thread, Exception> completionHandler = mock(BiConsumer.class);
         ingestService.executeBulkRequest(1, Collections.singletonList(indexRequest), failureHandler, completionHandler, indexReq -> {});
         verify(processor).execute(eqIndexTypeId(indexRequest.version(), indexRequest.versionType(), emptyMap()), any());
         verify(failureHandler, times(1)).accept(eq(0), any(RuntimeException.class));
-        verify(completionHandler, times(1)).accept(null);
+        verify(completionHandler, times(1)).accept(Thread.currentThread(), null);
     }
 
     public void testBulkRequestExecutionWithFailures() throws Exception {
@@ -810,7 +809,7 @@ public class IngestServiceTests extends ESTestCase {
         @SuppressWarnings("unchecked")
         BiConsumer<Integer, Exception> requestItemErrorHandler = mock(BiConsumer.class);
         @SuppressWarnings("unchecked")
-        Consumer<Exception> completionHandler = mock(Consumer.class);
+        final BiConsumer<Thread, Exception> completionHandler = mock(BiConsumer.class);
         ingestService.executeBulkRequest(numRequest, bulkRequest.requests(), requestItemErrorHandler, completionHandler, indexReq -> {});
 
         verify(requestItemErrorHandler, times(numIndexRequests)).accept(anyInt(), argThat(new ArgumentMatcher<Exception>() {
@@ -819,7 +818,7 @@ public class IngestServiceTests extends ESTestCase {
                 return ((Exception)o).getCause().getCause().equals(error);
             }
         }));
-        verify(completionHandler, times(1)).accept(null);
+        verify(completionHandler, times(1)).accept(Thread.currentThread(), null);
     }
 
     public void testBulkRequestExecution() {
@@ -844,11 +843,11 @@ public class IngestServiceTests extends ESTestCase {
         @SuppressWarnings("unchecked")
         BiConsumer<Integer, Exception> requestItemErrorHandler = mock(BiConsumer.class);
         @SuppressWarnings("unchecked")
-        Consumer<Exception> completionHandler = mock(Consumer.class);
+        final BiConsumer<Thread, Exception> completionHandler = mock(BiConsumer.class);
         ingestService.executeBulkRequest(numRequest, bulkRequest.requests(), requestItemErrorHandler, completionHandler, indexReq -> {});
 
         verify(requestItemErrorHandler, never()).accept(any(), any());
-        verify(completionHandler, times(1)).accept(null);
+        verify(completionHandler, times(1)).accept(Thread.currentThread(), null);
     }
 
     public void testStats() throws Exception {
@@ -892,7 +891,7 @@ public class IngestServiceTests extends ESTestCase {
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
 
         @SuppressWarnings("unchecked") final BiConsumer<Integer, Exception> failureHandler = mock(BiConsumer.class);
-        @SuppressWarnings("unchecked") final Consumer<Exception> completionHandler = mock(Consumer.class);
+        @SuppressWarnings("unchecked") final BiConsumer<Thread, Exception> completionHandler = mock(BiConsumer.class);
 
         final IndexRequest indexRequest = new IndexRequest("_index");
         indexRequest.setPipeline("_id1");
@@ -1026,12 +1025,12 @@ public class IngestServiceTests extends ESTestCase {
         @SuppressWarnings("unchecked")
         final BiConsumer<Integer, Exception> failureHandler = mock(BiConsumer.class);
         @SuppressWarnings("unchecked")
-        final Consumer<Exception> completionHandler = mock(Consumer.class);
+        final BiConsumer<Thread, Exception> completionHandler = mock(BiConsumer.class);
         @SuppressWarnings("unchecked")
         final IntConsumer dropHandler = mock(IntConsumer.class);
         ingestService.executeBulkRequest(1, Collections.singletonList(indexRequest), failureHandler, completionHandler, dropHandler);
         verify(failureHandler, never()).accept(any(), any());
-        verify(completionHandler, times(1)).accept(null);
+        verify(completionHandler, times(1)).accept(Thread.currentThread(), null);
         verify(dropHandler, times(1)).accept(0);
     }
 

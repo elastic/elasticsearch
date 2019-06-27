@@ -332,25 +332,26 @@ public class IngestService implements ClusterStateApplier {
     public void executeBulkRequest(int numberOfActionRequests,
                                    Iterable<DocWriteRequest<?>> actionRequests,
                                    BiConsumer<Integer, Exception> itemFailureHandler,
-                                   Consumer<Exception> completionHandler,
+                                   BiConsumer<Thread, Exception> completionHandler,
                                    IntConsumer itemDroppedHandler) {
 
         threadPool.executor(ThreadPool.Names.WRITE).execute(new AbstractRunnable() {
 
             @Override
             public void onFailure(Exception e) {
-                completionHandler.accept(e);
+                completionHandler.accept(null, e);
             }
 
             @Override
             protected void doRun() {
-                AtomicInteger counter = new AtomicInteger(numberOfActionRequests);
+                final Thread originalThread = Thread.currentThread();
+                final AtomicInteger counter = new AtomicInteger(numberOfActionRequests);
                 int i = 0;
                 for (DocWriteRequest<?> actionRequest : actionRequests) {
                     IndexRequest indexRequest = TransportBulkAction.getIndexWriteRequest(actionRequest);
                     if (indexRequest == null) {
                         if (counter.decrementAndGet() == 0){
-                            completionHandler.accept(null);
+                            completionHandler.accept(originalThread, null);
                         }
                         assert counter.get() >= 0;
                         continue;
@@ -358,7 +359,7 @@ public class IngestService implements ClusterStateApplier {
                     String pipelineId = indexRequest.getPipeline();
                     if (NOOP_PIPELINE_NAME.equals(pipelineId)) {
                         if (counter.decrementAndGet() == 0){
-                            completionHandler.accept(null);
+                            completionHandler.accept(originalThread, null);
                         }
                         assert counter.get() >= 0;
                         continue;
@@ -381,14 +382,14 @@ public class IngestService implements ClusterStateApplier {
                             }
 
                             if (counter.decrementAndGet() == 0){
-                                completionHandler.accept(null);
+                                completionHandler.accept(originalThread, null);
                             }
                             assert counter.get() >= 0;
                         });
                     } catch (Exception e) {
                         itemFailureHandler.accept(slot, e);
                         if (counter.decrementAndGet() == 0){
-                            completionHandler.accept(null);
+                            completionHandler.accept(originalThread, null);
                         }
                         assert counter.get() >= 0;
                     }

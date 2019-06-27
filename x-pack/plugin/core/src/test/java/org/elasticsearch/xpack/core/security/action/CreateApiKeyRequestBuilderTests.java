@@ -59,4 +59,22 @@ public class CreateApiKeyRequestBuilderTests extends ESTestCase {
             assertThat(request.getExpiration(), equalTo(TimeValue.parseTimeValue("1d", "expiration")));
         }
     }
+
+    public void testParserAndCreateApiRequestBuilderWithNullOrEmptyRoleDescriptors() throws IOException {
+        boolean withExpiration = randomBoolean();
+        boolean noRoleDescriptorsField = randomBoolean();
+        final String json = "{ \"name\" : \"my-api-key\""
+                + ((withExpiration) ? ", \"expiration\": \"1d\"" : "")
+                + ((noRoleDescriptorsField) ? "" : ", \"role_descriptors\": {}")
+                + "}";
+        final BytesArray source = new BytesArray(json);
+        final NodeClient mockClient = mock(NodeClient.class);
+        final CreateApiKeyRequest request = new CreateApiKeyRequestBuilder(mockClient).source(source, XContentType.JSON).request();
+        final List<RoleDescriptor> actualRoleDescriptors = request.getRoleDescriptors();
+        assertThat(request.getName(), equalTo("my-api-key"));
+        assertThat(actualRoleDescriptors.size(), is(0));
+        if (withExpiration) {
+            assertThat(request.getExpiration(), equalTo(TimeValue.parseTimeValue("1d", "expiration")));
+        }
+    }
 }

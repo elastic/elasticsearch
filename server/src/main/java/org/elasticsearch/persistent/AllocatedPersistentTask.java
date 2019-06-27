@@ -135,6 +135,10 @@ public class AllocatedPersistentTask extends CancellableTask {
         }
     }
 
+    protected TaskManager getTaskManager() {
+        return taskManager;
+    }
+
     private void completeAndNotifyIfNeeded(@Nullable Exception failure) {
         final State prevState = state.getAndSet(State.COMPLETED);
         if (prevState == State.COMPLETED) {

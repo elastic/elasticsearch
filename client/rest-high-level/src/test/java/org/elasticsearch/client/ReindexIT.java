@@ -113,8 +113,6 @@ public class ReindexIT extends ESRestHighLevelClientTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "")
-    // TODO: Currently muted as the task-id is not known when the action returns
     public void testReindexTask() throws Exception {
         final String sourceIndex = "source123";
         final String destinationIndex = "dest2";

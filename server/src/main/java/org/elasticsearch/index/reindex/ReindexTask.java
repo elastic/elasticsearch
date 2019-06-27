@@ -31,6 +31,7 @@ import org.elasticsearch.persistent.PersistentTaskState;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.persistent.PersistentTasksExecutor;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Map;
@@ -76,26 +77,39 @@ public class ReindexTask extends AllocatedPersistentTask {
     }
 
     private void doReindex(ReindexJob reindexJob) {
+        TaskManager taskManager = getTaskManager();
+        assert taskManager != null : "task should not be started before task manager assigned";
 
         ThreadContext threadContext = client.threadPool().getThreadContext();
         // TODO: What is happening here? Putting headers back in place for possible different thread action listener?
         final Supplier<ThreadContext.StoredContext> supplier = threadContext.newRestorableContext(false);
+        // TODO: Need to use ParentTaskAssigningClient?
         try (ThreadContext.StoredContext ignore = stashWithHeaders(threadContext, reindexJob.getHeaders())) {
-            // TODO: Need to use ParentTaskAssigningClient?
-            client.execute(ReindexAction.INSTANCE, reindexJob.getReindexRequest(), new ContextPreservingActionListener<>(supplier,
+            // TODO: Always store currently for compatibility
+            ReindexRequest reindexRequest = reindexJob.getReindexRequest();
+            client.execute(ReindexAction.INSTANCE, reindexRequest, new ContextPreservingActionListener<>(supplier,
                 new ActionListener<>() {
                     @Override
                     public void onResponse(BulkByScrollResponse response) {
                         updatePersistentTaskState(new ReindexJobState(response, null), new ActionListener<>() {
                             @Override
                             public void onResponse(PersistentTasksCustomMetaData.PersistentTask<?> persistentTask) {
-                                markAsCompleted();
+                                try {
+                                    taskManager.storeResult(ReindexTask.this, response,
+                                        ActionListener.wrap(ReindexTask.this::markAsCompleted));
+                                } finally {
+                                    markAsCompleted();
+                                }
                             }
 
                             @Override
                             public void onFailure(Exception e) {
                                 logger.error("Failed to update task state to success.", e);
-                                markAsCompleted();
+                                try {
+                                    taskManager.storeResult(ReindexTask.this, e, ActionListener.wrap(() -> markAsFailed(e)));
+                                } finally {
+                                    markAsFailed(e);
+                                }
                             }
                         });
                     }
@@ -105,13 +119,21 @@ public class ReindexTask extends AllocatedPersistentTask {
                         updatePersistentTaskState(new ReindexJobState(null, new ElasticsearchException(ex)), new ActionListener<>() {
                             @Override
                             public void onResponse(PersistentTasksCustomMetaData.PersistentTask<?> persistentTask) {
-                                markAsCompleted();
+                                try {
+                                    taskManager.storeResult(ReindexTask.this, ex, ActionListener.wrap(() -> markAsFailed(ex)));
+                                } finally {
+                                    markAsFailed(ex);
+                                }
                             }
 
                             @Override
                             public void onFailure(Exception e) {
                                 logger.error("Failed to update task state to failed.", e);
-                                markAsCompleted();
+                                try {
+                                    taskManager.storeResult(ReindexTask.this, ex, ActionListener.wrap(() -> markAsFailed(ex)));
+                                } finally {
+                                    markAsFailed(ex);
+                                }
                             }
                         });
                     }

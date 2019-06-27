@@ -51,7 +51,8 @@ public class TransportGetReindexJobTaskAction extends TransportTasksAction<Reind
     }
 
     @Override
-    protected void taskOperation(GetReindexJobTaskAction.Request request, ReindexTask task, ActionListener<GetReindexJobTaskAction.Response> listener) {
+    protected void taskOperation(GetReindexJobTaskAction.Request request, ReindexTask task,
+                                 ActionListener<GetReindexJobTaskAction.Response> listener) {
         listener.onResponse(new GetReindexJobTaskAction.Response(new TaskId(clusterService.localNode().getId(), task.getId())));
     }
 }

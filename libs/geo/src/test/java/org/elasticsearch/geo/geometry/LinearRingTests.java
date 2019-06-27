@@ -26,7 +26,7 @@ public class LinearRingTests extends ESTestCase {
 
     public void testBasicSerialization() {
         UnsupportedOperationException ex = expectThrows(UnsupportedOperationException.class,
-            () -> new WellKnownText().toWKT(new LinearRing(new double[]{1, 2, 3, 1}, new double[]{3, 4, 5, 3})));
+            () -> new WellKnownText(true, true).toWKT(new LinearRing(new double[]{1, 2, 3, 1}, new double[]{3, 4, 5, 3})));
         assertEquals("line ring cannot be serialized using WKT", ex.getMessage());
     }
 

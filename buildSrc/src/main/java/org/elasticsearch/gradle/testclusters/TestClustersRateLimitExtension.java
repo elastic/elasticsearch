@@ -61,7 +61,12 @@ public class TestClustersRateLimitExtension {
                 requiredPermits, project.getPath()
             );
             Instant startedAt = Instant.now();
-            getSelfAsExtension(project).globalSemaphore.acquireUninterruptibly(requiredPermits);
+            try {
+                getSelfAsExtension(project).globalSemaphore.acquire(requiredPermits);
+            } catch (InterruptedException e) {
+                logger.info("Interrupted while waiting for permits", e);
+                return;
+            }
             logger.info(
                 "Acquired {} permits for {} took {} seconds",
                 requiredPermits, project.getPath(), Duration.between(startedAt, Instant.now())

@@ -11,11 +11,11 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.index.shard.IndexReaderWrapper;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardUtils;
 import org.elasticsearch.license.XPackLicenseState;
@@ -30,17 +30,17 @@ import java.io.IOException;
 import java.util.function.Function;
 
 /**
- * An {@link IndexReaderWrapper} implementation that is used for field and document level security.
+ * An IndexReader wrapper implementation that is used for field and document level security.
  * <p>
  * Based on the {@link ThreadContext} this class will enable field and/or document level security.
  * <p>
  * Field level security is enabled by wrapping the original {@link DirectoryReader} in a {@link FieldSubsetReader}
- * in the {@link #wrap(DirectoryReader)} method.
+ * in the {@link #apply(DirectoryReader)} method.
  * <p>
  * Document level security is enabled by wrapping the original {@link DirectoryReader} in a {@link DocumentSubsetReader}
  * instance.
  */
-public class SecurityIndexReaderWrapper extends IndexReaderWrapper {
+public class SecurityIndexReaderWrapper implements CheckedFunction<DirectoryReader, DirectoryReader, IOException> {
     private static final Logger logger = LogManager.getLogger(SecurityIndexReaderWrapper.class);
 
     private final Function<ShardId, QueryShardContext> queryShardContextProvider;
@@ -60,7 +60,7 @@ public class SecurityIndexReaderWrapper extends IndexReaderWrapper {
     }
 
     @Override
-    protected DirectoryReader wrap(final DirectoryReader reader) {
+    public DirectoryReader apply(final DirectoryReader reader) {
         if (licenseState.isDocumentAndFieldLevelSecurityAllowed() == false) {
             return reader;
         }

@@ -33,6 +33,7 @@ import org.apache.lucene.util.SetOnce.AlreadySetException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -55,7 +56,6 @@ import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.shard.IndexEventListener;
-import org.elasticsearch.index.shard.IndexReaderWrapper;
 import org.elasticsearch.index.shard.IndexingOperationListener;
 import org.elasticsearch.index.shard.SearchOperationListener;
 import org.elasticsearch.index.shard.ShardId;
@@ -157,7 +157,7 @@ public class IndexModuleTests extends ESTestCase {
     public void testWrapperIsBound() throws IOException {
         final MockEngineFactory engineFactory = new MockEngineFactory(AssertingDirectoryReader.class);
         IndexModule module = new IndexModule(indexSettings, emptyAnalysisRegistry, engineFactory, Collections.emptyMap());
-        module.setReaderWrapper((s) -> new Wrapper());
+        module.setReaderWrapper(s -> new Wrapper());
 
         IndexService indexService = newIndexService(module);
         assertTrue(indexService.getReaderWrapper() instanceof Wrapper);
@@ -453,10 +453,9 @@ public class IndexModuleTests extends ESTestCase {
         }
     }
 
-    public static final class Wrapper extends IndexReaderWrapper {
-
+    public static final class Wrapper implements CheckedFunction<DirectoryReader, DirectoryReader, IOException> {
         @Override
-        public DirectoryReader wrap(DirectoryReader reader) {
+        public DirectoryReader apply(DirectoryReader reader) {
             return null;
         }
     }

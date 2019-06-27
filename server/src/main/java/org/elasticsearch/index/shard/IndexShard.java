@@ -54,6 +54,7 @@ import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RecoverySource.SnapshotRecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Booleans;
+import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.CheckedRunnable;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.Tuple;
@@ -247,7 +248,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private static final EnumSet<IndexShardState> writeAllowedStates = EnumSet.of(IndexShardState.RECOVERING,
         IndexShardState.POST_RECOVERY, IndexShardState.STARTED);
 
-    private final IndexReaderWrapper readerWrapper;
+    private final CheckedFunction<DirectoryReader, DirectoryReader, IOException> readerWrapper;
 
     /**
      * True if this shard is still indexing (recently) and false if we've been idle for long enough (as periodically checked by {@link
@@ -273,7 +274,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             final SimilarityService similarityService,
             final @Nullable EngineFactory engineFactory,
             final IndexEventListener indexEventListener,
-            final IndexReaderWrapper indexReaderWrapper,
+            final CheckedFunction<DirectoryReader, DirectoryReader, IOException> indexReaderWrapper,
             final ThreadPool threadPool,
             final BigArrays bigArrays,
             final Engine.Warmer warmer,
@@ -1247,7 +1248,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         }
     }
 
-    static Engine.Searcher wrapSearcher(Engine.Searcher engineSearcher, IndexReaderWrapper readerWrapper) throws IOException {
+    static Engine.Searcher wrapSearcher(Engine.Searcher engineSearcher,
+                                        CheckedFunction<DirectoryReader, DirectoryReader, IOException> readerWrapper) throws IOException {
         assert readerWrapper != null;
         final ElasticsearchDirectoryReader elasticsearchDirectoryReader =
             ElasticsearchDirectoryReader.getElasticsearchDirectoryReader(engineSearcher.getDirectoryReader());
@@ -1255,7 +1257,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             throw new IllegalStateException("Can't wrap non elasticsearch directory reader");
         }
         NonClosingReaderWrapper nonClosingReaderWrapper = new NonClosingReaderWrapper(engineSearcher.getDirectoryReader());
-        DirectoryReader reader = readerWrapper.wrap(nonClosingReaderWrapper);
+        DirectoryReader reader = readerWrapper.apply(nonClosingReaderWrapper);
         if (reader != nonClosingReaderWrapper) {
             if (reader.getReaderCacheHelper() != elasticsearchDirectoryReader.getReaderCacheHelper()) {
                 throw new IllegalStateException("wrapped directory reader doesn't delegate IndexReader#getCoreCacheKey," +

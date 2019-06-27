@@ -53,6 +53,7 @@ import org.elasticsearch.cluster.routing.ShardRoutingHelper;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
+import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.breaker.CircuitBreaker;
@@ -2377,12 +2378,7 @@ public class IndexShardTests extends IndexShardTestCase {
             search = searcher.searcher().search(new TermQuery(new Term("foobar", "bar")), 10);
             assertEquals(search.totalHits.value, 1);
         }
-        IndexReaderWrapper wrapper = new IndexReaderWrapper() {
-            @Override
-            public DirectoryReader wrap(DirectoryReader reader) throws IOException {
-                return new FieldMaskingReader("foo", reader);
-            }
-        };
+        CheckedFunction<DirectoryReader, DirectoryReader, IOException> wrapper = reader -> new FieldMaskingReader("foo", reader);
         closeShards(shard);
         IndexShard newShard = newShard(
                 ShardRoutingHelper.initWithSameId(shard.routingEntry(), RecoverySource.ExistingStoreRecoverySource.INSTANCE),
@@ -2415,12 +2411,7 @@ public class IndexShardTests extends IndexShardTestCase {
     }
 
     public void testReaderWrapperWorksWithGlobalOrdinals() throws IOException {
-        IndexReaderWrapper wrapper = new IndexReaderWrapper() {
-            @Override
-            public DirectoryReader wrap(DirectoryReader reader) throws IOException {
-                return new FieldMaskingReader("foo", reader);
-            }
-        };
+        CheckedFunction<DirectoryReader, DirectoryReader, IOException> wrapper = reader -> new FieldMaskingReader("foo", reader);
 
         Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
             .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
@@ -2521,11 +2512,8 @@ public class IndexShardTests extends IndexShardTestCase {
         IndexShard shard = newStartedShard(true);
         indexDoc(shard, "_doc", "0", "{\"foo\" : \"bar\"}");
         shard.refresh("test");
-        IndexReaderWrapper wrapper = new IndexReaderWrapper() {
-            @Override
-            public DirectoryReader wrap(DirectoryReader reader) throws IOException {
-                throw new RuntimeException("boom");
-            }
+        CheckedFunction<DirectoryReader, DirectoryReader, IOException> wrapper = reader -> {
+            throw new RuntimeException("boom");
         };
 
         closeShards(shard);

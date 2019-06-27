@@ -20,6 +20,7 @@
 package org.elasticsearch.index;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexReaderContext;
 import org.apache.lucene.search.IndexSearcher;
@@ -31,6 +32,7 @@ import org.elasticsearch.Assertions;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Setting;
@@ -59,7 +61,6 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.seqno.RetentionLeaseSyncer;
 import org.elasticsearch.index.shard.IndexEventListener;
-import org.elasticsearch.index.shard.IndexReaderWrapper;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardClosedException;
 import org.elasticsearch.index.shard.IndexingOperationListener;
@@ -106,7 +107,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     private final NodeEnvironment nodeEnv;
     private final ShardStoreDeleter shardStoreDeleter;
     private final IndexStorePlugin.DirectoryFactory directoryFactory;
-    private final IndexReaderWrapper readerWrapper;
+    private final CheckedFunction<DirectoryReader, DirectoryReader, IOException> readerWrapper;
     private final IndexCache indexCache;
     private final MapperService mapperService;
     private final NamedXContentRegistry xContentRegistry;
@@ -153,7 +154,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             QueryCache queryCache,
             IndexStorePlugin.DirectoryFactory directoryFactory,
             IndexEventListener eventListener,
-            Function<IndexService, IndexReaderWrapper> wrapperFactory,
+            Function<IndexService, CheckedFunction<DirectoryReader, DirectoryReader, IOException>> wrapperFactory,
             MapperRegistry mapperRegistry,
             IndicesFieldDataCache indicesFieldDataCache,
             List<SearchOperationListener> searchOperationListeners,
@@ -418,7 +419,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                     similarityService,
                     engineFactory,
                     eventListener,
-                readerWrapper,
+                    readerWrapper,
                     threadPool,
                     bigArrays,
                     engineWarmer,
@@ -755,7 +756,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         return engineFactory;
     }
 
-    final IndexReaderWrapper getReaderWrapper() {
+    final CheckedFunction<DirectoryReader, DirectoryReader, IOException> getReaderWrapper() {
         return readerWrapper;
     } // pkg private for testing
 

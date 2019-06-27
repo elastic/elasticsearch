@@ -19,6 +19,10 @@
 
 package org.elasticsearch.index;
 
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.FilterDirectoryReader;
+import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.search.similarities.BM25Similarity;
 import org.apache.lucene.search.similarities.Similarity;
 import org.apache.lucene.store.MMapDirectory;
@@ -26,6 +30,7 @@ import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Setting;
@@ -38,10 +43,10 @@ import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.cache.query.DisabledQueryCache;
 import org.elasticsearch.index.cache.query.IndexQueryCache;
 import org.elasticsearch.index.cache.query.QueryCache;
+import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.shard.IndexEventListener;
-import org.elasticsearch.index.shard.IndexReaderWrapper;
 import org.elasticsearch.index.shard.IndexingOperationListener;
 import org.elasticsearch.index.shard.SearchOperationListener;
 import org.elasticsearch.index.similarity.SimilarityService;
@@ -112,7 +117,8 @@ public final class IndexModule {
     private final IndexSettings indexSettings;
     private final AnalysisRegistry analysisRegistry;
     private final EngineFactory engineFactory;
-    private SetOnce<Function<IndexService, IndexReaderWrapper>> indexReaderWrapper = new SetOnce<>();
+    private SetOnce<Function<IndexService,
+        CheckedFunction<DirectoryReader, DirectoryReader, IOException>>> indexReaderWrapper = new SetOnce<>();
     private final Set<IndexEventListener> indexEventListeners = new HashSet<>();
     private final Map<String, TriFunction<Settings, Version, ScriptService, Similarity>> similarities = new HashMap<>();
     private final Map<String, IndexStorePlugin.DirectoryFactory> directoryFactories;
@@ -277,11 +283,24 @@ public final class IndexModule {
     }
 
     /**
-     * Sets the function  for creating new {@link IndexReaderWrapper} instances.
-     * This function is called once the IndexService is fully constructed.
-     * Note: this method can only be called once per index. Multiple wrappers are not supported.
+     * Sets the factory for creating new {@link DirectoryReader} wrapper instances.
+     * The factory ({@link Function}) is called once the IndexService is fully constructed.
+     * NOTE: this method can only be called once per index. Multiple wrappers are not supported.
+     * <p>
+     * The {@link CheckedFunction} is invoked each time a {@link Engine.Searcher} is requested to do an operation,
+     * for example search, and must return a new directory reader wrapping the provided directory reader or if no
+     * wrapping was performed the provided directory reader.
+     * The wrapped reader can filter out document just like delete documents etc. but must not change any term or
+     * document content.
+     * NOTE: The index reader wrapper ({@link CheckedFunction}) has a per-request lifecycle,
+     * must delegate {@link IndexReader#getReaderCacheHelper()}, {@link LeafReader#getCoreCacheHelper()}
+     * and must be an instance of {@link FilterDirectoryReader} that eventually exposes the original reader
+     * via {@link FilterDirectoryReader#getDelegate()}.
+     * The returned reader is closed once it goes out of scope.
+     * </p>
      */
-    public void setReaderWrapper(Function<IndexService, IndexReaderWrapper> indexReaderWrapperFactory) {
+    public void setReaderWrapper(Function<IndexService,
+                                    CheckedFunction<DirectoryReader, DirectoryReader, IOException>> indexReaderWrapperFactory) {
         ensureNotFrozen();
         this.indexReaderWrapper.set(indexReaderWrapperFactory);
     }
@@ -374,8 +393,8 @@ public final class IndexModule {
             NamedWriteableRegistry namedWriteableRegistry)
         throws IOException {
         final IndexEventListener eventListener = freeze();
-        Function<IndexService, IndexReaderWrapper> readerWrapperFactory = indexReaderWrapper.get() == null
-            ? (shard) -> null : indexReaderWrapper.get();
+        Function<IndexService, CheckedFunction<DirectoryReader, DirectoryReader, IOException>> readerWrapperFactory =
+            indexReaderWrapper.get() == null ? (shard) -> null : indexReaderWrapper.get();
         eventListener.beforeIndexCreated(indexSettings.getIndex(), indexSettings.getSettings());
         final IndexStorePlugin.DirectoryFactory directoryFactory = getDirectoryFactory(indexSettings, directoryFactories);
         final QueryCache queryCache;

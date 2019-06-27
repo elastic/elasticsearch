@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.index.shard;
 
+import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexNotFoundException;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.Version;
@@ -278,7 +279,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
      *                (ready to recover from another shard)
      */
     protected IndexShard newShard(ShardId shardId, boolean primary, String nodeId, IndexMetaData indexMetaData,
-                                  @Nullable IndexReaderWrapper readerWrapper) throws IOException {
+                                  @Nullable CheckedFunction<DirectoryReader, DirectoryReader, IOException> readerWrapper) throws IOException {
         return newShard(shardId, primary, nodeId, indexMetaData, readerWrapper, () -> {});
     }
 
@@ -291,11 +292,12 @@ public abstract class IndexShardTestCase extends ESTestCase {
      *                (ready to recover from another shard)
      */
     protected IndexShard newShard(ShardId shardId, boolean primary, String nodeId, IndexMetaData indexMetaData,
-                                  @Nullable IndexReaderWrapper readerrWrapper, Runnable globalCheckpointSyncer) throws IOException {
+                                  @Nullable CheckedFunction<DirectoryReader, DirectoryReader, IOException> readerWrapper,
+                                  Runnable globalCheckpointSyncer) throws IOException {
         ShardRouting shardRouting = TestShardRouting.newShardRouting(shardId, nodeId, primary, ShardRoutingState.INITIALIZING,
             primary ? RecoverySource.EmptyStoreRecoverySource.INSTANCE : RecoverySource.PeerRecoverySource.INSTANCE);
         return newShard(
-            shardRouting, indexMetaData, readerrWrapper, new InternalEngineFactory(), globalCheckpointSyncer, RetentionLeaseSyncer.EMPTY);
+            shardRouting, indexMetaData, readerWrapper, new InternalEngineFactory(), globalCheckpointSyncer, RetentionLeaseSyncer.EMPTY);
     }
 
     /**
@@ -306,10 +308,11 @@ public abstract class IndexShardTestCase extends ESTestCase {
      * @param indexMetaData indexMetaData for the shard, including any mapping
      * @param listeners     an optional set of listeners to add to the shard
      */
-    protected IndexShard newShard(
-            ShardRouting routing, IndexMetaData indexMetaData, EngineFactory engineFactory, IndexingOperationListener... listeners)
+    protected IndexShard newShard(ShardRouting routing, IndexMetaData indexMetaData,
+            @Nullable CheckedFunction<DirectoryReader, DirectoryReader, IOException> indexReaderWrapper,
+            EngineFactory engineFactory, IndexingOperationListener... listeners)
         throws IOException {
-        return newShard(routing, indexMetaData, null, engineFactory, () -> {}, RetentionLeaseSyncer.EMPTY, listeners);
+        return newShard(routing, indexMetaData, indexReaderWrapper, engineFactory, () -> {}, RetentionLeaseSyncer.EMPTY, listeners);
     }
 
     /**
@@ -322,11 +325,9 @@ public abstract class IndexShardTestCase extends ESTestCase {
      * @param listeners              an optional set of listeners to add to the shard
      */
     protected IndexShard newShard(ShardRouting routing, IndexMetaData indexMetaData,
-                                  @Nullable IndexReaderWrapper indexReaderWrapper,
-                                  @Nullable EngineFactory engineFactory,
-                                  Runnable globalCheckpointSyncer,
-                                  RetentionLeaseSyncer retentionLeaseSyncer,
-                                  IndexingOperationListener... listeners)
+             @Nullable CheckedFunction<DirectoryReader, DirectoryReader, IOException> indexReaderWrapper,
+             @Nullable EngineFactory engineFactory, Runnable globalCheckpointSyncer, RetentionLeaseSyncer retentionLeaseSyncer,
+             IndexingOperationListener... listeners)
         throws IOException {
         // add node id as name to settings for proper logging
         final ShardId shardId = routing.shardId();
@@ -349,7 +350,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
      */
     protected IndexShard newShard(ShardRouting routing, ShardPath shardPath, IndexMetaData indexMetaData,
                                   @Nullable CheckedFunction<IndexSettings, Store, IOException> storeProvider,
-                                  @Nullable IndexReaderWrapper indexReaderWrapper,
+                                  @Nullable CheckedFunction<DirectoryReader, DirectoryReader, IOException> indexReaderWrapper,
                                   @Nullable EngineFactory engineFactory,
                                   Runnable globalCheckpointSyncer, RetentionLeaseSyncer retentionLeaseSyncer,
                                   IndexEventListener indexEventListener, IndexingOperationListener... listeners) throws IOException {

@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.index.shard;
 
+import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.store.LockObtainFailedException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
@@ -40,6 +41,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.CheckedRunnable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
@@ -528,7 +530,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         client().prepareIndex("test", "test", "1").setSource("{\"foo\" : \"bar\"}", XContentType.JSON)
             .setRefreshPolicy(IMMEDIATE).get();
 
-        IndexReaderWrapper wrapper = new IndexReaderWrapper() {};
+        CheckedFunction<DirectoryReader, DirectoryReader, IOException> wrapper = directoryReader -> directoryReader;
         shard.close("simon says", false);
         AtomicReference<IndexShard> shardRef = new AtomicReference<>();
         List<Exception> failures = new ArrayList<>();
@@ -647,7 +649,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
 
     public static final IndexShard newIndexShard(
         final IndexService indexService,
-        final IndexShard shard, IndexReaderWrapper wrapper,
+        final IndexShard shard, CheckedFunction<DirectoryReader, DirectoryReader, IOException> wrapper,
         final CircuitBreakerService cbs,
         final IndexingOperationListener... listeners) throws IOException {
         ShardRouting initializingShardRouting = getInitializingShardRouting(shard.routingEntry());

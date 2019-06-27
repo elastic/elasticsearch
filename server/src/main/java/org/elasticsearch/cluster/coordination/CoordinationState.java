@@ -210,14 +210,6 @@ public class CoordinationState {
     public boolean handleJoin(Join join) {
         assert join.targetMatches(localNode) : "handling join " + join + " for the wrong node " + localNode;
 
-        if (isMasterEligibleOrNotInVotingConfiguration(join.getSourceNode(), getLastAcceptedState()) == false) {
-            // master-ineligible nodes do not persist the cluster state properly, so it is unsafe to count their votes
-            logger.debug("handleJoin: ignored join from master-ineligible node [{}] in voting configurations [{} or {}]",
-                join.getSourceNode(), getLastAcceptedConfiguration(), getLastCommittedConfiguration());
-            throw new CoordinationStateRejectedException("rejecting join from master-ineligible node [{}] in voting configuration",
-                join.getSourceNode());
-        }
-
         if (join.getTerm() != getCurrentTerm()) {
             logger.debug("handleJoin: ignored join due to term mismatch (expected: [{}], actual: [{}])",
                 getCurrentTerm(), join.getTerm());
@@ -398,14 +390,6 @@ public class CoordinationState {
             throw new CoordinationStateRejectedException("incoming version " + publishResponse.getVersion() +
                 " does not match current version " + lastPublishedVersion);
         }
-        if (isMasterEligibleOrNotInConfigurations(sourceNode, lastPublishedConfiguration, getLastCommittedConfiguration()) == false) {
-            // master-ineligible nodes do not persist the cluster state properly, so it is unsafe to count their votes
-            logger.debug(
-                "handlePublishResponse: ignored publish response from master-ineligible node [{}] in voting configurations [{} or {}]",
-                sourceNode, lastPublishedConfiguration, getLastCommittedConfiguration());
-            throw new CoordinationStateRejectedException(
-                "rejecting publish response from master-ineligible node [{}] in voting configuration", sourceNode);
-        }
 
         logger.trace("handlePublishResponse: accepted publish response for version [{}] and term [{}] from [{}]",
             publishResponse.getVersion(), publishResponse.getTerm(), sourceNode);
@@ -537,7 +521,7 @@ public class CoordinationState {
         private final Set<Join> joins;
 
         public boolean addVote(DiscoveryNode sourceNode) {
-            return nodes.put(sourceNode.getId(), sourceNode) == null;
+            return sourceNode.isMasterNode() && nodes.put(sourceNode.getId(), sourceNode) == null;
         }
 
         public boolean addJoinVote(Join join) {

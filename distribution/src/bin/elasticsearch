@@ -48,8 +48,7 @@ if ! echo $* | grep -E '(^-d |-d$| -d |--daemonize$|--daemonize )' > /dev/null; 
     -Des.bundled_jdk="$ES_BUNDLED_JDK" \
     -cp "$ES_CLASSPATH" \
     org.elasticsearch.bootstrap.Elasticsearch \
-    "$@" ${KEYSTORE_PASSWORD:+-i} \
-    <<<$KEYSTORE_PASSWORD
+    "$@" <<<$KEYSTORE_PASSWORD
 else
   exec \
     "$JAVA" \

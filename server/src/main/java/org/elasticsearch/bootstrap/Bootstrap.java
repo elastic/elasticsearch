@@ -230,7 +230,7 @@ final class Bootstrap {
         };
     }
 
-    static SecureSettings loadSecureSettings(Environment initialEnv, boolean stdin) throws BootstrapException {
+    static SecureSettings loadSecureSettings(Environment initialEnv) throws BootstrapException {
         final KeyStoreWrapper keystore;
         try {
             keystore = KeyStoreWrapper.load(initialEnv.configFile());
@@ -239,7 +239,7 @@ final class Bootstrap {
         }
 
         char[] password;
-        if (stdin) {
+        if (keystore != null && keystore.hasPassword()) {
             password = Terminal.DEFAULT.readSecret("Elasticsearch password? ");
         } else {
             // TODO[wrb]: is there a case w/o stdin?
@@ -308,7 +308,6 @@ final class Bootstrap {
         final boolean foreground,
         final Path pidFile,
         final boolean quiet,
-        final boolean stdin,
         final Environment initialEnv) throws BootstrapException, NodeValidationException, UserException {
         // force the class initializer for BootstrapInfo to run before
         // the security manager is installed
@@ -316,7 +315,7 @@ final class Bootstrap {
 
         INSTANCE = new Bootstrap();
 
-        final SecureSettings keystore = loadSecureSettings(initialEnv, stdin);
+        final SecureSettings keystore = loadSecureSettings(initialEnv);
         final Environment environment = createEnvironment(pidFile, keystore, initialEnv.settings(), initialEnv.configFile());
 
         LogConfigurator.setNodeName(Node.NODE_NAME_SETTING.get(environment.settings()));

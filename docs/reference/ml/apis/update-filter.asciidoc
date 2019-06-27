@@ -13,6 +13,13 @@ Updates the description of a filter, adds items, or removes items.
 
 `POST _ml/filters/<filter_id>/_update`
 
+[[ml-update-filter-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have `manage_ml` or
+`manage` cluster privileges to use this API. See
+{stack-ov}/security-privileges.html[Security privileges].
+
 [[ml-update-filter-path-parms]]
 ==== {api-path-parms-title}
 
@@ -30,13 +37,6 @@ Updates the description of a filter, adds items, or removes items.
 	
 `remove_items`::
   (array of strings) The items to remove from the filter.
-
-[[ml-update-filter-prereqs]]
-==== {api-prereq-title}
-
-You must have `manage_ml`, or `manage` cluster privileges to use this API.
-For more information, see
-{stack-ov}/security-privileges.html[Security privileges].
 
 [[ml-update-filter-example]]
 ==== {api-examples-title}

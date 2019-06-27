@@ -13,6 +13,13 @@ Predicts the future behavior of a time series by using its historical behavior.
 
 `POST _ml/anomaly_detectors/<job_id>/_forecast`
 
+[[ml-forecast-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have `manage_ml` or
+`manage` cluster privileges to use this API. See
+{stack-ov}/security-privileges.html[Security privileges].
+
 [[ml-forecast-desc]]
 ==== {api-description-title}
 
@@ -46,12 +53,6 @@ forecast. For more information about this property, see <<ml-job-resource>>.
   After a forecast expires, the results are deleted. The default value is 14 days.
   If set to a value of `0`, the forecast is never automatically deleted.
   For more information about time units, see <<time-units>>.
-
-[[ml-forecast-prereqs]]
-==== {api-prereq-title}
-
-You must have `manage_ml`, or `manage` cluster privileges to use this API.
-For more information, see {xpack-ref}/security-privileges.html[Security Privileges].
 
 [[ml-forecast-example]]
 ==== {api-examples-title}

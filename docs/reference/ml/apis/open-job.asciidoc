@@ -15,6 +15,13 @@ A job can be opened and closed multiple times throughout its lifecycle.
 
 `POST _ml/anomaly_detectors/{job_id}/_open`
 
+[[ml-open-job-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have `manage_ml` or
+`manage` cluster privileges to use this API. See
+{stack-ov}/security-privileges.html[Security privileges].
+
 [[ml-open-job-desc]]
 ==== {api-description-title}
 
@@ -35,13 +42,6 @@ The job is ready to resume its analysis from where it left off, once new data is
 `timeout`::
   (time) Controls the time to wait until a job has opened.
   The default value is 30 minutes.
-
-[[ml-open-job-prereqs]]
-==== {api-prereq-title}
-
-You must have `manage_ml`, or `manage` cluster privileges to use this API.
-For more information, see
-{stack-ov}/security-privileges.html[Security privileges].
 
 [[ml-open-job-example]]
 ==== {api-examples-title}

@@ -15,6 +15,13 @@ Deletes an existing {dfeed}.
 
 `DELETE _ml/datafeeds/<feed_id>`
 
+[[ml-delete-datafeed-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have `manage_ml` or
+`manage` cluster privileges to use this API. See
+{stack-ov}/security-privileges.html[Security privileges].
+
 [[ml-delete-datafeed-desc]]
 ==== {api-description-title}
 
@@ -32,12 +39,6 @@ NOTE: Unless the `force` parameter is used, the {dfeed} must be stopped before i
 `force`::
   (boolean) Use to forcefully delete a started {dfeed}; this method is quicker than
   stopping and deleting the {dfeed}.
-
-[[ml-delete-datafeed-prereqs]]
-==== {api-prereq-title}
-
-You must have `manage_ml`, or `manage` cluster privileges to use this API.
-For more information, see {stack-ov}/security-privileges.html[Security privileges].
 
 [[ml-delete-datafeed-example]]
 ==== {api-examples-title}

@@ -15,6 +15,13 @@ Instantiates a {dfeed}.
 
 `PUT _ml/datafeeds/<feed_id>`
 
+[[ml-put-datafeed-prereqs]]
+==== {api-prereq-title}
+
+* If {es} {security-features} are enabled, you must have `manage_ml` or `manage`
+cluster privileges to use this API. See
+{stack-ov}/security-privileges.html[Security privileges].
+
 [[ml-put-datafeed-desc]]
 ==== {api-description-title}
 
@@ -89,13 +96,6 @@ IMPORTANT:  You must use {kib} or this API to create a {dfeed}. Do not put a {df
 
 For more information about these properties,
 see <<ml-datafeed-resource>>.
-
-[[ml-put-datafeed-prereqs]]
-==== {api-prereq-title}
-
-If {es} {security-features} are enabled, you must have `manage_ml`, or `manage`
-cluster privileges to use this API. For more information, see
-{stack-ov}/security-privileges.html[Security privileges].
 
 [[ml-put-datafeed-security]]
 ==== Security integration

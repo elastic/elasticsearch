@@ -13,6 +13,13 @@ Posts scheduled events in a calendar.
 
 `POST _ml/calendars/<calendar_id>/events`
 
+[[ml-post-calendar-event-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have `manage_ml` or
+`manage` cluster privileges to use this API. See
+{stack-ov}/security-privileges.html[Security privileges].
+
 [[ml-post-calendar-event-desc]]
 ==== {api-description-title}
 
@@ -32,13 +39,6 @@ of which must have a start time, end time, and description.
   (array) A list of one of more scheduled events. The event's start and end times
   may be specified as integer milliseconds since the epoch or as a string in ISO 8601
   format. See <<ml-event-resource>>.
-
-[[ml-post-calendar-event-prereqs]]
-==== {api-prereq-title}
-
-You must have `manage_ml`, or `manage` cluster privileges to use this API.
-For more information, see
-{stack-ov}/security-privileges.html[Security privileges].
 
 [[ml-post-calendar-event-example]]
 ==== {api-examples-title}

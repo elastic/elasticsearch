@@ -18,6 +18,16 @@ bucket results of multiple jobs.
 
 `GET _ml/anomaly_detectors/_all/results/overall_buckets`
 
+[[ml-get-overall-buckets-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have `monitor_ml`,
+`monitor`, `manage_ml`, or `manage` cluster privileges to use this API. You also
+need `read` index privilege on the index that stores the results. The
+`machine_learning_admin` and `machine_learning_user` roles provide these
+privileges. See {stack-ov}/security-privileges.html[Security privileges] and
+{stack-ov}/built-in-roles.html[Built-in roles].
+
 [[ml-get-overall-buckets-desc]]
 ==== {api-description-title}
 
@@ -88,16 +98,6 @@ The API returns the following information:
 `overall_buckets`::
   (array) An array of overall bucket objects. For more information, see
   <<ml-results-overall-buckets,Overall Buckets>>.
-
-[[ml-get-overall-buckets-prereqs]]
-==== {api-prereq-title}
-
-You must have `monitor_ml`, `monitor`, `manage_ml`, or `manage` cluster
-privileges to use this API. You also need `read` index privilege on the index
-that stores the results. The `machine_learning_admin` and `machine_learning_user`
-roles provide these privileges. For more information, see
-{stack-ov}/security-privileges.html[Security Privileges] and
-{stack-ov}/built-in-roles.html[Built-in Roles].
 
 [[ml-get-overall-buckets-example]]
 ==== {api-examples-title}

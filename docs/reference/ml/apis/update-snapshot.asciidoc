@@ -13,6 +13,14 @@ Updates certain properties of a snapshot.
 
 `POST _ml/anomaly_detectors/<job_id>/model_snapshots/<snapshot_id>/_update`
 
+[[ml-update-snapshot-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have `manage_ml` or
+`manage` cluster privileges to use this API. See
+{stack-ov}/security-privileges.html[Security privileges].
+
+
 [[ml-update-snapshot-path-parms]]
 ==== {api-path-parms-title}
 
@@ -36,13 +44,6 @@ The following properties can be updated after the model snapshot is created:
   of snapshots older than `model_snapshot_retention_days`.
   Note that this snapshot will still be deleted when the job is deleted.
   The default value is false.
-
-[[ml-update-snapshot-prereqs]]
-==== {api-prereq-title}
-
-You must have `manage_ml`, or `manage` cluster privileges to use this API.
-For more information, see
-{stack-ov}/security-privileges.html[Security privileges].
 
 [[ml-update-snapshot-example]]
 ==== {api-examples-title}

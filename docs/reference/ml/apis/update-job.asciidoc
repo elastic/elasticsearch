@@ -13,6 +13,14 @@ Updates certain properties of a job.
 
 `POST _ml/anomaly_detectors/<job_id>/_update`
 
+[[ml-update-job-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have `manage_ml` or
+`manage` cluster privileges to use this API. See
+{stack-ov}/security-privileges.html[Security privileges].
+
+
 [[ml-update-job-path-parms]]
 ==== {api-path-parms-title}
 
@@ -87,13 +95,6 @@ A detector update object has the following properties:
   (array) The new list of <<ml-detector-custom-rule, rules>> for the detector.
 
 No other detector property can be updated.
-
-[[ml-update-job-prereqs]]
-==== {api-prereq-title}
-
-You must have `manage_ml`, or `manage` cluster privileges to use this API.
-For more information, see
-{stack-ov}/security-privileges.html[Security privileges].
 
 [[ml-update-job-example]]
 ==== {api-examples-title}

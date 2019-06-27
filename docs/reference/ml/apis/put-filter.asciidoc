@@ -13,6 +13,13 @@ Instantiates a filter.
 
 `PUT _ml/filters/<filter_id>`
 
+[[ml-put-filter-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have `manage_ml` or
+`manage` cluster privileges to use this API. See
+{stack-ov}/security-privileges.html[Security privileges].
+
 [[ml-put-filter-desc]]
 ==== {api-description-title}
 
@@ -37,13 +44,6 @@ the `custom_rules` property of <<ml-detectorconfig,detector configuration object
   A wildcard `*` can be used at the beginning
   or the end of an item. Up to 10000 items
   are allowed in each filter.
-
-[[ml-put-filter-prereqs]]
-==== {api-prereq-title}
-
-You must have `manage_ml`, or `manage` cluster privileges to use this API.
-For more information, see
-{stack-ov}/security-privileges.html[Security privileges].
 
 [[ml-put-filter-example]]
 ==== {api-examples-title}

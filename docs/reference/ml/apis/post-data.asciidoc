@@ -13,6 +13,13 @@ Sends data to an anomaly detection job for analysis.
 
 `POST _ml/anomaly_detectors/<job_id>/_data`
 
+[[ml-post-data-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have `manage_ml` or
+`manage` cluster privileges to use this API. See
+{stack-ov}/security-privileges.html[Security privileges].
+
 [[ml-post-data-desc]]
 ==== {api-description-title}
 
@@ -62,13 +69,6 @@ or a comma-separated list.
 
 A sequence of one or more JSON documents containing the data to be analyzed.
 Only whitespace characters are permitted in between the documents.
-
-[[ml-post-data-prereqs]]
-==== {api-prereq-title}
-
-You must have `manage_ml`, or `manage` cluster privileges to use this API.
-For more information, see
-{stack-ov}/security-privileges.html[Security privileges].
 
 [[ml-post-data-example]]
 ==== {api-examples-title}

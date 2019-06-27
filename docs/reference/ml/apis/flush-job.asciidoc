@@ -13,6 +13,13 @@ Forces any buffered data to be processed by the job.
 
 `POST _ml/anomaly_detectors/<job_id>/_flush`
 
+[[ml-flush-job-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have `manage_ml` or
+`manage` cluster privileges to use this API. See
+{stack-ov}/security-privileges.html[Security privileges].
+
 [[ml-flush-job-desc]]
 ==== {api-description-title}
 
@@ -55,12 +62,6 @@ opened again before analyzing further data.
 `start`::
   (string) When used in conjunction with `calc_interim`, specifies the range of
   buckets on which to calculate interim results.
-
-[[ml-flush-job-prereqs]]
-==== {api-prereq-title}
-
-You must have `manage_ml`, or `manage` cluster privileges to use this API.
-For more information, see {xpack-ref}/security-privileges.html[Security Privileges].
 
 [[ml-flush-job-example]]
 ==== {api-examples-title}

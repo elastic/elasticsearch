@@ -13,6 +13,13 @@ Instantiates a job.
 
 `PUT _ml/anomaly_detectors/<job_id>`
 
+[[ml-put-job-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have `manage_ml` or
+`manage` cluster privileges to use this API. See
+{stack-ov}/security-privileges.html[Security privileges].
+
 [[ml-put-job-desc]]
 ==== {api-description-title}
 
@@ -79,13 +86,6 @@ IMPORTANT: You must use {kib} or this API to create a {ml} job. Do not put a job
 `results_retention_days`::
   (long) Advanced configuration option. The number of days for which job results
   are retained. See <<ml-job-resource>>.
-
-[[ml-put-job-prereqs]]
-==== {api-prereq-title}
-
-You must have `manage_ml`, or `manage` cluster privileges to use this API.
-For more information, see
-{stack-ov}/security-privileges.html[Security privileges].
 
 [[ml-put-job-example]]
 ==== {api-examples-title}

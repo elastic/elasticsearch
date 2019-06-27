@@ -16,6 +16,13 @@ suitable to be ingested into {es}.
 
 `POST _ml/find_file_structure`
 
+[[ml-find-file-structure-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have `monitor_ml` or
+`monitor` cluster privileges to use this API. See
+{stack-ov}/security-privileges.html[Security privileges].
+
 [[ml-find-file-structure-desc]]
 ==== {api-description-title}
 
@@ -206,13 +213,6 @@ The text file that you want to analyze. It must contain data that is suitable to
 be ingested into {es}. It does not need to be in JSON format and it does not
 need to be UTF-8 encoded. The size is limited to the {es} HTTP receive buffer
 size, which defaults to 100 Mb.
-
-[[ml-find-file-structure-prereqs]]
-==== {api-prereq-title}
-
-You must have `monitor_ml`, or `monitor` cluster privileges to use this API.
-For more information, see {stack-ov}/security-privileges.html[Security Privileges].
-
 
 [[ml-find-file-structure-examples]]
 ==== {api-examples-title}

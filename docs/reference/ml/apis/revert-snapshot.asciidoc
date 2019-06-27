@@ -13,6 +13,13 @@ Reverts to a specific snapshot.
 
 `POST _ml/anomaly_detectors/<job_id>/model_snapshots/<snapshot_id>/_revert`
 
+[[ml-revert-snapshot-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have `manage_ml` or
+`manage` cluster privileges to use this API. See
+{stack-ov}/security-privileges.html[Security privileges].
+
 [[ml-revert-snapshot-desc]]
 ==== {api-description-title}
 
@@ -46,13 +53,6 @@ IMPORTANT: Before you revert to a saved snapshot, you must close the job.
 NOTE: If you choose not to delete intervening results when reverting a snapshot,
 the job will not accept input data that is older than the current time.
 If you want to resend data, then delete the intervening results.
-
-[[ml-revert-snapshot-prereqs]]
-==== {api-prereq-title}
-
-You must have `manage_ml`, or `manage` cluster privileges to use this API.
-For more information, see
-{stack-ov}/security-privileges.html[Security privileges].
 
 [[ml-revert-snapshot-example]]
 ==== {api-examples-title}

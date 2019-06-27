@@ -13,6 +13,13 @@ Deletes scheduled events from a calendar.
 
 `DELETE _ml/calendars/<calendar_id>/events/<event_id>`
 
+[[ml-delete-calendar-event-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have `manage_ml` or
+`manage` cluster privileges to use this API. See
+{stack-ov}/security-privileges.html[Security privileges].
+
 [[ml-delete-calendar-event-desc]]
 ==== {api-description-title}
 
@@ -29,12 +36,6 @@ events and delete the calendar, see the
 `event_id` (required)::
   (string) Identifier for the scheduled event. You can obtain this identifier
   by using the <<ml-get-calendar-event,get calendar events API>>.
-
-[[ml-delete-calendar-event-prereqs]]
-==== {api-prereq-title}
-
-You must have `manage_ml`, or `manage` cluster privileges to use this API.
-For more information, see {stack-ov}/security-privileges.html[Security privileges].
 
 [[ml-delete-calendar-event-example]]
 ==== {api-examples-title}

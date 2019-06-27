@@ -15,6 +15,13 @@ Updates certain properties of a {dfeed}.
 
 `POST _ml/datafeeds/<feed_id>/_update`
 
+[[ml-update-datafeed-prereqs]]
+==== {api-prereq-title}
+
+* If {es} {security-features} are enabled, you must have `manage_ml`, or `manage`
+cluster privileges to use this API. See
+{stack-ov}/security-privileges.html[Security privileges].
+
 [[ml-update-datafeed-desc]]
 ==== {api-description-title}
 
@@ -83,13 +90,6 @@ The following properties can be updated after the {dfeed} is created:
 
 For more information about these properties,
 see <<ml-datafeed-resource>>.
-
-[[ml-update-datafeed-prereqs]]
-==== {api-prereq-title}
-
-If {es} {security-features} are enabled, you must have `manage_ml`, or `manage`
-cluster privileges to use this API. For more information, see
-{stack-ov}/security-privileges.html[Security privileges].
 
 [[ml-update-datafeed-security]]
 ==== Security Integration

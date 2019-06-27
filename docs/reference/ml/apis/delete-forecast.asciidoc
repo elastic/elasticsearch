@@ -17,6 +17,13 @@ Deletes forecasts from a {ml} job.
 
 `DELETE _ml/anomaly_detectors/<job_id>/_forecast/_all`
 
+[[ml-delete-forecast-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have `manage_ml` or
+`manage` cluster privileges to use this API. See
+{stack-ov}/security-privileges.html[Security privileges].
+
 [[ml-delete-forecast-desc]]
 ==== {api-description-title}
 
@@ -52,12 +59,7 @@ For more information, see {stack-ov}/ml-overview.html#ml-forecasting[Forecasting
   delete operation. When this period of time elapses, the API fails and returns 
   an error. The default value is `30s`. For more information about time units, 
   see <<time-units>>.
-  
-[[ml-delete-forecast-prereqs]]
-==== {api-prereq-title}
 
-You must have `manage_ml`, or `manage` cluster privileges to use this API.
-For more information, see {stack-ov}/security-privileges.html[Security Privileges].
 
 [[ml-delete-forecast-example]]
 ==== {api-examples-title}

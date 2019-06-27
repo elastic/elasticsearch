@@ -22,6 +22,13 @@ operations, but you can still explore and navigate results.
 
 `POST _ml/anomaly_detectors/_all/_close` +
 
+[[ml-close-job-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have `manage_ml` or
+`manage` cluster privileges to use this API. See
+{stack-ov}/security-privileges.html[Security privileges].
+
 [[ml-close-job-desc]]
 ==== {api-description-title}
 
@@ -66,12 +73,6 @@ results the job might have recently produced or might produce in the future.
 `timeout`::
   (time units) Controls the time to wait until a job has closed.
   The default value is 30 minutes.
-
-[[ml-close-job-prereqs]]
-==== {api-prereq-title}
-
-You must have `manage_ml`, or `manage` cluster privileges to use this API.
-For more information, see {stack-ov}/security-privileges.html[Security privileges].
 
 [[ml-close-job-example]]
 ==== {api-examples-title}

@@ -9,5 +9,12 @@ public final class DataFrameAnalyticsFields {
 
     public static final String ID = "_id_copy";
 
+    // Metadata fields
+    static final String CREATION_DATE_MILLIS = "creation_date_in_millis";
+    static final String VERSION = "version";
+    static final String CREATED = "created";
+    static final String CREATED_BY = "created_by";
+    static final String ANALYTICS = "analytics";
+
     private DataFrameAnalyticsFields() {}
 }

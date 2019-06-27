@@ -78,7 +78,7 @@ public abstract class AbstractRepository implements Repository {
         terminal.println(Terminal.Verbosity.NORMAL, "Finished removing leaked indices");
     }
 
-    protected void confirm(Terminal terminal, String msg) {
+    private void confirm(Terminal terminal, String msg) {
         terminal.println(Terminal.Verbosity.NORMAL, msg);
         String text = terminal.readText("Confirm [y/N] ");
         if (text.equalsIgnoreCase("y") == false) {

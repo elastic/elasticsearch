@@ -8,8 +8,8 @@ import org.elasticsearch.repositories.IndexId;
 
 import java.io.IOException;
 import java.util.Date;
-import java.util.HashSet;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.stream.Collectors;
 
 public abstract  class AbstractRepository implements Repository {
@@ -41,7 +41,7 @@ public abstract  class AbstractRepository implements Repository {
         terminal.println(Terminal.Verbosity.VERBOSE, "Listing indices/ directory");
         Set<String> allIndexIds = getAllIndexIds();
         terminal.println(Terminal.Verbosity.VERBOSE, "Set of indices inside indices/ directory is " + allIndexIds);
-        Set<String> deletionCandidates = Sets.difference(allIndexIds, referencedIndexIds);
+        Set<String> deletionCandidates = new TreeSet<>(Sets.difference(allIndexIds, referencedIndexIds));
         terminal.println(Terminal.Verbosity.VERBOSE, "Set of deletion candidates is " + deletionCandidates);
         if (deletionCandidates.isEmpty()) {
             terminal.println(Terminal.Verbosity.NORMAL, "Set of deletion candidates is empty. Exiting");
@@ -49,7 +49,7 @@ public abstract  class AbstractRepository implements Repository {
         }
         terminal.println(Terminal.Verbosity.VERBOSE, "Obtaining latest index file creation timestamp");
 
-        Set<String> leakedIndexIds = new HashSet<>();
+        Set<String> leakedIndexIds = new TreeSet<>();
         for (String candidate : deletionCandidates) {
             terminal.println(Terminal.Verbosity.VERBOSE, "Reading index " + candidate + " last modification timestamp");
             Date indexTimestamp = getIndexTimestamp(candidate);

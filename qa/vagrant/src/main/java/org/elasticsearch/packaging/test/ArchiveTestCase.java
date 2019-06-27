@@ -118,7 +118,7 @@ public abstract class ArchiveTestCase extends PackagingTestCase {
         // from the server's perspective the permissions aren't really different, this is just to reflect what we'd expect in the tests.
         // when we run these commands as a role user we won't have to do this
         Platforms.onWindows(() -> sh.run(
-            bin.elasticsearchKeystore + " create; " +
+                bin.elasticsearchKeystore + " create; " +
                 "$account = New-Object System.Security.Principal.NTAccount 'vagrant'; " +
                 "$acl = Get-Acl '" + installation.config("elasticsearch.keystore") + "'; " +
                 "$acl.SetOwner($account); " +
@@ -282,21 +282,21 @@ public abstract class ArchiveTestCase extends PackagingTestCase {
             // startup since we detect usages of logging before it is configured
             final String jvmOptions =
                 "-Xms512m\n" +
-                    "-Xmx512m\n" +
-                    "-Dlog4j2.disable.jmx=true\n";
+                "-Xmx512m\n" +
+                "-Dlog4j2.disable.jmx=true\n";
             append(tempConf.resolve("jvm.options"), jvmOptions);
 
             final Shell sh = newShell();
             Platforms.onLinux(() -> sh.run("chown -R elasticsearch:elasticsearch " + tempConf));
             Platforms.onWindows(() -> sh.run(
                 "$account = New-Object System.Security.Principal.NTAccount 'vagrant'; " +
-                    "$tempConf = Get-ChildItem '" + tempConf + "' -Recurse; " +
-                    "$tempConf += Get-Item '" + tempConf + "'; " +
-                    "$tempConf | ForEach-Object { " +
+                "$tempConf = Get-ChildItem '" + tempConf + "' -Recurse; " +
+                "$tempConf += Get-Item '" + tempConf + "'; " +
+                "$tempConf | ForEach-Object { " +
                     "$acl = Get-Acl $_.FullName; " +
                     "$acl.SetOwner($account); " +
                     "Set-Acl $_.FullName $acl " +
-                    "}"
+                "}"
             ));
 
             final Shell serverShell = newShell();
@@ -336,13 +336,13 @@ public abstract class ArchiveTestCase extends PackagingTestCase {
             Platforms.onLinux(() -> sh.run("chown -R elasticsearch:elasticsearch " + temp));
             Platforms.onWindows(() -> sh.run(
                 "$account = New-Object System.Security.Principal.NTAccount 'vagrant'; " +
-                    "$tempConf = Get-ChildItem '" + temp + "' -Recurse; " +
-                    "$tempConf += Get-Item '" + temp + "'; " +
-                    "$tempConf | ForEach-Object { " +
+                "$tempConf = Get-ChildItem '" + temp + "' -Recurse; " +
+                "$tempConf += Get-Item '" + temp + "'; " +
+                "$tempConf | ForEach-Object { " +
                     "$acl = Get-Acl $_.FullName; " +
                     "$acl.SetOwner($account); " +
                     "Set-Acl $_.FullName $acl " +
-                    "}"
+                "}"
             ));
 
             final Shell serverShell = newShell();
@@ -410,7 +410,7 @@ public abstract class ArchiveTestCase extends PackagingTestCase {
         Platforms.PlatformAction action = () -> {
             final Result result = sh.run(bin.elasticsearchNode + " -h");
             assertThat(result.stdout,
-                containsString("A CLI tool to do unsafe cluster and index manipulations on current node"));
+                    containsString("A CLI tool to do unsafe cluster and index manipulations on current node"));
         };
 
         if (distribution().equals(Distribution.DEFAULT_LINUX) || distribution().equals(Distribution.DEFAULT_WINDOWS)) {
@@ -444,16 +444,16 @@ public abstract class ArchiveTestCase extends PackagingTestCase {
         sh.setWorkingDirectory(getTempDir());
 
         Platforms.PlatformAction action = () -> {
-            Result result = sh.run(bin.elasticsearchCertutil + " -h");
+            Result result = sh.run(bin.elasticsearchCertutil+ " -h");
             assertThat(result.stdout,
                 containsString("Simplifies certificate creation for use with the Elastic Stack"));
-            result = sh.run(bin.elasticsearchSyskeygen + " -h");
+            result = sh.run(bin.elasticsearchSyskeygen+ " -h");
             assertThat(result.stdout,
                 containsString("system key tool"));
-            result = sh.run(bin.elasticsearchSetupPasswords + " -h");
+            result = sh.run(bin.elasticsearchSetupPasswords+ " -h");
             assertThat(result.stdout,
                 containsString("Sets the passwords for reserved users"));
-            result = sh.run(bin.elasticsearchUsers + " -h");
+            result = sh.run(bin.elasticsearchUsers+ " -h");
             assertThat(result.stdout,
                 containsString("Manages elasticsearch file users"));
         };

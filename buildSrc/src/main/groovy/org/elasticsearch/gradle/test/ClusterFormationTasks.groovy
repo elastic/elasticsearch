@@ -44,7 +44,6 @@ import java.nio.charset.StandardCharsets
 import java.nio.file.Paths
 import java.util.concurrent.TimeUnit
 import java.util.stream.Collectors
-
 /**
  * A helper for creating tasks to build a cluster that is used by a task, and tear down the cluster when the task is finished.
  */
@@ -65,16 +64,16 @@ class ClusterFormationTasks {
          * snapshots survive failures / test runs and there is no simple way
          * today to fix that. */
         if (config.cleanShared) {
-            Task cleanup = project.tasks.create(
-                    name: "${prefix}#prepareCluster.cleanShared",
-                    type: Delete,
-                    dependsOn: startDependencies) {
-                delete sharedDir
-                doLast {
-                    sharedDir.mkdirs()
-                }
-            }
-            startDependencies = cleanup
+          Task cleanup = project.tasks.create(
+            name: "${prefix}#prepareCluster.cleanShared",
+            type: Delete,
+            dependsOn: startDependencies) {
+              delete sharedDir
+              doLast {
+                  sharedDir.mkdirs()
+              }
+          }
+          startDependencies = cleanup
         }
         List<Task> startTasks = []
         List<NodeInfo> nodes = []
@@ -116,8 +115,8 @@ class ClusterFormationTasks {
             String elasticsearchVersion
             if (i < config.numBwcNodes) {
                 elasticsearchVersion = config.bwcVersion.toString()
-                if (project.bwcVersions.unreleased.contains(config.bwcVersion) &&
-                        (project.version != elasticsearchVersion)) {
+                if (project.bwcVersions.unreleased.contains(config.bwcVersion) && 
+                    (project.version != elasticsearchVersion)) {
                     elasticsearchVersion += "-SNAPSHOT"
                 }
                 distro = bwcDistro
@@ -203,7 +202,7 @@ class ClusterFormationTasks {
         if (distro.equals("oss")) {
             snapshotProject = "oss-" + snapshotProject
         }
-
+        
         BwcVersions.UnreleasedVersionInfo unreleasedInfo = null
 
         if (project.hasProperty('bwcVersions')) {
@@ -229,7 +228,7 @@ class ClusterFormationTasks {
     /** Adds a dependency on a different version of the given plugin, which will be retrieved using gradle's dependency resolution */
     static void configureBwcPluginDependency(Project project, Object plugin, Configuration configuration, Version elasticsearchVersion) {
         if (plugin instanceof Project) {
-            Project pluginProject = (Project) plugin
+            Project pluginProject = (Project)plugin
             verifyProjectHasBuildPlugin(configuration.name, elasticsearchVersion, project, pluginProject)
             final String pluginName = findPluginName(pluginProject)
             project.dependencies.add(configuration.name, "org.elasticsearch.plugin:${pluginName}:${elasticsearchVersion}@zip")
@@ -330,7 +329,7 @@ class ClusterFormationTasks {
             start.finalizedBy(stop)
             for (Object dependency : config.dependencies) {
                 if (dependency instanceof Fixture) {
-                    def depStop = ((Fixture) dependency).stopTask
+                    def depStop = ((Fixture)dependency).stopTask
                     runner.finalizedBy(depStop)
                     start.finalizedBy(depStop)
                 }
@@ -367,21 +366,21 @@ class ClusterFormationTasks {
     /** Adds a task to write elasticsearch.yml for the given node configuration */
     static Task configureWriteConfigTask(String name, Project project, Task setup, NodeInfo node, Closure<Map> configFilter) {
         Map esConfig = [
-                'cluster.name'                   : node.clusterName,
-                'node.name'                      : "node-" + node.nodeNum,
-                'pidfile'                        : node.pidFile,
-                'path.repo'                      : "${node.sharedDir}/repo",
-                'path.shared_data'               : "${node.sharedDir}/",
+                'cluster.name'                 : node.clusterName,
+                'node.name'                    : "node-" + node.nodeNum,
+                'pidfile'                      : node.pidFile,
+                'path.repo'                    : "${node.sharedDir}/repo",
+                'path.shared_data'             : "${node.sharedDir}/",
                 // Define a node attribute so we can test that it exists
-                'node.attr.testattr'             : 'test',
+                'node.attr.testattr'           : 'test',
                 // Don't wait for state, just start up quickly. This will also allow new and old nodes in the BWC case to become the master
-                'discovery.initial_state_timeout': '0s'
+                'discovery.initial_state_timeout' : '0s'
         ]
         esConfig['http.port'] = node.config.httpPort
         if (node.nodeVersion.onOrAfter('6.7.0')) {
-            esConfig['transport.port'] = node.config.transportPort
+            esConfig['transport.port'] =  node.config.transportPort
         } else {
-            esConfig['transport.tcp.port'] = node.config.transportPort
+            esConfig['transport.tcp.port'] =  node.config.transportPort
         }
         // Default the watermarks to absurdly low to prevent the tests from failing on nodes without enough disk space
         esConfig['cluster.routing.allocation.disk.watermark.low'] = '1b'
@@ -425,7 +424,7 @@ class ClusterFormationTasks {
              * getting the short name requiring the path to already exist.
              */
             final Object esKeystoreUtil = "${-> node.binPath().resolve('elasticsearch-keystore').toString()}"
-            return configureExecTask(name, project, setup, node, esKeystoreUtil, 'create')
+            return configureExecTask(name, project, setup, node, esKeystoreUtil, 'create', '--nopass')
         }
     }
 
@@ -489,7 +488,7 @@ class ClusterFormationTasks {
         Copy copyConfig = project.tasks.create(name: name, type: Copy, dependsOn: setup)
         File configDir = new File(node.homeDir, 'config')
         copyConfig.into(configDir) // copy must always have a general dest dir, even though we don't use it
-        for (Map.Entry<String, Object> extraConfigFile : node.config.extraConfigFiles.entrySet()) {
+        for (Map.Entry<String,Object> extraConfigFile : node.config.extraConfigFiles.entrySet()) {
             Object extraConfigFileValue = extraConfigFile.getValue()
             copyConfig.doFirst {
                 // make sure the copy won't be a no-op or act on a directory
@@ -553,6 +552,7 @@ class ClusterFormationTasks {
             } else {
                 project.dependencies.add(configurationName, "${plugin.getValue()}@zip")
             }
+
 
 
             pluginFiles.add(configuration)
@@ -681,7 +681,7 @@ class ClusterFormationTasks {
         // this closure is converted into ant nodes by groovy's AntBuilder
         Closure antRunner = { AntBuilder ant ->
             ant.exec(executable: node.executable, spawn: node.config.daemonize, newenvironment: true,
-                    dir: node.cwd, taskname: 'elasticsearch') {
+                     dir: node.cwd, taskname: 'elasticsearch') {
                 node.env.each { key, value -> env(key: key, value: value) }
                 if ((project.isRuntimeJavaHomeSet && node.isBwcNode == false) // runtime Java might not be compatible with old nodes
                         || node.config.distribution == 'integ-test-zip') {
@@ -728,7 +728,7 @@ class ClusterFormationTasks {
         start.doLast(elasticsearchRunner)
         start.doFirst {
             // If the node runs in a FIPS 140-2 JVM, the BCFKS default keystore will be password protected
-            if (project.inFipsJvm) {
+            if (project.inFipsJvm){
                 node.config.systemProperties.put('javax.net.ssl.trustStorePassword', 'password')
                 node.config.systemProperties.put('javax.net.ssl.keyStorePassword', 'password')
             }
@@ -866,7 +866,7 @@ class ClusterFormationTasks {
                 node.startLog.eachLine { line -> logger.error("|    ${line}") }
             }
             if (node.pidFile.exists() && node.failedMarker.exists() == false &&
-                    (node.httpPortsFile.exists() == false || node.transportPortsFile.exists() == false)) {
+                (node.httpPortsFile.exists() == false || node.transportPortsFile.exists() == false)) {
                 logger.error("|\n|  [jstack]")
                 String pid = node.pidFile.getText('UTF-8')
                 ByteArrayOutputStream output = new ByteArrayOutputStream()
@@ -886,7 +886,7 @@ class ClusterFormationTasks {
         return project.tasks.create(name: name, type: Exec, dependsOn: depends) {
             onlyIf { node.pidFile.exists() }
             // the pid file won't actually be read until execution time, since the read is wrapped within an inner closure of the GString
-            ext.pid = "${-> node.pidFile.getText('UTF-8').trim()}"
+            ext.pid = "${ -> node.pidFile.getText('UTF-8').trim()}"
             File jps
             if (Os.isFamily(Os.FAMILY_WINDOWS)) {
                 jps = getJpsExecutableByName(project, "jps.exe")
@@ -923,7 +923,7 @@ class ClusterFormationTasks {
         return project.tasks.create(name: name, type: LoggedExec, dependsOn: depends) {
             onlyIf { node.pidFile.exists() }
             // the pid file won't actually be read until execution time, since the read is wrapped within an inner closure of the GString
-            ext.pid = "${-> node.pidFile.getText('UTF-8').trim()}"
+            ext.pid = "${ -> node.pidFile.getText('UTF-8').trim()}"
             doFirst {
                 logger.info("Shutting down external node with pid ${pid}")
             }

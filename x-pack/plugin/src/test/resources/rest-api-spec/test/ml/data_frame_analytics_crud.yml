@@ -78,7 +78,7 @@ setup:
           }
 
 ---
-"Test put valid config with create_time in the body":
+"Test put config with create_time in the body":
 
   - do:
       catch: /unknown field \[create_time\], parser not found/
@@ -97,7 +97,7 @@ setup:
           }
 
 ---
-"Test put valid config with version in the body":
+"Test put config with version in the body":
 
   - do:
       catch: /unknown field \[version\], parser not found/

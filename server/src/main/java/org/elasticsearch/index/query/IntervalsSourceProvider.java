@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.search.intervals.FilteredIntervalsSource;
 import org.apache.lucene.search.intervals.IntervalIterator;
 import org.apache.lucene.search.intervals.Intervals;
@@ -569,7 +570,7 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
         }
 
         @Override
-        public IntervalsSource getSource(QueryShardContext context, MappedFieldType fieldType) throws IOException {
+        public IntervalsSource getSource(QueryShardContext context, MappedFieldType fieldType) {
             NamedAnalyzer analyzer = fieldType.searchAnalyzer();
             if (this.analyzer != null) {
                 analyzer = context.getMapperService().getIndexAnalyzers().get(this.analyzer);
@@ -578,16 +579,26 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
             if (useField != null) {
                 fieldType = context.fieldMapper(useField);
                 assert fieldType != null;
-                analyzer = fieldType.searchAnalyzer();
+                checkPositions(fieldType);
+                if (this.analyzer == null) {
+                    analyzer = fieldType.searchAnalyzer();
+                }
                 BytesRef normalizedTerm = analyzer.normalize(useField, pattern);
                 // TODO Intervals.wildcard() should take BytesRef
                 source = Intervals.fixField(useField, Intervals.wildcard(normalizedTerm.utf8ToString()));
             }
             else {
-                BytesRef normalizedTerm = analyzer.normalize(useField, pattern);
+                checkPositions(fieldType);
+                BytesRef normalizedTerm = analyzer.normalize(fieldType.name(), pattern);
                 source = Intervals.wildcard(normalizedTerm.utf8ToString());
             }
             return source;
+        }
+
+        private void checkPositions(MappedFieldType type) {
+            if (type.indexOptions().compareTo(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS) < 0) {
+                throw new IllegalArgumentException("Cannot create intervals over field [" + type.name() + "] with no positions indexed");
+            }
         }
 
         @Override

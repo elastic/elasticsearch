@@ -1289,8 +1289,8 @@ public class InternalEngine extends Engine {
     protected final DeletionStrategy planDeletionAsNonPrimary(Delete delete) throws IOException {
         assert assertNonPrimaryOrigin(delete);
         final DeletionStrategy plan;
-        if (delete.seqNo() <= localCheckpointTracker.getProcessedCheckpoint()) {
-            // the operation seq# is lower then the current local checkpoint and thus was already put into lucene
+        if (hasBeenProcessedBefore(delete)) {
+            // the operation seq# was processed thus this operation was already put into lucene
             // this can happen during recovery where older operations are sent from the translog that are already
             // part of the lucene commit (either from a peer recovery or a local translog)
             // or due to concurrent indexing & recovery. For the former it is important to skip lucene as the operation in
@@ -1467,7 +1467,7 @@ public class InternalEngine extends Engine {
                 noOpResult = new NoOpResult(getPrimaryTerm(), SequenceNumbers.UNASSIGNED_SEQ_NO, preFlightError.get());
             } else {
                 markSeqNoAsSeen(noOp.seqNo());
-                if (softDeleteEnabled) {
+                if (softDeleteEnabled && hasBeenProcessedBefore(noOp) == false) {
                     try {
                         final ParsedDocument tombstone = engineConfig.getTombstoneDocSupplier().newNoopTombstoneDoc(noOp.reason());
                         tombstone.updateSeqID(noOp.seqNo(), noOp.primaryTerm());

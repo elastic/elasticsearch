@@ -44,6 +44,7 @@ import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TotalHitCountCollector;
+import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
@@ -75,6 +76,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.MapperTestUtils;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.codec.CodecService;
+import org.elasticsearch.index.fieldvisitor.IdOnlyFieldVisitor;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
@@ -112,6 +114,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -265,11 +268,13 @@ public abstract class EngineTestCase extends ESTestCase {
                 engine.getTranslog().getDeletionPolicy().assertNoOpenTranslogRefs();
                 assertConsistentHistoryBetweenTranslogAndLuceneIndex(engine, createMapperService("test"));
                 assertMaxSeqNoInCommitUserData(engine);
+                assertAtMostOneLuceneDocumentPerSequenceNumber(engine);
             }
             if (replicaEngine != null && replicaEngine.isClosed.get() == false) {
                 replicaEngine.getTranslog().getDeletionPolicy().assertNoOpenTranslogRefs();
                 assertConsistentHistoryBetweenTranslogAndLuceneIndex(replicaEngine, createMapperService("test"));
                 assertMaxSeqNoInCommitUserData(replicaEngine);
+                assertAtMostOneLuceneDocumentPerSequenceNumber(replicaEngine);
             }
             assertThat(engine.config().getCircuitBreakerService().getBreaker(CircuitBreaker.ACCOUNTING).getUsed(), equalTo(0L));
             assertThat(replicaEngine.config().getCircuitBreakerService().getBreaker(CircuitBreaker.ACCOUNTING).getUsed(), equalTo(0L));
@@ -1115,6 +1120,39 @@ public abstract class EngineTestCase extends ESTestCase {
                 assertThat(Long.parseLong(commit.getUserData().get(SequenceNumbers.MAX_SEQ_NO)),
                     greaterThanOrEqualTo(maxSeqNosInReader(reader)));
             }
+        }
+    }
+
+    public static void assertAtMostOneLuceneDocumentPerSequenceNumber(Engine engine) throws IOException {
+        if (engine.config().getIndexSettings().isSoftDeleteEnabled() == false) {
+            return;
+        }
+        try {
+            engine.refresh("test");
+            try (Engine.Searcher searcher = engine.acquireSearcher("test")) {
+                DirectoryReader reader = Lucene.wrapAllDocsLive(searcher.getDirectoryReader());
+                Set<Long> seqNos = new HashSet<>();
+                for (LeafReaderContext leaf : reader.leaves()) {
+                    NumericDocValues primaryTermDocValues = leaf.reader().getNumericDocValues(SeqNoFieldMapper.PRIMARY_TERM_NAME);
+                    NumericDocValues seqNoDocValues = leaf.reader().getNumericDocValues(SeqNoFieldMapper.NAME);
+                    int docId;
+                    while ((docId = seqNoDocValues.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {
+                        assertTrue(seqNoDocValues.advanceExact(docId));
+                        if (primaryTermDocValues.advanceExact(docId)) {
+                            assertThat(primaryTermDocValues.longValue(), greaterThanOrEqualTo(1L));
+                            long seqNo = seqNoDocValues.longValue();
+                            assertThat(seqNo, greaterThanOrEqualTo(0L));
+                            if (seqNos.add(seqNo) == false) {
+                                final IdOnlyFieldVisitor idFieldVisitor = new IdOnlyFieldVisitor();
+                                leaf.reader().document(docId, idFieldVisitor);
+                                throw new AssertionError("found multiple documents for seq=" + seqNo + " id=" + idFieldVisitor.getId());
+                            }
+                        }
+                    }
+                }
+            }
+        } catch (AlreadyClosedException ignored) {
+
         }
     }
 

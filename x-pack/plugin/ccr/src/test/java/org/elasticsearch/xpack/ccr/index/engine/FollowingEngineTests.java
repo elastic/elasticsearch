@@ -58,6 +58,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.index.engine.EngineTestCase.createMapperService;
 import static org.elasticsearch.index.engine.EngineTestCase.getDocIds;
 import static org.elasticsearch.index.engine.EngineTestCase.getNumVersionLookups;
 import static org.elasticsearch.index.engine.EngineTestCase.getTranslog;
@@ -485,6 +486,8 @@ public class FollowingEngineTests extends ESTestCase {
                 }
                 assertThat(follower.getMaxSeqNoOfUpdatesOrDeletes(), equalTo(leader.getMaxSeqNoOfUpdatesOrDeletes()));
                 assertThat(getDocIds(follower, true), equalTo(getDocIds(leader, true)));
+                EngineTestCase.assertConsistentHistoryBetweenTranslogAndLuceneIndex(follower, createMapperService("test"));
+                EngineTestCase.assertAtMostOneLuceneDocumentPerSequenceNumber(follower);
             }
         };
 

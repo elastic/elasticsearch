@@ -13,6 +13,13 @@ Deletes a calendar.
 
 `DELETE _ml/calendars/<calendar_id>`
 
+[[ml-delete-calendar-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have `manage_ml` or
+`manage` cluster privileges to use this API. See
+{stack-ov}/security-privileges.html[Security privileges].
+
 [[ml-delete-calendar-desc]]
 ==== {api-description-title}
 
@@ -22,14 +29,8 @@ calendar.
 [[ml-delete-calendar-path-parms]]
 ==== {api-path-parms-title}
 
-`calendar_id` (required)::
+`<calendar_id>` (Required)::
   (string) Identifier for the calendar.
-
-[[ml-delete-calendar-prereqs]]
-==== {api-prereq-title}
-
-You must have `manage_ml`, or `manage` cluster privileges to use this API.
-For more information, see {stack-ov}/security-privileges.html[Security privileges].
 
 [[ml-delete-calendar-example]]
 ==== {api-examples-title}

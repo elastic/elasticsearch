@@ -26,10 +26,12 @@ import org.elasticsearch.common.settings.SecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.AbstractThirdPartyRepositoryTestCase;
+import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.test.StreamsUtils;
 
 import java.io.IOException;
 import java.util.Collection;
+import java.util.concurrent.Executor;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
@@ -76,6 +78,20 @@ public class S3RepositoryThirdPartyTests extends AbstractThirdPartyRepositoryTes
     }
 
     @Override
+    protected boolean assertCorruptionVisible(BlobStoreRepository repo, Executor genericExec) throws Exception {
+        // S3 is only eventually consistent for the list operations used by this assertions so we retry for 10 minutes assuming that
+        // listing operations will become consistent within these 10 minutes.
+        assertBusy(() -> assertTrue(super.assertCorruptionVisible(repo, genericExec)), 10L, TimeUnit.MINUTES);
+        return true;
+    }
+
+    @Override
+    protected void assertConsistentRepository(BlobStoreRepository repo, Executor executor) throws Exception {
+        // S3 is only eventually consistent for the list operations used by this assertions so we retry for 10 minutes assuming that
+        // listing operations will become consistent within these 10 minutes.
+        assertBusy(() -> super.assertConsistentRepository(repo, executor), 10L, TimeUnit.MINUTES);
+    }
+
     protected void assertBlobsByPrefix(BlobPath path, String prefix, Map<String, BlobMetaData> blobs) throws Exception {
         // AWS S3 is eventually consistent so we retry for 10 minutes assuming a list operation will never take longer than that
         // to become consistent.

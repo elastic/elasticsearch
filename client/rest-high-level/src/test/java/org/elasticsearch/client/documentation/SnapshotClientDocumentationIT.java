@@ -452,7 +452,7 @@ public class SnapshotClientDocumentationIT extends ESRestHighLevelClientTestCase
         List<VerifyRepositoryResponse.NodeView> repositoryMetaDataResponse = response.getNodes();
         // end::verify-repository-response
         assertThat(1, equalTo(repositoryMetaDataResponse.size()));
-        assertThat("node-0", equalTo(repositoryMetaDataResponse.get(0).getName()));
+        assertThat("integTest-0", equalTo(repositoryMetaDataResponse.get(0).getName()));
     }
 
     public void testSnapshotVerifyRepositoryAsync() throws InterruptedException {

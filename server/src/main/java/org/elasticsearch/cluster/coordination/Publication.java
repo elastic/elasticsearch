@@ -333,9 +333,15 @@ public abstract class Publication {
 
                 assert state == PublicationTargetState.SENT_PUBLISH_REQUEST : state + " -> " + PublicationTargetState.WAITING_FOR_QUORUM;
                 state = PublicationTargetState.WAITING_FOR_QUORUM;
-                handlePublishResponse(response.getPublishResponse());
 
-                assert publicationCompletedIffAllTargetsInactiveOrCancelled();
+                try {
+                    handlePublishResponse(response.getPublishResponse());
+                } catch (Exception e) {
+                    setFailed(e);
+                    onPossibleCommitFailure();
+                } finally {
+                    assert publicationCompletedIffAllTargetsInactiveOrCancelled();
+                }
             }
 
             @Override

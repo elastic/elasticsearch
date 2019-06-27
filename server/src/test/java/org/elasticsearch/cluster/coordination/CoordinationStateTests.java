@@ -41,8 +41,10 @@ import java.util.Optional;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import static java.util.Collections.emptySet;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.matchesRegex;
 
 public class CoordinationStateTests extends ESTestCase {
 
@@ -306,6 +308,38 @@ public class CoordinationStateTests extends ESTestCase {
         assertFalse(cs1.electionWon());
         assertEquals(cs1.getLastPublishedVersion(), 0L);
         assertFalse(cs1.handleJoin(join));
+    }
+
+    public void testJoinFromMasterIneligibleVotingNode() {
+        final TransportAddress address2 = buildNewFakeTransportAddress();
+        final DiscoveryNode masterIneligibleNode2 = new DiscoveryNode("", node2.getId(),
+            UUIDs.randomBase64UUID(random()), // generated deterministically for repeatable tests
+            address2.address().getHostString(), address2.getAddress(), address2, Collections.emptyMap(),
+            emptySet(), Version.CURRENT);
+
+        final TransportAddress address3 = buildNewFakeTransportAddress();
+        final DiscoveryNode masterIneligibleNode3 = new DiscoveryNode("", node3.getId(),
+            UUIDs.randomBase64UUID(random()), // generated deterministically for repeatable tests
+            address3.address().getHostString(), address3.getAddress(), address3, Collections.emptyMap(),
+            emptySet(), Version.CURRENT);
+
+        final VotingConfiguration initialConfig = VotingConfiguration.of(node1, node2);
+        cs1.setInitialState(clusterState(0L, 0L, node1, initialConfig, initialConfig, 42L));
+        cs2 = createCoordinationState(new InMemoryPersistedState(0L,
+            clusterState(0L, 0L, masterIneligibleNode2, initialConfig, initialConfig, 42L)), masterIneligibleNode2);
+        cs3 = createCoordinationState(new InMemoryPersistedState(0L,
+            clusterState(0L, 0L, masterIneligibleNode3, initialConfig, initialConfig, 42L)), masterIneligibleNode3);
+
+        final long term = randomLongBetween(1, 5);
+        StartJoinRequest startJoinRequest = new StartJoinRequest(node1, term);
+        cs1.handleStartJoin(startJoinRequest); // bumps term
+
+        final Join v2 = cs2.handleStartJoin(startJoinRequest);
+        assertThat(expectThrows(CoordinationStateRejectedException.class, () -> cs1.handleJoin(v2)).getMessage(),
+            matchesRegex("rejecting join from master-ineligible node .* in voting configuration"));
+
+        final Join v3 = cs3.handleStartJoin(startJoinRequest);
+        assertTrue(cs1.handleJoin(v3));
     }
 
     public void testHandleClientValue() {
@@ -658,6 +692,41 @@ public class CoordinationStateTests extends ESTestCase {
         assertThat(expectThrows(CoordinationStateRejectedException.class,
             () -> cs1.handlePublishResponse(randomFrom(node1, node2, node3), publishResponse)).getMessage(),
             containsString("does not match current version"));
+    }
+
+    public void testHandlePublishResponseFromMasterIneligibleVotingNode() {
+        final TransportAddress address3 = buildNewFakeTransportAddress();
+        final DiscoveryNode masterIneligibleNode3 = new DiscoveryNode("", node3.getId(),
+            UUIDs.randomBase64UUID(random()), // generated deterministically for repeatable tests
+            address3.address().getHostString(), address3.getAddress(), address3, Collections.emptyMap(),
+            emptySet(), Version.CURRENT);
+
+        final boolean includeNodeInInitialConfig = randomBoolean();
+        final VotingConfiguration initialConfig
+            = includeNodeInInitialConfig ? VotingConfiguration.of(node1, node2, node3) : VotingConfiguration.of(node1, node2);
+        cs1.setInitialState(clusterState(0L, 0L, node1, initialConfig, initialConfig, 42L));
+        cs2.setInitialState(clusterState(0L, 0L, node2, initialConfig, initialConfig, 42L));
+        cs3 = createCoordinationState(new InMemoryPersistedState(0L,
+            clusterState(0L, 0L, masterIneligibleNode3, initialConfig, initialConfig, 42L)), masterIneligibleNode3);
+
+        StartJoinRequest startJoinRequest = new StartJoinRequest(node1, randomLongBetween(1, 5));
+        Join v1 = cs1.handleStartJoin(startJoinRequest);
+        Join v2 = cs2.handleStartJoin(startJoinRequest);
+        cs3.handleStartJoin(startJoinRequest); // just to bump the term - ignoring this join since it would be rejected
+        assertTrue(cs1.handleJoin(v1));
+        assertTrue(cs1.handleJoin(v2));
+        assertTrue(cs1.electionWon());
+
+        final VotingConfiguration newConfig
+            = includeNodeInInitialConfig && randomBoolean()
+            ? VotingConfiguration.of(node1, node2) : VotingConfiguration.of(node1, node2, node3);
+
+        ClusterState newState = clusterState(startJoinRequest.getTerm(), 2L, node1, initialConfig, newConfig, 42L);
+        PublishRequest publishRequest = cs1.handleClientValue(newState);
+        PublishResponse publishResponse = cs3.handlePublishRequest(publishRequest);
+        assertThat(expectThrows(CoordinationStateRejectedException.class,
+            () -> cs1.handlePublishResponse(masterIneligibleNode3, publishResponse)).getMessage(),
+            matchesRegex("rejecting publish response from master-ineligible node .* in voting configuration"));
     }
 
     public void testHandleCommit() {

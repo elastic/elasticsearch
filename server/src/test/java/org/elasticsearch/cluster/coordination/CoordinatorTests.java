@@ -41,6 +41,7 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.gateway.GatewayService;
+import org.elasticsearch.node.Node;
 import org.elasticsearch.test.MockLogAppender;
 
 import java.io.IOException;
@@ -1217,6 +1218,30 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
         }
     }
 
+    public void testPreventsMasterIneligibleVotingNodes() {
+        final Cluster cluster = new Cluster(3);
+        cluster.runRandomly();
+        cluster.stabilise();
 
+        final ClusterNode chosenNode = cluster.getAnyNode();
+
+        assertThat(cluster.getAnyLeader().getLastAppliedClusterState().getLastCommittedConfiguration().getNodeIds(),
+            hasItem(chosenNode.getId()));
+        assertThat(cluster.getAnyLeader().getLastAppliedClusterState().getLastAcceptedConfiguration().getNodeIds(),
+            hasItem(chosenNode.getId()));
+
+        logger.info("--> restarting [{}] as a master-ineligible node", chosenNode);
+
+        chosenNode.close();
+        cluster.clusterNodes.replaceAll(cn -> cn == chosenNode ? cn.restartedNode(Function.identity(), Function.identity(),
+            Settings.builder().put(Node.NODE_MASTER_SETTING.getKey(), false).build()) : cn);
+        cluster.stabilise();
+
+        assertThat(cluster.getAnyLeader().getLastAppliedClusterState().getLastCommittedConfiguration().getNodeIds(),
+            not(hasItem(chosenNode.getId())));
+        assertThat(cluster.getAnyLeader().getLastAppliedClusterState().getLastAcceptedConfiguration().getNodeIds(),
+            not(hasItem(chosenNode.getId())));
+
+    }
 
 }

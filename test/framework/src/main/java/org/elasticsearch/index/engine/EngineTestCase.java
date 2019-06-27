@@ -1138,10 +1138,10 @@ public abstract class EngineTestCase extends ESTestCase {
                     int docId;
                     while ((docId = seqNoDocValues.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {
                         assertTrue(seqNoDocValues.advanceExact(docId));
+                        long seqNo = seqNoDocValues.longValue();
+                        assertThat(seqNo, greaterThanOrEqualTo(0L));
                         if (primaryTermDocValues.advanceExact(docId)) {
                             assertThat(primaryTermDocValues.longValue(), greaterThanOrEqualTo(1L));
-                            long seqNo = seqNoDocValues.longValue();
-                            assertThat(seqNo, greaterThanOrEqualTo(0L));
                             if (seqNos.add(seqNo) == false) {
                                 final IdOnlyFieldVisitor idFieldVisitor = new IdOnlyFieldVisitor();
                                 leaf.reader().document(docId, idFieldVisitor);

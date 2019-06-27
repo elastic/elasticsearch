@@ -63,15 +63,15 @@ import java.util.Set;
  * Context-aware extension of {@link IndexSearcher}.
  */
 public class ContextIndexSearcher extends IndexSearcher implements Releasable {
-    private static int CHECK_CANCELLED_INTERVAL = 1 << 11;
+    /**
+     * The interval at which we check for search cancellation when we cannot use
+     * a {@link CancellableBulkScorer}. See {@link #intersectScorerAndBitSet}.
+     */
+    private static int CHECK_CANCELLED_SCORER_INTERVAL = 1 << 11;
 
     private AggregatedDfs aggregatedDfs;
     private QueryProfiler profiler;
     private Runnable checkCancelled;
-
-    public ContextIndexSearcher(IndexReader reader) {
-        super(reader);
-    }
 
     public ContextIndexSearcher(IndexReader reader, Similarity similarity, QueryCache queryCache, QueryCachingPolicy queryCachingPolicy) {
         super(reader);
@@ -239,7 +239,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         int seen = 0;
         checkCancelled.run();
         for (int docId = iterator.nextDoc(); docId < DocIdSetIterator.NO_MORE_DOCS; docId = iterator.nextDoc()) {
-            if (++seen % CHECK_CANCELLED_INTERVAL == 0) {
+            if (++seen % CHECK_CANCELLED_SCORER_INTERVAL == 0) {
                 checkCancelled.run();
             }
             collector.collect(docId);
@@ -277,9 +277,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
 
     public DirectoryReader getDirectoryReader() {
         final IndexReader reader = getIndexReader();
-        if (reader instanceof DirectoryReader) {
-            return (DirectoryReader) reader;
-        }
-        throw new IllegalStateException("Can't use " + reader.getClass() + " as a directory reader");
+        assert reader instanceof DirectoryReader : "expected an instance of DirectoryReader, got " + reader.getClass();
+        return (DirectoryReader) reader;
     }
 }

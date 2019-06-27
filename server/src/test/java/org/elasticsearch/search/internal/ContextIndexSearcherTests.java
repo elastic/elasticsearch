@@ -221,7 +221,8 @@ public class ContextIndexSearcherTests extends ESTestCase {
 
         DocumentSubsetDirectoryReader filteredReader = new DocumentSubsetDirectoryReader(reader, cache, roleQuery);
 
-        ContextIndexSearcher searcher = new ContextIndexSearcher(filteredReader);
+        ContextIndexSearcher searcher = new ContextIndexSearcher(filteredReader, IndexSearcher.getDefaultSimilarity(),
+            IndexSearcher.getDefaultQueryCache(), IndexSearcher.getDefaultQueryCachingPolicy());
         searcher.setCheckCancelled(() -> {});
 
         // Searching a non-existing term will trigger a null scorer

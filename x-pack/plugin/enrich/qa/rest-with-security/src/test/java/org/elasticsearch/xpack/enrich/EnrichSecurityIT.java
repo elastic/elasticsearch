@@ -13,6 +13,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.enrich.CommonEnrichRestTestCase;
 
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
+import static org.hamcrest.CoreMatchers.containsString;
 
 public class EnrichSecurityIT extends CommonEnrichRestTestCase {
 
@@ -39,7 +40,7 @@ public class EnrichSecurityIT extends CommonEnrichRestTestCase {
         putPolicyRequest.setJsonEntity("{\"type\": \"exact_match\",\"indices\": [\"some-other-index\"], \"enrich_key\": \"host\", " +
             "\"enrich_values\": [\"globalRank\", \"tldRank\", \"tld\"]}");
         ResponseException exc = expectThrows(ResponseException.class, () -> client().performRequest(putPolicyRequest));
-        assertTrue(exc.getMessage().contains("Could not store policy because an index specified [some-other-index] did not exist or user" +
-            " test_enrich lacks permission to access it."));
+        assertThat(exc.getMessage(),
+            containsString("unable to store policy because no indices match with the specified index patterns [some-other-index]"));
     }
 }

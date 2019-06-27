@@ -90,8 +90,8 @@ public class TransportPutEnrichPolicyAction extends TransportMasterNodeAction<Pu
                     if (r.isCompleteMatch()) {
                         putPolicy(request, listener);
                     } else {
-                        listener.onFailure(Exceptions.authorizationError("Could not store policy because an index specified {} did not" +
-                            " exist or user {} lacks permission to access it.", request.getPolicy().getIndices(), username));
+                        listener.onFailure(Exceptions.authorizationError("unable to store policy because no indices match with the " +
+                            "specified index patterns {}", request.getPolicy().getIndices(), username));
                     }
                 },
                 listener::onFailure);

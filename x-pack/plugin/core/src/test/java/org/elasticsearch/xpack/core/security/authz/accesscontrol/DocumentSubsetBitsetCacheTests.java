@@ -11,7 +11,6 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReaderContext;
@@ -32,9 +31,8 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.hamcrest.Matchers;
 
-import java.util.HashSet;
-import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
@@ -111,15 +109,15 @@ public class DocumentSubsetBitsetCacheTests extends ESTestCase {
                 assertThat(cache.entryCount(), equalTo(expectedCount));
                 assertThat(cache.ramBytesUsed(), equalTo(expectedCount * expectedBytesPerBitSet));
             }
+
+            assertThat(cache.entryCount(), equalTo(2));
+            assertThat(cache.ramBytesUsed(), equalTo(2 * expectedBytesPerBitSet));
+
+            cache.clear("testing");
+
+            assertThat(cache.entryCount(), equalTo(0));
+            assertThat(cache.ramBytesUsed(), equalTo(0L));
         });
-
-        assertThat(cache.entryCount(), equalTo(2));
-        assertThat(cache.ramBytesUsed(), equalTo(2 * expectedBytesPerBitSet));
-
-        cache.clear("testing");
-
-        assertThat(cache.entryCount(), equalTo(0));
-        assertThat(cache.ramBytesUsed(), equalTo(0L));
     }
 
     public void testCacheRespectsAccessTimeExpiry() throws Exception {
@@ -156,14 +154,26 @@ public class DocumentSubsetBitsetCacheTests extends ESTestCase {
         assertThat(cache.entryCount(), equalTo(0));
         assertThat(cache.ramBytesUsed(), equalTo(0L));
 
-        for (int i = 1; i <= randomIntBetween(3, 10); i++) {
-            runTestOnIndex((shardContext, leafContext) -> {
+        final int iterations = randomIntBetween(3, 10);
+        AtomicInteger counter = new AtomicInteger(0);
+
+        final CheckedBiConsumer<QueryShardContext, LeafReaderContext, Exception> consumer = new CheckedBiConsumer<>() {
+            @Override
+            public void accept(QueryShardContext shardContext, LeafReaderContext leafContext) throws Exception {
+                final int count = counter.incrementAndGet();
                 final Query query = QueryBuilders.termQuery("field-1", "value-1").toQuery(shardContext);
                 final BitSet bitSet = cache.getBitSet(query, leafContext);
+
                 assertThat(bitSet, notNullValue());
-            });
-            assertThat(cache.entryCount(), equalTo(i));
-        }
+                assertThat(cache.entryCount(), equalTo(count));
+
+                if (count < iterations) {
+                    // Need to do this nested, or else the cache will be cleared when the index reader is closed
+                    runTestOnIndex(this);
+                }
+            }
+        };
+        runTestOnIndex(consumer);
     }
 
     public void testCacheClearEntriesWhenIndexIsClosed() throws Exception {
@@ -171,24 +181,18 @@ public class DocumentSubsetBitsetCacheTests extends ESTestCase {
         assertThat(cache.entryCount(), equalTo(0));
         assertThat(cache.ramBytesUsed(), equalTo(0L));
 
-        final int iterations = randomIntBetween(2, 10);
-        final Set<IndexReader.CacheKey> indexKeys = new HashSet<>(iterations);
-        for (int i = 1; i <= iterations; i++) {
+        for (int i = 1; i <= randomIntBetween(2, 5); i++) {
             runTestOnIndex((shardContext, leafContext) -> {
-                final Query query = QueryBuilders.termQuery("field-1", "value-1").toQuery(shardContext);
-                final BitSet bitSet = cache.getBitSet(query, leafContext);
-                assertThat(bitSet, notNullValue());
-
-                final IndexReader.CacheHelper coreCacheHelper = leafContext.reader().getCoreCacheHelper();
-                indexKeys.add(coreCacheHelper.getKey());
+                for (int j = 1; j <= randomIntBetween(2, 10); j++) {
+                    final Query query = QueryBuilders.termQuery("field-" + j, "value-1").toQuery(shardContext);
+                    final BitSet bitSet = cache.getBitSet(query, leafContext);
+                    assertThat(bitSet, notNullValue());
+                }
+                assertThat(cache.entryCount(), not(equalTo(0)));
+                assertThat(cache.ramBytesUsed(), not(equalTo(0L)));
             });
-            assertThat(cache.entryCount(), equalTo(i));
-        }
-        while (indexKeys.size() > 0) {
-            final IndexReader.CacheKey indexKey = randomFrom(indexKeys);
-            indexKeys.remove(indexKey);
-            cache.onClose(indexKey);
-            assertThat(cache.entryCount(), equalTo(indexKeys.size()));
+            assertThat(cache.entryCount(), equalTo(0));
+            assertThat(cache.ramBytesUsed(), equalTo(0L));
         }
     }
 

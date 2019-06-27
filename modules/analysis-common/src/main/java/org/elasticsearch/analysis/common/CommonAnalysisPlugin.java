@@ -239,7 +239,7 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
         filters.put("dutch_stem", DutchStemTokenFilterFactory::new);
         filters.put("edge_ngram", EdgeNGramTokenFilterFactory::new);
         filters.put("edgeNGram", EdgeNGramTokenFilterFactory::new);
-        filters.put("elision", ElisionTokenFilterFactory::new);
+        filters.put("elision", requiresAnalysisSettings(ElisionTokenFilterFactory::new));
         filters.put("fingerprint", FingerprintTokenFilterFactory::new);
         filters.put("flatten_graph", FlattenGraphTokenFilterFactory::new);
         filters.put("french_stem", FrenchStemTokenFilterFactory::new);

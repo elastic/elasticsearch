@@ -27,6 +27,8 @@ import java.io.ByteArrayInputStream;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
+import java.util.Set;
+import java.util.TreeSet;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
@@ -234,11 +236,17 @@ public class S3CleanupTests extends ESSingleNodeTestCase {
            final Executor genericExec = repo.threadPool().executor(ThreadPool.Names.GENERIC);
            BlobStoreTestUtil.assertConsistency(repo, genericExec);
 
-           logger.info("--> create dangling index folder indices/foo");
-           int size = createDanglingIndex(repo, genericExec);
+           logger.info("--> create several dangling indices");
+           long size = 0L;
+           Set<String> indexNames = new TreeSet<>();
+           for (int j = 0; j < randomIntBetween(1, 5); j++) {
+               String name = randomValueOtherThanMany(n -> indexNames.contains(n), () -> randomAlphaOfLength(5));
+               indexNames.add(name);
+               size += createDanglingIndex(name, repo, genericExec);
+           }
 
-           logger.info("--> ensure dangling index folder is visible");
-           assertBusy(() -> assertCorruptionVisible(repo, genericExec), 10, TimeUnit.MINUTES);
+           logger.info("--> ensure dangling index folders are visible");
+           assertBusy(() -> assertCorruptionVisible(indexNames, repo, genericExec), 10, TimeUnit.MINUTES);
 
            logger.info("--> create second snapshot");
            createSnapshotResponse = client().admin()
@@ -253,18 +261,22 @@ public class S3CleanupTests extends ESSingleNodeTestCase {
 
            logger.info("--> execute cleanup tool again and abort");
            terminal = executeCommand(true);
-           assertThat(terminal.getOutput(), containsString("Set of deletion candidates is [foo]"));
-           assertThat(terminal.getOutput(), containsString("Set of leaked indices is [foo]"));
+           assertThat(terminal.getOutput(), containsString("Set of deletion candidates is " + indexNames));
+           assertThat(terminal.getOutput(), containsString("Set of leaked indices is " + indexNames));
            assertThat(terminal.getOutput(), containsString("This action is NOT REVERSIBLE"));
-           assertThat(terminal.getOutput(), not(containsString("Removing leaked index foo")));
+           for (String index : indexNames) {
+               assertThat(terminal.getOutput(), not(containsString("Removing leaked index " + index)));
+           }
 
            logger.info("--> execute cleanup tool again and confirm, indices/foo should go");
            terminal = executeCommand(false);
-           assertThat(terminal.getOutput(), containsString("Set of deletion candidates is [foo]"));
-           assertThat(terminal.getOutput(), containsString("Set of leaked indices is [foo]"));
+           assertThat(terminal.getOutput(), containsString("Set of deletion candidates is " + indexNames));
+           assertThat(terminal.getOutput(), containsString("Set of leaked indices is " + indexNames));
            assertThat(terminal.getOutput(), containsString("This action is NOT REVERSIBLE"));
-           assertThat(terminal.getOutput(), containsString("Removing leaked index foo"));
-           assertThat(terminal.getOutput(), containsString("foo/bar"));
+           for (String index : indexNames) {
+               assertThat(terminal.getOutput(), containsString("Removing leaked index " + index));
+               assertThat(terminal.getOutput(), containsString(index + "/bar"));
+           }
            assertThat(terminal.getOutput(),
                    containsString("Total space freed after removing leaked indices is " + size + " bytes"));
 
@@ -285,14 +297,14 @@ public class S3CleanupTests extends ESSingleNodeTestCase {
        }
    }
 
-    int createDanglingIndex(BlobStoreRepository repo, Executor executor) throws InterruptedException, ExecutionException {
+    int createDanglingIndex(String name, BlobStoreRepository repo, Executor executor) throws InterruptedException, ExecutionException {
         final PlainActionFuture<Void> future = PlainActionFuture.newFuture();
         final int size = randomIntBetween(0, 10);
         executor.execute(new ActionRunnable<>(future) {
             @Override
             protected void doRun() throws Exception {
                 final BlobStore blobStore = repo.blobStore();
-                blobStore.blobContainer(BlobPath.cleanPath().add(getBasePath()).add("indices").add("foo"))
+                blobStore.blobContainer(BlobPath.cleanPath().add(getBasePath()).add("indices").add(name))
                         .writeBlob("bar", new ByteArrayInputStream(new byte[size]), size, false);
                 future.onResponse(null);
             }
@@ -302,17 +314,20 @@ public class S3CleanupTests extends ESSingleNodeTestCase {
     }
 
 
-    private boolean assertCorruptionVisible(BlobStoreRepository repo, Executor executor) throws Exception {
+    private boolean assertCorruptionVisible(Collection<String> indexNames, BlobStoreRepository repo, Executor executor) throws Exception {
         final PlainActionFuture<Boolean> future = PlainActionFuture.newFuture();
         executor.execute(new ActionRunnable<>(future) {
             @Override
             protected void doRun() throws Exception {
                 final BlobStore blobStore = repo.blobStore();
-                future.onResponse(
-                        blobStore.blobContainer(BlobPath.cleanPath().add(getBasePath()).add("indices")).children().containsKey("foo")
-                                && blobStore.blobContainer(BlobPath.cleanPath().add(getBasePath()).add("indices").add("foo")).blobExists(
-                                        "bar")
-                );
+                for (String index : indexNames) {
+                    if (blobStore.blobContainer(BlobPath.cleanPath().add(getBasePath()).add("indices")).children().containsKey(index)
+                            && blobStore.blobContainer(BlobPath.cleanPath().add(getBasePath()).add("indices").add(index)).blobExists(
+                            "bar") == false) {
+                        future.onResponse(false);
+                    }
+                }
+                future.onResponse(true);
             }
         });
         return future.actionGet();

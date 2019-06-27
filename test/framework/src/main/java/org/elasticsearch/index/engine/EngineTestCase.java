@@ -1124,7 +1124,7 @@ public abstract class EngineTestCase extends ESTestCase {
     }
 
     public static void assertAtMostOneLuceneDocumentPerSequenceNumber(Engine engine) throws IOException {
-        if (engine.config().getIndexSettings().isSoftDeleteEnabled() == false) {
+        if (engine.config().getIndexSettings().isSoftDeleteEnabled() == false || engine instanceof InternalEngine == false) {
             return;
         }
         try {

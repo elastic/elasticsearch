@@ -25,7 +25,6 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.persistent.AllocatedPersistentTask;
 
 import java.io.IOException;
 import java.util.Map;
@@ -103,7 +102,8 @@ public class Task {
      */
     protected final TaskInfo taskInfo(String localNodeId, String description, Status status) {
         final TaskId parentTask;
-        if (this instanceof AllocatedPersistentTask) {
+        // TODO: Find real solution
+        if (this.getAction().startsWith("reindex/job")) {
             parentTask = TaskId.EMPTY_TASK_ID;
         } else {
             parentTask = this.parentTask;

@@ -133,9 +133,30 @@ public class S3Repository extends AbstractRepository {
 
     @Override
     public Date getIndexTimestamp(String indexId) {
-        S3Object index = client.getObject(bucket, fullPath("indices/" + indexId + "/"));
-        return index.getObjectMetadata().getLastModified();
+        /*
+         * There is shorter way to get modification timestamp of the index directory:
+         *
+         * S3Object index = client.getObject(bucket, fullPath("indices/" + indexId + "/"));
+         * return index.getObjectMetadata().getLastModified();
+         *
+         * It also will work if the directory is empty.
+         * However, on Minio the code above returns some weird dates far in the past.
+         * So we use listing instead.
+         */
+        ObjectListing listing = client.listObjects(bucket, fullPath("indices/" + indexId + "/"));
+        List<S3ObjectSummary> summaries = listing.getObjectSummaries();
+        while (summaries.isEmpty() && listing.isTruncated()) {
+            summaries = listing.getObjectSummaries();
+        }
+        if (summaries.isEmpty()) {
+            terminal.println(Terminal.Verbosity.VERBOSE, "Failed to find single file in index " + indexId + " directory. Skipping");
+            return null;
+        } else {
+            S3ObjectSummary any = summaries.get(0);
+            return any.getLastModified();
+        }
     }
+
 
     private long deleteFiles(String prefix) {
         long filesSize = 0L;

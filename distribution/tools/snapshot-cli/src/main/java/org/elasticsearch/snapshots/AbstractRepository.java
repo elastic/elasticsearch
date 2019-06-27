@@ -53,15 +53,17 @@ public abstract class AbstractRepository implements Repository {
         for (String candidate : deletionCandidates) {
             terminal.println(Terminal.Verbosity.VERBOSE, "Reading index " + candidate + " last modification timestamp");
             Date indexTimestamp = getIndexTimestamp(candidate);
-            terminal.println(Terminal.Verbosity.VERBOSE, "Index " + candidate + " last modification timestamp is " + indexTimestamp);
+            if (indexTimestamp != null) {
+                terminal.println(Terminal.Verbosity.VERBOSE, "Index " + candidate + " last modification timestamp is " + indexTimestamp);
 
-            if (indexTimestamp.before(shiftedIndexNTimestamp)) {
-                leakedIndexIds.add(candidate);
-                terminal.println(Terminal.Verbosity.VERBOSE, "Index " + candidate + " has leaked because " + indexTimestamp + " is less " +
-                        "than " + shiftedIndexNTimestamp);
-            } else {
-                terminal.println(Terminal.Verbosity.VERBOSE, "Index  " + candidate + " might not be leaked because " + indexTimestamp +
-                        " is gte than " + shiftedIndexNTimestamp);
+                if (indexTimestamp.before(shiftedIndexNTimestamp)) {
+                    leakedIndexIds.add(candidate);
+                    terminal.println(Terminal.Verbosity.VERBOSE, "Index " + candidate + " has leaked because " + indexTimestamp + " is less " +
+                            "than " + shiftedIndexNTimestamp);
+                } else {
+                    terminal.println(Terminal.Verbosity.VERBOSE, "Index  " + candidate + " might not be leaked because " + indexTimestamp +
+                            " is gte than " + shiftedIndexNTimestamp);
+                }
             }
         }
         terminal.println(Terminal.Verbosity.NORMAL, "Set of leaked indices is " + leakedIndexIds);

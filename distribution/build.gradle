@@ -167,6 +167,7 @@ buildDefaultLog4jConfig.doLast(writeLog4jProperties)
 
 // copy log4j2.properties from modules that have it
 void copyLog4jProperties(Task buildTask, Project module) {
+  buildTask.dependsOn { module.bundlePlugin }
   buildTask.doFirst {
     FileTree tree = zipTree(module.bundlePlugin.outputs.files.singleFile)
     FileTree filtered = tree.matching {

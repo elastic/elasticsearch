@@ -698,6 +698,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     }
 
     protected void writeIndexGen(final RepositoryData repositoryData, final long repositoryStateId) throws IOException {
+        assert repositoryData.getLastEsVersion().equals(Version.CURRENT);
         assert isReadOnly() == false; // can not write to a read only repository
         final long currentGen = latestIndexBlobId();
         if (currentGen != repositoryStateId) {

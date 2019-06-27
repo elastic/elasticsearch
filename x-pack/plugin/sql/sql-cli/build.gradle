@@ -51,6 +51,7 @@ dependencyLicenses {
  * can be easily shipped around and used.
  */
 jar {
+    dependsOn configurations.compile, configurations.runtime
     from({
         configurations.compile.collect { it.isDirectory() ? it : zipTree(it) }
         configurations.runtime.collect { it.isDirectory() ? it : zipTree(it) }

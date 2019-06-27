@@ -8,6 +8,7 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cli.MockTerminal;
 import org.elasticsearch.cli.Terminal;
+import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.settings.MockSecureSettings;
@@ -28,10 +29,12 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -238,15 +241,20 @@ public class S3CleanupTests extends ESSingleNodeTestCase {
 
            logger.info("--> create several dangling indices");
            long size = 0L;
-           Set<String> indexNames = new TreeSet<>();
+           Map<String, Set<String>> indexToFiles = new TreeMap<>();
            for (int j = 0; j < randomIntBetween(1, 5); j++) {
-               String name = randomValueOtherThanMany(n -> indexNames.contains(n), () -> randomAlphaOfLength(5));
-               indexNames.add(name);
-               size += createDanglingIndex(name, repo, genericExec);
+               String name = randomValueOtherThanMany(n -> indexToFiles.containsKey(n), () -> randomAlphaOfLength(5));
+               Set<String> files = new TreeSet<>();
+               indexToFiles.put(name, files);
+               for (int k = 0; k < randomIntBetween(1, 5); k++) {
+                   String file = randomValueOtherThanMany(f -> indexToFiles.get(name).contains(f), () -> randomAlphaOfLength(6));
+                   files.add(file);
+               }
+               size += createDanglingIndex(name, files, repo, genericExec);
            }
 
            logger.info("--> ensure dangling index folders are visible");
-           assertBusy(() -> assertCorruptionVisible(indexNames, repo, genericExec), 10, TimeUnit.MINUTES);
+           assertBusy(() -> assertCorruptionVisible(indexToFiles, repo, genericExec), 10, TimeUnit.MINUTES);
 
            logger.info("--> create second snapshot");
            createSnapshotResponse = client().admin()
@@ -261,21 +269,23 @@ public class S3CleanupTests extends ESSingleNodeTestCase {
 
            logger.info("--> execute cleanup tool again and abort");
            terminal = executeCommand(true);
-           assertThat(terminal.getOutput(), containsString("Set of deletion candidates is " + indexNames));
-           assertThat(terminal.getOutput(), containsString("Set of leaked indices is " + indexNames));
+           assertThat(terminal.getOutput(), containsString("Set of deletion candidates is " + indexToFiles.keySet()));
+           assertThat(terminal.getOutput(), containsString("Set of leaked indices is " + indexToFiles.keySet()));
            assertThat(terminal.getOutput(), containsString("This action is NOT REVERSIBLE"));
-           for (String index : indexNames) {
+           for (String index : indexToFiles.keySet()) {
                assertThat(terminal.getOutput(), not(containsString("Removing leaked index " + index)));
            }
 
            logger.info("--> execute cleanup tool again and confirm, indices/foo should go");
            terminal = executeCommand(false);
-           assertThat(terminal.getOutput(), containsString("Set of deletion candidates is " + indexNames));
-           assertThat(terminal.getOutput(), containsString("Set of leaked indices is " + indexNames));
+           assertThat(terminal.getOutput(), containsString("Set of deletion candidates is " + indexToFiles.keySet()));
+           assertThat(terminal.getOutput(), containsString("Set of leaked indices is " + indexToFiles.keySet()));
            assertThat(terminal.getOutput(), containsString("This action is NOT REVERSIBLE"));
-           for (String index : indexNames) {
+           for (String index : indexToFiles.keySet()) {
                assertThat(terminal.getOutput(), containsString("Removing leaked index " + index));
-               assertThat(terminal.getOutput(), containsString(index + "/bar"));
+               for (String file : indexToFiles.get(index)) {
+                   assertThat(terminal.getOutput(), containsString(index + "/" + file));
+               }
            }
            assertThat(terminal.getOutput(),
                    containsString("Total space freed after removing leaked indices is " + size + " bytes"));
@@ -297,34 +307,46 @@ public class S3CleanupTests extends ESSingleNodeTestCase {
        }
    }
 
-    int createDanglingIndex(String name, BlobStoreRepository repo, Executor executor) throws InterruptedException, ExecutionException {
+    long createDanglingIndex(String name, Set<String> files, BlobStoreRepository repo, Executor executor) throws InterruptedException,
+            ExecutionException {
         final PlainActionFuture<Void> future = PlainActionFuture.newFuture();
-        final int size = randomIntBetween(0, 10);
+        final AtomicLong totalSize = new AtomicLong();
         executor.execute(new ActionRunnable<>(future) {
             @Override
             protected void doRun() throws Exception {
                 final BlobStore blobStore = repo.blobStore();
-                blobStore.blobContainer(BlobPath.cleanPath().add(getBasePath()).add("indices").add(name))
-                        .writeBlob("bar", new ByteArrayInputStream(new byte[size]), size, false);
+                BlobContainer container = blobStore.blobContainer(BlobPath.cleanPath().add(getBasePath()).add("indices").add(name));
+                for (String file : files) {
+                    int size = randomIntBetween(0, 10);
+                    totalSize.addAndGet(size);
+                    container.writeBlob(file, new ByteArrayInputStream(new byte[size]), size, false);
+                }
                 future.onResponse(null);
             }
         });
         future.get();
-        return size;
+        return totalSize.get();
     }
 
 
-    private boolean assertCorruptionVisible(Collection<String> indexNames, BlobStoreRepository repo, Executor executor) throws Exception {
+    private boolean assertCorruptionVisible(Map<String, Set<String>> indexToFiles, BlobStoreRepository repo, Executor executor) throws Exception {
         final PlainActionFuture<Boolean> future = PlainActionFuture.newFuture();
         executor.execute(new ActionRunnable<>(future) {
             @Override
             protected void doRun() throws Exception {
                 final BlobStore blobStore = repo.blobStore();
-                for (String index : indexNames) {
-                    if (blobStore.blobContainer(BlobPath.cleanPath().add(getBasePath()).add("indices")).children().containsKey(index)
-                            && blobStore.blobContainer(BlobPath.cleanPath().add(getBasePath()).add("indices").add(index)).blobExists(
-                            "bar") == false) {
+                for (String index : indexToFiles.keySet()) {
+                    if (blobStore.blobContainer(BlobPath.cleanPath().add(getBasePath()).add("indices"))
+                            .children().containsKey(index) == false) {
                         future.onResponse(false);
+                        return;
+                    }
+                    for (String file : indexToFiles.get(index)) {
+                        if (blobStore.blobContainer(BlobPath.cleanPath().add(getBasePath()).add("indices").add(index))
+                                .blobExists(file) == false) {
+                            future.onResponse(false);
+                            return;
+                        }
                     }
                 }
                 future.onResponse(true);

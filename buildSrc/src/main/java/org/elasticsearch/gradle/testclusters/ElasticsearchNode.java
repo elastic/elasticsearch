@@ -67,8 +67,8 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     private static final Logger LOGGER = Logging.getLogger(ElasticsearchNode.class);
     private static final int ES_DESTROY_TIMEOUT = 20;
     private static final TimeUnit ES_DESTROY_TIMEOUT_UNIT = TimeUnit.SECONDS;
-    private static final int NODE_UP_TIMEOUT = 80;
-    private static final TimeUnit NODE_UP_TIMEOUT_UNIT = TimeUnit.SECONDS;
+    private static final int NODE_UP_TIMEOUT = 2;
+    private static final TimeUnit NODE_UP_TIMEOUT_UNIT = TimeUnit.MINUTES;
     private static final int ADDITIONAL_CONFIG_TIMEOUT = 15;
     private static final TimeUnit ADDITIONAL_CONFIG_TIMEOUT_UNIT = TimeUnit.SECONDS;
     private static final List<String> OVERRIDABLE_SETTINGS = Arrays.asList(

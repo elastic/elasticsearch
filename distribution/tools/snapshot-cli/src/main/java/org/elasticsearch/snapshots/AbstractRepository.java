@@ -14,7 +14,7 @@ import java.util.stream.Collectors;
 
 public abstract class AbstractRepository implements Repository {
     protected final Terminal terminal;
-    private final Long safetyGapMillis;
+    private final long safetyGapMillis;
 
     protected AbstractRepository(Terminal terminal, Long safetyGapMillis) {
         this.terminal = terminal;

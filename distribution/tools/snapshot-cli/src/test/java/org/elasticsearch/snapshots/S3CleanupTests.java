@@ -247,7 +247,7 @@ public class S3CleanupTests extends ESSingleNodeTestCase {
                Set<String> files = new TreeSet<>();
                indexToFiles.put(name, files);
                for (int k = 0; k < randomIntBetween(1, 5); k++) {
-                   String file = randomValueOtherThanMany(f -> indexToFiles.get(name).contains(f), () -> randomAlphaOfLength(6));
+                   String file = randomValueOtherThanMany(f -> files.contains(f), () -> randomAlphaOfLength(6));
                    files.add(file);
                }
                size += createDanglingIndex(name, files, repo, genericExec);

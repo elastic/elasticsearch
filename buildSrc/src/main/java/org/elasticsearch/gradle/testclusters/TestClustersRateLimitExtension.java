@@ -117,7 +117,7 @@ public class TestClustersRateLimitExtension {
     private static int maxPermits() {
         return Optional.ofNullable(System.getProperty("testclusters.max-nodes"))
             .map(Integer::valueOf)
-            .orElse(Runtime.getRuntime().availableProcessors() / 2);
+            .orElse(Runtime.getRuntime().availableProcessors());
     }
 
     private static TestClustersRateLimitExtension getSelfAsExtension(Project project) {

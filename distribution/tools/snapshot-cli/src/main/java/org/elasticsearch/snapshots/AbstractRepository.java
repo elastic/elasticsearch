@@ -21,6 +21,7 @@ public abstract class AbstractRepository implements Repository {
         this.safetyGapMillis = safetyGapMillis == null ? 3600 * 1000 : safetyGapMillis;
     }
 
+    @Override
     public void cleanup() throws IOException {
         terminal.println(Terminal.Verbosity.VERBOSE, "Obtaining latest index file generation and creation timestamp");
         Tuple<Long, Date> latestIndexIdAndTimestamp = getLatestIndexIdAndTimestamp();

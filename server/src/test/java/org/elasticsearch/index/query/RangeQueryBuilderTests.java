@@ -616,9 +616,6 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
 
         // queries on date fields using "now" should not be cached
         queryBuilder = new RangeQueryBuilder(randomFrom(DATE_FIELD_NAME, DATE_RANGE_FIELD_NAME, DATE_ALIAS_FIELD_NAME));
-        Instant now = Instant.now();
-        ZonedDateTime start = now.minusMillis(randomIntBetween(0, 1000000)).atZone(ZoneOffset.UTC);
-        queryBuilder.from(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.format(start));
         queryBuilder.to("now");
         context = createShardContext();
         rewriteQuery = rewriteQuery(queryBuilder, new QueryShardContext(context));

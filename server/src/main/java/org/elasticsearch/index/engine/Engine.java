@@ -1716,6 +1716,8 @@ public abstract class Engine implements Closeable {
                     close(); // double close is not a problem
                 }
             }
+        } else {
+            logger.trace("skipping flushAndClose as already closed");
         }
         awaitPendingClose();
     }

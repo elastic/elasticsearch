@@ -37,6 +37,12 @@ public interface HttpRequest {
         HTTP_1_1
     }
 
+    /**
+     * Returns the HTTP method used in the HTTP request.
+     *
+     * @return the {@link RestRequest.Method} used in the REST request
+     * @throws IllegalArgumentException if the HTTP method is invalid
+     */
     RestRequest.Method method();
 
     /**

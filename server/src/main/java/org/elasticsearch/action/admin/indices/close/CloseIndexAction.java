@@ -20,6 +20,7 @@
 package org.elasticsearch.action.admin.indices.close;
 
 import org.elasticsearch.action.Action;
+import org.elasticsearch.common.io.stream.Writeable;
 
 public class CloseIndexAction extends Action<CloseIndexResponse> {
 
@@ -32,6 +33,11 @@ public class CloseIndexAction extends Action<CloseIndexResponse> {
 
     @Override
     public CloseIndexResponse newResponse() {
-        return new CloseIndexResponse();
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
+    }
+
+    @Override
+    public Writeable.Reader<CloseIndexResponse> getResponseReader() {
+        return CloseIndexResponse::new;
     }
 }

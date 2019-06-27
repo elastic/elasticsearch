@@ -60,7 +60,9 @@ final class SnapshotRequestConverters {
         RequestConverters.Params parameters = new RequestConverters.Params();
         parameters.withMasterTimeout(putRepositoryRequest.masterNodeTimeout());
         parameters.withTimeout(putRepositoryRequest.timeout());
-        parameters.withVerify(putRepositoryRequest.verify());
+        if (putRepositoryRequest.verify() == false) {
+            parameters.putParam("verify", "false");
+        }
         request.addParameters(parameters.asMap());
         request.setEntity(RequestConverters.createEntity(putRepositoryRequest, RequestConverters.REQUEST_BODY_CONTENT_TYPE));
         return request;

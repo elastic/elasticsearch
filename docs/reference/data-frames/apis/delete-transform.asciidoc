@@ -12,21 +12,15 @@ beta[]
 
 Deletes an existing {dataframe-transform}.
 
-
-==== Request
+[discrete]
+[[delete-data-frame-transform-request]]
+==== {api-request-title}
 
 `DELETE _data_frame/transforms/<data_frame_transform_id>`
 
-==== Description
-
-NOTE: Before you can delete the {dataframe-transform}, you must stop it.
-
-==== Path Parameters
-
-`data_frame_transform_id` (required)::
-  (string) Identifier for the {dataframe-transform}.
-
-==== Authorization
+[discrete]
+[[delete-data-frame-transform-prereqs]]
+==== {api-prereq-title}
 
 If the {es} {security-features} are enabled, you must have
 `manage_data_frame_transforms` cluster privileges to use this API. The built-in
@@ -34,9 +28,22 @@ If the {es} {security-features} are enabled, you must have
 see {stack-ov}/security-privileges.html[Security privileges] and
 {stack-ov}/built-in-roles.html[Built-in roles].
 
-==== Examples
+[discrete]
+[[delete-data-frame-transform-desc]]
+==== {api-description-title}
 
-The following example deletes the `ecommerce_transform` {dataframe-transform}:
+NOTE: Before you can delete the {dataframe-transform}, you must stop it.
+
+[discrete]
+[[delete-data-frame-transform-path-parms]]
+==== {api-path-parms-title}
+
+`<data_frame_transform_id>` (Required)::
+  (string) Identifier for the {dataframe-transform}.
+
+[discrete]
+[[delete-data-frame-transform-examples]]
+==== {api-examples-title}
 
 [source,js]
 --------------------------------------------------

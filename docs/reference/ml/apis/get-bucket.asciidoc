@@ -8,21 +8,21 @@
 
 Retrieves job results for one or more buckets.
 
-
-==== Request
+[[ml-get-bucket-request]]
+==== {api-request-title}
 
 `GET _ml/anomaly_detectors/<job_id>/results/buckets` +
 
 `GET _ml/anomaly_detectors/<job_id>/results/buckets/<timestamp>`
 
-
-==== Description
+[[ml-get-bucket-desc]]
+==== {api-description-title}
 
 The get buckets API presents a chronological view of the records, grouped by
 bucket.
 
-
-==== Path Parameters
+[[ml-get-bucket-path-parms]]
+==== {api-path-parms-title}
 
 `job_id`::
   (string) Identifier for the job
@@ -32,8 +32,8 @@ bucket.
   If you do not specify this optional parameter, the API returns information
   about all buckets.
 
-
-==== Request Body
+[[ml-get-bucket-request-body]]
+==== {api-request-body-title}
 
 `anomaly_score`::
   (double) Returns buckets with anomaly scores greater or equal than this value.
@@ -64,8 +64,8 @@ bucket.
 `start`::
   (string) Returns buckets with timestamps after this time.
 
-
-===== Results
+[[ml-get-bucket-results]]
+==== {api-response-body-title}
 
 The API returns the following information:
 
@@ -73,18 +73,18 @@ The API returns the following information:
   (array) An array of bucket objects. For more information, see
   <<ml-results-buckets,Buckets>>.
 
-
-==== Authorization
+[[ml-get-bucket-prereqs]]
+==== {api-prereq-title}
 
 You must have `monitor_ml`, `monitor`, `manage_ml`, or `manage` cluster
 privileges to use this API. You also need `read` index privilege on the index
 that stores the results. The `machine_learning_admin` and `machine_learning_user`
 roles provide these privileges. For more information, see
-{xpack-ref}/security-privileges.html[Security Privileges] and
-{xpack-ref}/built-in-roles.html[Built-in Roles].
+{stack-ov}/security-privileges.html[Security Privileges] and
+{stack-ov}/built-in-roles.html[Built-in Roles].
 
-
-==== Examples
+[[ml-get-bucket-example]]
+==== {api-examples-title}
 
 The following example gets bucket information for the `it-ops-kpi` job:
 

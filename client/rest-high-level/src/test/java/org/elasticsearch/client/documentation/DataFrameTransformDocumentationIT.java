@@ -171,6 +171,7 @@ public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTest
                     client.dataFrame().putDataFrameTransform(
                             request, RequestOptions.DEFAULT);
             // end::put-data-frame-transform-execute
+            transformsToClean.add(request.getConfig().getId());
 
             assertTrue(response.isAcknowledged());
         }
@@ -208,6 +209,7 @@ public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTest
             // end::put-data-frame-transform-execute-async
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
+            transformsToClean.add(request.getConfig().getId());
         }
     }
 
@@ -261,6 +263,7 @@ public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTest
             // tag::stop-data-frame-transform-request-options
             request.setWaitForCompletion(Boolean.TRUE);  // <1>
             request.setTimeout(TimeValue.timeValueSeconds(30));  // <2>
+            request.setAllowNoMatch(true); // <3>
             // end::stop-data-frame-transform-request-options
 
             // tag::stop-data-frame-transform-execute
@@ -431,6 +434,7 @@ public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTest
                     .setQueryConfig(queryConfig)
                     .build(), // <1>
                 pivotConfig); // <2>
+
         PreviewDataFrameTransformRequest request =
                 new PreviewDataFrameTransformRequest(transformConfig); // <3>
         // end::preview-data-frame-transform-request
@@ -496,11 +500,17 @@ public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTest
             .setPivotConfig(pivotConfig)
             .build();
         client.dataFrame().putDataFrameTransform(new PutDataFrameTransformRequest(transformConfig), RequestOptions.DEFAULT);
+        transformsToClean.add(id);
 
         // tag::get-data-frame-transform-stats-request
         GetDataFrameTransformStatsRequest request =
                 new GetDataFrameTransformStatsRequest(id); // <1>
         // end::get-data-frame-transform-stats-request
+
+        // tag::get-data-frame-transform-stats-request-options
+        request.setPageParams(new PageParams(0, 100)); // <1>
+        request.setAllowNoMatch(true); // <2>
+        // end::get-data-frame-transform-stats-request-options
 
         {
             // tag::get-data-frame-transform-stats-execute
@@ -593,6 +603,7 @@ public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTest
 
             // tag::get-data-frame-transform-request-options
             request.setPageParams(new PageParams(0, 100)); // <1>
+            request.setAllowNoMatch(true); // <2>
             // end::get-data-frame-transform-request-options
 
             // tag::get-data-frame-transform-execute

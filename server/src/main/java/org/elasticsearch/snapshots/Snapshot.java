@@ -19,6 +19,8 @@
 
 package org.elasticsearch.snapshots;
 
+import org.elasticsearch.Version;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -38,9 +40,9 @@ public final class Snapshot implements Writeable {
     /**
      * Constructs a snapshot.
      */
-    public Snapshot(final String repository, final SnapshotId snapshotId) {
+    public Snapshot(String repository, @Nullable SnapshotId snapshotId) {
         this.repository = Objects.requireNonNull(repository);
-        this.snapshotId = Objects.requireNonNull(snapshotId);
+        this.snapshotId = snapshotId;
         this.hashCode = computeHashCode();
     }
 
@@ -49,7 +51,11 @@ public final class Snapshot implements Writeable {
      */
     public Snapshot(final StreamInput in) throws IOException {
         repository = in.readString();
-        snapshotId = new SnapshotId(in);
+        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+            snapshotId = in.readOptionalWriteable(SnapshotId::new);
+        } else {
+            snapshotId = new SnapshotId(in);
+        }
         hashCode = computeHashCode();
     }
 
@@ -81,7 +87,7 @@ public final class Snapshot implements Writeable {
             return false;
         }
         Snapshot that = (Snapshot) o;
-        return repository.equals(that.repository) && snapshotId.equals(that.snapshotId);
+        return repository.equals(that.repository) && Objects.equals(snapshotId, that.snapshotId);
     }
 
     @Override
@@ -96,7 +102,11 @@ public final class Snapshot implements Writeable {
     @Override
     public void writeTo(final StreamOutput out) throws IOException {
         out.writeString(repository);
-        snapshotId.writeTo(out);
+        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+            out.writeOptionalWriteable(snapshotId);
+        } else {
+            snapshotId.writeTo(out);
+        }
     }
 
 }

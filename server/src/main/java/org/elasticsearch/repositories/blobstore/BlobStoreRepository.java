@@ -427,12 +427,12 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         }
     }
 
-    public void cleanup(long repositoryStateId, ActionListener<Boolean> listener) {
+    public void cleanup(long repositoryStateId, ActionListener<Void> listener) {
         ActionListener.completeWith(listener, () -> {
             final Map<String, BlobContainer> foundIndices = blobStore().blobContainer(indicesPath()).children();
             final RepositoryData repositoryData = repositoryData(repositoryStateId);
             cleanupStaleIndices(foundIndices, repositoryData.getIndices());
-            return true;
+            return null;
         });
     }
 

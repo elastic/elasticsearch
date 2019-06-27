@@ -30,6 +30,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.snapshots.SnapshotsService;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -65,7 +66,7 @@ public final class TransportCleanupRepositoryAction extends TransportMasterNodeR
     }
 
     @Override
-    protected void masterOperation(CleanupRepositoryRequest request, ClusterState state,
+    protected void masterOperation(Task task, CleanupRepositoryRequest request, ClusterState state,
                                    ActionListener<AcknowledgedResponse> listener) {
         snapshotsService.deleteSnapshot(request.repository(), null,
             ActionListener.map(listener, v -> new AcknowledgedResponse(true)), false);

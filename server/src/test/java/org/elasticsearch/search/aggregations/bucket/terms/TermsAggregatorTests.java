@@ -909,15 +909,12 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                     final GeoPoint missingValue = new GeoPoint(42.39561, -71.13051);
                     TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("_name", null)
                         .field("field").missing(missingValue);
+                    // This probably should throw...
+                    expectedException.expect(AggregationExecutionException.class);
                     Aggregator aggregator = createAggregator(aggregationBuilder, indexSearcher, fieldType1);
                     aggregator.preCollection();
                     indexSearcher.search(new MatchAllDocsQuery(), aggregator);
                     aggregator.postCollection();
-                    Terms result = (Terms) aggregator.buildAggregation(0L);
-                    assertEquals("_name", result.getName());
-                    assertEquals(1, result.getBuckets().size());
-                    assertEquals(missingValue.toString(), result.getBuckets().get(0).getKey());
-                    assertEquals(1, result.getBuckets().get(0).getDocCount());
                 }
             }
         }

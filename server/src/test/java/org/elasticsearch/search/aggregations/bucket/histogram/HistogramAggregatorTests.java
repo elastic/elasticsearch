@@ -37,6 +37,8 @@ import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper
 import org.junit.Rule;
 import org.junit.rules.ExpectedException;
 
+import static org.hamcrest.Matchers.containsString;
+
 public class HistogramAggregatorTests extends AggregatorTestCase {
 
     @Rule
@@ -239,7 +241,7 @@ public class HistogramAggregatorTests extends AggregatorTestCase {
                 IndexSearcher searcher = new IndexSearcher(reader);
                 expectedException.expect(IllegalArgumentException.class);
                 // This throws a number format exception (which is a subclass of IllegalArgumentException) and might be ok?
-                //expectedException.expectMessage(containsString("Expected numeric type on missing value, but got [keyword]"));
+                expectedException.expectMessage(containsString(""));
                 search(searcher, new MatchAllDocsQuery(), aggBuilder, type);
             }
         }

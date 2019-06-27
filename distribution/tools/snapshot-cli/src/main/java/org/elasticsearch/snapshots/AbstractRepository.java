@@ -55,12 +55,11 @@ public abstract class AbstractRepository implements Repository {
             terminal.println(Terminal.Verbosity.VERBOSE, "Reading index " + candidate + " last modification timestamp");
             Date indexTimestamp = getIndexTimestamp(candidate);
             if (indexTimestamp != null) {
-                terminal.println(Terminal.Verbosity.VERBOSE, "Index " + candidate + " last modification timestamp is " + indexTimestamp);
-
                 if (indexTimestamp.before(shiftedIndexNTimestamp)) {
                     leakedIndexIds.add(candidate);
-                    terminal.println(Terminal.Verbosity.VERBOSE, "Index " + candidate + " has leaked because " + indexTimestamp + " is less " +
-                            "than " + shiftedIndexNTimestamp);
+                    terminal.println(Terminal.Verbosity.VERBOSE,
+                            "Index " + candidate + " has leaked because it's modification timestamp " + indexTimestamp + " is " +
+                            "less than index-N shifted timestamp " + shiftedIndexNTimestamp);
                 } else {
                     terminal.println(Terminal.Verbosity.VERBOSE, "Index  " + candidate + " might not be leaked because " + indexTimestamp +
                             " is gte than " + shiftedIndexNTimestamp);

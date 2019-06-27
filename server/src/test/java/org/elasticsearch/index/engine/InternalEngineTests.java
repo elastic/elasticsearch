@@ -3534,7 +3534,7 @@ public class InternalEngineTests extends EngineTestCase {
         Engine.Index retry = appendOnlyReplica(doc.get(), true, 1, randomIntBetween(0, 5));
         // operations with a seq# equal or lower to the local checkpoint are not indexed to lucene
         // and the version lookup is skipped
-        final boolean belowLckp = operation.seqNo() == 0 && retry.seqNo() == 0;
+        final boolean sameSeqNo = operation.seqNo() == retry.seqNo();
         if (randomBoolean()) {
             Engine.IndexResult indexResult = engine.index(operation);
             assertLuceneOperations(engine, 1, 0, 0);
@@ -3546,7 +3546,7 @@ public class InternalEngineTests extends EngineTestCase {
             } else {
                 assertLuceneOperations(engine, 1, 0, 0);
             }
-            assertEquals(belowLckp ? 0 : 1, engine.getNumVersionLookups());
+            assertEquals(sameSeqNo ? 0 : 1, engine.getNumVersionLookups());
             assertNotNull(retryResult.getTranslogLocation());
             assertTrue(retryResult.getTranslogLocation().compareTo(indexResult.getTranslogLocation()) > 0);
         } else {
@@ -3560,7 +3560,7 @@ public class InternalEngineTests extends EngineTestCase {
             } else {
                 assertLuceneOperations(engine, 1, 0, 0);
             }
-            assertEquals(belowLckp ? 0 : 1, engine.getNumVersionLookups());
+            assertEquals(sameSeqNo ? 0 : 1, engine.getNumVersionLookups());
             assertNotNull(retryResult.getTranslogLocation());
             assertTrue(retryResult.getTranslogLocation().compareTo(indexResult.getTranslogLocation()) < 0);
         }

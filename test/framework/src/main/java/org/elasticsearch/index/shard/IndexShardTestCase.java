@@ -279,7 +279,8 @@ public abstract class IndexShardTestCase extends ESTestCase {
      *                (ready to recover from another shard)
      */
     protected IndexShard newShard(ShardId shardId, boolean primary, String nodeId, IndexMetaData indexMetaData,
-                                  @Nullable CheckedFunction<DirectoryReader, DirectoryReader, IOException> readerWrapper) throws IOException {
+             @Nullable CheckedFunction<DirectoryReader, DirectoryReader, IOException> readerWrapper)
+        throws IOException {
         return newShard(shardId, primary, nodeId, indexMetaData, readerWrapper, () -> {});
     }
 

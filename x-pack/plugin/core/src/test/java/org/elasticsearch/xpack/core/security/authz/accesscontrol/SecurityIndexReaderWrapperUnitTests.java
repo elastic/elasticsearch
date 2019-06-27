@@ -94,7 +94,7 @@ public class SecurityIndexReaderWrapperUnitTests extends ESTestCase {
         };
 
         FieldSubsetReader.FieldSubsetDirectoryReader result =
-                (FieldSubsetReader.FieldSubsetDirectoryReader) securityIndexReaderWrapper.wrap(esIn);
+                (FieldSubsetReader.FieldSubsetDirectoryReader) securityIndexReaderWrapper.apply(esIn);
         assertThat(result.getFilter().run("_uid"), is(true));
         assertThat(result.getFilter().run("_id"), is(true));
         assertThat(result.getFilter().run("_version"), is(true));
@@ -115,7 +115,7 @@ public class SecurityIndexReaderWrapperUnitTests extends ESTestCase {
         when(licenseState.isDocumentAndFieldLevelSecurityAllowed()).thenReturn(false);
         securityIndexReaderWrapper =
                 new SecurityIndexReaderWrapper(null, null, threadContext, licenseState, scriptService);
-        DirectoryReader reader = securityIndexReaderWrapper.wrap(esIn);
+        DirectoryReader reader = securityIndexReaderWrapper.apply(esIn);
         assertThat(reader, sameInstance(esIn));
     }
 

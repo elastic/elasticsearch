@@ -53,8 +53,7 @@ public class S3Repository extends AbstractRepository {
         final AmazonS3ClientBuilder builder = AmazonS3ClientBuilder.standard();
         builder.withCredentials(new AWSStaticCredentialsProvider(new BasicAWSCredentials(accessKey, secretKey)));
         if (Strings.isNullOrEmpty(region)) {
-            builder.withEndpointConfiguration(new AwsClientBuilder.EndpointConfiguration(endpoint, null))
-                    .enablePathStyleAccess();
+            builder.withEndpointConfiguration(new AwsClientBuilder.EndpointConfiguration(endpoint, null));
         } else {
             builder.withRegion(region);
         }

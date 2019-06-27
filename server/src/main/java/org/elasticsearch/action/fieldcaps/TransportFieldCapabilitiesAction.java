@@ -108,7 +108,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                 }
             };
             for (String index : concreteIndices) {
-                client.execute(TransportFieldCapabilitiesIndexAction.ACTION_INSTANCE,
+                client.executeLocally(TransportFieldCapabilitiesIndexAction.ACTION_INSTANCE,
                     new FieldCapabilitiesIndexRequest(request.fields(), index, localIndices), innerListener);
             }
 

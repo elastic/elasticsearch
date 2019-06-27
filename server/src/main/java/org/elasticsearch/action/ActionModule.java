@@ -412,9 +412,8 @@ public class ActionModule extends AbstractModule {
             }
 
             public <Request extends ActionRequest, Response extends ActionResponse> void register(
-                Action<Response> action, Class<? extends TransportAction<Request, Response>> transportAction,
-                Class<?>... supportTransportActions) {
-                register(new ActionHandler<>(action, transportAction, supportTransportActions));
+                Action<Response> action, Class<? extends TransportAction<Request, Response>> transportAction) {
+                register(new ActionHandler<>(action, transportAction));
             }
         }
         ActionRegistry actions = new ActionRegistry();
@@ -693,9 +692,6 @@ public class ActionModule extends AbstractModule {
             // bind the action as eager singleton, so the map binder one will reuse it
             bind(action.getTransportAction()).asEagerSingleton();
             transportActionsBinder.addBinding(action.getAction()).to(action.getTransportAction()).asEagerSingleton();
-            for (Class<?> supportAction : action.getSupportTransportActions()) {
-                bind(supportAction).asEagerSingleton();
-            }
         }
 
     }

@@ -1027,7 +1027,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                         clusterService, threadPool, environment, scriptService,
                         new AnalysisModule(environment, Collections.emptyList()).getAnalysisRegistry(),
                         Collections.emptyList()),
-                    transportShardBulkAction, client, actionFilters, indexNameExpressionResolver,
+                    client, actionFilters, indexNameExpressionResolver,
                     new AutoCreateIndex(settings, clusterSettings, indexNameExpressionResolver)
                 ));
             final RestoreService restoreService = new RestoreService(

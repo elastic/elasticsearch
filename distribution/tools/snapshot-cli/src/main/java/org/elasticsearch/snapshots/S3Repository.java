@@ -30,24 +30,18 @@ import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 import java.util.Set;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
 import java.util.stream.Collectors;
 
 public class S3Repository extends AbstractRepository {
-    private static final int DEFAULT_PARALLELISM = 100;
     private final AmazonS3 client;
     private final String bucket;
     private final String basePath;
-    private final int parallelism;
 
     S3Repository(Terminal terminal, Long safetyGapMillis, Integer parallelism, String endpoint, String region, String accessKey,
                  String secretKey, String bucket,
                  String basePath) {
-        super(terminal, safetyGapMillis);
+        super(terminal, safetyGapMillis, parallelism);
         this.client = buildS3Client(endpoint, region, accessKey, secretKey);
-        this.parallelism = parallelism == null ? DEFAULT_PARALLELISM : parallelism;
         this.basePath = basePath;
         this.bucket = bucket;
     }
@@ -165,26 +159,6 @@ public class S3Repository extends AbstractRepository {
         }
     }
 
-
-    private long deleteFiles(String prefix) {
-        long filesSize = 0L;
-
-        ObjectListing listing = client.listObjects(bucket, prefix);
-        while (true) {
-            List<String> files = listing.getObjectSummaries().stream().map(S3ObjectSummary::getKey).collect(Collectors.toList());
-            deleteFiles(files);
-            filesSize += listing.getObjectSummaries().stream().map(S3ObjectSummary::getSize).reduce(0L, (a, b) -> a + b);
-
-            if (listing.isTruncated()) {
-                listing = client.listNextBatchOfObjects(listing);
-            } else {
-                terminal.println(Terminal.Verbosity.VERBOSE,
-                        "Space freed by deleting files starting with " + prefix + " is " + filesSize + " bytes");
-                return filesSize;
-            }
-        }
-    }
-
     private void deleteFiles(List<String> files) {
         // AWS has a limit of 1K elements when performing batch remove,
         // However, list call never spits out more than 1K elements, so there is no need to partition
@@ -193,29 +167,25 @@ public class S3Repository extends AbstractRepository {
     }
 
     @Override
-    public void deleteIndices(Set<String> orphanedIndexIds) {
-        List<Future<Long>> futures = new ArrayList<>();
-        ExecutorService executor = Executors.newFixedThreadPool(parallelism);
-        try {
-            for (String indexId : orphanedIndexIds) {
-                futures.add(executor.submit(() -> {
-                    terminal.println(Terminal.Verbosity.NORMAL, "Removing orphaned index " + indexId);
-                    return deleteFiles(fullPath("indices/" + indexId));
-                }));
-            }
+    public Tuple<Integer, Long> deleteIndex(String indexDirectoryName) {
+        int removedFilesCount = 0;
+        long filesSize = 0L;
+        String prefix = fullPath("indices/" + indexDirectoryName);
 
-            long totalSpaceFreed = 0;
-            for (Future<Long> future : futures) {
-                try {
-                    totalSpaceFreed += future.get();
-                } catch (Exception e) {
-                    throw new ElasticsearchException(e);
-                }
-            }
+        ObjectListing listing = client.listObjects(bucket, prefix);
+        while (true) {
+            List<String> files = listing.getObjectSummaries().stream().map(S3ObjectSummary::getKey).collect(Collectors.toList());
+            deleteFiles(files);
+            removedFilesCount += files.size();
+            filesSize += listing.getObjectSummaries().stream().map(S3ObjectSummary::getSize).reduce(0L, (a, b) -> a + b);
 
-            terminal.println(Terminal.Verbosity.NORMAL, "Total space freed after removing orphaned indices is " + totalSpaceFreed + " bytes");
-        } finally {
-            executor.shutdownNow();
+            if (listing.isTruncated()) {
+                listing = client.listNextBatchOfObjects(listing);
+            } else {
+                terminal.println(Terminal.Verbosity.VERBOSE,
+                        "Space freed by deleting files starting with " + prefix + " is " + filesSize + " bytes");
+                return Tuple.tuple(removedFilesCount, filesSize);
+            }
         }
     }
 }

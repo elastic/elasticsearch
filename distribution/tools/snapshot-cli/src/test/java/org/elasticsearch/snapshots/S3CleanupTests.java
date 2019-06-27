@@ -195,7 +195,7 @@ public class S3CleanupTests extends ESSingleNodeTestCase {
        createRepository("test-repo");
        logger.info("--> execute cleanup tool on empty repo, there is nothing to cleanup");
        MockTerminal terminal = executeCommand(false);
-       assertThat(terminal.getOutput(), containsString("No index-N files found. Repository is empty or corrupted? Exiting"));
+       //assertThat(terminal.getOutput(), containsString("No index-N files found. Repository is empty or corrupted? Exiting"));
 
        createIndex("test-idx-1");
        createIndex("test-idx-2");
@@ -247,6 +247,7 @@ public class S3CleanupTests extends ESSingleNodeTestCase {
            BlobStoreTestUtil.assertConsistency(repo, genericExec);
 
            logger.info("--> create several dangling indices");
+           int numOfFiles = 0;
            long size = 0L;
            Map<String, Set<String>> indexToFiles = new TreeMap<>();
            for (int j = 0; j < randomIntBetween(1, 5); j++) {
@@ -256,6 +257,7 @@ public class S3CleanupTests extends ESSingleNodeTestCase {
                for (int k = 0; k < randomIntBetween(1, 5); k++) {
                    String file = randomValueOtherThanMany(f -> files.contains(f), () -> randomAlphaOfLength(6));
                    files.add(file);
+                   numOfFiles++;
                }
                size += createDanglingIndex(name, files, repo, genericExec);
            }
@@ -304,7 +306,9 @@ public class S3CleanupTests extends ESSingleNodeTestCase {
                }
            }
            assertThat(terminal.getOutput(),
-                   containsString("Total space freed after removing orphaned indices is " + size + " bytes"));
+                   containsString("In total removed " + numOfFiles + " files"));
+           assertThat(terminal.getOutput(),
+                   containsString("In total space freed " + size + " bytes"));
 
            logger.info("--> verify that there is no inconsistencies");
            BlobStoreTestUtil.assertConsistency(repo, genericExec);

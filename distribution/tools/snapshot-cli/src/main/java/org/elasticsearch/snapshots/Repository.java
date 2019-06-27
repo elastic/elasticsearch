@@ -11,7 +11,7 @@ public interface Repository {
     Tuple<Long, Date> getLatestIndexIdAndTimestamp() throws IOException;
     RepositoryData getRepositoryData(long indexFileGeneration) throws IOException;
     Set<String> getAllIndexDirectoryNames();
-    Date getIndexTimestamp(String indexId);
-    void deleteIndices(Set<String> orphanedIndexIds);
+    Date getIndexTimestamp(String indexDirectoryName);
+    Tuple<Integer, Long> deleteIndex(String indexDirectoryName);
     void cleanup() throws IOException;
 }

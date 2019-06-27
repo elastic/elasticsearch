@@ -57,7 +57,7 @@ public class DatafeedTimingStats implements ToXContentObject, Writeable {
 
     public DatafeedTimingStats(StreamInput in) throws IOException {
         jobId = in.readString();
-        totalSearchTimeMs = in.readOptionalDouble();
+        totalSearchTimeMs = in.readDouble();
     }
 
     public DatafeedTimingStats(DatafeedTimingStats other) {
@@ -79,7 +79,7 @@ public class DatafeedTimingStats implements ToXContentObject, Writeable {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(jobId);
-        out.writeOptionalDouble(totalSearchTimeMs);
+        out.writeDouble(totalSearchTimeMs);
     }
 
     @Override

@@ -67,6 +67,10 @@ public abstract class AbstractRepository implements Repository {
             }
         }
         terminal.println(Terminal.Verbosity.NORMAL, "Set of leaked indices is " + leakedIndexIds);
+        if (leakedIndexIds.isEmpty()) {
+            terminal.println(Terminal.Verbosity.NORMAL, "Set of leaked indices is empty. Exiting");
+            return;
+        }
         confirm(terminal, "Do you want to remove leaked indices files? This action is NOT REVERSIBLE");
         terminal.println(Terminal.Verbosity.NORMAL, "Removing leaked indices");
         deleteIndices(leakedIndexIds);

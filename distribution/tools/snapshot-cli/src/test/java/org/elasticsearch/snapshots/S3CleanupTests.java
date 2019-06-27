@@ -256,6 +256,10 @@ public class S3CleanupTests extends ESSingleNodeTestCase {
            logger.info("--> ensure dangling index folders are visible");
            assertBusy(() -> assertCorruptionVisible(indexToFiles, repo, genericExec), 10, TimeUnit.MINUTES);
 
+           logger.info("--> execute cleanup tool, corruption is created latter than snapshot, there is nothing to cleanup");
+           terminal = executeCommand(false);
+           assertThat(terminal.getOutput(), containsString("Set of leaked indices is empty. Exiting"));
+
            logger.info("--> create second snapshot");
            createSnapshotResponse = client().admin()
                    .cluster()

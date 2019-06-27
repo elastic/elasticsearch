@@ -23,11 +23,16 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 public class AsyncIOProcessorTests extends ESTestCase {
 
@@ -164,5 +169,55 @@ public class AsyncIOProcessorTests extends ESTestCase {
 
         expectThrows(NullPointerException.class, () -> processor.put(null, (e) -> {}));
         expectThrows(NullPointerException.class, () -> processor.put(new Object(), null));
+    }
+
+    public void testSlowConsumer() {
+        AtomicInteger received = new AtomicInteger(0);
+        AtomicInteger notified = new AtomicInteger(0);
+
+        AsyncIOProcessor<Object> processor = new AsyncIOProcessor<Object>(logger, scaledRandomIntBetween(1, 2024)) {
+            @Override
+            protected void write(List<Tuple<Object, Consumer<Exception>>> candidates) throws IOException {
+                received.addAndGet(candidates.size());
+            }
+        };
+
+        int threadCount = randomIntBetween(2, 10);
+        CyclicBarrier barrier = new CyclicBarrier(threadCount);
+        Semaphore serializePutSemaphore = new Semaphore(1);
+        List<Thread> threads = IntStream.range(0, threadCount).mapToObj(i -> new Thread(getTestName() + "_" + i) {
+            {
+                setDaemon(true);
+            }
+
+            @Override
+            public void run() {
+                try {
+                    assertTrue(serializePutSemaphore.tryAcquire(10, TimeUnit.SECONDS));
+                } catch (InterruptedException e) {
+                    throw new RuntimeException(e);
+                }
+                processor.put(new Object(), (e) -> {
+                    serializePutSemaphore.release();
+                    try {
+                        barrier.await(10, TimeUnit.SECONDS);
+                    } catch (InterruptedException | BrokenBarrierException | TimeoutException ex) {
+                        throw new RuntimeException(ex);
+                    }
+                    notified.incrementAndGet();
+                });
+            }
+        }).collect(Collectors.toList());
+        threads.forEach(Thread::start);
+        threads.forEach(t -> {
+            try {
+                t.join(20000);
+            } catch (InterruptedException e) {
+                throw new RuntimeException(e);
+            }
+        });
+        assertEquals(threadCount, notified.get());
+        assertEquals(threadCount, received.get());
+        threads.forEach(t -> assertFalse(t.isAlive()));
     }
 }

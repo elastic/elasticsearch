@@ -82,6 +82,7 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -445,11 +446,6 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             return;
         }
 
-        if (CoordinationState.isMasterEligibleOrNotInVotingConfiguration(joinRequest.getSourceNode(), getLastAcceptedState()) == false) {
-            excludeJoiningMasterIneligibleNodeFromVotingConfiguration(joinRequest, joinCallback);
-            return;
-        }
-
         transportService.connectToNode(joinRequest.getSourceNode());
 
         final ClusterState stateForJoinValidation = getStateForMasterService();
@@ -467,53 +463,6 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         } else {
             processJoinRequest(joinRequest, joinCallback);
         }
-    }
-
-    private void excludeJoiningMasterIneligibleNodeFromVotingConfiguration(JoinRequest joinRequest, JoinHelper.JoinCallback joinCallback) {
-        final DiscoveryNode joiningNode = joinRequest.getSourceNode();
-        assert joiningNode.isMasterNode() == false;
-
-        logger.trace("excluding master-ineligible node [{}] from voting configuration during join", joiningNode);
-        masterService.submitStateUpdateTask("exclude master-ineligible node", new ClusterStateUpdateTask() {
-            @Override
-            public ClusterState execute(ClusterState currentState) {
-                final DiscoveryNode existingNode = currentState.nodes().get(joiningNode.getId());
-                if (existingNode != null) {
-                    throw new CoordinationStateRejectedException(
-                        "cannot exclude joining node [" + joiningNode + "] matching existing node [" + existingNode + ']');
-                }
-
-                synchronized (mutex) {
-                    final ClusterState newState = improveConfiguration(currentState, joiningNode.getId());
-                    if (newState.getLastAcceptedConfiguration().getNodeIds().contains(joiningNode.getId())) {
-                        throw new CoordinationStateRejectedException("failed to exclude joining node [" + joiningNode + ']');
-                    }
-                    return newState;
-                }
-            }
-
-            @Override
-            public void onFailure(String source, Exception e) {
-                logger.debug("failed to exclude master-ineligible node " + joiningNode + " from voting configuration", e);
-                joinCallback.onFailure(e);
-            }
-
-            @Override
-            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                assert newState.getLastAcceptedConfiguration().getNodeIds().contains(joiningNode.getId()) == false;
-                transportService.getThreadPool().generic().execute(new Runnable() {
-                    @Override
-                    public void run() {
-                        handleJoinRequest(joinRequest, joinCallback);
-                    }
-
-                    @Override
-                    public String toString() {
-                        return "retrying " + joinRequest + " after excluding source node";
-                    }
-                });
-            }
-        });
     }
 
     // package private for tests
@@ -904,14 +853,15 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
     }
 
     // Package-private for testing
-    ClusterState improveConfiguration(ClusterState clusterState, String... extraExcludedNodeIds) {
+    ClusterState improveConfiguration(ClusterState clusterState) {
         assert Thread.holdsLock(mutex) : "Coordinator mutex not held";
 
         final Set<DiscoveryNode> liveNodes = StreamSupport.stream(clusterState.nodes().spliterator(), false)
-            .filter(this::hasJoinVoteFrom).collect(Collectors.toSet());
-        final VotingConfiguration newConfig = reconfigurator.reconfigure(liveNodes,
-            Stream.concat(clusterState.getVotingConfigExclusions().stream().map(VotingConfigExclusion::getNodeId),
-                Arrays.stream(extraExcludedNodeIds)).collect(Collectors.toSet()),
+            .filter(DiscoveryNode::isMasterNode).filter(this::hasJoinVoteFrom).collect(Collectors.toSet());
+        final VotingConfiguration newConfig = reconfigurator.reconfigure(liveNodes, Stream.concat(
+            clusterState.getVotingConfigExclusions().stream().map(VotingConfigExclusion::getNodeId),
+            StreamSupport.stream(clusterState.nodes().spliterator(), false)
+                .filter(Predicate.not(DiscoveryNode::isMasterNode)).map(DiscoveryNode::getId)).collect(Collectors.toSet()),
             getLocalNode(), clusterState.getLastAcceptedConfiguration());
         if (newConfig.equals(clusterState.getLastAcceptedConfiguration()) == false) {
             assert coordinationState.get().joinVotesHaveQuorumFor(newConfig);
@@ -1060,10 +1010,6 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
 
                 assert getLocalNode().equals(clusterState.getNodes().get(getLocalNode().getId())) :
                     getLocalNode() + " should be in published " + clusterState;
-
-                assert StreamSupport.stream(clusterState.getNodes().spliterator(), false)
-                    .allMatch(n -> CoordinationState.isMasterEligibleOrNotInVotingConfiguration(n, clusterState))
-                    : "master-ineligible node unexpectedly found in voting config: " + clusterState;
 
                 final PublicationTransportHandler.PublicationContext publicationContext =
                     publicationHandler.newPublicationContext(clusterChangedEvent);

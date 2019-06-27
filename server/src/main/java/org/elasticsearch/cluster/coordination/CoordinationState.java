@@ -315,25 +315,6 @@ public class CoordinationState {
         return new PublishRequest(clusterState);
     }
 
-    static boolean isMasterEligibleOrNotInVotingConfiguration(DiscoveryNode discoveryNode, ClusterState clusterState) {
-        return isMasterEligibleOrNotInConfigurations(discoveryNode,
-            clusterState.getLastCommittedConfiguration(), clusterState.getLastAcceptedConfiguration());
-    }
-
-    private static boolean isMasterEligibleOrNotInConfigurations(DiscoveryNode discoveryNode, VotingConfiguration... configurations) {
-        if (discoveryNode.isMasterNode()) {
-            return true;
-        }
-
-        for (final VotingConfiguration configuration : configurations) {
-            if (configuration.getNodeIds().contains(discoveryNode.getId())) {
-                return false;
-            }
-        }
-
-        return true;
-    }
-
     /**
      * May be called on receipt of a PublishRequest.
      *

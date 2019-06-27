@@ -49,8 +49,8 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
         ZonedDateTime now = LocalDateTime.of(2019,5,26,1,32,8,328402)
                                          .atZone(ZoneOffset.UTC);
         DateFormatter jodaFormatter = Joda.forPattern("xxxx-ww").withLocale(Locale.ROOT).withZone(ZoneOffset.UTC);
-        Locale customROOT = new Locale.Builder().setLocale(Locale.ROOT).setUnicodeLocaleKeyword("fw","mon").build();
-        DateFormatter javaFormatter = DateFormatter.forPattern("8YYYY-ww").withLocale(customROOT).withZone(ZoneOffset.UTC);
+//        Locale customROOT = new Locale.Builder().setLocale(Locale.ROOT).setUnicodeLocaleKeyword("fw","mon").build(); .withLocale(customROOT)
+        DateFormatter javaFormatter = DateFormatter.forPattern("8YYYY-ww").withZone(ZoneOffset.UTC);
         assertThat(jodaFormatter.format(now), equalTo(javaFormatter.format(now)));
     }
 

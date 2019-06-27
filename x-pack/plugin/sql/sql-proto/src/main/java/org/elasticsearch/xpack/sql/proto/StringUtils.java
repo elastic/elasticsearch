@@ -13,7 +13,6 @@ import java.time.Period;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeFormatterBuilder;
-import java.util.Locale;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 
@@ -24,6 +23,8 @@ import static java.time.temporal.ChronoField.MINUTE_OF_HOUR;
 import static java.time.temporal.ChronoField.SECOND_OF_MINUTE;
 
 public final class StringUtils {
+    public static final java.util.Locale WEEK_START_MON = new java.util.Locale.Builder()
+        .setLocale(java.util.Locale.ROOT).setUnicodeLocaleKeyword("fw", "mon").build();
 
     public static final String EMPTY = "";
     
@@ -38,7 +39,7 @@ public final class StringUtils {
             .appendValue(SECOND_OF_MINUTE, 2)
             .appendFraction(MILLI_OF_SECOND, 3, 3, true)
             .appendOffsetId()
-            .toFormatter(Locale.ROOT);
+            .toFormatter(WEEK_START_MON);
 
     public static final DateTimeFormatter ISO_TIME_WITH_MILLIS = new DateTimeFormatterBuilder()
         .parseCaseInsensitive()
@@ -49,7 +50,7 @@ public final class StringUtils {
         .appendValue(SECOND_OF_MINUTE, 2)
         .appendFraction(MILLI_OF_SECOND, 3, 3, true)
         .appendOffsetId()
-        .toFormatter(Locale.ROOT);
+        .toFormatter(WEEK_START_MON);
 
     private static final int SECONDS_PER_MINUTE = 60;
     private static final int SECONDS_PER_HOUR = SECONDS_PER_MINUTE * 60;

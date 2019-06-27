@@ -158,6 +158,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
 
                 @Override
                 public Scorer scorer(LeafReaderContext context) throws IOException {
+                    // in case the wrapped searcher (in) uses the scorer directly
                     return weight.scorer(context);
                 }
 

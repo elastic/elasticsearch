@@ -263,8 +263,6 @@ field support has a `nested` sort option with the following properties:
 NOTE: Elasticsearch will throw an error if a nested field is defined in a sort without
 a `nested` context.
 
-============================================
-
 ===== Nested sorting examples
 
 In the below example `offer` is a field of type `nested`.

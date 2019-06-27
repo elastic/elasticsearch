@@ -1,5 +1,3 @@
-import org.elasticsearch.gradle.test.RunTask
-
 description = 'Integration tests for SQL'
 apply plugin: 'elasticsearch.build'
 archivesBaseName = 'qa-sql'
@@ -96,20 +94,20 @@ subprojects {
 
   if (project.name != 'security') {
     // The security project just configures its subprojects
+    apply plugin: 'elasticsearch.testclusters'
     apply plugin: 'elasticsearch.rest-test'
 
-    integTestCluster {
+    testClusters.integTest {
+      distribution = 'DEFAULT'
       setting 'xpack.monitoring.enabled', 'false'
       setting 'xpack.ml.enabled', 'false'
       setting 'xpack.watcher.enabled', 'false'
-      setting 'script.max_compilations_rate', '1000/1m'
     }
 
-    task runqa(type: RunTask) {
-      setting 'xpack.monitoring.enabled', 'false'
-      setting 'xpack.ml.enabled', 'false'
-      setting 'xpack.watcher.enabled', 'false'
-      setting 'script.max_compilations_rate', '1000/1m'
+    task runqa {
+      doFirst {
+        println "Run with `-Dtestclusters.inspect.failure=true integTest` to leave the cluster running after failure"
+      }
     }
   }
 }

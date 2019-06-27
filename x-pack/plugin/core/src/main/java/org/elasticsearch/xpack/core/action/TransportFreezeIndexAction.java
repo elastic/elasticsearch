@@ -38,6 +38,7 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.index.Index;
@@ -86,7 +87,12 @@ public final class TransportFreezeIndexAction extends
 
     @Override
     protected FreezeResponse newResponse() {
-        return new FreezeResponse();
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
+    }
+
+    @Override
+    protected FreezeResponse read(StreamInput in) throws IOException {
+        return new FreezeResponse(in);
     }
 
     private Index[] resolveIndices(FreezeRequest request, ClusterState state) {
@@ -109,11 +115,6 @@ public final class TransportFreezeIndexAction extends
     }
 
     @Override
-    protected void masterOperation(FreezeRequest request, ClusterState state, ActionListener<FreezeResponse> listener) {
-        throw new UnsupportedOperationException("The task parameter is required");
-    }
-
-    @Override
     protected void masterOperation(Task task, TransportFreezeIndexAction.FreezeRequest request, ClusterState state,
                                    ActionListener<TransportFreezeIndexAction.FreezeResponse> listener) throws Exception {
         final Index[] concreteIndices = resolveIndices(request, state);
@@ -127,7 +128,7 @@ public final class TransportFreezeIndexAction extends
             .masterNodeTimeout(request.masterNodeTimeout())
             .indices(concreteIndices);
 
-        indexStateService.closeIndices(closeRequest, new ActionListener<CloseIndexResponse>() {
+        indexStateService.closeIndices(closeRequest, new ActionListener<>() {
             @Override
             public void onResponse(final CloseIndexResponse response) {
                 if (response.isAcknowledged()) {
@@ -149,13 +150,13 @@ public final class TransportFreezeIndexAction extends
     private void toggleFrozenSettings(final Index[] concreteIndices, final FreezeRequest request,
                                       final ActionListener<FreezeResponse> listener) {
         clusterService.submitStateUpdateTask("toggle-frozen-settings",
-            new AckedClusterStateUpdateTask<AcknowledgedResponse>(Priority.URGENT, request, new ActionListener<AcknowledgedResponse>() {
+            new AckedClusterStateUpdateTask<>(Priority.URGENT, request, new ActionListener<AcknowledgedResponse>() {
                 @Override
                 public void onResponse(AcknowledgedResponse acknowledgedResponse) {
                     OpenIndexClusterStateUpdateRequest updateRequest = new OpenIndexClusterStateUpdateRequest()
                         .ackTimeout(request.timeout()).masterNodeTimeout(request.masterNodeTimeout())
                         .indices(concreteIndices).waitForActiveShards(request.waitForActiveShards());
-                    indexStateService.openIndex(updateRequest, new ActionListener<OpenIndexClusterStateUpdateResponse>() {
+                    indexStateService.openIndex(updateRequest, new ActionListener<>() {
                         @Override
                         public void onResponse(OpenIndexClusterStateUpdateResponse openIndexClusterStateUpdateResponse) {
                             listener.onResponse(new FreezeResponse(openIndexClusterStateUpdateResponse.isAcknowledged(),
@@ -217,8 +218,8 @@ public final class TransportFreezeIndexAction extends
     }
 
     public static class FreezeResponse extends OpenIndexResponse {
-        public FreezeResponse() {
-            super();
+        FreezeResponse(StreamInput in) throws IOException {
+            super(in);
         }
 
         public FreezeResponse(boolean acknowledged, boolean shardsAcknowledged) {
@@ -237,7 +238,12 @@ public final class TransportFreezeIndexAction extends
 
         @Override
         public FreezeResponse newResponse() {
-            return new FreezeResponse();
+            throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
+        }
+
+        @Override
+        public Writeable.Reader<FreezeResponse> getResponseReader() {
+            return FreezeResponse::new;
         }
     }
 

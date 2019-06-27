@@ -145,12 +145,6 @@ public class AzureStorageService {
         return prevSettings;
     }
 
-    public boolean doesContainerExist(String account, String container) throws URISyntaxException, StorageException {
-        final Tuple<CloudBlobClient, Supplier<OperationContext>> client = client(account);
-        final CloudBlobContainer blobContainer = client.v1().getContainerReference(container);
-        return SocketAccess.doPrivilegedException(() -> blobContainer.exists(null, null, client.v2().get()));
-    }
-
     /**
      * Extract the blob name from a URI like https://myservice.azure.net/container/path/to/myfile
      * It should remove the container part (first part of the path) and gives path/to/myfile

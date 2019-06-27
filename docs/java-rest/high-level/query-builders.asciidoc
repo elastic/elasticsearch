@@ -27,7 +27,7 @@ This page lists all the available search queries with their corresponding `Query
 | {ref}/query-dsl-simple-query-string-query.html[Simple Query String] | {query-ref}/SimpleQueryStringBuilder.html[SimpleQueryStringBuilder]                 | {query-ref}/QueryBuilders.html#simpleQueryStringQuery-java.lang.String-[QueryBuilders.simpleQueryStringQuery()]
 |======
 
-==== Term level queries
+==== Term-level queries
 [options="header"]
 |======
 | Search Query                                                        | QueryBuilder Class | Method in QueryBuilders

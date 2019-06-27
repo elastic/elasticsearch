@@ -141,8 +141,7 @@ public class AutoDateHistogramAggregationBuilder
     public AutoDateHistogramAggregationBuilder(StreamInput in) throws IOException {
         super(in, ValuesSourceType.NUMERIC, ValueType.DATE);
         numBuckets = in.readVInt();
-        //TODO[PCS] update after backport
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (in.getVersion().onOrAfter(Version.V_7_3_0)) {
             minimumIntervalExpression = in.readOptionalString();
         }
     }
@@ -222,12 +221,15 @@ public class AutoDateHistogramAggregationBuilder
     }
 
     @Override
-    protected int innerHashCode() {
-        return Objects.hash(numBuckets, minimumIntervalExpression);
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), numBuckets, minimumIntervalExpression);
     }
 
     @Override
-    protected boolean innerEquals(Object obj) {
+    public boolean equals(Object obj) {
+        if (this == obj) return true;
+        if (obj == null || getClass() != obj.getClass()) return false;
+        if (super.equals(obj) == false) return false;
         AutoDateHistogramAggregationBuilder other = (AutoDateHistogramAggregationBuilder) obj;
         return Objects.equals(numBuckets, other.numBuckets) && Objects.equals(minimumIntervalExpression, other.minimumIntervalExpression);
     }

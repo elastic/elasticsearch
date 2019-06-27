@@ -53,7 +53,21 @@ public abstract class DiscoveryNodeRole {
         return roleNameAbbreviation;
     }
 
+    private final boolean isKnownRole;
+
+    /**
+     * Whether this role is known by this node, or is an {@link DiscoveryNodeRole.UnknownRole}.
+     */
+    public final boolean isKnownRole() {
+        return isKnownRole;
+    }
+
     protected DiscoveryNodeRole(final String roleName, final String roleNameAbbreviation) {
+        this(true, roleName, roleNameAbbreviation);
+    }
+
+    private DiscoveryNodeRole(final boolean isKnownRole, final String roleName, final String roleNameAbbreviation) {
+        this.isKnownRole = isKnownRole;
         this.roleName = Objects.requireNonNull(roleName);
         this.roleNameAbbreviation = Objects.requireNonNull(roleNameAbbreviation);
     }
@@ -61,10 +75,26 @@ public abstract class DiscoveryNodeRole {
     protected abstract Setting<Boolean> roleSetting();
 
     @Override
-    public String toString() {
+    public final boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        DiscoveryNodeRole that = (DiscoveryNodeRole) o;
+        return roleName.equals(that.roleName) &&
+            roleNameAbbreviation.equals(that.roleNameAbbreviation) &&
+            isKnownRole == that.isKnownRole;
+    }
+
+    @Override
+    public final int hashCode() {
+        return Objects.hash(isKnownRole, roleName(), roleNameAbbreviation());
+    }
+
+    @Override
+    public final String toString() {
         return "DiscoveryNodeRole{" +
                 "roleName='" + roleName + '\'' +
                 ", roleNameAbbreviation='" + roleNameAbbreviation + '\'' +
+                (isKnownRole ? "" : ", isKnownRole=false") +
                 '}';
     }
 
@@ -122,7 +152,7 @@ public abstract class DiscoveryNodeRole {
          * @param roleNameAbbreviation the role name abbreviation
          */
         UnknownRole(final String roleName, final String roleNameAbbreviation) {
-            super(roleName, roleNameAbbreviation);
+            super(false, roleName, roleNameAbbreviation);
         }
 
         @Override

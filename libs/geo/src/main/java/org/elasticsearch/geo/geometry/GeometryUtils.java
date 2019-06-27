@@ -22,7 +22,7 @@ package org.elasticsearch.geo.geometry;
 /**
  * Geometry-related utility methods
  */
-final class GeometryUtils {
+public final class GeometryUtils {
     /**
      * Minimum longitude value.
      */
@@ -65,6 +65,14 @@ final class GeometryUtils {
             throw new IllegalArgumentException(
                 "invalid longitude " + longitude + "; must be between " + MIN_LON_INCL + " and " + MAX_LON_INCL);
         }
+    }
+
+    public static double checkAltitude(final boolean ignoreZValue, double zValue) {
+        if (ignoreZValue == false) {
+            throw new IllegalArgumentException("found Z value [" + zValue + "] but [ignore_z_value] "
+                + "parameter is [" + ignoreZValue + "]");
+        }
+        return zValue;
     }
 
 }

@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.ccr;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
-import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsRequest;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.Strings;
@@ -18,14 +17,15 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.CcrIntegTestCase;
 import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata;
 import org.elasticsearch.xpack.core.ccr.AutoFollowStats;
 import org.elasticsearch.xpack.core.ccr.action.CcrStatsAction;
 import org.elasticsearch.xpack.core.ccr.action.DeleteAutoFollowPatternAction;
 import org.elasticsearch.xpack.core.ccr.action.FollowInfoAction;
-import org.elasticsearch.xpack.core.ccr.action.FollowParameters;
 import org.elasticsearch.xpack.core.ccr.action.FollowInfoAction.Response.FollowerInfo;
+import org.elasticsearch.xpack.core.ccr.action.FollowParameters;
 import org.elasticsearch.xpack.core.ccr.action.PutAutoFollowPatternAction;
 
 import java.util.Arrays;
@@ -68,22 +68,17 @@ public class AutoFollowIT extends CcrIntegTestCase {
 
         createLeaderIndex("logs-201901", leaderIndexSettings);
         assertBusy(() -> {
-            IndicesExistsRequest request = new IndicesExistsRequest("copy-logs-201901");
-            assertTrue(followerClient().admin().indices().exists(request).actionGet().isExists());
+            assertTrue(ESIntegTestCase.indexExists("copy-logs-201901", followerClient()));
         });
         createLeaderIndex("transactions-201901", leaderIndexSettings);
         assertBusy(() -> {
             AutoFollowStats autoFollowStats = getAutoFollowStats();
             assertThat(autoFollowStats.getNumberOfSuccessfulFollowIndices(), equalTo(2L));
-
-            IndicesExistsRequest request = new IndicesExistsRequest("copy-transactions-201901");
-            assertTrue(followerClient().admin().indices().exists(request).actionGet().isExists());
+            assertTrue(ESIntegTestCase.indexExists("copy-transactions-201901", followerClient()));
         });
 
-        IndicesExistsRequest request = new IndicesExistsRequest("copy-metrics-201901");
-        assertFalse(followerClient().admin().indices().exists(request).actionGet().isExists());
-        request = new IndicesExistsRequest("copy-logs-201812");
-        assertFalse(followerClient().admin().indices().exists(request).actionGet().isExists());
+        assertFalse(ESIntegTestCase.indexExists("copy-metrics-201901", followerClient()));
+        assertFalse(ESIntegTestCase.indexExists("copy-logs-201812", followerClient()));
     }
 
     public void testCleanFollowedLeaderIndexUUIDs() throws Exception {
@@ -99,8 +94,7 @@ public class AutoFollowIT extends CcrIntegTestCase {
             AutoFollowStats autoFollowStats = getAutoFollowStats();
             assertThat(autoFollowStats.getNumberOfSuccessfulFollowIndices(), equalTo(1L));
 
-            IndicesExistsRequest request = new IndicesExistsRequest("copy-logs-201901");
-            assertTrue(followerClient().admin().indices().exists(request).actionGet().isExists());
+            assertTrue(ESIntegTestCase.indexExists("copy-logs-201901", followerClient()));
 
             MetaData metaData = getFollowerCluster().clusterService().state().metaData();
             String leaderIndexUUID = metaData.index("copy-logs-201901")
@@ -329,8 +323,7 @@ public class AutoFollowIT extends CcrIntegTestCase {
             assertThat(autoFollowStats.getNumberOfFailedFollowIndices(), equalTo(0L));
             assertThat(autoFollowStats.getNumberOfFailedRemoteClusterStateRequests(), equalTo(0L));
         });
-        IndicesExistsRequest request = new IndicesExistsRequest("copy-logs-201701");
-        assertTrue(followerClient().admin().indices().exists(request).actionGet().isExists());
+        assertTrue(ESIntegTestCase.indexExists("copy-logs-201701", followerClient()));
 
         createLeaderIndex("logs-201801", leaderIndexSettings);
         assertBusy(() -> {
@@ -351,8 +344,7 @@ public class AutoFollowIT extends CcrIntegTestCase {
                 "matches with other patterns [my-pattern1]"));
         });
 
-        request = new IndicesExistsRequest("copy-logs-201801");
-        assertFalse(followerClient().admin().indices().exists(request).actionGet().isExists());
+        assertFalse(ESIntegTestCase.indexExists("copy-logs-201801", followerClient()));
     }
 
     public void testAutoFollowSoftDeletesDisabled() throws Exception {
@@ -373,8 +365,7 @@ public class AutoFollowIT extends CcrIntegTestCase {
             ElasticsearchException failure  = autoFollowStats.getRecentAutoFollowErrors().firstEntry().getValue().v2();
             assertThat(failure.getMessage(), equalTo("index [logs-20200101] cannot be followed, " +
                 "because soft deletes are not enabled"));
-            IndicesExistsRequest request = new IndicesExistsRequest("copy-logs-20200101");
-            assertFalse(followerClient().admin().indices().exists(request).actionGet().isExists());
+            assertFalse(ESIntegTestCase.indexExists("copy-logs-20200101", followerClient()));
         });
 
         // Soft deletes are enabled:
@@ -387,8 +378,7 @@ public class AutoFollowIT extends CcrIntegTestCase {
         assertBusy(() -> {
             AutoFollowStats autoFollowStats = getAutoFollowStats();
             assertThat(autoFollowStats.getNumberOfSuccessfulFollowIndices(), equalTo(1L));
-            IndicesExistsRequest request = new IndicesExistsRequest("copy-logs-20200102");
-            assertTrue(followerClient().admin().indices().exists(request).actionGet().isExists());
+            assertTrue(ESIntegTestCase.indexExists("copy-logs-20200102", followerClient()));
         });
     }
 

@@ -122,8 +122,8 @@ public class ErrorsTestCase extends JdbcIntegrationTestCase implements org.elast
         index("test", body -> body.field("a", 1).field("b", 2));
         try (Connection c = esJdbc()) {
             SQLException e = expectThrows(SQLException.class, () ->
-                c.prepareStatement("SELECT max(a) max FROM test GROUP BY b ORDER BY max LIMIT 10000").executeQuery());
-            assertEquals("The maximum LIMIT for aggregate sorting is [512], received [10000]", e.getMessage());
+                c.prepareStatement("SELECT max(a) max FROM test GROUP BY b ORDER BY max LIMIT 12000").executeQuery());
+            assertEquals("The maximum LIMIT for aggregate sorting is [10000], received [12000]", e.getMessage());
         }
     }
 }

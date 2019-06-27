@@ -62,7 +62,6 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.VersionUtils;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 
 import java.util.Arrays;
 import java.util.Map;
@@ -81,7 +80,6 @@ public class ShrinkIndexIT extends ESIntegTestCase {
         return false;
     }
 
-    @TestLogging("org.elasticsearch.index.store:DEBUG")
     public void testCreateShrinkIndexToN() {
 
         assumeFalse("https://github.com/elastic/elasticsearch/issues/34080", Constants.WINDOWS);

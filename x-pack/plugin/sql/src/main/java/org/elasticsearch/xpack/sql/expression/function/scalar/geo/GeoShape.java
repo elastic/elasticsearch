@@ -51,7 +51,7 @@ public class GeoShape implements ToXContentFragment, NamedWriteable {
 
     private static final GeometryParser GEOMETRY_PARSER = new GeometryParser(true, true, true);
 
-    private static final WellKnownText WKT_PARSER = new WellKnownText();
+    private static final WellKnownText WKT_PARSER = new WellKnownText(true, true);
 
     public GeoShape(double lon, double lat) {
         shape = new Point(lat, lon);

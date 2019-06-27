@@ -70,6 +70,12 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
 
     private final Logger logger = LogManager.getLogger(GatewayIndexStateIT.class);
 
+    @Override
+    protected boolean addMockInternalEngine() {
+        // testRecoverBrokenIndexMetadata replies on the flushing on shutdown behavior which can be randomly disabled in MockInternalEngine.
+        return false;
+    }
+
     public void testMappingMetaDataParsed() throws Exception {
         logger.info("--> starting 1 nodes");
         internalCluster().startNode();

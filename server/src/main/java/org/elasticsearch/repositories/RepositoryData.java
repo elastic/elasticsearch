@@ -461,7 +461,8 @@ public final class RepositoryData {
                     }
                     esVersion = Version.fromString(parser.text());
                 } else {
-                    throw new ElasticsearchParseException("unknown field name  [" + field + "]");
+                    // Assume this was added by a newer ES version so we skip it
+                    parser.skipChildren();
                 }
             }
         } else {

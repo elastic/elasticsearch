@@ -2,7 +2,7 @@
 "Test put batch data frame transforms on old cluster":
   - do:
       indices.create:
-        index: old-dataframe-transform-airline-data
+        index: dataframe-transform-airline-data
         body:
           mappings:
             properties:
@@ -16,8 +16,9 @@
                 type: integer
   - do:
       cluster.health:
-        index: "old-dataframe-transform-airline-data"
-        wait_for_status: yellow
+        index: "dataframe-transform-airline-data"
+        wait_for_status: green
+        timeout: 70s
 
   - do:
       ingest.put_pipeline:
@@ -38,7 +39,7 @@
         transform_id: "old-simple-transform"
         body: >
           {
-            "source": { "index": "old-dataframe-transform-airline-data" },
+            "source": { "index": "dataframe-transform-airline-data" },
             "dest": { "index": "old-simple-transform-idx" },
             "pivot": {
               "group_by": { "airline": {"terms": {"field": "airline"}}},
@@ -86,7 +87,7 @@
         body: >
           {
             "source": {
-              "index": "old-dataframe-transform-airline-data",
+              "index": "dataframe-transform-airline-data",
               "query": {
                 "bool": {
                   "filter": {"term": {"airline": "ElasticAir"}}
@@ -143,7 +144,7 @@
 "Test put continuous data frame transform on old cluster":
   - do:
       indices.create:
-        index: old-dataframe-transform-airline-data-cont
+        index: dataframe-transform-airline-data-cont
         body:
           mappings:
             properties:
@@ -157,15 +158,16 @@
                 type: integer
   - do:
       cluster.health:
-        index: "old-dataframe-transform-airline-data-cont"
-        wait_for_status: yellow
+        index: "dataframe-transform-airline-data-cont"
+        wait_for_status: green
+        timeout: 70s
 
   - do:
       data_frame.put_data_frame_transform:
         transform_id: "old-simple-continuous-transform"
         body: >
           {
-            "source": { "index": "old-dataframe-transform-airline-data-cont" },
+            "source": { "index": "dataframe-transform-airline-data-cont" },
             "dest": { "index": "old-simple-continuous-transform-idx" },
             "pivot": {
               "group_by": { "airline": {"terms": {"field": "airline"}}},

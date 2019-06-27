@@ -1,30 +1,17 @@
 ---
 "Test put batch data frame transforms on mixed cluster":
   - do:
-      indices.create:
-        index: mixed-dataframe-transform-airline-data
-        body:
-          mappings:
-            properties:
-              time:
-                type: date
-              airline:
-                type: keyword
-              responsetime:
-                type: float
-              event_rate:
-                type: integer
-  - do:
       cluster.health:
-        index: "mixed-dataframe-transform-airline-data"
-        wait_for_status: yellow
+        index: "dataframe-transform-airline-data"
+        wait_for_status: green
+        timeout: 70s
 
   - do:
       data_frame.put_data_frame_transform:
         transform_id: "mixed-simple-transform"
         body: >
           {
-            "source": { "index": "mixed-dataframe-transform-airline-data" },
+            "source": { "index": "dataframe-transform-airline-data" },
             "dest": { "index": "mixed-simple-transform-idx" },
             "pivot": {
               "group_by": { "airline": {"terms": {"field": "airline"}}},
@@ -64,7 +51,7 @@
         body: >
           {
             "source": {
-              "index": "mixed-dataframe-transform-airline-data",
+              "index": "dataframe-transform-airline-data",
               "query": {
                 "bool": {
                   "filter": {"term": {"airline": "ElasticAir"}}
@@ -122,30 +109,17 @@
 ---
 "Test put continuous data frame transform on mixed cluster":
   - do:
-      indices.create:
-        index: mixed-dataframe-transform-airline-data-cont
-        body:
-          mappings:
-            properties:
-              time:
-                type: date
-              airline:
-                type: keyword
-              responsetime:
-                type: float
-              event_rate:
-                type: integer
-  - do:
       cluster.health:
-        index: "mixed-dataframe-transform-airline-data-cont"
-        wait_for_status: yellow
+        index: "dataframe-transform-airline-data-cont"
+        wait_for_status: green
+        timeout: 70s
 
   - do:
       data_frame.put_data_frame_transform:
         transform_id: "mixed-simple-continuous-transform"
         body: >
           {
-            "source": { "index": "mixed-dataframe-transform-airline-data-cont" },
+            "source": { "index": "dataframe-transform-airline-data-cont" },
             "dest": { "index": "mixed-simple-continuous-transform-idx" },
             "pivot": {
               "group_by": { "airline": {"terms": {"field": "airline"}}},
@@ -199,15 +173,16 @@
 "Test GET, start, and stop old cluster batch transforms":
   - do:
       cluster.health:
-        index: ".data-frame-internal-1,old-dataframe-transform-airline-data"
-        wait_for_status: yellow
+        index: "dataframe-transform-airline-data"
+        wait_for_status: green
+        timeout: 70s
 
   - do:
       data_frame.get_data_frame_transform:
         transform_id: "old-simple-transform"
   - match: { count: 1 }
   - match: { transforms.0.id: "old-simple-transform" }
-  - match: { transforms.0.source.index.0: "old-dataframe-transform-airline-data" }
+  - match: { transforms.0.source.index.0: "dataframe-transform-airline-data" }
   - match: { transforms.0.dest.index: "old-simple-transform-idx" }
   - match: { transforms.0.pivot.group_by.airline.terms.field: "airline" }
   - match: { transforms.0.pivot.aggregations.avg_response.avg.field: "responsetime" }
@@ -241,7 +216,7 @@
         transform_id: "old-complex-transform"
   - match: { count: 1 }
   - match: { transforms.0.id: "old-complex-transform" }
-  - match: { transforms.0.source.index.0: "old-dataframe-transform-airline-data" }
+  - match: { transforms.0.source.index.0: "dataframe-transform-airline-data" }
   - match: { transforms.0.dest.index: "old-complex-transform-idx" }
   - match: { transforms.0.dest.pipeline: "data_frame_simple_pipeline" }
   - match: { transforms.0.pivot.group_by.airline.terms.field: "airline" }
@@ -277,8 +252,9 @@
 "Test GET, stop, start, old continuous transforms":
   - do:
       cluster.health:
-        index: ".data-frame-internal-1,old-dataframe-transform-airline-data-cont"
-        wait_for_status: yellow
+        index: "dataframe-transform-airline-data-cont"
+        wait_for_status: green
+        timeout: 70s
 
   - do:
       data_frame.get_data_frame_transform:

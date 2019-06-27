@@ -9,6 +9,7 @@ import com.amazonaws.services.s3.AmazonS3ClientBuilder;
 import com.amazonaws.services.s3.model.DeleteObjectsRequest;
 import com.amazonaws.services.s3.model.ListObjectsRequest;
 import com.amazonaws.services.s3.model.ObjectListing;
+import com.amazonaws.services.s3.model.S3Object;
 import com.amazonaws.services.s3.model.S3ObjectSummary;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cli.Terminal;
@@ -132,18 +133,8 @@ public class S3Repository extends AbstractRepository {
 
     @Override
     public Date getIndexTimestamp(String indexId) {
-        ObjectListing listing = client.listObjects(bucket, fullPath("indices/" + indexId + "/"));
-        List<S3ObjectSummary> summaries = listing.getObjectSummaries();
-        while (summaries.isEmpty() && listing.isTruncated()) {
-            summaries = listing.getObjectSummaries();
-        }
-        if (summaries.isEmpty()) {
-            terminal.println("Failed to find single file in index directory");
-            return null;
-        } else {
-            S3ObjectSummary any = summaries.get(0);
-            return any.getLastModified();
-        }
+        S3Object index = client.getObject(bucket, fullPath("indices/" + indexId + "/"));
+        return index.getObjectMetadata().getLastModified();
     }
 
     private long deleteFiles(String prefix) {

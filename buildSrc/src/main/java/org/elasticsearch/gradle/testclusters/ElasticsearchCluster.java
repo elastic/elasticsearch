@@ -229,6 +229,7 @@ public class ElasticsearchCluster implements TestClusterConfiguration {
                 if (Version.fromString(node.getVersion()).getMajor() >= 7) {
                     node.defaultConfig.put("cluster.initial_master_nodes", "[" + nodeNames + "]");
                     node.defaultConfig.put("discovery.seed_providers", "file");
+                    node.defaultConfig.put("discovery.seed_hosts", "[]");
                 }
             }
             node.start();

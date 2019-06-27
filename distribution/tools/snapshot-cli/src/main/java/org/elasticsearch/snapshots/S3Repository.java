@@ -72,21 +72,27 @@ public class S3Repository extends AbstractRepository {
         int prefixLength = fullPath(BlobStoreRepository.INDEX_FILE_PREFIX).length();
         long maxGeneration = -1;
         Date timestamp = null;
-        for (S3ObjectSummary objectSummary : listing.getObjectSummaries()) {
-            String generationStr = objectSummary.getKey().substring(prefixLength);
-            try {
-                long generation = Long.parseLong(generationStr);
-                if (generation > maxGeneration) {
-                    maxGeneration = generation;
-                    timestamp = objectSummary.getLastModified();
+        while (true) {
+            for (S3ObjectSummary objectSummary : listing.getObjectSummaries()) {
+                String generationStr = objectSummary.getKey().substring(prefixLength);
+                try {
+                    long generation = Long.parseLong(generationStr);
+                    if (generation > maxGeneration) {
+                        maxGeneration = generation;
+                        timestamp = objectSummary.getLastModified();
+                    }
+                } catch (NumberFormatException e) {
+                    terminal.println(Terminal.Verbosity.VERBOSE,
+                            "Ignoring index file with unexpected name format " + objectSummary.getKey());
                 }
-            } catch (NumberFormatException e) {
-                terminal.println(Terminal.Verbosity.VERBOSE,
-                        "Ignoring index file with unexpected name format " + objectSummary.getKey());
+            }
+
+            if (listing.isTruncated()) { //very unlikely that we have 1K+ index-N files, but let's make it bullet-proof
+                listing = client.listNextBatchOfObjects(listing);
+            } else {
+                return Tuple.tuple(maxGeneration, timestamp);
             }
         }
-
-        return Tuple.tuple(maxGeneration, timestamp);
     }
 
     @Override

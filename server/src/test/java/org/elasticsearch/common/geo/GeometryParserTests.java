@@ -61,7 +61,7 @@ public class GeometryParserTests extends ESTestCase {
 
         try (XContentParser parser = createParser(pointGeoJsonWithZ)) {
             parser.nextToken();
-            expectThrows(XContentParseException.class, () -> new GeometryParser(true, randomBoolean(), false).parse(parser));
+            expectThrows(IllegalArgumentException.class, () -> new GeometryParser(true, randomBoolean(), false).parse(parser));
         }
 
         XContentBuilder polygonGeoJson = XContentFactory.jsonBuilder()

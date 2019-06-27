@@ -421,4 +421,14 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
 
     }
 
+    public void testWildcard() throws IOException {
+
+        String json = "{ \"intervals\" : { \"" + STRING_FIELD_NAME + "\": { " +
+            "\"wildcard\" : { \"term\" : \"Te?m\" } } } }";
+
+        IntervalQueryBuilder builder = (IntervalQueryBuilder) parseQuery(json);
+        Query expected = new IntervalQuery(STRING_FIELD_NAME, Intervals.wildcard("te?m"));
+        assertEquals(expected, builder.toQuery(createShardContext()));
+    }
+
 }

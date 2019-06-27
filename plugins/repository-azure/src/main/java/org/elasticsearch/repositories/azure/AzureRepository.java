@@ -22,8 +22,6 @@ package org.elasticsearch.repositories.azure;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import com.microsoft.azure.storage.LocationMode;
 import com.microsoft.azure.storage.StorageException;
-import org.elasticsearch.cloud.azure.blobstore.AzureBlobStore;
-import org.elasticsearch.cloud.azure.storage.AzureStorageService;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -47,8 +45,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.function.Function;
 
-import static org.elasticsearch.cloud.azure.storage.AzureStorageService.MAX_CHUNK_SIZE;
-import static org.elasticsearch.cloud.azure.storage.AzureStorageService.MIN_CHUNK_SIZE;
+import static org.elasticsearch.repositories.azure.AzureStorageService.MAX_CHUNK_SIZE;
+import static org.elasticsearch.repositories.azure.AzureStorageService.MIN_CHUNK_SIZE;
 
 /**
  * Azure file system implementation of the BlobStoreRepository

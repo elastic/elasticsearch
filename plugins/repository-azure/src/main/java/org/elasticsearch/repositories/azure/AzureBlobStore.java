@@ -17,13 +17,11 @@
  * under the License.
  */
 
-package org.elasticsearch.cloud.azure.blobstore;
+package org.elasticsearch.repositories.azure;
 
 import com.microsoft.azure.storage.LocationMode;
 
 import com.microsoft.azure.storage.StorageException;
-import org.elasticsearch.cloud.azure.storage.AzureStorageService;
-import org.elasticsearch.cloud.azure.storage.AzureStorageSettings;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobMetaData;

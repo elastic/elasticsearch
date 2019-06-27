@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.cloud.azure.storage;
+package org.elasticsearch.repositories.azure;
 
 import com.microsoft.azure.storage.RetryExponentialRetry;
 import com.microsoft.azure.storage.blob.CloudBlobClient;
@@ -27,7 +27,6 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.settings.SettingsModule;
-import org.elasticsearch.plugin.repository.azure.AzureRepositoryPlugin;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -42,11 +41,11 @@ import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.Map;
 
-import static org.elasticsearch.cloud.azure.storage.AzureStorageService.blobNameFromUri;
-import static org.elasticsearch.cloud.azure.storage.AzureStorageSettings.DEPRECATED_ACCOUNT_SETTING;
-import static org.elasticsearch.cloud.azure.storage.AzureStorageSettings.DEPRECATED_DEFAULT_SETTING;
-import static org.elasticsearch.cloud.azure.storage.AzureStorageSettings.DEPRECATED_KEY_SETTING;
-import static org.elasticsearch.cloud.azure.storage.AzureStorageSettings.DEPRECATED_TIMEOUT_SETTING;
+import static org.elasticsearch.repositories.azure.AzureStorageService.blobNameFromUri;
+import static org.elasticsearch.repositories.azure.AzureStorageSettings.DEPRECATED_ACCOUNT_SETTING;
+import static org.elasticsearch.repositories.azure.AzureStorageSettings.DEPRECATED_DEFAULT_SETTING;
+import static org.elasticsearch.repositories.azure.AzureStorageSettings.DEPRECATED_KEY_SETTING;
+import static org.elasticsearch.repositories.azure.AzureStorageSettings.DEPRECATED_TIMEOUT_SETTING;
 import static org.elasticsearch.repositories.azure.AzureSettingsParserTests.getConcreteSetting;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;

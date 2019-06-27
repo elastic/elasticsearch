@@ -52,8 +52,8 @@ public class TransportWatcherStatsAction extends TransportNodesAction<WatcherSta
     }
 
     @Override
-    protected WatcherStatsRequest.Node newNodeRequest(String nodeId, WatcherStatsRequest request) {
-        return new WatcherStatsRequest.Node(request, nodeId);
+    protected WatcherStatsRequest.Node newNodeRequest(WatcherStatsRequest request) {
+        return new WatcherStatsRequest.Node(request);
     }
 
     @Override

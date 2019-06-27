@@ -84,8 +84,7 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
             super();
         }
 
-        public NodeRequest(NodesRequest request, String nodeId) {
-            super(nodeId);
+        public NodeRequest(NodesRequest request) {
             requestName = request.requestName;
         }
 
@@ -157,8 +156,8 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
         }
 
         @Override
-        protected NodeRequest newNodeRequest(String nodeId, NodesRequest request) {
-            return new NodeRequest(request, nodeId);
+        protected NodeRequest newNodeRequest(NodesRequest request) {
+            return new NodeRequest(request);
         }
 
         @Override

@@ -43,11 +43,15 @@ public abstract class ValuesSourceAggregatorFactory<VS extends ValuesSource, AF 
     @Override
     public Aggregator createInternal(Aggregator parent, boolean collectsFromSingleBucket,
             List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
-        VS vs = config.toValuesSource(context.getQueryShardContext());
+        VS vs = config.toValuesSource(context.getQueryShardContext(), this::resolveMissingAny);
         if (vs == null) {
             return createUnmapped(parent, pipelineAggregators, metaData);
         }
         return doCreateInternal(vs, parent, collectsFromSingleBucket, pipelineAggregators, metaData);
+    }
+
+    protected ValuesSource resolveMissingAny(Object missing) {
+        return ValuesSource.Bytes.WithOrdinals.EMPTY;
     }
 
     protected abstract Aggregator createUnmapped(Aggregator parent,

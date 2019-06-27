@@ -177,7 +177,8 @@ public class ValueCountAggregatorTests extends AggregatorTestCase {
 
     }
 
-    private void testCase(ValueCountAggregationBuilder aggregationBuilder, Query query, CheckedConsumer<RandomIndexWriter, IOException> indexer,
+    private void testCase(ValueCountAggregationBuilder aggregationBuilder, Query query,
+                          CheckedConsumer<RandomIndexWriter, IOException> indexer,
                           Consumer<InternalValueCount> verify, MappedFieldType fieldType) throws IOException {
         try (Directory directory = newDirectory()) {
             try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {

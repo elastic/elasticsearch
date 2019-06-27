@@ -909,7 +909,6 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                     final GeoPoint missingValue = new GeoPoint(42.39561, -71.13051);
                     TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("_name", null)
                         .field("field").missing(missingValue);
-                    // This probably should throw...
                     expectedException.expect(AggregationExecutionException.class);
                     Aggregator aggregator = createAggregator(aggregationBuilder, indexSearcher, fieldType1);
                     aggregator.preCollection();

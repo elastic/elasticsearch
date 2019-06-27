@@ -151,7 +151,7 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
     }
 
     private void testCase(Query query, CheckedConsumer<RandomIndexWriter, IOException> buildIndex,
-            Consumer<InternalCardinality> verify) throws IOException {
+                          Consumer<InternalCardinality> verify) throws IOException {
         MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(
             NumberFieldMapper.NumberType.LONG);
         fieldType.setName("number");
@@ -160,8 +160,9 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
         testCase(aggregationBuilder, query, buildIndex, verify, fieldType);
     }
 
-    private void testCase(CardinalityAggregationBuilder aggregationBuilder, Query query, CheckedConsumer<RandomIndexWriter, IOException> buildIndex,
-                          Consumer<InternalCardinality> verify, MappedFieldType fieldType1) throws IOException {
+    private void testCase(CardinalityAggregationBuilder aggregationBuilder, Query query,
+                          CheckedConsumer<RandomIndexWriter, IOException> buildIndex, Consumer<InternalCardinality> verify,
+                          MappedFieldType fieldType1) throws IOException {
         Directory directory = newDirectory();
         RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory);
         buildIndex.accept(indexWriter);

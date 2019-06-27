@@ -189,7 +189,18 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory<Values
         }
 
         throw new AggregationExecutionException("terms aggregation cannot be applied to field [" + config.fieldContext().field()
-                + "]. It can only be applied to numeric or string fields.");
+            + "]. It can only be applied to numeric or string fields.");
+    }
+
+    @Override
+    protected ValuesSource resolveMissingAny(Object missing) {
+        if (missing instanceof Number) {
+            return ValuesSource.Numeric.EMPTY;
+        } else if (missing instanceof String) {
+            return ValuesSource.Bytes.WithOrdinals.EMPTY;
+        }
+        throw new AggregationExecutionException("Unsupported missing value [" + missing.toString() +
+            "] expected type to be one of [numeric, string]");
     }
 
     // return the SubAggCollectionMode that this aggregation should use based on the expected size

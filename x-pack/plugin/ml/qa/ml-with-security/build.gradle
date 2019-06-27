@@ -39,6 +39,8 @@ integTest.runner  {
     'ml/datafeeds_crud/Test put datafeed with security headers in the body',
     'ml/datafeeds_crud/Test update datafeed with missing id',
     'ml/data_frame_analytics_crud/Test put config with security headers in the body',
+    'ml/data_frame_analytics_crud/Test put config with create_time in the body',
+    'ml/data_frame_analytics_crud/Test put config with version in the body',
     'ml/data_frame_analytics_crud/Test put config with inconsistent body/param ids',
     'ml/data_frame_analytics_crud/Test put config with invalid id',
     'ml/data_frame_analytics_crud/Test put config with invalid dest index name',

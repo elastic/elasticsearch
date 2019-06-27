@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.ml.action;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
@@ -41,6 +42,7 @@ import org.elasticsearch.xpack.ml.dataframe.SourceDestValidator;
 import org.elasticsearch.xpack.ml.dataframe.persistence.DataFrameAnalyticsConfigProvider;
 
 import java.io.IOException;
+import java.time.Instant;
 import java.util.Objects;
 import java.util.function.Supplier;
 
@@ -91,7 +93,10 @@ public class TransportPutDataFrameAnalyticsAction
         }
         validateConfig(request.getConfig());
         DataFrameAnalyticsConfig memoryCappedConfig =
-            new DataFrameAnalyticsConfig.Builder(request.getConfig(), maxModelMemoryLimit).build();
+            new DataFrameAnalyticsConfig.Builder(request.getConfig(), maxModelMemoryLimit)
+                .setCreateTime(Instant.now())
+                .setVersion(Version.CURRENT)
+                .build();
         if (licenseState.isAuthAllowed()) {
             final String username = securityContext.getUser().principal();
             RoleDescriptor.IndicesPrivileges sourceIndexPrivileges = RoleDescriptor.IndicesPrivileges.builder()
@@ -156,5 +161,6 @@ public class TransportPutDataFrameAnalyticsAction
         }
         config.getDest().validate();
         new SourceDestValidator(clusterService.state(), indexNameExpressionResolver).check(config);
+
     }
 }

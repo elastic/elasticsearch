@@ -28,6 +28,7 @@ import java.nio.channels.ClosedSelectorException;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
 import java.util.Iterator;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentLinkedQueue;
@@ -196,7 +197,8 @@ public class NioSelector implements Closeable {
         cleanupPendingWrites();
         channelsToClose.addAll(channelsToRegister);
         channelsToRegister.clear();
-        channelsToClose.addAll(selector.keys().stream().map(sk -> (ChannelContext<?>) sk.attachment()).collect(Collectors.toList()));
+        channelsToClose.addAll(selector.keys().stream()
+            .map(sk -> (ChannelContext<?>) sk.attachment()).filter(Objects::nonNull).collect(Collectors.toList()));
         closePendingChannels();
     }
 

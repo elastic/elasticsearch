@@ -36,15 +36,18 @@ import java.util.concurrent.Future;
 import java.util.stream.Collectors;
 
 public class S3Repository extends AbstractRepository {
-
+    private static final int DEFAULT_PARALLELISM = 100;
     private final AmazonS3 client;
     private final String bucket;
     private final String basePath;
+    private final int parallelism;
 
-    S3Repository(Terminal terminal, Long safetyGapMillis, String endpoint, String region, String accessKey, String secretKey, String bucket,
+    S3Repository(Terminal terminal, Long safetyGapMillis, Integer parallelism, String endpoint, String region, String accessKey,
+                 String secretKey, String bucket,
                  String basePath) {
         super(terminal, safetyGapMillis);
         this.client = buildS3Client(endpoint, region, accessKey, secretKey);
+        this.parallelism = parallelism == null ? DEFAULT_PARALLELISM : parallelism;
         this.basePath = basePath;
         this.bucket = bucket;
     }
@@ -192,7 +195,7 @@ public class S3Repository extends AbstractRepository {
     @Override
     public void deleteIndices(Set<String> orphanedIndexIds) {
         List<Future<Long>> futures = new ArrayList<>();
-        ExecutorService executor = Executors.newFixedThreadPool(10);
+        ExecutorService executor = Executors.newFixedThreadPool(parallelism);
         try {
             for (String indexId : orphanedIndexIds) {
                 futures.add(executor.submit(() -> {

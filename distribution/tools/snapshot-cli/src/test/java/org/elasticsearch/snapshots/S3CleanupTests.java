@@ -110,6 +110,7 @@ public class S3CleanupTests extends ESSingleNodeTestCase {
         final CleanupS3RepositoryCommand command = new CleanupS3RepositoryCommand();
         final OptionSet options = command.getParser().parse(
                 "--safety_gap_millis", nonDefaultArguments.getOrDefault("safety_gap_millis", "0"),
+                "--parallelism", nonDefaultArguments.getOrDefault("parallelism", "10"),
                 "--endpoint", nonDefaultArguments.getOrDefault("endpoint", getEndpoint()),
                 "--region", nonDefaultArguments.getOrDefault("region", getRegion()),
                 "--bucket", nonDefaultArguments.getOrDefault("bucket", getBucket()),
@@ -182,6 +183,12 @@ public class S3CleanupTests extends ESSingleNodeTestCase {
         expectThrows(() ->
                         executeCommand(false, Map.of("safety_gap_millis", "-10")),
                 "safety_gap_millis should be non-negative");
+    }
+
+    public void testInvalidParallelism() {
+        expectThrows(() ->
+                executeCommand(false, Map.of("parallelism", "0")),
+                "parallelism should be at least 1");
     }
 
     public void testCleanupS3() throws Exception {

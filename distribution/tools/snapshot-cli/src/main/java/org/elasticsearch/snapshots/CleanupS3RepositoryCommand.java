@@ -36,6 +36,7 @@ public class CleanupS3RepositoryCommand extends EnvironmentAwareCommand {
     private final OptionSpec<String> accessKeyOption;
     private final OptionSpec<String> secretKeyOption;
     private final OptionSpec<Long> safetyGapMillisOption;
+    private final OptionSpec<Integer> parallelismOption;
 
     public CleanupS3RepositoryCommand() {
         super("Command to cleanup orphaned segment files from the S3 repository");
@@ -60,6 +61,9 @@ public class CleanupS3RepositoryCommand extends EnvironmentAwareCommand {
 
         safetyGapMillisOption = parser.accepts("safety_gap_millis", "Safety gap to account for clock drift")
                 .withRequiredArg().ofType(Long.class);
+
+        parallelismOption = parser.accepts("parallelism", "How many threads to use to talk to S3")
+                .withRequiredArg().ofType(Integer.class);
     }
 
 
@@ -101,7 +105,13 @@ public class CleanupS3RepositoryCommand extends EnvironmentAwareCommand {
             throw new ElasticsearchException("safety_gap_millis should be non-negative");
         }
 
-        Repository repository = new S3Repository(terminal, safetyGapMillis, endpoint, region, accessKey, secretKey, bucket, basePath);
+        Integer parallelism = parallelismOption.value(options);
+        if (parallelism != null && parallelism < 1) {
+            throw new ElasticsearchException("parallelism should be at least 1");
+        }
+
+        Repository repository = new S3Repository(terminal, safetyGapMillis, parallelism, endpoint, region, accessKey, secretKey, bucket,
+                basePath);
         repository.cleanup();
     }
 

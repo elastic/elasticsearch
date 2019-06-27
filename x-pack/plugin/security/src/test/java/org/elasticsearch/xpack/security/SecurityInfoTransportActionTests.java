@@ -55,6 +55,7 @@ public class SecurityInfoTransportActionTests extends ESTestCase {
     private IPFilter ipFilter;
     private CompositeRolesStore rolesStore;
     private NativeRoleMappingStore roleMappingStore;
+    private SecurityUsageServices securityServices;
 
     @Before
     public void init() throws Exception {
@@ -64,6 +65,7 @@ public class SecurityInfoTransportActionTests extends ESTestCase {
         ipFilter = mock(IPFilter.class);
         rolesStore = mock(CompositeRolesStore.class);
         roleMappingStore = mock(NativeRoleMappingStore.class);
+        securityServices = new SecurityUsageServices(realms, rolesStore, roleMappingStore, ipFilter);
     }
 
     public void testAvailable() {
@@ -152,7 +154,7 @@ public class SecurityInfoTransportActionTests extends ESTestCase {
 
         var usageAction = newUsageAction(settings.build());
         PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();
-        usageAction.masterOperation(null, null, future);
+        usageAction.masterOperation(null, null, null, future);
         SecurityFeatureSetUsage securityUsage = (SecurityFeatureSetUsage) future.get().getUsage();
         BytesStreamOutput out = new BytesStreamOutput();
         securityUsage.writeTo(out);
@@ -252,7 +254,7 @@ public class SecurityInfoTransportActionTests extends ESTestCase {
 
         var usageAction = newUsageAction(settings.build());
         PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();
-        usageAction.masterOperation(null, null, future);
+        usageAction.masterOperation(null, null, null, future);
         SecurityFeatureSetUsage securityUsage = (SecurityFeatureSetUsage) future.get().getUsage();
         BytesStreamOutput out = new BytesStreamOutput();
         securityUsage.writeTo(out);
@@ -327,6 +329,6 @@ public class SecurityInfoTransportActionTests extends ESTestCase {
     private SecurityUsageTransportAction newUsageAction(Settings settings) {
         return new SecurityUsageTransportAction(mock(TransportService.class),null,
             null, mock(ActionFilters.class),null,
-            settings, licenseState, realms, rolesStore, roleMappingStore, ipFilter);
+            settings, licenseState, securityServices);
     }
 }

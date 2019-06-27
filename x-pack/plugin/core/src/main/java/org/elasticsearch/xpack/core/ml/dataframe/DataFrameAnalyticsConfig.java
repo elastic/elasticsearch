@@ -304,6 +304,8 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
             if (config.analyzedFields != null) {
                 this.analyzedFields = new FetchSourceContext(true, config.analyzedFields.includes(), config.analyzedFields.excludes());
             }
+            this.createTime = config.createTime;
+            this.version = config.version;
         }
 
         public String getId() {

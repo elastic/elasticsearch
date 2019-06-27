@@ -58,6 +58,19 @@ setup:
   - is_true: create_time
   - is_true: version
 
+  - do:
+      ml.get_data_frame_analytics:
+        id: "simple-outlier-detection-with-query"
+  - match: { count: 1 }
+  - match: { data_frame_analytics.0.id: "simple-outlier-detection-with-query" }
+  - match: { data_frame_analytics.0.source.index: "index-source" }
+  - match: { data_frame_analytics.0.source.query: {"term" : { "user" : "Kimchy"} } }
+  - match: { data_frame_analytics.0.dest.index: "index-dest" }
+  - match: { data_frame_analytics.0.analysis: {"outlier_detection":{}} }
+  - match: { data_frame_analytics.0.analyzed_fields: {"includes" : ["obj1.*", "obj2.*" ], "excludes": [] } }
+  - is_true: data_frame_analytics.0.create_time
+  - is_true: data_frame_analytics.0.version
+
 ---
 "Test put config with security headers in the body":
   - do:

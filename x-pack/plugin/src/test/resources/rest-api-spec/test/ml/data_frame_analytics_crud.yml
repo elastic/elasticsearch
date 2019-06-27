@@ -55,6 +55,8 @@ setup:
   - match: { dest.index: "index-dest" }
   - match: { analysis: {"outlier_detection":{}} }
   - match: { analyzed_fields: {"includes" : ["obj1.*", "obj2.*" ], "excludes": [] } }
+  - is_true: create_time
+  - is_true: version
 
 ---
 "Test put config with security headers in the body":
@@ -73,6 +75,44 @@ setup:
             },
             "analysis": {"outlier_detection":{}},
             "headers":{ "a_security_header" : "secret" }
+          }
+
+---
+"Test put valid config with create_time in the body":
+
+  - do:
+      catch: /unknown field \[create_time\], parser not found/
+      ml.put_data_frame_analytics:
+        id: "data_frame_with_create_time"
+        body: >
+          {
+            "source": {
+              "index": "index-source"
+            },
+            "dest": {
+              "index": "index-dest"
+            },
+            "analysis": {"outlier_detection":{}},
+            "create_time": 123456789
+          }
+
+---
+"Test put valid config with version in the body":
+
+  - do:
+      catch: /unknown field \[version\], parser not found/
+      ml.put_data_frame_analytics:
+        id: "data_frame_with_version"
+        body: >
+          {
+            "source": {
+              "index": "index-source"
+            },
+            "dest": {
+              "index": "index-dest"
+            },
+            "analysis": {"outlier_detection":{}},
+            "version": "7.3.0"
           }
 
 ---
@@ -96,6 +136,8 @@ setup:
   - match: { source.query: {"match_all" : {} } }
   - match: { dest.index: "index-dest" }
   - match: { analysis: {"outlier_detection":{}} }
+  - is_true: create_time
+  - is_true: version
 
 ---
 "Test put valid config with custom outlier detection":
@@ -126,6 +168,8 @@ setup:
   - match: { analysis.outlier_detection.n_neighbors: 5 }
   - match: { analysis.outlier_detection.method: "lof" }
   - match: { analysis.outlier_detection.minimum_score_to_write_feature_influence: 0.0 }
+  - is_true: create_time
+  - is_true: version
 
 ---
 "Test put config with inconsistent body/param ids":

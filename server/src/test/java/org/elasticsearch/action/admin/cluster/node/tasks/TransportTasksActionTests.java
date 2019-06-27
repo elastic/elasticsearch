@@ -272,7 +272,7 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
             actions[i] = new TestNodesAction("internal:testAction", threadPool, testNodes[i].clusterService,
                     testNodes[i].transportService) {
                 @Override
-                protected NodeResponse nodeOperation(NodeRequest request) {
+                protected NodeResponse nodeOperation(NodeRequest request, Task task) {
                     logger.info("Action on node {}", node);
                     actionLatch.countDown();
                     try {
@@ -527,7 +527,7 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
             actions[i] = new TestNodesAction("internal:testAction", threadPool, testNodes[i].clusterService,
                     testNodes[i].transportService) {
                 @Override
-                protected NodeResponse nodeOperation(NodeRequest request) {
+                protected NodeResponse nodeOperation(NodeRequest request, Task task) {
                     logger.info("Action on node {}", node);
                     throw new RuntimeException("Test exception");
                 }

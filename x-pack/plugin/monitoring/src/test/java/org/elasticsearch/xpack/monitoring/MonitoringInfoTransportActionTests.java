@@ -103,9 +103,10 @@ public class MonitoringInfoTransportActionTests extends ESTestCase {
         when(monitoring.isMonitoringActive()).thenReturn(collectionEnabled);
 
         var usageAction = new MonitoringUsageTransportAction(mock(TransportService.class), null, null,
-            mock(ActionFilters.class), null, Settings.EMPTY,licenseState,  monitoring, exporters);
+            mock(ActionFilters.class), null, Settings.EMPTY,licenseState,
+            new MonitoringUsageServices(monitoring, exporters));
         PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();
-        usageAction.masterOperation(null, null, future);
+        usageAction.masterOperation(null, null, null, future);
         MonitoringFeatureSetUsage monitoringUsage = (MonitoringFeatureSetUsage) future.get().getUsage();
         BytesStreamOutput out = new BytesStreamOutput();
         out.setVersion(serializedVersion);

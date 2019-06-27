@@ -12,19 +12,6 @@
         conflicts: cat
 
 ---
-"invalid size fails":
-  - do:
-      index:
-        index:   test
-        id:      1
-        body:    { "text": "test" }
-  - do:
-      catch: /\[max_docs\] parameter cannot be negative, found \[-4\]/
-      update_by_query:
-        index: test
-        size: -4
-
----
 "invalid max_docs in URL fails":
   - skip:
       version: " - 7.2.99"
@@ -58,27 +45,6 @@
         index: test
         body:
           max_docs: -4
-
----
-"inconsistent max_docs and size fails":
-  - skip:
-      version: " - 7.2.99"
-      reason: "max_docs introduced in 7.3.0"
-
-  - do:
-      index:
-        index:   test
-        id:      1
-        body:    { "text": "test" }
-  - do:
-      catch: /\[max_docs\] set to two different values \[4\] and \[5\]/
-      delete_by_query:
-        index: test
-        size: 4
-        max_docs: 5
-        body:
-          query:
-            match_all: {}
 
 ---
 "inconsistent max_docs in body and max_docs in URL fails":

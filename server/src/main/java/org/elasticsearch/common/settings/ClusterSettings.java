@@ -352,6 +352,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
             Node.INITIAL_STATE_TIMEOUT_SETTING,
             DiscoveryModule.DISCOVERY_TYPE_SETTING,
             DiscoveryModule.DISCOVERY_SEED_PROVIDERS_SETTING,
+            DiscoveryModule.ELECTION_STRATEGY_SETTING,
             SettingsBasedSeedHostsProvider.DISCOVERY_SEED_HOSTS_SETTING,
             SeedHostsResolver.DISCOVERY_SEED_RESOLVER_MAX_CONCURRENT_RESOLVERS_SETTING,
             SeedHostsResolver.DISCOVERY_SEED_RESOLVER_TIMEOUT_SETTING,

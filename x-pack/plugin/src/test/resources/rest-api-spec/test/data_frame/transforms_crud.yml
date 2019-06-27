@@ -22,6 +22,12 @@ setup:
   - match: { count: 0 }
   - match: { transforms: [] }
 
+  - do:
+      catch: missing
+      data_frame.get_data_frame_transform:
+        transform_id: "*"
+        allow_no_match: false
+
 ---
 "Test get transform when it does not exist":
   - do:
@@ -90,6 +96,8 @@ setup:
   - match: { transforms.0.source.index.0: "airline-data" }
   - match: { transforms.0.dest.index: "airline-data-by-airline" }
   - is_true: transforms.0.source.query.match_all
+  - is_true: transforms.0.create_time
+  - is_true: transforms.0.version
   - match: { transforms.0.pivot.group_by.airline.terms.field: "airline" }
   - match: { transforms.0.pivot.aggregations.avg_response.avg.field: "responsetime" }
   - match: { transforms.0.description: "yaml test transform on airline-data" }
@@ -182,6 +190,40 @@ setup:
   - match: { transforms.0.dest.index: "airline-data-by-airline" }
   - match: { transforms.0.pivot.group_by.airline.terms.field: "airline" }
   - match: { transforms.0.pivot.aggregations.avg_response.avg.field: "responsetime" }
+---
+"Test PUT continuous transform":
+  - do:
+      data_frame.put_data_frame_transform:
+        transform_id: "airline-transform-continuous"
+        body: >
+          {
+            "source": {
+              "index": "airline-data"
+            },
+            "dest": { "index": "airline-data-by-airline-continuous" },
+            "pivot": {
+              "group_by": { "airline": {"terms": {"field": "airline"}}},
+              "aggs": {"avg_response": {"avg": {"field": "responsetime"}}}
+            },
+            "sync": {
+              "time": {
+                "field": "time",
+                "delay": "90m"
+              }
+            }
+          }
+  - match: { acknowledged: true }
+  - do:
+      data_frame.get_data_frame_transform:
+        transform_id: "airline-transform-continuous"
+  - match: { count: 1 }
+  - match: { transforms.0.id: "airline-transform-continuous" }
+  - match: { transforms.0.source.index.0: "airline-data" }
+  - match: { transforms.0.dest.index: "airline-data-by-airline-continuous" }
+  - match: { transforms.0.pivot.group_by.airline.terms.field: "airline" }
+  - match: { transforms.0.pivot.aggregations.avg_response.avg.field: "responsetime" }
+  - match: { transforms.0.sync.time.field: "time" }
+  - match: { transforms.0.sync.time.delay: "90m" }
 ---
 "Test transform with invalid page parameter":
   - do:

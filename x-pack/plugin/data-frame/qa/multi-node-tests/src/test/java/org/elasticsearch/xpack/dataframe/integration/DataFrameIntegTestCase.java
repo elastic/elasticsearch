@@ -15,6 +15,8 @@ import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.client.core.AcknowledgedResponse;
 import org.elasticsearch.client.dataframe.DeleteDataFrameTransformRequest;
+import org.elasticsearch.client.dataframe.GetDataFrameTransformRequest;
+import org.elasticsearch.client.dataframe.GetDataFrameTransformResponse;
 import org.elasticsearch.client.dataframe.GetDataFrameTransformStatsRequest;
 import org.elasticsearch.client.dataframe.GetDataFrameTransformStatsResponse;
 import org.elasticsearch.client.dataframe.PutDataFrameTransformRequest;
@@ -57,6 +59,7 @@ import java.time.ZoneId;
 import java.util.Base64;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
@@ -116,6 +119,11 @@ abstract class DataFrameIntegTestCase extends ESRestTestCase {
     protected GetDataFrameTransformStatsResponse getDataFrameTransformStats(String id) throws IOException {
         RestHighLevelClient restClient = new TestRestHighLevelClient();
         return restClient.dataFrame().getDataFrameTransformStats(new GetDataFrameTransformStatsRequest(id), RequestOptions.DEFAULT);
+    }
+
+    protected GetDataFrameTransformResponse getDataFrameTransform(String id) throws IOException {
+        RestHighLevelClient restClient = new TestRestHighLevelClient();
+        return restClient.dataFrame().getDataFrameTransform(new GetDataFrameTransformRequest(id), RequestOptions.DEFAULT);
     }
 
     protected void waitUntilCheckpoint(String id, long checkpoint) throws Exception {
@@ -196,19 +204,33 @@ abstract class DataFrameIntegTestCase extends ESRestTestCase {
         return createTransformConfig(id, groups, aggregations, destinationIndex, QueryBuilders.matchAllQuery(), sourceIndices);
     }
 
+    protected DataFrameTransformConfig.Builder createTransformConfigBuilder(String id,
+                                                                            Map<String, SingleGroupSource> groups,
+                                                                            AggregatorFactories.Builder aggregations,
+                                                                            String destinationIndex,
+                                                                            QueryBuilder queryBuilder,
+                                                                            String... sourceIndices) throws Exception {
+        return DataFrameTransformConfig.builder()
+            .setId(id)
+            .setSource(SourceConfig.builder().setIndex(sourceIndices).setQueryConfig(createQueryConfig(queryBuilder)).build())
+            .setDest(DestConfig.builder().setIndex(destinationIndex).build())
+            .setPivotConfig(createPivotConfig(groups, aggregations))
+            .setDescription("Test data frame transform config id: " + id);
+    }
+
     protected DataFrameTransformConfig createTransformConfig(String id,
                                                              Map<String, SingleGroupSource> groups,
                                                              AggregatorFactories.Builder aggregations,
                                                              String destinationIndex,
                                                              QueryBuilder queryBuilder,
                                                              String... sourceIndices) throws Exception {
-        return DataFrameTransformConfig.builder()
-            .setId(id)
-            .setSource(SourceConfig.builder().setIndex(sourceIndices).setQueryConfig(createQueryConfig(queryBuilder)).build())
-            .setDest(DestConfig.builder().setIndex(destinationIndex).build())
-            .setPivotConfig(createPivotConfig(groups, aggregations))
-            .setDescription("Test data frame transform config id: " + id)
-            .build();
+        return createTransformConfigBuilder(id, groups, aggregations, destinationIndex, queryBuilder, sourceIndices).build();
+    }
+
+    protected void bulkIndexDocs(BulkRequest request) throws Exception {
+        RestHighLevelClient restClient = new TestRestHighLevelClient();
+        BulkResponse response = restClient.bulk(request, RequestOptions.DEFAULT);
+        assertThat(response.buildFailureMessage(), response.hasFailures(), is(false));
     }
 
     protected void createReviewsIndex(String indexName, int numDocs) throws Exception {
@@ -321,9 +343,11 @@ abstract class DataFrameIntegTestCase extends ESRestTestCase {
             .build();
     }
 
-    private class TestRestHighLevelClient extends RestHighLevelClient {
+    private static class TestRestHighLevelClient extends RestHighLevelClient {
+        private static final List<NamedXContentRegistry.Entry> X_CONTENT_ENTRIES =
+            new SearchModule(Settings.EMPTY, Collections.emptyList()).getNamedXContents();
         TestRestHighLevelClient() {
-            super(client(), restClient -> {}, Collections.emptyList());
+            super(client(), restClient -> {}, X_CONTENT_ENTRIES);
         }
     }
 }

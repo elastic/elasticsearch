@@ -116,6 +116,7 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
         });
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/43670")
     public void testCloseUnassignedJobAndDatafeed() throws Exception {
         internalCluster().ensureAtMostNumDataNodes(0);
         logger.info("Starting dedicated master node...");
@@ -146,7 +147,9 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
         waitForDatafeed(jobId, numDocs1);
 
         // stop the only ML node
+        ensureGreen(); // replicas must be assigned, otherwise we could lose a whole index
         internalCluster().stopRandomNonMasterNode();
+        ensureStableCluster(1);
 
         // Job state is opened but the job is not assigned to a node (because we just killed the only ML node)
         GetJobsStatsAction.Request jobStatsRequest = new GetJobsStatsAction.Request(jobId);
@@ -198,7 +201,7 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
 
         // Wait for the cluster to be green - this means the indices have been replicated.
 
-        ensureGreen(".ml-config", ".ml-anomalies-shared", ".ml-notifications");
+        ensureGreen();
 
         // Open a big job.  This should go on a different node to the 4 small ones.
 

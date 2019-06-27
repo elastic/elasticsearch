@@ -111,6 +111,7 @@ public final class AnalysisRegistry implements Closeable {
     private <T> T getComponentFactory(IndexSettings settings, NameOrDefinition nod,
                                       String componentType,
                                       Function<String, AnalysisProvider<T>> globalComponentProvider,
+                                      Function<String, AnalysisProvider<T>> prebuiltComponentProvider,
                                       BiFunction<String, IndexSettings, AnalysisProvider<T>> indexComponentProvider) throws IOException {
         if (nod.definition != null) {
             // custom component, so we build it from scratch
@@ -128,10 +129,14 @@ public final class AnalysisRegistry implements Closeable {
             return factory.get(settings, environment, "__anonymous__" + type, nod.definition);
         }
         if (settings == null) {
-            // no index provided, so we use global analysis components only
-            AnalysisProvider<T> factory = globalComponentProvider.apply(nod.name);
+            // no index provided, so we use prebuilt analysis components
+            AnalysisProvider<T> factory = prebuiltComponentProvider.apply(nod.name);
             if (factory == null) {
-                throw new IllegalArgumentException("failed to find global " + componentType + " under [" + nod.name + "]");
+                // if there's no prebuilt component, try loading a global one to build with no settings
+                factory = globalComponentProvider.apply(nod.name);
+                if (factory == null) {
+                    throw new IllegalArgumentException("failed to find global " + componentType + " under [" + nod.name + "]");
+                }
             }
             return factory.get(environment, nod.name);
         } else {
@@ -217,25 +222,26 @@ public final class AnalysisRegistry implements Closeable {
     public NamedAnalyzer buildCustomAnalyzer(IndexSettings indexSettings, boolean normalizer, NameOrDefinition tokenizer,
                                              List<NameOrDefinition> charFilters, List<NameOrDefinition> tokenFilters) throws IOException {
         TokenizerFactory tokenizerFactory
-            = getComponentFactory(indexSettings, tokenizer, "tokenizer", this::getTokenizerProvider, this::getTokenizerProvider);
+            = getComponentFactory(indexSettings, tokenizer, "tokenizer",
+            this::getTokenizerProvider, prebuiltAnalysis::getTokenizerFactory, this::getTokenizerProvider);
 
         List<CharFilterFactory> charFilterFactories = new ArrayList<>();
         for (NameOrDefinition nod : charFilters) {
             charFilterFactories.add(getComponentFactory(indexSettings, nod, "char_filter",
-                this::getCharFilterProvider, this::getCharFilterProvider));
+                this::getCharFilterProvider, prebuiltAnalysis::getCharFilterFactory, this::getCharFilterProvider));
         }
 
         List<TokenFilterFactory> tokenFilterFactories = new ArrayList<>();
         for (NameOrDefinition nod : tokenFilters) {
             TokenFilterFactory tff = getComponentFactory(indexSettings, nod, "filter",
-                this::getTokenFilterProvider, this::getTokenFilterProvider);
+                this::getTokenFilterProvider, prebuiltAnalysis::getTokenFilterFactory, this::getTokenFilterProvider);
             if (normalizer && tff instanceof NormalizingTokenFilterFactory == false) {
                 throw new IllegalArgumentException("Custom normalizer may not use filter [" + tff.name() + "]");
             }
             tff = tff.getChainAwareTokenFilterFactory(tokenizerFactory, charFilterFactories, tokenFilterFactories, name -> {
                 try {
                     return getComponentFactory(indexSettings, new NameOrDefinition(name), "filter",
-                        this::getTokenFilterProvider, this::getTokenFilterProvider);
+                        this::getTokenFilterProvider, prebuiltAnalysis::getTokenFilterFactory, this::getTokenFilterProvider);
                 } catch (IOException e) {
                     throw new UncheckedIOException(e);
                 }

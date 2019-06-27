@@ -42,6 +42,7 @@ import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotMissingException;
 import org.elasticsearch.snapshots.SnapshotsService;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -90,7 +91,7 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
     }
 
     @Override
-    protected void masterOperation(final SnapshotsStatusRequest request,
+    protected void masterOperation(Task task, final SnapshotsStatusRequest request,
                                    final ClusterState state,
                                    final ActionListener<SnapshotsStatusResponse> listener) throws Exception {
         List<SnapshotsInProgress.Entry> currentSnapshots =

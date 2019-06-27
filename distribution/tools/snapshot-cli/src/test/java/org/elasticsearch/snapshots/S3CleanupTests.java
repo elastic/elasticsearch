@@ -283,7 +283,7 @@ public class S3CleanupTests extends ESSingleNodeTestCase {
                assertThat(terminal.getOutput(), not(containsString("Removing orphaned index " + index)));
            }
 
-           logger.info("--> execute cleanup tool again and confirm, indices/foo should go");
+           logger.info("--> execute cleanup tool again and confirm, dangling indices should go");
            terminal = executeCommand(false);
            assertThat(terminal.getOutput(),
                    containsString("Set of deletion candidates has " + danglingIndices.size() + " elements: " + danglingIndices));

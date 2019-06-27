@@ -11,6 +11,7 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -404,7 +405,7 @@ class DatafeedJob {
             throws IOException {
         PostDataAction.Request request = new PostDataAction.Request(jobId);
         request.setDataDescription(dataDescription);
-        request.setContent(org.elasticsearch.common.io.Streams.readFully(inputStream), xContentType);
+        request.setContent(Streams.readFully(inputStream), xContentType);
         try (ThreadContext.StoredContext ignore = client.threadPool().getThreadContext().stashWithOrigin(ML_ORIGIN)) {
             PostDataAction.Response response = client.execute(PostDataAction.INSTANCE, request).actionGet();
             return response.getDataCounts();

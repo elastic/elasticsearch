@@ -72,8 +72,8 @@ public class DatafeedTimingStats implements ToXContentObject, Writeable {
         return totalSearchTimeMs;
     }
 
-    public void incrementTotalSearchTimeMs(double totalSearchTimeMs) {
-        this.totalSearchTimeMs += totalSearchTimeMs;
+    public void incrementTotalSearchTimeMs(double searchTimeMs) {
+        this.totalSearchTimeMs += searchTimeMs;
     }
 
     @Override

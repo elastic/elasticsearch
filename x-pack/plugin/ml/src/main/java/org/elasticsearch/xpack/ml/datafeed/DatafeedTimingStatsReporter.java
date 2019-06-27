@@ -49,10 +49,13 @@ public class DatafeedTimingStatsReporter {
         double searchDurationMs = searchDuration.toMillis();
         currentTimingStats.incrementTotalSearchTimeMs(searchDurationMs);
         if (differSignificantly(currentTimingStats, persistedTimingStats)) {
-            jobResultsPersister.persistDatafeedTimingStats(currentTimingStats);
-            persistedTimingStats = currentTimingStats;
-            currentTimingStats = new DatafeedTimingStats(persistedTimingStats);
+            flush();
         }
+    }
+
+    private void flush() {
+        persistedTimingStats = new DatafeedTimingStats(currentTimingStats);
+        jobResultsPersister.persistDatafeedTimingStats(persistedTimingStats);
     }
 
     /**
@@ -82,5 +85,5 @@ public class DatafeedTimingStatsReporter {
      * Maximum absolute difference of values that is interpreted as values being similar.
      * If the values absolute difference is greater than MAX_VALID_ABS_DIFFERENCE, the values are interpreted as significantly different.
      */
-    private static final double MAX_VALID_ABS_DIFFERENCE_MS = 10000.0;
+    private static final double MAX_VALID_ABS_DIFFERENCE_MS = 10000.0;  // 10s
 }

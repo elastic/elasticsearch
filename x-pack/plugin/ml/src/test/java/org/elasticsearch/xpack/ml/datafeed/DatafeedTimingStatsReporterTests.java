@@ -9,6 +9,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedTimingStats;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister;
 import org.junit.Before;
+import org.mockito.InOrder;
 
 import java.time.Clock;
 import java.time.Duration;
@@ -17,10 +18,8 @@ import java.time.ZoneId;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoMoreInteractions;
-import static org.mockito.Mockito.verifyZeroInteractions;
 
 public class DatafeedTimingStatsReporterTests extends ESTestCase {
 
@@ -43,21 +42,20 @@ public class DatafeedTimingStatsReporterTests extends ESTestCase {
 
         timingStatsReporter.executeWithReporting(clock::advanceTime, ONE_SECOND);
         assertThat(timingStatsReporter.getCurrentTimingStats(), equalTo(new DatafeedTimingStats(JOB_ID, 11000.0)));
-        verifyZeroInteractions(jobResultsPersister);
 
         timingStatsReporter.executeWithReporting(clock::advanceTime, ONE_SECOND);
         assertThat(timingStatsReporter.getCurrentTimingStats(), equalTo(new DatafeedTimingStats(JOB_ID, 12000.0)));
-        verify(jobResultsPersister).persistDatafeedTimingStats(new DatafeedTimingStats(JOB_ID, 12000.0));
-        verifyNoMoreInteractions(jobResultsPersister);
 
         timingStatsReporter.executeWithReporting(clock::advanceTime, ONE_SECOND);
         assertThat(timingStatsReporter.getCurrentTimingStats(), equalTo(new DatafeedTimingStats(JOB_ID, 13000.0)));
-        verifyZeroInteractions(jobResultsPersister);
 
         timingStatsReporter.executeWithReporting(clock::advanceTime, ONE_SECOND);
         assertThat(timingStatsReporter.getCurrentTimingStats(), equalTo(new DatafeedTimingStats(JOB_ID, 14000.0)));
-        verify(jobResultsPersister).persistDatafeedTimingStats(new DatafeedTimingStats(JOB_ID, 14000.0));
-        verifyNoMoreInteractions(jobResultsPersister);
+
+        InOrder inOrder = inOrder(jobResultsPersister);
+        inOrder.verify(jobResultsPersister).persistDatafeedTimingStats(new DatafeedTimingStats(JOB_ID, 12000.0));
+        inOrder.verify(jobResultsPersister).persistDatafeedTimingStats(new DatafeedTimingStats(JOB_ID, 14000.0));
+        inOrder.verifyNoMoreInteractions();
     }
 
     /** Mutable clock that allows advancing current time. */

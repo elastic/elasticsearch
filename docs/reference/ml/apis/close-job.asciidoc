@@ -12,7 +12,6 @@ A job can be opened and closed multiple times throughout its lifecycle.
 A closed job cannot receive data or perform analysis
 operations, but you can still explore and navigate results.
 
-[discrete]
 [[ml-close-job-request]]
 ==== {api-request-title}
 
@@ -55,7 +54,6 @@ after the close job API returns.  The `force` query parameter should only be use
 situations where the job has already failed, or where you are not interested in
 results the job might have recently produced or might produce in the future.
 
-[discrete]
 [[ml-close-job-path-parms]]
 ==== {api-path-parms-title}
 

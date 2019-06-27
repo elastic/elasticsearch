@@ -71,6 +71,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.oneOf;
@@ -269,6 +270,7 @@ public class DataFrameTransformIT extends ESRestHighLevelClientTestCase {
         assertThat(stopResponse.getTaskFailures(), empty());
     }
 
+    @SuppressWarnings("unchecked")
     public void testPreview() throws IOException {
         String sourceIndex = "transform-source";
         createIndex(sourceIndex);
@@ -290,6 +292,12 @@ public class DataFrameTransformIT extends ESRestHighLevelClientTestCase {
         Optional<Map<String, Object>> michel = docs.stream().filter(doc -> "michel".equals(doc.get("reviewer"))).findFirst();
         assertTrue(michel.isPresent());
         assertEquals(3.6d, (double) michel.get().get("avg_rating"), 0.1d);
+
+        Map<String, Object> mappings = preview.getMappings();
+        assertThat(mappings, hasKey("properties"));
+        Map<String, Object> fields = (Map<String, Object>)mappings.get("properties");
+        assertThat(fields.get("reviewer"), equalTo(Map.of("type", "keyword")));
+        assertThat(fields.get("avg_rating"), equalTo(Map.of("type", "double")));
     }
 
     private DataFrameTransformConfig validDataFrameTransformConfig(String id, String source, String destination) {

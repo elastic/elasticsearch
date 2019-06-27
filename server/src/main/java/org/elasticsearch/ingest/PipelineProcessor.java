@@ -49,7 +49,7 @@ public class PipelineProcessor extends AbstractProcessor {
 
     @Override
     public IngestDocument execute(IngestDocument ingestDocument) throws Exception {
-        throw new UnsupportedOperationException();
+        throw new UnsupportedOperationException("this method should not get executed");
     }
 
     Pipeline getPipeline(){

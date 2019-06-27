@@ -626,7 +626,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
 
                                 @Override
                                 public boolean isForceExecution() {
-                                    // If we fork back to a write thread we should fail, because tp queue is full.
+                                    // If we fork back to a write thread we **not** should fail, because tp queue is full.
                                     // (Otherwise the work done during ingest will be lost)
                                     // It is okay to force execution here. Throttling of write requests happens prior to
                                     // ingest when a node receives a bulk request.

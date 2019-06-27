@@ -299,6 +299,11 @@ public final class RankFeatureQueryBuilder extends AbstractQueryBuilder<RankFeat
     private final String field;
     private final ScoreFunction scoreFunction;
 
+    /**
+     *
+     * @param field  The field name.
+     * @param scoreFunction Scoring function for the rank_feature field.
+     */
     public RankFeatureQueryBuilder(String field, ScoreFunction scoreFunction) {
         this.field = Objects.requireNonNull(field);
         this.scoreFunction = Objects.requireNonNull(scoreFunction);

@@ -36,16 +36,16 @@ IMPORTANT: Before you revert to a saved snapshot, you must close the job.
 [[ml-revert-snapshot-path-parms]]
 ==== {api-path-parms-title}
 
-`job_id` (required)::
-  (string) Identifier for the job
+`<job_id>` (Required)::
+  (string) Identifier for the job.
 
-`snapshot_id` (required)::
-  (string) Identifier for the model snapshot
+`<snapshot_id>` (Required)::
+  (string) Identifier for the model snapshot.
 
 [[ml-revert-snapshot-request-body]]
 ==== {api-request-body-title}
 
-`delete_intervening_results`::
+`delete_intervening_results` (Optional)::
   (boolean) If true, deletes the results in the time period between the
   latest results and the time of the reverted snapshot. It also resets the
   model to accept records for this time period. The default value is false.

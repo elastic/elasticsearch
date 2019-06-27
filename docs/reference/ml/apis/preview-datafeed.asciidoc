@@ -22,7 +22,6 @@ Previews a {dfeed}.
 `manage_ml`, or `manage` cluster privileges to use this API. See
 {stack-ov}/security-privileges.html[Security privileges].
 
-
 [[ml-preview-datafeed-desc]]
 ==== {api-description-title}
 
@@ -41,8 +40,8 @@ it to ensure it is returning the expected data.
 [[ml-preview-datafeed-path-parms]]
 ==== {api-path-parms-title}
 
-`datafeed_id` (required)::
-  (string) Identifier for the {dfeed}
+`<datafeed_id>` (Required)::
+  (string) Identifier for the {dfeed}.
 
 [[ml-preview-datafeed-example]]
 ==== {api-examples-title}

@@ -31,17 +31,17 @@ You can get information for a single calendar or for all calendars by using
 [[ml-get-calendar-path-parms]]
 ==== {api-path-parms-title}
 
-`calendar_id`::
+`<calendar_id>` (Required)::
   (string) Identifier for the calendar.
 
 [[ml-get-calendar-request-body]]
 ==== {api-request-body-title}
 
-`page`::
+`page` (Optional)::
 `from`:::
     (integer) Skips the specified number of calendars.
 
-`size`:::
+`size` (Optional):::
     (integer) Specifies the maximum number of calendars to obtain.
 
 [[ml-get-calendar-results]]

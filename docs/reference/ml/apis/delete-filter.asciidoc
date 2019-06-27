@@ -30,7 +30,7 @@ update or delete the job before you can delete the filter.
 [[ml-delete-filter-path-parms]]
 ==== {api-path-parms-title}
 
-`filter_id` (required)::
+`<filter_id>` (Required)::
   (string) Identifier for the filter.
 
 [[ml-delete-filter-example]]

@@ -25,20 +25,21 @@ Deletes an existing {dfeed}.
 [[ml-delete-datafeed-desc]]
 ==== {api-description-title}
 
-NOTE: Unless the `force` parameter is used, the {dfeed} must be stopped before it can be deleted.
+NOTE: Unless you use the `force` parameter, you must stop the {dfeed} before you
+can delete it.
 
 [[ml-delete-datafeed-path-parms]]
 ==== {api-path-parms-title}
 
-`feed_id` (required)::
-  (string) Identifier for the {dfeed}
+`<feed_id>` (Required)::
+  (string) Identifier for the {dfeed}.
 
 [[ml-delete-datafeed-query-parms]]
 ==== {api-query-parms-title}
 
-`force`::
-  (boolean) Use to forcefully delete a started {dfeed}; this method is quicker than
-  stopping and deleting the {dfeed}.
+`force` (Optional)::
+  (boolean) Use to forcefully delete a started {dfeed}; this method is quicker
+  than stopping and deleting the {dfeed}.
 
 [[ml-delete-datafeed-example]]
 ==== {api-examples-title}

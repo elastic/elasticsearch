@@ -52,17 +52,17 @@ or a comma-separated list.
 [[ml-post-data-path-parms]]
 ==== {api-path-parms-title}
 
-`job_id` (required)::
-		(string) Identifier for the job
+`<job_id>` (Required)::
+		(string) Identifier for the job.
 
 [[ml-post-data-query-parms]]
 ==== {api-query-parms-title}
 
-`reset_start`::
-		(string) Specifies the start of the bucket resetting range
+`reset_start` (Optional)::
+		(string) Specifies the start of the bucket resetting range.
 
-`reset_end`::
-		(string) Specifies the end of the bucket resetting range
+`reset_end` (Optional)::
+		(string) Specifies the end of the bucket resetting range.
 
 [[ml-post-data-request-body]]
 ==== {api-request-body-title}
@@ -73,7 +73,8 @@ Only whitespace characters are permitted in between the documents.
 [[ml-post-data-example]]
 ==== {api-examples-title}
 
-The following example posts data from the it_ops_new_kpi.json file to the `it_ops_new_kpi` job:
+The following example posts data from the `it_ops_new_kpi.json` file to the
+`it_ops_new_kpi` job:
 
 [source,js]
 --------------------------------------------------
@@ -82,8 +83,8 @@ $ curl -s -H "Content-type: application/json"
 --data-binary @it_ops_new_kpi.json
 --------------------------------------------------
 
-When the data is sent, you receive information about the operational progress of the job.
-For example:
+When the data is sent, you receive information about the operational progress of
+the job. For example:
 
 [source,js]
 ----

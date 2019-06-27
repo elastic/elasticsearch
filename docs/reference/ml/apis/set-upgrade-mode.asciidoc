@@ -61,10 +61,10 @@ IMPORTANT:  No new {ml} jobs can be opened while the `upgrade_mode` setting is
 [[ml-set-upgrade-mode-query-parms]]
 ==== {api-query-parms-title}
 
-`enabled`::
+`enabled` (Optional)::
   (boolean) When `true`, this enables `upgrade_mode`. Defaults to `false`
 
-`timeout`::
+`timeout` (Optional)::
   (time) The time to wait for the request to be completed.
   The default value is 30 seconds.
 

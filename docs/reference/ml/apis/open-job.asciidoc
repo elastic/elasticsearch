@@ -27,19 +27,20 @@ A job can be opened and closed multiple times throughout its lifecycle.
 
 When you open a new job, it starts with an empty model.
 
-When you open an existing job, the most recent model state is automatically loaded.
-The job is ready to resume its analysis from where it left off, once new data is received.
+When you open an existing job, the most recent model state is automatically
+loaded. The job is ready to resume its analysis from where it left off, once new
+data is received.
 
 [[ml-open-job-path-parms]]
 ==== {api-path-parms-title}
 
-`job_id` (required)::
-(string) Identifier for the job
+`<job_id>` (Required)::
+  (string) Identifier for the job
 
 [[ml-open-job-request-body]]
 ==== {api-request-body-title}
 
-`timeout`::
+`timeout` (Optional)::
   (time) Controls the time to wait until a job has opened.
   The default value is 30 minutes.
 

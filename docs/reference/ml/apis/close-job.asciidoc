@@ -59,18 +59,18 @@ results the job might have recently produced or might produce in the future.
 [[ml-close-job-path-parms]]
 ==== {api-path-parms-title}
 
-`job_id`::
+`<job_id>` (Required)::
   (string) Identifier for the job. It can be a job identifier, a group name, or
   a wildcard expression.
 
 [[ml-close-job-query-parms]]
 ==== {api-query-parms-title}
 
-`force`::
+`force` (Optional)::
   (boolean) Use to close a failed job, or to forcefully close a job which has not
   responded to its initial close request.
 
-`timeout`::
+`timeout` (Optional)::
   (time units) Controls the time to wait until a job has closed.
   The default value is 30 minutes.
 

@@ -29,22 +29,22 @@ privileges. See {stack-ov}/security-privileges.html[Security privileges] and
 ==== {api-description-title}
 
 For more information about categories, see
-{stack-ov}/ml-configuring-categories.html[Categorizing Log Messages].
+{stack-ov}/ml-configuring-categories.html[Categorizing log messages].
 
 [[ml-get-category-path-parms]]
 ==== {api-path-parms-title}
 
-`job_id`::
+`<job_id>` (Required)::
   (string) Identifier for the job.
 
-`category_id`::
-  (long) Identifier for the category. If you do not specify this optional parameter,
+`<category_id>` (Optional)::
+  (long) Identifier for the category. If you do not specify this parameter,
   the API returns information about all categories in the job.
 
 [[ml-get-category-request-body]]
 ==== {api-request-body-title}
 
-`page`::
+`page` (Optional)::
 `from`:::
   (integer) Skips the specified number of categories.
 `size`:::

@@ -36,30 +36,30 @@ opened again before analyzing further data.
 [[ml-flush-job-path-parms]]
 ==== {api-path-parms-title}
 
-`job_id` (required)::
-(string) Identifier for the job
+`<job_id>` (Required)::
+(string) Identifier for the job.
 
 [[ml-flush-job-query-parms]]
 ==== {api-query-parms-title}
 
-`advance_time`::
+`advance_time` (Optional)::
   (string) Specifies to advance to a particular time value. Results are
   generated and the model is updated for data from the specified time interval.
 
-`calc_interim`::
+`calc_interim` (Optional)::
   (boolean) If true, calculates the interim results for the most recent bucket
   or all buckets within the latency period.
 
-`end`::
+`end` (Optional)::
   (string) When used in conjunction with `calc_interim`, specifies the range
   of buckets on which to calculate interim results.
 
-`skip_time`::
+`skip_time` (Optional)::
   (string) Specifies to skip to a particular time value. Results are not
   generated and the model is not updated for data from the specified time
   interval.
 
-`start`::
+`start` (Optional)::
   (string) When used in conjunction with `calc_interim`, specifies the range of
   buckets on which to calculate interim results.
 

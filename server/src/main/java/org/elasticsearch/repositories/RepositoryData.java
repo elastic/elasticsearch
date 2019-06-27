@@ -84,6 +84,9 @@ public final class RepositoryData {
      */
     private final List<SnapshotId> incompatibleSnapshotIds;
 
+    /**
+     * Version of Elasticsearch that wrote this repository data.
+     */
     private final Version lastEsVersion;
 
     public RepositoryData(long genId,

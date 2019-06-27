@@ -119,7 +119,7 @@ public class ContextIndexSearcherTests extends ESTestCase {
                 assertThat(doc, equalTo(0));
             }
         };
-        intersectScorerAndBitSet(weight.scorer(leaf), bitSet, leafCollector);
+        intersectScorerAndBitSet(weight.scorer(leaf), bitSet, leafCollector, () -> {});
 
         bitSet = new CombinedBitSet(query(leaf, "field1", "value2"), leaf.reader().getLiveDocs());
         leafCollector = new LeafBucketCollector() {
@@ -128,7 +128,7 @@ public class ContextIndexSearcherTests extends ESTestCase {
                 assertThat(doc, equalTo(1));
             }
         };
-        intersectScorerAndBitSet(weight.scorer(leaf), bitSet, leafCollector);
+        intersectScorerAndBitSet(weight.scorer(leaf), bitSet, leafCollector,  () -> {});
 
 
         bitSet = new CombinedBitSet(query(leaf, "field1", "value3"), leaf.reader().getLiveDocs());
@@ -138,7 +138,7 @@ public class ContextIndexSearcherTests extends ESTestCase {
                 fail("docId [" + doc + "] should have been deleted");
             }
         };
-        intersectScorerAndBitSet(weight.scorer(leaf), bitSet, leafCollector);
+        intersectScorerAndBitSet(weight.scorer(leaf), bitSet, leafCollector,  () -> {});
 
         bitSet = new CombinedBitSet(query(leaf, "field1", "value4"), leaf.reader().getLiveDocs());
         leafCollector = new LeafBucketCollector() {
@@ -147,7 +147,7 @@ public class ContextIndexSearcherTests extends ESTestCase {
                 assertThat(doc, equalTo(3));
             }
         };
-        intersectScorerAndBitSet(weight.scorer(leaf), bitSet, leafCollector);
+        intersectScorerAndBitSet(weight.scorer(leaf), bitSet, leafCollector,  () -> {});
 
         directoryReader.close();
         directory.close();
@@ -221,7 +221,8 @@ public class ContextIndexSearcherTests extends ESTestCase {
 
         DocumentSubsetDirectoryReader filteredReader = new DocumentSubsetDirectoryReader(reader, cache, roleQuery);
 
-        IndexSearcher searcher = new ContextIndexSearcher(filteredReader);
+        ContextIndexSearcher searcher = new ContextIndexSearcher(filteredReader);
+        searcher.setCheckCancelled(() -> {});
 
         // Searching a non-existing term will trigger a null scorer
         assertEquals(0, searcher.count(new TermQuery(new Term("non_existing_field", "non_existing_value"))));

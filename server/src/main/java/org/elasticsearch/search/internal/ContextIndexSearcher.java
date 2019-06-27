@@ -63,6 +63,8 @@ import java.util.Set;
  * Context-aware extension of {@link IndexSearcher}.
  */
 public class ContextIndexSearcher extends IndexSearcher implements Releasable {
+    private static int CHECK_CANCELLED_INTERVAL = 1 << 11;
+
     private AggregatedDfs aggregatedDfs;
     private QueryProfiler profiler;
     private Runnable checkCancelled;
@@ -152,13 +154,13 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
                 }
 
                 @Override
-                public Scorer scorer(LeafReaderContext context) throws IOException {
+                public boolean isCacheable(LeafReaderContext ctx) {
                     throw new UnsupportedOperationException();
                 }
 
                 @Override
-                public boolean isCacheable(LeafReaderContext ctx) {
-                    throw new UnsupportedOperationException();
+                public Scorer scorer(LeafReaderContext context) throws IOException {
+                    return weight.scorer(context);
                 }
 
                 @Override
@@ -204,7 +206,8 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
                 Scorer scorer = weight.scorer(ctx);
                 if (scorer != null) {
                     try {
-                        intersectScorerAndBitSet(scorer, liveDocsBitSet, leafCollector);
+                        intersectScorerAndBitSet(scorer, liveDocsBitSet, leafCollector,
+                            checkCancelled == null ? () -> {} : checkCancelled);
                     } catch (CollectionTerminatedException e) {
                         // collection was terminated prematurely
                         // continue with the following leaf
@@ -227,16 +230,22 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
 
     }
 
-    static void intersectScorerAndBitSet(Scorer scorer, BitSet acceptDocs, LeafCollector collector) throws IOException {
+    static void intersectScorerAndBitSet(Scorer scorer, BitSet acceptDocs,
+                                            LeafCollector collector, Runnable checkCancelled) throws IOException {
         // ConjunctionDISI uses the DocIdSetIterator#cost() to order the iterators, so if roleBits has the lowest cardinality it should
         // be used first:
         DocIdSetIterator iterator = ConjunctionDISI.intersectIterators(Arrays.asList(new BitSetIterator(acceptDocs,
             acceptDocs.approximateCardinality()), scorer.iterator()));
+        int seen = 0;
+        checkCancelled.run();
         for (int docId = iterator.nextDoc(); docId < DocIdSetIterator.NO_MORE_DOCS; docId = iterator.nextDoc()) {
+            if (++seen % CHECK_CANCELLED_INTERVAL == 0) {
+                checkCancelled.run();
+            }
             collector.collect(docId);
         }
+        checkCancelled.run();
     }
-
 
     @Override
     public TermStatistics termStatistics(Term term, TermStates context) throws IOException {

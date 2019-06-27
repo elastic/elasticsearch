@@ -27,7 +27,6 @@ import org.apache.lucene.util.SparseFixedBitSet;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.engine.EngineException;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.shard.IndexSearcherWrapper;
@@ -62,17 +61,17 @@ public class SecurityIndexSearcherWrapper extends IndexSearcherWrapper {
     private static final Logger logger = LogManager.getLogger(SecurityIndexSearcherWrapper.class);
 
     private final Function<ShardId, QueryShardContext> queryShardContextProvider;
-    private final BitsetFilterCache bitsetFilterCache;
+    private final DocumentSubsetBitsetCache bitsetCache;
     private final XPackLicenseState licenseState;
     private final ThreadContext threadContext;
     private final ScriptService scriptService;
 
     public SecurityIndexSearcherWrapper(Function<ShardId, QueryShardContext> queryShardContextProvider,
-                                        BitsetFilterCache bitsetFilterCache, ThreadContext threadContext, XPackLicenseState licenseState,
-                                        ScriptService scriptService) {
+                                        DocumentSubsetBitsetCache bitsetCache, ThreadContext threadContext,
+                                        XPackLicenseState licenseState, ScriptService scriptService) {
         this.scriptService = scriptService;
         this.queryShardContextProvider = queryShardContextProvider;
-        this.bitsetFilterCache = bitsetFilterCache;
+        this.bitsetCache = bitsetCache;
         this.threadContext = threadContext;
         this.licenseState = licenseState;
     }
@@ -102,7 +101,7 @@ public class SecurityIndexSearcherWrapper extends IndexSearcherWrapper {
             if (documentPermissions != null && documentPermissions.hasDocumentLevelPermissions()) {
                 BooleanQuery filterQuery = documentPermissions.filter(getUser(), scriptService, shardId, queryShardContextProvider);
                 if (filterQuery != null) {
-                    wrappedReader = DocumentSubsetReader.wrap(wrappedReader, bitsetFilterCache, new ConstantScoreQuery(filterQuery));
+                    wrappedReader = DocumentSubsetReader.wrap(wrappedReader, bitsetCache, new ConstantScoreQuery(filterQuery));
                 }
             }
 

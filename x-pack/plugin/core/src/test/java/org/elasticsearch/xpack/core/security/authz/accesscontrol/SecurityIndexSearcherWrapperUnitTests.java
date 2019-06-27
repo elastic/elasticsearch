@@ -32,7 +32,6 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.MMapDirectory;
-import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.SparseFixedBitSet;
@@ -42,7 +41,6 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
@@ -67,6 +65,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.IdentityHashMap;
 import java.util.Set;
+import java.util.concurrent.ExecutionException;
 
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.xpack.core.security.authz.accesscontrol.SecurityIndexSearcherWrapper.intersectScorerAndRoleBits;
@@ -187,18 +186,8 @@ public class SecurityIndexSearcherWrapperUnitTests extends ESTestCase {
     }
 
     public void testDelegateSimilarity() throws Exception {
-        IndexSettings settings = IndexSettingsModule.newIndexSettings("_index", Settings.EMPTY);
-        BitsetFilterCache bitsetFilterCache = new BitsetFilterCache(settings, new BitsetFilterCache.Listener() {
-            @Override
-            public void onCache(ShardId shardId, Accountable accountable) {
-            }
-
-            @Override
-            public void onRemoval(ShardId shardId, Accountable accountable) {
-
-            }
-        });
-        DirectoryReader directoryReader = DocumentSubsetReader.wrap(esIn, bitsetFilterCache, new MatchAllDocsQuery());
+        DocumentSubsetBitsetCache bitsetCache = new DocumentSubsetBitsetCache(Settings.EMPTY);
+        DirectoryReader directoryReader = DocumentSubsetReader.wrap(esIn, bitsetCache, new MatchAllDocsQuery());
         IndexSearcher indexSearcher = new IndexSearcher(directoryReader);
         indexSearcher.setSimilarity(new SweetSpotSimilarity());
         indexSearcher.setQueryCachingPolicy(new QueryCachingPolicy() {
@@ -219,7 +208,7 @@ public class SecurityIndexSearcherWrapperUnitTests extends ESTestCase {
         assertThat(result.getSimilarity(), sameInstance(indexSearcher.getSimilarity()));
         assertThat(result.getQueryCachingPolicy(), sameInstance(indexSearcher.getQueryCachingPolicy()));
         assertThat(result.getQueryCache(), sameInstance(indexSearcher.getQueryCache()));
-        bitsetFilterCache.close();
+        bitsetCache.close();
     }
 
     public void testIntersectScorerAndRoleBits() throws Exception {
@@ -394,19 +383,19 @@ public class SecurityIndexSearcherWrapperUnitTests extends ESTestCase {
         return sparseFixedBitSet;
     }
 
-    public void testIndexSearcherWrapperSparseNoDeletions() throws IOException {
+    public void testIndexSearcherWrapperSparseNoDeletions() throws Exception {
         doTestIndexSearcherWrapper(true, false);
     }
 
-    public void testIndexSearcherWrapperDenseNoDeletions() throws IOException {
+    public void testIndexSearcherWrapperDenseNoDeletions() throws Exception {
         doTestIndexSearcherWrapper(false, false);
     }
 
-    public void testIndexSearcherWrapperSparseWithDeletions() throws IOException {
+    public void testIndexSearcherWrapperSparseWithDeletions() throws Exception {
         doTestIndexSearcherWrapper(true, true);
     }
 
-    public void testIndexSearcherWrapperDenseWithDeletions() throws IOException {
+    public void testIndexSearcherWrapperDenseWithDeletions() throws Exception {
         doTestIndexSearcherWrapper(false, true);
     }
 
@@ -487,7 +476,7 @@ public class SecurityIndexSearcherWrapperUnitTests extends ESTestCase {
         }
     }
 
-    public void doTestIndexSearcherWrapper(boolean sparse, boolean deletions) throws IOException {
+    public void doTestIndexSearcherWrapper(boolean sparse, boolean deletions) throws IOException, ExecutionException {
         Directory dir = newDirectory();
         IndexWriter w = new IndexWriter(dir, newIndexWriterConfig(null));
         Document doc = new Document();
@@ -514,29 +503,17 @@ public class SecurityIndexSearcherWrapperUnitTests extends ESTestCase {
         }
         w.deleteDocuments(new Term("delete", "yes"));
 
-        IndexSettings settings = IndexSettingsModule.newIndexSettings("_index", Settings.EMPTY);
-        BitsetFilterCache.Listener listener = new BitsetFilterCache.Listener() {
-            @Override
-            public void onCache(ShardId shardId, Accountable accountable) {
-
-            }
-
-            @Override
-            public void onRemoval(ShardId shardId, Accountable accountable) {
-
-            }
-        };
         DirectoryReader reader = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(w), new ShardId(indexSettings.getIndex(), 0));
-        BitsetFilterCache cache = new BitsetFilterCache(settings, listener);
+        DocumentSubsetBitsetCache bitsetCache = new DocumentSubsetBitsetCache(Settings.EMPTY);
         Query roleQuery = new TermQuery(new Term("allowed", "yes"));
-        BitSet bitSet = cache.getBitSetProducer(roleQuery).getBitSet(reader.leaves().get(0));
+        BitSet bitSet = bitsetCache.getBitSet(roleQuery, reader.leaves().get(0));
         if (sparse) {
             assertThat(bitSet, instanceOf(SparseFixedBitSet.class));
         } else {
             assertThat(bitSet, instanceOf(FixedBitSet.class));
         }
 
-        DocumentSubsetDirectoryReader filteredReader = DocumentSubsetReader.wrap(reader, cache, roleQuery);
+        DocumentSubsetDirectoryReader filteredReader = DocumentSubsetReader.wrap(reader, bitsetCache, roleQuery);
         IndexSearcher searcher = new SecurityIndexSearcherWrapper.IndexSearcherWrapper(filteredReader);
 
         // Searching a non-existing term will trigger a null scorer

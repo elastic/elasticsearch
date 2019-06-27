@@ -9,7 +9,7 @@ import java.util.Set;
 
 public interface Repository {
     Tuple<Long, Date> getLatestIndexIdAndTimestamp() throws IOException;
-    RepositoryData getRepositoryData(Long indexFileGeneration) throws IOException;
+    RepositoryData getRepositoryData(long indexFileGeneration) throws IOException;
     Set<String> getAllIndexIds();
     Date getIndexTimestamp(String indexId);
     void deleteIndices(Set<String> leakedIndexIds);

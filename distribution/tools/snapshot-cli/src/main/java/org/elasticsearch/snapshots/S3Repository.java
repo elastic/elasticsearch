@@ -90,7 +90,7 @@ public class S3Repository extends AbstractRepository {
     }
 
     @Override
-    public RepositoryData getRepositoryData(Long indexFileGeneration) throws IOException {
+    public RepositoryData getRepositoryData(long indexFileGeneration) throws IOException {
         final String snapshotsIndexBlobName = BlobStoreRepository.INDEX_FILE_PREFIX + indexFileGeneration;
         try (InputStream blob = client.getObject(bucket, fullPath(snapshotsIndexBlobName)).getObjectContent()) {
             BytesStreamOutput out = new BytesStreamOutput();

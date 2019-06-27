@@ -282,7 +282,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
             String valuePreview = "";
             try {
                 XContentParser parser = context.parser();
-                Object complexValue = AbstractXContentParser.readValue(parser, HashMap::new, parser.currentToken());
+                Object complexValue = AbstractXContentParser.readValue(parser, HashMap::new);
                 if (complexValue == null) {
                     valuePreview = "null";
                 } else {

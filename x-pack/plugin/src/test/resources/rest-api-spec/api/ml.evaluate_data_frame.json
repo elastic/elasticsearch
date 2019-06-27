@@ -1,0 +1,15 @@
+{
+  "ml.evaluate_data_frame": {
+    "stability": "experimental",
+    "methods": [ "POST" ],
+    "url": {
+      "path": "/_ml/data_frame/_evaluate",
+      "paths": [ "/_ml/data_frame/_evaluate" ],
+      "parts": {}
+    },
+    "body": {
+      "description" : "The evaluation definition",
+      "required" : true
+    }
+  }
+}

@@ -59,6 +59,7 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
 
     private static final String MASKED_FIELD = "masked_field";
     private static final String NO_POSITIONS_FIELD = "no_positions_field";
+    private static final String PREFIXED_FIELD = "prefixed_field";
 
     @Override
     protected void initializeAdditionalMappings(MapperService mapperService) throws IOException {
@@ -69,6 +70,10 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
             .startObject(NO_POSITIONS_FIELD)
             .field("type", "text")
             .field("index_options", "freqs")
+            .endObject()
+            .startObject(PREFIXED_FIELD)
+            .field("type", "text")
+            .startObject("index_prefixes").endObject()
             .endObject()
             .endObject().endObject().endObject();
 
@@ -384,5 +389,36 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
         assertEquals(expected, q);
 
     }
-    
+
+    public void testPrefixes() throws IOException {
+
+        String json = "{ \"intervals\" : { \"" + STRING_FIELD_NAME + "\": { " +
+            "\"prefix\" : { \"term\" : \"term\" } } } }";
+        IntervalQueryBuilder builder = (IntervalQueryBuilder) parseQuery(json);
+        Query expected = new IntervalQuery(STRING_FIELD_NAME, Intervals.prefix("term"));
+        assertEquals(expected, builder.toQuery(createShardContext()));
+
+        String no_positions_json = "{ \"intervals\" : { \"" + NO_POSITIONS_FIELD + "\": { " +
+            "\"prefix\" : { \"term\" : \"term\" } } } }";
+        expectThrows(IllegalArgumentException.class, () -> {
+            IntervalQueryBuilder builder1 = (IntervalQueryBuilder) parseQuery(no_positions_json);
+            builder1.toQuery(createShardContext());
+            });
+
+        String prefix_json = "{ \"intervals\" : { \"" + PREFIXED_FIELD + "\": { " +
+            "\"prefix\" : { \"term\" : \"term\" } } } }";
+        builder = (IntervalQueryBuilder) parseQuery(prefix_json);
+        expected = new IntervalQuery(PREFIXED_FIELD, Intervals.fixField(PREFIXED_FIELD + "._index_prefix", Intervals.term("term")));
+        assertEquals(expected, builder.toQuery(createShardContext()));
+
+        String short_prefix_json = "{ \"intervals\" : { \"" + PREFIXED_FIELD + "\": { " +
+            "\"prefix\" : { \"term\" : \"t\" } } } }";
+        builder = (IntervalQueryBuilder) parseQuery(short_prefix_json);
+        expected = new IntervalQuery(PREFIXED_FIELD, Intervals.or(
+            Intervals.fixField(PREFIXED_FIELD + "._index_prefix", Intervals.wildcard("t?")),
+            Intervals.term("t")));
+        assertEquals(expected, builder.toQuery(createShardContext()));
+
+    }
+
 }

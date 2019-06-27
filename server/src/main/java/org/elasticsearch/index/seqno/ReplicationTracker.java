@@ -105,12 +105,13 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
     private volatile long operationPrimaryTerm;
 
     /**
-     * Boolean flag that indicates if a relocation handoff is in progress. A handoff is started by calling {@link #startRelocationHandoff}
-     * and is finished by either calling {@link #completeRelocationHandoff} or {@link #abortRelocationHandoff}, depending on whether the
-     * handoff was successful or not. During the handoff, which has as main objective to transfer the internal state of the global
-     * checkpoint tracker from the relocation source to the target, the list of in-sync shard copies cannot grow, otherwise the relocation
-     * target might miss this information and increase the global checkpoint to eagerly. As consequence, some of the methods in this class
-     * are not allowed to be called while a handoff is in progress, in particular {@link #markAllocationIdAsInSync}.
+     * Boolean flag that indicates if a relocation handoff is in progress. A handoff is started by calling
+     * {@link #startRelocationHandoff(String)} and is finished by either calling {@link #completeRelocationHandoff} or
+     * {@link #abortRelocationHandoff}, depending on whether the handoff was successful or not. During the handoff, which has as main
+     * objective to transfer the internal state of the global checkpoint tracker from the relocation source to the target, the list of
+     * in-sync shard copies cannot grow, otherwise the relocation target might miss this information and increase the global checkpoint
+     * to eagerly. As consequence, some of the methods in this class are not allowed to be called while a handoff is in progress,
+     * in particular {@link #markAllocationIdAsInSync}.
      *
      * A notable exception to this is the method {@link #updateFromMaster}, which is still allowed to be called during a relocation handoff.
      * The reason for this is that the handoff might fail and can be aborted (using {@link #abortRelocationHandoff}), in which case
@@ -989,11 +990,15 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
     /**
      * Initiates a relocation handoff and returns the corresponding primary context.
      */
-    public synchronized PrimaryContext startRelocationHandoff() {
+    public synchronized PrimaryContext startRelocationHandoff(String targetAllocationId) {
         assert invariant();
         assert primaryMode;
         assert handoffInProgress == false;
         assert pendingInSync.isEmpty() : "relocation handoff started while there are still shard copies pending in-sync: " + pendingInSync;
+        if (checkpoints.containsKey(targetAllocationId) == false) {
+            // can happen if the relocation target was removed from cluster but the recovery process isn't aware of that.
+            throw new IllegalStateException("relocation target [" + targetAllocationId + "] is no longer part of the replication group");
+        }
         handoffInProgress = true;
         // copy clusterStateVersion and checkpoints and return
         // all the entries from checkpoints that are inSync: the reason we don't need to care about initializing non-insync entries
@@ -1047,6 +1052,11 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
     public synchronized void activateWithPrimaryContext(PrimaryContext primaryContext) {
         assert invariant();
         assert primaryMode == false;
+        if (primaryContext.checkpoints.containsKey(shardAllocationId) == false) {
+            // can happen if the old primary was on an old version
+            assert indexSettings.getIndexVersionCreated().before(Version.V_7_3_0);
+            throw new IllegalStateException("primary context [" + primaryContext + "] does not contain " + shardAllocationId);
+        }
         final Runnable runAfter = getMasterUpdateOperationFromCurrentState();
         primaryMode = true;
         // capture current state to possibly replay missed cluster state update

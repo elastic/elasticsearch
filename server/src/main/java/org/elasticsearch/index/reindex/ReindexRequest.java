@@ -33,12 +33,10 @@ import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -58,7 +56,6 @@ import static java.util.Objects.requireNonNull;
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.common.unit.TimeValue.parseTimeValue;
 import static org.elasticsearch.index.VersionType.INTERNAL;
-import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 
 /**
  * Request to reindex some documents from one index to another. This implements CompositeIndicesRequest but in a misleading way. Rather than
@@ -313,7 +310,7 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
             builder.startObject("source");
             if (remoteInfo != null) {
                 builder.field("remote", remoteInfo);
-                builder.rawField("query", remoteInfo.getQuery().streamInput(), builder.contentType());
+                builder.rawField("query", remoteInfo.getQuery().streamInput(), RemoteInfo.QUERY_CONTENT_TYPE.type());
             }
             builder.array("index", getSearchRequest().indices());
             String[] types = getSearchRequest().types();
@@ -466,7 +463,7 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
             throw new IllegalArgumentException(
                 "Unsupported fields in [remote]: [" + Strings.collectionToCommaDelimitedString(remote.keySet()) + "]");
         }
-        return new RemoteInfo(scheme, host, port, pathPrefix, queryForRemote(source),
+        return new RemoteInfo(scheme, host, port, pathPrefix, RemoteInfo.queryForRemote(source),
             username, password, headers, socketTimeout, connectTimeout);
     }
 
@@ -503,20 +500,6 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
     private static TimeValue extractTimeValue(Map<String, Object> source, String name, TimeValue defaultValue) {
         String string = extractString(source, name);
         return string == null ? defaultValue : parseTimeValue(string, name);
-    }
-
-    private static BytesReference queryForRemote(Map<String, Object> source) throws IOException {
-        XContentBuilder builder = JsonXContent.contentBuilder().prettyPrint();
-        Object query = source.remove("query");
-        if (query == null) {
-            return BytesReference.bytes(matchAllQuery().toXContent(builder, ToXContent.EMPTY_PARAMS));
-        }
-        if (!(query instanceof Map)) {
-            throw new IllegalArgumentException("Expected [query] to be an object but was [" + query + "]");
-        }
-        @SuppressWarnings("unchecked")
-        Map<String, Object> map = (Map<String, Object>) query;
-        return BytesReference.bytes(builder.map(map));
     }
 
     static void setMaxDocsValidateIdentical(AbstractBulkByScrollRequest<?> request, int maxDocs) {

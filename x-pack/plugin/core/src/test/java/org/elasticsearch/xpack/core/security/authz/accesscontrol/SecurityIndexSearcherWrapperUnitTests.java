@@ -540,8 +540,7 @@ public class SecurityIndexSearcherWrapperUnitTests extends ESTestCase {
 
         DocumentSubsetDirectoryReader filteredReader = DocumentSubsetReader.wrap(reader, cache, roleQuery);
         IndexSearcher wrapSearcher = new SecurityIndexSearcherWrapper.IndexSearcherWrapper(filteredReader);
-        Engine.Searcher engineSearcher = new Engine.Searcher("test",
-            new SecurityIndexSearcherWrapper.IndexSearcherWrapper(filteredReader), () -> {});
+        Engine.Searcher engineSearcher = new Engine.Searcher("test", wrapSearcher, () -> {});
         ContextIndexSearcher searcher = new ContextIndexSearcher(engineSearcher,
             wrapSearcher.getQueryCache(), wrapSearcher.getQueryCachingPolicy());
         searcher.setCheckCancelled(() -> {});

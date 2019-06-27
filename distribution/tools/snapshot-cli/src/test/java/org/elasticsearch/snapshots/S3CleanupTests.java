@@ -252,6 +252,7 @@ public class S3CleanupTests extends ESSingleNodeTestCase {
                }
                size += createDanglingIndex(name, files, repo, genericExec);
            }
+           Set<String> danglingIndices = indexToFiles.keySet();
 
            logger.info("--> ensure dangling index folders are visible");
            assertBusy(() -> assertCorruptionVisible(indexToFiles, repo, genericExec), 10, TimeUnit.MINUTES);
@@ -273,8 +274,10 @@ public class S3CleanupTests extends ESSingleNodeTestCase {
 
            logger.info("--> execute cleanup tool again and abort");
            terminal = executeCommand(true);
-           assertThat(terminal.getOutput(), containsString("Set of deletion candidates is " + indexToFiles.keySet()));
-           assertThat(terminal.getOutput(), containsString("Set of orphaned indices is " + indexToFiles.keySet()));
+           assertThat(terminal.getOutput(),
+                   containsString("Set of deletion candidates has " + danglingIndices.size() + " elements: " + danglingIndices));
+           assertThat(terminal.getOutput(),
+                   containsString("Set of orphaned indices has " + danglingIndices.size() + " elements: " + danglingIndices));
            assertThat(terminal.getOutput(), containsString("This action is NOT REVERSIBLE"));
            for (String index : indexToFiles.keySet()) {
                assertThat(terminal.getOutput(), not(containsString("Removing orphaned index " + index)));
@@ -282,8 +285,10 @@ public class S3CleanupTests extends ESSingleNodeTestCase {
 
            logger.info("--> execute cleanup tool again and confirm, indices/foo should go");
            terminal = executeCommand(false);
-           assertThat(terminal.getOutput(), containsString("Set of deletion candidates is " + indexToFiles.keySet()));
-           assertThat(terminal.getOutput(), containsString("Set of orphaned indices is " + indexToFiles.keySet()));
+           assertThat(terminal.getOutput(),
+                   containsString("Set of deletion candidates has " + danglingIndices.size() + " elements: " + danglingIndices));
+           assertThat(terminal.getOutput(),
+                   containsString("Set of orphaned indices has " + danglingIndices.size() + " elements: " + danglingIndices));
            assertThat(terminal.getOutput(), containsString("This action is NOT REVERSIBLE"));
            for (String index : indexToFiles.keySet()) {
                assertThat(terminal.getOutput(), containsString("Removing orphaned index " + index));

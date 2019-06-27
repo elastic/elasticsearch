@@ -7,6 +7,7 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.repositories.IndexId;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.Date;
 import java.util.Set;
 import java.util.TreeSet;
@@ -19,6 +20,11 @@ public abstract class AbstractRepository implements Repository {
     protected AbstractRepository(Terminal terminal, Long safetyGapMillis) {
         this.terminal = terminal;
         this.safetyGapMillis = safetyGapMillis == null ? 3600 * 1000 : safetyGapMillis;
+    }
+
+    private void describeCollection(String start, Collection<?> elements) {
+        terminal.println(Terminal.Verbosity.VERBOSE,
+                start  + " has " + elements.size() + " elements: " + elements);
     }
 
     @Override
@@ -38,12 +44,12 @@ public abstract class AbstractRepository implements Repository {
         terminal.println(Terminal.Verbosity.VERBOSE, "Reading latest index file");
         Set<String> referencedIndexIds = getRepositoryData(latestIndexId)
                 .getIndices().values().stream().map(IndexId::getId).collect(Collectors.toSet());
-        terminal.println(Terminal.Verbosity.VERBOSE, "Set of indices referenced by index file is " + referencedIndexIds);
+        describeCollection("Set of indices referenced by index file", referencedIndexIds);
         terminal.println(Terminal.Verbosity.VERBOSE, "Listing indices/ directory");
         Set<String> allIndexIds = getAllIndexIds();
-        terminal.println(Terminal.Verbosity.VERBOSE, "Set of indices inside indices/ directory is " + allIndexIds);
+        describeCollection("Set of indices inside indices/ directory", allIndexIds);
         Set<String> deletionCandidates = new TreeSet<>(Sets.difference(allIndexIds, referencedIndexIds));
-        terminal.println(Terminal.Verbosity.VERBOSE, "Set of deletion candidates is " + deletionCandidates);
+        describeCollection("Set of deletion candidates", deletionCandidates);
         if (deletionCandidates.isEmpty()) {
             terminal.println(Terminal.Verbosity.NORMAL, "Set of deletion candidates is empty. Exiting");
             return;
@@ -66,7 +72,7 @@ public abstract class AbstractRepository implements Repository {
                 }
             }
         }
-        terminal.println(Terminal.Verbosity.NORMAL, "Set of orphaned indices is " + orphanedIndexIds);
+        describeCollection("Set of orphaned indices", orphanedIndexIds);
         if (orphanedIndexIds.isEmpty()) {
             terminal.println(Terminal.Verbosity.NORMAL, "Set of orphaned indices is empty. Exiting");
             return;

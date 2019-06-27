@@ -10,6 +10,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.nodes.TransportNodesAction;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.watcher.WatcherMetaData;
@@ -62,7 +63,7 @@ public class TransportWatcherStatsAction extends TransportNodesAction<WatcherSta
     }
 
     @Override
-    protected WatcherStatsResponse.Node nodeOperation(WatcherStatsRequest.Node request) {
+    protected WatcherStatsResponse.Node nodeOperation(WatcherStatsRequest.Node request, Task task) {
         WatcherStatsResponse.Node statsResponse = new WatcherStatsResponse.Node(clusterService.localNode());
         statsResponse.setWatcherState(lifeCycleService.getState());
         statsResponse.setThreadPoolQueueSize(executionService.executionThreadPoolQueueSize());

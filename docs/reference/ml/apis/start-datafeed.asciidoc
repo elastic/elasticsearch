@@ -17,6 +17,13 @@ A {dfeed} can be started and stopped multiple times throughout its lifecycle.
 
 `POST _ml/datafeeds/<feed_id>/_start`
 
+[[ml-start-datafeed-prereqs]]
+==== {api-prereq-title}
+
+* If {es} {security-features} are enabled, you must have `manage_ml` or `manage`
+cluster privileges to use this API. See
+{stack-ov}/security-privileges.html[Security privileges].
+
 [[ml-start-datafeed-desc]]
 ==== {api-description-title}
 
@@ -58,40 +65,30 @@ If you specify a `start` value that is earlier than the timestamp of the latest
 processed record, the {dfeed} continues from 1 millisecond after the timestamp
 of the latest processed record.
 
+IMPORTANT: When {es} {security-features} are enabled, your {dfeed} remembers
+which roles the last user to create or update it had at the time of
+creation/update and runs the query using those same roles.
+
 [[ml-start-datafeed-path-parms]]
 ==== {api-path-parms-title}
 
-`feed_id` (required)::
-(string) Identifier for the {dfeed}
+`<feed_id>` (Required)::
+  (string) Identifier for the {dfeed}.
 
 [[ml-start-datafeed-request-body]]
 ==== {api-request-body-title}
 
-`end`::
+`end` (Optional)::
   (string) The time that the {dfeed} should end. This value is exclusive.
   The default value is an empty string.
 
-`start`::
+`start` (Optional)::
   (string) The time that the {dfeed} should begin. This value is inclusive.
   The default value is an empty string.
 
-`timeout`::
+`timeout` (Optional)::
   (time) Controls the amount of time to wait until a {dfeed} starts.
   The default value is 20 seconds.
-
-[[ml-start-datafeed-prereqs]]
-==== {api-prereq-title}
-
-If {es} {security-features} are enabled, you must have `manage_ml`, or `manage`
-cluster privileges to use this API. For more information, see
-{stack-ov}/security-privileges.html[Security privileges].
-
-[[ml-start-datafeed-security]]
-==== Security integration
-
-When {es} {security-features} are enabled, your {dfeed} remembers which roles the
-last user to create or update it had at the time of creation/update and runs the
-query using those same roles.
 
 [[ml-start-datafeed-example]]
 ==== {api-examples-title}

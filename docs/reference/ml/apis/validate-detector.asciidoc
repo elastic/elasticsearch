@@ -13,6 +13,13 @@ Validates detector configuration information.
 
 `POST _ml/anomaly_detectors/_validate/detector`
 
+[[ml-valid-detector-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have `manage_ml` or
+`manage` cluster privileges to use this API. See
+{stack-ov}/security-privileges.html[Security privileges].
+
 [[ml-valid-detector-desc]]
 ==== {api-description-title}
 
@@ -24,13 +31,6 @@ before you create a job.
 
 For a list of the properties that you can specify in the body of this API,
 see <<ml-detectorconfig,detector configuration objects>>.
-
-[[ml-valid-detector-prereqs]]
-==== {api-prereq-title}
-
-You must have `manage_ml`, or `manage` cluster privileges to use this API.
-For more information, see
-{stack-ov}/security-privileges.html[Security privileges].
 
 [[ml-valid-detector-example]]
 ==== {api-examples-title}

@@ -46,7 +46,7 @@ public abstract class AbstractRepository implements Repository {
                 .getIndices().values().stream().map(IndexId::getId).collect(Collectors.toSet());
         describeCollection("Set of indices referenced by index file", referencedIndexIds);
         terminal.println(Terminal.Verbosity.VERBOSE, "Listing indices/ directory");
-        Set<String> allIndexIds = getAllIndexIds();
+        Set<String> allIndexIds = getAllIndexDirectoryNames();
         describeCollection("Set of indices inside indices/ directory", allIndexIds);
         Set<String> deletionCandidates = new TreeSet<>(Sets.difference(allIndexIds, referencedIndexIds));
         describeCollection("Set of deletion candidates", deletionCandidates);

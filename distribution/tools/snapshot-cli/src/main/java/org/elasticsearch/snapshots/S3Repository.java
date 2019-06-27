@@ -113,7 +113,7 @@ public class S3Repository extends AbstractRepository {
     }
 
     @Override
-    public Set<String> getAllIndexIds() {
+    public Set<String> getAllIndexDirectoryNames() {
         try {
             List<String> prefixes = new ArrayList<>();
             ListObjectsRequest request = new ListObjectsRequest();
@@ -138,24 +138,24 @@ public class S3Repository extends AbstractRepository {
     }
 
     @Override
-    public Date getIndexTimestamp(String indexId) {
+    public Date getIndexTimestamp(String indexDirectoryName) {
         /*
          * There is shorter way to get modification timestamp of the index directory:
          *
-         * S3Object index = client.getObject(bucket, fullPath("indices/" + indexId + "/"));
+         * S3Object index = client.getObject(bucket, fullPath("indices/" + indexDirectoryName + "/"));
          * return index.getObjectMetadata().getLastModified();
          *
          * It also will work if the directory is empty.
          * However, on Minio the code above returns some weird dates far in the past.
          * So we use listing instead.
          */
-        ObjectListing listing = client.listObjects(bucket, fullPath("indices/" + indexId + "/"));
+        ObjectListing listing = client.listObjects(bucket, fullPath("indices/" + indexDirectoryName + "/"));
         List<S3ObjectSummary> summaries = listing.getObjectSummaries();
         while (summaries.isEmpty() && listing.isTruncated()) {
             summaries = listing.getObjectSummaries();
         }
         if (summaries.isEmpty()) {
-            terminal.println(Terminal.Verbosity.VERBOSE, "Failed to find single file in index " + indexId + " directory. Skipping");
+            terminal.println(Terminal.Verbosity.VERBOSE, "Failed to find single file in index " + indexDirectoryName + " directory. Skipping");
             return null;
         } else {
             S3ObjectSummary any = summaries.get(0);

@@ -262,7 +262,9 @@ public class InternalEngineTests extends EngineTestCase {
         try (Engine.Searcher searcher = engine.acquireSearcher("test")) {
             assertEquals(2, searcher.reader().numDocs());
         }
-        assertFalse("safe access should NOT be required last indexing round was only append only", engine.isSafeAccessRequired());
+        if (operation.origin() == PRIMARY) {
+            assertFalse("safe access should NOT be required last indexing round was only append only", engine.isSafeAccessRequired());
+        }
         engine.delete(new Engine.Delete(operation.type(), operation.id(), operation.uid(), primaryTerm.get()));
         assertTrue("safe access should be required", engine.isSafeAccessRequired());
         engine.refresh("test");

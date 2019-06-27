@@ -947,7 +947,7 @@ public class InternalEngine extends Engine {
         // a delete state and return false for the created flag in favor of code simplicity
         final long maxSeqNoOfUpdatesOrDeletes = getMaxSeqNoOfUpdatesOrDeletes();
         if (hasBeenProcessedBefore(index)) {
-            // the operation seq# is lower then the current local checkpoint and thus was already put into lucene
+            // the operation seq# was processed and thus the same operation was already put into lucene
             // this can happen during recovery where older operations are sent from the translog that are already
             // part of the lucene commit (either from a peer recovery or a local translog)
             // or due to concurrent indexing & recovery. For the former it is important to skip lucene as the operation in

@@ -148,7 +148,6 @@ public class S3Repository extends AbstractRepository {
     }
 
     private long deleteFiles(String prefix) {
-        terminal.println(Terminal.Verbosity.VERBOSE, Thread.currentThread().getName());
         long filesSize = 0L;
 
         ObjectListing listing = client.listObjects(bucket, prefix);

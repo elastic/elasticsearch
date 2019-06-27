@@ -34,17 +34,17 @@ public class TestClustersRateLimitExtension {
     private final ExecutorService executorService;
     private final TestClusterCleanupOnShutdown cleanupThread;
 
-    public TestClustersRateLimitExtension() {
-        globalSemaphore = new Semaphore(maxPermits());
+    public TestClustersRateLimitExtension(int maxPermits) {
+        globalSemaphore = new Semaphore(maxPermits);
         executorService = Executors.newCachedThreadPool();
         cleanupThread = new TestClusterCleanupOnShutdown();
         executorService.submit(cleanupThread);
     }
 
     static void withPermits(Project project, int requiredPermits, Supplier<Collection<ElasticsearchCluster>> startedClusters) {
-        if (requiredPermits > TestClustersRateLimitExtension.maxPermits()) {
+        if (requiredPermits > TestClustersRateLimitExtension.maxPermits(project)) {
             throw new TestClustersException("Clusters for " + project.getPath() + " are too large, requires " + requiredPermits +
-                " nodes, but this system only supports a maximum of " + TestClustersRateLimitExtension.maxPermits() + " total"
+                " nodes, but this system only supports a maximum of " + TestClustersRateLimitExtension.maxPermits(project) + " total"
             );
         }
         // It seems that Gradle runs `beforeActions` and `afterExecute` in the same single worker so
@@ -87,7 +87,8 @@ public class TestClustersRateLimitExtension {
         // Configure the extension on the root project so we have a single instance per run
         TestClustersRateLimitExtension newExt = project.getRootProject().getExtensions().create(
             "__testclusters_rate_limit",
-            TestClustersRateLimitExtension.class
+            TestClustersRateLimitExtension.class,
+            maxPermits(project)
         );
         Thread shutdownHook = new Thread(newExt.cleanupThread::run);
         Runtime.getRuntime().addShutdownHook(shutdownHook);
@@ -114,10 +115,12 @@ public class TestClustersRateLimitExtension {
         });
     }
 
-    private static int maxPermits() {
+    private static int maxPermits(Project project) {
         return Optional.ofNullable(System.getProperty("testclusters.max-nodes"))
             .map(Integer::valueOf)
-            .orElse(Runtime.getRuntime().availableProcessors());
+            .orElse(
+                project.getGradle().getStartParameter().getMaxWorkerCount()
+            );
     }
 
     private static TestClustersRateLimitExtension getSelfAsExtension(Project project) {

@@ -111,9 +111,13 @@ public class EnrichPlugin extends Plugin implements ActionPlugin, IngestPlugin {
                                                ResourceWatcherService resourceWatcherService, ScriptService scriptService,
                                                NamedXContentRegistry xContentRegistry, Environment environment,
                                                NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry) {
+        EnrichPolicyLocks enrichPolicyLocks = new EnrichPolicyLocks();
         EnrichPolicyExecutor enrichPolicyExecutor = new EnrichPolicyExecutor(settings, clusterService, client, threadPool,
-            new IndexNameExpressionResolver(), System::currentTimeMillis);
-        return List.of(enrichPolicyExecutor);
+            new IndexNameExpressionResolver(), enrichPolicyLocks, System::currentTimeMillis);
+        EnrichPolicyMaintenanceService enrichPolicyMaintenanceService = new EnrichPolicyMaintenanceService(client, clusterService,
+            threadPool, enrichPolicyLocks);
+        enrichPolicyMaintenanceService.initialize();
+        return List.of(enrichPolicyLocks, enrichPolicyExecutor, enrichPolicyMaintenanceService);
     }
 
     @Override

@@ -12,6 +12,6 @@ public interface Repository {
     RepositoryData getRepositoryData(long indexFileGeneration) throws IOException;
     Set<String> getAllIndexIds();
     Date getIndexTimestamp(String indexId);
-    void deleteIndices(Set<String> leakedIndexIds);
+    void deleteIndices(Set<String> orphanedIndexIds);
     void cleanup() throws IOException;
 }

@@ -258,7 +258,7 @@ public class S3CleanupTests extends ESSingleNodeTestCase {
 
            logger.info("--> execute cleanup tool, corruption is created latter than snapshot, there is nothing to cleanup");
            terminal = executeCommand(false);
-           assertThat(terminal.getOutput(), containsString("Set of leaked indices is empty. Exiting"));
+           assertThat(terminal.getOutput(), containsString("Set of orphaned indices is empty. Exiting"));
 
            logger.info("--> create second snapshot");
            createSnapshotResponse = client().admin()
@@ -274,25 +274,25 @@ public class S3CleanupTests extends ESSingleNodeTestCase {
            logger.info("--> execute cleanup tool again and abort");
            terminal = executeCommand(true);
            assertThat(terminal.getOutput(), containsString("Set of deletion candidates is " + indexToFiles.keySet()));
-           assertThat(terminal.getOutput(), containsString("Set of leaked indices is " + indexToFiles.keySet()));
+           assertThat(terminal.getOutput(), containsString("Set of orphaned indices is " + indexToFiles.keySet()));
            assertThat(terminal.getOutput(), containsString("This action is NOT REVERSIBLE"));
            for (String index : indexToFiles.keySet()) {
-               assertThat(terminal.getOutput(), not(containsString("Removing leaked index " + index)));
+               assertThat(terminal.getOutput(), not(containsString("Removing orphaned index " + index)));
            }
 
            logger.info("--> execute cleanup tool again and confirm, indices/foo should go");
            terminal = executeCommand(false);
            assertThat(terminal.getOutput(), containsString("Set of deletion candidates is " + indexToFiles.keySet()));
-           assertThat(terminal.getOutput(), containsString("Set of leaked indices is " + indexToFiles.keySet()));
+           assertThat(terminal.getOutput(), containsString("Set of orphaned indices is " + indexToFiles.keySet()));
            assertThat(terminal.getOutput(), containsString("This action is NOT REVERSIBLE"));
            for (String index : indexToFiles.keySet()) {
-               assertThat(terminal.getOutput(), containsString("Removing leaked index " + index));
+               assertThat(terminal.getOutput(), containsString("Removing orphaned index " + index));
                for (String file : indexToFiles.get(index)) {
                    assertThat(terminal.getOutput(), containsString(index + "/" + file));
                }
            }
            assertThat(terminal.getOutput(),
-                   containsString("Total space freed after removing leaked indices is " + size + " bytes"));
+                   containsString("Total space freed after removing orphaned indices is " + size + " bytes"));
 
            logger.info("--> verify that there is no inconsistencies");
            BlobStoreTestUtil.assertConsistency(repo, genericExec);

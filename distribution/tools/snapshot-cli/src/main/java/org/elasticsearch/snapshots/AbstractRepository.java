@@ -50,31 +50,31 @@ public abstract class AbstractRepository implements Repository {
         }
         terminal.println(Terminal.Verbosity.VERBOSE, "Obtaining latest index file creation timestamp");
 
-        Set<String> leakedIndexIds = new TreeSet<>();
+        Set<String> orphanedIndexIds = new TreeSet<>();
         for (String candidate : deletionCandidates) {
             terminal.println(Terminal.Verbosity.VERBOSE, "Reading index " + candidate + " last modification timestamp");
             Date indexTimestamp = getIndexTimestamp(candidate);
             if (indexTimestamp != null) {
                 if (indexTimestamp.before(shiftedIndexNTimestamp)) {
-                    leakedIndexIds.add(candidate);
+                    orphanedIndexIds.add(candidate);
                     terminal.println(Terminal.Verbosity.VERBOSE,
-                            "Index " + candidate + " has leaked because it's modification timestamp " + indexTimestamp + " is " +
+                            "Index " + candidate + " is orphaned because it's modification timestamp " + indexTimestamp + " is " +
                             "less than index-N shifted timestamp " + shiftedIndexNTimestamp);
                 } else {
-                    terminal.println(Terminal.Verbosity.VERBOSE, "Index  " + candidate + " might not be leaked because " + indexTimestamp +
+                    terminal.println(Terminal.Verbosity.VERBOSE, "Index  " + candidate + " might not be orphaned because " + indexTimestamp +
                             " is gte than " + shiftedIndexNTimestamp);
                 }
             }
         }
-        terminal.println(Terminal.Verbosity.NORMAL, "Set of leaked indices is " + leakedIndexIds);
-        if (leakedIndexIds.isEmpty()) {
-            terminal.println(Terminal.Verbosity.NORMAL, "Set of leaked indices is empty. Exiting");
+        terminal.println(Terminal.Verbosity.NORMAL, "Set of orphaned indices is " + orphanedIndexIds);
+        if (orphanedIndexIds.isEmpty()) {
+            terminal.println(Terminal.Verbosity.NORMAL, "Set of orphaned indices is empty. Exiting");
             return;
         }
-        confirm(terminal, "Do you want to remove leaked indices files? This action is NOT REVERSIBLE");
-        terminal.println(Terminal.Verbosity.NORMAL, "Removing leaked indices");
-        deleteIndices(leakedIndexIds);
-        terminal.println(Terminal.Verbosity.NORMAL, "Finished removing leaked indices");
+        confirm(terminal, "Do you want to remove orphaned indices files? This action is NOT REVERSIBLE");
+        terminal.println(Terminal.Verbosity.NORMAL, "Removing orphaned indices");
+        deleteIndices(orphanedIndexIds);
+        terminal.println(Terminal.Verbosity.NORMAL, "Finished removing orphaned indices");
     }
 
     private void confirm(Terminal terminal, String msg) {

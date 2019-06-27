@@ -185,13 +185,13 @@ public class S3Repository extends AbstractRepository {
     }
 
     @Override
-    public void deleteIndices(Set<String> leakedIndexIds) {
+    public void deleteIndices(Set<String> orphanedIndexIds) {
         List<Future<Long>> futures = new ArrayList<>();
         ExecutorService executor = Executors.newFixedThreadPool(10);
         try {
-            for (String indexId : leakedIndexIds) {
+            for (String indexId : orphanedIndexIds) {
                 futures.add(executor.submit(() -> {
-                    terminal.println(Terminal.Verbosity.NORMAL, "Removing leaked index " + indexId);
+                    terminal.println(Terminal.Verbosity.NORMAL, "Removing orphaned index " + indexId);
                     return deleteFiles(fullPath("indices/" + indexId));
                 }));
             }
@@ -205,7 +205,7 @@ public class S3Repository extends AbstractRepository {
                 }
             }
 
-            terminal.println(Terminal.Verbosity.NORMAL, "Total space freed after removing leaked indices is " + totalSpaceFreed + " bytes");
+            terminal.println(Terminal.Verbosity.NORMAL, "Total space freed after removing orphaned indices is " + totalSpaceFreed + " bytes");
         } finally {
             executor.shutdownNow();
         }

@@ -38,7 +38,7 @@ public class CleanupS3RepositoryCommand extends EnvironmentAwareCommand {
     private final OptionSpec<Long> safetyGapMillisOption;
 
     public CleanupS3RepositoryCommand() {
-        super("Command to cleanup leaked segment files from the S3 repository");
+        super("Command to cleanup orphaned segment files from the S3 repository");
 
         regionOption = parser.accepts("region", "S3 region")
                 .withRequiredArg();

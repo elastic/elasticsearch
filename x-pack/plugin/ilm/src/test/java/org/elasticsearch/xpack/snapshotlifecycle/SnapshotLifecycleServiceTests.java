@@ -331,7 +331,7 @@ public class SnapshotLifecycleServiceTests extends ESTestCase {
         return new SnapshotLifecyclePolicy(id, randomAlphaOfLength(4), schedule, randomAlphaOfLength(4), config);
     }
 
-    private static String randomSchedule() {
+    public static String randomSchedule() {
         return randomIntBetween(0, 59) + " " +
             randomIntBetween(0, 59) + " " +
             randomIntBetween(0, 12) + " * * ?";

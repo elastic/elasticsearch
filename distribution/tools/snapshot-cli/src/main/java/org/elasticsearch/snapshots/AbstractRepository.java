@@ -14,12 +14,13 @@ import java.util.TreeSet;
 import java.util.stream.Collectors;
 
 public abstract class AbstractRepository implements Repository {
+    private final static long DEFAULT_SAFETY_GAP_MILLIS = 3600 * 1000;
     protected final Terminal terminal;
     private final long safetyGapMillis;
 
     protected AbstractRepository(Terminal terminal, Long safetyGapMillis) {
         this.terminal = terminal;
-        this.safetyGapMillis = safetyGapMillis == null ? 3600 * 1000 : safetyGapMillis;
+        this.safetyGapMillis = safetyGapMillis == null ? DEFAULT_SAFETY_GAP_MILLIS : safetyGapMillis;
     }
 
     private void describeCollection(String start, Collection<?> elements) {

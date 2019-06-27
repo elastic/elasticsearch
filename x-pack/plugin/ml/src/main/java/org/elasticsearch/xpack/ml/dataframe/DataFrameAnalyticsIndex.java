@@ -94,7 +94,7 @@ final class DataFrameAnalyticsIndex {
         properties.put(DataFrameAnalyticsFields.ID, Map.of("type", "keyword"));
     }
 
-    private static void addMetaData(Map<String, Object> mappingsAsMap, String analyticsId, Clock clock) {
+    private static voidaddMetaData(Map<String, Object> mappingsAsMap, String analyticsId, Clock clock) {
         Map<String, Object> metadata = getOrPutDefault(mappingsAsMap, META, HashMap::new);
         metadata.put(DataFrameAnalyticsFields.CREATION_DATE_MILLIS, clock.millis());
         metadata.put(DataFrameAnalyticsFields.CREATED_BY, "data-frame-analytics");

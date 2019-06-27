@@ -140,7 +140,7 @@ public class StartReindexJobAction extends Action<StartReindexJobAction.Response
         }
 
         public Response(StreamInput in) throws IOException {
-            super.readFrom(in);
+            super(in);
             taskId = in.readString();
             reindexResponse = in.readOptionalWriteable((input) -> {
                 BulkByScrollResponse bulkByScrollResponse = new BulkByScrollResponse();

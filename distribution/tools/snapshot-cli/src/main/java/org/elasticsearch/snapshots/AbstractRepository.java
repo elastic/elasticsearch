@@ -12,7 +12,7 @@ import java.util.Set;
 import java.util.TreeSet;
 import java.util.stream.Collectors;
 
-public abstract  class AbstractRepository implements Repository {
+public abstract class AbstractRepository implements Repository {
     protected final Terminal terminal;
     private final Long safetyGapMillis;
 

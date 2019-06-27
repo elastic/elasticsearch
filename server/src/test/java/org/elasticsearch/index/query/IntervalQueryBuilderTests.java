@@ -393,26 +393,26 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
     public void testPrefixes() throws IOException {
 
         String json = "{ \"intervals\" : { \"" + STRING_FIELD_NAME + "\": { " +
-            "\"prefix\" : { \"term\" : \"term\" } } } }";
+            "\"prefix\" : { \"prefix\" : \"term\" } } } }";
         IntervalQueryBuilder builder = (IntervalQueryBuilder) parseQuery(json);
         Query expected = new IntervalQuery(STRING_FIELD_NAME, Intervals.prefix("term"));
         assertEquals(expected, builder.toQuery(createShardContext()));
 
         String no_positions_json = "{ \"intervals\" : { \"" + NO_POSITIONS_FIELD + "\": { " +
-            "\"prefix\" : { \"term\" : \"term\" } } } }";
+            "\"prefix\" : { \"prefix\" : \"term\" } } } }";
         expectThrows(IllegalArgumentException.class, () -> {
             IntervalQueryBuilder builder1 = (IntervalQueryBuilder) parseQuery(no_positions_json);
             builder1.toQuery(createShardContext());
             });
 
         String prefix_json = "{ \"intervals\" : { \"" + PREFIXED_FIELD + "\": { " +
-            "\"prefix\" : { \"term\" : \"term\" } } } }";
+            "\"prefix\" : { \"prefix\" : \"term\" } } } }";
         builder = (IntervalQueryBuilder) parseQuery(prefix_json);
         expected = new IntervalQuery(PREFIXED_FIELD, Intervals.fixField(PREFIXED_FIELD + "._index_prefix", Intervals.term("term")));
         assertEquals(expected, builder.toQuery(createShardContext()));
 
         String short_prefix_json = "{ \"intervals\" : { \"" + PREFIXED_FIELD + "\": { " +
-            "\"prefix\" : { \"term\" : \"t\" } } } }";
+            "\"prefix\" : { \"prefix\" : \"t\" } } } }";
         builder = (IntervalQueryBuilder) parseQuery(short_prefix_json);
         expected = new IntervalQuery(PREFIXED_FIELD, Intervals.or(
             Intervals.fixField(PREFIXED_FIELD + "._index_prefix", Intervals.wildcard("t?")),
@@ -424,7 +424,7 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
     public void testWildcard() throws IOException {
 
         String json = "{ \"intervals\" : { \"" + STRING_FIELD_NAME + "\": { " +
-            "\"wildcard\" : { \"term\" : \"Te?m\" } } } }";
+            "\"wildcard\" : { \"pattern\" : \"Te?m\" } } } }";
 
         IntervalQueryBuilder builder = (IntervalQueryBuilder) parseQuery(json);
         Query expected = new IntervalQuery(STRING_FIELD_NAME, Intervals.wildcard("te?m"));

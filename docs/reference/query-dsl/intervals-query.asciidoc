@@ -91,14 +91,32 @@ then an error will be returned.  To avoid this limit, enable the
 <<index-prefixes,`index-prefixes`>> option on the field being searched.
 
 [horizontal]
-`term`::
+`prefix`::
 Match terms starting with this prefix
 `analyzer`::
-Which analyzer should be used to normalize the `term`.  By default, the
+Which analyzer should be used to normalize the `prefix`.  By default, the
 search analyzer of the top-level field will be used.
 `use_field`::
 If specified, then match intervals from this field rather than the top-level field.
-The `term` will be normalized using the search analyzer from this field, unless
+The `prefix` will be normalized using the search analyzer from this field, unless
+`analyzer` is specified separately.
+
+[[intervals-wildcard]]
+==== `wildcard`
+
+The `wildcard` rule finds terms that match a wildcard pattern.  The pattern will
+expand to match at most 128 terms; if there are more matching terms in the index,
+then an error will be returned.
+
+[horizontal]
+`pattern`::
+Match terms starting matching this pattern
+`analyzer`::
+Which analyzer should be used to normalize the `pattern`.  By default, the
+search analyzer of the top-level field will be used.
+`use_field`::
+If specified, then match intervals from this field rather than the top-level field.
+The `pattern` will be normalized using the search analyzer from this field, unless
 `analyzer` is specified separately.
 
 [[intervals-all_of]]

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.aggregations.bucket;
 
-import org.elasticsearch.common.geo.GeoDistance;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContentParseException;
@@ -63,9 +62,6 @@ public class GeoDistanceRangeTests extends BaseAggregationTestCase<GeoDistanceAg
         if (randomBoolean()) {
             factory.unit(randomFrom(DistanceUnit.values()));
         }
-        if (randomBoolean()) {
-            factory.distanceType(randomFrom(GeoDistance.values()));
-        }
         return factory;
     }
 
@@ -83,6 +79,27 @@ public class GeoDistanceRangeTests extends BaseAggregationTestCase<GeoDistanceAg
             () -> GeoDistanceAggregationBuilder.parse("aggregationName", parser));
         assertThat(ex.getCause(), notNullValue());
         assertThat(ex.getCause().getMessage(), containsString("badField"));
+    }
+
+    @Override
+    public void testFromXContent() throws IOException {
+        super.testFromXContent();
+        assertWarnings("Deprecated field [distance_type] used, replaced by [no replacement: " +
+            "`distance_type` is handled internally and no longer supported. It will be removed in a future version.]");
+    }
+
+    @Override
+    public void testFromXContentMulti() throws IOException {
+        super.testFromXContentMulti();
+        assertWarnings("Deprecated field [distance_type] used, replaced by [no replacement: " +
+            "`distance_type` is handled internally and no longer supported. It will be removed in a future version.]");
+    }
+
+    @Override
+    public void testToString() throws IOException {
+        super.testToString();
+        assertWarnings("Deprecated field [distance_type] used, replaced by [no replacement: " +
+            "`distance_type` is handled internally and no longer supported. It will be removed in a future version.]");
     }
 
     /**

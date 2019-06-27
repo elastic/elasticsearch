@@ -52,6 +52,7 @@ public class GeoDistanceQueryBuilder extends AbstractQueryBuilder<GeoDistanceQue
     /** Default for distance unit computation. */
     public static final DistanceUnit DEFAULT_DISTANCE_UNIT = DistanceUnit.DEFAULT;
     /** Default for geo distance computation. */
+    @Deprecated
     public static final GeoDistance DEFAULT_GEO_DISTANCE = GeoDistance.ARC;
 
     /**
@@ -60,7 +61,10 @@ public class GeoDistanceQueryBuilder extends AbstractQueryBuilder<GeoDistanceQue
     public static final boolean DEFAULT_IGNORE_UNMAPPED = false;
 
     private static final ParseField VALIDATION_METHOD_FIELD = new ParseField("validation_method");
-    private static final ParseField DISTANCE_TYPE_FIELD = new ParseField("distance_type");
+    @Deprecated
+    private static final ParseField DISTANCE_TYPE_FIELD = new ParseField("distance_type")
+        .withAllDeprecated("no replacement: `distance_type` is handled internally and no longer supported. "
+            + "It will be removed in a future version.");
     private static final ParseField UNIT_FIELD = new ParseField("unit");
     private static final ParseField DISTANCE_FIELD = new ParseField("distance");
     private static final ParseField IGNORE_UNMAPPED_FIELD = new ParseField("ignore_unmapped");
@@ -71,6 +75,7 @@ public class GeoDistanceQueryBuilder extends AbstractQueryBuilder<GeoDistanceQue
     /** Point to use as center. */
     private GeoPoint center = new GeoPoint(Double.NaN, Double.NaN);
     /** Algorithm to use for distance computation. */
+    @Deprecated
     private GeoDistance geoDistance = GeoDistance.ARC;
     /** How strict should geo coordinate validation be? */
     private GeoValidationMethod validationMethod = GeoValidationMethod.DEFAULT;
@@ -183,6 +188,7 @@ public class GeoDistanceQueryBuilder extends AbstractQueryBuilder<GeoDistanceQue
     }
 
     /** Which type of geo distance calculation method to use. */
+    @Deprecated
     public GeoDistanceQueryBuilder geoDistance(GeoDistance geoDistance) {
         if (geoDistance == null) {
             throw new IllegalArgumentException("geoDistance must not be null");
@@ -192,6 +198,7 @@ public class GeoDistanceQueryBuilder extends AbstractQueryBuilder<GeoDistanceQue
     }
 
     /** Returns geo distance calculation type to use. */
+    @Deprecated
     public GeoDistance geoDistance() {
         return this.geoDistance;
     }

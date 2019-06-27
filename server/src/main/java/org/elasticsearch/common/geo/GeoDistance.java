@@ -29,7 +29,9 @@ import java.util.Locale;
 
 /**
  * Geo distance calculation.
+ * @Deprecated geo_distance computation is handled internally to Lucene so this class is deprecated
  */
+@Deprecated
 public enum GeoDistance implements Writeable {
     PLANE, ARC;
 

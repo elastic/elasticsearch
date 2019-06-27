@@ -229,7 +229,6 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
                 "    \"lon\" : -51.94128329747579\n" +
                 "  } ],\n" +
                 "  \"unit\" : \"m\",\n" +
-                "  \"distance_type\" : \"arc\",\n" +
                 "  \"mode\" : \"SUM\"\n" +
                 "}";
         try (XContentParser itemParser = createParser(JsonXContent.jsonXContent, json)) {
@@ -246,7 +245,6 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
                 "    \"VDcvDuFjE\" : [ \"7umzzv8eychg\", \"dmdgmt5z13uw\", " +
                 "    \"ezu09wxw6v4c\", \"kc7s3515p6k6\", \"jgeuvjwrmfzn\", \"kcpcfj7ruyf8\" ],\n" +
                 "    \"unit\" : \"m\",\n" +
-                "    \"distance_type\" : \"arc\",\n" +
                 "    \"mode\" : \"MAX\",\n" +
                 "    \"nested\" : {\n" +
                 "      \"filter\" : {\n" +
@@ -268,6 +266,24 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
                 + "-37.20467280596495, 38.71751043945551, "
                 + "-69.44606635719538, 84.25200328230858, "
                 + "-39.03717711567879, 44.74099852144718]", Arrays.toString(result.points()));
+        }
+    }
+
+    public void testDistanceTypeIsDeprecated() throws IOException {
+        String json = "{\n" +
+            "  \"testname\" : [ {\n" +
+            "    \"lat\" : -6.046997540714173,\n" +
+            "    \"lon\" : -51.94128329747579\n" +
+            "  } ],\n" +
+            "  \"unit\" : \"m\",\n" +
+            "  \"distance_type\" : \"arc\",\n" +
+            "  \"mode\" : \"MAX\"\n" +
+            "}";
+        try (XContentParser itemParser = createParser(JsonXContent.jsonXContent, json)) {
+            itemParser.nextToken();
+            GeoDistanceSortBuilder.fromXContent(itemParser, json);
+            assertWarnings("Deprecated field [distance_type] used, replaced by [no replacement: " +
+                "`distance_type` is handled internally and no longer supported. It will be removed in a future version.]");
         }
     }
 
@@ -395,6 +411,10 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
         }
         if (testItem.getNestedPath() != null) {
             expectedWarnings.add("[nested_path] has been deprecated in favour of the [nested] parameter");
+        }
+        if (testItem.geoDistance() != null) {
+            expectedWarnings.add("Deprecated field [distance_type] used, replaced by [no replacement: " +
+                "`distance_type` is handled internally and no longer supported. It will be removed in a future version.]");
         }
         if (expectedWarnings.isEmpty() == false) {
             assertWarnings(expectedWarnings.toArray(new String[expectedWarnings.size()]));

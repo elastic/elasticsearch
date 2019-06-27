@@ -501,7 +501,9 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                 if (isConnectedPair(leader, clusterNode)) {
                     assertThat(nodeId + " is a follower of " + leaderId, clusterNode.coordinator.getMode(), is(FOLLOWER));
                     assertThat(nodeId + " has the same term as " + leaderId, clusterNode.coordinator.getCurrentTerm(), is(leaderTerm));
-                    assertTrue(nodeId + " has voted for " + leaderId, leader.coordinator.hasJoinVoteFrom(clusterNode.getLocalNode()));
+                    if (clusterNode.getLocalNode().isMasterNode()) {
+                        assertTrue(nodeId + " has voted for " + leaderId, leader.coordinator.hasJoinVoteFrom(clusterNode.getLocalNode()));
+                    }
                     assertThat(nodeId + " has the same accepted state as " + leaderId,
                         clusterNode.coordinator.getLastAcceptedState().getVersion(), isEqualToLeaderVersion);
                     if (clusterNode.getClusterStateApplyResponse() == ClusterStateApplyResponse.SUCCEED) {

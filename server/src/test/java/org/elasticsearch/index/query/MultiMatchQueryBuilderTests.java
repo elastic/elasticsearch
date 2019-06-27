@@ -66,7 +66,7 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
     @Override
     protected MultiMatchQueryBuilder doCreateTestQueryBuilder() {
         String fieldName = randomFrom(STRING_FIELD_NAME, INT_FIELD_NAME, DOUBLE_FIELD_NAME, BOOLEAN_FIELD_NAME, DATE_FIELD_NAME,
-                MISSING_FIELD_NAME, MISSING_WILDCARD_FIELD_NAME, FLAT_OBJECT_FIELD_NAME);
+                MISSING_FIELD_NAME, MISSING_WILDCARD_FIELD_NAME);
 
         final Object value;
         if (fieldName.equals(STRING_FIELD_NAME)) {

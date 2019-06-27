@@ -1226,46 +1226,4 @@ public class SearchFieldsIT extends ESIntegTestCase {
         assertThat(fields.get("_routing").isMetadataField(), equalTo(true));
         assertThat(fields.get("_routing").getValue().toString(), equalTo("1"));
     }
-
-     public void testFlatObjectDocValuesFields() throws Exception {
-        XContentBuilder mapping = XContentFactory.jsonBuilder()
-            .startObject()
-                .startObject("_doc")
-                    .startObject("properties")
-                        .startObject("flat_object")
-                            .field("type", "flattened")
-                        .endObject()
-                    .endObject()
-                .endObject()
-            .endObject();
-        assertAcked(prepareCreate("test").addMapping("_doc", mapping));
-        ensureGreen("test");
-
-        XContentBuilder source = XContentFactory.jsonBuilder()
-            .startObject()
-                .startObject("flat_object")
-                    .field("key", "value")
-                    .field("other_key", "other_value")
-                .endObject()
-            .endObject();
-        index("test", "_doc", "1", source);
-        refresh("test");
-
-        SearchResponse response = client().prepareSearch("test")
-            .addDocValueField("flat_object")
-            .addDocValueField("flat_object.key")
-            .get();
-        assertSearchResponse(response);
-        assertHitCount(response, 1);
-
-        Map<String, DocumentField> fields = response.getHits().getAt(0).getFields();
-
-        DocumentField field = fields.get("flat_object");
-        assertEquals("flat_object", field.getName());
-        assertEquals(Arrays.asList("other_value", "value"), field.getValues());
-
-        DocumentField keyedField = fields.get("flat_object.key");
-        assertEquals("flat_object.key", keyedField.getName());
-        assertEquals("value", keyedField.getValue());
-     }
 }

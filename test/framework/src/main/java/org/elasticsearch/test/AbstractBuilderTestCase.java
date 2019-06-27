@@ -115,14 +115,13 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
     protected static final String GEO_POINT_FIELD_NAME = "mapped_geo_point";
     protected static final String GEO_POINT_ALIAS_FIELD_NAME = "mapped_geo_point_alias";
     protected static final String GEO_SHAPE_FIELD_NAME = "mapped_geo_shape";
-    protected static final String FLAT_OBJECT_FIELD_NAME = "mapped_flat_object";
     protected static final String[] MAPPED_FIELD_NAMES = new String[]{STRING_FIELD_NAME, STRING_ALIAS_FIELD_NAME,
         INT_FIELD_NAME, INT_RANGE_FIELD_NAME, DOUBLE_FIELD_NAME, BOOLEAN_FIELD_NAME, DATE_NANOS_FIELD_NAME, DATE_FIELD_NAME,
         DATE_RANGE_FIELD_NAME, OBJECT_FIELD_NAME, GEO_POINT_FIELD_NAME, GEO_POINT_ALIAS_FIELD_NAME,
-        GEO_SHAPE_FIELD_NAME, FLAT_OBJECT_FIELD_NAME};
+        GEO_SHAPE_FIELD_NAME};
     protected static final String[] MAPPED_LEAF_FIELD_NAMES = new String[]{STRING_FIELD_NAME, STRING_ALIAS_FIELD_NAME,
         INT_FIELD_NAME, INT_RANGE_FIELD_NAME, DOUBLE_FIELD_NAME, BOOLEAN_FIELD_NAME, DATE_NANOS_FIELD_NAME,
-        DATE_FIELD_NAME, DATE_RANGE_FIELD_NAME,  GEO_POINT_FIELD_NAME, GEO_POINT_ALIAS_FIELD_NAME, FLAT_OBJECT_FIELD_NAME};
+        DATE_FIELD_NAME, DATE_RANGE_FIELD_NAME,  GEO_POINT_FIELD_NAME, GEO_POINT_ALIAS_FIELD_NAME};
 
     private static final Map<String, String> ALIAS_TO_CONCRETE_FIELD_NAME = new HashMap<>();
     static {
@@ -403,8 +402,7 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
                     OBJECT_FIELD_NAME, "type=object",
                     GEO_POINT_FIELD_NAME, "type=geo_point",
                     GEO_POINT_ALIAS_FIELD_NAME, "type=alias,path=" + GEO_POINT_FIELD_NAME,
-                    GEO_SHAPE_FIELD_NAME, "type=geo_shape",
-                    FLAT_OBJECT_FIELD_NAME, "type=flattened"
+                    GEO_SHAPE_FIELD_NAME, "type=geo_shape"
                 ))), MapperService.MergeReason.MAPPING_UPDATE);
                 // also add mappings for two inner field in the object field
                 mapperService.merge("_doc", new CompressedXContent("{\"properties\":{\"" + OBJECT_FIELD_NAME + "\":{\"type\":\"object\","

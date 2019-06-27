@@ -190,7 +190,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
             return this;
         }
 
-        public T addMultiField(Mapper.Builder mapperBuilder) {
+        public T addMultiField(Mapper.Builder<?, ?> mapperBuilder) {
             multiFieldsBuilder.add(mapperBuilder);
             return builder;
         }

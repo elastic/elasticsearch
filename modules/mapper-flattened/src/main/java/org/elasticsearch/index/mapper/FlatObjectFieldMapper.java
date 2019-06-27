@@ -88,7 +88,7 @@ import static org.elasticsearch.index.mapper.TypeParsers.parseField;
  * "key\0some value" and "key2.key3\0true". Note that \0 is used as a reserved separator
  *  character (see {@link FlatObjectFieldParser#SEPARATOR}).
  */
-public final class FlatObjectFieldMapper extends FieldMapper {
+public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
 
     public static final String CONTENT_TYPE = "flattened";
     private static final String KEYED_FIELD_SUFFIX = "._keyed";
@@ -160,7 +160,7 @@ public final class FlatObjectFieldMapper extends FieldMapper {
         }
 
         @Override
-        public Builder addMultiField(Mapper.Builder mapperBuilder) {
+        public Builder addMultiField(Mapper.Builder<?, ?> mapperBuilder) {
             throw new UnsupportedOperationException("[fields] is not supported for [" + CONTENT_TYPE + "] fields.");
         }
 
@@ -189,7 +189,7 @@ public final class FlatObjectFieldMapper extends FieldMapper {
     public static class TypeParser implements Mapper.TypeParser {
         @Override
         public Mapper.Builder<?,?> parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
-            FlatObjectFieldMapper.Builder builder = new FlatObjectFieldMapper.Builder(name);
+            Builder builder = new Builder(name);
             parseField(builder, name, node, parserContext);
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
                 Map.Entry<String, Object> entry = iterator.next();
@@ -425,6 +425,11 @@ public final class FlatObjectFieldMapper extends FieldMapper {
         }
 
         @Override
+        public boolean supportsGlobalOrdinalsMapping() {
+            return false;
+        }
+
+        @Override
         public Index index() {
             return delegate.index();
         }
@@ -534,7 +539,7 @@ public final class FlatObjectFieldMapper extends FieldMapper {
                                   int ignoreAbove,
                                   int depthLimit,
                                   Settings indexSettings) {
-        super(simpleName, fieldType, defaultFieldType, indexSettings, MultiFields.empty(), CopyTo.empty());
+        super(simpleName, fieldType, defaultFieldType, indexSettings, CopyTo.empty());
         assert fieldType.indexOptions().compareTo(IndexOptions.DOCS_AND_FREQS) <= 0;
 
         this.depthLimit = depthLimit;
@@ -564,6 +569,7 @@ public final class FlatObjectFieldMapper extends FieldMapper {
         return (RootFlatObjectFieldType) super.fieldType();
     }
 
+    @Override
     public KeyedFlatObjectFieldType keyedFieldType(String key) {
         return new KeyedFlatObjectFieldType(keyedFieldName(), key, fieldType());
     }

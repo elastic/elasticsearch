@@ -126,6 +126,11 @@ public abstract class AbstractIndexOrdinalsFieldData extends AbstractIndexFieldD
         return iterator;
     }
 
+    @Override
+    public boolean supportsGlobalOrdinalsMapping() {
+        return false;
+    }
+
     private static final class FrequencyFilter extends FilteredTermsEnum {
 
         private int minFreq;

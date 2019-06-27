@@ -541,8 +541,8 @@ PUT /index
 // CONSOLE
 
 If you want to change the default similarity after creating the index
-you must <<indices-open-close,close>> your index, send the following
-request and <<indices-open-close,open>> it again afterwards:
+you must <<indices-close,close>> your index, send the following
+request and <<indices-open,open>> it again afterwards:
 
 [source,js]
 --------------------------------------------------

@@ -621,3 +621,11 @@ without any configuration, if the total number of hits is not tracked.
 === X-Pack APIs
 
 {es} {xpack} APIs are now documented in <<rest-apis, REST APIs>>. 
+
+
+[role="exclude",id="indices-open-close"]
+=== Open / Close Index APIs
+
+For the open index API, see <<indices-open, Open index API>>.
+
+For the close index API, see <<indices-close, Close index API>>.

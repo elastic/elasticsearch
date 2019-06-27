@@ -1,0 +1,80 @@
+[[indices-close]]
+== Close index API
+++++
+<titleabbrev>Close index</titleabbrev>
+++++
+
+Closes an open index.
+
+[float]
+[[indices-close-request]]
+=== {api-request-title}
+
+`POST /<index>/_close`
+
+[float]
+[[indices-close-desc]]
+=== {api-description-title}
+
+You can use the close index API to close an open index.
+
+Closed indices are blocked for read/write operations. Closed indices have almost
+no overhead on the cluster, aside from metadata maintenance.
+
+You can re-open a closed index using the <<indices-open, open index API>>.
+
+NOTE: Closed indices can consume a significant amount of disk-space, which may
+cause problems in managed environments. You can disable index closing by
+changing the <<cluster-indices-close, `cluster.indices.close.enable` setting>>
+to `false`.
+
+[float]
+[[indices-close-path-params]]
+=== {api-path-parms-title}
+
+`<index>` (Required)::
++
+--
+(string) Comma-separated list or wildcard expression of index names to retrieve.
+
+If the `action.destructive_requires_name` setting is `true`, you can use a value
+of `_all` or `*` to close all indices.
+--
+
+[float]
+[[indices-close-query-params]]
+=== {api-query-parms-title}
+
+`allow_no_indices` (Optional)::
+(boolean) Indicates whether the operation is skipped if a wildcard expression
+matches no indices. Defaults to `false`.
+
+`expand_wildcards` (Optional)::
+(string) Indicates whether wildcard expressions should expand to
+open or closed indices. Possible values are:
+
+* `open` (Default)
+* `closed`
+* `none`
+* `all`
+
+`ignore_unavailable` (Optional)::
+(boolean) Indicates whether unavailable indices are skipped. Defaults to
+`false`.
+
+`wait_for_active_shards` (Optional)::
+(integer) Number of active shard copies required to start before returning a
+response. See <<index-wait-for-active-shards, Wait For active shards>>.
+
+include::{docdir}/rest-api/timeoutparms.asciidoc[]
+
+[float]
+[[indices-close-example]]
+=== {api-example-title}
+
+[source,js]
+----
+POST /my_index/_close
+----
+// CONSOLE
+// TEST[s/^/PUT my_index\n/]

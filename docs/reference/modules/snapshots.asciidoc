@@ -561,7 +561,7 @@ POST /_snapshot/my_backup/snapshot_1/_restore
 // TEST[continued]
 
 The restore operation can be performed on a functioning cluster. However, an
-existing index can be only restored if it's <<indices-open-close,closed>> and
+existing index can be only restored if it's <<indices-close,closed>> and
 has the same number of shards as the index in the snapshot. The restore
 operation automatically opens restored indices if they were closed and creates
 new indices if they didn't exist in the cluster. If cluster state is restored

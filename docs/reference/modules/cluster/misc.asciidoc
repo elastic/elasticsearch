@@ -43,7 +43,7 @@ shard limit.
 If the cluster is already over the limit, due to changes in node membership or
 setting changes, all operations that create or open indices will fail until
 either the limit is increased as described below, or some indices are
-<<indices-open-close,closed>> or <<indices-delete-index,deleted>> to bring the
+<<indices-close,closed>> or <<indices-delete-index,deleted>> to bring the
 number of shards below the limit.
 
 Replicas count towards this limit, but closed indexes do not. An index with 5
@@ -108,6 +108,13 @@ last `cluster.indices.tombstones.size` deletes, which defaults to 500. You can
 increase it if you expect nodes to be absent from the cluster and miss more
 than 500 deletes. We think that is rare, thus the default. Tombstones don't take
 up much space, but we also think that a number like 50,000 is probably too big.
+
+[[cluster-indices-close]]
+==== Closed indices
+
+`cluster.indices.close.enable`::
+(boolean) Indicates whether indices can be closed using the <<indices-close,
+close index API>>. Defaults to `true`.
 
 [[cluster-logger]]
 ==== Logger

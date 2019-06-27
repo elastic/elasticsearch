@@ -17,7 +17,7 @@ Index level settings can be set per-index.  Settings may be:
 _static_::
 
 They can only be set at index creation time or on a
-<<indices-open-close,closed index>>.
+<<indices-close,closed index>>.
 
 _dynamic_::
 

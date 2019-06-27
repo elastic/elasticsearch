@@ -14,7 +14,8 @@ index settings, aliases, mappings, and index templates.
 * <<indices-delete-index>>
 * <<indices-get-index>>
 * <<indices-exists>>
-* <<indices-open-close>>
+* <<indices-close>>
+* <<indices-open>>
 * <<indices-shrink-index>>
 * <<indices-split-index>>
 * <<indices-rollover-index>>
@@ -67,7 +68,9 @@ include::indices/get-index.asciidoc[]
 
 include::indices/indices-exists.asciidoc[]
 
-include::indices/open-close.asciidoc[]
+include::indices/close.asciidoc[]
+
+include::indices/open.asciidoc[]
 
 include::indices/shrink-index.asciidoc[]
 

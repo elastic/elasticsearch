@@ -8,19 +8,20 @@
 
 Deletes an existing model snapshot.
 
-
-==== Request
+[[ml-delete-snapshot-request]]
+==== {api-request-title}
 
 `DELETE _ml/anomaly_detectors/<job_id>/model_snapshots/<snapshot_id>`
 
-
-==== Description
+[[ml-delete-snapshot-desc]]
+==== {api-description-title}
 
 IMPORTANT: You cannot delete the active model snapshot. To delete that snapshot,
 first revert to a different one. To identify the active model snapshot, refer to
 the `model_snapshot_id` in the results from the get jobs API.
 
-==== Path Parameters
+[[ml-delete-snapshot-path-parms]]
+==== {api-path-parms-title}
 
 `job_id` (required)::
   (string) Identifier for the job
@@ -28,14 +29,14 @@ the `model_snapshot_id` in the results from the get jobs API.
 `snapshot_id` (required)::
   (string) Identifier for the model snapshot
 
-
-==== Authorization
+[[ml-delete-snapshot-prereqs]]
+==== {api-prereq-title}
 
 You must have `manage_ml`, or `manage` cluster privileges to use this API.
 For more information, see {xpack-ref}/security-privileges.html[Security Privileges].
 
-
-==== Examples
+[[ml-delete-snapshot-example]]
+==== {api-examples-title}
 
 The following example deletes the `1491948163` snapshot:
 

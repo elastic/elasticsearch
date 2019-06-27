@@ -10,33 +10,33 @@
 
 Previews a {dfeed}.
 
-
-==== Request
+[[ml-preview-datafeed-request]]
+==== {api-request-title}
 
 `GET _ml/datafeeds/<datafeed_id>/_preview`
 
-
-==== Description
+[[ml-preview-datafeed-desc]]
+==== {api-description-title}
 
 The preview {dfeeds} API returns the first "page" of results from the `search`
 that is created by using the current {dfeed} settings. This preview shows the
 structure of the data that will be passed to the anomaly detection engine.
 
-
-==== Path Parameters
+[[ml-preview-datafeed-path-parms]]
+==== {api-path-parms-title}
 
 `datafeed_id` (required)::
   (string) Identifier for the {dfeed}
 
-
-==== Authorization
+[[ml-preview-datafeed-prereqs]]
+==== {api-prereq-title}
 
 If {es} {security-features} are enabled, you must have `monitor_ml`, `monitor`,
 `manage_ml`, or `manage` cluster privileges to use this API. For more
 information, see
-{stack-ov}/security-privileges.html[Security Privileges].
+{stack-ov}/security-privileges.html[Security privileges].
 
-
+[[ml-preview-datafeed-security]]
 ==== Security Integration
 
 When {es} {security-features} are enabled, the {dfeed} query is previewed using
@@ -47,8 +47,8 @@ not accurately reflect what the {dfeed} will return when started.  To avoid
 such problems, the same user that creates/updates the {dfeed} should preview
 it to ensure it is returning the expected data.
 
-
-==== Examples
+[[ml-preview-datafeed-example]]
+==== {api-examples-title}
 
 The following example obtains a preview of the `datafeed-farequote` {dfeed}:
 

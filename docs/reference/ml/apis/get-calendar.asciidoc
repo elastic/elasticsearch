@@ -8,27 +8,27 @@
 
 Retrieves configuration information for calendars.
 
-
-==== Request
+[[ml-get-calendar-request]]
+==== {api-request-title}
 
 `GET _ml/calendars/<calendar_id>` +
 
 `GET _ml/calendars/_all`
 
-
-===== Description
+[[ml-get-calendar-desc]]
+==== {api-description-title}
 
 You can get information for a single calendar or for all calendars by using
 `_all`.
 
-
-==== Path Parameters
+[[ml-get-calendar-path-parms]]
+==== {api-path-parms-title}
 
 `calendar_id`::
   (string) Identifier for the calendar.
 
-
-==== Request Body
+[[ml-get-calendar-request-body]]
+==== {api-request-body-title}
 
 `page`::
 `from`:::
@@ -37,8 +37,8 @@ You can get information for a single calendar or for all calendars by using
 `size`:::
     (integer) Specifies the maximum number of calendars to obtain.
 
-
-==== Results
+[[ml-get-calendar-results]]
+==== {api-response-body-title}
 
 The API returns the following information:
 
@@ -46,15 +46,15 @@ The API returns the following information:
   (array) An array of calendar resources.
   For more information, see <<ml-calendar-resource>>.
 
-
-==== Authorization
+[[ml-get-calendar-prereqs]]
+==== {api-prereq-title}
 
 You must have `monitor_ml`, `monitor`, `manage_ml`, or `manage` cluster
 privileges to use this API. For more information, see
-{xpack-ref}/security-privileges.html[Security Privileges].
+{stack-ov}/security-privileges.html[Security Privileges].
 
-
-==== Examples
+[[ml-get-calendar-example]]
+==== {api-examples-title}
 
 The following example gets configuration information for the `planned-outages`
 calendar:

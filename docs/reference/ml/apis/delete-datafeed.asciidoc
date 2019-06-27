@@ -10,38 +10,37 @@
 
 Deletes an existing {dfeed}.
 
-
-==== Request
+[[ml-delete-datafeed-request]]
+==== {api-request-title}
 
 `DELETE _ml/datafeeds/<feed_id>`
 
-
-==== Description
+[[ml-delete-datafeed-desc]]
+==== {api-description-title}
 
 NOTE: Unless the `force` parameter is used, the {dfeed} must be stopped before it can be deleted.
 
-
-==== Path Parameters
+[[ml-delete-datafeed-path-parms]]
+==== {api-path-parms-title}
 
 `feed_id` (required)::
   (string) Identifier for the {dfeed}
 
-
-===== Query Parameters
+[[ml-delete-datafeed-query-parms]]
+==== {api-query-parms-title}
 
 `force`::
   (boolean) Use to forcefully delete a started {dfeed}; this method is quicker than
   stopping and deleting the {dfeed}.
 
-
-===== Authorization
+[[ml-delete-datafeed-prereqs]]
+==== {api-prereq-title}
 
 You must have `manage_ml`, or `manage` cluster privileges to use this API.
-For more information, see {xpack-ref}/security-privileges.html[Security Privileges].
-//<<privileges-list-cluster>>.
+For more information, see {stack-ov}/security-privileges.html[Security privileges].
 
-
-==== Examples
+[[ml-delete-datafeed-example]]
+==== {api-examples-title}
 
 The following example deletes the `datafeed-total-requests` {dfeed}:
 

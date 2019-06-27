@@ -10,13 +10,13 @@
 
 Instantiates a {dfeed}.
 
-
-==== Request
+[[ml-put-datafeed-request]]
+==== {api-request-title}
 
 `PUT _ml/datafeeds/<feed_id>`
 
-
-==== Description
+[[ml-put-datafeed-desc]]
+==== {api-description-title}
 
 You must create a job before you create a {dfeed}.  You can associate only one
 {dfeed} to each job.
@@ -26,16 +26,16 @@ IMPORTANT:  You must use {kib} or this API to create a {dfeed}. Do not put a {df
             If {es} {security-features} are enabled, do not give users `write`
             privileges on the `.ml-config` index.
 
-
-==== Path Parameters
+[[ml-put-datafeed-path-parms]]
+==== {api-path-parms-title}
 
 `feed_id` (required)::
   (string) A numerical character string that uniquely identifies the {dfeed}.
   This identifier can contain lowercase alphanumeric characters (a-z and 0-9),
   hyphens, and underscores. It must start and end with alphanumeric characters.
 
-
-==== Request Body
+[[ml-put-datafeed-request-body]]
+==== {api-request-body-title}
 
 `aggregations`::
   (object) If set, the {dfeed} performs aggregation searches.
@@ -90,22 +90,22 @@ IMPORTANT:  You must use {kib} or this API to create a {dfeed}. Do not put a {df
 For more information about these properties,
 see <<ml-datafeed-resource>>.
 
-
-==== Authorization
+[[ml-put-datafeed-prereqs]]
+==== {api-prereq-title}
 
 If {es} {security-features} are enabled, you must have `manage_ml`, or `manage`
 cluster privileges to use this API. For more information, see
-{stack-ov}/security-privileges.html[Security Privileges].
+{stack-ov}/security-privileges.html[Security privileges].
 
-
+[[ml-put-datafeed-security]]
 ==== Security integration
 
 When {es} {security-features} are enabled, your {dfeed} remembers which roles the
 user who created it had at the time of creation and runs the query using those
 same roles.
 
-
-==== Examples
+[[ml-put-datafeed-example]]
+==== {api-examples-title}
 
 The following example creates the `datafeed-total-requests` {dfeed}:
 

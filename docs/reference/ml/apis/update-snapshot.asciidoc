@@ -8,14 +8,13 @@
 
 Updates certain properties of a snapshot.
 
-==== Request
+[[ml-update-snapshot-request]]
+==== {api-request-title}
 
 `POST _ml/anomaly_detectors/<job_id>/model_snapshots/<snapshot_id>/_update`
 
-
-//==== Description
-
-==== Path Parameters
+[[ml-update-snapshot-path-parms]]
+==== {api-path-parms-title}
 
 `job_id` (required)::
   (string) Identifier for the job
@@ -23,7 +22,8 @@ Updates certain properties of a snapshot.
 `snapshot_id` (required)::
   (string) Identifier for the model snapshot
 
-==== Request Body
+[[ml-update-snapshot-request-body]]
+==== {api-request-body-title}
 
 The following properties can be updated after the model snapshot is created:
 
@@ -37,16 +37,15 @@ The following properties can be updated after the model snapshot is created:
   Note that this snapshot will still be deleted when the job is deleted.
   The default value is false.
 
-
-==== Authorization
+[[ml-update-snapshot-prereqs]]
+==== {api-prereq-title}
 
 You must have `manage_ml`, or `manage` cluster privileges to use this API.
 For more information, see
-{xpack-ref}/security-privileges.html[Security Privileges].
-//<<privileges-list-cluster>>.
+{stack-ov}/security-privileges.html[Security privileges].
 
-
-==== Examples
+[[ml-update-snapshot-example]]
+==== {api-examples-title}
 
 The following example updates the snapshot identified as `1491852978`:
 

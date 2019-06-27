@@ -453,3 +453,41 @@ setup:
               "aggs": {"avg_response": {"avg": {"field": "responsetime"}}}
             }
           }
+
+---
+"Test put valid config with create_time in the body":
+
+  - do:
+      catch: /Found \[create_time\], not allowed for strict parsing/
+      data_frame.put_data_frame_transform:
+        transform_id: "airline-transform-with-create-time"
+        body: >
+          {
+            "source": { "index": "airline-data" },
+            "dest": { "index": "airline-data-by-airline" },
+            "pivot": {
+              "group_by": { "airline": {"terms": {"field": "airline"}}},
+              "aggs": {"avg_response": {"avg": {"field": "responsetime"}}}
+            },
+            "description": "yaml test transform on airline-data",
+            "create_time": 123456789
+          }
+
+---
+"Test put valid config with version in the body":
+
+  - do:
+      catch: /Found \[version\], not allowed for strict parsing/
+      data_frame.put_data_frame_transform:
+        transform_id: "airline-transform-with-version"
+        body: >
+          {
+            "source": { "index": "airline-data" },
+            "dest": { "index": "airline-data-by-airline" },
+            "pivot": {
+              "group_by": { "airline": {"terms": {"field": "airline"}}},
+              "aggs": {"avg_response": {"avg": {"field": "responsetime"}}}
+            },
+            "description": "yaml test transform on airline-data",
+            "version": "7.3.0"
+          }

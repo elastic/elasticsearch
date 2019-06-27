@@ -42,7 +42,7 @@ If the {es} {security-features} are enabled, you must have
   reduce the data. See <<data-frame-transform-pivot>>.
 
 [discrete]
-==== {api-example-title}
+==== {api-examples-title}
 
 [source,js]
 --------------------------------------------------

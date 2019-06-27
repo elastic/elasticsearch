@@ -99,7 +99,7 @@ are no matches or only partial matches.
 
 [discrete]
 [[get-data-frame-transform-example]]
-==== {api-example-title}
+==== {api-examples-title}
 
 The following example retrieves information about a maximum of ten transforms:
 

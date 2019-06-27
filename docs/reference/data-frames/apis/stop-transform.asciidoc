@@ -96,7 +96,7 @@ are no matches or only partial matches.
 
 [discrete]
 [[stop-data-frame-transform-example]]
-==== {api-example-title}
+==== {api-examples-title}
 
 [source,js]
 --------------------------------------------------

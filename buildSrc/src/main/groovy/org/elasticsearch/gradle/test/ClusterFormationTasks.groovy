@@ -424,7 +424,7 @@ class ClusterFormationTasks {
              * getting the short name requiring the path to already exist.
              */
             final Object esKeystoreUtil = "${-> node.binPath().resolve('elasticsearch-keystore').toString()}"
-            return configureExecTask(name, project, setup, node, esKeystoreUtil, 'create', '--nopass')
+            return configureExecTask(name, project, setup, node, esKeystoreUtil, 'create')
         }
     }
 

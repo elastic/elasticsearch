@@ -8,32 +8,32 @@
 
 Deletes a filter.
 
-
-==== Request
+[[ml-delete-filter-request]]
+==== {api-request-title}
 
 `DELETE _ml/filters/<filter_id>`
 
-
-==== Description
+[[ml-delete-filter-desc]]
+==== {api-description-title}
 
 This API deletes a {stack-ov}/ml-rules.html[filter]. 
 If a {ml} job references the filter, you cannot delete the filter. You must 
 update or delete the job before you can delete the filter.
 
-
-==== Path Parameters
+[[ml-delete-filter-path-parms]]
+==== {api-path-parms-title}
 
 `filter_id` (required)::
   (string) Identifier for the filter.
 
-
-==== Authorization
+[[ml-delete-filter-prereqs]]
+==== {api-prereq-title}
 
 You must have `manage_ml`, or `manage` cluster privileges to use this API.
 For more information, see {xpack-ref}/security-privileges.html[Security Privileges].
 
-
-==== Examples
+[[ml-delete-filter-example]]
+==== {api-examples-title}
 
 The following example deletes the `safe_domains` filter:
 

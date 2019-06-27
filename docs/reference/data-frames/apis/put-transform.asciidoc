@@ -70,7 +70,7 @@ IMPORTANT:  You must use {kib} or this API to create a {dataframe-transform}.
 
 [discrete]
 [[put-data-frame-transform-example]]
-==== {api-example-title}
+==== {api-examples-title}
 
 [source,js]
 --------------------------------------------------

@@ -10,21 +10,25 @@
 
 Updates certain properties of a {dfeed}.
 
-==== Request
+[[ml-update-datafeed-request]]
+==== {api-request-title}
 
 `POST _ml/datafeeds/<feed_id>/_update`
 
-===== Description
+[[ml-update-datafeed-desc]]
+==== {api-description-title}
 
 NOTE: If you update the `delayed_data_check_config` property, you must stop and
 start the {dfeed} for the change to be applied.
 
-==== Path Parameters
+[[ml-update-datafeed-path-parms]]
+==== {api-path-parms-title}
 
 `feed_id` (required)::
   (string) Identifier for the {dfeed}
 
-==== Request Body
+[[ml-update-datafeed-request-body]]
+==== {api-request-body-title}
 
 The following properties can be updated after the {dfeed} is created:
 
@@ -80,22 +84,22 @@ The following properties can be updated after the {dfeed} is created:
 For more information about these properties,
 see <<ml-datafeed-resource>>.
 
-
-==== Authorization
+[[ml-update-datafeed-prereqs]]
+==== {api-prereq-title}
 
 If {es} {security-features} are enabled, you must have `manage_ml`, or `manage`
 cluster privileges to use this API. For more information, see
-{stack-ov}/security-privileges.html[Security Privileges].
+{stack-ov}/security-privileges.html[Security privileges].
 
-
+[[ml-update-datafeed-security]]
 ==== Security Integration
 
 When {es} {security-features} are enabled, your {dfeed} remembers which roles the
 user who updated it had at the time of update and runs the query using those
 same roles.
 
-
-==== Examples
+[[ml-update-datafeed-example]]
+==== {api-examples-title}
 
 The following example updates the query for the `datafeed-total-requests`
 {dfeed} so that only log entries of error level are analyzed:

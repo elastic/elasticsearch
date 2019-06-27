@@ -68,7 +68,7 @@ see {stack-ov}/security-privileges.html[Security privileges] and
 
 [discrete]
 [[get-data-frame-transform-example]]
-==== {api-example-title}
+==== {api-examples-title}
 
 The following example retrieves information about a maximum of ten transforms:
 

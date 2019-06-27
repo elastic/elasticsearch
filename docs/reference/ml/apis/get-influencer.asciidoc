@@ -8,19 +8,19 @@
 
 Retrieves job results for one or more influencers.
 
-
-==== Request
+[[ml-get-influencer-request]]
+==== {api-request-title}
 
 `GET _ml/anomaly_detectors/<job_id>/results/influencers`
 
-//===== Description
-
-==== Path Parameters
+[[ml-get-influencer-path-parms]]
+==== {api-path-parms-title}
 
 `job_id`::
   (string) Identifier for the job.
 
-==== Request Body
+[[ml-get-influencer-request-body]]
+==== {api-request-body-title}
 
 `desc`::
   (boolean) If true, the results are sorted in descending order.
@@ -48,8 +48,8 @@ Retrieves job results for one or more influencers.
 `start`::
   (string) Returns influencers with timestamps after this time.
 
-
-==== Results
+[[ml-get-influencer-results]]
+==== {api-response-body-title}
 
 The API returns the following information:
 
@@ -57,19 +57,18 @@ The API returns the following information:
   (array) An array of influencer objects.
   For more information, see <<ml-results-influencers,Influencers>>.
 
-
-==== Authorization
+[[ml-get-influencer-prereqs]]
+==== {api-prereq-title}
 
 You must have `monitor_ml`, `monitor`, `manage_ml`, or `manage` cluster
 privileges to use this API. You also need `read` index privilege on the index
 that stores the results. The `machine_learning_admin` and `machine_learning_user`
 roles provide these privileges. For more information, see
-{xpack-ref}/security-privileges.html[Security Privileges] and
-{xpack-ref}/built-in-roles.html[Built-in Roles].
-//<<security-privileges>> and <<built-in-roles>>.
+{stack-ov}/security-privileges.html[Security Privileges] and
+{stack-ov}/built-in-roles.html[Built-in Roles].
 
-
-==== Examples
+[[ml-get-influencer-example]]
+==== {api-examples-title}
 
 The following example gets influencer information for the `it_ops_new_kpi` job:
 

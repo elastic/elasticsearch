@@ -8,13 +8,13 @@
 
 Forces any buffered data to be processed by the job.
 
-
-==== Request
+[[ml-flush-job-request]]
+==== {api-request-title}
 
 `POST _ml/anomaly_detectors/<job_id>/_flush`
 
-
-==== Description
+[[ml-flush-job-desc]]
+==== {api-description-title}
 
 The flush jobs API is only applicable when sending data for analysis using the
 <<ml-post-data,post data API>>. Depending on the content of the buffer, then it
@@ -26,14 +26,14 @@ remains open and is available to continue analyzing data. A close operation
 additionally prunes and persists the model state to disk and the job must be
 opened again before analyzing further data.
 
-
-==== Path Parameters
+[[ml-flush-job-path-parms]]
+==== {api-path-parms-title}
 
 `job_id` (required)::
 (string) Identifier for the job
 
-
-==== Query Parameters
+[[ml-flush-job-query-parms]]
+==== {api-query-parms-title}
 
 `advance_time`::
   (string) Specifies to advance to a particular time value. Results are
@@ -56,14 +56,14 @@ opened again before analyzing further data.
   (string) When used in conjunction with `calc_interim`, specifies the range of
   buckets on which to calculate interim results.
 
-
-==== Authorization
+[[ml-flush-job-prereqs]]
+==== {api-prereq-title}
 
 You must have `manage_ml`, or `manage` cluster privileges to use this API.
 For more information, see {xpack-ref}/security-privileges.html[Security Privileges].
 
-
-==== Examples
+[[ml-flush-job-example]]
+==== {api-examples-title}
 
 The following example flushes the `total-requests` job:
 

@@ -8,18 +8,18 @@
 
 Updates the description of a filter, adds items, or removes items. 
 
-==== Request
+[[ml-update-filter-request]]
+==== {api-request-title}
 
 `POST _ml/filters/<filter_id>/_update`
 
-//==== Description
-
-==== Path Parameters
+[[ml-update-filter-path-parms]]
+==== {api-path-parms-title}
 
 `filter_id` (required)::
 		(string) Identifier for the filter.
 
-
+[[ml-update-filter-request-body]]
 ==== Request Body
 
 `description`::
@@ -31,15 +31,15 @@ Updates the description of a filter, adds items, or removes items.
 `remove_items`::
   (array of strings) The items to remove from the filter.
 
-
-==== Authorization
+[[ml-update-filter-prereqs]]
+==== {api-prereq-title}
 
 You must have `manage_ml`, or `manage` cluster privileges to use this API.
 For more information, see
-{xpack-ref}/security-privileges.html[Security Privileges].
+{stack-ov}/security-privileges.html[Security privileges].
 
-
-==== Examples
+[[ml-update-filter-example]]
+==== {api-examples-title}
 
 You can change the description, add and remove items to the `safe_domains` filter as follows:
 

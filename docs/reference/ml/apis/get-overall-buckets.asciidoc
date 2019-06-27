@@ -9,7 +9,8 @@
 Retrieves overall bucket results that summarize the
 bucket results of multiple jobs.
 
-==== Request
+[[ml-get-overall-buckets-request]]
+==== {api-request-title}
 
 `GET _ml/anomaly_detectors/<job_id>/results/overall_buckets` +
 
@@ -17,7 +18,8 @@ bucket results of multiple jobs.
 
 `GET _ml/anomaly_detectors/_all/results/overall_buckets`
 
-==== Description
+[[ml-get-overall-buckets-desc]]
+==== {api-description-title}
 
 You can summarize the bucket results for all jobs by using `_all` or by
 specifying `*` as the `<job_id>`.
@@ -41,13 +43,15 @@ to request overall buckets that span longer than the largest job's `bucket_span`
 When set, the `overall_score` will be the max `overall_score` of the corresponding
 overall buckets with a span equal to the largest job's `bucket_span`.
 
-==== Path Parameters
+[[ml-get-overall-buckets-path-parms]]
+==== {api-path-parms-title}
 
 `job_id`::
   (string) Identifier for the job. It can be a job identifier, a group name, a
   comma-separated list of jobs or groups, or a wildcard expression.
 
-==== Request Body
+[[ml-get-overall-buckets-request-body]]
+==== {api-request-body-title}
 
 `allow_no_jobs`::
   (boolean) If `false` and the `job_id` does not match any job an error will
@@ -76,8 +80,8 @@ overall buckets with a span equal to the largest job's `bucket_span`.
   (integer) The number of top job bucket scores to be used in the
   `overall_score` calculation. The default value is `1`.
 
-
-===== Results
+[[ml-get-overall-buckets-results]]
+==== {api-response-body-title}
 
 The API returns the following information:
 
@@ -85,18 +89,18 @@ The API returns the following information:
   (array) An array of overall bucket objects. For more information, see
   <<ml-results-overall-buckets,Overall Buckets>>.
 
-
-==== Authorization
+[[ml-get-overall-buckets-prereqs]]
+==== {api-prereq-title}
 
 You must have `monitor_ml`, `monitor`, `manage_ml`, or `manage` cluster
 privileges to use this API. You also need `read` index privilege on the index
 that stores the results. The `machine_learning_admin` and `machine_learning_user`
 roles provide these privileges. For more information, see
-{xpack-ref}/security-privileges.html[Security Privileges] and
-{xpack-ref}/built-in-roles.html[Built-in Roles].
+{stack-ov}/security-privileges.html[Security Privileges] and
+{stack-ov}/built-in-roles.html[Built-in Roles].
 
-
-==== Examples
+[[ml-get-overall-buckets-example]]
+==== {api-examples-title}
 
 The following example gets overall buckets for jobs with IDs matching `job-*`:
 

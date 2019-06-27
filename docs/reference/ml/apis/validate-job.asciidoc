@@ -8,30 +8,32 @@
 
 Validates job configuration information.
 
-==== Request
+[[ml-valid-job-request]]
+==== {api-request-title}
 
 `POST _ml/anomaly_detectors/_validate`
 
-==== Description
+[[ml-valid-job-desc]]
+==== {api-description-title}
 
 The validate jobs API enables you validate the job configuration before you
 create the job.
 
-
-==== Request Body
+[[ml-valid-job-request-body]]
+==== {api-request-body-title}
 
 For a list of the properties that you can specify in the body of this API,
 see <<ml-job-resource,Job Resources>>.
 
-
-==== Authorization
+[[ml-valid-job-prereqs]]
+==== {api-prereq-title}
 
 You must have `manage_ml`, or `manage` cluster privileges to use this API.
 For more information, see
-{xpack-ref}/security-privileges.html[Security Privileges].
+{stack-ov}/security-privileges.html[Security privileges].
 
-
-==== Examples
+[[ml-valid-job-example]]
+==== {api-examples-title}
 
 The following example validates job configuration information:
 

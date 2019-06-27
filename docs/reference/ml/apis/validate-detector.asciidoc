@@ -8,30 +8,32 @@
 
 Validates detector configuration information.
 
-==== Request
+[[ml-valid-detector-request]]
+==== {api-request-title}
 
 `POST _ml/anomaly_detectors/_validate/detector`
 
-==== Description
+[[ml-valid-detector-desc]]
+==== {api-description-title}
 
 The validate detectors API enables you validate the detector configuration
 before you create a job.
 
-
-==== Request Body
+[[ml-valid-detector-request-body]]
+==== {api-request-body-title}
 
 For a list of the properties that you can specify in the body of this API,
 see <<ml-detectorconfig,detector configuration objects>>.
 
-
-==== Authorization
+[[ml-valid-detector-prereqs]]
+==== {api-prereq-title}
 
 You must have `manage_ml`, or `manage` cluster privileges to use this API.
 For more information, see
-{xpack-ref}/security-privileges.html[Security Privileges].
+{stack-ov}/security-privileges.html[Security privileges].
 
-
-==== Examples
+[[ml-valid-detector-example]]
+==== {api-examples-title}
 
 The following example validates detector configuration information:
 

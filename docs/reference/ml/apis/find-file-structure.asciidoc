@@ -11,12 +11,13 @@ experimental[]
 Finds the structure of a text file. The text file must contain data that is
 suitable to be ingested into {es}.
 
-==== Request
+[[ml-find-file-structure-request]]
+==== {api-request-title}
 
 `POST _ml/find_file_structure`
 
-
-==== Description
+[[ml-find-file-structure-desc]]
+==== {api-description-title}
 
 This API provides a starting point for ingesting data into {es} in a format that
 is suitable for subsequent use with other {ml} functionality.
@@ -47,7 +48,8 @@ specify the `explain` query parameter. It causes an `explanation` to appear in
 the response, which should help in determining why the returned structure was
 chosen.
 
-==== Query Parameters
+[[ml-find-file-structure-query-parms]]
+==== {api-query-parms-title}
 
 `charset`::
   (string) The file's character set. It must be a character set that is supported
@@ -201,22 +203,23 @@ the formats it knows, which are these Java time formats:
 
 --
 
-==== Request Body
+[[ml-find-file-structure-request-body]]
+==== {api-request-body-title}
 
 The text file that you want to analyze. It must contain data that is suitable to
 be ingested into {es}. It does not need to be in JSON format and it does not
 need to be UTF-8 encoded. The size is limited to the {es} HTTP receive buffer
 size, which defaults to 100 Mb.
 
-
-==== Authorization
+[[ml-find-file-structure-prereqs]]
+==== {api-prereq-title}
 
 You must have `monitor_ml`, or `monitor` cluster privileges to use this API.
 For more information, see {stack-ov}/security-privileges.html[Security Privileges].
 
 
 [[ml-find-file-structure-examples]]
-==== Examples
+==== {api-examples-title}
 
 Suppose you have a newline-delimited JSON file that contains information about
 some books. You can send the contents to the `find_file_structure` endpoint:

@@ -70,7 +70,7 @@ All {dataframe-transforms} can be stopped by using `_all` or `*` as the
 
 [discrete]
 [[stop-data-frame-transform-example]]
-==== {api-example-title}
+==== {api-examples-title}
 
 [source,js]
 --------------------------------------------------

@@ -8,27 +8,27 @@
 
 Retrieves filters.
 
-
-==== Request
+[[ml-get-filter-request]]
+==== {api-request-title}
 
 `GET _ml/filters/<filter_id>` +
 
 `GET _ml/filters/`
 
-
-===== Description
+[[ml-get-filter-desc]]
+==== {api-description-title}
 
 You can get a single filter or all filters. For more information, see 
 {stack-ov}/ml-rules.html[Machine learning custom rules].
 
-
-==== Path Parameters
+[[ml-get-filter-path-parms]]
+==== {api-path-parms-title}
 
 `filter_id`::
   (string) Identifier for the filter.
 
-
-==== Request Body
+[[ml-get-filter-query-parms]]
+==== {api-query-parms-title}
 
 `from`:::
     (integer) Skips the specified number of filters.
@@ -36,8 +36,8 @@ You can get a single filter or all filters. For more information, see
 `size`:::
     (integer) Specifies the maximum number of filters to obtain.
 
-
-==== Results
+[[ml-get-filter-results]]
+==== {api-response-body-title}
 
 The API returns the following information:
 
@@ -45,15 +45,15 @@ The API returns the following information:
   (array) An array of filter resources.
   For more information, see <<ml-filter-resource>>.
 
-
-==== Authorization
+[[ml-get-filter-prereqs]]
+==== {api-prereq-title}
 
 You must have `monitor_ml`, `monitor`, `manage_ml`, or `manage` cluster
 privileges to use this API. For more information, see
-{xpack-ref}/security-privileges.html[Security Privileges].
+{stack-ov}/security-privileges.html[Security Privileges].
 
-
-==== Examples
+[[ml-get-filter-example]]
+==== {api-examples-title}
 
 The following example gets configuration information for the `safe_domains`
 filter:

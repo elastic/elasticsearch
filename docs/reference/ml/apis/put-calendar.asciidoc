@@ -8,35 +8,38 @@
 
 Instantiates a calendar.
 
-==== Request
+[[ml-put-calendar-request]]
+==== {api-request-title}
 
 `PUT _ml/calendars/<calendar_id>`
 
-===== Description
+[[ml-put-calendar-desc]]
+==== {api-description-title}
 
 For more information, see
-{xpack-ref}/ml-calendars.html[Calendars and Scheduled Events].
+{stack-ov}/ml-calendars.html[Calendars and Scheduled Events].
 
-==== Path Parameters
+[[ml-put-calendar-path-parms]]
+==== {api-path-parms-title}
 
 `calendar_id` (required)::
   (string) Identifier for the calendar.
 
-
-==== Request Body
+[[ml-put-calendar-request-body]]
+==== {api-request-body-title}
 
 `description`::
   (string) A description of the calendar.
 
-
-==== Authorization
+[[ml-put-calendar-prereqs]]
+==== {api-prereq-title}
 
 You must have `manage_ml`, or `manage` cluster privileges to use this API.
 For more information, see
-{xpack-ref}/security-privileges.html[Security Privileges].
+{stack-ov}/security-privileges.html[Security privileges].
 
-
-==== Examples
+[[ml-put-calendar-example]]
+==== {api-examples-title}
 
 The following example creates the `planned-outages` calendar:
 

@@ -1236,7 +1236,6 @@ public final class InternalTestCluster extends TestCluster {
             for (IndexService indexService : indexServices) {
                 for (IndexShard indexShard : indexService) {
                     try {
-                        IndexShardTestCase.assertAtMostOneLuceneDocumentPerSequenceNumber(indexShard);
                         IndexShardTestCase.assertConsistentHistoryBetweenTranslogAndLucene(indexShard);
                     } catch (AlreadyClosedException ignored) {
                         // shard is closed

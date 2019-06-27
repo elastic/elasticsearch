@@ -8,27 +8,29 @@
 
 Instantiates a job.
 
-==== Request
+[[ml-put-job-request]]
+==== {api-request-title}
 
 `PUT _ml/anomaly_detectors/<job_id>`
 
-===== Description
+[[ml-put-job-desc]]
+==== {api-description-title}
 
 IMPORTANT: You must use {kib} or this API to create a {ml} job. Do not put a job
             directly to the `.ml-config` index using the Elasticsearch index API.
             If {es} {security-features} are enabled, do not give users `write`
             privileges on the `.ml-config` index.
 
-
-==== Path Parameters
+[[ml-put-job-path-parms]]
+==== {api-path-parms-title}
 
 `job_id` (required)::
   (string) Identifier for the job. This identifier can contain lowercase
   alphanumeric characters (a-z and 0-9), hyphens, and underscores. It must
   start and end with alphanumeric characters.
 
-
-==== Request Body
+[[ml-put-job-request-body]]
+==== {api-request-body-title}
 
 `analysis_config`::
   (object) The analysis configuration, which specifies how to analyze the data.
@@ -78,14 +80,15 @@ IMPORTANT: You must use {kib} or this API to create a {ml} job. Do not put a job
   (long) Advanced configuration option. The number of days for which job results
   are retained. See <<ml-job-resource>>.
 
-==== Authorization
+[[ml-put-job-prereqs]]
+==== {api-prereq-title}
 
 You must have `manage_ml`, or `manage` cluster privileges to use this API.
 For more information, see
-{xpack-ref}/security-privileges.html[Security Privileges].
+{stack-ov}/security-privileges.html[Security privileges].
 
-
-==== Examples
+[[ml-put-job-example]]
+==== {api-examples-title}
 
 The following example creates the `total-requests` job:
 

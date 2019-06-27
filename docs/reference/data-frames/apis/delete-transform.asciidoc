@@ -43,7 +43,7 @@ NOTE: Before you can delete the {dataframe-transform}, you must stop it.
 
 [discrete]
 [[delete-data-frame-transform-examples]]
-==== {api-example-title}
+==== {api-examples-title}
 
 [source,js]
 --------------------------------------------------

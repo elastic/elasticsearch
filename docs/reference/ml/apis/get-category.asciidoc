@@ -8,19 +8,21 @@
 
 Retrieves job results for one or more categories.
 
-
-==== Request
+[[ml-get-category-request]]
+==== {api-request-title}
 
 `GET _ml/anomaly_detectors/<job_id>/results/categories` +
 
 `GET _ml/anomaly_detectors/<job_id>/results/categories/<category_id>`
 
-==== Description
+[[ml-get-category-desc]]
+==== {api-description-title}
 
 For more information about categories, see
-{xpack-ref}/ml-configuring-categories.html[Categorizing Log Messages].
+{stack-ov}/ml-configuring-categories.html[Categorizing Log Messages].
 
-==== Path Parameters
+[[ml-get-category-path-parms]]
+==== {api-path-parms-title}
 
 `job_id`::
   (string) Identifier for the job.
@@ -29,8 +31,8 @@ For more information about categories, see
   (long) Identifier for the category. If you do not specify this optional parameter,
   the API returns information about all categories in the job.
 
-
-==== Request Body
+[[ml-get-category-request-body]]
+==== {api-request-body-title}
 
 `page`::
 `from`:::
@@ -38,8 +40,8 @@ For more information about categories, see
 `size`:::
   (integer) Specifies the maximum number of categories to obtain.
 
-
-==== Results
+[[ml-get-category-results]]
+==== {api-response-body-title}
 
 The API returns the following information:
 
@@ -47,18 +49,18 @@ The API returns the following information:
   (array) An array of category objects. For more information, see
   <<ml-results-categories,Categories>>.
 
-
-==== Authorization
+[[ml-get-category-prereqs]]
+==== {api-prereq-title}
 
 You must have `monitor_ml`, `monitor`, `manage_ml`, or `manage` cluster
 privileges to use this API. You also need `read` index privilege on the index
 that stores the results. The `machine_learning_admin` and `machine_learning_user`
 roles provide these privileges. For more information, see
-{xpack-ref}/security-privileges.html[Security Privileges] and
-{xpack-ref}/built-in-roles.html[Built-in Roles].
+{stack-ov}/security-privileges.html[Security Privileges] and
+{stack-ov}/built-in-roles.html[Built-in Roles].
 
-
-==== Examples
+[[ml-get-category-example]]
+==== {api-examples-title}
 
 The following example gets information about one category for the
 `esxi_log` job:

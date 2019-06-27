@@ -8,16 +8,15 @@
 
 Retrieves information about model snapshots.
 
-
-==== Request
+[[ml-get-snapshot-request]]
+==== {api-request-title}
 
 `GET _ml/anomaly_detectors/<job_id>/model_snapshots` +
 
 `GET _ml/anomaly_detectors/<job_id>/model_snapshots/<snapshot_id>`
 
-//===== Description
-
-==== Path Parameters
+[[ml-get-snapshot-path-parms]]
+==== {api-path-parms-title}
 
 `job_id`::
   (string) Identifier for the job.
@@ -26,7 +25,8 @@ Retrieves information about model snapshots.
   (string) Identifier for the model snapshot. If you do not specify this
   optional parameter, the API returns information about all model snapshots.
 
-==== Request Body
+[[ml-get-snapshot-request-body]]
+==== {api-request-body-title}
 
 `desc`::
   (boolean) If true, the results are sorted in descending order.
@@ -47,8 +47,8 @@ Retrieves information about model snapshots.
 `start`::
   (string) Returns snapshots with timestamps after this time.
 
-
-==== Results
+[[ml-get-snapshot-results]]
+==== {api-response-body-title}
 
 The API returns the following information:
 
@@ -56,16 +56,15 @@ The API returns the following information:
   (array) An array of model snapshot objects. For more information, see
   <<ml-snapshot-resource,Model Snapshots>>.
 
-
-==== Authorization
+[[ml-get-snapshot-prereqs]]
+==== {api-prereq-title}
 
 You must have `monitor_ml`, `monitor`, `manage_ml`, or `manage` cluster
 privileges to use this API. For more information, see
-{xpack-ref}/security-privileges.html[Security Privileges].
-//<<privileges-list-cluster>>.
+{stack-ov}/security-privileges.html[Security privileges].
 
-
-==== Examples
+[[ml-get-snapshot-example]]
+==== {api-examples-title}
 
 The following example gets model snapshot information for the
 `it_ops_new_logs` job:

@@ -8,17 +8,19 @@
 
 Updates certain properties of a job.
 
-==== Request
+[[ml-update-job-request]]
+==== {api-request-title}
 
 `POST _ml/anomaly_detectors/<job_id>/_update`
 
-
-==== Path Parameters
+[[ml-update-job-path-parms]]
+==== {api-path-parms-title}
 
 `job_id` (required)::
   (string) Identifier for the job
 
-==== Request Body
+[[ml-update-job-request-body]]
+==== {api-request-body-title}
 
 The following properties can be updated after the job is created:
 
@@ -86,14 +88,15 @@ A detector update object has the following properties:
 
 No other detector property can be updated.
 
-==== Authorization
+[[ml-update-job-prereqs]]
+==== {api-prereq-title}
 
 You must have `manage_ml`, or `manage` cluster privileges to use this API.
 For more information, see
-{xpack-ref}/security-privileges.html[Security Privileges].
+{stack-ov}/security-privileges.html[Security privileges].
 
-
-==== Examples
+[[ml-update-job-example]]
+==== {api-examples-title}
 
 The following example updates the `total-requests` job:
 

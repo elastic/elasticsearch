@@ -40,7 +40,7 @@ have `view_index_metadata` privileges on the source index for the
 
 [discrete]
 [[start-data-frame-transform-example]]
-==== {api-example-title}
+==== {api-examples-title}
 
 [source,js]
 --------------------------------------------------

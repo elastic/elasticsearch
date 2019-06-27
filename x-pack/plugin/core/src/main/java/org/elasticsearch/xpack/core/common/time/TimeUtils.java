@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.core.dataframe.utils;
+package org.elasticsearch.xpack.core.common.time;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ParseField;
@@ -26,7 +26,7 @@ public final class TimeUtils {
         if (parser.currentToken() == XContentParser.Token.VALUE_NUMBER) {
             return new Date(parser.longValue());
         } else if (parser.currentToken() == XContentParser.Token.VALUE_STRING) {
-            return new Date(TimeUtils.dateStringToEpoch(parser.text()));
+            return new Date(dateStringToEpoch(parser.text()));
         }
         throw new IllegalArgumentException(
                 "unexpected token [" + parser.currentToken() + "] for [" + fieldName + "]");
@@ -36,7 +36,7 @@ public final class TimeUtils {
         if (parser.currentToken() == XContentParser.Token.VALUE_NUMBER) {
             return Instant.ofEpochMilli(parser.longValue());
         } else if (parser.currentToken() == XContentParser.Token.VALUE_STRING) {
-            return Instant.ofEpochMilli(TimeUtils.dateStringToEpoch(parser.text()));
+            return Instant.ofEpochMilli(dateStringToEpoch(parser.text()));
         }
         throw new IllegalArgumentException(
             "unexpected token [" + parser.currentToken() + "] for [" + fieldName + "]");
@@ -122,8 +122,6 @@ public final class TimeUtils {
             throw new IllegalArgumentException(field.getPreferredName() + " cannot be less than 0. Value = " + timeValue.toString());
         }
     }
-
-
 
     /**
      * Check the given {@code timeValue} is a multiple of the {@code baseUnit}

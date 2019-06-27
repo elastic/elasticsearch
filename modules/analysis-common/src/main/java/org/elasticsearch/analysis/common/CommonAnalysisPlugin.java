@@ -405,10 +405,18 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
                 input -> new CommonGramsFilter(input, CharArraySet.EMPTY_SET)));
         filters.add(PreConfiguredTokenFilter.singleton("czech_stem", false, CzechStemFilter::new));
         filters.add(PreConfiguredTokenFilter.singleton("decimal_digit", true, DecimalDigitFilter::new));
-        filters.add(PreConfiguredTokenFilter.singleton("delimited_payload_filter", false, input ->
-                new DelimitedPayloadTokenFilter(input,
-                        DelimitedPayloadTokenFilterFactory.DEFAULT_DELIMITER,
-                        DelimitedPayloadTokenFilterFactory.DEFAULT_ENCODER)));
+        filters.add(PreConfiguredTokenFilter.singletonWithVersion("delimited_payload_filter", false, (input, version) -> {
+            if (version.onOrAfter(Version.V_7_0_0)) {
+                throw new IllegalArgumentException(
+                    "[delimited_payload_filter] is not supported for new indices, use [delimited_payload] instead");
+            }
+            if (version.onOrAfter(Version.V_6_2_0)) {
+                deprecationLogger.deprecated("Deprecated [delimited_payload_filter] used, replaced by [delimited_payload]");
+            }
+            return new DelimitedPayloadTokenFilter(input,
+                DelimitedPayloadTokenFilterFactory.DEFAULT_DELIMITER,
+                DelimitedPayloadTokenFilterFactory.DEFAULT_ENCODER);
+        }));
         filters.add(PreConfiguredTokenFilter.singleton("delimited_payload", false, input ->
                 new DelimitedPayloadTokenFilter(input,
                         DelimitedPayloadTokenFilterFactory.DEFAULT_DELIMITER,

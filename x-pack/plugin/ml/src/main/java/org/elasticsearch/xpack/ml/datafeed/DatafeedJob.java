@@ -11,7 +11,6 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -19,7 +18,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentElasticsearchExtension;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.core.internal.io.Streams;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.ml.action.FlushJobAction;
@@ -38,7 +36,6 @@ import org.elasticsearch.xpack.ml.datafeed.delayeddatacheck.DelayedDataDetectorF
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
 import org.elasticsearch.xpack.ml.notifications.Auditor;
 
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Date;
@@ -407,9 +404,7 @@ class DatafeedJob {
             throws IOException {
         PostDataAction.Request request = new PostDataAction.Request(jobId);
         request.setDataDescription(dataDescription);
-        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
-        Streams.copy(inputStream, outputStream);
-        request.setContent(new BytesArray(outputStream.toByteArray()), xContentType);
+        request.setContent(org.elasticsearch.common.io.Streams.readFully(inputStream), xContentType);
         try (ThreadContext.StoredContext ignore = client.threadPool().getThreadContext().stashWithOrigin(ML_ORIGIN)) {
             PostDataAction.Response response = client.execute(PostDataAction.INSTANCE, request).actionGet();
             return response.getDataCounts();

@@ -50,6 +50,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.compress.NotXContentException;
+import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.store.InputStreamIndexInput;
@@ -64,7 +65,6 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.core.internal.io.Streams;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.IndexShardRestoreFailedException;
@@ -645,32 +645,25 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             final String snapshotsIndexBlobName = INDEX_FILE_PREFIX + Long.toString(indexGen);
 
             RepositoryData repositoryData;
-            try (InputStream blob = blobContainer().readBlob(snapshotsIndexBlobName)) {
-                BytesStreamOutput out = new BytesStreamOutput();
-                Streams.copy(blob, out);
-                // EMPTY is safe here because RepositoryData#fromXContent calls namedObject
-                try (XContentParser parser = XContentHelper.createParser(NamedXContentRegistry.EMPTY,
-                    LoggingDeprecationHandler.INSTANCE, out.bytes(), XContentType.JSON)) {
-                    repositoryData = RepositoryData.snapshotsFromXContent(parser, indexGen);
-                } catch (NotXContentException e) {
-                    logger.warn("[{}] index blob is not valid x-content [{} bytes]", snapshotsIndexBlobName, out.bytes().length());
-                    throw e;
-                }
+            // EMPTY is safe here because RepositoryData#fromXContent calls namedObject
+            final BytesReference out = Streams.readFully(blobContainer().readBlob(snapshotsIndexBlobName));
+            try (XContentParser parser = XContentHelper.createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, out,
+                    XContentType.JSON)) {
+                repositoryData = RepositoryData.snapshotsFromXContent(parser, indexGen);
+            } catch (NotXContentException e) {
+                logger.warn("[{}] index blob is not valid x-content [{} bytes]", snapshotsIndexBlobName, out.length());
+                throw e;
             }
 
             // now load the incompatible snapshot ids, if they exist
-            try (InputStream blob = blobContainer().readBlob(INCOMPATIBLE_SNAPSHOTS_BLOB)) {
-                BytesStreamOutput out = new BytesStreamOutput();
-                Streams.copy(blob, out);
-                try (XContentParser parser = XContentHelper.createParser(NamedXContentRegistry.EMPTY,
-                    LoggingDeprecationHandler.INSTANCE, out.bytes(), XContentType.JSON)) {
-                    repositoryData = repositoryData.incompatibleSnapshotsFromXContent(parser);
-                }
+            try (XContentParser parser = XContentHelper.createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE,
+                    Streams.readFully(blobContainer().readBlob(INCOMPATIBLE_SNAPSHOTS_BLOB)), XContentType.JSON)) {
+                repositoryData = repositoryData.incompatibleSnapshotsFromXContent(parser);
             } catch (NoSuchFileException e) {
                 if (isReadOnly()) {
                     logger.debug("[{}] Incompatible snapshots blob [{}] does not exist, the likely " +
-                                 "reason is that there are no incompatible snapshots in the repository",
-                                 metadata.name(), INCOMPATIBLE_SNAPSHOTS_BLOB);
+                            "reason is that there are no incompatible snapshots in the repository",
+                        metadata.name(), INCOMPATIBLE_SNAPSHOTS_BLOB);
                 } else {
                     // write an empty incompatible-snapshots blob - we do this so that there
                     // is a blob present, which helps speed up some cloud-based repositories
@@ -778,11 +771,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     // package private for testing
     long readSnapshotIndexLatestBlob() throws IOException {
-        try (InputStream blob = blobContainer().readBlob(INDEX_LATEST_BLOB)) {
-            BytesStreamOutput out = new BytesStreamOutput();
-            Streams.copy(blob, out);
-            return Numbers.bytesToLong(out.bytes().toBytesRef());
-        }
+        return Numbers.bytesToLong(Streams.readFully(blobContainer().readBlob(INDEX_LATEST_BLOB)).toBytesRef());
     }
 
     private long listBlobsToGetLatestIndexId() throws IOException {

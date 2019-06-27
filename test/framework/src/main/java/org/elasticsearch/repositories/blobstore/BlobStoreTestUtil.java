@@ -22,14 +22,13 @@ import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobContainer;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.core.internal.io.Streams;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.RepositoryData;
@@ -39,7 +38,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.DataInputStream;
 import java.io.IOException;
-import java.io.InputStream;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -81,14 +79,9 @@ public final class BlobStoreTestUtil {
                 }
                 assertIndexGenerations(blobContainer, latestGen);
                 final RepositoryData repositoryData;
-                try (InputStream inputStream = blobContainer.readBlob("index-" + latestGen);
-                     BytesStreamOutput out = new BytesStreamOutput()) {
-                    Streams.copy(inputStream, out);
-                    try (XContentParser parser =
-                             XContentHelper.createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE,
-                                 out.bytes(), XContentType.JSON)) {
-                        repositoryData = RepositoryData.snapshotsFromXContent(parser, latestGen);
-                    }
+                try (XContentParser parser = XContentHelper.createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE,
+                        Streams.readFully(blobContainer.readBlob("index-" + latestGen)), XContentType.JSON)) {
+                    repositoryData = RepositoryData.snapshotsFromXContent(parser, latestGen);
                 }
                 assertIndexUUIDs(blobContainer, repositoryData);
                 assertSnapshotUUIDs(blobContainer, repositoryData);

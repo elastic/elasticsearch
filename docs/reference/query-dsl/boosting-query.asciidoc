@@ -27,8 +27,7 @@ GET /_search
                      "text" : "pie tart fruit crumble tree"
                 }
             },
-            "negative_boost" : 0.5,
-            "boost" : 1.0 
+            "negative_boost" : 0.5
         }
     }
 }
@@ -59,18 +58,3 @@ for the document as follows:
 Floating point number between `0` and `1.0` used to decrease the
 <<query-filter-context, relevance scores>> of documents matching the `negative`
 query.
-
-`boost`::
-+
---
-Floating point number used to decrease or increase the
-<<query-filter-context, relevance scores>> of a query. Default is `1.0`.
-Optional.
-
-You can use the `boost` parameter to adjust relevance scores for searches
-containing two or more queries.
-
-Boost values are relative to the default value of `1.0`. A boost value between
-`0` and `1.0` decreases the relevance score. A value greater than `1.0`
-increases the relevance score.
---

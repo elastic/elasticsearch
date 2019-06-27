@@ -16,7 +16,9 @@ import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.xpack.ccr.Ccr;
@@ -26,6 +28,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.StreamSupport;
 
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
@@ -111,6 +114,9 @@ public class ShardChangesTests extends ESSingleNodeTestCase {
             client().admin().indices().flush(new FlushRequest("index").force(true)).actionGet();
         }
         client().admin().indices().refresh(new RefreshRequest("index")).actionGet();
+        StreamSupport.stream(getInstanceFromNode(IndicesService.class).spliterator(), false)
+            .flatMap(n -> StreamSupport.stream(n.spliterator(), false))
+            .forEach(IndexShard::advancePeerRecoveryRetentionLeasesToGlobalCheckpoints);
         ForceMergeRequest forceMergeRequest = new ForceMergeRequest("index");
         forceMergeRequest.maxNumSegments(1);
         client().admin().indices().forceMerge(forceMergeRequest).actionGet();

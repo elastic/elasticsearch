@@ -32,6 +32,8 @@ import org.apache.lucene.util.ArrayUtil;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.StepListener;
+import org.elasticsearch.action.support.replication.ReplicationResponse;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.CheckedSupplier;
@@ -49,6 +51,7 @@ import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.RecoveryEngineException;
 import org.elasticsearch.index.seqno.LocalCheckpointTracker;
+import org.elasticsearch.index.seqno.RetentionLeaseAlreadyExistsException;
 import org.elasticsearch.index.seqno.RetentionLeases;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexShard;
@@ -188,10 +191,30 @@ public class RecoverySourceHandler {
             }
             assert startingSeqNo >= 0 : "startingSeqNo must be non negative. got: " + startingSeqNo;
 
+            final StepListener<ReplicationResponse> establishRetentionLeaseStep = new StepListener<>();
+            if (shard.indexSettings().isSoftDeleteEnabled()
+                && shard.indexSettings().getIndexMetaData().getState() != IndexMetaData.State.CLOSE) {
+                runUnderPrimaryPermit(() -> {
+                    try {
+                        // conservative estimate of the GCP for creating the lease. TODO use the actual GCP once it's appropriate to do so
+                        final long globalCheckpoint = startingSeqNo - 1;
+                        // blindly create the lease. TODO integrate this with the recovery process
+                        shard.addPeerRecoveryRetentionLease(request.targetNode().getId(), globalCheckpoint, establishRetentionLeaseStep);
+                    } catch (RetentionLeaseAlreadyExistsException e) {
+                        logger.debug("peer-recovery retention lease already exists", e);
+                        establishRetentionLeaseStep.onResponse(null);
+                    }
+                }, shardId + " establishing retention lease for [" + request.targetAllocationId() + "]", shard, cancellableThreads, logger);
+            } else {
+                establishRetentionLeaseStep.onResponse(null);
+            }
+
             final StepListener<TimeValue> prepareEngineStep = new StepListener<>();
-            // For a sequence based recovery, the target can keep its local translog
-            prepareTargetForTranslog(isSequenceNumberBasedRecovery == false,
-                shard.estimateNumberOfHistoryOperations("peer-recovery", startingSeqNo), prepareEngineStep);
+            establishRetentionLeaseStep.whenComplete(r -> {
+                // For a sequence based recovery, the target can keep its local translog
+                prepareTargetForTranslog(isSequenceNumberBasedRecovery == false,
+                    shard.estimateNumberOfHistoryOperations("peer-recovery", startingSeqNo), prepareEngineStep);
+            }, onFailure);
             final StepListener<SendSnapshotResult> sendSnapshotStep = new StepListener<>();
             prepareEngineStep.whenComplete(prepareEngineTime -> {
                 /*

@@ -44,7 +44,7 @@ public interface RetentionLeaseSyncer {
     RetentionLeaseSyncer EMPTY = new RetentionLeaseSyncer() {
         @Override
         public void sync(final ShardId shardId, final RetentionLeases retentionLeases, final ActionListener<ReplicationResponse> listener) {
-
+            listener.onResponse(new ReplicationResponse());
         }
 
         @Override

@@ -26,7 +26,6 @@ import org.elasticsearch.gradle.SystemPropertyCommandLineArgumentProvider;
 import org.elasticsearch.gradle.precommit.JarHellTask;
 import org.elasticsearch.gradle.precommit.TestingConventionsTasks;
 import org.elasticsearch.gradle.precommit.ThirdPartyAuditTask;
-import org.elasticsearch.gradle.testclusters.TestClustersCleanupExtension;
 import org.gradle.api.Action;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.Plugin;

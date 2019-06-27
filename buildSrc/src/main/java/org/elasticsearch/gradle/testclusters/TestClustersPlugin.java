@@ -74,6 +74,8 @@ public class TestClustersPlugin implements Plugin<Project> {
         // enable the DSL to describe clusters
         NamedDomainObjectContainer<ElasticsearchCluster> container = createTestClustersContainerExtension(project);
 
+        TestClustersCleanupExtension.createExtension(project);
+
         // provide a task to be able to list defined clusters.
         createListClustersTask(project, container);
 

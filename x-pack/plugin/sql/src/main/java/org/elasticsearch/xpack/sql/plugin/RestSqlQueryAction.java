@@ -96,6 +96,9 @@ public class RestSqlQueryAction extends BaseRestHandler {
                 @Override
                 public RestResponse buildResponse(SqlQueryResponse response) throws Exception {
                     XContentBuilder builder = XContentBuilder.builder(xContentType.xContent());
+                    if (request.paramAsBoolean("pretty", false)) {
+                        builder.prettyPrint();
+                    }
                     response.toXContent(builder, request);
                     return new BytesRestResponse(RestStatus.OK, builder);
                 }

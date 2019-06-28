@@ -31,6 +31,7 @@ public class BytesChannelContext extends SocketChannelContext {
 
     @Override
     public int read() throws IOException {
+        getSelector().assertOnSelectorThread();
         int bytesRead = readFromChannel(channelBuffer);
 
         if (bytesRead == 0) {

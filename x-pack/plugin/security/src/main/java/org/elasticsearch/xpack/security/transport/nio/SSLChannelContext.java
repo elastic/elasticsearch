@@ -150,6 +150,7 @@ public final class SSLChannelContext extends SocketChannelContext {
 
     @Override
     public int read() throws IOException {
+        getSelector().assertOnSelectorThread();
         int bytesRead = 0;
         if (closeNow()) {
             return bytesRead;

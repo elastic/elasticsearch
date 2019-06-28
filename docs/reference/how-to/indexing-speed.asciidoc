@@ -56,6 +56,12 @@ gets indexed and when it becomes visible, increasing the
 <<dynamic-index-settings,`index.refresh_interval`>> to a larger value, e.g.
 `30s`, might help improve indexing speed.
 
+By increasing the `index.refresh_interval` setting, you will have a constant
+refreshing at the rate you specified, whether or not you had a search within
+the last 30 seconds.
+The behavior "but only on indices that received search request in the last 30
+seconds" is only applied when `index.refresh_interval` is set to default.
+
 [float]
 === Disable refresh and replicas for initial loads
 

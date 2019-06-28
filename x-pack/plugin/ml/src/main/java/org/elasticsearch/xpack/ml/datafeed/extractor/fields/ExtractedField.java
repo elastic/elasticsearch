@@ -9,6 +9,7 @@ import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.geo.geometry.Geometry;
 import org.elasticsearch.geo.geometry.Point;
 import org.elasticsearch.geo.geometry.ShapeType;
+import org.elasticsearch.geo.utils.GeographyValidator;
 import org.elasticsearch.geo.utils.WellKnownText;
 import org.elasticsearch.search.SearchHit;
 
@@ -126,7 +127,7 @@ public abstract class ExtractedField {
     }
 
     private static class GeoShapeField extends FromSource {
-        private static final WellKnownText wkt = new WellKnownText(true, true);
+        private static final WellKnownText wkt = new WellKnownText(true, new GeographyValidator(true));
 
         GeoShapeField(String alias, String name) {
             super(alias, name);

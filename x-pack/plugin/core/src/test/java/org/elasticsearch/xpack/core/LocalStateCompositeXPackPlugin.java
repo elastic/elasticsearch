@@ -21,7 +21,6 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -134,16 +133,6 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin implements Scrip
     @Override
     protected void setLicenseState(XPackLicenseState licenseState) {
         this.licenseState = licenseState;
-    }
-
-    @Override
-    public Collection<Module> createGuiceModules() {
-        ArrayList<Module> modules = new ArrayList<>();
-        modules.addAll(super.createGuiceModules());
-        filterPlugins(Plugin.class).stream().forEach(p ->
-            modules.addAll(p.createGuiceModules())
-        );
-        return modules;
     }
 
     @Override

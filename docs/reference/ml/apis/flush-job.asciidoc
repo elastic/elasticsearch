@@ -8,13 +8,20 @@
 
 Forces any buffered data to be processed by the job.
 
-
-==== Request
+[[ml-flush-job-request]]
+==== {api-request-title}
 
 `POST _ml/anomaly_detectors/<job_id>/_flush`
 
+[[ml-flush-job-prereqs]]
+==== {api-prereq-title}
 
-==== Description
+* If the {es} {security-features} are enabled, you must have `manage_ml` or
+`manage` cluster privileges to use this API. See
+{stack-ov}/security-privileges.html[Security privileges].
+
+[[ml-flush-job-desc]]
+==== {api-description-title}
 
 The flush jobs API is only applicable when sending data for analysis using the
 <<ml-post-data,post data API>>. Depending on the content of the buffer, then it
@@ -26,44 +33,38 @@ remains open and is available to continue analyzing data. A close operation
 additionally prunes and persists the model state to disk and the job must be
 opened again before analyzing further data.
 
+[[ml-flush-job-path-parms]]
+==== {api-path-parms-title}
 
-==== Path Parameters
+`<job_id>` (Required)::
+(string) Identifier for the job.
 
-`job_id` (required)::
-(string) Identifier for the job
+[[ml-flush-job-query-parms]]
+==== {api-query-parms-title}
 
-
-==== Query Parameters
-
-`advance_time`::
+`advance_time` (Optional)::
   (string) Specifies to advance to a particular time value. Results are
   generated and the model is updated for data from the specified time interval.
 
-`calc_interim`::
+`calc_interim` (Optional)::
   (boolean) If true, calculates the interim results for the most recent bucket
   or all buckets within the latency period.
 
-`end`::
+`end` (Optional)::
   (string) When used in conjunction with `calc_interim`, specifies the range
   of buckets on which to calculate interim results.
 
-`skip_time`::
+`skip_time` (Optional)::
   (string) Specifies to skip to a particular time value. Results are not
   generated and the model is not updated for data from the specified time
   interval.
 
-`start`::
+`start` (Optional)::
   (string) When used in conjunction with `calc_interim`, specifies the range of
   buckets on which to calculate interim results.
 
-
-==== Authorization
-
-You must have `manage_ml`, or `manage` cluster privileges to use this API.
-For more information, see {xpack-ref}/security-privileges.html[Security Privileges].
-
-
-==== Examples
+[[ml-flush-job-example]]
+==== {api-examples-title}
 
 The following example flushes the `total-requests` job:
 

@@ -5610,6 +5610,37 @@ public class InternalEngineTests extends EngineTestCase {
         expectThrows(AlreadyClosedException.class, () -> engine.acquireSearcher("test"));
     }
 
+    public void testNoOpOnClosingEngine() throws Exception {
+        engine.close();
+        Settings settings = Settings.builder()
+            .put(defaultSettings.getSettings())
+            .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true).build();
+        IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(
+            IndexMetaData.builder(defaultSettings.getIndexMetaData()).settings(settings).build());
+        assertTrue(indexSettings.isSoftDeleteEnabled());
+        try (Store store = createStore();
+             InternalEngine engine = createEngine(config(indexSettings, store, createTempDir(), NoMergePolicy.INSTANCE, null))) {
+            engine.close();
+            expectThrows(AlreadyClosedException.class, () -> engine.noOp(
+                new Engine.NoOp(2, primaryTerm.get(), LOCAL_TRANSLOG_RECOVERY, System.nanoTime(), "reason")));
+        }
+    }
+
+    public void testSoftDeleteOnClosingEngine() throws Exception {
+        engine.close();
+        Settings settings = Settings.builder()
+            .put(defaultSettings.getSettings())
+            .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true).build();
+        IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(
+            IndexMetaData.builder(defaultSettings.getIndexMetaData()).settings(settings).build());
+        assertTrue(indexSettings.isSoftDeleteEnabled());
+        try (Store store = createStore();
+             InternalEngine engine = createEngine(config(indexSettings, store, createTempDir(), NoMergePolicy.INSTANCE, null))) {
+            engine.close();
+            expectThrows(AlreadyClosedException.class, () -> engine.delete(replicaDeleteForDoc("test", 42, 7, System.nanoTime())));
+        }
+    }
+
     public void testTrackMaxSeqNoOfUpdatesOrDeletesOnPrimary() throws Exception {
         engine.close();
         Set<String> liveDocIds = new HashSet<>();

@@ -223,12 +223,14 @@ public class DeprecationLogger {
     }
 
     void deprecated(final Set<ThreadContext> threadContexts, final String message, final boolean log, final Object... params) {
+        final String formattedMessage = LoggerMessageFormat.format(message, params);
+        final String warningHeaderValue = formatWarning(formattedMessage);
+        assert WARNING_HEADER_PATTERN.matcher(warningHeaderValue).matches();
+        assert extractWarningValueFromWarningHeader(warningHeaderValue).equals(escapeAndEncode(formattedMessage));
+
         final Iterator<ThreadContext> iterator = threadContexts.iterator();
         if (iterator.hasNext()) {
-            final String formattedMessage = LoggerMessageFormat.format(message, params);
-            final String warningHeaderValue = formatWarning(formattedMessage);
-            assert WARNING_HEADER_PATTERN.matcher(warningHeaderValue).matches();
-            assert extractWarningValueFromWarningHeader(warningHeaderValue).equals(escapeAndEncode(formattedMessage));
+
             while (iterator.hasNext()) {
                 try {
                     final ThreadContext next = iterator.next();

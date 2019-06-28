@@ -20,6 +20,7 @@
 package org.elasticsearch.common.logging;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.common.SuppressLoggerChecks;
 
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -31,6 +32,11 @@ import java.util.stream.Stream;
 public abstract class ESLogMessage extends ParameterizedMessage {
     private final Map<String, Object> fields;
 
+    /**
+     * This is an abstract class, so this is safe. The check is done on DeprecationMessage.
+     * Other subclasses are not allowing varargs
+     */
+    @SuppressLoggerChecks(reason = "Safe as this is abstract class")
     public ESLogMessage(Map<String, Object> fields, String messagePattern, Object... args) {
         super(messagePattern, args);
         this.fields = fields;

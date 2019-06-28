@@ -26,6 +26,7 @@ import org.apache.logging.log4j.simple.SimpleLoggerContextFactory;
 import org.apache.logging.log4j.spi.ExtendedLogger;
 import org.apache.logging.log4j.spi.LoggerContext;
 import org.apache.logging.log4j.spi.LoggerContextFactory;
+import org.elasticsearch.common.SuppressLoggerChecks;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.ESTestCase;
@@ -319,7 +320,7 @@ public class DeprecationLoggerTests extends ESTestCase {
             assertTrue(warningHeadersSize <= 1024);
         }
     }
-
+    @SuppressLoggerChecks(reason = "Safe as this is using mockito")
     public void testLogPermissions() {
         AtomicBoolean supplierCalled = new AtomicBoolean(false);
 
@@ -331,7 +332,7 @@ public class DeprecationLoggerTests extends ESTestCase {
             supplierCalled.set(true);
             createTempDir(); // trigger file permission, like rolling logs would
             return null;
-        }).when(mockLogger).warn(new DeprecatedMessage("foo", any(), new Object[] {"bar"}));
+        }).when(mockLogger).warn(new DeprecatedMessage("foo", any()));
         final LoggerContext context = new SimpleLoggerContext() {
             @Override
             public ExtendedLogger getLogger(String name) {

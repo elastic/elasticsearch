@@ -26,6 +26,7 @@ import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksReque
 import org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
 import org.elasticsearch.action.admin.cluster.node.usage.NodesUsageRequest;
+import org.elasticsearch.action.admin.cluster.repositories.cleanup.CleanupRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.repositories.delete.DeleteRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesRequest;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
@@ -458,6 +459,16 @@ public class Requests {
      */
     public static DeleteRepositoryRequest deleteRepositoryRequest(String name) {
         return new DeleteRepositoryRequest(name);
+    }
+
+    /**
+     * Cleanup repository
+     *
+     * @param name repository name
+     * @return cleanup repository request
+     */
+    public static CleanupRepositoryRequest cleanupRepositoryRequest(String name) {
+        return new CleanupRepositoryRequest(name);
     }
 
     /**

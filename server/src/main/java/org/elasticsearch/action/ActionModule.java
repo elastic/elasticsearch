@@ -222,6 +222,7 @@ import org.elasticsearch.rest.action.RestFieldCapabilitiesAction;
 import org.elasticsearch.rest.action.RestMainAction;
 import org.elasticsearch.rest.action.admin.cluster.RestAddVotingConfigExclusionAction;
 import org.elasticsearch.rest.action.admin.cluster.RestCancelTasksAction;
+import org.elasticsearch.rest.action.admin.cluster.RestCleanupRepositoryAction;
 import org.elasticsearch.rest.action.admin.cluster.RestClearVotingConfigExclusionsAction;
 import org.elasticsearch.rest.action.admin.cluster.RestClusterAllocationExplainAction;
 import org.elasticsearch.rest.action.admin.cluster.RestClusterGetSettingsAction;
@@ -564,6 +565,7 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestPutRepositoryAction(settings, restController));
         registerHandler.accept(new RestGetRepositoriesAction(settings, restController, settingsFilter));
         registerHandler.accept(new RestDeleteRepositoryAction(settings, restController));
+        registerHandler.accept(new RestCleanupRepositoryAction(settings, restController));
         registerHandler.accept(new RestVerifyRepositoryAction(settings, restController));
         registerHandler.accept(new RestGetSnapshotsAction(settings, restController));
         registerHandler.accept(new RestCreateSnapshotAction(settings, restController));

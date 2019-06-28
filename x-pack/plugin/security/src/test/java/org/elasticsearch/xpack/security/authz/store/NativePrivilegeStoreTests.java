@@ -36,7 +36,6 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.core.security.action.role.ClearRolesCacheRequest;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
 import org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames;
@@ -72,7 +71,6 @@ import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-@TestLogging("org.elasticsearch.xpack.security.authz.store.NativePrivilegeStore:TRACE")
 public class NativePrivilegeStoreTests extends ESTestCase {
 
     private NativePrivilegeStore store;
@@ -132,7 +130,8 @@ public class NativePrivilegeStoreTests extends ESTestCase {
 
         final String docSource = Strings.toString(sourcePrivilege);
         listener.get().onResponse(new GetResponse(
-            new GetResult(request.index(), request.type(), request.id(), 0, 1, 1L, true, new BytesArray(docSource), emptyMap())
+            new GetResult(request.index(), request.type(), request.id(), 0, 1, 1L, true,
+                new BytesArray(docSource), emptyMap(), emptyMap())
         ));
         final ApplicationPrivilegeDescriptor getPrivilege = future.get(1, TimeUnit.SECONDS);
         assertThat(getPrivilege, equalTo(sourcePrivilege));
@@ -149,7 +148,8 @@ public class NativePrivilegeStoreTests extends ESTestCase {
         assertThat(request.id(), equalTo("application-privilege_myapp:admin"));
 
         listener.get().onResponse(new GetResponse(
-            new GetResult(request.index(), request.type(), request.id(), UNASSIGNED_SEQ_NO, 0, -1, false, null, emptyMap())
+            new GetResult(request.index(), request.type(), request.id(), UNASSIGNED_SEQ_NO, 0, -1,
+                false, null, emptyMap(), emptyMap())
         ));
         final ApplicationPrivilegeDescriptor getPrivilege = future.get(1, TimeUnit.SECONDS);
         assertThat(getPrivilege, Matchers.nullValue());

@@ -52,7 +52,7 @@ public abstract class AbstractBulkByQueryRestHandler<
         SearchRequest searchRequest = internal.getSearchRequest();
 
         try (XContentParser parser = extractRequestSpecificFields(restRequest, bodyConsumers)) {
-            RestSearchAction.parseSearchRequest(searchRequest, restRequest, parser, internal::setSize);
+            RestSearchAction.parseSearchRequest(searchRequest, restRequest, parser, size -> failOnSizeSpecified());
         }
 
         searchRequest.source().size(restRequest.paramAsInt("scroll_size", searchRequest.source().size()));
@@ -93,5 +93,9 @@ public abstract class AbstractBulkByQueryRestHandler<
             return parser.contentType().xContent().createParser(parser.getXContentRegistry(),
                 parser.getDeprecationHandler(), BytesReference.bytes(builder.map(body)).streamInput());
         }
+    }
+
+    private static void failOnSizeSpecified() {
+        throw new IllegalArgumentException("invalid parameter [size], use [max_docs] instead");
     }
 }

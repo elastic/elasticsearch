@@ -13,7 +13,7 @@ import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.core.ml.utils.time.TimeUtils;
+import org.elasticsearch.xpack.core.common.time.TimeUtils;
 
 import java.io.IOException;
 import java.util.Date;

@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestBuilder;
@@ -149,20 +148,12 @@ public class PostCalendarEventsAction extends Action<PostCalendarEventsAction.Re
         @Override
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
-            if (in.getVersion().before(Version.V_6_3_0)) {
-                //the acknowledged flag was removed
-                in.readBoolean();
-            }
             in.readList(ScheduledEvent::new);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            if (out.getVersion().before(Version.V_6_3_0)) {
-                //the acknowledged flag is no longer supported
-                out.writeBoolean(true);
-            }
             out.writeList(scheduledEvents);
         }
 

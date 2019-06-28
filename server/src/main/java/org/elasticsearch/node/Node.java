@@ -28,6 +28,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionModule;
+import org.elasticsearch.action.admin.cluster.snapshots.status.TransportNodesSnapshotsStatus;
 import org.elasticsearch.action.search.SearchExecutionStatsCollector;
 import org.elasticsearch.action.search.SearchPhaseController;
 import org.elasticsearch.action.search.SearchTransportService;
@@ -54,6 +55,7 @@ import org.elasticsearch.cluster.metadata.MetaDataCreateIndexService;
 import org.elasticsearch.cluster.metadata.MetaDataIndexUpgradeService;
 import org.elasticsearch.cluster.metadata.TemplateUpgradeService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.RoutingService;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdMonitor;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -63,7 +65,6 @@ import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.inject.Key;
-import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.inject.ModulesBuilder;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.lease.Releasables;
@@ -98,7 +99,6 @@ import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.engine.EngineFactory;
-import org.elasticsearch.index.store.IndexStore;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.analysis.AnalysisModule;
@@ -134,12 +134,14 @@ import org.elasticsearch.plugins.RepositoryPlugin;
 import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.repositories.RepositoriesModule;
+import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.fetch.FetchPhase;
+import org.elasticsearch.snapshots.RestoreService;
 import org.elasticsearch.snapshots.SnapshotShardsService;
 import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.tasks.Task;
@@ -248,6 +250,7 @@ public class Node implements Closeable {
     private final Collection<LifecycleComponent> pluginLifecycleComponents;
     private final LocalNodeFactory localNodeFactory;
     private final NodeService nodeService;
+    final NamedWriteableRegistry namedWriteableRegistry;
 
     public Node(Environment environment) {
         this(environment, Collections.emptyList(), true);
@@ -308,6 +311,14 @@ public class Node implements Closeable {
             this.pluginsService = new PluginsService(tmpSettings, environment.configFile(), environment.modulesFile(),
                 environment.pluginsFile(), classpathPlugins);
             final Settings settings = pluginsService.updatedSettings();
+            final Set<DiscoveryNodeRole> possibleRoles = Stream.concat(
+                    DiscoveryNodeRole.BUILT_IN_ROLES.stream(),
+                    pluginsService.filterPlugins(Plugin.class)
+                            .stream()
+                            .map(Plugin::getRoles)
+                            .flatMap(Set::stream))
+                    .collect(Collectors.toSet());
+            DiscoveryNode.setPossibleRoles(possibleRoles);
             localNodeFactory = new LocalNodeFactory(settings, nodeEnvironment.nodeId());
 
             // create the environment based on the finalized (processed) view of the settings
@@ -361,17 +372,13 @@ public class Node implements Closeable {
             final UsageService usageService = new UsageService();
 
             ModulesBuilder modules = new ModulesBuilder();
-            // plugin modules must be added here, before others or we can get crazy injection errors...
-            for (Module pluginModule : pluginsService.createGuiceModules()) {
-                modules.add(pluginModule);
-            }
             final MonitorService monitorService = new MonitorService(settings, nodeEnvironment, threadPool, clusterInfoService);
             ClusterModule clusterModule = new ClusterModule(settings, clusterService, clusterPlugins, clusterInfoService);
             modules.add(clusterModule);
             IndicesModule indicesModule = new IndicesModule(pluginsService.filterPlugins(MapperPlugin.class));
             modules.add(indicesModule);
 
-            SearchModule searchModule = new SearchModule(settings, false, pluginsService.filterPlugins(SearchPlugin.class));
+            SearchModule searchModule = new SearchModule(settings, pluginsService.filterPlugins(SearchPlugin.class));
             CircuitBreakerService circuitBreakerService = createCircuitBreakerService(settingsModule.getSettings(),
                 settingsModule.getClusterSettings());
             resourcesToClose.add(circuitBreakerService);
@@ -409,10 +416,10 @@ public class Node implements Closeable {
                     .collect(Collectors.toList());
 
 
-            final Map<String, Function<IndexSettings, IndexStore>> indexStoreFactories =
+            final Map<String, IndexStorePlugin.DirectoryFactory> indexStoreFactories =
                     pluginsService.filterPlugins(IndexStorePlugin.class)
                             .stream()
-                            .map(IndexStorePlugin::getIndexStoreFactories)
+                            .map(IndexStorePlugin::getDirectoryFactories)
                             .flatMap(m -> m.entrySet().stream())
                             .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
 
@@ -442,13 +449,13 @@ public class Node implements Closeable {
                                                  namedWriteableRegistry).stream())
                 .collect(Collectors.toList());
 
-            ActionModule actionModule = new ActionModule(false, settings, clusterModule.getIndexNameExpressionResolver(),
+            ActionModule actionModule = new ActionModule(settings, clusterModule.getIndexNameExpressionResolver(),
                 settingsModule.getIndexScopedSettings(), settingsModule.getClusterSettings(), settingsModule.getSettingsFilter(),
                 threadPool, pluginsService.filterPlugins(ActionPlugin.class), client, circuitBreakerService, usageService);
             modules.add(actionModule);
 
             final RestController restController = actionModule.getRestController();
-            final NetworkModule networkModule = new NetworkModule(settings, false, pluginsService.filterPlugins(NetworkPlugin.class),
+            final NetworkModule networkModule = new NetworkModule(settings, pluginsService.filterPlugins(NetworkPlugin.class),
                 threadPool, bigArrays, pageCacheRecycler, circuitBreakerService, namedWriteableRegistry, xContentRegistry,
                 networkService, restController);
             Collection<UnaryOperator<Map<String, MetaData.Custom>>> customMetaDataUpgraders =
@@ -480,13 +487,23 @@ public class Node implements Closeable {
             final HttpServerTransport httpServerTransport = newHttpTransport(networkModule);
 
 
-            modules.add(new RepositoriesModule(this.environment, pluginsService.filterPlugins(RepositoryPlugin.class), transportService,
-                clusterService, threadPool, xContentRegistry));
+            RepositoriesModule repositoriesModule = new RepositoriesModule(this.environment,
+                pluginsService.filterPlugins(RepositoryPlugin.class), transportService, clusterService, threadPool, xContentRegistry);
+            RepositoriesService repositoryService = repositoriesModule.getRepositoryService();
+            SnapshotsService snapshotsService = new SnapshotsService(settings, clusterService,
+                clusterModule.getIndexNameExpressionResolver(), repositoryService, threadPool);
+            SnapshotShardsService snapshotShardsService = new SnapshotShardsService(settings, clusterService, snapshotsService, threadPool,
+                transportService, indicesService, actionModule.getActionFilters(), clusterModule.getIndexNameExpressionResolver());
+            TransportNodesSnapshotsStatus nodesSnapshotsStatus = new TransportNodesSnapshotsStatus(threadPool, clusterService,
+                transportService, snapshotShardsService, actionModule.getActionFilters());
+            RestoreService restoreService = new RestoreService(clusterService, repositoryService, clusterModule.getAllocationService(),
+                metaDataCreateIndexService, metaDataIndexUpgradeService, clusterService.getClusterSettings());
 
+            final RoutingService routingService = new RoutingService(clusterService, clusterModule.getAllocationService());
             final DiscoveryModule discoveryModule = new DiscoveryModule(settings, threadPool, transportService, namedWriteableRegistry,
                 networkService, clusterService.getMasterService(), clusterService.getClusterApplierService(),
                 clusterService.getClusterSettings(), pluginsService.filterPlugins(DiscoveryPlugin.class),
-                clusterModule.getAllocationService(), environment.configFile(), gatewayMetaState);
+                clusterModule.getAllocationService(), environment.configFile(), gatewayMetaState, routingService);
             this.nodeService = new NodeService(settings, threadPool, monitorService, discoveryModule.getDiscovery(),
                 transportService, indicesService, pluginsService, circuitBreakerService, scriptModule.getScriptService(),
                 httpServerTransport, ingestService, clusterService, settingsModule.getSettingsFilter(), responseCollectorService,
@@ -556,6 +573,12 @@ public class Node implements Closeable {
                     b.bind(PersistentTasksService.class).toInstance(persistentTasksService);
                     b.bind(PersistentTasksClusterService.class).toInstance(persistentTasksClusterService);
                     b.bind(PersistentTasksExecutorRegistry.class).toInstance(registry);
+                    b.bind(RepositoriesService.class).toInstance(repositoryService);
+                    b.bind(SnapshotsService.class).toInstance(snapshotsService);
+                    b.bind(SnapshotShardsService.class).toInstance(snapshotShardsService);
+                    b.bind(TransportNodesSnapshotsStatus.class).toInstance(nodesSnapshotsStatus);
+                    b.bind(RestoreService.class).toInstance(restoreService);
+                    b.bind(RoutingService.class).toInstance(routingService);
                 }
             );
             injector = modules.createInjector();
@@ -566,12 +589,11 @@ public class Node implements Closeable {
             List<LifecycleComponent> pluginLifecycleComponents = pluginComponents.stream()
                 .filter(p -> p instanceof LifecycleComponent)
                 .map(p -> (LifecycleComponent) p).collect(Collectors.toList());
-            pluginLifecycleComponents.addAll(pluginsService.getGuiceServiceClasses().stream()
-                .map(injector::getInstance).collect(Collectors.toList()));
             resourcesToClose.addAll(pluginLifecycleComponents);
             this.pluginLifecycleComponents = Collections.unmodifiableList(pluginLifecycleComponents);
             client.initialize(injector.getInstance(new Key<Map<Action, TransportAction>>() {}),
                     () -> clusterService.localNode().getId(), transportService.getRemoteClusterService());
+            this.namedWriteableRegistry = namedWriteableRegistry;
 
             logger.debug("initializing HTTP handlers ...");
             actionModule.initRestHandlers(() -> clusterService.state().nodes());

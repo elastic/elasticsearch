@@ -36,7 +36,7 @@ import org.elasticsearch.http.HttpPipelinedRequest;
 import org.elasticsearch.http.HttpReadTimeoutException;
 import org.elasticsearch.nio.FlushOperation;
 import org.elasticsearch.nio.InboundChannelBuffer;
-import org.elasticsearch.nio.ReadWriteHandler;
+import org.elasticsearch.nio.NioChannelHandler;
 import org.elasticsearch.nio.SocketChannelContext;
 import org.elasticsearch.nio.TaskScheduler;
 import org.elasticsearch.nio.WriteOperation;
@@ -48,7 +48,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
 import java.util.function.LongSupplier;
 
-public class HttpReadWriteHandler implements ReadWriteHandler {
+public class HttpReadWriteHandler implements NioChannelHandler {
 
     private final NettyAdaptor adaptor;
     private final NioHttpChannel nioHttpChannel;
@@ -133,6 +133,11 @@ public class HttpReadWriteHandler implements ReadWriteHandler {
             copiedOperations.add(flushOperation);
         }
         return copiedOperations;
+    }
+
+    @Override
+    public boolean closeNow() {
+        return false;
     }
 
     @Override

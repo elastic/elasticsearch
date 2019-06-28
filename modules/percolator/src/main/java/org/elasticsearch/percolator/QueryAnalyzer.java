@@ -22,7 +22,6 @@ import org.apache.lucene.document.BinaryRange;
 import org.apache.lucene.index.PrefixCodedTerms;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.BlendedTermQuery;
-import org.apache.lucene.queries.CommonTermsQuery;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
@@ -75,7 +74,6 @@ final class QueryAnalyzer {
         entry(BoostQuery.class, boostQuery()),
         entry(TermQuery.class, termQuery()),
         entry(TermInSetQuery.class, termInSetQuery()),
-        entry(CommonTermsQuery.class, commonTermsQuery()),
         entry(BlendedTermQuery.class, blendedTermQuery()),
         entry(PhraseQuery.class, phraseQuery()),
         entry(MultiPhraseQuery.class, multiPhraseQuery()),
@@ -182,13 +180,6 @@ final class QueryAnalyzer {
         return (query, version) -> {
             Set<QueryExtraction> terms = ((SynonymQuery) query).getTerms().stream().map(QueryExtraction::new).collect(toSet());
             return new Result(true, terms, Math.min(1, terms.size()));
-        };
-    }
-
-    private static BiFunction<Query, Version, Result> commonTermsQuery() {
-        return (query, version) -> {
-            Set<QueryExtraction> terms = ((CommonTermsQuery) query).getTerms().stream().map(QueryExtraction::new).collect(toSet());
-            return new Result(false, terms, Math.min(1, terms.size()));
         };
     }
 

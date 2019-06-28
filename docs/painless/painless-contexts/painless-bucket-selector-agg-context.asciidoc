@@ -19,6 +19,10 @@ boolean::
 
 ==== API
 
+The standard <<painless-api-reference-shared, Painless API>> is available.
+
+==== Example
+
 
 To run this example, first follow the steps in <<painless-context-examples, context examples>>.
 

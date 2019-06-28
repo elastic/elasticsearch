@@ -136,10 +136,7 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
             protected Function<String, SimilarityProvider> similarityLookupService() { return similarityLookupService; }
 
             public ParserContext createMultiFieldContext(ParserContext in) {
-                return new MultiFieldParserContext(in) {
-                    @Override
-                    public boolean isWithinMultiField() { return true; }
-                };
+                return new MultiFieldParserContext(in);
             }
 
             static class MultiFieldParserContext extends ParserContext {
@@ -147,6 +144,9 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
                     super(in.type(), in.similarityLookupService(), in.mapperService(), in.typeParsers(),
                             in.indexVersionCreated(), in.queryShardContextSupplier());
                 }
+
+                @Override
+                public boolean isWithinMultiField() { return true; }
             }
 
         }

@@ -67,12 +67,7 @@ setup:
 
 ---
 "Test preview transform":
-  - skip:
-      reason:  date histo interval is deprecated
-      features: "warnings"
   - do:
-      warnings:
-        - "[interval] on [date_histogram] is deprecated, use [fixed_interval] or [calendar_interval] in the future."
       data_frame.preview_data_frame_transform:
         body: >
           {
@@ -80,7 +75,7 @@ setup:
             "pivot": {
               "group_by": {
                 "airline": {"terms": {"field": "airline"}},
-                "by-hour": {"date_histogram": {"interval": "1h", "field": "time", "format": "yyyy-MM-DD HH"}}},
+                "by-hour": {"date_histogram": {"fixed_interval": "1h", "field": "time"}}},
               "aggs": {
                 "avg_response": {"avg": {"field": "responsetime"}},
                 "time.max": {"max": {"field": "time"}},
@@ -89,20 +84,63 @@ setup:
             }
           }
   - match: { preview.0.airline: foo }
-  - match: { preview.0.by-hour: "2017-02-49 00" }
+  - match: { preview.0.by-hour: 1487376000000 }
   - match: { preview.0.avg_response: 1.0 }
   - match: { preview.0.time.max: "2017-02-18T00:30:00.000Z" }
   - match: { preview.0.time.min: "2017-02-18T00:00:00.000Z" }
   - match: { preview.1.airline: bar }
-  - match: { preview.1.by-hour: "2017-02-49 01" }
+  - match: { preview.1.by-hour: 1487379600000 }
   - match: { preview.1.avg_response: 42.0 }
   - match: { preview.1.time.max: "2017-02-18T01:00:00.000Z" }
   - match: { preview.1.time.min: "2017-02-18T01:00:00.000Z" }
   - match: { preview.2.airline: foo }
-  - match: { preview.2.by-hour: "2017-02-49 01" }
+  - match: { preview.2.by-hour: 1487379600000 }
   - match: { preview.2.avg_response: 42.0 }
   - match: { preview.2.time.max: "2017-02-18T01:01:00.000Z" }
   - match: { preview.2.time.min: "2017-02-18T01:01:00.000Z" }
+
+  - do:
+      ingest.put_pipeline:
+        id: "data_frame_simple_pipeline"
+        body:  >
+          {
+            "processors": [
+             {
+               "set" : {
+                 "field" : "my_field",
+                 "value": 42
+               }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+  - do:
+      data_frame.preview_data_frame_transform:
+        body: >
+          {
+            "source": { "index": "airline-data" },
+            "dest": { "pipeline": "data_frame_simple_pipeline" },
+            "pivot": {
+              "group_by": {
+                "airline": {"terms": {"field": "airline"}},
+                "by-hour": {"date_histogram": {"fixed_interval": "1h", "field": "time"}}},
+              "aggs": {
+                "avg_response": {"avg": {"field": "responsetime"}}
+              }
+            }
+          }
+  - match: { preview.0.airline: foo }
+  - match: { preview.0.by-hour: 1487376000000 }
+  - match: { preview.0.avg_response: 1.0 }
+  - match: { preview.0.my_field: 42 }
+  - match: { preview.1.airline: bar }
+  - match: { preview.1.by-hour: 1487379600000 }
+  - match: { preview.1.avg_response: 42.0 }
+  - match: { preview.1.my_field: 42 }
+  - match: { preview.2.airline: foo }
+  - match: { preview.2.by-hour: 1487379600000 }
+  - match: { preview.2.avg_response: 42.0 }
+  - match: { preview.2.my_field: 42 }
 
 ---
 "Test preview transform with invalid config":
@@ -128,7 +166,81 @@ setup:
             "pivot": {
               "group_by": {
                 "airline": {"terms": {"field": "airline"}},
-                "by-hour": {"date_histogram": {"interval": "1h", "field": "time", "format": "yyyy-MM-DD HH"}}},
+                "by-hour": {"date_histogram": {"fixed_interval": "1h", "field": "time"}}},
               "aggs": {"avg_response": {"avg": {"field": "responsetime"}}}
+            }
+          }
+---
+"Test preview returns bad request with invalid agg":
+  - do:
+      catch: bad_request
+      data_frame.preview_data_frame_transform:
+        body: >
+          {
+            "source": { "index": "airline-data" },
+            "pivot": {
+              "group_by": {
+                "time": {"date_histogram": {"fixed_interval": "1h", "field": "time"}}},
+              "aggs": {
+                "avg_response": {"avg": {"field": "responsetime"}},
+                "time.min": {"min": {"field": "time"}}
+              }
+            }
+          }
+
+  - do:
+      catch: /field \[time\] cannot be both an object and a field/
+      data_frame.preview_data_frame_transform:
+        body: >
+          {
+            "source": { "index": "airline-data" },
+            "pivot": {
+              "group_by": {
+                "time": {"date_histogram": {"fixed_interval": "1h", "field": "time"}}},
+              "aggs": {
+                "avg_response": {"avg": {"field": "responsetime"}},
+                "time.min": {"min": {"field": "time"}}
+              }
+            }
+          }
+  - do:
+      catch: /field \[super_metric\] cannot be both an object and a field/
+      data_frame.preview_data_frame_transform:
+        body: >
+          {
+            "source": { "index": "airline-data" },
+            "pivot": {
+              "group_by": {
+                "time": {"date_histogram": {"fixed_interval": "1h", "field": "time"}}},
+              "aggs": {
+                "avg_response": {"avg": {"field": "responsetime"}},
+                "super_metric.time": {"min": {"field": "time"}},
+                "super_metric": {
+                  "scripted_metric": {
+                     "init_script": "",
+                     "map_script": "",
+                     "combine_script": "",
+                     "reduce_script": "return ['value1': 1, 'value2':2]"
+                  }
+                }
+              }
+            }
+          }
+---
+"Test preview with missing pipeline":
+  - do:
+      catch: bad_request
+      data_frame.preview_data_frame_transform:
+        body: >
+          {
+            "source": { "index": "airline-data" },
+            "dest": { "pipeline": "missing-pipeline" },
+            "pivot": {
+              "group_by": {
+                "time": {"date_histogram": {"fixed_interval": "1h", "field": "time"}}},
+              "aggs": {
+                "avg_response": {"avg": {"field": "responsetime"}},
+                "time.min": {"min": {"field": "time"}}
+              }
             }
           }

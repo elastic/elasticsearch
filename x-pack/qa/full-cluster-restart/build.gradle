@@ -116,13 +116,15 @@ for (Version version : bwcVersions.indexCompatible) {
 
         setting 'xpack.security.enabled', 'true'
         setting 'xpack.security.transport.ssl.enabled', 'true'
-        if (project.inFipsJvm) {
-            setting 'xpack.security.transport.ssl.key', 'testnode.pem'
-            setting 'xpack.security.transport.ssl.certificate', 'testnode.crt'
-            keystoreSetting 'xpack.security.transport.ssl.secure_key_passphrase', 'testnode'
-        } else {
-            setting 'xpack.security.transport.ssl.keystore.path', 'testnode.jks'
-            setting 'xpack.security.transport.ssl.keystore.password', 'testnode'
+        rootProject.globalInfo.ready {
+            if (project.inFipsJvm) {
+                setting 'xpack.security.transport.ssl.key', 'testnode.pem'
+                setting 'xpack.security.transport.ssl.certificate', 'testnode.crt'
+                keystoreSetting 'xpack.security.transport.ssl.secure_key_passphrase', 'testnode'
+            } else {
+                setting 'xpack.security.transport.ssl.keystore.path', 'testnode.jks'
+                setting 'xpack.security.transport.ssl.keystore.password', 'testnode'
+            }
         }
         setting 'xpack.license.self_generated.type', 'trial'
         dependsOn copyTestNodeKeyMaterial
@@ -160,13 +162,15 @@ for (Version version : bwcVersions.indexCompatible) {
         // some tests rely on the translog not being flushed
         setting 'indices.memory.shard_inactive_time', '20m'
         setting 'xpack.security.enabled', 'true'
-        if (project.inFipsJvm) {
-            setting 'xpack.security.transport.ssl.key', 'testnode.pem'
-            setting 'xpack.security.transport.ssl.certificate', 'testnode.crt'
-            keystoreSetting 'xpack.security.transport.ssl.secure_key_passphrase', 'testnode'
-        } else {
-            setting 'xpack.security.transport.ssl.keystore.path', 'testnode.jks'
-            setting 'xpack.security.transport.ssl.keystore.password', 'testnode'
+        rootProject.globalInfo.ready {
+            if (project.inFipsJvm) {
+                setting 'xpack.security.transport.ssl.key', 'testnode.pem'
+                setting 'xpack.security.transport.ssl.certificate', 'testnode.crt'
+                keystoreSetting 'xpack.security.transport.ssl.secure_key_passphrase', 'testnode'
+            } else {
+                setting 'xpack.security.transport.ssl.keystore.path', 'testnode.jks'
+                setting 'xpack.security.transport.ssl.keystore.password', 'testnode'
+            }
         }
         setting 'xpack.license.self_generated.type', 'trial'
         dependsOn copyTestNodeKeyMaterial

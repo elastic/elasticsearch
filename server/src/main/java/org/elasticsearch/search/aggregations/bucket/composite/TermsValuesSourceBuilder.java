@@ -65,16 +65,6 @@ public class TermsValuesSourceBuilder extends CompositeValuesSourceBuilder<Terms
     protected void doXContentBody(XContentBuilder builder, Params params) throws IOException {}
 
     @Override
-    protected int innerHashCode() {
-        return 0;
-    }
-
-    @Override
-    protected boolean innerEquals(TermsValuesSourceBuilder builder) {
-        return true;
-    }
-
-    @Override
     public String type() {
         return TYPE;
     }

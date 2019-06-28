@@ -74,7 +74,7 @@ import static org.hamcrest.Matchers.equalTo;
 public class IndicesStoreIntegrationIT extends ESIntegTestCase {
     @Override
     protected Settings nodeSettings(int nodeOrdinal) { // simplify this and only use a single data path
-        return Settings.builder().put(super.nodeSettings(nodeOrdinal)).put(Environment.PATH_DATA_SETTING.getKey(), "")
+        return Settings.builder().put(super.nodeSettings(nodeOrdinal)).put(Environment.PATH_DATA_SETTING.getKey(), createTempDir())
                 // by default this value is 1 sec in tests (30 sec in practice) but we adding disruption here
                 // which is between 1 and 2 sec can cause each of the shard deletion requests to timeout.
                 // to prevent this we are setting the timeout here to something highish ie. the default in practice
@@ -335,8 +335,11 @@ public class IndicesStoreIntegrationIT extends ESIntegTestCase {
                 .put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), "none")));
 
         logger.debug("--> shutting down two random nodes");
-        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(node1, node2, node3));
-        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(node1, node2, node3));
+        List<String> nodesToShutDown = randomSubsetOf(2, node1, node2, node3);
+        Settings node1DataPathSettings = internalCluster().dataPathSettings(nodesToShutDown.get(0));
+        Settings node2DataPathSettings = internalCluster().dataPathSettings(nodesToShutDown.get(1));
+        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(nodesToShutDown.get(0)));
+        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(nodesToShutDown.get(1)));
 
         logger.debug("--> verifying index is red");
         ClusterHealthResponse health = client().admin().cluster().prepareHealth().setWaitForNodes("3").get();
@@ -369,7 +372,7 @@ public class IndicesStoreIntegrationIT extends ESIntegTestCase {
 
         logger.debug("--> starting the two old nodes back");
 
-        internalCluster().startDataOnlyNodes(2);
+        internalCluster().startNodes(node1DataPathSettings, node2DataPathSettings);
 
         assertFalse(client().admin().cluster().prepareHealth().setWaitForNodes("5").get().isTimedOut());
 

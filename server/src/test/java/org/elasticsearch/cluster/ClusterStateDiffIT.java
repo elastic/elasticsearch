@@ -32,11 +32,6 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.RepositoriesMetaData;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
@@ -47,15 +42,21 @@ import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.snapshots.Snapshot;
+import org.elasticsearch.snapshots.SnapshotId;
+import org.elasticsearch.snapshots.SnapshotInfoTests;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.util.Collections;
@@ -719,7 +720,8 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
                                 Collections.emptyList(),
                                 Math.abs(randomLong()),
                                 (long) randomIntBetween(0, 1000),
-                                ImmutableOpenMap.of()));
+                                ImmutableOpenMap.of(),
+                                SnapshotInfoTests.randomUserMetadata()));
                     case 1:
                         return new RestoreInProgress.Builder().add(
                             new RestoreInProgress.Entry(

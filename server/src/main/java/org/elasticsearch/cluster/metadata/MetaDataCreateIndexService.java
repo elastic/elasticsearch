@@ -20,7 +20,6 @@
 package org.elasticsearch.cluster.metadata;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
@@ -386,8 +385,7 @@ public class MetaDataCreateIndexService {
                     indexSettingsBuilder.put(IndexMetaData.SETTING_INDEX_VERSION_CREATED.getKey(), createdVersion);
                 }
                 if (indexSettingsBuilder.get(SETTING_NUMBER_OF_SHARDS) == null) {
-                    final int numberOfShards = getNumberOfShards(indexSettingsBuilder);
-                    indexSettingsBuilder.put(SETTING_NUMBER_OF_SHARDS, settings.getAsInt(SETTING_NUMBER_OF_SHARDS, numberOfShards));
+                    indexSettingsBuilder.put(SETTING_NUMBER_OF_SHARDS, settings.getAsInt(SETTING_NUMBER_OF_SHARDS, 1));
                 }
                 if (indexSettingsBuilder.get(SETTING_NUMBER_OF_REPLICAS) == null) {
                     indexSettingsBuilder.put(SETTING_NUMBER_OF_REPLICAS, settings.getAsInt(SETTING_NUMBER_OF_REPLICAS, 1));
@@ -587,21 +585,6 @@ public class MetaDataCreateIndexService {
                     indicesService.removeIndex(createdIndex, removalReason, removalExtraInfo);
                 }
             }
-        }
-
-        static int getNumberOfShards(final Settings.Builder indexSettingsBuilder) {
-            // TODO: this logic can be removed when the current major version is 8
-            // TODO: https://github.com/elastic/elasticsearch/issues/38556
-            // assert Version.CURRENT.major == 7;
-            final int numberOfShards;
-            final Version indexVersionCreated =
-                    Version.fromId(Integer.parseInt(indexSettingsBuilder.get(IndexMetaData.SETTING_INDEX_VERSION_CREATED.getKey())));
-            if (indexVersionCreated.before(Version.V_7_0_0)) {
-                numberOfShards = 5;
-            } else {
-                numberOfShards = 1;
-            }
-            return numberOfShards;
         }
 
         @Override

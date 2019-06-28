@@ -20,6 +20,7 @@
 package org.elasticsearch.action.admin.cluster.repositories.get;
 
 import org.elasticsearch.action.Action;
+import org.elasticsearch.common.io.stream.Writeable;
 
 /**
  * Get repositories action
@@ -35,7 +36,12 @@ public class GetRepositoriesAction extends Action<GetRepositoriesResponse> {
 
     @Override
     public GetRepositoriesResponse newResponse() {
-        return new GetRepositoriesResponse();
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
+    }
+
+    @Override
+    public Writeable.Reader<GetRepositoriesResponse> getResponseReader() {
+        return GetRepositoriesResponse::new;
     }
 }
 

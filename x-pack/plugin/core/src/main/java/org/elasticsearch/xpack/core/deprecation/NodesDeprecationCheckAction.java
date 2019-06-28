@@ -41,8 +41,7 @@ public class NodesDeprecationCheckAction extends Action<NodesDeprecationCheckRes
         NodesDeprecationCheckRequest request;
 
         public NodeRequest() {}
-        public NodeRequest(String nodeId, NodesDeprecationCheckRequest request) {
-            super(nodeId);
+        public NodeRequest(NodesDeprecationCheckRequest request) {
             this.request = request;
         }
 

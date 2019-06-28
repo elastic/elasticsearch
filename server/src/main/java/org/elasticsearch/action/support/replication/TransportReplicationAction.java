@@ -63,6 +63,7 @@ import org.elasticsearch.index.shard.IndexShardClosedException;
 import org.elasticsearch.index.shard.ReplicationGroup;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
+import org.elasticsearch.index.shard.ShardNotInPrimaryModeException;
 import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.node.NodeClosedException;
@@ -307,10 +308,18 @@ public abstract class TransportReplicationAction<
                     primaryRequest.getTargetAllocationID(), primaryRequest.getPrimaryTerm(), actualTerm);
             }
 
-            acquirePrimaryOperationPermit(indexShard, primaryRequest.getRequest(), ActionListener.wrap(
-                releasable -> runWithPrimaryShardReference(new PrimaryShardReference(indexShard, releasable)),
-                this::onFailure
-            ));
+            acquirePrimaryOperationPermit(
+                    indexShard,
+                    primaryRequest.getRequest(),
+                    ActionListener.wrap(
+                            releasable -> runWithPrimaryShardReference(new PrimaryShardReference(indexShard, releasable)),
+                            e -> {
+                                if (e instanceof ShardNotInPrimaryModeException) {
+                                    onFailure(new ReplicationOperation.RetryOnPrimaryException(shardId, "shard is not in primary mode", e));
+                                } else {
+                                    onFailure(e);
+                                }
+                            }));
         }
 
         void runWithPrimaryShardReference(final PrimaryShardReference primaryShardReference) {
@@ -517,7 +526,7 @@ public abstract class TransportReplicationAction<
                 final ReplicaResult replicaResult = shardOperationOnReplica(replicaRequest.getRequest(), replica);
                 releasable.close(); // release shard operation lock before responding to caller
                 final TransportReplicationAction.ReplicaResponse response =
-                        new ReplicaResponse(replica.getLocalCheckpoint(), replica.getGlobalCheckpoint());
+                        new ReplicaResponse(replica.getLocalCheckpoint(), replica.getLastSyncedGlobalCheckpoint());
                 replicaResult.respond(new ResponseListener(response));
             } catch (final Exception e) {
                 Releasables.closeWhileHandlingException(releasable); // release shard operation lock before responding to caller
@@ -883,10 +892,6 @@ public abstract class TransportReplicationAction<
             operationLock.close();
         }
 
-        public long getLocalCheckpoint() {
-            return indexShard.getLocalCheckpoint();
-        }
-
         public ShardRouting routingEntry() {
             return indexShard.routingEntry();
         }
@@ -934,7 +939,12 @@ public abstract class TransportReplicationAction<
 
         @Override
         public long globalCheckpoint() {
-            return indexShard.getGlobalCheckpoint();
+            return indexShard.getLastSyncedGlobalCheckpoint();
+        }
+
+        @Override
+        public long computedGlobalCheckpoint() {
+            return indexShard.getLastKnownGlobalCheckpoint();
         }
 
         @Override

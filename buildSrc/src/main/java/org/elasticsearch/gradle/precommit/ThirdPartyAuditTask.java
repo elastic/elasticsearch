@@ -26,6 +26,7 @@ import org.gradle.api.JavaVersion;
 import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.artifacts.Dependency;
 import org.gradle.api.file.FileTree;
+import org.gradle.api.provider.Property;
 import org.gradle.api.specs.Spec;
 import org.gradle.api.tasks.CacheableTask;
 import org.gradle.api.tasks.Classpath;
@@ -79,15 +80,11 @@ public class ThirdPartyAuditTask extends DefaultTask {
 
     private String javaHome;
 
-    private JavaVersion targetCompatibility;
+    private final Property<JavaVersion> targetCompatibility = getProject().getObjects().property(JavaVersion.class);
 
     @Input
-    public JavaVersion getTargetCompatibility() {
+    public Property<JavaVersion> getTargetCompatibility() {
         return targetCompatibility;
-    }
-
-    public void setTargetCompatibility(JavaVersion targetCompatibility) {
-        this.targetCompatibility = targetCompatibility;
     }
 
     @InputFiles
@@ -287,7 +284,7 @@ public class ThirdPartyAuditTask extends DefaultTask {
             // pther version specific implementation of said classes.
             IntStream.rangeClosed(
                 Integer.parseInt(JavaVersion.VERSION_1_9.getMajorVersion()),
-                Integer.parseInt(targetCompatibility.getMajorVersion())
+                Integer.parseInt(targetCompatibility.get().getMajorVersion())
             ).forEach(majorVersion -> getProject().copy(spec -> {
                 spec.from(getProject().zipTree(jar));
                 spec.into(jarExpandDir);

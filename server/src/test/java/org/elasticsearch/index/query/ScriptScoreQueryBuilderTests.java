@@ -88,8 +88,15 @@ public class ScriptScoreQueryBuilderTests extends AbstractQueryTestCase<ScriptSc
         );
     }
 
+    /**
+     * Check that this query is generally not cacheable
+     */
     @Override
-    protected boolean isCacheable(ScriptScoreQueryBuilder queryBuilder) {
-        return false;
+    public void testCacheability() throws IOException {
+        ScriptScoreQueryBuilder queryBuilder = createTestQueryBuilder();
+        QueryShardContext context = createShardContext();
+        QueryBuilder rewriteQuery = rewriteQuery(queryBuilder, new QueryShardContext(context));
+        assertNotNull(rewriteQuery.toQuery(context));
+        assertFalse("query should not be cacheable: " + queryBuilder.toString(), context.isCacheable());
     }
 }

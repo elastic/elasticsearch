@@ -207,3 +207,8 @@ connection. For example:
 --------------------------------------------------
 include-tagged::{jdbc-tests}/SimpleExampleTestCase.java[simple_example]
 --------------------------------------------------
+
+NOTE:: {es-sql} doesn't provide a connection pooling mechanism, thus the connections
+the JDBC driver creates are not pooled. In order to achieve pooled connections,
+a third-party connection pooling mechanism is required. Configuring and setting up the
+third-party provider is outside the scope of this documentation.

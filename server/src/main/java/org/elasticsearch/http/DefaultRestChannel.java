@@ -33,6 +33,7 @@ import org.elasticsearch.rest.AbstractRestChannel;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
+import org.elasticsearch.rest.RestStatus;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -53,12 +54,12 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
     static final String CONTENT_LENGTH = "content-length";
     static final String SET_COOKIE = "set-cookie";
 
-    private final HttpChannel httpChannel;
     private final HttpRequest httpRequest;
     private final BigArrays bigArrays;
     private final HttpHandlingSettings settings;
     private final CorsHandler corsHandler;
     private final ThreadContext threadContext;
+    private final HttpChannel httpChannel;
 
     DefaultRestChannel(HttpChannel httpChannel, HttpRequest httpRequest, RestRequest request, BigArrays bigArrays,
                        HttpHandlingSettings settings, CorsHandler corsHandler, ThreadContext threadContext) {
@@ -78,28 +79,41 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
 
     @Override
     public void sendResponse(RestResponse restResponse) {
-        HttpResponse httpResponse;
-        if (RestRequest.Method.HEAD == request.method()) {
-            httpResponse = httpRequest.createResponse(restResponse.status(), BytesArray.EMPTY);
-        } else {
-            httpResponse = httpRequest.createResponse(restResponse.status(), restResponse.content());
+        final ArrayList<Releasable> toClose = new ArrayList<>(3);
+        if (isCloseConnection()) {
+            toClose.add(() -> CloseableChannel.closeChannel(httpChannel));
         }
-
-        corsHandler.setCorsResponseHeaders(httpRequest, httpResponse);
-
-        String opaque = request.header(X_OPAQUE_ID);
-        if (opaque != null) {
-            setHeaderField(httpResponse, X_OPAQUE_ID, opaque);
-        }
-
-        // Add all custom headers
-        addCustomHeaders(httpResponse, restResponse.getHeaders());
-        addCustomHeaders(httpResponse, threadContext.getResponseHeaders());
-
-        ArrayList<Releasable> toClose = new ArrayList<>(3);
 
         boolean success = false;
         try {
+            final BytesReference content = restResponse.content();
+            if (content instanceof Releasable) {
+                toClose.add((Releasable) content);
+            }
+
+            BytesReference finalContent = content;
+            try {
+                if (request.method() == RestRequest.Method.HEAD) {
+                    finalContent = BytesArray.EMPTY;
+                }
+            } catch (IllegalArgumentException ignored) {
+                assert restResponse.status() == RestStatus.METHOD_NOT_ALLOWED :
+                    "request HTTP method is unsupported but HTTP status is not METHOD_NOT_ALLOWED(405)";
+            }
+
+            final HttpResponse httpResponse = httpRequest.createResponse(restResponse.status(), finalContent);
+
+             corsHandler.setCorsResponseHeaders(httpRequest, httpResponse);
+
+            String opaque = request.header(X_OPAQUE_ID);
+            if (opaque != null) {
+                setHeaderField(httpResponse, X_OPAQUE_ID, opaque);
+            }
+
+            // Add all custom headers
+            addCustomHeaders(httpResponse, restResponse.getHeaders());
+            addCustomHeaders(httpResponse, threadContext.getResponseHeaders());
+
             // If our response doesn't specify a content-type header, set one
             setHeaderField(httpResponse, CONTENT_TYPE, restResponse.contentType(), false);
             // If our response has no content-length, calculate and set one
@@ -107,17 +121,9 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
 
             addCookies(httpResponse);
 
-            BytesReference content = restResponse.content();
-            if (content instanceof Releasable) {
-                toClose.add((Releasable) content);
-            }
             BytesStreamOutput bytesStreamOutput = bytesOutputOrNull();
             if (bytesStreamOutput instanceof ReleasableBytesStreamOutput) {
                 toClose.add((Releasable) bytesStreamOutput);
-            }
-
-            if (HttpUtils.isCloseConnection(request.getHttpRequest())) {
-                toClose.add(() -> CloseableChannel.closeChannel(httpChannel));
             }
 
             ActionListener<Void> listener = ActionListener.wrap(() -> Releasables.close(toClose));
@@ -128,7 +134,6 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
                 Releasables.close(toClose);
             }
         }
-
     }
 
     private void setHeaderField(HttpResponse response, String headerField, String value) {
@@ -160,5 +165,16 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
                 }
             }
         }
+    }
+
+    // Determine if the request connection should be closed on completion.
+    private boolean isCloseConnection() {
+        final boolean http10 = isHttp10();
+        return CLOSE.equalsIgnoreCase(request.header(CONNECTION)) || (http10 && !KEEP_ALIVE.equalsIgnoreCase(request.header(CONNECTION)));
+    }
+
+    // Determine if the request protocol version is HTTP 1.0
+    private boolean isHttp10() {
+        return request.getHttpRequest().protocolVersion() == HttpRequest.HttpVersion.HTTP_1_0;
     }
 }

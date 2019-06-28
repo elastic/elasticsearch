@@ -61,9 +61,13 @@ public class DataFrameGetAndGetStatsIT extends DataFrameRestTestCase {
     public void testGetAndGetStats() throws Exception {
         createPivotReviewsTransform("pivot_1", "pivot_reviews_1", null);
         createPivotReviewsTransform("pivot_2", "pivot_reviews_2", null);
+        createContinuousPivotReviewsTransform("pivot_continuous", "pivot_reviews_continuous", null);
 
         startAndWaitForTransform("pivot_1", "pivot_reviews_1");
         startAndWaitForTransform("pivot_2", "pivot_reviews_2");
+        startAndWaitForContinuousTransform("pivot_continuous", "pivot_reviews_continuous", null);
+        stopDataFrameTransform("pivot_1", false);
+        stopDataFrameTransform("pivot_2", false);
 
         // Alternate testing between admin and lowly user, as both should be able to get the configs and stats
         String authHeader = randomFrom(BASIC_AUTH_VALUE_DATA_FRAME_USER, BASIC_AUTH_VALUE_DATA_FRAME_ADMIN);
@@ -71,19 +75,19 @@ public class DataFrameGetAndGetStatsIT extends DataFrameRestTestCase {
         // check all the different ways to retrieve all stats
         Request getRequest = createRequestWithAuth("GET", DATAFRAME_ENDPOINT + "_stats", authHeader);
         Map<String, Object> stats = entityAsMap(client().performRequest(getRequest));
-        assertEquals(2, XContentMapValues.extractValue("count", stats));
+        assertEquals(3, XContentMapValues.extractValue("count", stats));
         getRequest = createRequestWithAuth("GET", DATAFRAME_ENDPOINT + "_all/_stats", authHeader);
         stats = entityAsMap(client().performRequest(getRequest));
-        assertEquals(2, XContentMapValues.extractValue("count", stats));
+        assertEquals(3, XContentMapValues.extractValue("count", stats));
         getRequest = createRequestWithAuth("GET", DATAFRAME_ENDPOINT + "*/_stats", authHeader);
         stats = entityAsMap(client().performRequest(getRequest));
-        assertEquals(2, XContentMapValues.extractValue("count", stats));
+        assertEquals(3, XContentMapValues.extractValue("count", stats));
         getRequest = createRequestWithAuth("GET", DATAFRAME_ENDPOINT + "pivot_1,pivot_2/_stats", authHeader);
         stats = entityAsMap(client().performRequest(getRequest));
         assertEquals(2, XContentMapValues.extractValue("count", stats));
         getRequest = createRequestWithAuth("GET", DATAFRAME_ENDPOINT + "pivot_*/_stats", authHeader);
         stats = entityAsMap(client().performRequest(getRequest));
-        assertEquals(2, XContentMapValues.extractValue("count", stats));
+        assertEquals(3, XContentMapValues.extractValue("count", stats));
 
         List<Map<String, Object>> transformsStats = (List<Map<String, Object>>)XContentMapValues.extractValue("transforms", stats);
         // Verify that both transforms have valid stats
@@ -106,26 +110,39 @@ public class DataFrameGetAndGetStatsIT extends DataFrameRestTestCase {
         transformsStats = (List<Map<String, Object>>)XContentMapValues.extractValue("transforms", stats);
         assertEquals(1, transformsStats.size());
         Map<String, Object> state = (Map<String, Object>) XContentMapValues.extractValue("state", transformsStats.get(0));
-        assertEquals(1, transformsStats.size());
-        assertEquals("started", XContentMapValues.extractValue("task_state", state));
+        assertEquals("stopped", XContentMapValues.extractValue("task_state", state));
         assertEquals(null, XContentMapValues.extractValue("current_position", state));
         assertEquals(1, XContentMapValues.extractValue("checkpoint", state));
+
+        // only continuous
+        getRequest = createRequestWithAuth("GET", DATAFRAME_ENDPOINT + "pivot_continuous/_stats", authHeader);
+        stats = entityAsMap(client().performRequest(getRequest));
+        assertEquals(1, XContentMapValues.extractValue("count", stats));
+
+        transformsStats = (List<Map<String, Object>>)XContentMapValues.extractValue("transforms", stats);
+        assertEquals(1, transformsStats.size());
+        state = (Map<String, Object>) XContentMapValues.extractValue("state", transformsStats.get(0));
+        assertEquals("started", XContentMapValues.extractValue("task_state", state));
+        assertEquals(1, XContentMapValues.extractValue("checkpoint", state));
+
 
         // check all the different ways to retrieve all transforms
         getRequest = createRequestWithAuth("GET", DATAFRAME_ENDPOINT, authHeader);
         Map<String, Object> transforms = entityAsMap(client().performRequest(getRequest));
-        assertEquals(2, XContentMapValues.extractValue("count", transforms));
+        assertEquals(3, XContentMapValues.extractValue("count", transforms));
         getRequest = createRequestWithAuth("GET", DATAFRAME_ENDPOINT + "_all", authHeader);
         transforms = entityAsMap(client().performRequest(getRequest));
-        assertEquals(2, XContentMapValues.extractValue("count", transforms));
+        assertEquals(3, XContentMapValues.extractValue("count", transforms));
         getRequest = createRequestWithAuth("GET", DATAFRAME_ENDPOINT + "*", authHeader);
         transforms = entityAsMap(client().performRequest(getRequest));
-        assertEquals(2, XContentMapValues.extractValue("count", transforms));
+        assertEquals(3, XContentMapValues.extractValue("count", transforms));
 
         // only pivot_1
         getRequest = createRequestWithAuth("GET", DATAFRAME_ENDPOINT + "pivot_1", authHeader);
         transforms = entityAsMap(client().performRequest(getRequest));
         assertEquals(1, XContentMapValues.extractValue("count", transforms));
+
+        stopDataFrameTransform("pivot_continuous", false);
     }
 
     @SuppressWarnings("unchecked")
@@ -160,7 +177,7 @@ public class DataFrameGetAndGetStatsIT extends DataFrameRestTestCase {
 
     @SuppressWarnings("unchecked")
     public void testGetProgressStatsWithPivotQuery() throws Exception {
-        String transformId = "simpleStatsPivotWithQuery";
+        String transformId = "simple_stats_pivot_with_query";
         String dataFrameIndex = "pivot_stats_reviews_user_id_above_20";
         String query = "\"match\": {\"user_id\": \"user_26\"}";
         createPivotReviewsTransform(transformId, dataFrameIndex, query);
@@ -169,7 +186,7 @@ public class DataFrameGetAndGetStatsIT extends DataFrameRestTestCase {
         // Alternate testing between admin and lowly user, as both should be able to get the configs and stats
         String authHeader = randomFrom(BASIC_AUTH_VALUE_DATA_FRAME_USER, BASIC_AUTH_VALUE_DATA_FRAME_ADMIN);
 
-        Request getRequest = createRequestWithAuth("GET", DATAFRAME_ENDPOINT + "simpleStatsPivotWithQuery/_stats", authHeader);
+        Request getRequest = createRequestWithAuth("GET", DATAFRAME_ENDPOINT + transformId + "/_stats", authHeader);
         Map<String, Object> stats = entityAsMap(client().performRequest(getRequest));
         assertEquals(1, XContentMapValues.extractValue("count", stats));
         List<Map<String, Object>> transformsStats = (List<Map<String, Object>>)XContentMapValues.extractValue("transforms", stats);

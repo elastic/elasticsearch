@@ -20,7 +20,7 @@ import static org.hamcrest.Matchers.is;
 public class RunAsIntegTests extends SecurityIntegTestCase {
 
     private static final String RUN_AS_USER = "run_as_user";
-    private static final String TRANSPORT_CLIENT_USER = "transport_user";
+    private static final String CLIENT_USER = "transport_user";
     private static final String ROLES =
             "run_as_role:\n" +
             "  run_as: [ '" + SecuritySettingsSource.TEST_USER_NAME + "', 'idontexist' ]\n";
@@ -47,14 +47,14 @@ public class RunAsIntegTests extends SecurityIntegTestCase {
     public String configUsers() {
         return super.configUsers()
                 + RUN_AS_USER + ":" + SecuritySettingsSource.TEST_PASSWORD_HASHED + "\n"
-                + TRANSPORT_CLIENT_USER + ":" + SecuritySettingsSource.TEST_PASSWORD_HASHED + "\n";
+                + CLIENT_USER + ":" + SecuritySettingsSource.TEST_PASSWORD_HASHED + "\n";
     }
 
     @Override
     public String configUsersRoles() {
         String roles = super.configUsersRoles()
                 + "run_as_role:" + RUN_AS_USER + "\n"
-                + "transport_client:" + TRANSPORT_CLIENT_USER;
+                + "transport_client:" + CLIENT_USER;
         if (runAsHasSuperUserRole) {
             roles = roles + "\n"
                     + "superuser:" + RUN_AS_USER;
@@ -68,12 +68,12 @@ public class RunAsIntegTests extends SecurityIntegTestCase {
     }
 
     public void testUserImpersonationUsingHttp() throws Exception {
-        // use the transport client user and try to run as
+        // use the http user and try to run as
         try {
             Request request = new Request("GET", "/_nodes");
             RequestOptions.Builder options = request.getOptions().toBuilder();
             options.addHeader("Authorization",
-                    UsernamePasswordToken.basicAuthHeaderValue(TRANSPORT_CLIENT_USER, TEST_PASSWORD_SECURE_STRING));
+                    UsernamePasswordToken.basicAuthHeaderValue(CLIENT_USER, TEST_PASSWORD_SECURE_STRING));
             options.addHeader(AuthenticationServiceField.RUN_AS_USER_HEADER, SecuritySettingsSource.TEST_USER_NAME);
             request.setOptions(options);
             getRestClient().performRequest(request);

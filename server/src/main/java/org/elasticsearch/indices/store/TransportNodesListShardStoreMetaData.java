@@ -19,6 +19,7 @@
 
 package org.elasticsearch.indices.store;
 
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
@@ -49,6 +50,7 @@ import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetaData;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -90,8 +92,8 @@ public class TransportNodesListShardStoreMetaData extends TransportNodesAction<T
     }
 
     @Override
-    protected NodeRequest newNodeRequest(String nodeId, Request request) {
-        return new NodeRequest(nodeId, request);
+    protected NodeRequest newNodeRequest(Request request) {
+        return new NodeRequest(request);
     }
 
     @Override
@@ -106,7 +108,7 @@ public class TransportNodesListShardStoreMetaData extends TransportNodesAction<T
     }
 
     @Override
-    protected NodeStoreFilesMetaData nodeOperation(NodeRequest request) {
+    protected NodeStoreFilesMetaData nodeOperation(NodeRequest request, Task task) {
         try {
             return new NodeStoreFilesMetaData(clusterService.localNode(), listStoreMetaData(request.shardId));
         } catch (IOException e) {
@@ -123,8 +125,17 @@ public class TransportNodesListShardStoreMetaData extends TransportNodesAction<T
             if (indexService != null) {
                 IndexShard indexShard = indexService.getShardOrNull(shardId.id());
                 if (indexShard != null) {
-                    exists = true;
-                    return new StoreFilesMetaData(shardId, indexShard.snapshotStoreMetadata());
+                    try {
+                        final StoreFilesMetaData storeFilesMetaData = new StoreFilesMetaData(shardId, indexShard.snapshotStoreMetadata());
+                        exists = true;
+                        return storeFilesMetaData;
+                    } catch (org.apache.lucene.index.IndexNotFoundException e) {
+                        logger.trace(new ParameterizedMessage("[{}] node is missing index, responding with empty", shardId), e);
+                        return new StoreFilesMetaData(shardId, Store.MetadataSnapshot.EMPTY);
+                    } catch (IOException e) {
+                        logger.warn(new ParameterizedMessage("[{}] can't read metadata from store, responding with empty", shardId), e);
+                        return new StoreFilesMetaData(shardId, Store.MetadataSnapshot.EMPTY);
+                    }
                 }
             }
             // try and see if we an list unallocated
@@ -280,8 +291,7 @@ public class TransportNodesListShardStoreMetaData extends TransportNodesAction<T
         public NodeRequest() {
         }
 
-        NodeRequest(String nodeId, TransportNodesListShardStoreMetaData.Request request) {
-            super(nodeId);
+        NodeRequest(TransportNodesListShardStoreMetaData.Request request) {
             this.shardId = request.shardId;
         }
 

@@ -21,7 +21,6 @@ package org.elasticsearch.index.mapper;
 
 import com.carrotsearch.hppc.ObjectHashSet;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.analysis.Analyzer;
@@ -37,6 +36,7 @@ import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -46,8 +46,13 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexSortConfig;
+import org.elasticsearch.index.analysis.AnalysisRegistry;
+import org.elasticsearch.index.analysis.CharFilterFactory;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
+import org.elasticsearch.index.analysis.ReloadableCustomAnalyzer;
+import org.elasticsearch.index.analysis.TokenFilterFactory;
+import org.elasticsearch.index.analysis.TokenizerFactory;
 import org.elasticsearch.index.mapper.Mapper.BuilderContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.similarity.SimilarityService;
@@ -260,9 +265,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             final IndexMetaData currentIndexMetaData,
             final IndexMetaData newIndexMetaData,
             final Map<String, DocumentMapper> updatedEntries) {
-        if (Assertions.ENABLED
-                && currentIndexMetaData != null
-                && currentIndexMetaData.getCreationVersion().onOrAfter(Version.V_6_5_0)) {
+        if (Assertions.ENABLED && currentIndexMetaData != null) {
             if (currentIndexMetaData.getMappingVersion() == newIndexMetaData.getMappingVersion()) {
                 // if the mapping version is unchanged, then there should not be any updates and all mappings should be the same
                 assert updatedEntries.isEmpty() : updatedEntries;
@@ -744,10 +747,10 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
      * Returns all the fields that match the given pattern. If the pattern is prefixed with a type
      * then the fields will be returned with a type prefix.
      */
-    public Collection<String> simpleMatchToFullName(String pattern) {
+    public Set<String> simpleMatchToFullName(String pattern) {
         if (Regex.isSimpleMatchPattern(pattern) == false) {
             // no wildcards
-            return Collections.singletonList(pattern);
+            return Collections.singleton(pattern);
         }
         return fieldTypes.simpleMatchToFullName(pattern);
     }
@@ -841,6 +844,22 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
                 }
             }
             return defaultAnalyzer;
+        }
+    }
+
+    public synchronized void reloadSearchAnalyzers(AnalysisRegistry registry) throws IOException {
+        logger.info("reloading search analyzers");
+        // refresh indexAnalyzers and search analyzers
+        final Map<String, TokenizerFactory> tokenizerFactories = registry.buildTokenizerFactories(indexSettings);
+        final Map<String, CharFilterFactory> charFilterFactories = registry.buildCharFilterFactories(indexSettings);
+        final Map<String, TokenFilterFactory> tokenFilterFactories = registry.buildTokenFilterFactories(indexSettings);
+        final Map<String, Settings> settings = indexSettings.getSettings().getGroups("index.analysis.analyzer");
+        for (NamedAnalyzer namedAnalyzer : indexAnalyzers.getAnalyzers().values()) {
+            if (namedAnalyzer.analyzer() instanceof ReloadableCustomAnalyzer) {
+                ReloadableCustomAnalyzer analyzer = (ReloadableCustomAnalyzer) namedAnalyzer.analyzer();
+                Settings analyzerSettings = settings.get(namedAnalyzer.name());
+                analyzer.reload(namedAnalyzer.name(), analyzerSettings, tokenizerFactories, charFilterFactories, tokenFilterFactories);
+            }
         }
     }
 }

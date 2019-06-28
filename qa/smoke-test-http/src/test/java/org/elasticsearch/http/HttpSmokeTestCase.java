@@ -83,19 +83,6 @@ public abstract class HttpSmokeTestCase extends ESIntegTestCase {
     }
 
     @Override
-    protected Collection<Class<? extends Plugin>> transportClientPlugins() {
-        return Arrays.asList(getTestTransportPlugin(), Netty4Plugin.class, NioTransportPlugin.class);
-    }
-
-    @Override
-    protected Settings transportClientSettings() {
-        return Settings.builder()
-                .put(super.transportClientSettings())
-                .put(NetworkModule.TRANSPORT_TYPE_KEY, clientTypeKey)
-                .build();
-    }
-
-    @Override
     protected boolean ignoreExternalCluster() {
         return true;
     }

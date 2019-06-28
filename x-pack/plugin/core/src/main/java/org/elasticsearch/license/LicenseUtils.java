@@ -6,11 +6,8 @@
 package org.elasticsearch.license;
 
 import org.elasticsearch.ElasticsearchSecurityException;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.rest.RestStatus;
-
-import java.util.stream.StreamSupport;
 
 public class LicenseUtils {
 
@@ -58,13 +55,6 @@ public class LicenseUtils {
 
     public static int compatibleLicenseVersion(DiscoveryNodes currentNodes) {
         assert License.VERSION_CRYPTO_ALGORITHMS == License.VERSION_CURRENT : "update this method when adding a new version";
-
-        if (StreamSupport.stream(currentNodes.spliterator(), false)
-            .allMatch(node -> node.getVersion().onOrAfter(Version.V_6_4_0))) {
-            // License.VERSION_CRYPTO_ALGORITHMS was introduced in 6.4.0
-            return License.VERSION_CRYPTO_ALGORITHMS;
-        } else {
-            return License.VERSION_START_DATE;
-        }
+        return License.VERSION_CRYPTO_ALGORITHMS;
     }
 }

@@ -78,7 +78,7 @@ public final class FrozenEngine extends ReadOnlyEngine {
 
         boolean success = false;
         Directory directory = store.directory();
-        try (DirectoryReader reader = DirectoryReader.open(directory)) {
+        try (DirectoryReader reader = DirectoryReader.open(directory, OFF_HEAP_READER_ATTRIBUTES)) {
             canMatchReader = ElasticsearchDirectoryReader.wrap(new RewriteCachingDirectoryReader(directory, reader.leaves()),
                 config.getShardId());
             // we record the segment stats here - that's what the reader needs when it's open and it give the user
@@ -168,8 +168,8 @@ public final class FrozenEngine extends ReadOnlyEngine {
                 for (ReferenceManager.RefreshListener listeners : config ().getInternalRefreshListener()) {
                     listeners.beforeRefresh();
                 }
-                reader = DirectoryReader.open(engineConfig.getStore().directory());
-                processReaders(reader, null);
+                reader = DirectoryReader.open(engineConfig.getStore().directory(), OFF_HEAP_READER_ATTRIBUTES);
+                processReader(reader);
                 reader = lastOpenedReader = wrapReader(reader, Function.identity());
                 reader.getReaderCacheHelper().addClosedListener(this::onReaderClosed);
                 for (ReferenceManager.RefreshListener listeners : config ().getInternalRefreshListener()) {
@@ -272,8 +272,8 @@ public final class FrozenEngine extends ReadOnlyEngine {
 
         @Override
         public void validateSearchContext(SearchContext context, TransportRequest transportRequest) {
-            Searcher engineSearcher = context.searcher().getEngineSearcher();
-            LazyDirectoryReader lazyDirectoryReader = unwrapLazyReader(engineSearcher.getDirectoryReader());
+            DirectoryReader dirReader = context.searcher().getDirectoryReader();
+            LazyDirectoryReader lazyDirectoryReader = unwrapLazyReader(dirReader);
             if (lazyDirectoryReader != null) {
                 try {
                     lazyDirectoryReader.reset();
@@ -297,8 +297,8 @@ public final class FrozenEngine extends ReadOnlyEngine {
 
         @Override
         public void onNewContext(SearchContext context) {
-            Searcher engineSearcher = context.searcher().getEngineSearcher();
-            LazyDirectoryReader lazyDirectoryReader = unwrapLazyReader(engineSearcher.getDirectoryReader());
+            DirectoryReader dirReader = context.searcher().getDirectoryReader();
+            LazyDirectoryReader lazyDirectoryReader = unwrapLazyReader(dirReader);
             if (lazyDirectoryReader != null) {
                 registerRelease(context, lazyDirectoryReader);
             }

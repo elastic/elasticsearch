@@ -42,7 +42,6 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.BackgroundIndexer;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -61,8 +60,6 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAllS
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoTimeout;
 
-@TestLogging("_root:DEBUG,org.elasticsearch.index.shard:TRACE,org.elasticsearch.cluster.service:TRACE," +
-        "org.elasticsearch.index.seqno:TRACE,org.elasticsearch.indices.recovery:TRACE")
 public class RecoveryWhileUnderLoadIT extends ESIntegTestCase {
     private final Logger logger = LogManager.getLogger(RecoveryWhileUnderLoadIT.class);
 

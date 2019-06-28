@@ -17,6 +17,7 @@ import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.ScriptedMetricAggregationBuilder;
+import org.elasticsearch.search.aggregations.support.MultiValuesSourceAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.dataframe.transforms.pivot.PivotConfig;
@@ -77,7 +78,7 @@ public final class SchemaUtil {
                 ValuesSourceAggregationBuilder<?, ?> valueSourceAggregation = (ValuesSourceAggregationBuilder<?, ?>) agg;
                 aggregationSourceFieldNames.put(valueSourceAggregation.getName(), valueSourceAggregation.field());
                 aggregationTypes.put(valueSourceAggregation.getName(), valueSourceAggregation.getType());
-            } else if(agg instanceof ScriptedMetricAggregationBuilder) {
+            } else if(agg instanceof ScriptedMetricAggregationBuilder || agg instanceof MultiValuesSourceAggregationBuilder) {
                 aggregationTypes.put(agg.getName(), agg.getType());
             } else {
                 // execution should not reach this point

@@ -6,24 +6,23 @@
 
 package org.elasticsearch.xpack.dataframe.integration;
 
-import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
-import org.elasticsearch.action.bulk.BulkRequestBuilder;
+import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
+import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.common.network.NetworkModule;
+import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.client.RequestOptions;
+import org.elasticsearch.client.RestHighLevelClient;
+import org.elasticsearch.client.indices.CreateIndexRequest;
+import org.elasticsearch.client.indices.CreateIndexResponse;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
-import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.SecuritySettingsSourceField;
-import org.elasticsearch.transport.Netty4Plugin;
-import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
-import org.elasticsearch.xpack.core.XPackClientPlugin;
+import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformConfig;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformProgress;
 import org.elasticsearch.xpack.core.dataframe.transforms.DestConfig;
@@ -33,11 +32,10 @@ import org.elasticsearch.xpack.core.dataframe.transforms.pivot.AggregationConfig
 import org.elasticsearch.xpack.core.dataframe.transforms.pivot.GroupConfig;
 import org.elasticsearch.xpack.core.dataframe.transforms.pivot.HistogramGroupSource;
 import org.elasticsearch.xpack.core.dataframe.transforms.pivot.PivotConfig;
-import org.elasticsearch.xpack.core.security.SecurityField;
 import org.elasticsearch.xpack.dataframe.transforms.TransformProgressGatherer;
 
-import java.util.Arrays;
-import java.util.Collection;
+import java.nio.charset.StandardCharsets;
+import java.util.Base64;
 import java.util.Collections;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -45,10 +43,10 @@ import static org.elasticsearch.xpack.dataframe.integration.DataFrameRestTestCas
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
-public class DataFrameTransformProgressIT extends ESIntegTestCase {
-
+public class DataFrameTransformProgressIT extends ESRestTestCase {
     protected void createReviewsIndex() throws Exception {
         final int numDocs = 1000;
+        final RestHighLevelClient restClient = new TestRestHighLevelClient();
 
         // create mapping
         try (XContentBuilder builder = jsonBuilder()) {
@@ -73,16 +71,13 @@ public class DataFrameTransformProgressIT extends ESIntegTestCase {
                     .endObject();
             }
             builder.endObject();
-            CreateIndexResponse response = client().admin()
-                .indices()
-                .prepareCreate(REVIEWS_INDEX_NAME)
-                .addMapping("_doc", builder)
-                .get();
+            CreateIndexResponse response = restClient.indices()
+                .create(new CreateIndexRequest(REVIEWS_INDEX_NAME).mapping(builder), RequestOptions.DEFAULT);
             assertThat(response.isAcknowledged(), is(true));
         }
 
         // create index
-        BulkRequestBuilder bulk = client().prepareBulk(REVIEWS_INDEX_NAME, "_doc");
+        BulkRequest bulk = new BulkRequest(REVIEWS_INDEX_NAME);
         int day = 10;
         for (int i = 0; i < numDocs; i++) {
             long user = i % 28;
@@ -111,20 +106,20 @@ public class DataFrameTransformProgressIT extends ESIntegTestCase {
             bulk.add(new IndexRequest().source(sourceBuilder.toString(), XContentType.JSON));
 
             if (i % 50 == 0) {
-                BulkResponse response = client().bulk(bulk.request()).get();
+                BulkResponse response = restClient.bulk(bulk, RequestOptions.DEFAULT);
                 assertThat(response.buildFailureMessage(), response.hasFailures(), is(false));
-                bulk = client().prepareBulk(REVIEWS_INDEX_NAME, "_doc");
+                bulk = new BulkRequest(REVIEWS_INDEX_NAME);
                 day += 1;
             }
         }
-        client().bulk(bulk.request()).get();
-        client().admin().indices().prepareRefresh(REVIEWS_INDEX_NAME).get();
+        restClient.bulk(bulk, RequestOptions.DEFAULT);
+        restClient.indices().refresh(new RefreshRequest(REVIEWS_INDEX_NAME), RequestOptions.DEFAULT);
     }
 
     public void testGetProgress() throws Exception {
         createReviewsIndex();
         SourceConfig sourceConfig = new SourceConfig(REVIEWS_INDEX_NAME);
-        DestConfig destConfig = new DestConfig("unnecessary");
+        DestConfig destConfig = new DestConfig("unnecessary", null);
         GroupConfig histgramGroupConfig = new GroupConfig(Collections.emptyMap(),
             Collections.singletonMap("every_50", new HistogramGroupSource("count", 50.0)));
         AggregatorFactories.Builder aggs = new AggregatorFactories.Builder();
@@ -135,13 +130,15 @@ public class DataFrameTransformProgressIT extends ESIntegTestCase {
             sourceConfig,
             destConfig,
             null,
+            null,
             pivotConfig,
             null);
 
-        PlainActionFuture<DataFrameTransformProgress> progressFuture = new PlainActionFuture<>();
-        TransformProgressGatherer.getInitialProgress(client(), config, progressFuture);
+        final RestHighLevelClient restClient = new TestRestHighLevelClient();
+        SearchResponse response = restClient.search(TransformProgressGatherer.getSearchRequest(config), RequestOptions.DEFAULT);
 
-        DataFrameTransformProgress progress = progressFuture.get();
+        DataFrameTransformProgress progress =
+            TransformProgressGatherer.searchResponseToDataFrameTransformProgressFunction().apply(response);
 
         assertThat(progress.getTotalDocs(), equalTo(1000L));
         assertThat(progress.getRemainingDocs(), equalTo(1000L));
@@ -155,37 +152,50 @@ public class DataFrameTransformProgressIT extends ESIntegTestCase {
             sourceConfig,
             destConfig,
             null,
+            null,
             pivotConfig,
             null);
 
-
-        progressFuture = new PlainActionFuture<>();
-
-        TransformProgressGatherer.getInitialProgress(client(), config, progressFuture);
-        progress = progressFuture.get();
+        response = restClient.search(TransformProgressGatherer.getSearchRequest(config), RequestOptions.DEFAULT);
+        progress = TransformProgressGatherer.searchResponseToDataFrameTransformProgressFunction().apply(response);
 
         assertThat(progress.getTotalDocs(), equalTo(35L));
         assertThat(progress.getRemainingDocs(), equalTo(35L));
         assertThat(progress.getPercentComplete(), equalTo(0.0));
 
-        client().admin().indices().prepareDelete(REVIEWS_INDEX_NAME).get();
+        histgramGroupConfig = new GroupConfig(Collections.emptyMap(),
+            Collections.singletonMap("every_50", new HistogramGroupSource("missing_field", 50.0)));
+        pivotConfig = new PivotConfig(histgramGroupConfig, aggregationConfig, null);
+        config = new DataFrameTransformConfig("get_progress_transform",
+            sourceConfig,
+            destConfig,
+            null,
+            null,
+            pivotConfig,
+            null);
+
+        response = restClient.search(TransformProgressGatherer.getSearchRequest(config), RequestOptions.DEFAULT);
+        progress = TransformProgressGatherer.searchResponseToDataFrameTransformProgressFunction().apply(response);
+
+        assertThat(progress.getTotalDocs(), equalTo(0L));
+        assertThat(progress.getRemainingDocs(), equalTo(0L));
+        assertThat(progress.getPercentComplete(), equalTo(100.0));
+
+        deleteIndex(REVIEWS_INDEX_NAME);
     }
 
     @Override
-    protected Settings externalClusterClientSettings() {
-        Settings.Builder builder = Settings.builder();
-        builder.put(NetworkModule.TRANSPORT_TYPE_KEY, SecurityField.NAME4);
-        builder.put(SecurityField.USER_SETTING.getKey(), "x_pack_rest_user:" +  SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING);
-        return builder.build();
+    protected Settings restClientSettings() {
+        final String token = "Basic " +
+            Base64.getEncoder().encodeToString(("x_pack_rest_user:x-pack-test-password").getBytes(StandardCharsets.UTF_8));
+        return Settings.builder()
+            .put(ThreadContext.PREFIX + ".Authorization", token)
+            .build();
     }
 
-    @Override
-    protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(LocalStateCompositeXPackPlugin.class, Netty4Plugin.class);
-    }
-
-    @Override
-    protected Collection<Class<? extends Plugin>> transportClientPlugins() {
-        return Arrays.asList(XPackClientPlugin.class, Netty4Plugin.class);
+    private class TestRestHighLevelClient extends RestHighLevelClient {
+        TestRestHighLevelClient() {
+            super(client(), restClient -> {}, Collections.emptyList());
+        }
     }
 }

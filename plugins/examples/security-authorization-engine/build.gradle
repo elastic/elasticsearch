@@ -12,7 +12,7 @@ esplugin {
 
 dependencies {
   compileOnly "org.elasticsearch.plugin:x-pack-core:${versions.elasticsearch}"
-  testCompile "org.elasticsearch.client:x-pack-transport:${versions.elasticsearch}"
+  testCompile "org.elasticsearch.client:elasticsearch-rest-high-level-client:${versions.elasticsearch}"
 }
 
 integTest {

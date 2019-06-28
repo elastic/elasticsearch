@@ -45,6 +45,7 @@ import org.elasticsearch.xpack.core.ml.job.process.autodetect.output.FlushAcknow
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSizeStats;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
+import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.TimingStats;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.action.TransportOpenJobAction.JobTask;
@@ -56,7 +57,7 @@ import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 import org.elasticsearch.xpack.ml.job.persistence.ScheduledEventsQueryBuilder;
 import org.elasticsearch.xpack.ml.job.persistence.StateStreamer;
 import org.elasticsearch.xpack.ml.job.process.DataCountsReporter;
-import org.elasticsearch.xpack.ml.job.process.autodetect.output.AutoDetectResultProcessor;
+import org.elasticsearch.xpack.ml.job.process.autodetect.output.AutodetectResultProcessor;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.AutodetectParams;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.DataLoadParams;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.FlushJobParams;
@@ -401,16 +402,12 @@ public class AutodetectProcessManager implements ClusterStateListener {
                                         logger.debug("Aborted opening job [{}] as it has been closed", jobId);
                                         return;
                                     }
-                                    if (processContext.getState() !=  ProcessContext.ProcessStateName.NOT_RUNNING) {
-                                        logger.debug("Cannot open job [{}] when its state is [{}]",
-                                            jobId, processContext.getState().getClass().getName());
-                                        return;
-                                    }
 
                                     try {
-                                        createProcessAndSetRunning(processContext, job, params, closeHandler);
-                                        processContext.getAutodetectCommunicator().restoreState(params.modelSnapshot());
-                                        setJobState(jobTask, JobState.OPENED);
+                                        if (createProcessAndSetRunning(processContext, job, params, closeHandler)) {
+                                            processContext.getAutodetectCommunicator().restoreState(params.modelSnapshot());
+                                            setJobState(jobTask, JobState.OPENED);
+                                        }
                                     } catch (Exception e1) {
                                         // No need to log here as the persistent task framework will log it
                                         try {
@@ -447,19 +444,25 @@ public class AutodetectProcessManager implements ClusterStateListener {
             ElasticsearchMappings::resultsMapping, client, clusterState, resultsMappingUpdateHandler);
     }
 
-    private void createProcessAndSetRunning(ProcessContext processContext,
-                                            Job job,
-                                            AutodetectParams params,
-                                            BiConsumer<Exception, Boolean> handler) throws IOException {
+    private boolean createProcessAndSetRunning(ProcessContext processContext,
+                                               Job job,
+                                               AutodetectParams params,
+                                               BiConsumer<Exception, Boolean> handler) throws IOException {
         // At this point we lock the process context until the process has been started.
         // The reason behind this is to ensure closing the job does not happen before
         // the process is started as that can result to the job getting seemingly closed
         // but the actual process is hanging alive.
         processContext.tryLock();
         try {
+            if (processContext.getState() != ProcessContext.ProcessStateName.NOT_RUNNING) {
+                logger.debug("Cannot open job [{}] when its state is [{}]",
+                    job.getId(), processContext.getState().getClass().getName());
+                return false;
+            }
             AutodetectCommunicator communicator = create(processContext.getJobTask(), job, params, handler);
             communicator.writeHeader();
             processContext.setRunning(communicator);
+            return true;
         } finally {
             // Now that the process is running and we have updated its state we can unlock.
             // It is important to unlock before we initialize the communicator (ie. load the model state)
@@ -497,7 +500,7 @@ public class AutodetectProcessManager implements ClusterStateListener {
         }
 
         // A TP with no queue, so that we fail immediately if there are no threads available
-        ExecutorService autoDetectExecutorService = threadPool.executor(MachineLearning.JOB_COMMS_THREAD_POOL_NAME);
+        ExecutorService autodetectExecutorService = threadPool.executor(MachineLearning.JOB_COMMS_THREAD_POOL_NAME);
         DataCountsReporter dataCountsReporter = new DataCountsReporter(job, autodetectParams.dataCounts(), jobDataCountsPersister);
         ScoresUpdater scoresUpdater = new ScoresUpdater(job, jobResultsProvider,
                 new JobRenormalizedResultsPersister(job.getId(), client), normalizerFactory);
@@ -505,14 +508,22 @@ public class AutodetectProcessManager implements ClusterStateListener {
         Renormalizer renormalizer = new ShortCircuitingRenormalizer(jobId, scoresUpdater,
                 renormalizerExecutorService);
 
-        AutodetectProcess process = autodetectProcessFactory.createAutodetectProcess(job, autodetectParams, autoDetectExecutorService,
+        AutodetectProcess process = autodetectProcessFactory.createAutodetectProcess(job, autodetectParams, autodetectExecutorService,
                 onProcessCrash(jobTask));
-        AutoDetectResultProcessor processor = new AutoDetectResultProcessor(
-                client, auditor, jobId, renormalizer, jobResultsPersister, autodetectParams.modelSizeStats());
+        AutodetectResultProcessor processor =
+            new AutodetectResultProcessor(
+                client,
+                auditor,
+                jobId,
+                renormalizer,
+                jobResultsPersister,
+                process,
+                autodetectParams.modelSizeStats(),
+                autodetectParams.timingStats());
         ExecutorService autodetectWorkerExecutor;
         try (ThreadContext.StoredContext ignore = threadPool.getThreadContext().stashContext()) {
-            autodetectWorkerExecutor = createAutodetectExecutorService(autoDetectExecutorService);
-            autoDetectExecutorService.submit(() -> processor.process(process));
+            autodetectWorkerExecutor = createAutodetectExecutorService(autodetectExecutorService);
+            autodetectExecutorService.submit(processor::process);
         } catch (EsRejectedExecutionException e) {
             // If submitting the operation to read the results from the process fails we need to close
             // the process too, so that other submitted operations to threadpool are stopped.
@@ -592,6 +603,8 @@ public class AutodetectProcessManager implements ClusterStateListener {
         try {
             if (processContext.setDying() == false) {
                 logger.debug("Cannot close job [{}] as it has been marked as dying", jobId);
+                // The only way we can get here is if 2 close requests are made very close together.
+                // The other close has done the work so it's safe to return here without doing anything.
                 return;
             }
 
@@ -605,10 +618,10 @@ public class AutodetectProcessManager implements ClusterStateListener {
             if (communicator == null) {
                 logger.debug("Job [{}] is being closed before its process is started", jobId);
                 jobTask.markAsCompleted();
-                return;
+            } else {
+                communicator.close(restart, reason);
             }
 
-            communicator.close(restart, reason);
             processByAllocation.remove(allocationId);
         } catch (Exception e) {
             // If the close failed because the process has explicitly been killed by us then just pass on that exception
@@ -628,7 +641,7 @@ public class AutodetectProcessManager implements ClusterStateListener {
         try {
             nativeStorageProvider.cleanupLocalTmpStorage(jobTask.getDescription());
         } catch (IOException e) {
-            logger.error(new ParameterizedMessage("[{}]Failed to delete temporary files", jobId), e);
+            logger.error(new ParameterizedMessage("[{}] Failed to delete temporary files", jobId), e);
         }
     }
 
@@ -712,18 +725,19 @@ public class AutodetectProcessManager implements ClusterStateListener {
         });
     }
 
-    public Optional<Tuple<DataCounts, ModelSizeStats>> getStatistics(JobTask jobTask) {
+    public Optional<Tuple<DataCounts, Tuple<ModelSizeStats, TimingStats>>> getStatistics(JobTask jobTask) {
         AutodetectCommunicator communicator = getAutodetectCommunicator(jobTask);
         if (communicator == null) {
             return Optional.empty();
         }
-        return Optional.of(new Tuple<>(communicator.getDataCounts(), communicator.getModelSizeStats()));
+        return Optional.of(
+            new Tuple<>(communicator.getDataCounts(), new Tuple<>(communicator.getModelSizeStats(), communicator.getTimingStats())));
     }
 
     ExecutorService createAutodetectExecutorService(ExecutorService executorService) {
-        AutodetectWorkerExecutorService autoDetectWorkerExecutor = new AutodetectWorkerExecutorService(threadPool.getThreadContext());
-        executorService.submit(autoDetectWorkerExecutor::start);
-        return autoDetectWorkerExecutor;
+        AutodetectWorkerExecutorService autodetectWorkerExecutor = new AutodetectWorkerExecutorService(threadPool.getThreadContext());
+        executorService.submit(autodetectWorkerExecutor::start);
+        return autodetectWorkerExecutor;
     }
 
     public ByteSizeValue getMinLocalStorageAvailable() {

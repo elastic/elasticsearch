@@ -146,7 +146,6 @@ public class BulkProcessorRetryIT extends ESIntegTestCase {
 
         SearchResponse results = client()
                 .prepareSearch(INDEX_NAME)
-                .setTypes(TYPE_NAME)
                 .setQuery(QueryBuilders.matchAllQuery())
                 .setSize(0)
                 .get();

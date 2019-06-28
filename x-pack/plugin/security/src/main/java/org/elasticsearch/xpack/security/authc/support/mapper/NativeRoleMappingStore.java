@@ -15,6 +15,7 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.CheckedBiConsumer;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -29,12 +30,11 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.xpack.core.security.ScrollHelper;
 import org.elasticsearch.xpack.core.security.action.realm.ClearRealmCacheAction;
-import org.elasticsearch.xpack.core.security.action.realm.ClearRealmCacheResponse;
+import org.elasticsearch.xpack.core.security.action.realm.ClearRealmCacheRequest;
 import org.elasticsearch.xpack.core.security.action.rolemapping.DeleteRoleMappingRequest;
 import org.elasticsearch.xpack.core.security.action.rolemapping.PutRoleMappingRequest;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.ExpressionRoleMapping;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.ExpressionModel;
-import org.elasticsearch.xpack.core.security.client.SecurityClient;
 import org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames;
 import org.elasticsearch.xpack.security.authc.support.CachingRealm;
 import org.elasticsearch.xpack.security.authc.support.UserRoleMapper;
@@ -329,21 +329,23 @@ public class NativeRoleMappingStore implements UserRoleMapper {
     }
 
     private <Result> void refreshRealms(ActionListener<Result> listener, Result result) {
-        String[] realmNames = this.realmsToRefresh.toArray(new String[realmsToRefresh.size()]);
-        final SecurityClient securityClient = new SecurityClient(client);
-        executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN,
-                securityClient.prepareClearRealmCache().realms(realmNames).request(),
-                ActionListener.<ClearRealmCacheResponse>wrap(
+        if (realmsToRefresh.isEmpty()) {
+            listener.onResponse(result);
+            return;
+        }
+
+        final String[] realmNames = this.realmsToRefresh.toArray(Strings.EMPTY_ARRAY);
+        executeAsyncWithOrigin(client, SECURITY_ORIGIN, ClearRealmCacheAction.INSTANCE, new ClearRealmCacheRequest().realms(realmNames),
+                ActionListener.wrap(
                         response -> {
                             logger.debug((org.apache.logging.log4j.util.Supplier<?>) () -> new ParameterizedMessage(
                                     "Cleared cached in realms [{}] due to role mapping change", Arrays.toString(realmNames)));
                             listener.onResponse(result);
                         },
                         ex -> {
-                            logger.warn("Failed to clear cache for realms [{}]", Arrays.toString(realmNames));
+                            logger.warn(new ParameterizedMessage("Failed to clear cache for realms [{}]", Arrays.toString(realmNames)), ex);
                             listener.onFailure(ex);
-                        }),
-                securityClient::clearRealmCache);
+                        }));
     }
 
     @Override

@@ -27,11 +27,9 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.test.InternalTestCluster;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.CcrIntegTestCase;
 import org.elasticsearch.xpack.core.ccr.action.FollowStatsAction;
 import org.elasticsearch.xpack.core.ccr.action.PutFollowAction;
-import org.elasticsearch.xpack.core.ccr.client.CcrClient;
 import org.hamcrest.Matchers;
 
 import java.util.Locale;
@@ -45,8 +43,6 @@ import static java.util.Collections.singletonMap;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 
-@TestLogging("org.elasticsearch.xpack.ccr:TRACE,org.elasticsearch.xpack.ccr.action.ShardChangesAction:DEBUG,"
-    + "org.elasticsearch.index.shard:TRACE")
 public class FollowerFailOverIT extends CcrIntegTestCase {
 
     @Override
@@ -216,6 +212,9 @@ public class FollowerFailOverIT extends CcrIntegTestCase {
                         followerClient().admin().indices().prepareFlush("follower-index").get();
                     }
                     if (rarely()) {
+                        followerClient().admin().indices().prepareForceMerge("follower-index").setMaxNumSegments(1).get();
+                    }
+                    if (rarely()) {
                         followerClient().admin().indices().prepareRefresh("follower-index").get();
                     }
                 } catch (Exception ex) {
@@ -284,11 +283,11 @@ public class FollowerFailOverIT extends CcrIntegTestCase {
             IndexResponse indexResp = leaderCluster.client().prepareIndex("leader-index", "doc", "1")
                 .setSource("{\"balance\": 100}", XContentType.JSON).setTimeout(TimeValue.ZERO).get();
             assertThat(indexResp.getResult(), equalTo(DocWriteResponse.Result.CREATED));
-            assertThat(indexShard.getGlobalCheckpoint(), equalTo(0L));
+            assertThat(indexShard.getLastKnownGlobalCheckpoint(), equalTo(0L));
             // Make sure at least one read-request which requires mapping sync is completed.
             assertBusy(() -> {
-                CcrClient ccrClient = new CcrClient(followerClient());
-                FollowStatsAction.StatsResponses responses = ccrClient.followStats(new FollowStatsAction.StatsRequest()).actionGet();
+                FollowStatsAction.StatsResponses responses =
+                    followerClient().execute(FollowStatsAction.INSTANCE, new FollowStatsAction.StatsRequest()).actionGet();
                 long bytesRead = responses.getStatsResponses().stream().mapToLong(r -> r.status().bytesRead()).sum();
                 assertThat(bytesRead, Matchers.greaterThan(0L));
             }, 60, TimeUnit.SECONDS);

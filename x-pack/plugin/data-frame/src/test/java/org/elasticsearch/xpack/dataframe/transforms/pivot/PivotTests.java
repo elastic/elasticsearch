@@ -61,7 +61,7 @@ public class PivotTests extends ESTestCase {
     @Before
     public void registerAggregationNamedObjects() throws Exception {
         // register aggregations as NamedWriteable
-        SearchModule searchModule = new SearchModule(Settings.EMPTY, false, emptyList());
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, emptyList());
         namedXContentRegistry = new NamedXContentRegistry(searchModule.getNamedXContents());
     }
 
@@ -214,6 +214,16 @@ public class PivotTests extends ESTestCase {
                 "\"bucket_script\":{" +
                 "\"buckets_path\":{\"param_1\":\"other_bucket\"}," +
                 "\"script\":\"return params.param_1\"}}}");
+        }
+        if (agg.equals(AggregationType.WEIGHTED_AVG.getName())) {
+            return parseAggregations("{\n" +
+                "\"pivot_weighted_avg\": {\n" +
+                "  \"weighted_avg\": {\n" +
+                "   \"value\": {\"field\": \"values\"},\n" +
+                "   \"weight\": {\"field\": \"weights\"}\n" +
+                "  }\n" +
+                "}\n" +
+                "}");
         }
         return parseAggregations("{\n" + "  \"pivot_" + agg + "\": {\n" + "    \"" + agg + "\": {\n" + "      \"field\": \"values\"\n"
                 + "    }\n" + "  }" + "}");

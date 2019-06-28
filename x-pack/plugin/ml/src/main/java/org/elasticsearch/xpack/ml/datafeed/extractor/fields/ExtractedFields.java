@@ -47,6 +47,15 @@ public class ExtractedFields {
         return docValueFields;
     }
 
+    /**
+     * Returns a new instance which only contains fields matching the given extraction method
+     * @param method the extraction method to filter fields on
+     * @return a new instance which only contains fields matching the given extraction method
+     */
+    public ExtractedFields filterFields(ExtractedField.ExtractionMethod method) {
+        return new ExtractedFields(filterFields(method, allFields));
+    }
+
     private static List<ExtractedField> filterFields(ExtractedField.ExtractionMethod method, List<ExtractedField> fields) {
         return fields.stream().filter(field -> field.getExtractionMethod() == method).collect(Collectors.toList());
     }
@@ -87,6 +96,17 @@ public class ExtractedFields {
                             : ExtractedField.ExtractionMethod.SOURCE;
                 }
             }
+
+            if (isFieldOfType(field, "geo_point")) {
+                if (method != ExtractedField.ExtractionMethod.DOC_VALUE) {
+                    throw new IllegalArgumentException("cannot use [geo_point] field with disabled doc values");
+                }
+                return ExtractedField.newGeoPointField(field, internalField);
+            }
+            if (isFieldOfType(field, "geo_shape")) {
+                return ExtractedField.newGeoShapeField(field, internalField);
+            }
+
             return ExtractedField.newField(field, internalField, method);
         }
 

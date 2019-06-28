@@ -18,6 +18,7 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -45,7 +46,12 @@ public class OpenJobAction extends Action<AcknowledgedResponse> {
 
     @Override
     public AcknowledgedResponse newResponse() {
-        return new AcknowledgedResponse();
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
+    }
+
+    @Override
+    public Writeable.Reader<AcknowledgedResponse> getResponseReader() {
+        return AcknowledgedResponse::new;
     }
 
     public static class Request extends MasterNodeRequest<Request> implements ToXContentObject {
@@ -170,9 +176,7 @@ public class OpenJobAction extends Action<AcknowledgedResponse> {
         public JobParams(StreamInput in) throws IOException {
             jobId = in.readString();
             timeout = TimeValue.timeValueMillis(in.readVLong());
-            if (in.getVersion().onOrAfter(Version.V_6_6_0)) {
-                job = in.readOptionalWriteable(Job::new);
-            }
+            job = in.readOptionalWriteable(Job::new);
         }
 
         public String getJobId() {
@@ -209,9 +213,7 @@ public class OpenJobAction extends Action<AcknowledgedResponse> {
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(jobId);
             out.writeVLong(timeout.millis());
-            if (out.getVersion().onOrAfter(Version.V_6_6_0)) {
-                out.writeOptionalWriteable(job);
-            }
+            out.writeOptionalWriteable(job);
         }
 
         @Override

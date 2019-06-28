@@ -38,7 +38,7 @@ import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.similarity.SimilarityService;
-import org.elasticsearch.index.store.FsDirectoryService;
+import org.elasticsearch.index.store.FsDirectoryFactory;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.IndicesRequestCache;
 
@@ -157,7 +157,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
             IndexModule.INDEX_STORE_TYPE_SETTING,
             IndexModule.INDEX_STORE_PRE_LOAD_SETTING,
             IndexModule.INDEX_QUERY_CACHE_ENABLED_SETTING,
-            FsDirectoryService.INDEX_LOCK_FACTOR_SETTING,
+            FsDirectoryFactory.INDEX_LOCK_FACTOR_SETTING,
             Store.FORCE_RAM_TERM_DICT,
             EngineConfig.INDEX_CODEC_SETTING,
             IndexMetaData.SETTING_WAIT_FOR_ACTIVE_SHARDS,

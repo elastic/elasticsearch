@@ -111,7 +111,7 @@ GET /my_index/_rank_eval
   ], 
   "requests": [
       {
-         "id": "amsterdam_query"
+         "id": "amsterdam_query",
          "ratings": [ ... ],
          "template_id": "match_one_field_query", <3>
          "params": { <4>

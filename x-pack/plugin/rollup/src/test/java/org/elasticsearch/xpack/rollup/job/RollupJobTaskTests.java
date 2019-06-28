@@ -163,17 +163,16 @@ public class RollupJobTaskTests extends ESTestCase {
         assertTrue(((RollupJobStatus)task.getStatus()).getPosition().containsKey("foo"));
 
         CountDownLatch latch = new CountDownLatch(1);
-        task.start(new ActionListener<StartRollupJobAction.Response>() {
+        task.start(new ActionListener<>() {
             @Override
             public void onResponse(StartRollupJobAction.Response response) {
-                fail("Should not have entered onResponse.");
+                assertTrue(response.isStarted());
+                latch.countDown();
             }
 
             @Override
             public void onFailure(Exception e) {
-                assertThat(e.getMessage(), equalTo("Cannot start task for Rollup Job ["
-                    + job.getConfig().getId() + "] because state was [STARTED]"));
-                latch.countDown();
+                fail("Should not have throw exception: " + e.getMessage());
             }
         });
         latch.await(3, TimeUnit.SECONDS);

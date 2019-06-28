@@ -119,7 +119,7 @@ public class SSLClientAuthTests extends SecurityIntegTestCase {
         try (RestClient restClient = createRestClient(httpClientBuilder -> httpClientBuilder.setSSLStrategy(sessionStrategy), "https")) {
             Request request = new Request("GET", "/");
             RequestOptions.Builder options = request.getOptions().toBuilder();
-            options.addHeader("Authorization", basicAuthHeaderValue(transportClientUsername(), transportClientPassword()));
+            options.addHeader("Authorization", basicAuthHeaderValue(nodeClientUsername(), nodeClientPassword()));
             request.setOptions(options);
             Response response = restClient.performRequest(request);
             assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
@@ -163,7 +163,8 @@ public class SSLClientAuthTests extends SecurityIntegTestCase {
      */
     private static List<String> getProtocols() {
         JavaVersion full =
-            AccessController.doPrivileged((PrivilegedAction<JavaVersion>) () -> JavaVersion.parse(System.getProperty("java.version")));
+            AccessController.doPrivileged(
+                    (PrivilegedAction<JavaVersion>) () -> JavaVersion.parse(System.getProperty("java.specification.version")));
         if (full.compareTo(JavaVersion.parse("11.0.3")) < 0) {
             return List.of("TLSv1.2");
         }

@@ -155,3 +155,7 @@ include::tokenizers/simplepattern-tokenizer.asciidoc[]
 include::tokenizers/simplepatternsplit-tokenizer.asciidoc[]
 
 include::tokenizers/pathhierarchy-tokenizer.asciidoc[]
+
+include::tokenizers/pathhierarchy-tokenizer-examples.asciidoc[]
+
+

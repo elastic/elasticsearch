@@ -36,7 +36,7 @@ specific index module:
 
 `index.number_of_shards`::
 
-    The number of primary shards that an index should have.  Defaults to 5.
+    The number of primary shards that an index should have.  Defaults to 1.
     This setting can only be set at index creation time.  It cannot be
     changed on a closed index. Note: the number of shards are limited to `1024` per
     index. This limitation is a safety limit to prevent accidental creation of indices
@@ -199,6 +199,7 @@ specific index module:
      This setting is only applicable when highlighting is requested on a text that was indexed without offsets or term vectors.
      Defaults to `1000000`.
 
+[[index-max-terms-count]]
  `index.max_terms_count`::
 
     The maximum number of terms that can be used in Terms Query.

@@ -41,11 +41,6 @@ public abstract class ReindexTestCase extends ESIntegTestCase {
         return Arrays.asList(ReindexPlugin.class);
     }
 
-    @Override
-    protected Collection<Class<? extends Plugin>> transportClientPlugins() {
-        return Arrays.asList(ReindexPlugin.class);
-    }
-
     protected ReindexRequestBuilder reindex() {
         return new ReindexRequestBuilder(client(), ReindexAction.INSTANCE);
     }

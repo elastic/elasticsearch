@@ -30,6 +30,7 @@ import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateRequestBuilder;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.PathUtils;
@@ -55,7 +56,6 @@ import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.security.authc.Realms;
 import org.elasticsearch.xpack.security.authc.TokenService;
-import org.elasticsearch.xpack.security.authc.UserToken;
 import org.elasticsearch.xpack.security.authc.saml.SamlNameId;
 import org.elasticsearch.xpack.security.authc.saml.SamlRealm;
 import org.elasticsearch.xpack.security.authc.saml.SamlRealmTests;
@@ -236,19 +236,21 @@ public class TransportSamlLogoutActionTests extends SamlTestCase {
                 .map();
         final User user = new User("punisher", new String[]{"superuser"}, null, null, userMetaData, true);
         final Authentication.RealmRef realmRef = new Authentication.RealmRef(samlRealm.name(), SamlRealmSettings.TYPE, "node01");
-        final Authentication authentication = new Authentication(user, realmRef, null);
-
         final Map<String, Object> tokenMetaData = samlRealm.createTokenMetadata(
-                new SamlNameId(NameID.TRANSIENT, nameId, null, null, null), session);
+            new SamlNameId(NameID.TRANSIENT, nameId, null, null, null), session);
+        final Authentication authentication = new Authentication(user, realmRef, null, null, Authentication.AuthenticationType.REALM,
+            tokenMetaData);
 
-        final PlainActionFuture<Tuple<UserToken, String>> future = new PlainActionFuture<>();
-        tokenService.createOAuth2Tokens(authentication, authentication, tokenMetaData, true, future);
-        final UserToken userToken = future.actionGet().v1();
-        mockGetTokenFromId(userToken, false, client);
-        final String tokenString = tokenService.getAccessTokenAsString(userToken);
+
+        final PlainActionFuture<Tuple<String, String>> future = new PlainActionFuture<>();
+        final String userTokenId = UUIDs.randomBase64UUID();
+        final String refreshToken = UUIDs.randomBase64UUID();
+        tokenService.createOAuth2Tokens(userTokenId, refreshToken, authentication, authentication, tokenMetaData, future);
+        final String accessToken = future.actionGet().v1();
+        mockGetTokenFromId(tokenService, userTokenId, authentication, false, client);
 
         final SamlLogoutRequest request = new SamlLogoutRequest();
-        request.setToken(tokenString);
+        request.setToken(accessToken);
         final PlainActionFuture<SamlLogoutResponse> listener = new PlainActionFuture<>();
         action.doExecute(mock(Task.class), request, listener);
         final SamlLogoutResponse response = listener.get();

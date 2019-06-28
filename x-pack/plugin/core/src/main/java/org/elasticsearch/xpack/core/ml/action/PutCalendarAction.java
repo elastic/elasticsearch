@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestBuilder;
@@ -147,10 +146,6 @@ public class PutCalendarAction extends Action<PutCalendarAction.Response>  {
         @Override
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
-            if (in.getVersion().before(Version.V_6_3_0)) {
-                //the acknowledged flag was removed
-                in.readBoolean();
-            }
             calendar = new Calendar(in);
 
         }
@@ -158,10 +153,6 @@ public class PutCalendarAction extends Action<PutCalendarAction.Response>  {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            if (out.getVersion().before(Version.V_6_3_0)) {
-                //the acknowledged flag is no longer supported
-                out.writeBoolean(true);
-            }
             calendar.writeTo(out);
         }
 

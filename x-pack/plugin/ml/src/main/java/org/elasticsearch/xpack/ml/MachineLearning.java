@@ -519,7 +519,7 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
         AnalyticsProcessManager analyticsProcessManager = new AnalyticsProcessManager(client, threadPool, analyticsProcessFactory);
         DataFrameAnalyticsConfigProvider dataFrameAnalyticsConfigProvider = new DataFrameAnalyticsConfigProvider(client);
         assert client instanceof NodeClient;
-        DataFrameAnalyticsManager dataFrameAnalyticsManager = new DataFrameAnalyticsManager(clusterService, (NodeClient) client,
+        DataFrameAnalyticsManager dataFrameAnalyticsManager = new DataFrameAnalyticsManager((NodeClient) client,
             dataFrameAnalyticsConfigProvider, analyticsProcessManager);
         this.dataFrameAnalyticsManager.set(dataFrameAnalyticsManager);
 

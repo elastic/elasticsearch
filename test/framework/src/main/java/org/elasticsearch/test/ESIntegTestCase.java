@@ -1892,6 +1892,13 @@ public abstract class ESIntegTestCase extends ESTestCase {
     }
 
     /**
+     * Returns {@code true} if this test cluster can use a mock internal engine. Defaults to true.
+     */
+    protected boolean addMockInternalEngine() {
+        return true;
+    }
+
+    /**
      * Returns a function that allows to wrap / filter all clients that are exposed by the test cluster. This is useful
      * for debugging or request / response pre and post processing. It also allows to intercept all calls done by the test
      * framework. By default this method returns an identity function {@link Function#identity()}.
@@ -1913,7 +1920,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
             if (randomBoolean()) {
                 mocks.add(NodeMocksPlugin.class);
             }
-            if (randomBoolean()) {
+            if (addMockInternalEngine() && randomBoolean()) {
                 mocks.add(MockEngineFactoryPlugin.class);
             }
             if (randomBoolean()) {

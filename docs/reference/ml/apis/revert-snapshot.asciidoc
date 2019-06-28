@@ -8,12 +8,20 @@
 
 Reverts to a specific snapshot.
 
-==== Request
+[[ml-revert-snapshot-request]]
+==== {api-request-title}
 
 `POST _ml/anomaly_detectors/<job_id>/model_snapshots/<snapshot_id>/_revert`
 
+[[ml-revert-snapshot-prereqs]]
+==== {api-prereq-title}
 
-==== Description
+* If the {es} {security-features} are enabled, you must have `manage_ml` or
+`manage` cluster privileges to use this API. See
+{stack-ov}/security-privileges.html[Security privileges].
+
+[[ml-revert-snapshot-desc]]
+==== {api-description-title}
 
 The {ml} feature in {xpack} reacts quickly to anomalous input, learning new
 behaviors in data. Highly anomalous input increases the variance in the models
@@ -25,18 +33,19 @@ Friday or a critical system failure.
 
 IMPORTANT: Before you revert to a saved snapshot, you must close the job.
 
+[[ml-revert-snapshot-path-parms]]
+==== {api-path-parms-title}
 
-==== Path Parameters
+`<job_id>` (Required)::
+  (string) Identifier for the job.
 
-`job_id` (required)::
-  (string) Identifier for the job
+`<snapshot_id>` (Required)::
+  (string) Identifier for the model snapshot.
 
-`snapshot_id` (required)::
-  (string) Identifier for the model snapshot
+[[ml-revert-snapshot-request-body]]
+==== {api-request-body-title}
 
-==== Request Body
-
-`delete_intervening_results`::
+`delete_intervening_results` (Optional)::
   (boolean) If true, deletes the results in the time period between the
   latest results and the time of the reverted snapshot. It also resets the
   model to accept records for this time period. The default value is false.
@@ -45,15 +54,8 @@ NOTE: If you choose not to delete intervening results when reverting a snapshot,
 the job will not accept input data that is older than the current time.
 If you want to resend data, then delete the intervening results.
 
-
-==== Authorization
-
-You must have `manage_ml`, or `manage` cluster privileges to use this API.
-For more information, see
-{xpack-ref}/security-privileges.html[Security Privileges].
-
-
-==== Examples
+[[ml-revert-snapshot-example]]
+==== {api-examples-title}
 
 The following example reverts to the `1491856080` snapshot for the
 `it_ops_new_kpi` job:

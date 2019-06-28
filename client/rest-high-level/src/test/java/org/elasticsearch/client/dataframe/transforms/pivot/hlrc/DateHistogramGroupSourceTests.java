@@ -44,9 +44,6 @@ public class DateHistogramGroupSourceTests extends AbstractResponseTestCase<
         if (randomBoolean()) {
             dateHistogramGroupSource.setTimeZone(randomZone());
         }
-        if (randomBoolean()) {
-            dateHistogramGroupSource.setFormat(randomAlphaOfLength(10));
-        }
         return dateHistogramGroupSource;
     }
 
@@ -64,7 +61,6 @@ public class DateHistogramGroupSourceTests extends AbstractResponseTestCase<
     protected void assertInstances(DateHistogramGroupSource serverTestInstance,
             org.elasticsearch.client.dataframe.transforms.pivot.DateHistogramGroupSource clientInstance) {
         assertThat(serverTestInstance.getField(), equalTo(clientInstance.getField()));
-        assertThat(serverTestInstance.getFormat(), equalTo(clientInstance.getFormat()));
         assertSameInterval(serverTestInstance.getInterval(), clientInstance.getInterval());
         assertThat(serverTestInstance.getTimeZone(), equalTo(clientInstance.getTimeZone()));
         assertThat(serverTestInstance.getType().name(), equalTo(clientInstance.getType().name()));

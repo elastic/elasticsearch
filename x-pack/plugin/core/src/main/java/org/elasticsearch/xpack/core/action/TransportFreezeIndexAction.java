@@ -115,11 +115,6 @@ public final class TransportFreezeIndexAction extends
     }
 
     @Override
-    protected void masterOperation(FreezeRequest request, ClusterState state, ActionListener<FreezeResponse> listener) {
-        throw new UnsupportedOperationException("The task parameter is required");
-    }
-
-    @Override
     protected void masterOperation(Task task, TransportFreezeIndexAction.FreezeRequest request, ClusterState state,
                                    ActionListener<TransportFreezeIndexAction.FreezeResponse> listener) throws Exception {
         final Index[] concreteIndices = resolveIndices(request, state);

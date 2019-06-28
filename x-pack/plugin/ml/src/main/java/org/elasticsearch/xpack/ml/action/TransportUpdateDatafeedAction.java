@@ -19,6 +19,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.MlTasks;
@@ -64,7 +65,7 @@ public class TransportUpdateDatafeedAction extends TransportMasterNodeAction<Upd
     }
 
     @Override
-    protected void masterOperation(UpdateDatafeedAction.Request request, ClusterState state,
+    protected void masterOperation(Task task, UpdateDatafeedAction.Request request, ClusterState state,
                                    ActionListener<PutDatafeedAction.Response> listener) throws Exception {
 
         if (migrationEligibilityCheck.datafeedIsEligibleForMigration(request.getUpdate().getId(), state)) {

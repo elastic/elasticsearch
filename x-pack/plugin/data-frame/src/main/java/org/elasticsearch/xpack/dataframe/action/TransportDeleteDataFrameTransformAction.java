@@ -19,6 +19,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.dataframe.action.DeleteDataFrameTransformAction;
@@ -59,7 +60,8 @@ public class TransportDeleteDataFrameTransformAction extends TransportMasterNode
     }
 
     @Override
-    protected void masterOperation(Request request, ClusterState state, ActionListener<AcknowledgedResponse> listener) throws Exception {
+    protected void masterOperation(Task task, Request request, ClusterState state,
+                                   ActionListener<AcknowledgedResponse> listener) throws Exception {
         PersistentTasksCustomMetaData pTasksMeta = state.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
         if (pTasksMeta != null && pTasksMeta.getTask(request.getId()) != null) {
             listener.onFailure(new ElasticsearchStatusException("Cannot delete data frame [" + request.getId() +

@@ -48,12 +48,13 @@ import java.util.stream.Collectors;
  */
 public class NioSelector implements Closeable {
 
+    private static final ThreadLocal<ByteBuffer> ioBuffer = ThreadLocal.withInitial(() -> ByteBuffer.allocateDirect(1 << 18));
+
     private final ConcurrentLinkedQueue<WriteOperation> queuedWrites = new ConcurrentLinkedQueue<>();
     private final ConcurrentLinkedQueue<ChannelContext<?>> channelsToClose = new ConcurrentLinkedQueue<>();
     private final ConcurrentLinkedQueue<ChannelContext<?>> channelsToRegister = new ConcurrentLinkedQueue<>();
     private final EventHandler eventHandler;
     private final Selector selector;
-    private final ByteBuffer ioBuffer;
 
     private final TaskScheduler taskScheduler = new TaskScheduler();
     private final ReentrantLock runLock = new ReentrantLock();
@@ -70,7 +71,6 @@ public class NioSelector implements Closeable {
     public NioSelector(EventHandler eventHandler, Selector selector) {
         this.selector = selector;
         this.eventHandler = eventHandler;
-        this.ioBuffer = ByteBuffer.allocateDirect(1 << 18);
     }
 
     /**
@@ -78,10 +78,8 @@ public class NioSelector implements Closeable {
      *
      * @return the byte buffer
      */
-    public ByteBuffer getIoBuffer() {
-        assertOnSelectorThread();
-        ioBuffer.clear();
-        return ioBuffer;
+    public static ByteBuffer getIoBuffer() {
+        return ioBuffer.get().clear();
     }
 
     public TaskScheduler getTaskScheduler() {
@@ -436,6 +434,7 @@ public class NioSelector implements Closeable {
                 eventHandler.handleRegistration(newChannel);
                 if (newChannel instanceof SocketChannelContext) {
                     attemptConnect((SocketChannelContext) newChannel, false);
+                    ((SocketChannelContext) newChannel).handleReadBytes();
                 }
             } else {
                 eventHandler.registrationException(newChannel, new ClosedChannelException());

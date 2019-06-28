@@ -59,8 +59,14 @@ public abstract class ChannelFactory<ServerSocket extends NioServerSocketChannel
         } else {
             NioSelector selector = supplier.get();
             Socket channel = internalCreateChannel(selector, rawChannel);
-            scheduleChannel(channel, selector);
-            return channel;
+            channel.getContext().readFromChannel(channel.getContext().channelBuffer);
+            if (channel.getContext().selectorShouldClose()) {
+                channel.getRawChannel().close();
+                return null;
+            } else {
+                scheduleChannel(channel, selector);
+                return channel;
+            }
         }
     }
 

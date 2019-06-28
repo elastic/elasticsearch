@@ -33,7 +33,7 @@ public class BytesChannelContext extends SocketChannelContext {
     public int read() throws IOException {
         int bytesRead = readFromChannel(channelBuffer);
 
-        if (bytesRead == 0) {
+        if (bytesRead == 0 && channelBuffer.getIndex() == 0) {
             return 0;
         }
 

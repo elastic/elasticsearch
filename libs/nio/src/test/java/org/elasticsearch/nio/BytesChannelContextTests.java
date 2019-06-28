@@ -66,7 +66,7 @@ public class BytesChannelContextTests extends ESTestCase {
 
         when(selector.isOnCurrentThread()).thenReturn(true);
         ByteBuffer buffer = ByteBuffer.allocate(1 << 14);
-        when(selector.getIoBuffer()).thenAnswer(invocationOnMock -> {
+        when(NioSelector.getIoBuffer()).thenAnswer(invocationOnMock -> {
             buffer.clear();
             return buffer;
         });

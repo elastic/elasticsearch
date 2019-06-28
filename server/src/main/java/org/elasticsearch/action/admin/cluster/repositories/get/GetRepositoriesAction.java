@@ -35,11 +35,6 @@ public class GetRepositoriesAction extends Action<GetRepositoriesResponse> {
     }
 
     @Override
-    public GetRepositoriesResponse newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
-
-    @Override
     public Writeable.Reader<GetRepositoriesResponse> getResponseReader() {
         return GetRepositoriesResponse::new;
     }

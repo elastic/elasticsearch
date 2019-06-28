@@ -19,11 +19,6 @@ public class PutLicenseAction extends Action<PutLicenseResponse> {
     }
 
     @Override
-    public PutLicenseResponse newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
-
-    @Override
     public Writeable.Reader<PutLicenseResponse> getResponseReader() {
         return PutLicenseResponse::new;
     }

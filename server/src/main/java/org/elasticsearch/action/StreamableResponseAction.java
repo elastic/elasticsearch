@@ -17,21 +17,30 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.cluster.state;
+package org.elasticsearch.action;
 
-import org.elasticsearch.action.StreamableResponseAction;
+import org.elasticsearch.common.io.stream.Writeable;
 
-public class ClusterStateAction extends StreamableResponseAction<ClusterStateResponse> {
+public abstract class StreamableResponseAction<Response extends ActionResponse> extends Action<Response> {
 
-    public static final ClusterStateAction INSTANCE = new ClusterStateAction();
-    public static final String NAME = "cluster:monitor/state";
-
-    private ClusterStateAction() {
-        super(NAME);
+    protected StreamableResponseAction(String name) {
+        super(name);
     }
 
+    /**
+     * Creates a new response instance.
+     * @deprecated Implement {@link #getResponseReader()} instead and make this method throw an
+     *             {@link UnsupportedOperationException}
+     */
+    @Deprecated
+    public abstract Response newResponse();
+
     @Override
-    public ClusterStateResponse newResponse() {
-        return new ClusterStateResponse();
+    public final Writeable.Reader<Response> getResponseReader() {
+        return in -> {
+            Response response = newResponse();
+            response.readFrom(in);
+            return response;
+        };
     }
 }

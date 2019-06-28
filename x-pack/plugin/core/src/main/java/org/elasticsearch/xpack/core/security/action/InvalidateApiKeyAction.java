@@ -22,11 +22,6 @@ public final class InvalidateApiKeyAction extends Action<InvalidateApiKeyRespons
     }
 
     @Override
-    public InvalidateApiKeyResponse newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
-
-    @Override
     public Writeable.Reader<InvalidateApiKeyResponse> getResponseReader() {
         return InvalidateApiKeyResponse::new;
     }

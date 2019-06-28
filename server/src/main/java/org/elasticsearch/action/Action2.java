@@ -33,11 +33,6 @@ public class Action2<Response extends ActionResponse> extends Action<Response> {
         this.responseReader = responseReader;
     }
 
-    @Override
-    public Response newResponse() {
-        throw new UnsupportedOperationException();
-    }
-
     /**
      * Get a reader that can create a new instance of the class from a {@link org.elasticsearch.common.io.stream.StreamInput}
      */

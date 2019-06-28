@@ -244,7 +244,7 @@ public class JobResultsPersisterTests extends ESTestCase {
             .when(client).index(any(), any(ActionListener.class));
 
         JobResultsPersister persister = new JobResultsPersister(client);
-        DatafeedTimingStats timingStats = new DatafeedTimingStats("foo", 666.0);
+        DatafeedTimingStats timingStats = new DatafeedTimingStats("foo", 6, 666.0);
         persister.persistDatafeedTimingStats(timingStats);
 
         ArgumentCaptor<IndexRequest> indexRequestCaptor = ArgumentCaptor.forClass(IndexRequest.class);
@@ -257,6 +257,7 @@ public class JobResultsPersisterTests extends ESTestCase {
             equalTo(
                 Map.of(
                     "job_id", "foo",
+                    "search_count", 6,
                     "total_search_time_ms", 666.0)));
 
         verify(client, times(1)).threadPool();

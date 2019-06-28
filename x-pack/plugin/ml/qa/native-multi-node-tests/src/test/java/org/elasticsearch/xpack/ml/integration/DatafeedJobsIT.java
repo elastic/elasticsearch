@@ -24,8 +24,11 @@ import org.elasticsearch.xpack.core.ml.datafeed.DatafeedState;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
+import org.hamcrest.Matcher;
 import org.junit.After;
 
+import java.time.Duration;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -39,6 +42,7 @@ import static org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase.getDataCoun
 import static org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase.indexDocs;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasSize;
 
 public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
 
@@ -49,8 +53,8 @@ public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
 
     public void testLookbackOnly() throws Exception {
         client().admin().indices().prepareCreate("data-1")
-                .addMapping("type", "time", "type=date")
-                .get();
+            .addMapping("type", "time", "type=date")
+            .get();
         long numDocs = randomIntBetween(32, 2048);
         long now = System.currentTimeMillis();
         long oneWeekAgo = now - 604800000;
@@ -58,8 +62,8 @@ public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
         indexDocs(logger, "data-1", numDocs, twoWeeksAgo, oneWeekAgo);
 
         client().admin().indices().prepareCreate("data-2")
-                .addMapping("type", "time", "type=date")
-                .get();
+            .addMapping("type", "time", "type=date")
+            .get();
         client().admin().cluster().prepareHealth("data-1", "data-2").setWaitForYellowStatus().get();
         long numDocs2 = randomIntBetween(32, 2048);
         indexDocs(logger, "data-2", numDocs2, oneWeekAgo, now);
@@ -90,6 +94,74 @@ public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
         }, 60, TimeUnit.SECONDS);
 
         waitUntilJobIsClosed(job.getId());
+    }
+
+    public void testDatafeedTimingStats() throws Exception {
+        client().admin().indices().prepareCreate("data-1")
+            .addMapping("type", "time", "type=date")
+            .get();
+        long numDocs = randomIntBetween(32, 2048);
+        Instant now = Instant.now();
+        Instant oneWeekAgo = now.minus(Duration.ofDays(7));
+        Instant twoWeeksAgo = oneWeekAgo.minus(Duration.ofDays(7));
+        indexDocs(logger, "data-1", numDocs, twoWeeksAgo.toEpochMilli(), oneWeekAgo.toEpochMilli());
+
+        client().admin().indices().prepareCreate("data-2")
+            .addMapping("type", "time", "type=date")
+            .get();
+        client().admin().cluster().prepareHealth("data-1", "data-2").setWaitForYellowStatus().get();
+        long numDocs2 = randomIntBetween(32, 2048);
+        indexDocs(logger, "data-2", numDocs2, oneWeekAgo.toEpochMilli(), now.toEpochMilli());
+
+        String jobId = "lookback-job";
+        Job.Builder job = createScheduledJob(jobId);
+
+        registerJob(job);
+        PutJobAction.Response putJobResponse = putJob(job);
+        assertThat(putJobResponse.getResponse().getJobVersion(), equalTo(Version.CURRENT));
+
+        openJob(jobId);
+        assertBusy(() -> assertEquals(getJobStats(jobId).get(0).getState(), JobState.OPENED));
+
+        String datafeedId = jobId + "-datafeed";
+        DatafeedConfig datafeedConfig = createDatafeed(datafeedId, jobId, List.of("data-1", "data-2"));
+
+        registerDatafeed(datafeedConfig);
+        putDatafeed(datafeedConfig);
+        assertDatafeedStats(datafeedId, DatafeedState.STOPPED, jobId, equalTo(0L));
+
+        startDatafeed(datafeedId, 0L, now.toEpochMilli());
+        assertBusy(() -> {
+            DataCounts dataCounts = getDataCounts(jobId);
+            assertThat(dataCounts.getProcessedRecordCount(), equalTo(numDocs + numDocs2));
+            assertDatafeedStats(datafeedId, DatafeedState.STOPPED, jobId, greaterThan(0L));
+        }, 60, TimeUnit.SECONDS);
+
+        deleteDatafeed(datafeedId);
+
+        registerDatafeed(datafeedConfig);
+        putDatafeed(datafeedConfig);
+        assertDatafeedStats(datafeedId, DatafeedState.STOPPED, jobId, equalTo(0L));
+
+        openJob(jobId);
+        startDatafeed(datafeedId, 0L, now.toEpochMilli());
+        assertBusy(() -> {
+            DataCounts dataCounts = getDataCounts(jobId);
+            assertThat(dataCounts.getProcessedRecordCount(), equalTo(numDocs + numDocs2));
+            assertDatafeedStats(datafeedId, DatafeedState.STOPPED, jobId, greaterThan(0L));
+        }, 60, TimeUnit.SECONDS);
+
+        waitUntilJobIsClosed(jobId);
+    }
+
+    private void assertDatafeedStats(String datafeedId, DatafeedState state, String jobId, Matcher<Long> searchCountMatcher) {
+        GetDatafeedsStatsAction.Request request = new GetDatafeedsStatsAction.Request(datafeedId);
+        GetDatafeedsStatsAction.Response response = client().execute(GetDatafeedsStatsAction.INSTANCE, request).actionGet();
+        assertThat(response.getResponse().results(), hasSize(1));
+        GetDatafeedsStatsAction.Response.DatafeedStats stats = response.getResponse().results().get(0);
+        assertThat(stats.getDatafeedState(), equalTo(state));
+        assertThat(stats.getTimingStats().getJobId(), equalTo(jobId));
+        assertThat(stats.getTimingStats().getSearchCount(), searchCountMatcher);
     }
 
     public void testRealtime() throws Exception {

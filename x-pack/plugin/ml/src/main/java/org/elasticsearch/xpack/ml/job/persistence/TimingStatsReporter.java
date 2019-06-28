@@ -20,9 +20,9 @@ public class TimingStatsReporter {
     /** Persisted timing stats. May be stale. */
     private TimingStats persistedTimingStats;
     /** Current timing stats. */
-    private TimingStats currentTimingStats;
+    private volatile TimingStats currentTimingStats;
     /** Object used to persist current timing stats. */
-    private JobResultsPersister.Builder bulkResultsPersister;
+    private final JobResultsPersister.Builder bulkResultsPersister;
 
     public TimingStatsReporter(TimingStats timingStats, JobResultsPersister.Builder jobResultsPersister) {
         Objects.requireNonNull(timingStats);

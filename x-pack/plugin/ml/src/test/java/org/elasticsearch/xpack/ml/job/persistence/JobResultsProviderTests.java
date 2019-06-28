@@ -902,11 +902,13 @@ public class JobResultsProviderTests extends ESTestCase {
             Arrays.asList(
                 Map.of(
                     Job.ID.getPreferredName(), "foo",
+                    DatafeedTimingStats.SEARCH_COUNT.getPreferredName(), 6,
                     DatafeedTimingStats.TOTAL_SEARCH_TIME_MS.getPreferredName(), 666.0));
         List<Map<String, Object>> sourceBar =
             Arrays.asList(
                 Map.of(
                     Job.ID.getPreferredName(), "bar",
+                    DatafeedTimingStats.SEARCH_COUNT.getPreferredName(), 7,
                     DatafeedTimingStats.TOTAL_SEARCH_TIME_MS.getPreferredName(), 777.0));
         SearchResponse responseFoo = createSearchResponse(sourceFoo);
         SearchResponse responseBar = createSearchResponse(sourceBar);
@@ -941,7 +943,7 @@ public class JobResultsProviderTests extends ESTestCase {
             statsByJobId ->
                 assertThat(
                     statsByJobId,
-                    equalTo(Map.of("foo", new DatafeedTimingStats("foo", 666.0), "bar", new DatafeedTimingStats("bar", 777.0)))),
+                    equalTo(Map.of("foo", new DatafeedTimingStats("foo", 6, 666.0), "bar", new DatafeedTimingStats("bar", 7, 777.0)))),
             e -> { throw new AssertionError(); });
 
         verify(client).threadPool();
@@ -958,6 +960,7 @@ public class JobResultsProviderTests extends ESTestCase {
             Arrays.asList(
                 Map.of(
                     Job.ID.getPreferredName(), "foo",
+                    DatafeedTimingStats.SEARCH_COUNT.getPreferredName(), 6,
                     DatafeedTimingStats.TOTAL_SEARCH_TIME_MS.getPreferredName(), 666.0));
         SearchResponse response = createSearchResponse(source);
         Client client = getMockedClient(
@@ -968,7 +971,7 @@ public class JobResultsProviderTests extends ESTestCase {
         JobResultsProvider provider = createProvider(client);
         provider.datafeedTimingStats(
             "foo",
-            stats -> assertThat(stats, equalTo(new DatafeedTimingStats("foo", 666.0))),
+            stats -> assertThat(stats, equalTo(new DatafeedTimingStats("foo", 6, 666.0))),
             e -> { throw new AssertionError(); });
 
         verify(client).prepareSearch(indexName);

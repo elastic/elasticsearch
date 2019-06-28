@@ -130,6 +130,8 @@ setup:
   - match:  { datafeeds.0.state: "stopped"}
   - is_false: datafeeds.0.node
   - match:  { datafeeds.0.timing_stats.job_id: "get-datafeed-stats-1" }
+  - match:  { datafeeds.0.timing_stats.search_count: 0 }
+  - match:  { datafeeds.0.timing_stats.total_search_time_ms: 0.0}
 
   - do:
       ml.get_datafeed_stats:
@@ -138,6 +140,8 @@ setup:
   - match:  { datafeeds.0.state: "stopped"}
   - is_false: datafeeds.0.node
   - match:  { datafeeds.0.timing_stats.job_id: "get-datafeed-stats-2" }
+  - match:  { datafeeds.0.timing_stats.search_count: 0 }
+  - match:  { datafeeds.0.timing_stats.total_search_time_ms: 0.0}
 
 ---
 "Test get stats for started datafeed":
@@ -178,7 +182,7 @@ setup:
   - match: { datafeeds.0.datafeed_id: "datafeed-1"}
   - match: { datafeeds.0.state: "started"}
   - match: { datafeeds.0.timing_stats.job_id: "get-datafeed-stats-1"}
-  # Datafeed did not perform any search yet, hence 0.0
+  - match: { datafeeds.0.timing_stats.search_count: 0}
   - match: { datafeeds.0.timing_stats.total_search_time_ms: 0.0}
 
   - do:
@@ -191,8 +195,8 @@ setup:
   - match: { datafeeds.0.datafeed_id: "datafeed-1"}
   - match: { datafeeds.0.state: "stopped"}
   - match: { datafeeds.0.timing_stats.job_id: "get-datafeed-stats-1"}
-  # Datafeed did perform at least one search
-  - gt:    { datafeeds.0.timing_stats.total_search_time_ms: 0.0}
+  - match: { datafeeds.0.timing_stats.search_count: 0}
+  - match: { datafeeds.0.timing_stats.total_search_time_ms: 0.0}
 
 ---
 "Test implicit get all datafeed stats given started datafeeds":

@@ -11,11 +11,20 @@ import org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister;
 
 import java.util.Objects;
 
+/**
+ * {@link DatafeedTimingStatsReporter} class handles the logic of persisting {@link DatafeedTimingStats} if they changed significantly
+ * since the last time they were persisted.
+ *
+ * This class is not thread-safe.
+ */
 public class DatafeedTimingStatsReporter {
 
-    private final JobResultsPersister jobResultsPersister;
+    /** Persisted timing stats. May be stale. */
     private DatafeedTimingStats persistedTimingStats;
+    /** Current timing stats. */
     private volatile DatafeedTimingStats currentTimingStats;
+    /** Object used to persist current timing stats. */
+    private final JobResultsPersister jobResultsPersister;
 
     public DatafeedTimingStatsReporter(DatafeedTimingStats timingStats, JobResultsPersister jobResultsPersister) {
         Objects.requireNonNull(timingStats);

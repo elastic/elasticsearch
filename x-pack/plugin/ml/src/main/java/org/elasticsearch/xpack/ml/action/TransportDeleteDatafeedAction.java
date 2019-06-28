@@ -7,7 +7,12 @@ package org.elasticsearch.xpack.ml.action;
 
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.DocWriteResponse;
+import org.elasticsearch.action.delete.DeleteAction;
+import org.elasticsearch.action.delete.DeleteRequest;
+import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.client.Client;
@@ -29,7 +34,9 @@ import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.DeleteDatafeedAction;
 import org.elasticsearch.xpack.core.ml.action.IsolateDatafeedAction;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedState;
+import org.elasticsearch.xpack.core.ml.datafeed.DatafeedTimingStats;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
+import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.MlConfigMigrationEligibilityCheck;
 import org.elasticsearch.xpack.ml.datafeed.persistence.DatafeedConfigProvider;
@@ -144,10 +151,50 @@ public class TransportDeleteDatafeedAction extends TransportMasterNodeAction<Del
             return;
         }
 
-        datafeedConfigProvider.deleteDatafeedConfig(request.getDatafeedId(), ActionListener.wrap(
-                deleteResponse -> listener.onResponse(new AcknowledgedResponse(true)),
-                listener::onFailure
-        ));
+        // Get datafeed config document
+        datafeedConfigProvider.getDatafeedConfig(
+            request.getDatafeedId(),
+            ActionListener.wrap(
+                datafeedConfigBuilder -> {
+                    // Delete datafeed timing stats document
+                    deleteDatafeedTimingStats(
+                        datafeedConfigBuilder.build().getJobId(),
+                        ActionListener.wrap(
+                            unused1 -> {
+                                // Delete datafeed config document
+                                datafeedConfigProvider.deleteDatafeedConfig(
+                                    request.getDatafeedId(),
+                                    ActionListener.wrap(
+                                        unused2 -> listener.onResponse(new AcknowledgedResponse(true)),
+                                        listener::onFailure));
+                            },
+                            listener::onFailure));
+                },
+                listener::onFailure));
+    }
+
+    /**
+     * Delete the datafeed config document
+     *
+     * @param jobId The job id
+     * @param actionListener Deleted datafeed listener
+     */
+    private void deleteDatafeedTimingStats(String jobId,  ActionListener<DeleteResponse> actionListener) {
+        DeleteRequest request =
+            new DeleteRequest(AnomalyDetectorsIndex.jobResultsAliasedName(jobId), DatafeedTimingStats.documentId(jobId))
+                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+        executeAsyncWithOrigin(client, ML_ORIGIN, DeleteAction.INSTANCE, request, new ActionListener<>() {
+            @Override
+            public void onResponse(DeleteResponse deleteResponse) {
+                assert deleteResponse.getResult() == DocWriteResponse.Result.DELETED
+                    || deleteResponse.getResult() == DocWriteResponse.Result.NOT_FOUND;
+                actionListener.onResponse(deleteResponse);
+            }
+            @Override
+            public void onFailure(Exception e) {
+                actionListener.onFailure(e);
+            }
+        });
     }
 
     @Override

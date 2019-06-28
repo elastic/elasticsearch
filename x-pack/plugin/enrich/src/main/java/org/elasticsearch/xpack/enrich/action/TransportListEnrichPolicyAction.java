@@ -14,12 +14,15 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.core.enrich.action.ListEnrichPolicyAction;
 import org.elasticsearch.xpack.enrich.EnrichStore;
 
+import java.io.IOException;
 import java.util.Map;
 
 public class TransportListEnrichPolicyAction
@@ -41,12 +44,17 @@ public class TransportListEnrichPolicyAction
     }
 
     @Override
+    protected ListEnrichPolicyAction.Response read(StreamInput in) throws IOException {
+        return new ListEnrichPolicyAction.Response(in);
+    }
+
+    @Override
     protected ListEnrichPolicyAction.Response newResponse() {
         throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override
-    protected void masterOperation(ListEnrichPolicyAction.Request request, ClusterState state,
+    protected void masterOperation(Task task, ListEnrichPolicyAction.Request request, ClusterState state,
                                    ActionListener<ListEnrichPolicyAction.Response> listener) throws Exception {
         Map<String, EnrichPolicy> policies = EnrichStore.getPolicies(clusterService.state());
         listener.onResponse(new ListEnrichPolicyAction.Response(policies));

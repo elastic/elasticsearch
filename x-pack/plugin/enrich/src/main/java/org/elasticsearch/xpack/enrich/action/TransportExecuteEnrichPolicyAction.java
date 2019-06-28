@@ -15,11 +15,15 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.enrich.action.ExecuteEnrichPolicyAction;
 import org.elasticsearch.xpack.enrich.EnrichPolicyExecutor;
 import org.elasticsearch.xpack.enrich.PolicyExecutionResult;
+
+import java.io.IOException;
 
 public class TransportExecuteEnrichPolicyAction
     extends TransportMasterNodeReadAction<ExecuteEnrichPolicyAction.Request, AcknowledgedResponse> {
@@ -49,7 +53,12 @@ public class TransportExecuteEnrichPolicyAction
     }
 
     @Override
-    protected void masterOperation(ExecuteEnrichPolicyAction.Request request, ClusterState state,
+    protected AcknowledgedResponse read(StreamInput in) throws IOException {
+        return new AcknowledgedResponse(in);
+    }
+
+    @Override
+    protected void masterOperation(Task task, ExecuteEnrichPolicyAction.Request request, ClusterState state,
                                    ActionListener<AcknowledgedResponse> listener) {
         executor.runPolicy(request.getName(), new ActionListener<>() {
             @Override

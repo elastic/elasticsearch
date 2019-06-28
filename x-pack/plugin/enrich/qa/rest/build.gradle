@@ -4,6 +4,7 @@ apply plugin: 'elasticsearch.standalone-test'
 
 dependencies {
     testCompile project(path: xpackModule('enrich'), configuration: 'runtime')
+    testCompile project(path: xpackModule('enrich:qa:common'), configuration: 'runtime')
 }
 
 task restTest(type: RestIntegTestTask) {

@@ -63,7 +63,7 @@ setup:
         id: "simple-outlier-detection-with-query"
   - match: { count: 1 }
   - match: { data_frame_analytics.0.id: "simple-outlier-detection-with-query" }
-  - match: { data_frame_analytics.0.source.index: "index-source" }
+  - match: { data_frame_analytics.0.source.index: ["index-source"] }
   - match: { data_frame_analytics.0.source.query: {"term" : { "user" : "Kimchy"} } }
   - match: { data_frame_analytics.0.dest.index: "index-dest" }
   - match: { data_frame_analytics.0.analysis: {"outlier_detection":{}} }

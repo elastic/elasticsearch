@@ -32,11 +32,6 @@ public class ClusterUpdateSettingsAction extends Action<ClusterUpdateSettingsRes
     }
 
     @Override
-    public ClusterUpdateSettingsResponse newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
-
-    @Override
     public Writeable.Reader<ClusterUpdateSettingsResponse> getResponseReader() {
         return ClusterUpdateSettingsResponse::new;
     }

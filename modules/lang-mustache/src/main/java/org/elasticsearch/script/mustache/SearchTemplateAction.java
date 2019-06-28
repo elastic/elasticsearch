@@ -32,11 +32,6 @@ public class SearchTemplateAction extends Action<SearchTemplateResponse> {
     }
 
     @Override
-    public SearchTemplateResponse newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
-
-    @Override
     public Writeable.Reader<SearchTemplateResponse> getResponseReader() {
         return SearchTemplateResponse::new;
     }

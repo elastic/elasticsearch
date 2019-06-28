@@ -35,11 +35,6 @@ public class ExplainAction extends Action<ExplainResponse> {
     }
 
     @Override
-    public ExplainResponse newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
-
-    @Override
     public Writeable.Reader<ExplainResponse> getResponseReader() {
         return ExplainResponse::new;
     }

@@ -5,9 +5,9 @@
  */
 package org.elasticsearch.xpack.ccr.action.bulk;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.StreamableResponseAction;
 
-public class BulkShardOperationsAction extends Action<BulkShardOperationsResponse> {
+public class BulkShardOperationsAction extends StreamableResponseAction<BulkShardOperationsResponse> {
 
     public static final BulkShardOperationsAction INSTANCE = new BulkShardOperationsAction();
     public static final String NAME = "indices:data/write/bulk_shard_operations[s]";

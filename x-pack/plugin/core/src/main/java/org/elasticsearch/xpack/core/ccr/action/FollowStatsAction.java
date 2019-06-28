@@ -40,11 +40,6 @@ public class FollowStatsAction extends Action<FollowStatsAction.StatsResponses> 
     }
 
     @Override
-    public StatsResponses newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
-
-    @Override
     public Writeable.Reader<StatsResponses> getResponseReader() {
         return StatsResponses::new;
     }

@@ -32,11 +32,6 @@ public class CreateIndexAction extends Action<CreateIndexResponse> {
     }
 
     @Override
-    public CreateIndexResponse newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
-
-    @Override
     public Writeable.Reader<CreateIndexResponse> getResponseReader() {
         return CreateIndexResponse::new;
     }

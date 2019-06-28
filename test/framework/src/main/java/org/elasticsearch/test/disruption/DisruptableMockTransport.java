@@ -87,8 +87,14 @@ public abstract class DisruptableMockTransport extends MockTransport {
 
     @Override
     public Releasable openConnection(DiscoveryNode node, ConnectionProfile profile, ActionListener<Connection> listener) {
-        final Optional<DisruptableMockTransport> matchingTransport = getDisruptableMockTransport(node.getAddress());
-        if (matchingTransport.isPresent()) {
+        final Optional<DisruptableMockTransport> optionalMatchingTransport = getDisruptableMockTransport(node.getAddress());
+        if (optionalMatchingTransport.isPresent()) {
+            final DisruptableMockTransport matchingTransport = optionalMatchingTransport.get();
+            final ConnectionStatus connectionStatus = getConnectionStatus(matchingTransport.getLocalNode());
+            if (connectionStatus != ConnectionStatus.CONNECTED) {
+                throw new ConnectTransportException(node, "node [" + node + "] is [" + connectionStatus + "] not [CONNECTED]");
+            }
+
             listener.onResponse(new CloseableConnection() {
                 @Override
                 public DiscoveryNode getNode() {
@@ -98,12 +104,12 @@ public abstract class DisruptableMockTransport extends MockTransport {
                 @Override
                 public void sendRequest(long requestId, String action, TransportRequest request, TransportRequestOptions options)
                     throws TransportException {
-                    onSendRequest(requestId, action, request, matchingTransport.get());
+                    onSendRequest(requestId, action, request, matchingTransport);
                 }
             });
             return () -> {};
         } else {
-            throw new ConnectTransportException(node, "node " + node + " does not exist");
+            throw new ConnectTransportException(node, "node [" + node + "] does not exist");
         }
     }
 

@@ -334,18 +334,18 @@ public class XPackInfoResponse extends ActionResponse implements ToXContentObjec
             private final String name;
             private final boolean available;
             private final boolean enabled;
-            @Nullable private final Map<String, Object> nativeCodeInfo;
 
-            public FeatureSet(String name, boolean available, boolean enabled,
-                              @Nullable Map<String, Object> nativeCodeInfo) {
+            public FeatureSet(String name, boolean available, boolean enabled) {
                 this.name = name;
                 this.available = available;
                 this.enabled = enabled;
-                this.nativeCodeInfo = nativeCodeInfo;
             }
 
             public FeatureSet(StreamInput in) throws IOException {
-                this(in.readString(), readAvailable(in), in.readBoolean(), in.readMap());
+                this(in.readString(), readAvailable(in), in.readBoolean());
+                if (in.getVersion().before(Version.V_8_0_0)) {
+                    in.readMap(); // backcompat reading native code info, but no longer used here
+                }
             }
 
             // this is separated out so that the removed description can be read from the stream on construction
@@ -365,7 +365,9 @@ public class XPackInfoResponse extends ActionResponse implements ToXContentObjec
                 }
                 out.writeBoolean(available);
                 out.writeBoolean(enabled);
-                out.writeMap(nativeCodeInfo);
+                if (out.getVersion().before(Version.V_8_0_0)) {
+                    out.writeMap(Collections.emptyMap());
+                }
             }
 
             public String name() {
@@ -380,11 +382,6 @@ public class XPackInfoResponse extends ActionResponse implements ToXContentObjec
                 return enabled;
             }
 
-            @Nullable
-            public Map<String, Object> nativeCodeInfo() {
-                return nativeCodeInfo;
-            }
-
             @Override
             public boolean equals(Object other) {
                 if (other == null || other.getClass() != getClass()) return false;
@@ -392,13 +389,12 @@ public class XPackInfoResponse extends ActionResponse implements ToXContentObjec
                 FeatureSet rhs = (FeatureSet) other;
                 return Objects.equals(name, rhs.name)
                         && available == rhs.available
-                        && enabled == rhs.enabled
-                        && Objects.equals(nativeCodeInfo, rhs.nativeCodeInfo);
+                        && enabled == rhs.enabled;
             }
 
             @Override
             public int hashCode() {
-                return Objects.hash(name, available, enabled, nativeCodeInfo);
+                return Objects.hash(name, available, enabled);
             }
 
             @Override
@@ -406,9 +402,6 @@ public class XPackInfoResponse extends ActionResponse implements ToXContentObjec
                 builder.startObject();
                 builder.field("available", available);
                 builder.field("enabled", enabled);
-                if (nativeCodeInfo != null) {
-                    builder.field("native_code_info", nativeCodeInfo);
-                }
                 return builder.endObject();
             }
         }

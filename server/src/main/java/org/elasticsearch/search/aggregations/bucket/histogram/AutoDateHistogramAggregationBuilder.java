@@ -141,8 +141,7 @@ public class AutoDateHistogramAggregationBuilder
     public AutoDateHistogramAggregationBuilder(StreamInput in) throws IOException {
         super(in, ValuesSourceType.NUMERIC, ValueType.DATE);
         numBuckets = in.readVInt();
-        //TODO[PCS] update after backport
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (in.getVersion().onOrAfter(Version.V_7_3_0)) {
             minimumIntervalExpression = in.readOptionalString();
         }
     }

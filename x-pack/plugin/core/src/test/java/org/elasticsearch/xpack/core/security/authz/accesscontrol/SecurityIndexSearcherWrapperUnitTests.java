@@ -19,12 +19,14 @@ import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.PostingsEnum;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.TermsEnum;
+import org.apache.lucene.misc.SweetSpotSimilarity;
 import org.apache.lucene.search.BulkScorer;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.Weight;
@@ -41,6 +43,7 @@ import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
+import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
@@ -50,6 +53,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
+import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.DocumentSubsetReader.DocumentSubsetDirectoryReader;
@@ -198,11 +202,25 @@ public class SecurityIndexSearcherWrapperUnitTests extends ESTestCase {
         });
         DirectoryReader directoryReader = DocumentSubsetReader.wrap(esIn, bitsetFilterCache, new MatchAllDocsQuery());
         IndexSearcher indexSearcher = new IndexSearcher(directoryReader);
+        indexSearcher.setSimilarity(new SweetSpotSimilarity());
+        indexSearcher.setQueryCachingPolicy(new QueryCachingPolicy() {
+            @Override
+            public void onUse(Query query) {
+            }
+
+            @Override
+            public boolean shouldCache(Query query) {
+                return false;
+            }
+        });
+        indexSearcher.setQueryCache((weight, policy) -> weight);
         securityIndexSearcherWrapper =
                 new SecurityIndexSearcherWrapper(null, null, threadContext, licenseState, scriptService);
         IndexSearcher result = securityIndexSearcherWrapper.wrap(indexSearcher);
         assertThat(result, not(sameInstance(indexSearcher)));
         assertThat(result.getSimilarity(), sameInstance(indexSearcher.getSimilarity()));
+        assertThat(result.getQueryCachingPolicy(), sameInstance(indexSearcher.getQueryCachingPolicy()));
+        assertThat(result.getQueryCache(), sameInstance(indexSearcher.getQueryCache()));
         bitsetFilterCache.close();
     }
 
@@ -521,7 +539,11 @@ public class SecurityIndexSearcherWrapperUnitTests extends ESTestCase {
         }
 
         DocumentSubsetDirectoryReader filteredReader = DocumentSubsetReader.wrap(reader, cache, roleQuery);
-        IndexSearcher searcher = new SecurityIndexSearcherWrapper.IndexSearcherWrapper(filteredReader);
+        IndexSearcher wrapSearcher = new SecurityIndexSearcherWrapper.IndexSearcherWrapper(filteredReader);
+        Engine.Searcher engineSearcher = new Engine.Searcher("test", wrapSearcher, () -> {});
+        ContextIndexSearcher searcher = new ContextIndexSearcher(engineSearcher,
+            wrapSearcher.getQueryCache(), wrapSearcher.getQueryCachingPolicy());
+        searcher.setCheckCancelled(() -> {});
 
         // Searching a non-existing term will trigger a null scorer
         assertEquals(0, searcher.count(new TermQuery(new Term("non_existing_field", "non_existing_value"))));

@@ -21,18 +21,19 @@ package org.elasticsearch.action.admin.indices.rollover;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesClusterStateUpdateRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexClusterStateUpdateRequest;
 import org.elasticsearch.action.admin.indices.stats.CommonStats;
 import org.elasticsearch.action.admin.indices.stats.IndexStats;
-import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequestBuilder;
+import org.elasticsearch.action.admin.indices.stats.IndicesStatsAction;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
+import org.elasticsearch.action.admin.indices.stats.IndicesStatsTests;
+import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.client.AdminClient;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.client.IndicesAdminClient;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasAction;
@@ -43,6 +44,10 @@ import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.MetaDataCreateIndexService;
 import org.elasticsearch.cluster.metadata.MetaDataIndexAliasesService;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.RecoverySource;
+import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
@@ -50,12 +55,30 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.index.cache.query.QueryCacheStats;
+import org.elasticsearch.index.cache.request.RequestCacheStats;
+import org.elasticsearch.index.engine.SegmentsStats;
+import org.elasticsearch.index.fielddata.FieldDataStats;
+import org.elasticsearch.index.flush.FlushStats;
+import org.elasticsearch.index.get.GetStats;
+import org.elasticsearch.index.merge.MergeStats;
+import org.elasticsearch.index.refresh.RefreshStats;
+import org.elasticsearch.index.search.stats.SearchStats;
 import org.elasticsearch.index.shard.DocsStats;
+import org.elasticsearch.index.shard.IndexingStats;
+import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.shard.ShardPath;
+import org.elasticsearch.index.store.StoreStats;
+import org.elasticsearch.index.warmer.WarmerStats;
+import org.elasticsearch.search.suggest.completion.CompletionStats;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.mockito.ArgumentCaptor;
 
+import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
@@ -63,12 +86,14 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
+import static java.util.Collections.emptyList;
 import static org.elasticsearch.action.admin.indices.rollover.TransportRolloverAction.evaluateConditions;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -163,6 +188,35 @@ public class TransportRolloverActionTests extends ESTestCase {
                 fail("unknown condition result found " + entry.getKey());
             }
         }
+    }
+
+    public void testEvaluateWithoutMetaData() {
+        MaxDocsCondition maxDocsCondition = new MaxDocsCondition(100L);
+        MaxAgeCondition maxAgeCondition = new MaxAgeCondition(TimeValue.timeValueHours(2));
+        MaxSizeCondition maxSizeCondition = new MaxSizeCondition(new ByteSizeValue(randomIntBetween(10, 100), ByteSizeUnit.MB));
+
+        long matchMaxDocs = randomIntBetween(100, 1000);
+        final Set<Condition<?>> conditions = Sets.newHashSet(maxDocsCondition, maxAgeCondition, maxSizeCondition);
+        Map<String, Boolean> results = evaluateConditions(conditions,
+            new DocsStats(matchMaxDocs, 0L, ByteSizeUnit.MB.toBytes(120)), null);
+        assertThat(results.size(), equalTo(3));
+        results.forEach((k, v) -> assertFalse(v));
+
+        final Settings settings = Settings.builder()
+            .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetaData.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
+            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 1000))
+            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, randomInt(10))
+            .build();
+
+        final IndexMetaData metaData = IndexMetaData.builder(randomAlphaOfLength(10))
+            .creationDate(System.currentTimeMillis() - TimeValue.timeValueHours(randomIntBetween(5, 10)).getMillis())
+            .settings(settings)
+            .build();
+        IndicesStatsResponse indicesStats = randomIndicesStatsResponse(new IndexMetaData[]{metaData});
+        Map<String, Boolean> results2 = evaluateConditions(conditions, null, indicesStats);
+        assertThat(results2.size(), equalTo(3));
+        results2.forEach((k, v) -> assertFalse(v));
     }
 
     public void testCreateUpdateAliasRequest() {
@@ -317,6 +371,9 @@ public class TransportRolloverActionTests extends ESTestCase {
     public void testConditionEvaluationWhenAliasToWriteAndReadIndicesConsidersOnlyPrimariesFromWriteIndex() {
         final TransportService mockTransportService = mock(TransportService.class);
         final ClusterService mockClusterService = mock(ClusterService.class);
+        final DiscoveryNode mockNode = mock(DiscoveryNode.class);
+        when(mockNode.getId()).thenReturn("mocknode");
+        when(mockClusterService.localNode()).thenReturn(mockNode);
         final ThreadPool mockThreadPool = mock(ThreadPool.class);
         final MetaDataCreateIndexService mockCreateIndexService = mock(MetaDataCreateIndexService.class);
         final IndexNameExpressionResolver mockIndexNameExpressionResolver = mock(IndexNameExpressionResolver.class);
@@ -325,31 +382,22 @@ public class TransportRolloverActionTests extends ESTestCase {
         final MetaDataIndexAliasesService mdIndexAliasesService = mock(MetaDataIndexAliasesService.class);
 
         final Client mockClient = mock(Client.class);
-        final AdminClient mockAdminClient = mock(AdminClient.class);
-        final IndicesAdminClient mockIndicesAdminClient = mock(IndicesAdminClient.class);
-        when(mockClient.admin()).thenReturn(mockAdminClient);
-        when(mockAdminClient.indices()).thenReturn(mockIndicesAdminClient);
 
-        final IndicesStatsRequestBuilder mockIndicesStatsBuilder = mock(IndicesStatsRequestBuilder.class);
-        when(mockIndicesAdminClient.prepareStats(any())).thenReturn(mockIndicesStatsBuilder);
         final Map<String, IndexStats> indexStats = new HashMap<>();
         int total = randomIntBetween(500, 1000);
         indexStats.put("logs-index-000001", createIndexStats(200L, total));
         indexStats.put("logs-index-000002", createIndexStats(300L, total));
         final IndicesStatsResponse statsResponse = createAliasToMultipleIndicesStatsResponse(indexStats);
-        when(mockIndicesStatsBuilder.clear()).thenReturn(mockIndicesStatsBuilder);
-        when(mockIndicesStatsBuilder.setDocs(true)).thenReturn(mockIndicesStatsBuilder);
+        doAnswer(invocation -> {
+            Object[] args = invocation.getArguments();
+            assert args.length == 3;
+            ActionListener<IndicesStatsResponse> listener = (ActionListener<IndicesStatsResponse>) args[2];
+            listener.onResponse(statsResponse);
+            return null;
+        }).when(mockClient).execute(eq(IndicesStatsAction.INSTANCE), any(ActionRequest.class), any(ActionListener.class));
 
         assert statsResponse.getPrimaries().getDocs().getCount() == 500L;
         assert statsResponse.getTotal().getDocs().getCount() == (total + total);
-
-        doAnswer(invocation -> {
-            Object[] args = invocation.getArguments();
-            assert args.length == 1;
-            ActionListener<IndicesStatsResponse> listener = (ActionListener<IndicesStatsResponse>) args[0];
-            listener.onResponse(statsResponse);
-            return null;
-        }).when(mockIndicesStatsBuilder).execute(any(ActionListener.class));
 
         final IndexMetaData.Builder indexMetaData = IndexMetaData.builder("logs-index-000001")
                 .putAlias(AliasMetaData.builder("logs-alias").writeIndex(false).build()).settings(settings(Version.CURRENT))
@@ -370,7 +418,7 @@ public class TransportRolloverActionTests extends ESTestCase {
         RolloverRequest rolloverRequest = new RolloverRequest("logs-alias", "logs-index-000003");
         rolloverRequest.addMaxIndexDocsCondition(500L);
         rolloverRequest.dryRun(true);
-        transportRolloverAction.masterOperation(rolloverRequest, stateBefore, future);
+        transportRolloverAction.masterOperation(mock(Task.class), rolloverRequest, stateBefore, future);
 
         RolloverResponse response = future.actionGet();
         assertThat(response.getOldIndex(), equalTo("logs-index-000002"));
@@ -386,7 +434,7 @@ public class TransportRolloverActionTests extends ESTestCase {
         rolloverRequest = new RolloverRequest("logs-alias", "logs-index-000003");
         rolloverRequest.addMaxIndexDocsCondition(300L);
         rolloverRequest.dryRun(true);
-        transportRolloverAction.masterOperation(rolloverRequest, stateBefore, future);
+        transportRolloverAction.masterOperation(mock(Task.class), rolloverRequest, stateBefore, future);
 
         response = future.actionGet();
         assertThat(response.getOldIndex(), equalTo("logs-index-000002"));
@@ -459,5 +507,43 @@ public class TransportRolloverActionTests extends ESTestCase {
         final Condition<?> condition = mock(Condition.class);
         when(condition.evaluate(any())).thenReturn(new Condition.Result(condition, true));
         return condition;
+    }
+
+    public static IndicesStatsResponse randomIndicesStatsResponse(final IndexMetaData[] indices) {
+        List<ShardStats> shardStats = new ArrayList<>();
+        for (final IndexMetaData index : indices) {
+            int numShards = randomIntBetween(1, 3);
+            int primaryIdx = randomIntBetween(-1, numShards - 1); // -1 means there is no primary shard.
+            for (int i = 0; i < numShards; i++) {
+                ShardId shardId = new ShardId(index.getIndex(), i);
+                boolean primary = (i == primaryIdx);
+                Path path = createTempDir().resolve("indices").resolve(index.getIndexUUID()).resolve(String.valueOf(i));
+                ShardRouting shardRouting = ShardRouting.newUnassigned(shardId, primary,
+                    primary ? RecoverySource.EmptyStoreRecoverySource.INSTANCE : RecoverySource.PeerRecoverySource.INSTANCE,
+                    new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null)
+                );
+                shardRouting = shardRouting.initialize("node-0", null, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
+                shardRouting = shardRouting.moveToStarted();
+                CommonStats stats = new CommonStats();
+                stats.fieldData = new FieldDataStats();
+                stats.queryCache = new QueryCacheStats();
+                stats.docs = new DocsStats();
+                stats.store = new StoreStats();
+                stats.indexing = new IndexingStats();
+                stats.search = new SearchStats();
+                stats.segments = new SegmentsStats();
+                stats.merge = new MergeStats();
+                stats.refresh = new RefreshStats();
+                stats.completion = new CompletionStats();
+                stats.requestCache = new RequestCacheStats();
+                stats.get = new GetStats();
+                stats.flush = new FlushStats();
+                stats.warmer = new WarmerStats();
+                shardStats.add(new ShardStats(shardRouting, new ShardPath(false, path, path, shardId), stats, null, null, null));
+            }
+        }
+        return IndicesStatsTests.newIndicesStatsResponse(
+            shardStats.toArray(new ShardStats[shardStats.size()]), shardStats.size(), shardStats.size(), 0, emptyList()
+        );
     }
 }

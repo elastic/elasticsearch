@@ -945,6 +945,11 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         }
 
         @Override
+        protected boolean mustReschedule() {
+            return indexService.closed.get() == false;
+        }
+
+        @Override
         protected void runInternal() {
             indexService.maybeTrimTranslog();
         }
@@ -1035,8 +1040,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         return fsyncTask;
     }
 
-    AsyncGlobalCheckpointTask getGlobalCheckpointTask() {
-        return globalCheckpointTask;
+    AsyncTrimTranslogTask getTrimTranslogTask() { // for tests
+        return trimTranslogTask;
     }
 
     /**

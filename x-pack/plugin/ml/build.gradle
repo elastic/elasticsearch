@@ -62,7 +62,9 @@ dependencies {
     compile project(':libs:elasticsearch-grok')
     compile "com.ibm.icu:icu4j:${versions.icu4j}"
     compile "net.sf.supercsv:super-csv:${versions.supercsv}"
-    nativeBundle "org.elasticsearch.ml:ml-cpp:${project.version}@zip"
+    nativeBundle ("org.elasticsearch.ml:ml-cpp:${project.version}@zip") {
+        changing = true
+    }
     testCompile 'org.ini4j:ini4j:0.5.2'
 }
 

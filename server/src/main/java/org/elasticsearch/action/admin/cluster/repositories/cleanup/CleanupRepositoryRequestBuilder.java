@@ -24,8 +24,8 @@ import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder
 import org.elasticsearch.client.ElasticsearchClient;
 
 public class CleanupRepositoryRequestBuilder extends MasterNodeOperationRequestBuilder<CleanupRepositoryRequest,
-                                                                                           AcknowledgedResponse,
-                                                                                           CleanupRepositoryRequestBuilder> {
+                                                                                       AcknowledgedResponse,
+                                                                                       CleanupRepositoryRequestBuilder> {
 
     public CleanupRepositoryRequestBuilder(ElasticsearchClient client, Action<AcknowledgedResponse> action,
         String repository) {

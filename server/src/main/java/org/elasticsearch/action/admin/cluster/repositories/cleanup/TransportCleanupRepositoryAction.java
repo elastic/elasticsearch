@@ -37,7 +37,7 @@ import org.elasticsearch.transport.TransportService;
 import java.io.IOException;
 
 public final class TransportCleanupRepositoryAction extends TransportMasterNodeAction<CleanupRepositoryRequest,
-                                                                                          AcknowledgedResponse> {
+                                                                                      AcknowledgedResponse> {
 
     private final SnapshotsService snapshotsService;
 

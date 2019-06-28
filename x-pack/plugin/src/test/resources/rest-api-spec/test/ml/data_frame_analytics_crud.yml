@@ -63,7 +63,7 @@ setup:
         id: "simple-outlier-detection-with-query"
   - match: { count: 1 }
   - match: { data_frame_analytics.0.id: "simple-outlier-detection-with-query" }
-  - match: { data_frame_analytics.0.source.index: "index-source" }
+  - match: { data_frame_analytics.0.source.index: ["index-source"] }
   - match: { data_frame_analytics.0.source.query: {"term" : { "user" : "Kimchy"} } }
   - match: { data_frame_analytics.0.dest.index: "index-dest" }
   - match: { data_frame_analytics.0.analysis: {"outlier_detection":{}} }
@@ -170,7 +170,7 @@ setup:
               "outlier_detection":{
                 "n_neighbors": 5,
                 "method": "lof",
-                "minimum_score_to_write_feature_influence": 0.0
+                "feature_influence_threshold": 0.0
               }
             }
           }
@@ -180,7 +180,7 @@ setup:
   - match: { dest.index: "index-dest" }
   - match: { analysis.outlier_detection.n_neighbors: 5 }
   - match: { analysis.outlier_detection.method: "lof" }
-  - match: { analysis.outlier_detection.minimum_score_to_write_feature_influence: 0.0 }
+  - match: { analysis.outlier_detection.feature_influence_threshold: 0.0 }
   - is_true: create_time
   - is_true: version
 

@@ -45,7 +45,7 @@ public class AsyncIOProcessorTests extends ESTestCase {
     }
 
     @After
-    public void tearDownThreadPool() {
+    public void tearDownThreadContext() {
         threadContext.close();
     }
 

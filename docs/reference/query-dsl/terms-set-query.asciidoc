@@ -5,17 +5,17 @@ Returns documents that contain a minimum number of *exact* terms in a provided
 field.
 
 The `terms_set` query is the same as the <<query-dsl-terms-query, `terms`
-query>>, except you can define a minimum number of matching terms required to
+query>>, except you can define the number of matching terms required to
 return a document. For example:
-
-* A field, `permissions`, contains a list of possible user permissions for an
-application. You can use the `terms_set` query to return documents that
-match a set of permissions.
 
 * A field, `programming_languages`, contains a list of known programming
 languages, such as `c++`, `java`, or `php` for job candidates. You can use the
 `terms_set` query to return documents that match at least two of these
 languages.
+
+* A field, `permissions`, contains a list of possible user permissions for an
+application. You can use the `terms_set` query to return documents that
+match a subset of these permissions.
 
 [[terms-set-query-ex-request]]
 ==== Example request
@@ -24,7 +24,7 @@ languages.
 ===== Index setup
 In most cases, you'll need to include a <<number, numeric>> field mapping in
 your index to use the `terms_set` query. This numeric field contains the
-minimum number of matching terms required to return a document.
+number of matching terms required to return a document.
 
 To see how you can set up an index for the `terms_set` query, try the
 following example.
@@ -40,7 +40,7 @@ job candidate.
 programming languages known by the job candidate.
 
 * `required_matches`, a <<number, numeric>> `long` field. This field contains
-the minimum number of matching terms required to return a document.
+the number of matching terms required to return a document.
 
 [source,js]
 ----
@@ -115,8 +115,8 @@ PUT /job-candidates/_doc/2?refresh
 
 --
 
-You can now use the `required_matches` field value as a minimum number of
-matching terms required in the `terms_set` query.
+You can now use the `required_matches` field value as the number of
+matching terms required to return a document in the `terms_set` query.
 
 [[terms-set-query-ex-request-query]]
 ===== Example query
@@ -128,7 +128,7 @@ contains at least two of the following terms:
 * `java`
 * `php`
 
-The `minimum_should_match_field` is `required_matches`. This means the minimum
+The `minimum_should_match_field` is `required_matches`. This means the
 number of matching terms required is `2`, the value of the `required_matches`
 field.
 
@@ -161,21 +161,22 @@ Field you wish to search.
 +
 --
 Array of terms you wish to find in the provided `<field>`. To return a document,
-a minimum number of terms must exactly match the field values, including
+a required number of terms must exactly match the field values, including
 whitespace and capitalization.
 
-The minimum number of matching terms is defined in the
+The required number of matching terms is defined in the
 `minimum_should_match_field` or `minimum_should_match_script` parameter.
 --
 
 `minimum_should_match_field`::
-<<number, Numeric>> field containing the minimum number of matching terms
+<<number, Numeric>> field containing the number of matching terms
 required to return a document.
 
 `minimum_should_match_script`::
 +
 --
-Custom script containing the minimum number of terms to match.
+Custom script containing the number of matching terms required to return a
+document.
 
 For parameters and valid values, see <<modules-scripting, Scripting>>.
 
@@ -189,8 +190,8 @@ parameter>>.
 
 [[terms-set-query-script]]
 ===== How to use the `minimum_should_match_script` parameter
-You can use `minimum_should_match_script` to define the minimum number of terms
-to match using a script. This is useful if you need to set the number of
+You can use `minimum_should_match_script` to define the required number of
+matching terms using a script. This is useful if you need to set the number of
 required terms dynamically.
 
 [[terms-set-query-script-ex]]
@@ -205,9 +206,9 @@ contains at least two of the following terms:
 
 The `source` parameter of this query indicates:
 
-* The minimum number of terms to match cannot exceed `params.num_terms`, the
+* The required number of terms to match cannot exceed `params.num_terms`, the
 number of terms provided in the `terms` field.
-* The minimum number of terms to match is `2`, the value of the
+* The required number of terms to match is `2`, the value of the
 `required_matches` field.
 
 [source,js]

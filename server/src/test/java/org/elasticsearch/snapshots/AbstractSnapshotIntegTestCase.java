@@ -26,6 +26,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.RepositoriesService;
+import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.repositories.blobstore.BlobStoreTestUtil;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -81,7 +82,14 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
                     if (snapshots.isEmpty() == false) {
                         client().admin().cluster().prepareDeleteSnapshot(name, randomFrom(snapshots).snapshotId().getName()).get();
                     }
-                    BlobStoreTestUtil.assertRepoConsistency(internalCluster(), name);
+                    final BlobStoreRepository repo  =
+                            (BlobStoreRepository) internalCluster().getCurrentMasterNodeInstance(RepositoriesService.class)
+                                    .repository(name);
+                    try {
+                        new BlobStoreTestUtil(repo).assertConsistency();
+                    } catch (Exception e) {
+                        throw new AssertionError(e);
+                    }
                 });
         } else {
             logger.info("--> skipped repo consistency checks because [{}]", skipRepoConsistencyCheckReason);

@@ -210,11 +210,12 @@ public class SnapshotResiliencyTests extends ESTestCase {
     }
 
     @After
-    public void verifyReposThenStopServices() {
+    public void verifyReposThenStopServices() throws Exception {
         try {
-            BlobStoreTestUtil.assertConsistency(
-                (BlobStoreRepository) testClusterNodes.randomMasterNodeSafe().repositoriesService.repository("repo"),
-                Runnable::run);
+            final BlobStoreRepository repo =(BlobStoreRepository) testClusterNodes.randomMasterNodeSafe().repositoriesService
+                    .repository("repo");
+
+            new BlobStoreTestUtil(repo).assertConsistency();
         } finally {
             testClusterNodes.nodes.values().forEach(TestClusterNode::stop);
         }

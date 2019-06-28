@@ -31,6 +31,17 @@ Previews a {dataframe-transform}.
 {stack-ov}/built-in-roles.html[Built-in roles].
 
 [discrete]
+[[preview-data-frame-transform-desc]]
+==== {api-description-title}
+
+The preview {dataframe-transforms} API returns maximum 100 results of the 
+transform that is specified in the request body. The calculations are as 
+accurate as if you would use the create {dataframe-transforms} API and they are 
+based on all the current data in the source index. The preview shows the results 
+that you get using the create {dataframe-transforms} API with the same 
+configuration.
+
+[discrete]
 [[preview-data-frame-transform-request-body]]
 ==== {api-request-body-title}
 

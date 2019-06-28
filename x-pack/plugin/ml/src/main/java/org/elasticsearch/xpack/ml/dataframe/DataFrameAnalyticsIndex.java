@@ -10,22 +10,33 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.create.CreateIndexAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
+import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
+import org.elasticsearch.action.admin.indices.mapping.put.PutMappingAction;
+import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
+import org.elasticsearch.action.admin.indices.settings.get.GetSettingsAction;
+import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest;
+import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
+import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.MappingMetaData;
+import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexSortConfig;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 
 import java.time.Clock;
-import java.util.Arrays;
 import java.util.HashMap;
-import java.util.List;
+import java.util.Iterator;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
+
+import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 
 /**
  * {@link DataFrameAnalyticsIndex} class encapsulates logic for creating destination index based on source index metadata.
@@ -36,57 +47,103 @@ final class DataFrameAnalyticsIndex {
     private static final String META = "_meta";
 
     /**
-     * Unfortunately, getting the settings of an index include internal settings that should
-     * not be set explicitly. There is no way to filter those out. Thus, we have to maintain
-     * a list of them and filter them out manually.
+     * We only preserve the most important settings.
+     * If the user needs other settings on the destination index they
+     * should create the destination index before starting the analytics.
      */
-    private static final List<String> INTERNAL_SETTINGS = Arrays.asList(
-        "index.creation_date",
-        "index.provided_name",
-        "index.uuid",
-        "index.version.created",
-        "index.version.upgraded"
-    );
+    private static final String[] PRESERVED_SETTINGS = new String[] {"index.number_of_shards", "index.number_of_replicas"};
+
+    private DataFrameAnalyticsIndex() {}
 
     /**
      * Creates destination index based on source index metadata.
      */
     public static void createDestinationIndex(Client client,
                                               Clock clock,
-                                              ClusterState clusterState,
                                               DataFrameAnalyticsConfig analyticsConfig,
                                               ActionListener<CreateIndexResponse> listener) {
-        String sourceIndex = analyticsConfig.getSource().getIndex();
-        Map<String, String> headers = analyticsConfig.getHeaders();
-        IndexMetaData sourceIndexMetaData = clusterState.getMetaData().getIndices().get(sourceIndex);
-        if (sourceIndexMetaData == null) {
-            listener.onFailure(new IndexNotFoundException(sourceIndex));
-            return;
-        }
-        CreateIndexRequest createIndexRequest =
-            prepareCreateIndexRequest(sourceIndexMetaData, analyticsConfig.getDest().getIndex(), analyticsConfig.getId(), clock);
-        ClientHelper.executeWithHeadersAsync(
-            headers, ClientHelper.ML_ORIGIN, client, CreateIndexAction.INSTANCE, createIndexRequest, listener);
+        ActionListener<CreateIndexRequest> createIndexRequestListener = ActionListener.wrap(
+            createIndexRequest -> ClientHelper.executeWithHeadersAsync(analyticsConfig.getHeaders(), ClientHelper.ML_ORIGIN, client,
+                    CreateIndexAction.INSTANCE, createIndexRequest, listener),
+            listener::onFailure
+        );
+
+        prepareCreateIndexRequest(client, clock, analyticsConfig, createIndexRequestListener);
     }
 
-    private static CreateIndexRequest prepareCreateIndexRequest(IndexMetaData sourceIndexMetaData,
-                                                                String destinationIndex,
-                                                                String analyticsId,
-                                                                Clock clock) {
-        // Settings
-        Settings.Builder settingsBuilder = Settings.builder().put(sourceIndexMetaData.getSettings());
-        INTERNAL_SETTINGS.forEach(settingsBuilder::remove);
+    private static void prepareCreateIndexRequest(Client client, Clock clock, DataFrameAnalyticsConfig config,
+                                                         ActionListener<CreateIndexRequest> listener) {
+        AtomicReference<Settings> settingsHolder = new AtomicReference<>();
+
+        String[] sourceIndex = config.getSource().getIndex();
+
+        ActionListener<ImmutableOpenMap<String, MappingMetaData>> mappingsListener = ActionListener.wrap(
+            mappings -> listener.onResponse(createIndexRequest(clock, config, settingsHolder.get(), mappings)),
+            listener::onFailure
+        );
+
+        ActionListener<Settings> settingsListener = ActionListener.wrap(
+            settings -> {
+                settingsHolder.set(settings);
+                MappingsMerger.mergeMappings(client, config.getHeaders(), sourceIndex, mappingsListener);
+            },
+            listener::onFailure
+        );
+
+        ActionListener<GetSettingsResponse> getSettingsResponseListener = ActionListener.wrap(
+            settingsResponse -> settingsListener.onResponse(settings(settingsResponse)),
+            listener::onFailure
+        );
+
+        GetSettingsRequest getSettingsRequest = new GetSettingsRequest();
+        getSettingsRequest.indices(sourceIndex);
+        getSettingsRequest.indicesOptions(IndicesOptions.lenientExpandOpen());
+        getSettingsRequest.names(PRESERVED_SETTINGS);
+        ClientHelper.executeWithHeadersAsync(config.getHeaders(), ML_ORIGIN, client, GetSettingsAction.INSTANCE,
+            getSettingsRequest, getSettingsResponseListener);
+    }
+
+    private static CreateIndexRequest createIndexRequest(Clock clock, DataFrameAnalyticsConfig config, Settings settings,
+                                                         ImmutableOpenMap<String, MappingMetaData> mappings) {
+        // There should only be 1 type
+        assert mappings.size() == 1;
+
+        String destinationIndex = config.getDest().getIndex();
+        String type = mappings.keysIt().next();
+        Map<String, Object> mappingsAsMap = mappings.valuesIt().next().sourceAsMap();
+        addProperties(mappingsAsMap);
+        addMetaData(mappingsAsMap, config.getId(), clock);
+        return new CreateIndexRequest(destinationIndex, settings).mapping(type, mappingsAsMap);
+    }
+
+    private static Settings settings(GetSettingsResponse settingsResponse) {
+        Integer maxNumberOfShards = findMaxSettingValue(settingsResponse, IndexMetaData.SETTING_NUMBER_OF_SHARDS);
+        Integer maxNumberOfReplicas = findMaxSettingValue(settingsResponse, IndexMetaData.SETTING_NUMBER_OF_REPLICAS);
+
+        Settings.Builder settingsBuilder = Settings.builder();
         settingsBuilder.put(IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey(), DataFrameAnalyticsFields.ID);
         settingsBuilder.put(IndexSortConfig.INDEX_SORT_ORDER_SETTING.getKey(), SortOrder.ASC);
-        Settings settings = settingsBuilder.build();
+        if (maxNumberOfShards != null) {
+            settingsBuilder.put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, maxNumberOfShards);
+        }
+        if (maxNumberOfReplicas != null) {
+            settingsBuilder.put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, maxNumberOfReplicas);
+        }
+        return settingsBuilder.build();
+    }
 
-        // Mappings
-        String singleMappingType = sourceIndexMetaData.getMappings().keysIt().next();
-        Map<String, Object> mappingsAsMap = sourceIndexMetaData.getMappings().valuesIt().next().sourceAsMap();
-        addProperties(mappingsAsMap);
-        addMetaData(mappingsAsMap, analyticsId, clock);
-
-        return new CreateIndexRequest(destinationIndex, settings).mapping(singleMappingType, mappingsAsMap);
+    @Nullable
+    private static Integer findMaxSettingValue(GetSettingsResponse settingsResponse, String settingKey) {
+        Integer maxValue = null;
+        Iterator<Settings> settingsIterator = settingsResponse.getIndexToSettings().valuesIt();
+        while (settingsIterator.hasNext()) {
+            Settings settings = settingsIterator.next();
+            Integer indexValue = settings.getAsInt(settingKey, null);
+            if (indexValue != null) {
+                maxValue = maxValue == null ? indexValue : Math.max(indexValue, maxValue);
+            }
+        }
+        return maxValue;
     }
 
     private static void addProperties(Map<String, Object> mappingsAsMap) {
@@ -111,6 +168,21 @@ final class DataFrameAnalyticsIndex {
         return value;
     }
 
-    private DataFrameAnalyticsIndex() {}
+    public static void updateMappingsToDestIndex(Client client, DataFrameAnalyticsConfig analyticsConfig, GetIndexResponse getIndexResponse,
+                                                 ActionListener<AcknowledgedResponse> listener) {
+        // We have validated the destination index should match a single index
+        assert getIndexResponse.indices().length == 1;
+
+        ImmutableOpenMap<String, MappingMetaData> mappings = getIndexResponse.getMappings().get(getIndexResponse.indices()[0]);
+        String type = mappings.keysIt().next();
+
+        Map<String, Object> addedMappings = Map.of(PROPERTIES, Map.of(DataFrameAnalyticsFields.ID, Map.of("type", "keyword")));
+
+        PutMappingRequest putMappingRequest = new PutMappingRequest(getIndexResponse.indices());
+        putMappingRequest.type(type);
+        putMappingRequest.source(addedMappings);
+        ClientHelper.executeWithHeadersAsync(analyticsConfig.getHeaders(), ML_ORIGIN, client, PutMappingAction.INSTANCE,
+            putMappingRequest, listener);
+    }
 }
 

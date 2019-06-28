@@ -52,7 +52,7 @@ public final class DataframeIndex {
 
         request.mapping(
             DOC_TYPE,
-            createMappingXContent(mappings, transformConfig.getPivotConfig().getGroupConfig().getGroups(), transformConfig.getId(), clock));
+            createMappingXContent(mappings, transformConfig.getId(), clock));
 
         client.execute(CreateIndexAction.INSTANCE, request, ActionListener.wrap(createIndexResponse -> {
             listener.onResponse(true);
@@ -70,7 +70,7 @@ public final class DataframeIndex {
         try {
             XContentBuilder builder = jsonBuilder().startObject();
             builder.startObject(DOC_TYPE);
-            addProperties(builder, mappings, groupSources);
+            addProperties(builder, mappings);
             addMetaData(builder, id, clock);
             builder.endObject(); // DOC_TYPE
             return builder.endObject();

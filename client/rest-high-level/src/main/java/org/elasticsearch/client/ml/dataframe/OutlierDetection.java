@@ -47,8 +47,7 @@ public class OutlierDetection implements DataFrameAnalysis {
     public static final ParseField NAME = new ParseField("outlier_detection");
     static final ParseField N_NEIGHBORS = new ParseField("n_neighbors");
     static final ParseField METHOD = new ParseField("method");
-    public static final ParseField MINIMUM_SCORE_TO_WRITE_FEATURE_INFLUENCE =
-        new ParseField("minimum_score_to_write_feature_influence");
+    public static final ParseField FEATURE_INFLUENCE_THRESHOLD = new ParseField("feature_influence_threshold");
 
     private static ObjectParser<Builder, Void> PARSER = new ObjectParser<>(NAME.getPreferredName(), true, Builder::new);
 
@@ -60,23 +59,23 @@ public class OutlierDetection implements DataFrameAnalysis {
             }
             throw new IllegalArgumentException("Unsupported token [" + p.currentToken() + "]");
         }, METHOD, ObjectParser.ValueType.STRING);
-        PARSER.declareDouble(Builder::setMinScoreToWriteFeatureInfluence, MINIMUM_SCORE_TO_WRITE_FEATURE_INFLUENCE);
+        PARSER.declareDouble(Builder::setFeatureInfluenceThreshold, FEATURE_INFLUENCE_THRESHOLD);
     }
 
     private final Integer nNeighbors;
     private final Method method;
-    private final Double minScoreToWriteFeatureInfluence;
+    private final Double featureInfluenceThreshold;
 
     /**
      * Constructs the outlier detection configuration
      * @param nNeighbors The number of neighbors. Leave unspecified for dynamic detection.
      * @param method The method. Leave unspecified for a dynamic mixture of methods.
-     * @param minScoreToWriteFeatureInfluence The min outlier score required to calculate feature influence. Defaults to 0.1.
+     * @param featureInfluenceThreshold The min outlier score required to calculate feature influence. Defaults to 0.1.
      */
-    private OutlierDetection(@Nullable Integer nNeighbors, @Nullable Method method, @Nullable Double minScoreToWriteFeatureInfluence) {
+    private OutlierDetection(@Nullable Integer nNeighbors, @Nullable Method method, @Nullable Double featureInfluenceThreshold) {
         this.nNeighbors = nNeighbors;
         this.method = method;
-        this.minScoreToWriteFeatureInfluence = minScoreToWriteFeatureInfluence;
+        this.featureInfluenceThreshold = featureInfluenceThreshold;
     }
 
     @Override
@@ -92,8 +91,8 @@ public class OutlierDetection implements DataFrameAnalysis {
         return method;
     }
 
-    public Double getMinScoreToWriteFeatureInfluence() {
-        return minScoreToWriteFeatureInfluence;
+    public Double getFeatureInfluenceThreshold() {
+        return featureInfluenceThreshold;
     }
 
     @Override
@@ -105,8 +104,8 @@ public class OutlierDetection implements DataFrameAnalysis {
         if (method != null) {
             builder.field(METHOD.getPreferredName(), method);
         }
-        if (minScoreToWriteFeatureInfluence != null) {
-            builder.field(MINIMUM_SCORE_TO_WRITE_FEATURE_INFLUENCE.getPreferredName(), minScoreToWriteFeatureInfluence);
+        if (featureInfluenceThreshold != null) {
+            builder.field(FEATURE_INFLUENCE_THRESHOLD.getPreferredName(), featureInfluenceThreshold);
         }
         builder.endObject();
         return builder;
@@ -120,12 +119,12 @@ public class OutlierDetection implements DataFrameAnalysis {
         OutlierDetection other = (OutlierDetection) o;
         return Objects.equals(nNeighbors, other.nNeighbors)
             && Objects.equals(method, other.method)
-            && Objects.equals(minScoreToWriteFeatureInfluence, other.minScoreToWriteFeatureInfluence);
+            && Objects.equals(featureInfluenceThreshold, other.featureInfluenceThreshold);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(nNeighbors, method, minScoreToWriteFeatureInfluence);
+        return Objects.hash(nNeighbors, method, featureInfluenceThreshold);
     }
 
     @Override
@@ -150,7 +149,7 @@ public class OutlierDetection implements DataFrameAnalysis {
 
         private Integer nNeighbors;
         private Method method;
-        private Double minScoreToWriteFeatureInfluence;
+        private Double featureInfluenceThreshold;
 
         private Builder() {}
 
@@ -164,13 +163,13 @@ public class OutlierDetection implements DataFrameAnalysis {
             return this;
         }
 
-        public Builder setMinScoreToWriteFeatureInfluence(Double minScoreToWriteFeatureInfluence) {
-            this.minScoreToWriteFeatureInfluence = minScoreToWriteFeatureInfluence;
+        public Builder setFeatureInfluenceThreshold(Double featureInfluenceThreshold) {
+            this.featureInfluenceThreshold = featureInfluenceThreshold;
             return this;
         }
 
         public OutlierDetection build() {
-            return new OutlierDetection(nNeighbors, method, minScoreToWriteFeatureInfluence);
+            return new OutlierDetection(nNeighbors, method, featureInfluenceThreshold);
         }
     }
 }

@@ -18,6 +18,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.protocol.xpack.XPackUsageRequest;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackSettings;
@@ -64,7 +65,8 @@ public class MachineLearningUsageTransportAction extends XPackUsageFeatureTransp
     }
 
     @Override
-    protected void masterOperation(XPackUsageRequest request, ClusterState state, ActionListener<XPackUsageFeatureResponse> listener) {
+    protected void masterOperation(Task task, XPackUsageRequest request, ClusterState state,
+                                   ActionListener<XPackUsageFeatureResponse> listener) {
         if (enabled == false) {
             MachineLearningFeatureSetUsage usage = new MachineLearningFeatureSetUsage(licenseState.isMachineLearningAllowed(), enabled,
                 Collections.emptyMap(), Collections.emptyMap(), 0);

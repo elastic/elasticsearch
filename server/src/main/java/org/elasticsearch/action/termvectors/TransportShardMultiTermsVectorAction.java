@@ -20,6 +20,8 @@
 package org.elasticsearch.action.termvectors;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.action.Action;
+import org.elasticsearch.action.StreamableResponseAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.action.support.single.shard.TransportSingleShardAction;
@@ -43,6 +45,12 @@ public class TransportShardMultiTermsVectorAction extends
     private final IndicesService indicesService;
 
     private static final String ACTION_NAME = MultiTermVectorsAction.NAME + "[shard]";
+    public static final Action<MultiTermVectorsShardResponse> ACTION_INSTANCE = new StreamableResponseAction<>(ACTION_NAME) {
+        @Override
+        public MultiTermVectorsShardResponse newResponse() {
+            return new MultiTermVectorsShardResponse();
+        }
+    };
 
     @Inject
     public TransportShardMultiTermsVectorAction(ClusterService clusterService, TransportService transportService,

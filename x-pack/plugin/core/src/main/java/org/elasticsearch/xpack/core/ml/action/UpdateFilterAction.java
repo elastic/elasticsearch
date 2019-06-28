@@ -5,10 +5,10 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.StreamableResponseAction;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
@@ -32,7 +32,7 @@ import java.util.SortedSet;
 import java.util.TreeSet;
 
 
-public class UpdateFilterAction extends Action<PutFilterAction.Response> {
+public class UpdateFilterAction extends StreamableResponseAction<PutFilterAction.Response> {
 
     public static final UpdateFilterAction INSTANCE = new UpdateFilterAction();
     public static final String NAME = "cluster:admin/xpack/ml/filters/update";

@@ -20,6 +20,7 @@
 package org.elasticsearch.action.get;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.action.Action;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.action.support.single.shard.TransportSingleShardAction;
@@ -40,6 +41,7 @@ import org.elasticsearch.transport.TransportService;
 public class TransportShardMultiGetAction extends TransportSingleShardAction<MultiGetShardRequest, MultiGetShardResponse> {
 
     private static final String ACTION_NAME = MultiGetAction.NAME + "[shard]";
+    public static final Action<MultiGetShardResponse> ACTION_INSTANCE = new Action<>(ACTION_NAME, MultiGetShardResponse::new);
 
     private final IndicesService indicesService;
 

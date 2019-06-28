@@ -19,11 +19,11 @@
 
 package org.elasticsearch.indices.settings;
 
-import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.StreamableResponseAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
@@ -63,7 +63,7 @@ public class InternalOrPrivateSettingsPlugin extends Plugin implements ActionPlu
         return Arrays.asList(INDEX_INTERNAL_SETTING, INDEX_PRIVATE_SETTING);
     }
 
-    public static class UpdateInternalOrPrivateAction extends Action<UpdateInternalOrPrivateAction.Response> {
+    public static class UpdateInternalOrPrivateAction extends StreamableResponseAction<UpdateInternalOrPrivateAction.Response> {
 
         public static final UpdateInternalOrPrivateAction INSTANCE = new UpdateInternalOrPrivateAction();
         private static final String NAME = "indices:admin/settings/update-internal-or-private-index";

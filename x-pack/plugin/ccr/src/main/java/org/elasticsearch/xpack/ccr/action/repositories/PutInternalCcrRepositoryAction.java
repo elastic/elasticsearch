@@ -30,11 +30,6 @@ public class PutInternalCcrRepositoryAction extends Action<PutInternalCcrReposit
     }
 
     @Override
-    public PutInternalCcrRepositoryResponse newResponse() {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
     public Writeable.Reader<PutInternalCcrRepositoryResponse> getResponseReader() {
         return PutInternalCcrRepositoryResponse::new;
     }

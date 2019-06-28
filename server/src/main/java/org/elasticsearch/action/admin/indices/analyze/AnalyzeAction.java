@@ -59,11 +59,6 @@ public class AnalyzeAction extends Action<AnalyzeAction.Response> {
         return Response::new;
     }
 
-    @Override
-    public Response newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
-
     /**
      * A request to analyze a text associated with a specific index. Allow to provide
      * the actual analyzer name to perform the analysis with.

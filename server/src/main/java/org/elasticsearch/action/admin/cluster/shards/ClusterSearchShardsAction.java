@@ -32,11 +32,6 @@ public class ClusterSearchShardsAction extends Action<ClusterSearchShardsRespons
     }
 
     @Override
-    public ClusterSearchShardsResponse newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
-
-    @Override
     public Writeable.Reader<ClusterSearchShardsResponse> getResponseReader() {
         return ClusterSearchShardsResponse::new;
     }

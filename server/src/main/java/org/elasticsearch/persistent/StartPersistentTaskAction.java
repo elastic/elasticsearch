@@ -18,9 +18,9 @@
  */
 package org.elasticsearch.persistent;
 
-import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.StreamableResponseAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
@@ -47,7 +47,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 /**
  *  This action can be used to add the record for the persistent action to the cluster state.
  */
-public class StartPersistentTaskAction extends Action<PersistentTaskResponse> {
+public class StartPersistentTaskAction extends StreamableResponseAction<PersistentTaskResponse> {
 
     public static final StartPersistentTaskAction INSTANCE = new StartPersistentTaskAction();
     public static final String NAME = "cluster:admin/persistent/start";

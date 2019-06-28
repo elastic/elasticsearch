@@ -32,11 +32,6 @@ public class OpenIndexAction extends Action<OpenIndexResponse> {
     }
 
     @Override
-    public OpenIndexResponse newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
-
-    @Override
     public Writeable.Reader<OpenIndexResponse> getResponseReader() {
         return OpenIndexResponse::new;
     }

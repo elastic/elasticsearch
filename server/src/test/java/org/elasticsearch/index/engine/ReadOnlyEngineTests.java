@@ -275,9 +275,6 @@ public class ReadOnlyEngineTests extends EngineTestCase {
                 assertThat(engine.getTranslogStats().getEarliestLastModifiedAge(), greaterThan(0L));
 
                 engine.flush(true, true);
-
-                assertThat(engine.getTranslogStats().estimatedNumberOfOperations(), equalTo(numDocs));
-                assertThat(engine.getTranslogStats().getUncommittedOperations(), equalTo(uncommittedDocs));
             }
 
             try (ReadOnlyEngine readOnlyEngine = new ReadOnlyEngine(config, null, null, true, Function.identity())) {

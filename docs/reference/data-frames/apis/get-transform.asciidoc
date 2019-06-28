@@ -37,6 +37,16 @@ see {stack-ov}/security-privileges.html[Security privileges] and
 {stack-ov}/built-in-roles.html[Built-in roles].
 
 [discrete]
+[[get-data-frame-transform-desc]]
+==== {api-description-title}
+
+You can get information for multiple {dataframe-transforms} in a single API
+request by using a comma-separated list of identifiers or a wildcard expression.
+You can get information for all {dataframe-transforms} by using `_all`, by
+specifying `*` as the `<data_frame_transform_id>`, or by omitting the
+`<data_frame_transform_id>`.
+
+[discrete]
 [[get-data-frame-transform-path-parms]]
 ==== {api-path-parms-title}
 

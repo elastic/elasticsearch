@@ -45,6 +45,7 @@ import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.index.shard.ShardStateMetaData;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -92,8 +93,8 @@ public class TransportNodesListGatewayStartedShards extends
     }
 
     @Override
-    protected NodeRequest newNodeRequest(String nodeId, Request request) {
-        return new NodeRequest(nodeId, request);
+    protected NodeRequest newNodeRequest(Request request) {
+        return new NodeRequest(request);
     }
 
     @Override
@@ -108,7 +109,7 @@ public class TransportNodesListGatewayStartedShards extends
     }
 
     @Override
-    protected NodeGatewayStartedShards nodeOperation(NodeRequest request) {
+    protected NodeGatewayStartedShards nodeOperation(NodeRequest request, Task task) {
         try {
             final ShardId shardId = request.getShardId();
             logger.trace("{} loading local shard state info", shardId);
@@ -222,8 +223,7 @@ public class TransportNodesListGatewayStartedShards extends
         public NodeRequest() {
         }
 
-        public NodeRequest(String nodeId, Request request) {
-            super(nodeId);
+        public NodeRequest(Request request) {
             this.shardId = request.shardId();
         }
 

@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.MlTasks;
@@ -70,7 +71,7 @@ public class TransportRevertModelSnapshotAction extends TransportMasterNodeActio
     }
 
     @Override
-    protected void masterOperation(RevertModelSnapshotAction.Request request, ClusterState state,
+    protected void masterOperation(Task task, RevertModelSnapshotAction.Request request, ClusterState state,
                                    ActionListener<RevertModelSnapshotAction.Response> listener) {
         if (migrationEligibilityCheck.jobIsEligibleForMigration(request.getJobId(), state)) {
             listener.onFailure(ExceptionsHelper.configHasNotBeenMigrated("revert model snapshot", request.getJobId()));

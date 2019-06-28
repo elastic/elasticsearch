@@ -34,12 +34,10 @@ Previews a {dataframe-transform}.
 [[preview-data-frame-transform-desc]]
 ==== {api-description-title}
 
-The preview {dataframe-transforms} API returns maximum 100 results of the 
-transform that is specified in the request body. The calculations are as 
-accurate as if you would use the create {dataframe-transforms} API and they are 
-based on all the current data in the source index. The preview shows the results 
-that you get using the create {dataframe-transforms} API with the same 
-configuration.
+This API generates a preview of the results that you will get when you run the
+<<put-data-frame-transform,create {dataframe-transforms} API>> with the same
+configuration. It returns a maximum of 100 results. The calculations are based
+on all the current data in the source index. 
 
 [discrete]
 [[preview-data-frame-transform-request-body]]
@@ -51,6 +49,13 @@ configuration.
 `pivot` (Required)::
   (object) Defines the pivot function `group by` fields and the aggregation to
   reduce the data. See <<data-frame-transform-pivot>>.
+  
+[discrete]
+[[preview-data-frame-transform-response]]
+==== {api-response-body-title}
+
+`preview`::
+  (array) An array of {dataframe} objects.
 
 [discrete]
 ==== {api-examples-title}

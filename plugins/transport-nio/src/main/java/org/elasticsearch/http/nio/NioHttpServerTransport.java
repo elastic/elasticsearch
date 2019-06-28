@@ -23,6 +23,8 @@ import io.netty.handler.codec.http.HttpMethod;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
@@ -149,7 +151,11 @@ public class NioHttpServerTransport extends AbstractHttpServerTransport {
 
     @Override
     protected HttpServerChannel bind(InetSocketAddress socketAddress) throws IOException {
-        return nioGroup.bindServerChannel(socketAddress, channelFactory);
+        NioHttpServerChannel httpServerChannel = nioGroup.bindServerChannel(socketAddress, channelFactory);
+        PlainActionFuture<Void> future = PlainActionFuture.newFuture();
+        httpServerChannel.addBindListener(ActionListener.toBiConsumer(future));
+        future.actionGet();
+        return httpServerChannel;
     }
 
     protected ChannelFactory<NioHttpServerChannel, NioHttpChannel> channelFactory() {
@@ -197,6 +203,10 @@ public class NioHttpServerTransport extends AbstractHttpServerTransport {
     }
 
     private class HttpChannelFactory extends ChannelFactory<NioHttpServerChannel, NioHttpChannel> {
+
+        private HttpChannelFactory() {
+            super(tcpNoDelay, tcpKeepAlive, reuseAddress, tcpSendBufferSize, tcpReceiveBufferSize);
+        }
 
         @Override
         public NioHttpChannel createChannel(NioSelector selector, SocketChannel channel, Config.Socket socketConfig) {

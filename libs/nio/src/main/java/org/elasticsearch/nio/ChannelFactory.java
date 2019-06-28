@@ -25,51 +25,62 @@ import java.io.UncheckedIOException;
 import java.net.InetSocketAddress;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
-import java.security.AccessController;
-import java.security.PrivilegedActionException;
-import java.security.PrivilegedExceptionAction;
+import java.nio.channels.spi.AbstractSelectableChannel;
 import java.util.function.Supplier;
 
 public abstract class ChannelFactory<ServerSocket extends NioServerSocketChannel, Socket extends NioSocketChannel> {
 
+    private final boolean tcpNoDelay;
+    private final boolean tcpKeepAlive;
+    private final boolean tcpReuseAddress;
+    private final int tcpSendBufferSize;
+    private final int tcpReceiveBufferSize;
     private final ChannelFactory.RawChannelFactory rawChannelFactory;
 
     /**
-     * This will create a {@link ChannelFactory} using the raw channel factory passed to the constructor.
+     * This will create a {@link ChannelFactory}.
      */
-    protected ChannelFactory() {
-        this(new RawChannelFactory());
+    protected ChannelFactory(boolean tcpNoDelay, boolean tcpKeepAlive, boolean tcpReuseAddress, int tcpSendBufferSize,
+                             int tcpReceiveBufferSize) {
+        this(tcpNoDelay, tcpKeepAlive, tcpReuseAddress, tcpSendBufferSize, tcpReceiveBufferSize, new RawChannelFactory());
     }
 
     /**
      * This will create a {@link ChannelFactory} using the raw channel factory passed to the constructor.
-     *
-     * @param rawChannelFactory a factory that will construct the raw socket channels
      */
-    protected ChannelFactory(RawChannelFactory rawChannelFactory) {
+    protected ChannelFactory(boolean tcpNoDelay, boolean tcpKeepAlive, boolean tcpReuseAddress, int tcpSendBufferSize,
+                             int tcpReceiveBufferSize, RawChannelFactory rawChannelFactory) {
+        this.tcpNoDelay = tcpNoDelay;
+        this.tcpKeepAlive = tcpKeepAlive;
+        this.tcpReuseAddress = tcpReuseAddress;
+        this.tcpSendBufferSize = tcpSendBufferSize;
+        this.tcpReceiveBufferSize = tcpReceiveBufferSize;
         this.rawChannelFactory = rawChannelFactory;
     }
 
     public Socket openNioChannel(InetSocketAddress remoteAddress, Supplier<NioSelector> supplier) throws IOException {
         SocketChannel rawChannel = rawChannelFactory.openNioChannel();
+        setNonBlocking(rawChannel);
         NioSelector selector = supplier.get();
-        Socket channel = internalCreateChannel(selector, rawChannel);
+        Socket channel = internalCreateChannel(selector, rawChannel, createSocketConfig(remoteAddress));
         scheduleChannel(channel, selector);
         return channel;
     }
 
-    public Socket acceptNioChannel(SocketChannel acceptedChannel, Supplier<NioSelector> supplier) throws IOException {
-        SocketChannel rawChannel = rawChannelFactory.acceptNioChannel(acceptedChannel);
+    public Socket acceptNioChannel(SocketChannel rawChannel, Supplier<NioSelector> supplier) throws IOException {
+        setNonBlocking(rawChannel);
         NioSelector selector = supplier.get();
-        Socket channel = internalCreateChannel(selector, rawChannel);
+        Socket channel = internalCreateChannel(selector, rawChannel, createSocketConfig(null));
         scheduleChannel(channel, selector);
         return channel;
     }
 
     public ServerSocket openNioServerSocketChannel(InetSocketAddress localAddress, Supplier<NioSelector> supplier) throws IOException {
         ServerSocketChannel rawChannel = rawChannelFactory.openNioServerSocketChannel();
+        setNonBlocking(rawChannel);
         NioSelector selector = supplier.get();
-        ServerSocket serverChannel = internalCreateServerChannel(selector, rawChannel);
+        Config.ServerSocket config = new Config.ServerSocket(tcpReuseAddress, localAddress);
+        ServerSocket serverChannel = internalCreateServerChannel(selector, rawChannel, config);
         scheduleServerChannel(serverChannel, selector);
         return serverChannel;
     }
@@ -100,9 +111,9 @@ public abstract class ChannelFactory<ServerSocket extends NioServerSocketChannel
     public abstract ServerSocket createServerChannel(NioSelector selector, ServerSocketChannel channel, Config.ServerSocket socketConfig)
         throws IOException;
 
-    private Socket internalCreateChannel(NioSelector selector, SocketChannel rawChannel) throws IOException {
+    private Socket internalCreateChannel(NioSelector selector, SocketChannel rawChannel, Config.Socket config) throws IOException {
         try {
-            Socket channel = createChannel(selector, rawChannel, null);
+            Socket channel = createChannel(selector, rawChannel, config);
             assert channel.getContext() != null : "channel context should have been set on channel";
             return channel;
         } catch (UncheckedIOException e) {
@@ -116,9 +127,10 @@ public abstract class ChannelFactory<ServerSocket extends NioServerSocketChannel
         }
     }
 
-    private ServerSocket internalCreateServerChannel(NioSelector selector, ServerSocketChannel rawChannel) throws IOException {
+    private ServerSocket internalCreateServerChannel(NioSelector selector, ServerSocketChannel rawChannel, Config.ServerSocket config)
+        throws IOException {
         try {
-            return createServerChannel(selector, rawChannel, null);
+            return createServerChannel(selector, rawChannel, config);
         } catch (Exception e) {
             closeRawChannel(rawChannel, e);
             throw e;
@@ -143,6 +155,15 @@ public abstract class ChannelFactory<ServerSocket extends NioServerSocketChannel
         }
     }
 
+    private void setNonBlocking(AbstractSelectableChannel rawChannel) throws IOException {
+        try {
+            rawChannel.configureBlocking(false);
+        } catch (IOException e) {
+            closeRawChannel(rawChannel, e);
+            throw e;
+        }
+    }
+
     private static void closeRawChannel(Closeable c, Exception e) {
         try {
             c.close();
@@ -151,49 +172,18 @@ public abstract class ChannelFactory<ServerSocket extends NioServerSocketChannel
         }
     }
 
+    private Config.Socket createSocketConfig(InetSocketAddress remoteAddress) {
+        return new Config.Socket(tcpNoDelay, tcpKeepAlive, tcpReuseAddress, tcpSendBufferSize, tcpReceiveBufferSize, remoteAddress);
+    }
+
     public static class RawChannelFactory {
 
-        public RawChannelFactory() {
-        }
-
         SocketChannel openNioChannel() throws IOException {
-            SocketChannel socketChannel = SocketChannel.open();
-            try {
-                socketChannel.configureBlocking(false);
-            } catch (IOException e) {
-                closeRawChannel(socketChannel, e);
-                throw e;
-            }
-            return socketChannel;
-        }
-
-        SocketChannel acceptNioChannel(SocketChannel socketChannel) throws IOException {
-            try {
-                socketChannel.configureBlocking(false);
-                return socketChannel;
-            } catch (IOException e) {
-                closeRawChannel(socketChannel, e);
-                throw e;
-            }
+            return SocketChannel.open();
         }
 
         ServerSocketChannel openNioServerSocketChannel() throws IOException {
-            ServerSocketChannel serverSocketChannel = ServerSocketChannel.open();
-            try {
-                serverSocketChannel.configureBlocking(false);
-            } catch (IOException e) {
-                closeRawChannel(serverSocketChannel, e);
-                throw e;
-            }
-            return serverSocketChannel;
-        }
-
-        public static SocketChannel accept(ServerSocketChannel serverSocketChannel) throws IOException {
-            try {
-                return AccessController.doPrivileged((PrivilegedExceptionAction<SocketChannel>) serverSocketChannel::accept);
-            } catch (PrivilegedActionException e) {
-                throw (IOException) e.getCause();
-            }
+            return ServerSocketChannel.open();
         }
     }
 }

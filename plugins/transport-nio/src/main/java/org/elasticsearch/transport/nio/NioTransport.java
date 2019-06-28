@@ -23,6 +23,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkService;
@@ -39,6 +41,7 @@ import org.elasticsearch.nio.NioSocketChannel;
 import org.elasticsearch.nio.ServerChannelContext;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TcpTransport;
+import org.elasticsearch.transport.TransportSettings;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
@@ -71,7 +74,11 @@ public class NioTransport extends TcpTransport {
     @Override
     protected NioTcpServerChannel bind(String name, InetSocketAddress address) throws IOException {
         TcpChannelFactory channelFactory = this.profileToChannelFactory.get(name);
-        return nioGroup.bindServerChannel(address, channelFactory);
+        NioTcpServerChannel serverChannel = nioGroup.bindServerChannel(address, channelFactory);
+        PlainActionFuture<Void> future = PlainActionFuture.newFuture();
+        serverChannel.addBindListener(ActionListener.toBiConsumer(future));
+        future.actionGet();
+        return serverChannel;
     }
 
     @Override
@@ -86,7 +93,7 @@ public class NioTransport extends TcpTransport {
         try {
             nioGroup = groupFactory.getTransportGroup();
 
-            ProfileSettings clientProfileSettings = new ProfileSettings(settings, "default");
+            ProfileSettings clientProfileSettings = new ProfileSettings(settings, TransportSettings.DEFAULT_PROFILE);
             clientChannelFactory = clientChannelFactoryFunction(clientProfileSettings);
 
             if (NetworkService.NETWORK_SERVER.get(settings)) {
@@ -133,6 +140,11 @@ public class NioTransport extends TcpTransport {
     }
 
     protected abstract class TcpChannelFactory extends ChannelFactory<NioTcpServerChannel, NioTcpChannel> {
+
+        protected TcpChannelFactory(ProfileSettings profileSettings) {
+            super(profileSettings.tcpNoDelay, profileSettings.tcpKeepAlive, profileSettings.reuseAddress,
+                Math.toIntExact(profileSettings.sendBufferSize.getBytes()), Math.toIntExact(profileSettings.receiveBufferSize.getBytes()));
+        }
     }
 
     private class TcpChannelFactoryImpl extends TcpChannelFactory {
@@ -141,6 +153,7 @@ public class NioTransport extends TcpTransport {
         private final String profileName;
 
         private TcpChannelFactoryImpl(ProfileSettings profileSettings, boolean isClient) {
+            super(profileSettings);
             this.isClient = isClient;
             this.profileName = profileSettings.profileName;
         }

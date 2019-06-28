@@ -88,11 +88,13 @@ public abstract class SocketChannelContext extends ChannelContext<SocketChannel>
 
         configureSocket(rawChannel.socket(), false);
 
-        InetSocketAddress remoteAddress = socketConfig.getRemoteAddress();
-        try {
-            connect(rawChannel, remoteAddress);
-        } catch (IOException e) {
-            throw new IOException("Failed to connect socket channel {remoteAddress=" + remoteAddress + "}.", e);
+        if (socketConfig.isAccepted() == false) {
+            InetSocketAddress remoteAddress = socketConfig.getRemoteAddress();
+            try {
+                connect(rawChannel, remoteAddress);
+            } catch (IOException e) {
+                throw new IOException("Failed to connect socket channel {remoteAddress=" + remoteAddress + "}.", e);
+            }
         }
 
         channelHandler.channelRegistered();

@@ -26,6 +26,7 @@ import org.mockito.stubbing.Answer;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
+import java.net.Socket;
 import java.nio.ByteBuffer;
 import java.nio.channels.ClosedChannelException;
 import java.nio.channels.SocketChannel;
@@ -77,6 +78,7 @@ public class SocketChannelContextTests extends ESTestCase {
             ioBuffer.clear();
             return ioBuffer;
         });
+        when(rawChannel.socket()).thenReturn(mock(Socket.class));
     }
 
     public void testIOExceptionSetIfEncountered() throws IOException {

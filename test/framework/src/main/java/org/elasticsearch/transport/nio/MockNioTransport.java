@@ -25,6 +25,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -91,7 +92,11 @@ public class MockNioTransport extends TcpTransport {
     @Override
     protected MockServerChannel bind(String name, InetSocketAddress address) throws IOException {
         MockTcpChannelFactory channelFactory = this.profileToChannelFactory.get(name);
-        return nioGroup.bindServerChannel(address, channelFactory);
+        MockServerChannel serverChannel = nioGroup.bindServerChannel(address, channelFactory);
+        PlainActionFuture<Void> future = PlainActionFuture.newFuture();
+        serverChannel.addBindListener(ActionListener.toBiConsumer(future));
+        future.actionGet();
+        return serverChannel;
     }
 
     @Override
@@ -190,6 +195,11 @@ public class MockNioTransport extends TcpTransport {
         private final String profileName;
 
         private MockTcpChannelFactory(boolean isClient, ProfileSettings profileSettings, String profileName) {
+            super(profileSettings.tcpNoDelay,
+                profileSettings.tcpKeepAlive,
+                profileSettings.reuseAddress,
+                Math.toIntExact(profileSettings.sendBufferSize.getBytes()),
+                Math.toIntExact(profileSettings.receiveBufferSize.getBytes()));
             this.isClient = isClient;
             this.profileName = profileName;
         }

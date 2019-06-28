@@ -25,6 +25,7 @@ import org.junit.Before;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.ServerSocket;
+import java.net.Socket;
 import java.nio.channels.CancelledKeyException;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.ServerSocketChannel;
@@ -67,6 +68,7 @@ public class EventHandlerTests extends ESTestCase {
         SocketChannel rawChannel = mock(SocketChannel.class);
         when(rawChannel.finishConnect()).thenReturn(true);
         NioSocketChannel channel = new NioSocketChannel(rawChannel);
+        when(rawChannel.socket()).thenReturn(mock(Socket.class));
         context = new DoNotRegisterSocketContext(channel, selector, channelExceptionHandler, readWriteHandler);
         channel.setContext(context);
         handler.handleRegistration(context);
@@ -111,26 +113,12 @@ public class EventHandlerTests extends ESTestCase {
         assertEquals(SelectionKey.OP_ACCEPT, serverContext.getSelectionKey().interestOps());
     }
 
-    public void testHandleAcceptCallsChannelFactory() throws IOException {
-//        NioSocketChannel childChannel = new NioSocketChannel(mock(SocketChannel.class));
-//        NioSocketChannel nullChannel = null;
-//        when(channelFactory.acceptNioChannel(same(serverContext), same(selectorSupplier))).thenReturn(childChannel, nullChannel);
-//
-//        handler.acceptChannel(serverContext);
-//
-//        verify(channelFactory, times(2)).acceptNioChannel(same(serverContext), same(selectorSupplier));
-    }
+    public void testHandleAcceptAccept() throws IOException {
+        ServerChannelContext serverChannelContext = mock(ServerChannelContext.class);
 
-    public void testHandleAcceptCallsServerAcceptCallback() throws IOException {
-//        NioSocketChannel childChannel = new NioSocketChannel(mock(SocketChannel.class));
-//        SocketChannelContext childContext = mock(SocketChannelContext.class);
-//        childChannel.setContext(childContext);
-//        ServerChannelContext serverChannelContext = mock(ServerChannelContext.class);
-//        when(channelFactory.acceptNioChannel(same(serverContext), same(selectorSupplier))).thenReturn(childChannel);
-//
-//        handler.acceptChannel(serverChannelContext);
-//
-//        verify(serverChannelContext).acceptChannels(selectorSupplier);
+        handler.acceptChannel(serverChannelContext);
+
+        verify(serverChannelContext).acceptChannels(selectorSupplier);
     }
 
     public void testAcceptExceptionCallsExceptionHandler() throws IOException {

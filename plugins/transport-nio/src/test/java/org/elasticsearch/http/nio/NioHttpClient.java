@@ -35,6 +35,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -149,7 +150,8 @@ class NioHttpClient implements Closeable {
             connectFuture.actionGet();
 
             for (HttpRequest request : requests) {
-                nioSocketChannel.getContext().sendMessage(request, (v, e) -> {});
+                nioSocketChannel.getContext().sendMessage(request, (v, e) -> {
+                });
             }
             if (latch.await(30L, TimeUnit.SECONDS) == false) {
                 fail("Failed to get all expected responses.");
@@ -177,6 +179,11 @@ class NioHttpClient implements Closeable {
         private final Collection<FullHttpResponse> content;
 
         private ClientChannelFactory(CountDownLatch latch, Collection<FullHttpResponse> content) {
+            super(NetworkService.TCP_NO_DELAY.get(Settings.EMPTY),
+                NetworkService.TCP_KEEP_ALIVE.get(Settings.EMPTY),
+                NetworkService.TCP_REUSE_ADDRESS.get(Settings.EMPTY),
+                Math.toIntExact(NetworkService.TCP_SEND_BUFFER_SIZE.get(Settings.EMPTY).getBytes()),
+                Math.toIntExact(NetworkService.TCP_RECEIVE_BUFFER_SIZE.get(Settings.EMPTY).getBytes()));
             this.latch = latch;
             this.content = content;
         }
@@ -223,7 +230,8 @@ class NioHttpClient implements Closeable {
         }
 
         @Override
-        public void channelRegistered() {}
+        public void channelRegistered() {
+        }
 
         @Override
         public WriteOperation createWriteOperation(SocketChannelContext context, Object message, BiConsumer<Void, Exception> listener) {

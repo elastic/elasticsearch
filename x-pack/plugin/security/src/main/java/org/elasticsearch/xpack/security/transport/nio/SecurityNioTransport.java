@@ -16,7 +16,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.nio.BytesChannelContext;
-import org.elasticsearch.nio.ChannelFactory;
 import org.elasticsearch.nio.Config;
 import org.elasticsearch.nio.InboundChannelBuffer;
 import org.elasticsearch.nio.NioChannelHandler;
@@ -106,7 +105,7 @@ public class SecurityNioTransport extends NioTransport {
 
     @Override
     protected TcpChannelFactory serverChannelFactory(ProfileSettings profileSettings) {
-        return new SecurityTcpChannelFactory(profileSettings.profileName, false);
+        return new SecurityTcpChannelFactory(profileSettings, false);
     }
 
     @Override
@@ -123,7 +122,7 @@ public class SecurityNioTransport extends NioTransport {
             } else {
                 serverName = null;
             }
-            return new SecurityClientTcpChannelFactory(new ChannelFactory.RawChannelFactory(), serverName);
+            return new SecurityClientTcpChannelFactory(profileSettings, serverName);
         };
     }
 
@@ -132,8 +131,9 @@ public class SecurityNioTransport extends NioTransport {
         private final String profileName;
         private final boolean isClient;
 
-        private SecurityTcpChannelFactory(String profileName, boolean isClient) {
-            this.profileName = profileName;
+        private SecurityTcpChannelFactory(ProfileSettings profileSettings, boolean isClient) {
+            super(profileSettings);
+            this.profileName = profileSettings.profileName;
             this.isClient = isClient;
         }
 
@@ -152,7 +152,7 @@ public class SecurityNioTransport extends NioTransport {
 
             SocketChannelContext context;
             if (sslEnabled) {
-                SSLDriver sslDriver = new SSLDriver(createSSLEngine(channel), pageAllocator, isClient);
+                SSLDriver sslDriver = new SSLDriver(createSSLEngine(socketConfig), pageAllocator, isClient);
                 InboundChannelBuffer applicationBuffer = new InboundChannelBuffer(pageAllocator);
                 context = new SSLChannelContext(nioChannel, selector, socketConfig, exceptionHandler, sslDriver, handler, networkBuffer,
                     applicationBuffer);
@@ -175,15 +175,15 @@ public class SecurityNioTransport extends NioTransport {
             return nioChannel;
         }
 
-        protected SSLEngine createSSLEngine(SocketChannel channel) throws IOException {
+        protected SSLEngine createSSLEngine(Config.Socket socketConfig) throws IOException {
             SSLEngine sslEngine;
             SSLConfiguration defaultConfig = profileConfiguration.get(TransportSettings.DEFAULT_PROFILE);
             SSLConfiguration sslConfig = profileConfiguration.getOrDefault(profileName, defaultConfig);
             boolean hostnameVerificationEnabled = sslConfig.verificationMode().isHostnameVerificationEnabled();
-            if (hostnameVerificationEnabled) {
-                InetSocketAddress inetSocketAddress = (InetSocketAddress) channel.getRemoteAddress();
+            if (hostnameVerificationEnabled && socketConfig.isAccepted() == false) {
+                InetSocketAddress remoteAddress = socketConfig.getRemoteAddress();
                 // we create the socket based on the name given. don't reverse DNS
-                sslEngine = sslService.createSSLEngine(sslConfig, inetSocketAddress.getHostString(), inetSocketAddress.getPort());
+                sslEngine = sslService.createSSLEngine(sslConfig, remoteAddress.getHostString(), remoteAddress.getPort());
             } else {
                 sslEngine = sslService.createSSLEngine(sslConfig, null, -1);
             }
@@ -195,8 +195,8 @@ public class SecurityNioTransport extends NioTransport {
 
         private final SNIHostName serverName;
 
-        private SecurityClientTcpChannelFactory(RawChannelFactory rawChannelFactory, SNIHostName serverName) {
-            super(TransportSettings.DEFAULT_PROFILE, true);
+        private SecurityClientTcpChannelFactory(ProfileSettings profileSettings, SNIHostName serverName) {
+            super(profileSettings, true);
             this.serverName = serverName;
         }
 
@@ -207,8 +207,8 @@ public class SecurityNioTransport extends NioTransport {
         }
 
         @Override
-        protected SSLEngine createSSLEngine(SocketChannel channel) throws IOException {
-            SSLEngine sslEngine = super.createSSLEngine(channel);
+        protected SSLEngine createSSLEngine(Config.Socket socketConfig) throws IOException {
+            SSLEngine sslEngine = super.createSSLEngine(socketConfig);
             if (serverName != null) {
                 SSLParameters sslParameters = sslEngine.getSSLParameters();
                 sslParameters.setServerNames(Collections.singletonList(serverName));

@@ -19,6 +19,8 @@
 
 package org.elasticsearch.nio;
 
+import org.elasticsearch.common.concurrent.CompletableContext;
+
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.ServerSocket;
@@ -28,6 +30,7 @@ import java.security.AccessController;
 import java.security.PrivilegedActionException;
 import java.security.PrivilegedExceptionAction;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
@@ -39,6 +42,7 @@ public class ServerChannelContext extends ChannelContext<ServerSocketChannel> {
     private final Consumer<NioSocketChannel> acceptor;
     private final AtomicBoolean isClosing = new AtomicBoolean(false);
     private final ChannelFactory<?, ?> channelFactory;
+    private final CompletableContext<Void> bindContext = new CompletableContext<>();
 
     public ServerChannelContext(NioServerSocketChannel channel, ChannelFactory<?, ?> channelFactory, NioSelector selector,
                                 Config.ServerSocket config, Consumer<NioSocketChannel> acceptor,
@@ -59,6 +63,10 @@ public class ServerChannelContext extends ChannelContext<ServerSocketChannel> {
         }
     }
 
+    public void addBindListener(BiConsumer<Void, Exception> listener) {
+        bindContext.addListener(listener);
+    }
+
     @Override
     protected void register() throws IOException {
         super.register();
@@ -68,8 +76,11 @@ public class ServerChannelContext extends ChannelContext<ServerSocketChannel> {
         InetSocketAddress localAddress = config.getLocalAddress();
         try {
             rawChannel.bind(localAddress);
+            bindContext.complete(null);
         } catch (IOException e) {
-            throw new IOException("Failed to bind server socket channel {localAddress=" + localAddress + "}.", e);
+            IOException exception = new IOException("Failed to bind server socket channel {localAddress=" + localAddress + "}.", e);
+            bindContext.completeExceptionally(exception);
+            throw exception;
         }
     }
 

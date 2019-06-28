@@ -76,7 +76,6 @@ public class ChannelFactoryTests extends ESTestCase {
     }
 
     public void testAcceptedChannelRejected() throws IOException {
-        when(rawChannelFactory.acceptNioChannel(rawChannel)).thenReturn(rawChannel);
         doThrow(new IllegalStateException()).when(socketSelector).scheduleForRegistration(any());
 
         expectThrows(IllegalStateException.class, () -> channelFactory.acceptNioChannel(rawChannel, socketSelectorSupplier));
@@ -129,7 +128,7 @@ public class ChannelFactoryTests extends ESTestCase {
     private static class TestChannelFactory extends ChannelFactory<NioServerSocketChannel, NioSocketChannel> {
 
         TestChannelFactory(RawChannelFactory rawChannelFactory) {
-            super(rawChannelFactory);
+            super(randomBoolean(), randomBoolean(), randomBoolean(), -1, -1, rawChannelFactory);
         }
 
         @Override

@@ -67,6 +67,10 @@ public abstract class Config {
             return tcpReceiveBufferSize;
         }
 
+        public boolean isAccepted() {
+            return remoteAddress == null;
+        }
+
         public InetSocketAddress getRemoteAddress() {
             return remoteAddress;
         }

@@ -432,7 +432,7 @@ public class ElasticsearchMappings {
                         .startObject(OutlierDetection.METHOD.getPreferredName())
                             .field(TYPE, KEYWORD)
                         .endObject()
-                        .startObject(OutlierDetection.MINIMUM_SCORE_TO_WRITE_FEATURE_INFLUENCE.getPreferredName())
+                        .startObject(OutlierDetection.FEATURE_INFLUENCE_THRESHOLD.getPreferredName())
                             .field(TYPE, DOUBLE)
                         .endObject()
                     .endObject()

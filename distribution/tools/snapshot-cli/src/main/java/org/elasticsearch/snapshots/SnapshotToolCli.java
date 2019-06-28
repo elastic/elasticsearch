@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.snapshots;
 
+import org.elasticsearch.cli.CommandLoggingConfigurator;
 import org.elasticsearch.cli.LoggingAwareMultiCommand;
 import org.elasticsearch.cli.Terminal;
 
@@ -25,6 +26,7 @@ public class SnapshotToolCli extends LoggingAwareMultiCommand {
 
     public SnapshotToolCli() {
         super("Tool to work with repositories and snapshots");
+        CommandLoggingConfigurator.configureLoggingWithoutConfig();
         subcommands.put("cleanup_s3", new CleanupS3RepositoryCommand());
     }
 

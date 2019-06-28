@@ -46,8 +46,16 @@ import java.util.concurrent.ExecutionException;
  */
 public final class DocumentSubsetBitsetCache implements IndexReader.ClosedListener, Closeable, Accountable {
 
+    /**
+     * The TTL defaults to 1 week. We depend on the {@code max_bytes} setting to keep the cache to a sensible size, by evicting LRU
+     * entries, however there is benefit in reclaiming memory by expiring bitsets that have not be used for some period of time.
+     * Because {@link org.elasticsearch.xpack.core.security.authz.permission.IndicesPermission.Group#query} can be templated, it is
+     * not uncommon for a query to only be used for a relatively short period of time (e.g. because a user's metadata changed, or because
+     * that user is an infrequent user of Elasticsearch). This access time expiry helps free up memory in those circumstances even if the
+     * cache is never filled.
+     */
     static final Setting<TimeValue> CACHE_TTL_SETTING =
-        Setting.timeSetting("xpack.security.dls_fls.bitset.cache.ttl", TimeValue.timeValueHours(72), Property.NodeScope);
+        Setting.timeSetting("xpack.security.dls_fls.bitset.cache.ttl", TimeValue.timeValueHours(24 * 7), Property.NodeScope);
 
     static final Setting<ByteSizeValue> CACHE_BYTES_SETTING =
         Setting.byteSizeSetting("xpack.security.dls_fls.bitset.cache.max_bytes",

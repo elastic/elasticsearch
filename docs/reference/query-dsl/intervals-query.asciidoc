@@ -111,6 +111,16 @@ then an error will be returned.
 [horizontal]
 `pattern`::
 Match terms starting matching this pattern
++
+--
+This parameter supports two wildcard operators:
+
+* `?`, which matches any single character
+* `*`, which can match zero or more characters, including an empty one
+
+WARNING: Avoid beginning patterns with `*` or `?`. This can increase
+the iterations needed to find matching terms and slow search performance.
+-- 
 `analyzer`::
 Which analyzer should be used to normalize the `pattern`.  By default, the
 search analyzer of the top-level field will be used.

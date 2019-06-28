@@ -32,7 +32,7 @@ public class ScoreScriptUtils {
         float[] docVector = VectorEncoderDecoder.decodeDenseVector(value);
         if (queryVector.size() != docVector.length) {
             throw new IllegalArgumentException("Can't calculate dotProduct! The number of dimensions of the query vector [" +
-                queryVector.size() + "] is different from the documents' vectors [" + docVector.length + "]!");
+                queryVector.size() + "] is different from the documents' vectors [" + docVector.length + "].");
         }
         return intDotProduct(queryVector, docVector);
     }
@@ -67,7 +67,7 @@ public class ScoreScriptUtils {
             float[] docVector = VectorEncoderDecoder.decodeDenseVector(value);
             if (queryVector.size() != docVector.length) {
                 throw new IllegalArgumentException("Can't calculate cosineSimilarity! The number of dimensions of the query vector [" +
-                    queryVector.size() + "] is different from the documents' vectors [" + docVector.length + "]!");
+                    queryVector.size() + "] is different from the documents' vectors [" + docVector.length + "].");
             }
 
             // calculate docVector magnitude

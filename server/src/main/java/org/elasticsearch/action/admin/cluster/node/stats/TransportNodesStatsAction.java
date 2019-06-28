@@ -55,8 +55,8 @@ public class TransportNodesStatsAction extends TransportNodesAction<NodesStatsRe
     }
 
     @Override
-    protected NodeStatsRequest newNodeRequest(String nodeId, NodesStatsRequest request) {
-        return new NodeStatsRequest(nodeId, request);
+    protected NodeStatsRequest newNodeRequest(NodesStatsRequest request) {
+        return new NodeStatsRequest(request);
     }
 
     @Override
@@ -79,8 +79,7 @@ public class TransportNodesStatsAction extends TransportNodesAction<NodesStatsRe
         public NodeStatsRequest() {
         }
 
-        NodeStatsRequest(String nodeId, NodesStatsRequest request) {
-            super(nodeId);
+        NodeStatsRequest(NodesStatsRequest request) {
             this.request = request;
         }
 

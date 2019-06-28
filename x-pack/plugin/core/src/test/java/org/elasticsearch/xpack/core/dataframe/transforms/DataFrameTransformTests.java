@@ -7,28 +7,13 @@
 package org.elasticsearch.xpack.core.dataframe.transforms;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
-import org.elasticsearch.common.xcontent.DeprecationHandler;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.xpack.core.dataframe.transforms.pivot.PivotConfigTests;
-import org.junit.Before;
 
 import java.io.IOException;
-import java.time.Instant;
-import java.util.HashMap;
-import java.util.Map;
 
-import static org.elasticsearch.test.TestMatchers.matchesPattern;
-import static org.elasticsearch.xpack.core.dataframe.transforms.DestConfigTests.randomDestConfig;
-import static org.elasticsearch.xpack.core.dataframe.transforms.SourceConfigTests.randomInvalidSourceConfig;
-import static org.elasticsearch.xpack.core.dataframe.transforms.SourceConfigTests.randomSourceConfig;
 import static org.hamcrest.Matchers.equalTo;
 
 public class DataFrameTransformTests extends AbstractSerializingDataFrameTestCase<DataFrameTransform> {

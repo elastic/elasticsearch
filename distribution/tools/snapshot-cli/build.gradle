@@ -41,6 +41,7 @@ String s3PermanentBasePath = 'integration_test'
 
 task thirdPartyTest(type: Test) {
   include '**/S3CleanupTests.class'
+  systemProperty 'tests.security.manager', 'false'
   systemProperty 'test.s3.account', s3PermanentAccessKey
   systemProperty 'test.s3.key', s3PermanentSecretKey
   systemProperty 'test.s3.bucket', s3PermanentBucket

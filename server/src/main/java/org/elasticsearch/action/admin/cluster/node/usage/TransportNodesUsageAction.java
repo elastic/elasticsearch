@@ -54,8 +54,8 @@ public class TransportNodesUsageAction
     }
 
     @Override
-    protected NodeUsageRequest newNodeRequest(String nodeId, NodesUsageRequest request) {
-        return new NodeUsageRequest(nodeId, request);
+    protected NodeUsageRequest newNodeRequest(NodesUsageRequest request) {
+        return new NodeUsageRequest(request);
     }
 
     @Override
@@ -76,8 +76,7 @@ public class TransportNodesUsageAction
         public NodeUsageRequest() {
         }
 
-        NodeUsageRequest(String nodeId, NodesUsageRequest request) {
-            super(nodeId);
+        NodeUsageRequest(NodesUsageRequest request) {
             this.request = request;
         }
 

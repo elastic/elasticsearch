@@ -93,8 +93,8 @@ public class TransportNodesListGatewayStartedShards extends
     }
 
     @Override
-    protected NodeRequest newNodeRequest(String nodeId, Request request) {
-        return new NodeRequest(nodeId, request);
+    protected NodeRequest newNodeRequest(Request request) {
+        return new NodeRequest(request);
     }
 
     @Override
@@ -223,8 +223,7 @@ public class TransportNodesListGatewayStartedShards extends
         public NodeRequest() {
         }
 
-        public NodeRequest(String nodeId, Request request) {
-            super(nodeId);
+        public NodeRequest(Request request) {
             this.shardId = request.shardId();
         }
 

@@ -14,6 +14,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyZeroInteractions;
 
 public class TimingStatsReporterTests extends ESTestCase {
@@ -74,6 +75,24 @@ public class TimingStatsReporterTests extends ESTestCase {
         inOrder.verify(bulkResultsPersister).persistTimingStats(new TimingStats(JOB_ID, 1, 10.0, 10.0, 10.0, 10.0));
         inOrder.verify(bulkResultsPersister).persistTimingStats(new TimingStats(JOB_ID, 3, 10.0, 10.0, 10.0, 10.0));
         inOrder.verifyNoMoreInteractions();
+    }
+
+    public void testFinishReportingNoChange() {
+        TimingStatsReporter reporter = new TimingStatsReporter(new TimingStats(JOB_ID), bulkResultsPersister);
+
+        reporter.finishReporting();
+
+        verifyZeroInteractions(bulkResultsPersister);
+    }
+
+    public void testFinishReportingWithChange() {
+        TimingStatsReporter reporter = new TimingStatsReporter(new TimingStats(JOB_ID), bulkResultsPersister);
+
+        reporter.reportBucketProcessingTime(10);
+
+        reporter.finishReporting();
+
+        verify(bulkResultsPersister).persistTimingStats(new TimingStats(JOB_ID, 1, 10.0, 10.0, 10.0, 10.0));
     }
 
     public void testTimingStatsDifferSignificantly() {

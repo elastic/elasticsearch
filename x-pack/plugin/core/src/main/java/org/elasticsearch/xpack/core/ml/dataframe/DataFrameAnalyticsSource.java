@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.core.ml.dataframe;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -23,6 +24,7 @@ import org.elasticsearch.xpack.core.ml.utils.XContentObjectTransformer;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -34,44 +36,47 @@ public class DataFrameAnalyticsSource implements Writeable, ToXContentObject {
 
     public static ConstructingObjectParser<DataFrameAnalyticsSource, Void> createParser(boolean ignoreUnknownFields) {
         ConstructingObjectParser<DataFrameAnalyticsSource, Void> parser = new ConstructingObjectParser<>("data_frame_analytics_source",
-            ignoreUnknownFields, a -> new DataFrameAnalyticsSource((String) a[0], (QueryProvider) a[1]));
-        parser.declareString(ConstructingObjectParser.constructorArg(), INDEX);
+            ignoreUnknownFields, a -> new DataFrameAnalyticsSource(((List<String>) a[0]).toArray(new String[0]), (QueryProvider) a[1]));
+        parser.declareStringArray(ConstructingObjectParser.constructorArg(), INDEX);
         parser.declareObject(ConstructingObjectParser.optionalConstructorArg(),
             (p, c) -> QueryProvider.fromXContent(p, ignoreUnknownFields, Messages.DATA_FRAME_ANALYTICS_BAD_QUERY_FORMAT), QUERY);
         return parser;
     }
 
-    private final String index;
+    private final String[] index;
     private final QueryProvider queryProvider;
 
-    public DataFrameAnalyticsSource(String index, @Nullable QueryProvider queryProvider) {
+    public DataFrameAnalyticsSource(String[] index, @Nullable QueryProvider queryProvider) {
         this.index = ExceptionsHelper.requireNonNull(index, INDEX);
-        if (index.isEmpty()) {
-            throw ExceptionsHelper.badRequestException("[{}] must be non-empty", INDEX);
+        if (index.length == 0) {
+            throw new IllegalArgumentException("source.index must specify at least one index");
+        }
+        if (Arrays.stream(index).anyMatch(Strings::isNullOrEmpty)) {
+            throw new IllegalArgumentException("source.index must contain non-null and non-empty strings");
         }
         this.queryProvider = queryProvider == null ? QueryProvider.defaultQuery() : queryProvider;
     }
 
     public DataFrameAnalyticsSource(StreamInput in) throws IOException {
-        index = in.readString();
+        index = in.readStringArray();
         queryProvider = QueryProvider.fromStream(in);
     }
 
     public DataFrameAnalyticsSource(DataFrameAnalyticsSource other) {
-        this.index = other.index;
+        this.index = Arrays.copyOf(other.index, other.index.length);
         this.queryProvider = new QueryProvider(other.queryProvider);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(index);
+        out.writeStringArray(index);
         queryProvider.writeTo(out);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(INDEX.getPreferredName(), index);
+        builder.array(INDEX.getPreferredName(), index);
         builder.field(QUERY.getPreferredName(), queryProvider.getQuery());
         builder.endObject();
         return builder;
@@ -83,16 +88,16 @@ public class DataFrameAnalyticsSource implements Writeable, ToXContentObject {
         if (o == null || getClass() != o.getClass()) return false;
 
         DataFrameAnalyticsSource other = (DataFrameAnalyticsSource) o;
-        return Objects.equals(index, other.index)
+        return Arrays.equals(index, other.index)
             && Objects.equals(queryProvider, other.queryProvider);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(index, queryProvider);
+        return Objects.hash(Arrays.asList(index), queryProvider);
     }
 
-    public String getIndex() {
+    public String[] getIndex() {
         return index;
     }
 

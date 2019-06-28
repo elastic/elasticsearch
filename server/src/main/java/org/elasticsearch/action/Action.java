@@ -44,7 +44,7 @@ public class Action<Response extends ActionResponse> {
      * @param name The name of the action, must be unique across actions.
      * @param responseReader A reader for the response type
      */
-    protected Action(String name, Writeable.Reader<Response> responseReader) {
+    public Action(String name, Writeable.Reader<Response> responseReader) {
         this.name = name;
         this.responseReader = responseReader;
     }

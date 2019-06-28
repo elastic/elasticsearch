@@ -17,30 +17,31 @@
  * under the License.
  */
 
-package org.apache.lucene.search;
+package org.elasticsearch.action;
 
-import org.apache.lucene.index.LeafReaderContext;
 
-import java.io.IOException;
-import java.util.List;
+import org.elasticsearch.common.io.stream.Writeable;
 
 /**
- * A wrapper for {@link IndexSearcher} that makes {@link IndexSearcher#search(List, Weight, Collector)}
- * visible by sub-classes.
+ * An action for which the response class implements {@link org.elasticsearch.common.io.stream.Writeable}.
  */
-public class XIndexSearcher extends IndexSearcher {
-    private final IndexSearcher in;
+public class Action2<Response extends ActionResponse> extends Action<Response> {
+    private final Writeable.Reader<Response> responseReader;
 
-    public XIndexSearcher(IndexSearcher in) {
-        super(in.getIndexReader());
-        this.in = in;
-        setSimilarity(in.getSimilarity());
-        setQueryCache(in.getQueryCache());
-        setQueryCachingPolicy(in.getQueryCachingPolicy());
+    public Action2(String name, Writeable.Reader<Response> responseReader) {
+        super(name);
+        this.responseReader = responseReader;
     }
 
     @Override
-    public void search(List<LeafReaderContext> leaves, Weight weight, Collector collector) throws IOException {
-        in.search(leaves, weight, collector);
+    public Response newResponse() {
+        throw new UnsupportedOperationException();
+    }
+
+    /**
+     * Get a reader that can create a new instance of the class from a {@link org.elasticsearch.common.io.stream.StreamInput}
+     */
+    public Writeable.Reader<Response> getResponseReader() {
+        return responseReader;
     }
 }

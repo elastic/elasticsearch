@@ -24,6 +24,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.MessageSupplier;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.DocWriteRequest;
@@ -77,6 +78,12 @@ import java.util.function.LongSupplier;
 public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequest, BulkShardRequest, BulkShardResponse> {
 
     public static final String ACTION_NAME = BulkAction.NAME + "[s]";
+    public static final Action<BulkShardResponse> ACTION_INSTANCE = new Action<>(ACTION_NAME) {
+        @Override
+        public BulkShardResponse newResponse() {
+            return new BulkShardResponse();
+        }
+    };
 
     private static final Logger logger = LogManager.getLogger(TransportShardBulkAction.class);
 

@@ -90,7 +90,17 @@ The data that is returned for this example is as follows:
       "customer_id" : "12"
     }
     ...
-  ]
+  ],
+  "mappings": {
+    "properties": {
+      "max_price": {
+        "type": "double"
+      },
+      "customer_id": {
+        "type": "keyword"
+      }
+    }
+  }
 }
 ----
 // NOTCONSOLE

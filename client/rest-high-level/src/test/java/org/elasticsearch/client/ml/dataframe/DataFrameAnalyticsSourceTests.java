@@ -36,7 +36,7 @@ public class DataFrameAnalyticsSourceTests extends AbstractXContentTestCase<Data
 
     public static DataFrameAnalyticsSource randomSourceConfig() {
         return DataFrameAnalyticsSource.builder()
-            .setIndex(randomAlphaOfLengthBetween(1, 10))
+            .setIndex(generateRandomStringArray(10, 10, false, false))
             .setQueryConfig(randomBoolean() ? null : randomQueryConfig())
             .build();
     }

@@ -21,7 +21,7 @@ package org.elasticsearch.action.admin.cluster.repositories.cleanup;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
+import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -36,7 +36,7 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 
-public final class TransportCleanupRepositoryAction extends TransportMasterNodeReadAction<CleanupRepositoryRequest,
+public final class TransportCleanupRepositoryAction extends TransportMasterNodeAction<CleanupRepositoryRequest,
                                                                                           AcknowledgedResponse> {
 
     private final SnapshotsService snapshotsService;

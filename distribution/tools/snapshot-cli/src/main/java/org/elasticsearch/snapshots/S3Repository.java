@@ -10,7 +10,6 @@ import com.amazonaws.services.s3.model.DeleteObjectsRequest;
 import com.amazonaws.services.s3.model.ListObjectsRequest;
 import com.amazonaws.services.s3.model.ObjectListing;
 import com.amazonaws.services.s3.model.S3ObjectSummary;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
@@ -151,7 +150,8 @@ public class S3Repository extends AbstractRepository {
             summaries = listing.getObjectSummaries();
         }
         if (summaries.isEmpty()) {
-            terminal.println(Terminal.Verbosity.VERBOSE, "Failed to find single file in index " + indexDirectoryName + " directory. Skipping");
+            terminal.println(Terminal.Verbosity.VERBOSE, "Failed to find single file in index "
+                    + indexDirectoryName + " directory. " + "Skipping");
             return null;
         } else {
             S3ObjectSummary any = summaries.get(0);

@@ -9,9 +9,14 @@ import java.util.Set;
 
 public interface Repository {
     Tuple<Long, Date> getLatestIndexIdAndTimestamp() throws IOException;
+
     RepositoryData getRepositoryData(long indexFileGeneration) throws IOException;
+
     Set<String> getAllIndexDirectoryNames();
+
     Date getIndexTimestamp(String indexDirectoryName);
+
     Tuple<Integer, Long> deleteIndex(String indexDirectoryName);
+
     void cleanup() throws IOException;
 }

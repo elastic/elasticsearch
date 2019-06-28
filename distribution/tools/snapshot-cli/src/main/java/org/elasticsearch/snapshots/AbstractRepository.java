@@ -35,7 +35,7 @@ public abstract class AbstractRepository implements Repository {
 
     private void describeCollection(String start, Collection<?> elements) {
         terminal.println(Terminal.Verbosity.VERBOSE,
-                start  + " has " + elements.size() + " elements: " + elements);
+                start + " has " + elements.size() + " elements: " + elements);
     }
 
     @Override
@@ -83,13 +83,14 @@ public abstract class AbstractRepository implements Repository {
                         if (indexTimestamp != null) {
                             if (indexTimestamp.before(shiftedIndexNTimestamp)) {
                                 terminal.println(Terminal.Verbosity.VERBOSE,
-                                        "Index " + candidate + " is orphaned because it's modification timestamp " + indexTimestamp + " is " +
-                                                "less than index-N shifted timestamp " + shiftedIndexNTimestamp);
+                                        "Index " + candidate + " is orphaned because it's modification timestamp " + indexTimestamp +
+                                                " is less than index-N shifted timestamp " + shiftedIndexNTimestamp);
                                 groupedOrphanedIndicesListener.onResponse(candidate);
                             } else {
                                 terminal.println(Terminal.Verbosity.VERBOSE,
-                                        "Index  " + candidate + " might not be orphaned because " + indexTimestamp +
-                                                " is gte than " + shiftedIndexNTimestamp);
+                                        "Index  " + candidate + " might not be orphaned because it's modification timestamp "
+                                                + indexTimestamp +
+                                                " is gte than index-N shifted timestamp " + shiftedIndexNTimestamp);
                                 groupedOrphanedIndicesListener.onResponse(null);
                             }
                         } else {
@@ -116,7 +117,7 @@ public abstract class AbstractRepository implements Repository {
                 executor.submit(new ActionRunnable<>(groupedRemovalListener) {
                     @Override
                     protected void doRun() {
-                        terminal.println(Terminal.Verbosity.NORMAL,"Removing orphaned index "+indexId);
+                        terminal.println(Terminal.Verbosity.NORMAL, "Removing orphaned index " + indexId);
                         groupedRemovalListener.onResponse(deleteIndex(indexId));
                     }
                 });

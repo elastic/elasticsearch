@@ -72,7 +72,7 @@ public class CleanupS3RepositoryCommand extends EnvironmentAwareCommand {
         terminal.println("Cleanup tool is running");
 
         String region = regionOption.value(options);
-        String endpoint  = endpointOption.value(options);
+        String endpoint = endpointOption.value(options);
 
         if (Strings.isNullOrEmpty(region) && Strings.isNullOrEmpty(endpoint)) {
             throw new ElasticsearchException("region or endpoint option is required for cleaning up S3 repository");

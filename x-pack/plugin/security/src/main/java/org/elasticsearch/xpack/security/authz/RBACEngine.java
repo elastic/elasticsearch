@@ -171,7 +171,7 @@ public class RBACEngine implements AuthorizationEngine {
 
             assert AuthenticateAction.NAME.equals(action) || HasPrivilegesAction.NAME.equals(action)
                 || GetUserPrivilegesAction.NAME.equals(action) || sameUsername == false
-                : "Action '" + action + "' should not be possible when sameUsername=" + sameUsername;
+                : "ActionType '" + action + "' should not be possible when sameUsername=" + sameUsername;
             return sameUsername;
         }
         return false;
@@ -200,7 +200,7 @@ public class RBACEngine implements AuthorizationEngine {
                 }
                 if (request instanceof CompositeIndicesRequest == false) {
                     throw new IllegalStateException("Composite and bulk actions must implement " +
-                        CompositeIndicesRequest.class.getSimpleName() + ", " + request.getClass().getSimpleName() + " doesn't. Action " +
+                        CompositeIndicesRequest.class.getSimpleName() + ", " + request.getClass().getSimpleName() + " doesn't. ActionType " +
                         action);
                 }
                 return true;

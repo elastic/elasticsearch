@@ -19,9 +19,9 @@
 
 package org.elasticsearch.action.admin.cluster.node.info;
 
-import org.elasticsearch.action.StreamableResponseAction;
+import org.elasticsearch.action.StreamableResponseActionType;
 
-public class NodesInfoAction extends StreamableResponseAction<NodesInfoResponse> {
+public class NodesInfoAction extends StreamableResponseActionType<NodesInfoResponse> {
 
     public static final NodesInfoAction INSTANCE = new NodesInfoAction();
     public static final String NAME = "cluster:monitor/nodes/info";

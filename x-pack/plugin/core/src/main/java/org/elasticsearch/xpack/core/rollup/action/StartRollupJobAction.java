@@ -6,7 +6,7 @@
 package org.elasticsearch.xpack.core.rollup.action;
 
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.tasks.BaseTasksRequest;
@@ -24,7 +24,7 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.Objects;
 
-public class StartRollupJobAction extends Action<StartRollupJobAction.Response> {
+public class StartRollupJobAction extends ActionType<StartRollupJobAction.Response> {
 
     public static final StartRollupJobAction INSTANCE = new StartRollupJobAction();
     public static final String NAME = "cluster:admin/xpack/rollup/start";

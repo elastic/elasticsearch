@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.core.indexlifecycle.action;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.IndicesRequest;
-import org.elasticsearch.action.StreamableResponseAction;
+import org.elasticsearch.action.StreamableResponseActionType;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.common.ParseField;
@@ -24,7 +24,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 
-public class RemoveIndexLifecyclePolicyAction extends StreamableResponseAction<RemoveIndexLifecyclePolicyAction.Response> {
+public class RemoveIndexLifecyclePolicyAction extends StreamableResponseActionType<RemoveIndexLifecyclePolicyAction.Response> {
     public static final RemoveIndexLifecyclePolicyAction INSTANCE = new RemoveIndexLifecyclePolicyAction();
     public static final String NAME = "indices:admin/ilm/remove_policy";
 

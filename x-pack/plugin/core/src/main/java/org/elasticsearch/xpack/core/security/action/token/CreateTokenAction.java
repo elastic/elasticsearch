@@ -5,12 +5,12 @@
  */
 package org.elasticsearch.xpack.core.security.action.token;
 
-import org.elasticsearch.action.StreamableResponseAction;
+import org.elasticsearch.action.StreamableResponseActionType;
 
 /**
- * Action for creating a new token
+ * ActionType for creating a new token
  */
-public final class CreateTokenAction extends StreamableResponseAction<CreateTokenResponse> {
+public final class CreateTokenAction extends StreamableResponseActionType<CreateTokenResponse> {
 
     public static final String NAME = "cluster:admin/xpack/security/token/create";
     public static final CreateTokenAction INSTANCE = new CreateTokenAction();

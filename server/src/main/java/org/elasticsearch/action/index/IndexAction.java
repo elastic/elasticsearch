@@ -19,9 +19,9 @@
 
 package org.elasticsearch.action.index;
 
-import org.elasticsearch.action.StreamableResponseAction;
+import org.elasticsearch.action.StreamableResponseActionType;
 
-public class IndexAction extends StreamableResponseAction<IndexResponse> {
+public class IndexAction extends StreamableResponseActionType<IndexResponse> {
 
     public static final IndexAction INSTANCE = new IndexAction();
     public static final String NAME = "indices:data/write/index";

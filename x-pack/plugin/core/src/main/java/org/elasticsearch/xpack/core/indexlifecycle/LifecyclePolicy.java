@@ -236,7 +236,7 @@ public class LifecyclePolicy extends AbstractDiffable<LifecyclePolicy>
             if (action != null) {
                 return action.isSafeAction();
             } else {
-                throw new IllegalArgumentException("Action [" + stepKey.getAction() + "] in phase [" + stepKey.getPhase()
+                throw new IllegalArgumentException("ActionType [" + stepKey.getAction() + "] in phase [" + stepKey.getPhase()
                         + "]  does not exist in policy [" + name + "]");
             }
         } else {

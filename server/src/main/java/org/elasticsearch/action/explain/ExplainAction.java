@@ -19,13 +19,13 @@
 
 package org.elasticsearch.action.explain;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.common.io.stream.Writeable;
 
 /**
  * Entry point for the explain feature.
  */
-public class ExplainAction extends Action<ExplainResponse> {
+public class ExplainAction extends ActionType<ExplainResponse> {
 
     public static final ExplainAction INSTANCE = new ExplainAction();
     public static final String NAME = "indices:data/read/explain";

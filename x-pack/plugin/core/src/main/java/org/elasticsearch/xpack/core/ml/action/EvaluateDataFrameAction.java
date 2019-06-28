@@ -9,7 +9,7 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.action.StreamableResponseAction;
+import org.elasticsearch.action.StreamableResponseActionType;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
@@ -29,7 +29,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 
-public class EvaluateDataFrameAction extends StreamableResponseAction<EvaluateDataFrameAction.Response> {
+public class EvaluateDataFrameAction extends StreamableResponseActionType<EvaluateDataFrameAction.Response> {
 
     public static final EvaluateDataFrameAction INSTANCE = new EvaluateDataFrameAction();
     public static final String NAME = "cluster:monitor/xpack/ml/data_frame/evaluate";

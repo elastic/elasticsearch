@@ -139,7 +139,7 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
 
         coordinator.clusterChanged(new ClusterChangedEvent("test", newClusterState, state));
         if (added) {
-            // Action for this node was added, let's make sure it was invoked
+            // ActionType for this node was added, let's make sure it was invoked
             assertThat(executor.executions.size(), equalTo(1));
 
             // Add task on some other node

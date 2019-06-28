@@ -6,7 +6,7 @@
 
 package org.elasticsearch.xpack.dataframe.checkpoint;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
@@ -88,8 +88,8 @@ public class DataFrameTransformCheckpointServiceNodeTests extends DataFrameSingl
 
         @SuppressWarnings("unchecked")
         @Override
-        protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(Action<Response> action, Request request,
-                ActionListener<Response> listener) {
+        protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(ActionType<Response> action, Request request,
+                                                                                                  ActionListener<Response> listener) {
 
             if (request instanceof GetIndexRequest) {
                 // for this test we only need the indices

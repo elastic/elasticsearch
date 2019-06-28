@@ -1642,7 +1642,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
         @Override
         public final void onFailure(Exception t) {
             try {
-                logger.info("Action Failed", t);
+                logger.info("ActionType Failed", t);
                 addError(t);
             } finally {
                 latch.countDown();

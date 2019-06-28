@@ -330,7 +330,7 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
 
         exception = expectThrows(IllegalArgumentException.class,
                 () -> policy.isActionSafe(new StepKey("first_phase", "non_existant_action", randomAlphaOfLength(10))));
-        assertEquals("Action [non_existant_action] in phase [first_phase]  does not exist in policy [" + policy.getName() + "]",
+        assertEquals("ActionType [non_existant_action] in phase [first_phase]  does not exist in policy [" + policy.getName() + "]",
                 exception.getMessage());
 
         assertTrue(policy.isActionSafe(new StepKey("new", randomAlphaOfLength(10), randomAlphaOfLength(10))));

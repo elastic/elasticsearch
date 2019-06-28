@@ -427,8 +427,19 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         }
     }
 
+    /**
+     * Runs all cleanup actions on the repository.
+     * TODO: Add top level blob cleanup
+     * TODO: Add shard level cleanups
+     * <ul>
+     *     <li>Deleting stale indices {@link #cleanupStaleIndices(Map, Map)}</li>
+     * </ul>
+     * @param repositoryStateId Current repository state id
+     * @param listener Lister to complete when done
+     */
     public void cleanup(long repositoryStateId, ActionListener<Void> listener) {
         ActionListener.completeWith(listener, () -> {
+            // TODO: ensure state id
             final Map<String, BlobContainer> foundIndices = blobStore().blobContainer(indicesPath()).children();
             final RepositoryData repositoryData = repositoryData(repositoryStateId);
             cleanupStaleIndices(foundIndices, repositoryData.getIndices());

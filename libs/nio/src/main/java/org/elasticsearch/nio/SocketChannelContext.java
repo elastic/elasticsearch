@@ -236,7 +236,7 @@ public abstract class SocketChannelContext extends ChannelContext<SocketChannel>
     // copied again on the next call.
 
     protected int readFromChannel(InboundChannelBuffer channelBuffer) throws IOException {
-        ByteBuffer ioBuffer = NioSelector.getIoBuffer();
+        ByteBuffer ioBuffer = getSelector().getIoBuffer();
         int bytesRead;
         try {
             bytesRead = rawChannel.read(ioBuffer);
@@ -268,7 +268,7 @@ public abstract class SocketChannelContext extends ChannelContext<SocketChannel>
     private static final int WRITE_LIMIT = 1 << 16;
 
     protected int flushToChannel(FlushOperation flushOperation) throws IOException {
-        ByteBuffer ioBuffer = NioSelector.getIoBuffer();
+        ByteBuffer ioBuffer = getSelector().getIoBuffer();
 
         boolean continueFlush = flushOperation.isFullyFlushed() == false;
         int totalBytesFlushed = 0;

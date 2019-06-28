@@ -72,7 +72,7 @@ public class SocketChannelContextTests extends ESTestCase {
         context = new TestSocketChannelContext(channel, selector, exceptionHandler, readWriteHandler, channelBuffer);
 
         when(selector.isOnCurrentThread()).thenReturn(true);
-        when(NioSelector.getIoBuffer()).thenAnswer(invocationOnMock -> {
+        when(selector.getIoBuffer()).thenAnswer(invocationOnMock -> {
             ioBuffer.clear();
             return ioBuffer;
         });

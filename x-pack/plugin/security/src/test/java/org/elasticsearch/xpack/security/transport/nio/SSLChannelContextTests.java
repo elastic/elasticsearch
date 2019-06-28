@@ -78,7 +78,7 @@ public class SSLChannelContextTests extends ESTestCase {
         when(selector.getTaskScheduler()).thenReturn(nioTimer);
         when(sslDriver.getOutboundBuffer()).thenReturn(outboundBuffer);
         ByteBuffer buffer = ByteBuffer.allocate(1 << 14);
-        when(NioSelector.getIoBuffer()).thenAnswer(invocationOnMock -> {
+        when(selector.getIoBuffer()).thenAnswer(invocationOnMock -> {
             buffer.clear();
             return buffer;
         });
@@ -228,10 +228,10 @@ public class SSLChannelContextTests extends ESTestCase {
         when(sslDriver.readyForApplicationData()).thenReturn(true);
         doAnswer(getWriteAnswer(10, true)).when(sslDriver).write(eq(flushOperation));
 
-        when(rawChannel.write(same(NioSelector.getIoBuffer()))).thenReturn(10);
+        when(rawChannel.write(same(selector.getIoBuffer()))).thenReturn(10);
         context.flushChannel();
 
-        verify(rawChannel, times(1)).write(same(NioSelector.getIoBuffer()));
+        verify(rawChannel, times(1)).write(same(selector.getIoBuffer()));
         verify(selector).executeListener(listener, null);
         assertFalse(context.readyForFlush());
     }
@@ -243,10 +243,10 @@ public class SSLChannelContextTests extends ESTestCase {
 
         when(sslDriver.readyForApplicationData()).thenReturn(true);
         doAnswer(getWriteAnswer(5, true)).when(sslDriver).write(eq(flushOperation));
-        when(rawChannel.write(same(NioSelector.getIoBuffer()))).thenReturn(4);
+        when(rawChannel.write(same(selector.getIoBuffer()))).thenReturn(4);
         context.flushChannel();
 
-        verify(rawChannel, times(1)).write(same(NioSelector.getIoBuffer()));
+        verify(rawChannel, times(1)).write(same(selector.getIoBuffer()));
         verify(selector, times(0)).executeListener(listener, null);
         assertTrue(context.readyForFlush());
     }
@@ -263,10 +263,10 @@ public class SSLChannelContextTests extends ESTestCase {
 
         when(sslDriver.readyForApplicationData()).thenReturn(true);
         doAnswer(getWriteAnswer(5, true)).when(sslDriver).write(any(FlushOperation.class));
-        when(rawChannel.write(same(NioSelector.getIoBuffer()))).thenReturn(5, 5, 2);
+        when(rawChannel.write(same(selector.getIoBuffer()))).thenReturn(5, 5, 2);
         context.flushChannel();
 
-        verify(rawChannel, times(3)).write(same(NioSelector.getIoBuffer()));
+        verify(rawChannel, times(3)).write(same(selector.getIoBuffer()));
         verify(selector).executeListener(listener, null);
         verify(selector, times(0)).executeListener(listener2, null);
         assertTrue(context.readyForFlush());

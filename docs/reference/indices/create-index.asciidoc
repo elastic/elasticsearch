@@ -48,7 +48,7 @@ include the following characters: `\`, `/`, `*`, `?`, `"`, `<`, `>`, `|`, ` `
 `wait_for_active_shards` (Optional)::
 (integer) Number of active shard copies required to start before returning a
 response. See
-<<index-wait-for-active-shards, Wait For active shards>>.
+<<index-wait-for-active-shards>>.
 
 include::{docdir}/rest-api/timeoutparms.asciidoc[]
 

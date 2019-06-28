@@ -200,7 +200,7 @@ public class RBACEngine implements AuthorizationEngine {
                 }
                 if (request instanceof CompositeIndicesRequest == false) {
                     throw new IllegalStateException("Composite and bulk actions must implement " +
-                        CompositeIndicesRequest.class.getSimpleName() + ", " + request.getClass().getSimpleName() + " doesn't. ActionType " +
+                        CompositeIndicesRequest.class.getSimpleName() + ", " + request.getClass().getSimpleName() + " doesn't. Action " +
                         action);
                 }
                 return true;

@@ -86,8 +86,8 @@ public class RestCreateApiKeyActionTests extends ESTestCase {
 
         try (NodeClient client = new NodeClient(Settings.EMPTY, threadPool) {
             @Override
-            public <Request extends ActionRequest, Response extends ActionResponse> void doExecute(ActionType<Response> action, Request request,
-                                                                                                   ActionListener<Response> listener) {
+            public <Request extends ActionRequest, Response extends ActionResponse>
+            void doExecute(ActionType<Response> action, Request request, ActionListener<Response> listener) {
                 CreateApiKeyRequest createApiKeyRequest = (CreateApiKeyRequest) request;
                 @SuppressWarnings("unchecked")
                 RestToXContentListener<CreateApiKeyResponse> actionListener = (RestToXContentListener<CreateApiKeyResponse>) listener;

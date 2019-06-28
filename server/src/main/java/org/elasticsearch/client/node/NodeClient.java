@@ -73,9 +73,9 @@ public class NodeClient extends AbstractClient {
     }
 
     /**
-     * Execute an {@link ActionType} locally, returning that {@link Task} used to track it, and linking an {@link ActionListener}. Prefer this
-     * method if you don't need access to the task when listening for the response. This is the method used to implement the {@link Client}
-     * interface.
+     * Execute an {@link ActionType} locally, returning that {@link Task} used to track it, and linking an {@link ActionListener}.
+     * Prefer this method if you don't need access to the task when listening for the response. This is the method used to
+     * implement the {@link Client} interface.
      */
     public <    Request extends ActionRequest,
                 Response extends ActionResponse
@@ -84,8 +84,8 @@ public class NodeClient extends AbstractClient {
     }
 
     /**
-     * Execute an {@link ActionType} locally, returning that {@link Task} used to track it, and linking an {@link TaskListener}. Prefer this
-     * method if you need access to the task when listening for the response.
+     * Execute an {@link ActionType} locally, returning that {@link Task} used to track it, and linking an {@link TaskListener}.
+     * Prefer this method if you need access to the task when listening for the response.
      */
     public <    Request extends ActionRequest,
                 Response extends ActionResponse

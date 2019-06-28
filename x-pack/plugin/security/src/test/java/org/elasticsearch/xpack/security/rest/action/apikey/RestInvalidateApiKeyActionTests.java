@@ -84,8 +84,8 @@ public class RestInvalidateApiKeyActionTests extends ESTestCase {
 
         try (NodeClient client = new NodeClient(Settings.EMPTY, threadPool) {
             @Override
-            public <Request extends ActionRequest, Response extends ActionResponse> void doExecute(ActionType<Response> action, Request request,
-                                                                                                   ActionListener<Response> listener) {
+            public <Request extends ActionRequest, Response extends ActionResponse>
+            void doExecute(ActionType<Response> action, Request request, ActionListener<Response> listener) {
                 InvalidateApiKeyRequest invalidateApiKeyRequest = (InvalidateApiKeyRequest) request;
                 ActionRequestValidationException validationException = invalidateApiKeyRequest.validate();
                 if (validationException != null) {

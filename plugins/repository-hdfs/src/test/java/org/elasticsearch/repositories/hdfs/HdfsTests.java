@@ -33,7 +33,6 @@ import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.repositories.blobstore.BlobStoreTestUtil;
 import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.test.ESSingleNodeTestCase;
-import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Collection;
 
@@ -48,7 +47,7 @@ public class HdfsTests extends ESSingleNodeTestCase {
         return pluginList(HdfsPlugin.class);
     }
 
-    public void testSimpleWorkflow() {
+    public void testSimpleWorkflow() throws Exception {
         assumeFalse("https://github.com/elastic/elasticsearch/issues/31498", JavaVersion.current().equals(JavaVersion.parse("11")));
         Client client = client();
 
@@ -151,7 +150,7 @@ public class HdfsTests extends ESSingleNodeTestCase {
         assertThat(clusterState.getMetaData().hasIndex("test-idx-2"), equalTo(false));
         final BlobStoreRepository repo =
             (BlobStoreRepository) getInstanceFromNode(RepositoriesService.class).repository("test-repo");
-        BlobStoreTestUtil.assertConsistency(repo, repo.threadPool().executor(ThreadPool.Names.GENERIC));
+        new BlobStoreTestUtil(repo).assertConsistency();
     }
 
     public void testMissingUri() {

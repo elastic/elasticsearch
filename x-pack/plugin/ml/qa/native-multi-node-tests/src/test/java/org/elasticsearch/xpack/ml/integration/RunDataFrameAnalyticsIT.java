@@ -69,7 +69,7 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
         }
 
         String id = "test_outlier_detection_with_few_docs";
-        DataFrameAnalyticsConfig config = buildOutlierDetectionAnalytics(id, sourceIndex, null);
+        DataFrameAnalyticsConfig config = buildOutlierDetectionAnalytics(id, new String[] {sourceIndex}, sourceIndex + "-results", null);
         registerAnalytics(config);
         putAnalytics(config);
 
@@ -130,7 +130,8 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
         }
 
         String id = "test_outlier_detection_with_enough_docs_to_scroll";
-        DataFrameAnalyticsConfig config = buildOutlierDetectionAnalytics(id, sourceIndex, "custom_ml");
+        DataFrameAnalyticsConfig config = buildOutlierDetectionAnalytics(
+                id, new String[] {sourceIndex}, sourceIndex + "-results", "custom_ml");
         registerAnalytics(config);
         putAnalytics(config);
 
@@ -188,7 +189,7 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
         }
 
         String id = "test_outlier_detection_with_more_fields_than_docvalue_limit";
-        DataFrameAnalyticsConfig config = buildOutlierDetectionAnalytics(id, sourceIndex, null);
+        DataFrameAnalyticsConfig config = buildOutlierDetectionAnalytics(id, new String[] {sourceIndex}, sourceIndex + "-results", null);
         registerAnalytics(config);
         putAnalytics(config);
 
@@ -216,7 +217,7 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
     }
 
     public void testStopOutlierDetectionWithEnoughDocumentsToScroll() {
-        String sourceIndex = "test-outlier-detection-with-enough-docs-to-scroll";
+        String sourceIndex = "test-stop-outlier-detection-with-enough-docs-to-scroll";
 
         client().admin().indices().prepareCreate(sourceIndex)
             .addMapping("_doc", "numeric_1", "type=double", "numeric_2", "type=float", "categorical_1", "type=keyword")
@@ -236,8 +237,9 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
             fail("Failed to index data: " + bulkResponse.buildFailureMessage());
         }
 
-        String id = "test_outlier_detection_with_enough_docs_to_scroll";
-        DataFrameAnalyticsConfig config = buildOutlierDetectionAnalytics(id, sourceIndex, "custom_ml");
+        String id = "test_stop_outlier_detection_with_enough_docs_to_scroll";
+        DataFrameAnalyticsConfig config = buildOutlierDetectionAnalytics(
+                id, new String[] {sourceIndex}, sourceIndex + "-results", "custom_ml");
         registerAnalytics(config);
         putAnalytics(config);
 
@@ -264,10 +266,107 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
         }
     }
 
-    private static DataFrameAnalyticsConfig buildOutlierDetectionAnalytics(String id, String sourceIndex, @Nullable String resultsField) {
+    public void testOutlierDetectionWithMultipleSourceIndices() throws Exception {
+        String sourceIndex1 = "test-outlier-detection-with-multiple-source-indices-1";
+        String sourceIndex2 = "test-outlier-detection-with-multiple-source-indices-2";
+        String destIndex = "test-outlier-detection-with-multiple-source-indices-results";
+        String[] sourceIndex = new String[] { sourceIndex1, sourceIndex2 };
+
+        client().admin().indices().prepareCreate(sourceIndex1)
+            .addMapping("_doc", "numeric_1", "type=double", "numeric_2", "type=float", "categorical_1", "type=keyword")
+            .get();
+
+        client().admin().indices().prepareCreate(sourceIndex2)
+            .addMapping("_doc", "numeric_1", "type=double", "numeric_2", "type=float", "categorical_1", "type=keyword")
+            .get();
+
+        BulkRequestBuilder bulkRequestBuilder = client().prepareBulk();
+        bulkRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+
+        for (String index : sourceIndex) {
+            for (int i = 0; i < 5; i++) {
+                IndexRequest indexRequest = new IndexRequest(index);
+                indexRequest.source("numeric_1", randomDouble(), "numeric_2", randomFloat(), "categorical_1", "foo_" + i);
+                bulkRequestBuilder.add(indexRequest);
+            }
+        }
+        BulkResponse bulkResponse = bulkRequestBuilder.get();
+        if (bulkResponse.hasFailures()) {
+            fail("Failed to index data: " + bulkResponse.buildFailureMessage());
+        }
+
+        String id = "test_outlier_detection_with_multiple_source_indices";
+        DataFrameAnalyticsConfig config = buildOutlierDetectionAnalytics(id, sourceIndex, destIndex, null);
+        registerAnalytics(config);
+        putAnalytics(config);
+
+        assertState(id, DataFrameAnalyticsState.STOPPED);
+
+        startAnalytics(id);
+        waitUntilAnalyticsIsStopped(id);
+
+        // Check we've got all docs
+        SearchResponse searchResponse = client().prepareSearch(config.getDest().getIndex()).setTrackTotalHits(true).get();
+        assertThat(searchResponse.getHits().getTotalHits().value, equalTo((long) bulkRequestBuilder.numberOfActions()));
+
+        // Check they all have an outlier_score
+        searchResponse = client().prepareSearch(config.getDest().getIndex())
+            .setTrackTotalHits(true)
+            .setQuery(QueryBuilders.existsQuery("ml.outlier_score")).get();
+        assertThat(searchResponse.getHits().getTotalHits().value, equalTo((long) bulkRequestBuilder.numberOfActions()));
+    }
+
+    public void testOutlierDetectionWithPreExistingDestIndex() throws Exception {
+        String sourceIndex = "test-outlier-detection-with-pre-existing-dest-index";
+        String destIndex = "test-outlier-detection-with-pre-existing-dest-index-results";
+
+        client().admin().indices().prepareCreate(sourceIndex)
+            .addMapping("_doc", "numeric_1", "type=double", "numeric_2", "type=float", "categorical_1", "type=keyword")
+            .get();
+
+        client().admin().indices().prepareCreate(destIndex)
+            .addMapping("_doc", "numeric_1", "type=double", "numeric_2", "type=float", "categorical_1", "type=keyword")
+            .get();
+
+        BulkRequestBuilder bulkRequestBuilder = client().prepareBulk();
+        bulkRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+
+        for (int i = 0; i < 5; i++) {
+            IndexRequest indexRequest = new IndexRequest(sourceIndex);
+            indexRequest.source("numeric_1", randomDouble(), "numeric_2", randomFloat(), "categorical_1", "foo_" + i);
+            bulkRequestBuilder.add(indexRequest);
+        }
+        BulkResponse bulkResponse = bulkRequestBuilder.get();
+        if (bulkResponse.hasFailures()) {
+            fail("Failed to index data: " + bulkResponse.buildFailureMessage());
+        }
+
+        String id = "test_outlier_detection_with_pre_existing_dest_index";
+        DataFrameAnalyticsConfig config = buildOutlierDetectionAnalytics(id, new String[] {sourceIndex}, destIndex, null);
+        registerAnalytics(config);
+        putAnalytics(config);
+
+        assertState(id, DataFrameAnalyticsState.STOPPED);
+
+        startAnalytics(id);
+        waitUntilAnalyticsIsStopped(id);
+
+        // Check we've got all docs
+        SearchResponse searchResponse = client().prepareSearch(config.getDest().getIndex()).setTrackTotalHits(true).get();
+        assertThat(searchResponse.getHits().getTotalHits().value, equalTo((long) bulkRequestBuilder.numberOfActions()));
+
+        // Check they all have an outlier_score
+        searchResponse = client().prepareSearch(config.getDest().getIndex())
+            .setTrackTotalHits(true)
+            .setQuery(QueryBuilders.existsQuery("ml.outlier_score")).get();
+        assertThat(searchResponse.getHits().getTotalHits().value, equalTo((long) bulkRequestBuilder.numberOfActions()));
+    }
+
+    private static DataFrameAnalyticsConfig buildOutlierDetectionAnalytics(String id, String[] sourceIndex, String destIndex,
+                                                                           @Nullable String resultsField) {
         DataFrameAnalyticsConfig.Builder configBuilder = new DataFrameAnalyticsConfig.Builder(id);
         configBuilder.setSource(new DataFrameAnalyticsSource(sourceIndex, null));
-        configBuilder.setDest(new DataFrameAnalyticsDest(sourceIndex + "-results", resultsField));
+        configBuilder.setDest(new DataFrameAnalyticsDest(destIndex, resultsField));
         configBuilder.setAnalysis(new OutlierDetection());
         return configBuilder.build();
     }

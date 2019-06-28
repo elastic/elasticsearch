@@ -21,6 +21,8 @@ package org.elasticsearch.action.admin.indices.mapping.get;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.Action;
+import org.elasticsearch.action.Action2;
 import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsResponse.FieldMappingMetaData;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.single.shard.TransportSingleShardAction;
@@ -63,6 +65,7 @@ public class TransportGetFieldMappingsIndexAction
         extends TransportSingleShardAction<GetFieldMappingsIndexRequest, GetFieldMappingsResponse> {
 
     private static final String ACTION_NAME = GetFieldMappingsAction.NAME + "[index]";
+    public static final Action<GetFieldMappingsResponse> ACTION_INSTANCE = new Action2<>(ACTION_NAME, GetFieldMappingsResponse::new);
 
     protected final ClusterService clusterService;
     private final IndicesService indicesService;

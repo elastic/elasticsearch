@@ -19,6 +19,8 @@
 
 package org.elasticsearch.action.fieldcaps;
 
+import org.elasticsearch.action.Action;
+import org.elasticsearch.action.Action2;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.single.shard.TransportSingleShardAction;
 import org.elasticsearch.cluster.ClusterState;
@@ -47,6 +49,8 @@ public class TransportFieldCapabilitiesIndexAction extends TransportSingleShardA
     FieldCapabilitiesIndexResponse> {
 
     private static final String ACTION_NAME = FieldCapabilitiesAction.NAME + "[index]";
+    public static final Action<FieldCapabilitiesIndexResponse> ACTION_INSTANCE =
+        new Action2<>(ACTION_NAME, FieldCapabilitiesIndexResponse::new);
 
     private final IndicesService indicesService;
 

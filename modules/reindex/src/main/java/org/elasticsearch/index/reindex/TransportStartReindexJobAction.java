@@ -36,6 +36,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -77,7 +78,7 @@ public class TransportStartReindexJobAction
     }
 
     @Override
-    protected void masterOperation(StartReindexJobAction.Request request, ClusterState clusterState,
+    protected void masterOperation(Task task, StartReindexJobAction.Request request, ClusterState state,
                                    ActionListener<StartReindexJobAction.Response> listener) {
         String generatedId = UUIDs.randomBase64UUID();
 
@@ -88,25 +89,26 @@ public class TransportStartReindexJobAction
 
         // TODO: Task name
         persistentTasksService.sendStartRequest(generatedId, ReindexTask.NAME, job, new ActionListener<>() {
-                @Override
-                public void onResponse(PersistentTasksCustomMetaData.PersistentTask<ReindexJob> persistentTask) {
-                    if (request.getWaitForCompletion()) {
-                        waitForReindexDone(persistentTask.getId(), listener);
-                    } else {
-                        waitForReindexTask(persistentTask.getId(), listener);
-                    }
+            @Override
+            public void onResponse(PersistentTasksCustomMetaData.PersistentTask<ReindexJob> persistentTask) {
+                if (request.getWaitForCompletion()) {
+                    waitForReindexDone(persistentTask.getId(), listener);
+                } else {
+                    waitForReindexTask(persistentTask.getId(), listener);
                 }
+            }
 
-                @Override
-                public void onFailure(Exception e) {
-                    // TODO: This probably should not happen as we are generating the UUID ourselves?
-                    if (e instanceof ResourceAlreadyExistsException) {
-                        e = new ElasticsearchStatusException("Cannot create job [" + generatedId +
-                            "] because it has already been created (task exists)", RestStatus.CONFLICT, e);
-                    }
-                    listener.onFailure(e);
+            @Override
+            public void onFailure(Exception e) {
+                // TODO: This probably should not happen as we are generating the UUID ourselves?
+                if (e instanceof ResourceAlreadyExistsException) {
+                    e = new ElasticsearchStatusException("Cannot create job [" + generatedId +
+                        "] because it has already been created (task exists)", RestStatus.CONFLICT, e);
                 }
-            });
+                listener.onFailure(e);
+            }
+        });
+
     }
 
     private void waitForReindexDone(String taskId, ActionListener<StartReindexJobAction.Response> listener) {

@@ -20,7 +20,6 @@ GET /_search
                 { "match" : { "title" : "Quick pets" }},
                 { "match" : { "body" : "Quick pets" }}
             ],
-            "boost" : 1.2,
             "tie_breaker" : 0.7
         }
     }
@@ -35,20 +34,6 @@ GET /_search
 Contains one or more query clauses. Returned documents **must match one or
 more** of these queries. If a document matches multiple queries, {es} uses the
 highest <<query-filter-context, relevance score>>.
-
-`boost` (Optional)::
-+
---
-Floating point number used to decrease or increase the
-<<query-filter-context, relevance scores>> of a query. Defaults to `1.0`.
-
-You can use the `boost` parameter to adjust relevance scores for searches
-containing two or more queries.
-
-Boost values are relative to the default value of `1.0`. A boost value between
-`0` and `1.0` decreases the relevance score. A value greater than `1.0`
-increases the relevance score.
---
 
 `tie_breaker` (Optional)::
 +

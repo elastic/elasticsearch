@@ -30,6 +30,7 @@ import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData.PersistentTask;
 import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
@@ -90,8 +91,8 @@ public class TransportSetUpgradeModeAction extends TransportMasterNodeAction<Set
     }
 
     @Override
-    protected void masterOperation(SetUpgradeModeAction.Request request, ClusterState state, ActionListener<AcknowledgedResponse> listener)
-        throws Exception {
+    protected void masterOperation(Task task, SetUpgradeModeAction.Request request, ClusterState state,
+                                   ActionListener<AcknowledgedResponse> listener) throws Exception {
 
         // Don't want folks spamming this endpoint while it is in progress, only allow one request to be handled at a time
         if (isRunning.compareAndSet(false, true) == false) {

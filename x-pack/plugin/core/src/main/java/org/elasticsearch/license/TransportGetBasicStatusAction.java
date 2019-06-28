@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -38,7 +39,7 @@ public class TransportGetBasicStatusAction extends TransportMasterNodeReadAction
     }
 
     @Override
-    protected void masterOperation(GetBasicStatusRequest request, ClusterState state,
+    protected void masterOperation(Task task, GetBasicStatusRequest request, ClusterState state,
                                    ActionListener<GetBasicStatusResponse> listener) throws Exception {
         LicensesMetaData licensesMetaData = state.metaData().custom(LicensesMetaData.TYPE);
         if (licensesMetaData == null) {

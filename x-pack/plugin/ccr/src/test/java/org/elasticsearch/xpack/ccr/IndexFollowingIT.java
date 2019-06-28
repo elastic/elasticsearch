@@ -66,6 +66,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.seqno.ReplicationTracker;
 import org.elasticsearch.index.seqno.RetentionLeaseActions;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
@@ -1186,6 +1187,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
             for (final ShardStats shardStats : shardsStats) {
                 final long maxSeqNo = shardStats.getSeqNoStats().getMaxSeqNo();
                 assertTrue(shardStats.getRetentionLeaseStats().retentionLeases().leases().stream()
+                    .filter(retentionLease -> ReplicationTracker.PEER_RECOVERY_RETENTION_LEASE_SOURCE.equals(retentionLease.source()))
                     .allMatch(retentionLease -> retentionLease.retainingSequenceNumber() == maxSeqNo + 1));
             }
         });

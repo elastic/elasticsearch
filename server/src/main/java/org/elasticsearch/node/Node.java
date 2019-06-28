@@ -65,7 +65,6 @@ import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.inject.Key;
-import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.inject.ModulesBuilder;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.lease.Releasables;
@@ -156,7 +155,6 @@ import org.elasticsearch.usage.UsageService;
 import org.elasticsearch.watcher.ResourceWatcherService;
 
 import javax.net.ssl.SNIHostName;
-
 import java.io.BufferedWriter;
 import java.io.Closeable;
 import java.io.IOException;
@@ -374,10 +372,6 @@ public class Node implements Closeable {
             final UsageService usageService = new UsageService();
 
             ModulesBuilder modules = new ModulesBuilder();
-            // plugin modules must be added here, before others or we can get crazy injection errors...
-            for (Module pluginModule : pluginsService.createGuiceModules()) {
-                modules.add(pluginModule);
-            }
             final MonitorService monitorService = new MonitorService(settings, nodeEnvironment, threadPool, clusterInfoService);
             ClusterModule clusterModule = new ClusterModule(settings, clusterService, clusterPlugins, clusterInfoService);
             modules.add(clusterModule);
@@ -596,8 +590,6 @@ public class Node implements Closeable {
             List<LifecycleComponent> pluginLifecycleComponents = pluginComponents.stream()
                 .filter(p -> p instanceof LifecycleComponent)
                 .map(p -> (LifecycleComponent) p).collect(Collectors.toList());
-            pluginLifecycleComponents.addAll(pluginsService.getGuiceServiceClasses().stream()
-                .map(injector::getInstance).collect(Collectors.toList()));
             resourcesToClose.addAll(pluginLifecycleComponents);
             this.pluginLifecycleComponents = Collections.unmodifiableList(pluginLifecycleComponents);
             client.initialize(injector.getInstance(new Key<Map<Action, TransportAction>>() {}),

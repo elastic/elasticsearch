@@ -105,13 +105,6 @@ public class TransportCloseIndexAction extends TransportMasterNodeAction<CloseIn
     }
 
     @Override
-    protected void masterOperation(final CloseIndexRequest request,
-                                   final ClusterState state,
-                                   final ActionListener<CloseIndexResponse> listener) {
-        throw new UnsupportedOperationException("The task parameter is required");
-    }
-
-    @Override
     protected void masterOperation(final Task task,
                                    final CloseIndexRequest request,
                                    final ClusterState state,

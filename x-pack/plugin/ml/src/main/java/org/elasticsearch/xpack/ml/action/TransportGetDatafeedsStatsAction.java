@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.MlTasks;
@@ -54,7 +55,7 @@ public class TransportGetDatafeedsStatsAction extends TransportMasterNodeReadAct
     }
 
     @Override
-    protected void masterOperation(GetDatafeedsStatsAction.Request request, ClusterState state,
+    protected void masterOperation(Task task, GetDatafeedsStatsAction.Request request, ClusterState state,
                                    ActionListener<GetDatafeedsStatsAction.Response> listener) throws Exception {
         logger.debug("Get stats for datafeed '{}'", request.getDatafeedId());
 

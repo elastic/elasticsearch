@@ -792,6 +792,8 @@ public class SearchModule {
             IntervalsSourceProvider.Combine.NAME, IntervalsSourceProvider.Combine::new));
         namedWriteables.add(new NamedWriteableRegistry.Entry(IntervalsSourceProvider.class,
             IntervalsSourceProvider.Disjunction.NAME, IntervalsSourceProvider.Disjunction::new));
+        namedWriteables.add(new NamedWriteableRegistry.Entry(IntervalsSourceProvider.class,
+            IntervalsSourceProvider.Prefix.NAME, IntervalsSourceProvider.Prefix::new));
     }
 
     private void registerQuery(QuerySpec<?> spec) {

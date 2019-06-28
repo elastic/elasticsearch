@@ -40,7 +40,7 @@ public class VectorsInfoTransportActionTests extends ESTestCase {
         var usageAction = new VectorsUsageTransportAction(mock(TransportService.class), null, null,
             mock(ActionFilters.class), null, Settings.EMPTY, licenseState);
         PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();
-        usageAction.masterOperation(null, null, future);
+        usageAction.masterOperation(null, null, null, future);
         XPackFeatureSet.Usage usage = future.get().getUsage();
         assertThat(usage.available(), is(available));
 
@@ -67,7 +67,7 @@ mock(TransportService.class), mock(ActionFilters.class), settings.build(), licen
         VectorsUsageTransportAction usageAction = new VectorsUsageTransportAction(mock(TransportService.class),
             null, null, mock(ActionFilters.class), null, settings.build(), licenseState);
         PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();
-        usageAction.masterOperation(null, null, future);
+        usageAction.masterOperation(null, null, null, future);
         XPackFeatureSet.Usage usage = future.get().getUsage();
         assertThat(usage.enabled(), is(enabled));
 

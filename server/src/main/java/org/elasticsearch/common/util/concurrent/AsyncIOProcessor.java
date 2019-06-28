@@ -28,6 +28,7 @@ import java.util.Objects;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.Semaphore;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 
 /**
  * This async IO processor allows to batch IO operations and have a single writer processing the write operations.
@@ -124,10 +125,9 @@ public abstract class AsyncIOProcessor<Item> {
     }
 
     private Consumer<Exception> preserveContext(Consumer<Exception> consumer) {
-        ThreadContext.StoredContext storedContext = threadContext.newStoredContext(false);
+        Supplier<ThreadContext.StoredContext> restorableContext = threadContext.newRestorableContext(false);
         return e -> {
-            try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
-                storedContext.restore();
+            try (ThreadContext.StoredContext ignore = restorableContext.get()) {
                 consumer.accept(e);
             }
         };

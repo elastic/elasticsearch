@@ -55,7 +55,9 @@ on all the current data in the source index.
 ==== {api-response-body-title}
 
 `preview`::
-  (array) An array of {dataframe} objects.
+  (array) An array of documents. In particular, they are the JSON
+  representation of the documents that would be created in the destination index
+  by the {dataframe-transform}. 
 
 [discrete]
 ==== {api-examples-title}

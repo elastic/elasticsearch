@@ -19,9 +19,9 @@
 
 package org.elasticsearch.action.admin.indices.forcemerge;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.StreamableResponseAction;
 
-public class ForceMergeAction extends Action<ForceMergeResponse> {
+public class ForceMergeAction extends StreamableResponseAction<ForceMergeResponse> {
 
     public static final ForceMergeAction INSTANCE = new ForceMergeAction();
     public static final String NAME = "indices:admin/forcemerge";

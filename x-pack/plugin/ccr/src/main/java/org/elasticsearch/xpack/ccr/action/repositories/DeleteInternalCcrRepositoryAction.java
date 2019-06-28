@@ -30,11 +30,6 @@ public class DeleteInternalCcrRepositoryAction extends Action<DeleteInternalCcrR
     }
 
     @Override
-    public DeleteInternalCcrRepositoryResponse newResponse() {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
     public Writeable.Reader<DeleteInternalCcrRepositoryResponse> getResponseReader() {
         return DeleteInternalCcrRepositoryResponse::new;
     }

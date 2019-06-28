@@ -22,11 +22,6 @@ public class RollupSearchAction extends Action<SearchResponse> {
     }
 
     @Override
-    public SearchResponse newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
-
-    @Override
     public Writeable.Reader<SearchResponse> getResponseReader() {
         return SearchResponse::new;
     }

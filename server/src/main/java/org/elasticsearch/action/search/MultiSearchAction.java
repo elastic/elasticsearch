@@ -32,11 +32,6 @@ public class MultiSearchAction extends Action<MultiSearchResponse> {
     }
 
     @Override
-    public MultiSearchResponse newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
-
-    @Override
     public Writeable.Reader<MultiSearchResponse> getResponseReader() {
         return MultiSearchResponse::new;
     }

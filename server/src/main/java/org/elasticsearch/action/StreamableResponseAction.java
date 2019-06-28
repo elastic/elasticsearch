@@ -19,29 +19,33 @@
 
 package org.elasticsearch.action;
 
-
 import org.elasticsearch.common.io.stream.Writeable;
 
 /**
- * An action for which the response class implements {@link org.elasticsearch.common.io.stream.Writeable}.
+ * An action for with the response type implements {@link org.elasticsearch.common.io.stream.Streamable}.
+ * @deprecated Use {@link Action} directly and provide a {@link Writeable.Reader}
  */
-public class Action2<Response extends ActionResponse> extends Action<Response> {
-    private final Writeable.Reader<Response> responseReader;
+@Deprecated
+public abstract class StreamableResponseAction<Response extends ActionResponse> extends Action<Response> {
 
-    public Action2(String name, Writeable.Reader<Response> responseReader) {
+    protected StreamableResponseAction(String name) {
         super(name);
-        this.responseReader = responseReader;
-    }
-
-    @Override
-    public Response newResponse() {
-        throw new UnsupportedOperationException();
     }
 
     /**
-     * Get a reader that can create a new instance of the class from a {@link org.elasticsearch.common.io.stream.StreamInput}
+     * Creates a new response instance.
+     * @deprecated Implement {@link #getResponseReader()} instead and make this method throw an
+     *             {@link UnsupportedOperationException}
      */
-    public Writeable.Reader<Response> getResponseReader() {
-        return responseReader;
+    @Deprecated
+    public abstract Response newResponse();
+
+    @Override
+    public final Writeable.Reader<Response> getResponseReader() {
+        return in -> {
+            Response response = newResponse();
+            response.readFrom(in);
+            return response;
+        };
     }
 }

@@ -5,12 +5,12 @@
  */
 package org.elasticsearch.xpack.core.security.action.saml;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.StreamableResponseAction;
 
 /**
  * Action to perform IdP-initiated logout for a SAML-SSO user
  */
-public final class SamlInvalidateSessionAction extends Action<SamlInvalidateSessionResponse> {
+public final class SamlInvalidateSessionAction extends StreamableResponseAction<SamlInvalidateSessionResponse> {
 
     public static final String NAME = "cluster:admin/xpack/security/saml/invalidate";
     public static final SamlInvalidateSessionAction INSTANCE = new SamlInvalidateSessionAction();

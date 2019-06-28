@@ -19,12 +19,12 @@
 
 package org.elasticsearch.index.rankeval;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.StreamableResponseAction;
 
 /**
  * Action for explaining evaluating search ranking results.
  */
-public class RankEvalAction extends Action<RankEvalResponse> {
+public class RankEvalAction extends StreamableResponseAction<RankEvalResponse> {
 
     public static final RankEvalAction INSTANCE = new RankEvalAction();
     public static final String NAME = "indices:data/read/rank_eval";

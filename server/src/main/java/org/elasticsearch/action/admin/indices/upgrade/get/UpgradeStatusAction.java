@@ -19,9 +19,9 @@
 
 package org.elasticsearch.action.admin.indices.upgrade.get;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.StreamableResponseAction;
 
-public class UpgradeStatusAction extends Action<UpgradeStatusResponse> {
+public class UpgradeStatusAction extends StreamableResponseAction<UpgradeStatusResponse> {
 
     public static final UpgradeStatusAction INSTANCE = new UpgradeStatusAction();
     public static final String NAME = "indices:monitor/upgrade";

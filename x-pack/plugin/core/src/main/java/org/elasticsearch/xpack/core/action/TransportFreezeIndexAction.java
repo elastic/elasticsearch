@@ -237,11 +237,6 @@ public final class TransportFreezeIndexAction extends
         }
 
         @Override
-        public FreezeResponse newResponse() {
-            throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-        }
-
-        @Override
         public Writeable.Reader<FreezeResponse> getResponseReader() {
             return FreezeResponse::new;
         }

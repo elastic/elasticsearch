@@ -18,11 +18,6 @@ public class OpenIdConnectLogoutAction extends Action<OpenIdConnectLogoutRespons
     }
 
     @Override
-    public OpenIdConnectLogoutResponse newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
-
-    @Override
     public Writeable.Reader<OpenIdConnectLogoutResponse> getResponseReader() {
         return OpenIdConnectLogoutResponse::new;
     }

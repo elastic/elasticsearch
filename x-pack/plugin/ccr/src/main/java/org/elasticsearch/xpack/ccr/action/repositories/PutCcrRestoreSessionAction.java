@@ -40,11 +40,6 @@ public class PutCcrRestoreSessionAction extends Action<PutCcrRestoreSessionActio
     }
 
     @Override
-    public PutCcrRestoreSessionResponse newResponse() {
-        return new PutCcrRestoreSessionResponse();
-    }
-
-    @Override
     public Writeable.Reader<PutCcrRestoreSessionAction.PutCcrRestoreSessionResponse> getResponseReader() {
         return PutCcrRestoreSessionAction.PutCcrRestoreSessionResponse::new;
     }

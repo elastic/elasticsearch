@@ -19,9 +19,9 @@
 
 package org.elasticsearch.action.admin.cluster.stats;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.StreamableResponseAction;
 
-public class ClusterStatsAction extends Action<ClusterStatsResponse> {
+public class ClusterStatsAction extends StreamableResponseAction<ClusterStatsResponse> {
 
     public static final ClusterStatsAction INSTANCE = new ClusterStatsAction();
     public static final String NAME = "cluster:monitor/stats";

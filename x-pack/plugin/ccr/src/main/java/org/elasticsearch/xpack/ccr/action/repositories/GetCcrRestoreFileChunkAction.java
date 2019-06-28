@@ -37,11 +37,6 @@ public class GetCcrRestoreFileChunkAction extends Action<GetCcrRestoreFileChunkA
     }
 
     @Override
-    public GetCcrRestoreFileChunkResponse newResponse() {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
     public Writeable.Reader<GetCcrRestoreFileChunkResponse> getResponseReader() {
         return GetCcrRestoreFileChunkResponse::new;
     }

@@ -6,10 +6,10 @@
 package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.StreamableResponseAction;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -47,7 +47,7 @@ import java.util.function.LongSupplier;
  * the interval.
  * </p>
  */
-public class GetOverallBucketsAction extends Action<GetOverallBucketsAction.Response> {
+public class GetOverallBucketsAction extends StreamableResponseAction<GetOverallBucketsAction.Response> {
 
     public static final GetOverallBucketsAction INSTANCE = new GetOverallBucketsAction();
     public static final String NAME = "cluster:monitor/xpack/ml/job/results/overall_buckets/get";

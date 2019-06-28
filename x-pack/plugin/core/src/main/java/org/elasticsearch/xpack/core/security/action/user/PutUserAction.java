@@ -5,12 +5,12 @@
  */
 package org.elasticsearch.xpack.core.security.action.user;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.StreamableResponseAction;
 
 /**
  * Action for putting (adding/updating) a native user.
  */
-public class PutUserAction extends Action<PutUserResponse> {
+public class PutUserAction extends StreamableResponseAction<PutUserResponse> {
 
     public static final PutUserAction INSTANCE = new PutUserAction();
     public static final String NAME = "cluster:admin/xpack/security/user/put";

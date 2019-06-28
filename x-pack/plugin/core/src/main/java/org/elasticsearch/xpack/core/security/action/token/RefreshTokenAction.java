@@ -5,9 +5,9 @@
  */
 package org.elasticsearch.xpack.core.security.action.token;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.StreamableResponseAction;
 
-public final class RefreshTokenAction extends Action<CreateTokenResponse> {
+public final class RefreshTokenAction extends StreamableResponseAction<CreateTokenResponse> {
 
     public static final String NAME = "cluster:admin/xpack/security/token/refresh";
     public static final RefreshTokenAction INSTANCE = new RefreshTokenAction();

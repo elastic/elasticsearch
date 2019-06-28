@@ -29,7 +29,7 @@ complex:: a datetime representation as a complex type
 (<<reference-types, object>>) that abstracts away internal details of how the
 datetime is stored and often provides utilities for modification and
 comparison; in Painless this is typically a
-<<painless-api-reference-shared-ZonedDateTime>>
+<<painless-api-reference-shared-ZonedDateTime, ZonedDateTime>>
 
 Switching between different representations of datetimes is often necessary to
 achieve a script's objective(s). A typical pattern in a script is to switch a
@@ -335,6 +335,41 @@ if (zdt1.isAfter(zdt2)) {
 }
 ----
 
+==== Datetime Zone
+
+Both string datetimes and complex datetimes have a modifiable timezone with a
+default of `UTC`. Numeric datetimes do not have enough explicit information to
+have a timezone, so `UTC` is always assumed. Use
+<<painless-api-reference-shared-ZonedDateTime, methods>> (or fields) in
+conjunction with a <<painless-api-reference-shared-ZoneId, ZoneId>> to change
+the timezone for a complex datetime. Parse a string datetime into a complex
+datetime to change the timezone, and then format the complex datetime back into
+a desired string datetime.
+
+===== Datetime Zone Examples
+
+* Modify the timezone for a complex datetime
++
+[source,Painless]
+----
+ZonedDateTime utc =
+        ZonedDateTime.of(1983, 10, 13, 22, 15, 30, 0, ZoneId.of('Z'));
+ZonedDateTime pst = utc.withZoneSameInstant(ZoneId.of('America/Los_Angeles'));
+----
++
+* Modify the timezone for a string datetime
++
+[source,Painless]
+----
+String gmtString = 'Thu, 13 Oct 1983 22:15:30 GMT';
+ZonedDateTime gmtZdt = ZonedDateTime.parse(gmtString,
+        DateTimeFormatter.RFC_1123_DATE_TIME); <1>
+ZonedDateTime pstZdt =
+        gmtZdt.withZoneSameInstant(ZoneId.of('America/Los_Angeles'));
+String pstString = pstZdt.format(DateTimeFormatter.RFC_1123_DATE_TIME);
+----
+<1> Note the use of a built-in DateTimeFormatter.
+
 ==== Datetime Input
 
 There are several common ways datetimes are used as input for a script
@@ -544,7 +579,8 @@ indexed documents
 +
 [source,Painless]
 ----
-if (doc.containsKey('start_datetime') && doc.containsKey('end_datetime')) { <1>
+if (doc.containsKey('start_datetime') &&
+        doc.containsKey('end_datetime')) { <1>
 
     if (doc['start_datetime'].size() > 0 && doc['end_datetime'].size() > 0) { <2>
 

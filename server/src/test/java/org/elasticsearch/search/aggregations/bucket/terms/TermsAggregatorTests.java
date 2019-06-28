@@ -81,8 +81,6 @@ import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.ScoreSortBuilder;
 import org.elasticsearch.test.geo.RandomGeoGenerator;
-import org.junit.Rule;
-import org.junit.rules.ExpectedException;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -105,9 +103,6 @@ import static org.hamcrest.Matchers.instanceOf;
 public class TermsAggregatorTests extends AggregatorTestCase {
 
     private boolean randomizeAggregatorImpl = true;
-
-    @Rule
-    public ExpectedException expectedException = ExpectedException.none();
 
     protected <A extends Aggregator> A createAggregator(AggregationBuilder aggregationBuilder,
             IndexSearcher indexSearcher, MappedFieldType... fieldTypes) throws IOException {
@@ -909,11 +904,9 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                     final GeoPoint missingValue = new GeoPoint(42.39561, -71.13051);
                     TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("_name", null)
                         .field("field").missing(missingValue);
-                    expectedException.expect(AggregationExecutionException.class);
-                    Aggregator aggregator = createAggregator(aggregationBuilder, indexSearcher, fieldType1);
-                    aggregator.preCollection();
-                    indexSearcher.search(new MatchAllDocsQuery(), aggregator);
-                    aggregator.postCollection();
+                    expectThrows(AggregationExecutionException.class, () -> {
+                        createAggregator(aggregationBuilder, indexSearcher, fieldType1);
+                    });
                 }
             }
         }
@@ -935,12 +928,9 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                     IndexSearcher indexSearcher = newIndexSearcher(indexReader);
                     TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("_name", null) .field(field);
                     // Note - other places we throw IllegalArgumentException
-                    expectedException.expect(AggregationExecutionException.class);
-                    Aggregator aggregator = createAggregator(aggregationBuilder, indexSearcher, fieldType);
-                    aggregator.preCollection();
-                    indexSearcher.search(new MatchAllDocsQuery(), aggregator);
-                    aggregator.postCollection();
-                    aggregator.buildAggregation(0L);
+                    expectThrows(AggregationExecutionException.class, () -> {
+                        createAggregator(aggregationBuilder, indexSearcher, fieldType);
+                    });
                 }
             }
         }

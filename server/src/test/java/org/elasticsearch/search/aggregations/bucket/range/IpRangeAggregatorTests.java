@@ -33,8 +33,6 @@ import org.elasticsearch.index.mapper.IpFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
-import org.junit.Rule;
-import org.junit.rules.ExpectedException;
 
 import java.net.InetAddress;
 import java.net.UnknownHostException;
@@ -42,9 +40,6 @@ import java.util.Arrays;
 import java.util.Comparator;
 
 public class IpRangeAggregatorTests extends AggregatorTestCase {
-
-    @Rule
-    public ExpectedException expectedException = ExpectedException.none();
 
     private static InetAddress randomIp(boolean v4) {
         try {
@@ -192,8 +187,9 @@ public class IpRangeAggregatorTests extends AggregatorTestCase {
                 .missing(1234);
             try (IndexReader reader = w.getReader()) {
                 IndexSearcher searcher = new IndexSearcher(reader);
-                expectedException.expect(IllegalArgumentException.class);
-                search(searcher, new MatchAllDocsQuery(), builder, (MappedFieldType) null);
+                expectThrows(IllegalArgumentException.class, () -> {
+                    search(searcher, new MatchAllDocsQuery(), builder, (MappedFieldType) null);
+                });
             }
         }
     }

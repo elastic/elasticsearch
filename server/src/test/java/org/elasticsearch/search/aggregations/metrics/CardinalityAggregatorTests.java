@@ -142,8 +142,8 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
 
         testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
             iw.addDocument(singleton(new NumericDocValuesField("unrelatedField", 7)));
-                iw.addDocument(singleton(new NumericDocValuesField("unrelatedField", 8)));
-                iw.addDocument(singleton(new NumericDocValuesField("unrelatedField", 9)));
+            iw.addDocument(singleton(new NumericDocValuesField("unrelatedField", 8)));
+            iw.addDocument(singleton(new NumericDocValuesField("unrelatedField", 9)));
         }, card -> {
             assertEquals(1, card.getValue(), 0);
             assertTrue(AggregationInspectionHelper.hasValue(card));
@@ -162,7 +162,7 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
 
     private void testCase(CardinalityAggregationBuilder aggregationBuilder, Query query,
                           CheckedConsumer<RandomIndexWriter, IOException> buildIndex, Consumer<InternalCardinality> verify,
-                          MappedFieldType fieldType1) throws IOException {
+                          MappedFieldType fieldType) throws IOException {
         Directory directory = newDirectory();
         RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory);
         buildIndex.accept(indexWriter);
@@ -172,7 +172,7 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
         IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
 
         CardinalityAggregator aggregator = createAggregator(aggregationBuilder, indexSearcher,
-            fieldType1);
+            fieldType);
         aggregator.preCollection();
         indexSearcher.search(query, aggregator);
         aggregator.postCollection();

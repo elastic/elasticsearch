@@ -34,15 +34,10 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
-import org.junit.Rule;
-import org.junit.rules.ExpectedException;
 
 import static org.hamcrest.Matchers.containsString;
 
 public class HistogramAggregatorTests extends AggregatorTestCase {
-
-    @Rule
-    public ExpectedException expectedException = ExpectedException.none();
 
     public void testLongs() throws Exception {
         try (Directory dir = newDirectory();
@@ -232,17 +227,19 @@ public class HistogramAggregatorTests extends AggregatorTestCase {
                 w.addDocument(new Document());
             }
 
+            String missingValue = "🍌🍌🍌";
             HistogramAggregationBuilder aggBuilder = new HistogramAggregationBuilder("my_agg")
                 .field("field")
                 .interval(5)
-                .missing("🍌🍌🍌");
+                .missing(missingValue);
             MappedFieldType type = null;
             try (IndexReader reader = w.getReader()) {
                 IndexSearcher searcher = new IndexSearcher(reader);
-                expectedException.expect(IllegalArgumentException.class);
+                Throwable t = expectThrows(IllegalArgumentException.class, () -> {
+                    search(searcher, new MatchAllDocsQuery(), aggBuilder, type);
+                });
                 // This throws a number format exception (which is a subclass of IllegalArgumentException) and might be ok?
-                expectedException.expectMessage(containsString(""));
-                search(searcher, new MatchAllDocsQuery(), aggBuilder, type);
+                assertThat(t.getMessage(), containsString(missingValue));
             }
         }
     }
@@ -265,8 +262,9 @@ public class HistogramAggregatorTests extends AggregatorTestCase {
             try (IndexReader reader = w.getReader()) {
                 IndexSearcher searcher = new IndexSearcher(reader);
 
-                expectedException.expect(IllegalArgumentException.class);
-                search(searcher, new MatchAllDocsQuery(), aggBuilder, fieldType);
+                expectThrows(IllegalArgumentException.class, () -> {
+                    search(searcher, new MatchAllDocsQuery(), aggBuilder, fieldType);
+                });
             }
         }
 

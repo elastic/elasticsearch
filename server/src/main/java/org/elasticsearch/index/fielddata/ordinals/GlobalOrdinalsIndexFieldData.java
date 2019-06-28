@@ -126,6 +126,11 @@ public final class GlobalOrdinalsIndexFieldData extends AbstractIndexComponent i
         return ordinalMap;
     }
 
+    @Override
+    public boolean supportsGlobalOrdinalsMapping() {
+        return true;
+    }
+
     /**
      * A non-thread safe {@link IndexOrdinalsFieldData} for global ordinals that creates the {@link TermsEnum} of each
      * segment once and use them to provide a single lookup per segment.
@@ -226,8 +231,14 @@ public final class GlobalOrdinalsIndexFieldData extends AbstractIndexComponent i
         }
 
         @Override
+        public boolean supportsGlobalOrdinalsMapping() {
+            return true;
+        }
+
+        @Override
         public OrdinalMap getOrdinalMap() {
             return ordinalMap;
         }
+
     }
 }

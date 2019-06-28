@@ -134,7 +134,7 @@ public class AutodetectResultProcessor {
 
             try {
                 if (processKilled == false) {
-                    timingStatsReporter.flush();
+                    timingStatsReporter.finishReporting();
                     bulkResultsPersister.executeRequest();
                 }
             } catch (Exception e) {

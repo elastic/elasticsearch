@@ -100,7 +100,7 @@ final class S3ClientSettings {
         key -> Setting.boolSetting(key, true, Property.NodeScope));
 
     /** Whether chunked encoding should be used or not (Default is true). */
-    static final Setting.AffixSetting<Boolean> USE_CHUNKED_ENCODING = Setting.affixKeySetting(PREFIX, "use_chunked_encoding",
+    static final Setting.AffixSetting<Boolean> USE_CHUNKED_ENCODING_SETTING = Setting.affixKeySetting(PREFIX, "use_chunked_encoding",
         key -> Setting.boolSetting(key, true, Property.NodeScope));
 
     /** Credentials to authenticate with s3. */
@@ -186,7 +186,7 @@ final class S3ClientSettings {
             newCredentials = credentials;
         }
         final boolean newUsePathStyle = getRepoSettingOrDefault(USE_PATH_STYLE_SETTING, normalizedSettings, usePathStyle);
-        final boolean newUseChunkedEncoding = getRepoSettingOrDefault(USE_CHUNKED_ENCODING, normalizedSettings, useChunkedEncoding);
+        final boolean newUseChunkedEncoding = getRepoSettingOrDefault(USE_CHUNKED_ENCODING_SETTING, normalizedSettings, useChunkedEncoding);
         if (Objects.equals(endpoint, newEndpoint) && protocol == newProtocol && Objects.equals(proxyHost, newProxyHost)
             && proxyPort == newProxyPort && newReadTimeoutMillis == readTimeoutMillis && maxRetries == newMaxRetries
             && newThrottleRetries == throttleRetries && Objects.equals(credentials, newCredentials)
@@ -294,7 +294,7 @@ final class S3ClientSettings {
                 getConfigValue(settings, clientName, MAX_RETRIES_SETTING),
                 getConfigValue(settings, clientName, USE_THROTTLE_RETRIES_SETTING),
                 getConfigValue(settings, clientName, USE_PATH_STYLE_SETTING),
-                getConfigValue(settings, clientName, USE_CHUNKED_ENCODING)
+                getConfigValue(settings, clientName, USE_CHUNKED_ENCODING_SETTING)
             );
         }
     }

@@ -16,7 +16,7 @@ Shrinks an existing index into a new index with fewer primary shards.
 [[indices-shrink-index-prereqs]]
 === {api-prereq-title}
 
-To be shrunk, the source index must meet the following criteria:
+To be shrunk, an index must meet the following criteria:
 
 * The index cannot contain more than `2,147,483,519` documents that will be
 shrunk into a single shard. This is the maximum number of documents a shard can

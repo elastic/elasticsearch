@@ -26,15 +26,27 @@ import org.elasticsearch.transport.TransportRequestOptions;
 /**
  * A generic action. Should strive to make it a singleton.
  */
-public abstract class Action<Response extends ActionResponse> {
+public class Action<Response extends ActionResponse> {
 
     private final String name;
+    private final Writeable.Reader<Response> responseReader;
 
     /**
      * @param name The name of the action, must be unique across actions.
+     * @deprecated Pass a {@link Writeable.Reader} with {@link }
      */
+    @Deprecated
     protected Action(String name) {
+        this(name, null);
+    }
+
+    /**
+     * @param name The name of the action, must be unique across actions.
+     * @param responseReader A reader for the response type
+     */
+    protected Action(String name, Writeable.Reader<Response> responseReader) {
         this.name = name;
+        this.responseReader = responseReader;
     }
 
     /**
@@ -47,7 +59,9 @@ public abstract class Action<Response extends ActionResponse> {
     /**
      * Get a reader that can create a new instance of the class from a {@link org.elasticsearch.common.io.stream.StreamInput}
      */
-    public abstract Writeable.Reader<Response> getResponseReader();
+    public Writeable.Reader<Response> getResponseReader() {
+        return responseReader;
+    }
 
     /**
      * Optional request options for the action.

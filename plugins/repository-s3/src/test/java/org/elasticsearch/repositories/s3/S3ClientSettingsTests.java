@@ -49,27 +49,39 @@ public class S3ClientSettingsTests extends ESTestCase {
         assertThat(defaultSettings.readTimeoutMillis, is(ClientConfiguration.DEFAULT_SOCKET_TIMEOUT));
         assertThat(defaultSettings.maxRetries, is(ClientConfiguration.DEFAULT_RETRY_POLICY.getMaxErrorRetry()));
         assertThat(defaultSettings.throttleRetries, is(ClientConfiguration.DEFAULT_THROTTLE_RETRIES));
+        assertThat(defaultSettings.usePathStyle, is(true));
+        assertThat(defaultSettings.useChunkedEncoding, is(true));
     }
 
     public void testDefaultClientSettingsCanBeSet() {
         final Map<String, S3ClientSettings> settings = S3ClientSettings.load(Settings.builder()
-            .put("s3.client.default.max_retries", 10).build());
+            .put("s3.client.default.max_retries", 10)
+            .put("s3.client.default.use_path_style", false)
+            .put("s3.client.default.use_chunked_encoding", false).build());
         assertThat(settings.keySet(), contains("default"));
 
         final S3ClientSettings defaultSettings = settings.get("default");
         assertThat(defaultSettings.maxRetries, is(10));
+        assertThat(defaultSettings.usePathStyle, is(false));
+        assertThat(defaultSettings.useChunkedEncoding, is(false));
     }
 
     public void testNondefaultClientCreatedBySettingItsSettings() {
         final Map<String, S3ClientSettings> settings = S3ClientSettings.load(Settings.builder()
-            .put("s3.client.another_client.max_retries", 10).build());
+            .put("s3.client.another_client.max_retries", 10)
+            .put("s3.client.another_client.use_path_style", false)
+            .put("s3.client.another_client.use_chunked_encoding", false).build());
         assertThat(settings.keySet(), contains("default", "another_client"));
 
         final S3ClientSettings defaultSettings = settings.get("default");
         assertThat(defaultSettings.maxRetries, is(ClientConfiguration.DEFAULT_RETRY_POLICY.getMaxErrorRetry()));
+        assertThat(defaultSettings.usePathStyle, is(true));
+        assertThat(defaultSettings.useChunkedEncoding, is(true));
 
         final S3ClientSettings anotherClientSettings = settings.get("another_client");
         assertThat(anotherClientSettings.maxRetries, is(10));
+        assertThat(anotherClientSettings.usePathStyle, is(false));
+        assertThat(anotherClientSettings.useChunkedEncoding, is(false));
     }
 
     public void testRejectionOfLoneAccessKey() {

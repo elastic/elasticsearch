@@ -145,6 +145,20 @@ settings belong in the `elasticsearch.yml` file.
     Whether retries should be throttled (i.e. should back off). Must be `true`
     or `false`. Defaults to `true`.
 
+`use_path_style`::
+    Whether path style should be used to access a bucket. Must be `true` or
+    `false`. Defaults to `true`.
+    See
+    https://docs.aws.amazon.com/AmazonS3/latest/dev/UsingBucket.html#access-bucket-intro[AWS
+    documentation] for more details about path style or virtual hosted style.
+
+`use_chunked_encoding`::
+    Whether chunked encoding should be used or not. Must be `true` or
+    `false`. Defaults to `true`.
+    See
+    https://docs.aws.amazon.com/AmazonS3/latest/API/sigv4-streaming.html[AWS
+    documentation] for more details about this.
+
 [float]
 [[repository-s3-compatible-services]]
 ===== S3-compatible services

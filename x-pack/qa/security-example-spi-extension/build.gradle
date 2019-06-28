@@ -16,6 +16,7 @@ dependencies {
 
 integTest.runner {
     dependsOn buildZip
+    systemProperty 'tests.security.manager', 'false'
 }
 
 testClusters.integTest {

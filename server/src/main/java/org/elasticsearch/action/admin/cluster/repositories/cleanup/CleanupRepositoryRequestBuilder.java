@@ -20,10 +20,10 @@ package org.elasticsearch.action.admin.cluster.repositories.cleanup;
 
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.action.support.master.MasterNodeReadOperationRequestBuilder;
+import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
 
-public class CleanupRepositoryRequestBuilder extends MasterNodeReadOperationRequestBuilder<CleanupRepositoryRequest,
+public class CleanupRepositoryRequestBuilder extends MasterNodeOperationRequestBuilder<CleanupRepositoryRequest,
                                                                                            AcknowledgedResponse,
                                                                                            CleanupRepositoryRequestBuilder> {
 

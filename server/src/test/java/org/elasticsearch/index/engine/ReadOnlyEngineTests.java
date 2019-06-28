@@ -29,6 +29,7 @@ import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.store.Store;
+import org.elasticsearch.index.translog.TranslogStats;
 
 import java.io.IOException;
 import java.util.List;
@@ -37,6 +38,7 @@ import java.util.function.Function;
 
 import static org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader.getElasticsearchDirectoryReader;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class ReadOnlyEngineTests extends EngineTestCase {
@@ -183,7 +185,7 @@ public class ReadOnlyEngineTests extends EngineTestCase {
         try (Store store = createStore()) {
             EngineConfig config = config(defaultSettings, store, createTempDir(), newMergePolicy(), null, null, globalCheckpoint::get);
             store.createEmpty(Version.CURRENT.luceneVersion);
-            try (ReadOnlyEngine readOnlyEngine = new ReadOnlyEngine(config, null , null, true, Function.identity())) {
+            try (ReadOnlyEngine readOnlyEngine = new ReadOnlyEngine(config, null , new TranslogStats(), true, Function.identity())) {
                 Class<? extends Throwable> expectedException = LuceneTestCase.TEST_ASSERTS_ENABLED ? AssertionError.class :
                     UnsupportedOperationException.class;
                 expectThrows(expectedException, () -> readOnlyEngine.index(null));
@@ -204,7 +206,7 @@ public class ReadOnlyEngineTests extends EngineTestCase {
         try (Store store = createStore()) {
             EngineConfig config = config(defaultSettings, store, createTempDir(), newMergePolicy(), null, null, globalCheckpoint::get);
             store.createEmpty(Version.CURRENT.luceneVersion);
-            try (ReadOnlyEngine readOnlyEngine = new ReadOnlyEngine(config, null , null, true, Function.identity())) {
+            try (ReadOnlyEngine readOnlyEngine = new ReadOnlyEngine(config, null , new TranslogStats(), true, Function.identity())) {
                 globalCheckpoint.set(randomNonNegativeLong());
                 try {
                     readOnlyEngine.verifyEngineBeforeIndexClosing();
@@ -239,6 +241,51 @@ public class ReadOnlyEngineTests extends EngineTestCase {
                 readOnlyEngine.recoverFromTranslog(translogHandler, randomNonNegativeLong());
 
                 assertThat(translogHandler.appliedOperations(), equalTo(0L));
+            }
+        }
+    }
+
+    public void testTranslogStats() throws IOException {
+        IOUtils.close(engine, store);
+        try (Store store = createStore()) {
+            final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
+            EngineConfig config = config(defaultSettings, store, createTempDir(), newMergePolicy(), null, null, globalCheckpoint::get);
+
+            final int numDocs = frequently() ? scaledRandomIntBetween(10, 200) : 0;
+            int uncommittedDocs = 0;
+
+            try (InternalEngine engine = createEngine(config)) {
+                for (int i = 0; i < numDocs; i++) {
+                    ParsedDocument doc = testParsedDocument(Integer.toString(i), null, testDocument(), new BytesArray("{}"), null);
+                    engine.index(new Engine.Index(newUid(doc), doc, i, primaryTerm.get(), 1, null, Engine.Operation.Origin.REPLICA,
+                        System.nanoTime(), -1, false, SequenceNumbers.UNASSIGNED_SEQ_NO, 0));
+                    if (rarely()) {
+                        engine.flush();
+                        uncommittedDocs = 0;
+                    } else {
+                        uncommittedDocs += 1;
+                    }
+                    globalCheckpoint.set(i);
+                }
+
+                assertThat(engine.getTranslogStats().estimatedNumberOfOperations(), equalTo(numDocs));
+                assertThat(engine.getTranslogStats().getUncommittedOperations(), equalTo(uncommittedDocs));
+                assertThat(engine.getTranslogStats().getTranslogSizeInBytes(), greaterThan(0L));
+                assertThat(engine.getTranslogStats().getUncommittedSizeInBytes(), greaterThan(0L));
+                assertThat(engine.getTranslogStats().getEarliestLastModifiedAge(), greaterThan(0L));
+
+                engine.flush(true, true);
+
+                assertThat(engine.getTranslogStats().estimatedNumberOfOperations(), equalTo(numDocs));
+                assertThat(engine.getTranslogStats().getUncommittedOperations(), equalTo(uncommittedDocs));
+            }
+
+            try (ReadOnlyEngine readOnlyEngine = new ReadOnlyEngine(config, null, null, true, Function.identity())) {
+                assertThat(readOnlyEngine.getTranslogStats().estimatedNumberOfOperations(), equalTo(numDocs));
+                assertThat(readOnlyEngine.getTranslogStats().getUncommittedOperations(), equalTo(0));
+                assertThat(readOnlyEngine.getTranslogStats().getTranslogSizeInBytes(), greaterThan(0L));
+                assertThat(readOnlyEngine.getTranslogStats().getUncommittedSizeInBytes(), greaterThan(0L));
+                assertThat(readOnlyEngine.getTranslogStats().getEarliestLastModifiedAge(), greaterThan(0L));
             }
         }
     }
